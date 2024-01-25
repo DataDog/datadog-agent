@@ -44,8 +44,8 @@ import (
 const (
 	srvPort               = 8082
 	unixPath              = "/tmp/transparent.sock"
-	pathWithStatusCode300 = "/test-300"
-	pathWithStatusCode401 = "/test-401"
+	pathWithStatusCode300 = "/raw-test-300"
+	pathWithStatusCode401 = "/raw-test-401"
 	http2DefaultTestPath  = "/aaa"
 )
 
