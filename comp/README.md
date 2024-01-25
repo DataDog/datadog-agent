@@ -346,6 +346,14 @@ Package remoteconfig defines the fx options for the Bundle
 
 
 
+### [comp/remote-config/rcservice](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservice)
+
+Package rcservice is a remote config service that can run within the agent to receive remote config updates from the DD backend.
+
+### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
+
+Package rctelemetryreporter provides a component that sends RC-specific metrics to the DD backend.
+
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/systray) (Component Bundle)
 
 *Datadog Team*: windows-agent
