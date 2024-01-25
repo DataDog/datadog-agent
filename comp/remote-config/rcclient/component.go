@@ -19,7 +19,7 @@ type Component interface {
 	// TODO: (components) Subscribe to AGENT_CONFIG configurations and start the remote config client
 	// Once the remote config client is refactored and can push updates directly to the listeners,
 	// we can remove this.
-	Start(clientName string) error
+	Start(hostname string) error
 	// SubscribeAgentTask subscribe the remote-config client to AGENT_TASK
 	SubscribeAgentTask()
 	// Subscribe is the generic way to start listening to a specific product update

@@ -88,7 +88,7 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 	return rc, nil
 }
 
-// Listen subscribes to AGENT_CONFIG configurations and start the remote config client
+// Start subscribes to AGENT_CONFIG configurations and start the remote config client
 func (rc rcClient) Start(agentName string) error {
 	rc.client.SetAgentName(agentName)
 
