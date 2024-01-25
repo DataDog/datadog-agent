@@ -13,6 +13,7 @@ import (
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
@@ -130,8 +131,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_600pluscnx() {
 			return
 		}
 
-		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
-			assert.LessOrEqualf(t, len(cc.Connections), 600, "too many payloads")
+		cnx.ForeachHostnameConnections(func(cnx *aggregator.Connections, hostname string) {
+			assert.LessOrEqualf(t, len(cnx.Connections), 600, "too many payloads")
 		})
 
 		found600plusConnections := false
