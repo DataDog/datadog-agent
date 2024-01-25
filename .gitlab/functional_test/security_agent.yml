@@ -13,7 +13,6 @@
   rules:
     !reference [.manual]
   stage: functional_test
-  retry: 0
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
