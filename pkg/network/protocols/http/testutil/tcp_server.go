@@ -30,7 +30,7 @@ func NewTCPServer(addr string, onMessage func(c net.Conn), isTLS bool) *TCPServe
 // Run starts the TCPServer to listen on its configured address.
 func (s *TCPServer) Run(done chan struct{}) error {
 	var ln net.Listener
-	var err error
+	var lnErr error
 
 	if s.isTLS {
 		crtPath, keyPath, err := GetCertsPaths()
@@ -44,12 +44,12 @@ func (s *TCPServer) Run(done chan struct{}) error {
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{cert},
 		}
-		ln, err = tls.Listen("tcp", s.address, tlsConfig)
+		ln, lnErr = tls.Listen("tcp", s.address, tlsConfig)
 	} else {
-		ln, err = net.Listen("tcp", s.address)
+		ln, lnErr = net.Listen("tcp", s.address)
 	}
-	if err != nil {
-		return err
+	if lnErr != nil {
+		return lnErr
 	}
 	s.address = ln.Addr().String()
 
