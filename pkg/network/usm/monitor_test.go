@@ -458,6 +458,9 @@ func (s *httpTestSuite) TestSanity() {
 // TestRSTPacketRegression checks that USM captures a request that was forcefully terminated by a RST packet.
 func (s *httpTestSuite) TestRSTPacketRegression() {
 	t := s.T()
+	if s.isTLS {
+		t.Skip("TLS not supported for this setup")
+	}
 
 	monitor := newHTTPMonitorWithCfg(t, config.New())
 
