@@ -7,6 +7,7 @@ go 1.21
 // TODO: Implement hard check in CI
 
 replace (
+	github.com/DataDog/test-infra-definitions => /home/kjn/CodeBase/test-infra-definitions
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil

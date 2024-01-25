@@ -8,6 +8,7 @@ package apm
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"testing"
@@ -15,43 +16,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	devMode = flag.Bool("devmode", false, "enable dev mode")
-)
-
-type DockerFakeintakeSuite struct {
-	e2e.BaseSuite[environments.DockerHost]
+type VMFakeintakeSuite struct {
+	e2e.BaseSuite[environments.Host]
 	transport transport
 }
 
-type transport int
-
-const (
-	UNDEFINED transport = iota
-	UDS
-	TCP
-)
-
-func (t transport) String() string {
-	switch t {
-	case UDS:
-		return "uds"
-	case TCP:
-		return "tcp"
-	case UNDEFINED:
-		fallthrough
-	default:
-		return "undefined"
-	}
-}
-
-func suiteOpts(t *testing.T, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
+func vmSuiteOpts(t *testing.T, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -61,8 +36,11 @@ func suiteOpts(t *testing.T, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOpt
 		t.Skipf("blocked by APL-2786")
 	}
 	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+
+	opts = append(opts, awshost.WithDocker())
+
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awsdocker.Provisioner(opts...)),
+		e2e.WithProvisioner(awshost.Provisioner(opts...)),
 	}
 	if devModeE, err := strconv.ParseBool(devModeEnv); (err == nil && devModeE) || *devMode {
 		t.Log("Running in Dev Mode.")
@@ -72,26 +50,41 @@ func suiteOpts(t *testing.T, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOpt
 }
 
 // TestDockerFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
-func TestDockerFakeintakeSuiteUDS(t *testing.T) {
-	options := suiteOpts(t, awsdocker.WithAgentOptions(
+func TestVMFakeintakeSuiteUDS(t *testing.T) {
+	cfg := `
+apm_config.enabled: true
+apm_config.receiver_socket: /var/run/datadog/apm.socket
+`
+
+	options := vmSuiteOpts(t, awshost.WithAgentOptions(
 		// Enable the UDS receiver in the trace-agent
-		dockeragentparams.WithAgentServiceEnvVariable(
-			"DD_APM_RECEIVER_SOCKET",
-			pulumi.String("/var/run/datadog/apm.socket")),
-		// Optional: UDS is more reliable for statsd metrics
-		dockeragentparams.WithAgentServiceEnvVariable(
-			"STATSD_URL",
-			pulumi.String("unix:///var/run/datadog/dsd.socket")),
+		agentparams.WithAgentConfig(cfg),
 	))
-	e2e.Run(t, &DockerFakeintakeSuite{transport: UDS}, options...)
+	e2e.Run(t, &VMFakeintakeSuite{transport: UDS}, options...)
 }
 
 // TestDockerFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
-func TestDockerFakeintakeSuiteTCP(t *testing.T) {
-	e2e.Run(t, &DockerFakeintakeSuite{transport: TCP}, suiteOpts(t)...)
+func TestVMFakeintakeSuiteTCP(t *testing.T) {
+	cfg := `
+apm_config.enabled: true
+`
+
+	options := vmSuiteOpts(t,
+		awshost.WithAgentOptions(
+			// Enable the UDS receiver in the trace-agent
+			agentparams.WithAgentConfig(cfg),
+		),
+		awshost.WithEC2InstanceOptions(),
+	)
+	e2e.Run(t, &VMFakeintakeSuite{transport: TCP}, options...)
 }
 
-func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
+func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
@@ -99,46 +92,89 @@ func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
-func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
+func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 	if s.transport != UDS {
 		// TODO: Container tagging with cgroup v2 currently only works over UDS
 		// We should update this to run over TCP as well once that is implemented.
 		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")
 	}
+
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-container-tag-%s", s.transport)
-	defer runTracegenDocker(s.Env().Host, service, tracegenCfg{transport: s.transport})()
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testTracesHaveContainerTag(c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
-func (s *DockerFakeintakeSuite) TestStatsForService() {
+func (s *VMFakeintakeSuite) TestStatsForService() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
-	defer runTracegenDocker(s.Env().Host, service, tracegenCfg{transport: s.transport})()
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testStatsForService(c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
-func (s *DockerFakeintakeSuite) TestBasicTrace() {
+func (s *VMFakeintakeSuite) TestBasicTrace() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-basic-trace-%s", s.transport)
 
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
-	shutdown := runTracegenDocker(s.Env().Host, service, tracegenCfg{transport: s.transport})
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+}
+
+func waitRemotePort(v *VMFakeintakeSuite, port uint16) error {
+	var (
+		c   net.Conn
+		err error
+	)
+	for i := 0; i < 60; i++ {
+		v.T().Logf("Waiting for remote:%v", port)
+		c, err = v.Env().RemoteHost.DialRemotePort(port)
+		if err != nil {
+			v.T().Logf("Failed to dial remote:%v: %s\n", port, err)
+			time.Sleep(1 * time.Second)
+		} else {
+			v.T().Logf("Connected to remote:%v\n", port)
+			defer c.Close()
+			break
+		}
+	}
+	return err
 }

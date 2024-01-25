@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -36,6 +37,7 @@ type ProvisionerParams struct {
 	agentOptions      []agentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
+	installDocker     bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -108,6 +110,14 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
+// WithDocker installs docker on the VM
+func WithDocker() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.installDocker = true
+		return nil
+	}
+}
+
 // ProvisionerNoAgentNoFakeIntake wraps Provisioner with hardcoded WithoutAgent and WithoutFakeIntake options.
 func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
 	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
@@ -154,6 +164,13 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 		err = host.Export(ctx, &env.RemoteHost.HostOutput)
 		if err != nil {
 			return err
+		}
+
+		if params.installDocker {
+			_, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Create FakeIntake if required
