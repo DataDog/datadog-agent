@@ -467,10 +467,9 @@ func (s *TracerSuite) TestConntrackDelays() {
 	// This will ensure that the first lookup for every connection fails, while the following ones succeed
 	tr.conntracker = tracertest.NewDelayedConntracker(tr.conntracker, 1)
 
-	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
+	// Letting the OS pick an open port is necessary to avoid flakiness in the test. Running the the test multiple
 	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	port := 0
-	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
 		defer c.Close()
@@ -507,8 +506,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	tr := setupTracer(t, testConfig())
 
 	// Setup TCP server
-	port := 0
-	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
 		defer c.Close()
@@ -1311,7 +1309,6 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	tr := setupTracer(t, cfg)
 
-	port := 0
 	createReuseServer := func(port int) *UDPServer {
 		return &UDPServer{
 			network: udpnet,
@@ -1334,7 +1331,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 		}
 	}
 
-	s1 := createReuseServer(port)
+	s1 := createReuseServer(0)
 	err := s1.Run(clientMessageSize)
 	assignedPort := s1.ln.LocalAddr().(*net.UDPAddr).Port
 	require.NoError(t, err)
@@ -1358,7 +1355,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	require.NoError(t, err)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	t.Logf("port: %d", port)
+	t.Logf("port: %d", assignedPort)
 	connections := getConnections(t, tr)
 	for _, c := range connections.Conns {
 		t.Log(c)
