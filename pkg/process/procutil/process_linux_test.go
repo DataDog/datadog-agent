@@ -179,6 +179,7 @@ func testProcessesByPID(t *testing.T, probeOptions ...Option) {
 		statInfo := probe.parseStat(pathForPID, pid, time.Now())
 		if cmd == "" && isKernelThread(statInfo.flags) {
 			assert.NotContains(t, procByPID, pid)
+		else if cmd == "" && !isKernelThread(statInfo.flags) && probe.ignoreZombieProcesses{
 			assert.NotContains(t, procByPID, pid)
 		}
 		} else {
