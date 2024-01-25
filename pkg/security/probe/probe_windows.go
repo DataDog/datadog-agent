@@ -322,7 +322,7 @@ func (p *WindowsProbe) Start() error {
 					case idFlush:
 						// don't fall through
 						if ca, err := parseCleanupArgs(e); err == nil {
-							log.Infof("got id %v args %s", e.EventHeader.EventDescriptor.ID, ca.string())
+							// log.Infof("got id %v args %s", e.EventHeader.EventDescriptor.ID, ca.string())
 							delete(filePathResolver, ca.fileObject)
 						}
 					case idSetInformation:
@@ -337,7 +337,7 @@ func (p *WindowsProbe) Start() error {
 						fallthrough
 					case idRename29:
 						if sia, err := parseInformationArgs(e); err == nil {
-							log.Infof("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia.string())
+							// log.Infof("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia.string())
 						}
 					}
 
@@ -345,24 +345,24 @@ func (p *WindowsProbe) Start() error {
 					switch e.EventHeader.EventDescriptor.ID {
 					case idRegCreateKey:
 						if cka, err := parseCreateRegistryKey(e); err == nil {
-							log.Infof("Got idRegCreateKey %s", cka.string())
+							// log.Infof("Got idRegCreateKey %s", cka.string())
 						}
 					case idRegOpenKey:
 						if cka, err := parseCreateRegistryKey(e); err == nil {
-							log.Debugf("Got idRegOpenKey %s", cka.string())
+							// log.Debugf("Got idRegOpenKey %s", cka.string())
 						}
 
 					case idRegDeleteKey:
 						if dka, err := parseDeleteRegistryKey(e); err == nil {
-							log.Infof("Got idRegDeleteKey %v", dka.string())
+							// log.Infof("Got idRegDeleteKey %v", dka.string())
 						}
 					case idRegFlushKey:
 						if dka, err := parseDeleteRegistryKey(e); err == nil {
-							log.Infof("Got idRegFlushKey %v", dka.string())
+							// log.Infof("Got idRegFlushKey %v", dka.string())
 						}
 					case idRegCloseKey:
 						if dka, err := parseDeleteRegistryKey(e); err == nil {
-							log.Debugf("Got idRegCloseKey %s", dka.string())
+							// log.Debugf("Got idRegCloseKey %s", dka.string())
 							delete(regPathResolver, dka.keyObject)
 						}
 					case idQuerySecurityKey:
@@ -371,11 +371,11 @@ func (p *WindowsProbe) Start() error {
 						}
 					case idSetSecurityKey:
 						if dka, err := parseDeleteRegistryKey(e); err == nil {
-							log.Infof("Got idSetSecurityKey %v", dka.keyName)
+							// log.Infof("Got idSetSecurityKey %v", dka.keyName)
 						}
 					case idRegSetValueKey:
 						if svk, err := parseSetValueKey(e); err == nil {
-							log.Infof("Got idRegSetValueKey %s", svk.string())
+							// log.Infof("Got idRegSetValueKey %s", svk.string())
 						}
 
 					}
