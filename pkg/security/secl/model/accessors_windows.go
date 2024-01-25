@@ -1356,8 +1356,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "create_file", nil
 	case "create_file.file.path.length":
 		return "create_file", nil
-	case "create_file.filename":
-		return "create_file", nil
 	case "event.timestamp":
 		return "*", nil
 	case "exec.cmdline":

@@ -307,8 +307,10 @@ func (p *WindowsProbe) Start() error {
 
 							ev.Type = uint32(model.CreateNewFileEventType)
 							ev.CreateNewFile = model.CreateNewFileEvent{
-								FileName: ca.fileName,
-								File: pce.Process.FileEvent
+								File: model.FileEvent{
+									PathnameStr: ca.FileName,
+									BasenameStr: ca.fileName
+								} 
 							}
 
 						}

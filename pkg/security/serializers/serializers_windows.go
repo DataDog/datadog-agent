@@ -56,8 +56,6 @@ type NetworkDeviceSerializer struct{}
 // EventSerializer serializes an event to JSON
 type EventSerializer struct {
 	*BaseEventSerializer
-	// Target file information
-	Destination *FileSerializer `json:"destination,omitempty"`
 }
 
 func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSerializer {
@@ -152,9 +150,7 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 	case model.CreateNewFileEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.CreateNewFile.File, event),
-			Destination: &FileSerializer{
-				Name: event.CreateNewFile.FileName,
-			},
 		}
 	}
+	return s
 }

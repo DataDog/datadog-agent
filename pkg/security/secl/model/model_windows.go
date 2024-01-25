@@ -95,11 +95,4 @@ type ExtraFieldHandlers interface {
 // FIM
 type CreateNewFileEvent struct {
 	File FileEvent `field:"file"`
-	// irp              uint64            // actually a pointer
-	// fileObject       fileObjectPointer // pointer
-	// threadID         uint64            // actually a pointer
-	// createOptions    uint32
-	// createAttributes uint32
-	// shareAccess      uint32
-	FileName string `field:"filename"` // SECLDoc[filename] Definition:`Filename of the file that was created`
 }
