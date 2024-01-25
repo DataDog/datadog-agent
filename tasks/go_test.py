@@ -130,11 +130,12 @@ def test_flavor(
                 coverage_script = coverage_script_template.format(packages=packages, **args)
                 with open(cov_test_path, 'w', encoding='utf-8') as f:
                     f.write(coverage_script)
-                with open(cov_test_path.replace('.ps1', '.bat'), 'w', encoding='utf-8') as f:
-                    f.write(
-                        """@echo off
-powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
-                    )
+                if platform.system() == 'Windows':
+                    with open(cov_test_path.replace('.ps1', '.bat'), 'w', encoding='utf-8') as f:
+                        f.write(
+                            """@echo off
+    powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
+                        )
 
                 os.chmod(cov_test_path, 0o755)
 
