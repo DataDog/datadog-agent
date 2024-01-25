@@ -46,6 +46,7 @@ const (
 	unixPath              = "/tmp/transparent.sock"
 	pathWithStatusCode300 = "/test-300"
 	pathWithStatusCode401 = "/test-401"
+	http2DefaultTestPath  = "/aaa"
 )
 
 var (
@@ -509,7 +510,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -529,7 +530,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -569,7 +570,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: getTLSNumber(120, 60, s.isTLS),
 			},
@@ -617,7 +618,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -647,7 +648,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -672,7 +673,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -700,7 +701,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -730,9 +731,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// our internal counter (because we can filter up to 25 requests), and therefore, the next time we write the request "/aaa",
 			// its internal index will not be correct, and we will not be able to find it.
 			messageBuilder: func() []byte {
-				const dummyHeadersCount = 25
+				const multiHeadersCount = 25
 				framer := newFramer()
-				return framer.writeHeaders(t, 1, testMultipleHeaders(dummyHeadersCount)).
+				return framer.writeHeaders(t, 1, multipuleTestHeaders(multiHeadersCount)).
 					writeData(t, 1, true, []byte{}).
 					writeHeaders(t, 1, testHeaders()).
 					writeData(t, 1, true, []byte{}).bytes()
@@ -804,7 +805,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 				{
@@ -836,7 +837,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 10,
 			},
@@ -1026,8 +1027,8 @@ func headersWithGivenEndpoint(path string) []hpack.HeaderField {
 // testHeaders returns a set of header fields.
 func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, false, false, "", "") }
 
-// testMultipleHeaders returns a set of header fields, with the given number of headers.
-func testMultipleHeaders(testHeadersCount int) []hpack.HeaderField {
+// multipuleTestHeaders returns a set of header fields, with the given number of headers.
+func multipuleTestHeaders(testHeadersCount int) []hpack.HeaderField {
 	headers := generateTestHeaderFields(false, false, false, "", "")
 
 	for i := 0; i < testHeadersCount; i++ {
@@ -1039,7 +1040,7 @@ func testMultipleHeaders(testHeadersCount int) []hpack.HeaderField {
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
 func generateTestHeaderFields(pathNeverIndexed, withoutIndexing, pathExceedingMax bool, pathMethod, endpoint string) []hpack.HeaderField {
 	headerPathMethod := "POST"
-	path := "/aaa"
+	path := http2DefaultTestPath
 	if pathMethod != "" {
 		headerPathMethod = pathMethod
 	}
@@ -1064,7 +1065,7 @@ func generateTestHeaderFields(pathNeverIndexed, withoutIndexing, pathExceedingMa
 
 	// If the path is sensitive, we are in a case where a path is never indexed
 	if pathNeverIndexed {
-		pathHeaderField = hpack.HeaderField{Name: ":path", Value: "/aaa", Sensitive: true}
+		pathHeaderField = hpack.HeaderField{Name: ":path", Value: http2DefaultTestPath, Sensitive: true}
 	}
 
 	return []hpack.HeaderField{
@@ -1200,7 +1201,7 @@ func startH2CServer(address string, isTLS bool) (func(), error) {
 			case pathWithStatusCode300:
 				w.WriteHeader(http.StatusMultipleChoices) // HTTP status code 300
 			case pathWithStatusCode401:
-				w.WriteHeader(http.StatusUnauthorized) // HTTP status code 400
+				w.WriteHeader(http.StatusUnauthorized) // HTTP status code 401
 			default:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte("test"))
@@ -1241,9 +1242,9 @@ func getClientsIndex(index, totalCount int) int {
 func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDynamicTablePathIndexes []int) {
 	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
 	require.NoError(t, err)
-	iterator := dynamicTableMap.Iterate()
 	key := make([]byte, dynamicTableMap.KeySize())
 	value := make([]byte, dynamicTableMap.ValueSize())
+	iterator := dynamicTableMap.Iterate()
 	resultIndexes := make([]int, 0)
 	for iterator.Next(&key, &value) {
 		tableIndex := usmhttp2.Http2DynamicTableIndex{}
