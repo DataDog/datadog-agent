@@ -480,15 +480,16 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	if options.MapEditors == nil {
-		options.MapEditors = make(map[string]*ebpf.Map)
-	}
-
 	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
+	if o.sockFDMap != nil {
+		if options.MapEditors == nil {
+			options.MapEditors = make(map[string]*ebpf.Map)
+		}
+		options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
+	}
 }
 
 func (o *sslProgram) PreStart(*manager.Manager) error {

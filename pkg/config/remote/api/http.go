@@ -99,6 +99,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	}
 
 	url := c.baseURL + pollEndpoint
+	log.Debugf("fetching configurations at %s", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
@@ -144,7 +145,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 // FetchOrgData org data
 func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, error) {
 	url := c.baseURL + orgDataEndpoint
-	log.Debugf("Querying url %s", url)
+	log.Debugf("fetching org data at %s", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, &bytes.Buffer{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
@@ -181,7 +182,7 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 // FetchOrgStatus returns the org and key status
 func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusResponse, error) {
 	url := c.baseURL + orgStatusEndpoint
-	log.Debugf("Querying url %s", url)
+	log.Debugf("fetching org status at %s", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, &bytes.Buffer{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)

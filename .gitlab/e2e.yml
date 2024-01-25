@@ -263,6 +263,11 @@ new-e2e-cws-dev:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
+    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestAgentSuite
+      - EXTRA_PARAMS: --run TestECSFargate
 
 new-e2e-cws-main:
   extends: .new_e2e_template
@@ -270,6 +275,11 @@ new-e2e-cws-main:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
+    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestAgentSuite
+      - EXTRA_PARAMS: --run TestECSFargate
 
 new-e2e-process-dev:
   extends: .new_e2e_template
@@ -287,7 +297,53 @@ new-e2e-process-main:
   variables:
     TARGETS: ./tests/process
     TEAM: processes
+
+new-e2e-orchestrator-dev:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs:
+    - qa_branch_agent
+    - qa_branch_dca
+    - qa_branch_dogstatsd
+  variables:
+    TARGETS: ./tests/orchestrator
+    TEAM: container-app
+
+new-e2e-orchestrator-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  needs:
+    - qa_main_agent
+    - qa_main_dca
+    - qa_main_dogstatsd
+  variables:
+    TARGETS: ./tests/orchestrator
+    TEAM: container-app
+
   allow_failure: true #TODO: Remove when https://github.com/DataDog/datadog-agent/pull/22113 is merged
+
+new-e2e-apm-dev:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs:
+    - qa_branch_agent
+    - qa_branch_dca
+    - qa_branch_dogstatsd
+  variables:
+    TARGETS: ./tests/apm
+    TEAM: apm-agent
+
+new-e2e-apm-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  variables:
+    TARGETS: ./tests/apm
+    TEAM: apm-agent
+
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
