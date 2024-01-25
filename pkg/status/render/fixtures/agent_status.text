@@ -103,9 +103,9 @@ Collector
       Instance ID: cilium:bac99095d52d45c [ERROR]
       Long Running Check: true
       Configuration Source: file:/etc/datadog-agent/conf.d/cilium.d/auto_conf.yaml
-      Metric Samples: Total: 0
-      Events: Total: 0
-      Service Checks: Total: 842
+      Total Metric Samples: 0
+      Total Events: 0
+      Total Service Checks: 842
       Error: HTTPConnectionPool(host='10.146.15.207', port=9090): Max retries exceeded with url: /metrics (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f20296ba430>: Failed to establish a new connection: [Errno 111] Connection refused'))
       Traceback (most recent call last):
         File "/opt/datadog-agent/embedded/lib/python3.8/site-packages/urllib3/connection.py", line 174, in _new_conn
