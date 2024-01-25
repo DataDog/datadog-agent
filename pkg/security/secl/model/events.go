@@ -123,10 +123,10 @@ const (
 	CustomTruncatedParentsEventType
 	// CustomSelfTestEventType is the custom event used to report the results of a self test run
 	CustomSelfTestEventType
-	// MaxAllEventType is used internally to get the maximum number of events.
-	MaxAllEventType
 	// CreateNewFileEventType
 	CreateNewFileEventType
+	// MaxAllEventType is used internally to get the maximum number of events.
+	MaxAllEventType
 )
 
 func (t EventType) String() string {
