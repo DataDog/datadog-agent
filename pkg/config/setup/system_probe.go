@@ -285,6 +285,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// ebpf module
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "kernel_bpf_stats"), false)
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "max_buffer_size_for_entry_count_in_bytes"), 20*1024*1024)
 
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")

@@ -87,6 +87,8 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		}
 	}
 
+	probe.mapBuffers.bufferSizeLimit = uint32(ddconfig.SystemProbe.GetInt("ebpf_check.max_buffer_size_for_entry_count_in_bytes"))
+
 	log.Debugf("successfully loaded ebpf check probe")
 	return probe, nil
 }
@@ -534,35 +536,49 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 // also keeps track of the biggest allocation performed, so that on repeated calls we always
 // allocate the biggest map we have seen so far, reducing the number of allocations.
 type entryCountBuffers struct {
-	keys          []byte
-	values        []byte
-	cursor        []byte
-	maxKeysSize   uint32
-	maxValuesSize uint32
-	maxCursorSize uint32
+	keys            []byte
+	values          []byte
+	cursor          []byte
+	maxKeysSize     uint32
+	maxValuesSize   uint32
+	maxCursorSize   uint32
+	bufferSizeLimit uint32
 }
 
-func (e *entryCountBuffers) ensureSizeAll(referenceMap *ebpf.Map) {
+func (e *entryCountBuffers) ensureSizeAll(referenceMap *ebpf.Map) error {
 	maxSize := referenceMap.MaxEntries()
+
 	keysSize := max(e.maxKeysSize, referenceMap.KeySize()*maxSize)
-	valuesSize := max(e.maxValuesSize, referenceMap.ValueSize()*maxSize)
+	if keysSize > e.bufferSizeLimit {
+		return fmt.Errorf("cannot allocate keys buffer: map %s requires %d bytes (%d entries x %dB key size), limit is %d", referenceMap.String(), keysSize, maxSize, referenceMap.KeySize(), e.bufferSizeLimit)
+	}
 	if uint32(cap(e.keys)) < keysSize {
 		e.keys = make([]byte, keysSize)
 		e.maxKeysSize = keysSize
+	}
+
+	valuesSize := max(e.maxValuesSize, referenceMap.ValueSize()*maxSize)
+	if valuesSize > e.bufferSizeLimit {
+		return fmt.Errorf("cannot allocate values buffer: map %s requires %d bytes (%d entries x %dB value size), limit is %d", referenceMap.String(), valuesSize, maxSize, referenceMap.ValueSize(), e.bufferSizeLimit)
 	}
 	if uint32(cap(e.values)) < valuesSize {
 		e.values = make([]byte, valuesSize)
 		e.maxValuesSize = valuesSize
 	}
-	e.ensureSizeCursor(referenceMap)
+
+	return e.ensureSizeCursor(referenceMap)
 }
 
-func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) {
+func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) error {
 	cursorSize := max(e.maxCursorSize, referenceMap.KeySize())
+	if cursorSize > e.bufferSizeLimit {
+		return fmt.Errorf("cannot allocate cursor buffer: map %s requires %d bytes, limit is %d", referenceMap.String(), referenceMap.KeySize(), e.bufferSizeLimit)
+	}
 	if uint32(cap(e.cursor)) < cursorSize {
 		e.cursor = make([]byte, cursorSize)
 		e.maxCursorSize = cursorSize
 	}
+	return nil
 }
 
 // resetBuffers resets the buffers to nil, so that they can be garbage collected
@@ -597,7 +613,9 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers) (
 	}
 	// Ensure that the buffers have enough size. Doing this avoids allocating
 	// big buffers every time the function is called
-	buffers.ensureSizeAll(mp)
+	if err := buffers.ensureSizeAll(mp); err != nil {
+		return -1, err
+	}
 	attr := MapLookupBatchAttr{
 		MapFd:    uint32(mp.FD()),
 		Keys:     NewPointer(unsafe.Pointer(&buffers.keys[0])),
@@ -624,7 +642,9 @@ func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffer
 	numElements := int64(0)
 	maxEntries := int64(mp.MaxEntries())
 	firstIter := true
-	buffers.ensureSizeCursor(mp)
+	if err := buffers.ensureSizeCursor(mp); err != nil {
+		return -1, err
+	}
 
 	for numElements <= maxEntries {
 		var err error
