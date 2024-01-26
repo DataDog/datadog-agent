@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStripArguments(b *testing.B) {
+func TestStripArguments(t *testing.T) {
 
 	cases := []struct {
 		cmdline      []string
@@ -32,9 +32,12 @@ func TestStripArguments(b *testing.B) {
 	{[]string{"\\\"C:\\Program Files\\Datadog\\agent.exe\\\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},	
 	}
 
+	scrubber := setupDataScrubber(t)
+	scrubber.StripAllArguments = true
+
 	for i := range cases {
-		fp := &Process{Cmdline: cases[i].cmdline}
-		cases[i].cmdline.stripArguments
-		assert.Equal(t, cases[i].triplessCmdline, cases[i].cmdline)
+		cmdline := cases[i].cmdline
+		cases[i].cmdline = scrubber.stripArguments(cmdline)
+		assert.Equal(t, cases[i].noArgsCmdline, cases[i].cmdline)
 	}
 }	
