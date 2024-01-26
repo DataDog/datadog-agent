@@ -218,3 +218,45 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		t.Logf("sum connections %d tcp %d udp %d", totalConnections.hit, totalConnections.TCP, totalConnections.UDP)
 	}, 60*time.Second, time.Second)
 }
+
+// TestFakeIntakeNPMContainerizedRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
+//   - looking for 1 host to send CollectorConnections payload to the fakeintake
+//   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPMContainerizedRequests() {
+	t := v.T()
+
+	// generate a connection
+	v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
+
+	targetHostnameNetID := ""
+	// looking for 1 host to send CollectorConnections payload to the fakeintake
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
+		assert.NoError(c, err, "GetConnectionsNames() errors")
+		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
+			return
+		}
+		targetHostnameNetID = hostnameNetID[0]
+
+		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
+	}, 60*time.Second, time.Second, "no connections received")
+
+	// looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		cnx, err := v.Env().FakeIntake.Client().GetConnections()
+		assert.NoError(t, err)
+
+		if !assert.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
+			return
+		}
+		var payloadsTimestamps []time.Time
+		for _, cc := range cnx.GetPayloadsByName(targetHostnameNetID) {
+			payloadsTimestamps = append(payloadsTimestamps, cc.GetCollectedTime())
+		}
+		dt := payloadsTimestamps[2].Sub(payloadsTimestamps[1]).Seconds()
+		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
+
+		// we want the test fail now, not retrying on the next payloads
+		assert.Greater(t, 0.5, math.Abs(dt-30), "delta between collection is higher than 500ms")
+	}, 90*time.Second, time.Second, "not enough connections received")
+}
