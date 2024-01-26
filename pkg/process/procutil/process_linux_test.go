@@ -149,6 +149,7 @@ func TestProcessesByPIDTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	testProcessesByPID(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
+
 func TestProcessesByPIDTestIgnoringZombiesFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	testProcessesByPID(t, WithProcFSRoot("resources/test_procfs/proc/"), WithIgnoreZombieProcesses(true))
@@ -161,7 +162,7 @@ func TestProcessesByPIDLocalFS(t *testing.T) {
 
 func testProcessesByPID(t *testing.T, probeOptions ...Option) {
 	// disable log output from gopsutil, the testFS doesn't have `cwd`, `fd` and `exe` dir setup,
-	// gopsutil print verbose debug log regarding this 
+	// gopsutil print verbose debug log regarding this
 	seelog.UseLogger(seelog.Disabled)
 
 	probe := getProbeWithPermission(probeOptions...)
