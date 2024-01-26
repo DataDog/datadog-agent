@@ -164,7 +164,11 @@ powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
                         file=sys.stderr,
                     )
                 # Merging the unit tests reruns coverage files, keeping only the merged file.
-                files_to_delete = [f for f in os.listdir(os.getcwd()) if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")]
+                files_to_delete = [
+                    os.path.join(module.full_path(), f)
+                    for f in os.listdir(module.full_path())
+                    if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")
+                ]
                 if not files_to_delete:
                     print(
                         f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.'",
