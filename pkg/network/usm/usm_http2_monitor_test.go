@@ -1040,7 +1040,7 @@ func getHTTP2UnixClientArray(size int, unixPath string) []*http.Client {
 		res[i] = &http.Client{
 			Transport: &http2.Transport{
 				AllowHTTP: true,
-				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+				DialTLSContext: func(context.Context, string, string, *tls.Config) (net.Conn, error) {
 					return net.Dial("unix", unixPath)
 				},
 			},
