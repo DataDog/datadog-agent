@@ -9,24 +9,24 @@
         </span>
       {{ end -}}
       {{- with .JMXStatus -}}
-        {{- if and (not .timestamp) (not .checks)}}
+        {{- if and (not .Timestamp) (not .ChecksStatus)}}
           No JMX status available
         {{- else }}
           <span class="stat_subtitle">Information</span>
           <span class="stat_subdata">
-            {{- range $k,$v := .info }}
+            {{- range $k,$v := .Info }}
               {{ $k }} : {{ $v }}<br>
             {{- end }}
-            {{- if .errors }}
-              Socket errors: {{ .errors }}
+            {{- if .Errors }}
+              Socket errors: {{ .Errors }}
             {{- end }}
           </span>
           <span class="stat_subtitle">Initialized Checks</span>
           <span class="stat_subdata">
-            {{- if (not .checks.initialized_checks)}}
+            {{- if (not .ChecksStatus.InitializedChecks)}}
               No initialized checks
             {{ else }}
-              {{- range $check,$instances := .checks.initialized_checks }}
+              {{- range $check,$instances := .ChecksStatus.InitializedChecks }}
                 {{ $check -}}<br>
                 {{- range $instance := $instances }}
                     instance_name: {{ .instance_name }}<br>
@@ -41,10 +41,10 @@
           </span>
           <span class="stat_subtitle">Failed Checks</span>
           <span class="stat_subdata">
-            {{- if (not .checks.failed_checks)}}
+            {{- if (not .ChecksStatus.FailedChecks)}}
               No failed checks
             {{ else }}
-              {{- range $check,$instances := .checks.failed_checks }}
+              {{- range $check,$instances := .ChecksStatus.FailedChecks }}
                 {{ $check }}<br>
                 {{- range $instance := $instances }}
                   {{- range $k,$v := $instance }}

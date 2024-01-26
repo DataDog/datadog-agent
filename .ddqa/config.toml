@@ -117,7 +117,8 @@ jira_statuses = [
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
 exclude_members = [
-  "hithwen",
+  "ofek",
+  "alopezz",
 ]
 
 [teams."Platform Integrations"]

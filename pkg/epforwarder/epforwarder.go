@@ -441,8 +441,10 @@ func (p *passthroughPipeline) Start() {
 }
 
 func (p *passthroughPipeline) Stop() {
-	p.strategy.Stop()
-	p.sender.Stop()
+	if p.strategy != nil {
+		p.strategy.Stop()
+		p.sender.Stop()
+	}
 	p.auditor.Stop()
 }
 

@@ -223,7 +223,7 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 
 type deps struct {
 	fx.In
-	Demultiplexer demultiplexer.Component
+	Demultiplexer demultiplexer.Mock
 }
 
 func buildDeps(t *testing.T) deps {
