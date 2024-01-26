@@ -129,8 +129,8 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 		if err != nil {
 			return err
 		}
-
-		host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
+		vmOptions := append(params.vmOptions, ec2.WithInstanceProfile(awsEnv.DefaultDockerInstanceProfile()))
+		host, err := ec2.NewVM(awsEnv, params.name, vmOptions...)
 		if err != nil {
 			return err
 		}
