@@ -185,7 +185,7 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 	testWithEntryCount := func(t *testing.T, mapType ebpf.MapType, filledEntries uint32) {
 		var innerMapSpec *ebpf.MapSpec
 		buffers := entryCountBuffers{
-			bufferSizeLimit: 1000,
+			bufferSizeLimit: 0, // No limit
 		}
 		if mapType == ebpf.HashOfMaps {
 			innerMapSpec = &ebpf.MapSpec{
@@ -257,7 +257,7 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 			maxEntries := uint32(1000)
 			filledEntries := uint32(500)
 			buffers := entryCountBuffers{
-				bufferSizeLimit: maxEntries * 4 * 2,
+				bufferSizeLimit: 0, // No limit
 			}
 
 			m, err := ebpf.NewMap(&ebpf.MapSpec{
@@ -308,7 +308,7 @@ func TestHashMapNumberOfEntriesMapTypeSupport(t *testing.T) {
 	maxEntries := uint32(1000)
 	testMapType := func(t *testing.T, mapType ebpf.MapType, expectedReturn int64) {
 		buffers := entryCountBuffers{
-			bufferSizeLimit: 8 * maxEntries,
+			bufferSizeLimit: 0, // No limit
 		}
 		var innerMap *ebpf.MapSpec
 		if mapType == ebpf.HashOfMaps {
