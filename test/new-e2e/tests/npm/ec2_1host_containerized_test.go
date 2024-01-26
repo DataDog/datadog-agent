@@ -49,29 +49,35 @@ func (v *ec2VMContainerizedSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 
 	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils")
+
+	// prefetch docker image locally
+	v.Env().RemoteHost.MustExecute("docker run curlimages/curl --version")
+	v.Env().RemoteHost.MustExecute("docker run devth/alpine-bench -V")
+	v.Env().RemoteHost.MustExecute("docker run makocchi/alpine-dig dig")
 }
 
 // BeforeTest will be called before each test
 func (v *ec2VMContainerizedSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
+	v.beforeTest(suiteName, testName)
+}
+
+func (v *ec2VMContainerizedSuite) beforeTest(suiteName, testName string) {
 	// default is to reset the current state of the fakeintake aggregators
 	if !v.BaseSuite.IsDevMode() {
 		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	}
 }
 
-// TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
+// testFakeIntakeNPM
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM() {
+func (v *ec2VMContainerizedSuite) testFakeIntakeNPM() {
 	t := v.T()
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		// generate a connection
-		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
-
 		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
 		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
@@ -102,15 +108,38 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM() {
 	}, 90*time.Second, time.Second, "not enough connections received")
 }
 
+// TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
+// 2 tests generate the request on the host and on docker
+//   - looking for 1 host to send CollectorConnections payload to the fakeintake
+//   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM() {
+	vt := v.T()
+	vt.Run("host", func(t *testing.T) {
+		v.BaseSuite.SetT(t)
+		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
+
+		// generate a connection
+		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
+
+		v.testFakeIntakeNPM()
+	})
+	vt.Run("docker", func(t *testing.T) {
+		v.BaseSuite.SetT(t)
+		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
+
+		// generate a connection
+		v.Env().RemoteHost.MustExecute("docker run curlimages/curl curl http://www.datadoghq.com")
+
+		v.testFakeIntakeNPM()
+	})
+}
+
 // TestFakeIntakeNPM_600cnx_bucket Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
-func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_600cnx_bucket() {
+func (v *ec2VMContainerizedSuite) testFakeIntakeNPM_600cnx_bucket() {
 	t := v.T()
-
-	// generate connections
-	v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 http://www.datadoghq.com/")
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -156,15 +185,38 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_600cnx_bucket() {
 	}, 90*time.Second, time.Second, "not enough connections received")
 }
 
+// TestFakeIntakeNPM_600cnx_bucket Validate the agent can communicate with the (fake) backend and send connections
+// every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
+//   - looking for 1 host to send CollectorConnections payload to the fakeintake
+//   - looking for n payloads and check if the last 2 have a maximum span of 100ms
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_600cnx_bucket() {
+	vt := v.T()
+	vt.Run("host", func(t *testing.T) {
+		v.BaseSuite.SetT(t)
+		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
+
+		// generate connections
+		v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 http://www.datadoghq.com/")
+
+		v.testFakeIntakeNPM_600cnx_bucket()
+	})
+	vt.Run("docker", func(t *testing.T) {
+		v.BaseSuite.SetT(t)
+		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
+
+		// generate connections
+		v.Env().RemoteHost.MustExecute("docker run devth/alpine-bench -n 600 -c 600 http://www.datadoghq.com/")
+
+		v.testFakeIntakeNPM_600cnx_bucket()
+	})
+}
+
 // TestFakeIntakeNPM_TCP_UDP_DNS validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
-func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
+func (v *ec2VMContainerizedSuite) testFakeIntakeNPM_TCP_UDP_DNS() {
 	t := v.T()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		// generate connections
-		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
-		v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
 
 		cnx, err := v.Env().FakeIntake.Client().GetConnections()
 		assert.NoError(c, err, "GetConnections() errors")
@@ -219,44 +271,28 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 	}, 60*time.Second, time.Second)
 }
 
-// TestFakeIntakeNPMContainerizedRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
-//   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-func (v *ec2VMContainerizedSuite) TestFakeIntakeNPMContainerizedRequests() {
-	t := v.T()
+// TestFakeIntakeNPM_TCP_UDP_DNS validate we received tcp, udp, and DNS connections
+// with some basic checks, like IPs/Ports present, DNS query has been captured, ...
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
+	vt := v.T()
+	vt.Run("host", func(t *testing.T) {
+		v.BaseSuite.SetT(t)
+		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
-	// generate a connection
-	v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
+		// generate connections
+		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
 
-	targetHostnameNetID := ""
-	// looking for 1 host to send CollectorConnections payload to the fakeintake
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
-		assert.NoError(c, err, "GetConnectionsNames() errors")
-		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
-			return
-		}
-		targetHostnameNetID = hostnameNetID[0]
+		v.testFakeIntakeNPM_TCP_UDP_DNS()
+	})
+	vt.Run("docker", func(t *testing.T) {
+		v.BaseSuite.SetT(t)
+		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
-		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
-	}, 60*time.Second, time.Second, "no connections received")
+		// generate connections
+		v.Env().RemoteHost.MustExecute("docker run curlimages/curl curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecute("docker run makocchi/alpine-dig dig @8.8.8.8 www.google.ch")
 
-	// looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		cnx, err := v.Env().FakeIntake.Client().GetConnections()
-		assert.NoError(t, err)
-
-		if !assert.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
-			return
-		}
-		var payloadsTimestamps []time.Time
-		for _, cc := range cnx.GetPayloadsByName(targetHostnameNetID) {
-			payloadsTimestamps = append(payloadsTimestamps, cc.GetCollectedTime())
-		}
-		dt := payloadsTimestamps[2].Sub(payloadsTimestamps[1]).Seconds()
-		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
-
-		// we want the test fail now, not retrying on the next payloads
-		assert.Greater(t, 0.5, math.Abs(dt-30), "delta between collection is higher than 500ms")
-	}, 90*time.Second, time.Second, "not enough connections received")
+		v.testFakeIntakeNPM_TCP_UDP_DNS()
+	})
 }
