@@ -71,6 +71,7 @@ func (v *agentSuite) TestWithTelemetry() {
 	status := v.Env().Agent.Client.Status()
 	require.Contains(v.T(), status.Content, "go_expvar")
 
+	v.T().Skip("APL-2816 pulumi does not restart agent on integration config removal")
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake())
 	status = v.Env().Agent.Client.Status()
 	require.NotContains(v.T(), status.Content, "go_expvar")
