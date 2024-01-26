@@ -95,6 +95,71 @@ def build_stdlib(
     )
 
 
+class CodecovWorkaround:
+    """
+    The CodecovWorkaround class wraps the gotestsum cmd execution to fix codecov reports inaccuracy,
+    according to https://github.com/gotestyourself/gotestsum/issues/274 workaround.
+    Basically unit tests' reruns rewrite the whole coverage file, making it inaccurate.
+    We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
+    """
+
+    def __init__(self, ctx, module_path, coverage, coverage_script_template, packages, args):
+        self.ctx = ctx
+        self.module_path = module_path
+        self.coverage = coverage
+        self.coverage_script_template = coverage_script_template
+        self.packages = packages
+        self.args = args
+        self.cov_test_path_sh = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".sh"
+        self.cov_test_path_ps1 = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".ps1"
+        self.call_ps1_from_bat = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".bat"
+        self.cov_test_path = self.cov_test_path_sh if platform.system() != 'Windows' else self.cov_test_path_ps1
+
+    def __enter__(self):
+        if self.coverage:
+            coverage_script = self.coverage_script_template.format(packages=self.packages, **self.args)
+            with open(self.cov_test_path, 'w', encoding='utf-8') as f:
+                f.write(coverage_script)
+
+            with open(self.call_ps1_from_bat, 'w', encoding='utf-8') as f:
+                f.write(
+                    """@echo off
+powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
+                )
+
+            os.chmod(self.cov_test_path, 0o755)
+            os.chmod(self.call_ps1_from_bat, 0o755)
+
+        return self.cov_test_path_sh if platform.system() != 'Windows' else self.call_ps1_from_bat
+
+    def __exit__(self, *_):
+        if self.coverage:
+            # Removing the coverage script.
+            try:
+                os.remove(self.cov_test_path)
+                os.remove(self.call_ps1_from_bat)
+            except FileNotFoundError:
+                print(
+                    f"Error: Could not find the coverage script {self.cov_test_path} or {self.call_ps1_from_bat} while trying to delete it.",
+                    file=sys.stderr,
+                )
+            # Merging the unit tests reruns coverage files, keeping only the merged file.
+            files_to_delete = [
+                os.path.join(self.module_path, f)
+                for f in os.listdir(self.module_path)
+                if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")
+            ]
+            if not files_to_delete:
+                print(
+                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.'",
+                    file=sys.stderr,
+                )
+            else:
+                self.ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
+                for f in files_to_delete:
+                    os.remove(f)
+
+
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
@@ -119,67 +184,24 @@ def test_flavor(
     args["junit_file_flag"] = junit_file_flag
 
     def command(test_results, module, module_result):
-        with ctx.cd(module.full_path()):
+        module_path = module.full_path()
+        with ctx.cd(module_path):
             packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
-            cov_test_path_sh = os.path.join(module.full_path(), GO_COV_TEST_PATH) + ".sh"
-            cov_test_path_ps1 = os.path.join(module.full_path(), GO_COV_TEST_PATH) + ".ps1"
-            call_ps1_from_bat = os.path.join(module.full_path(), GO_COV_TEST_PATH) + ".bat"
+            with CodecovWorkaround(
+                ctx, module_path, coverage, coverage_script_template, packages, args
+            ) as cov_test_path:
+                res = ctx.run(
+                    command=cmd.format(
+                        packages=packages,
+                        cov_test_path=cov_test_path,
+                        **args,
+                    ),
+                    env=env,
+                    out_stream=test_profiler,
+                    warn=True,
+                )
 
-            cov_test_path = cov_test_path_sh if platform.system() != 'Windows' else cov_test_path_ps1
-            if coverage:
-                # Workaround of https://github.com/gotestyourself/gotestsum/issues/274.
-                # Unit tests reruns rewrite the whole coverage file, making it inaccurate.
-                # We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
-                coverage_script = coverage_script_template.format(packages=packages, **args)
-                with open(cov_test_path, 'w', encoding='utf-8') as f:
-                    f.write(coverage_script)
-
-                with open(call_ps1_from_bat, 'w', encoding='utf-8') as f:
-                    f.write(
-                        """@echo off
-powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
-                    )
-
-                os.chmod(cov_test_path, 0o755)
-                os.chmod(call_ps1_from_bat, 0o755)
-
-            res = ctx.run(
-                command=cmd.format(
-                    packages=packages,
-                    cov_test_path=cov_test_path_sh if platform.system() != 'Windows' else call_ps1_from_bat,
-                    **args,
-                ),
-                env=env,
-                out_stream=test_profiler,
-                warn=True,
-            )
-            if coverage:
-                # Removing the coverage script.
-                try:
-                    os.remove(cov_test_path)
-                    os.remove(call_ps1_from_bat)
-                except FileNotFoundError:
-                    print(
-                        f"Error: Could not find the coverage script {cov_test_path} or {call_ps1_from_bat} while trying to delete it.",
-                        file=sys.stderr,
-                    )
-                # Merging the unit tests reruns coverage files, keeping only the merged file.
-                files_to_delete = [
-                    os.path.join(module.full_path(), f)
-                    for f in os.listdir(module.full_path())
-                    if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")
-                ]
-                if not files_to_delete:
-                    print(
-                        f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.'",
-                        file=sys.stderr,
-                    )
-                else:
-                    ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
-                    for f in files_to_delete:
-                        os.remove(f)
-
-        module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
+        module_result.result_json_path = os.path.join(module_path, GO_TEST_RESULT_TMP_JSON)
 
         if res.exited is None or res.exited > 0:
             module_result.failed = True
@@ -187,7 +209,7 @@ powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
             lines = res.stdout.splitlines()
             if lines is not None and 'DONE 0 tests' in lines[-1]:
                 print(color_message("No tests were run, skipping coverage report", "orange"))
-                cov_path = os.path.join(module.full_path(), PROFILE_COV)
+                cov_path = os.path.join(module_path, PROFILE_COV)
                 if os.path.exists(cov_path):
                     os.remove(cov_path)
                 return
@@ -197,7 +219,7 @@ powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
                 json_file.write(module_file.read())
 
         if junit_tar:
-            module_result.junit_file_path = os.path.join(module.full_path(), junit_file)
+            module_result.junit_file_path = os.path.join(module_path, junit_file)
             add_flavor_to_junitxml(module_result.junit_file_path, flavor)
 
         test_results.append(module_result)
