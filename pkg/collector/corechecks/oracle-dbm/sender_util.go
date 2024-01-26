@@ -42,9 +42,8 @@ func getMetricFunction(sender sender.Sender, method metricType) (metricSender, e
 	}
 	if val, ok := methods[method]; ok {
 		return val, nil
-	} else {
-		return nil, fmt.Errorf("Invalid metric function code %d", method)
 	}
+	return nil, fmt.Errorf("Invalid metric function code %d", method)
 }
 
 func getMetricFunctionCode(name string) (metricType, error) {
