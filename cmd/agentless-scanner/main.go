@@ -2335,7 +2335,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 							continue
 						}
 						result := launchScanner(ctx, scannerOptions{
-							Scanner:   scannerNameAppVulns,
+							Scanner:   scannerNameHostVulns,
 							Scan:      scan,
 							Root:      mountPoint,
 							StartedAt: time.Now(),
@@ -2535,13 +2535,13 @@ func (w *truncatedWriter) Write(b []byte) (n int, err error) {
 func launchScannerLocally(ctx context.Context, opts scannerOptions) scanResult {
 	switch opts.Scanner {
 	case scannerNameHostVulns:
-		bom, err := launchScannerTrivyLocal(ctx, opts)
+		bom, err := launchScannerTrivyHost(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
 		return scanResult{scannerOptions: opts, Vulns: &scanVulnsResult{BOM: bom}}
 	case scannerNameHostVulnsEBS:
-		bom, err := launchScannerTrivyVM(ctx, opts)
+		bom, err := launchScannerTrivyHostVM(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
