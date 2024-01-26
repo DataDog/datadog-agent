@@ -32,14 +32,15 @@ import (
 )
 
 type container struct {
-	MountName         string
-	ImageRefTagged    reference.Field // public.ecr.aws/datadog/agent:7-rc
-	ImageRefCanonical reference.Field // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-	ContainerName     string
-	Layers            []string
+	Runtime           string          `json:"Runtime"`
+	MountName         string          `json:"MountName"`
+	ImageRefTagged    reference.Field `json:"ImageRefTagged"`    // public.ecr.aws/datadog/agent:7-rc
+	ImageRefCanonical reference.Field `json:"ImageRefCanonical"` // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
+	ContainerName     string          `json:"ContainerName"`
+	Layers            []string        `json:"Layers"`
 }
 
-func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*container, error) {
+func launchScannerContainers(_ context.Context, opts scannerOptions) (scanContainerResult, error) {
 	var containers []*container
 
 	ctrdRoot := filepath.Join(opts.Root, "/var/lib/containerd")
@@ -48,15 +49,13 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 		log.Debugf("%s: starting scanning for containerd containers", opts.Scan)
 		ctrdContainers, err := ctrdReadMetadata(opts.Scan, ctrdRoot)
 		if err != nil {
-			return nil, err
+			return scanContainerResult{}, err
 		}
-		log.Infof("%s: found %d containers from containerd on %q", opts.Scan, len(ctrdContainers), opts.Root)
 		for _, ctr := range ctrdContainers {
 			if ctr.Snapshot.Backend.Kind != kindActive {
 				continue
 			}
 
-			log.Debugf("%s: container %s", opts.Scan, ctr)
 			if ctr.Snapshot == nil {
 				log.Warnf("%s: containerd: %s is active but without an associated snapshot", opts.Scan, ctr)
 				continue
@@ -65,6 +64,7 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 			ctrLayers := ctrdLayersPaths(ctrdRoot, ctr.Snapshot)
 			ctrMountName := fmt.Sprintf("%s%s-%s-%d", ctrdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
 			containers = append(containers, &container{
+				Runtime:           "containerd",
 				MountName:         ctrMountName,
 				ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
 				ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
@@ -80,15 +80,13 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 		log.Debugf("%s: starting scanning for docker containers", opts.Scan)
 		dockerContainers, err := dockerReadMetadata(opts.Scan, dockerRoot)
 		if err != nil {
-			return nil, err
+			return scanContainerResult{}, err
 		}
-		log.Infof("%s: found %d containers from Docker on %q", opts.Scan, len(dockerContainers), opts.Root)
 		for _, ctr := range dockerContainers {
 			if !ctr.State.Running {
 				continue
 			}
 
-			log.Debugf("%s: container %s", opts.Scan, ctr)
 			ctrMountName := dockerMountPrefix + ctr.ID
 			ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
 			if err != nil {
@@ -96,6 +94,7 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 				continue
 			}
 			containers = append(containers, &container{
+				Runtime:           "docker",
 				MountName:         ctrMountName,
 				ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
 				ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
@@ -105,7 +104,9 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 		}
 	}
 
-	return containers, nil
+	return scanContainerResult{
+		Containers: containers,
+	}, nil
 }
 
 func mountContainer(ctx context.Context, scan *scanTask, ctr container) (string, error) {
