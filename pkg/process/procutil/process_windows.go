@@ -614,13 +614,3 @@ func ParseCmdLineArgs(cmdline string) (res []string) {
 
 	return res
 }
-
-// Strip away all arguments from the command line
-func (ds *DataScrubber) stripArguments(cmdline []string) []string {
-	// We will sometimes see the entire command line come in via the first element -- splitting guarantees removal
-	// of arguments in these cases.
-	if len(cmdline) > 0 {
-		return []string{strings.Split(cmdline[0], " ")[0]}
-	}
-	return cmdline
-}

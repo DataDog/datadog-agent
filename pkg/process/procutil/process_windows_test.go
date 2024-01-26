@@ -134,12 +134,12 @@ func TestStripArguments(b *testing.B) {
 		cmdline      []string
 		striplessCmdline []string
 	}{	
-			// windows case 1
+// windows case 1
 	{[]string{"C:\\Program Files\\Datadog\\agent.exe"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},
-	// windows case 2 
+// windows case 2 
 		{[]string{"C:\\Program Files\\Datadog\\agent.exe", "check", "process"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},
-	// windows case 3 
-	{[]string{"C:\\Program Files\\Datadog\\agent.exe", "check", "process"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},	
+// windows case 3 
+	{[]string{\\"C:\\Program Files\\Datadog\\agent.exe", "check", "process"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},	
 	}
 
 	for i := range cases {

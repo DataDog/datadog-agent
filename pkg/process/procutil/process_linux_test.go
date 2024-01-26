@@ -1479,36 +1479,3 @@ func BenchmarkGetFDCount(b *testing.B) {
 		}
 	})
 }
-
-
-func TestStripArguments(b *testing.B) {
-
-	cases := []struct {
-		cmdline      []string
-		striplessCmdline []string
-	}{	
-		{[]string{"agent", "-password", "1234"}, []string{"agent"}},
-		{[]string{"fitz", "-consul_token", "1234567890"}, []string{"fitz"}},
-		{[]string{"fitz", "--consul_token", "1234567890"}, []string{"fitz"}},
-		{[]string{"python ~/test/run.py -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 &"},[]string{"python"},},
-		{[]string{"java -password      1234"}, []string{"java"}},
-		{[]string{"agent password:1234"}, []string{"agent"}},
-	}
-
-	for i := range cases {
-		fp := &Process{Cmdline: cases[i].cmdline}
-		cases[i].cmdline.stripArguments
-		assert.Equal(t, cases[i].triplessCmdline, cases[i].cmdline)
-	}
-}
-
-
-// Strip away all arguments from the command line
-func (ds *DataScrubber) stripArguments(cmdline []string) []string {
-	// We will sometimes see the entire command line come in via the first element -- splitting guarantees removal
-	// of arguments in these cases.
-	if len(cmdline) > 0 {
-		return []string{strings.Split(cmdline[0], " ")[0]}
-	}
-	return cmdline
-}
