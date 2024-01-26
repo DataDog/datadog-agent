@@ -58,9 +58,8 @@ func getMetricFunctionCode(name string) (metricType, error) {
 	}
 	if val, ok := metricTypes[name]; ok {
 		return val, nil
-	} else {
-		return unknownMetricType, fmt.Errorf("unknown metric type: %s", name)
 	}
+	return unknownMetricType, fmt.Errorf("unknown metric type: %s", name)
 }
 
 func sendMetric(c *Check, method metricType, metric string, value float64, tags []string) {
