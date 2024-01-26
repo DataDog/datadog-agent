@@ -1,0 +1,19 @@
+[Unit]
+Description=Datadog Agentless Scanner
+After=network.target datadog-agent.service
+BindsTo=datadog-agent.service
+ConditionPathExists=<%= etc_dir %>/datadog.yaml
+
+[Service]
+Type=simple
+PIDFile=<%= install_dir %>/run/agentless-scanner.pid
+Restart=on-failure
+ExecStart=<%= install_dir %>/bin/agentless-scanner run -c <%= etc_dir %>/datadog.yaml -p <%= install_dir %>/run/agentless-scanner.pid
+# Since systemd 229, should be in [Unit] but in order to support systemd <229,
+# it is also supported to have it here.
+StartLimitInterval=10
+StartLimitBurst=5
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
