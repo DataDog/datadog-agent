@@ -19,7 +19,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -446,7 +446,7 @@ func TestProcessEvents(t *testing.T) {
 					Images:  []*model.ContainerImage{expectedImage},
 				})
 				assert.Nil(t, err)
-				sender.AssertEventPlatformEvent(t, encoded, eventplatformimpl.EventTypeContainerImages)
+				sender.AssertEventPlatformEvent(t, encoded, eventplatform.EventTypeContainerImages)
 			}
 		})
 	}

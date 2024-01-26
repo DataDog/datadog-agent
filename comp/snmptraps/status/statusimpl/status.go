@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	trapsStatus "github.com/DataDog/datadog-agent/comp/snmptraps/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -131,7 +131,7 @@ func getDroppedPackets() int64 {
 		return 0
 	}
 
-	droppedPackets, ok := epErrors.Get(eventplatformimpl.EventTypeSnmpTraps).(*expvar.Int)
+	droppedPackets, ok := epErrors.Get(eventplatform.EventTypeSnmpTraps).(*expvar.Int)
 	if !ok {
 		return 0
 	}

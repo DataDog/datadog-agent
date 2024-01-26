@@ -27,7 +27,7 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -653,7 +653,7 @@ func TestProcessEvents(t *testing.T) {
 					DdEnv:    &envVarEnv,
 				})
 				assert.Nil(t, err)
-				sender.AssertEventPlatformEvent(t, encoded, eventplatformimpl.EventTypeContainerSBOM)
+				sender.AssertEventPlatformEvent(t, encoded, eventplatform.EventTypeContainerSBOM)
 			}
 		})
 	}

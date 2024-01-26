@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/sbom"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -27,21 +28,21 @@ func (e *epFormatter) Format(m *message.Message, eventType string, _ []byte) str
 	output.WriteString(fmt.Sprintf("type: %v | ", eventType))
 
 	switch eventType {
-	case EventTypeContainerLifecycle:
+	case eventplatform.EventTypeContainerLifecycle:
 		var msg contlcycle.EventsPayload
 		if err := proto.Unmarshal(m.GetContent(), &msg); err != nil {
 			output.WriteString(err.Error())
 		} else {
 			prettyPrint(&output, &msg)
 		}
-	case EventTypeContainerImages:
+	case eventplatform.EventTypeContainerImages:
 		var msg contimage.ContainerImagePayload
 		if err := proto.Unmarshal(m.GetContent(), &msg); err != nil {
 			output.WriteString(err.Error())
 		} else {
 			prettyPrint(&output, &msg)
 		}
-	case EventTypeContainerSBOM:
+	case eventplatform.EventTypeContainerSBOM:
 		var msg sbom.SBOMPayload
 		if err := proto.Unmarshal(m.GetContent(), &msg); err != nil {
 			output.WriteString(err.Error())

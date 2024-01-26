@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	aggsender "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -21,33 +22,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"go.uber.org/fx"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(NewEventPlatformForwarder),
+)
 
 const (
 	eventTypeDBMSamples  = "dbm-samples"
 	eventTypeDBMMetrics  = "dbm-metrics"
 	eventTypeDBMActivity = "dbm-activity"
 	eventTypeDBMMetadata = "dbm-metadata"
-
-	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
-	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
-
-	// EventTypeSnmpTraps is the event type for snmp traps
-	EventTypeSnmpTraps = "network-devices-snmp-traps"
-
-	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
-	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
-
-	// EventTypeContainerLifecycle represents a container lifecycle event
-	EventTypeContainerLifecycle = "container-lifecycle"
-	// EventTypeContainerImages represents a container images event
-	EventTypeContainerImages = "container-images"
-	// EventTypeContainerSBOM represents a container SBOM event
-	EventTypeContainerSBOM = "container-sbom"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
@@ -111,7 +103,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize: 500,
 	},
 	{
-		eventType:                     EventTypeNetworkDevicesMetadata,
+		eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
 		category:                      "NDM",
 		contentType:                   logshttp.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.metadata.",
@@ -123,7 +115,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
-		eventType:                     EventTypeSnmpTraps,
+		eventType:                     eventplatform.EventTypeSnmpTraps,
 		category:                      "NDM",
 		contentType:                   logshttp.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.snmp_traps.forwarder.",
@@ -135,7 +127,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
-		eventType:                     EventTypeNetworkDevicesNetFlow,
+		eventType:                     eventplatform.EventTypeNetworkDevicesNetFlow,
 		category:                      "NDM",
 		contentType:                   logshttp.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
@@ -158,7 +150,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize: 10000,
 	},
 	{
-		eventType:                     EventTypeContainerLifecycle,
+		eventType:                     eventplatform.EventTypeContainerLifecycle,
 		category:                      "Container",
 		contentType:                   logshttp.ProtobufContentType,
 		endpointsConfigPrefix:         "container_lifecycle.",
@@ -170,7 +162,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
-		eventType:                     EventTypeContainerImages,
+		eventType:                     eventplatform.EventTypeContainerImages,
 		category:                      "Container",
 		contentType:                   logshttp.ProtobufContentType,
 		endpointsConfigPrefix:         "container_image.",
@@ -182,7 +174,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
-		eventType:                     EventTypeContainerSBOM,
+		eventType:                     eventplatform.EventTypeContainerSBOM,
 		category:                      "SBOM",
 		contentType:                   logshttp.ProtobufContentType,
 		endpointsConfigPrefix:         "sbom.",

@@ -17,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/netflow/format"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -148,7 +149,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 		agg.logger.Tracef("flushed flow: %s", string(payloadBytes))
 
 		m := message.NewMessage(payloadBytes, nil, "", 0)
-		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatformimpl.EventTypeNetworkDevicesNetFlow)
+		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
 		if err != nil {
 			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
 			agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
@@ -200,7 +201,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			}
 			agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
 			m := message.NewMessage(payloadBytes, nil, "", 0)
-			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatformimpl.EventTypeNetworkDevicesMetadata)
+			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
 			if err != nil {
 				agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
 			}
