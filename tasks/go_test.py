@@ -198,24 +198,6 @@ def codecov_flavor(
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
 
-def deprecating_skip_linters_flag(skip_linters):
-    """
-    We're deprecating the --skip-linters flag in the test invoke task
-
-    Displays a warning when user is running inv -e test --skip-linters
-    Also displays the command the user should run to
-    """
-    if skip_linters:
-        deprecation_msg = """Warning: the --skip-linters is deprecated for the test invoke task.
-Feel free to remove the flag when running inv -e test.
-"""
-    else:
-        deprecation_msg = """Warning: the linters were removed from the test invoke task.
-If you want to run the linters, please run inv -e lint-go instead.
-"""
-    print(deprecation_msg, file=sys.stderr)
-
-
 def sanitize_env_vars():
     """
     Sanitizes environment variables
@@ -249,7 +231,6 @@ def test(
     arch="x64",
     cache=True,
     test_run_name="",
-    skip_linters=False,
     save_result_json=None,
     rerun_fails=None,
     go_mod="mod",
@@ -274,8 +255,6 @@ def test(
     modules_results_per_phase = defaultdict(dict)
 
     sanitize_env_vars()
-
-    deprecating_skip_linters_flag(skip_linters)
 
     modules, flavors = process_input_args(module, targets, flavors)
 

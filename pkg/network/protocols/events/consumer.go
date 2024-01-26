@@ -13,10 +13,12 @@ import (
 	"sync"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -55,9 +57,9 @@ type Consumer[V any] struct {
 // 2) be thread-safe, as the callback may be executed concurrently from multiple go-routines;
 func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*Consumer[V], error) {
 	batchMapName := proto + batchMapSuffix
-	batchMap, found, _ := ebpf.GetMap(batchMapName)
-	if !found {
-		return nil, fmt.Errorf("unable to find map %s", batchMapName)
+	batchMap, err := maps.GetMap[batchKey, batch](ebpf, batchMapName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to find map %s: %s", batchMapName, err)
 	}
 
 	eventsMapName := proto + eventsMapSuffix
