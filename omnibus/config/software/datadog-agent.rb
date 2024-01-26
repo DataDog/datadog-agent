@@ -13,7 +13,7 @@ dependency "python3" if with_python_runtime? "3"
 
 dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
-dependency "yara" if linux_target? and !heroku_target? # agentless-scanner dependency
+# dependency "yara" if linux_target? and !heroku_target? # agentless-scanner dependency
 
 dependency 'datadog-agent-dependencies'
 
@@ -165,10 +165,10 @@ build do
     end
   end
 
-  if linux_target? and !heroku_target?
-    command "invoke -e agentless-scanner.build"
-    copy "bin/agentless-scanner/agentless-scanner", "#{install_dir}/embedded/bin"
-  end
+  #if linux_target? and !heroku_target?
+  #  command "invoke -e agentless-scanner.build"
+  #  copy "bin/agentless-scanner/agentless-scanner", "#{install_dir}/embedded/bin"
+  #end
 
   # APM Injection agent
   if windows_target?

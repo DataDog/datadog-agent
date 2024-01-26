@@ -14,6 +14,7 @@ from . import (
     diff,
     docker_tasks,
     dogstatsd,
+    agentless_scanner,
     emacs,
     epforwarder,
     github_tasks,
@@ -131,6 +132,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
+ns.add_collection(agentless_scanner)
 ns.add_collection(emacs)
 ns.add_collection(epforwarder)
 ns.add_collection(msi)
