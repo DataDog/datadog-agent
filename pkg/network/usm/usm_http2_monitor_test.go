@@ -1091,12 +1091,11 @@ func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, 
 
 // multipleTestHeaders returns a set of header fields, with the given number of headers.
 func multipleTestHeaders(testHeadersCount int) []hpack.HeaderField {
-	headers := generateTestHeaderFields(false, false, false, "", "")
-
+	additionalHeaders := make([]hpack.HeaderField, testHeadersCount)
 	for i := 0; i < testHeadersCount; i++ {
-		headers = append(headers, hpack.HeaderField{Name: fmt.Sprintf("name%d", i), Value: fmt.Sprintf("test%d", i)})
+		additionalHeaders[i] = hpack.HeaderField{Name: fmt.Sprintf("name-%d", i), Value: fmt.Sprintf("test-%d", i)}
 	}
-	return headers
+	return append(testHeaders(), additionalHeaders...)
 }
 
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
