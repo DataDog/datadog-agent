@@ -30,6 +30,9 @@ import (
 )
 
 const (
+	// ec2HostnamePrefix is the prefix of the hostname of the agent
+	ec2HostnamePrefix = "cws-e2e-ec2-host"
+
 	// securityStartLog is the log corresponding to a successful start of the security-agent
 	securityStartLog = "Successfully connected to the runtime security module"
 
@@ -46,18 +49,16 @@ const (
 type agentSuite struct {
 	e2e.BaseSuite[environments.Host]
 	apiClient     *api.Client
+	testID        string
+	ddHostname    string
 	signalRuleID  string
 	agentRuleID   string
 	dirname       string
 	filename      string
-	testID        string
 	desc          string
 	agentRuleName string
 	policies      string
 }
-
-//go:embed config/e2e-datadog.yaml
-var agentConfig string
 
 //go:embed config/e2e-system-probe.yaml
 var systemProbeConfig string
@@ -66,16 +67,19 @@ var systemProbeConfig string
 var securityAgentConfig string
 
 func TestAgentSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(
-		awshost.Provisioner(
-			awshost.WithName("cws-agent-e2e-tests"),
-			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(agentConfig),
-				agentparams.WithSecurityAgentConfig(securityAgentConfig),
-				agentparams.WithSystemProbeConfig(systemProbeConfig),
+	testID := uuid.NewString()[:4]
+	ddHostname := fmt.Sprintf("%s-%s", ec2HostnamePrefix, testID)
+	e2e.Run(t, &agentSuite{testID: testID, ddHostname: ddHostname},
+		e2e.WithProvisioner(
+			awshost.ProvisionerNoFakeIntake(
+				awshost.WithAgentOptions(
+					agentparams.WithAgentConfig(fmt.Sprintf("hostname: %s", ddHostname)),
+					agentparams.WithSecurityAgentConfig(securityAgentConfig),
+					agentparams.WithSystemProbeConfig(systemProbeConfig),
+				),
 			),
 		),
-	))
+	)
 }
 
 func (a *agentSuite) SetupSuite() {
@@ -99,7 +103,6 @@ func (a *agentSuite) TestOpenSignal() {
 	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
 	a.dirname = strings.TrimSuffix(tempDir, "\n")
 	a.filename = fmt.Sprintf("%s/secret", a.dirname)
-	a.testID = uuid.NewString()[:4]
 	a.desc = fmt.Sprintf("e2e test rule %s", a.testID)
 	a.agentRuleName = fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
 
@@ -152,7 +155,7 @@ func (a *agentSuite) TestOpenSignal() {
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", securityAgentPath))
 
 	// Check `downloaded` ruleset_loaded
-	result, err := api.WaitAppLogs(a.apiClient, "host:cws-new-e2e-test-host rule_id:ruleset_loaded")
+	result, err := api.WaitAppLogs(a.apiClient, fmt.Sprintf("host:%s rule_id:ruleset_loaded", a.ddHostname))
 	require.NoError(a.T(), err, "could not get new ruleset")
 
 	agentContext := result.Attributes["agent"].(map[string]interface{})
@@ -166,7 +169,7 @@ func (a *agentSuite) TestOpenSignal() {
 	require.NoError(a.T(), err, "could not send payload")
 
 	// Check app signal
-	signal, err := api.WaitAppSignal(a.apiClient, fmt.Sprintf("host:cws-new-e2e-test-host @workflow.rule.id:%s", a.signalRuleID))
+	signal, err := api.WaitAppSignal(a.apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.ddHostname, a.signalRuleID))
 	require.NoError(a.T(), err)
 	assert.Contains(a.T(), signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(a.agentRuleName)), "unable to find rule_id tag")
 	agentContext = signal.Attributes["agent"].(map[string]interface{})
