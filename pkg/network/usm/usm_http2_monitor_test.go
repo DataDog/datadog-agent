@@ -821,7 +821,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
-			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
+			require.NoError(t, writeInput(c, tt.messageBuilder(), 500*time.Millisecond))
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
@@ -894,7 +894,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
-			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
+			require.NoError(t, writeInput(c, tt.messageBuilder(), 500*time.Millisecond))
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
@@ -973,7 +973,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
-			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
+			require.NoError(t, writeInput(c, tt.messageBuilder(), 500*time.Millisecond))
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
@@ -1323,6 +1323,6 @@ func dialHTTP2Server(t *testing.T) net.Conn {
 	t.Cleanup(func() { _ = c.Close() })
 
 	// Writing a magic and the settings in the same packet to socket.
-	require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), newFramer().writeSettings(t).bytes()), time.Second))
+	require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), newFramer().writeSettings(t).bytes()), time.Millisecond*200))
 	return c
 }
