@@ -212,21 +212,10 @@ def build(
     }
     ctx.run(cmd.format(**args), env=env)
 
-    if embedded_path is None:
-        embedded_path = get_embedded_path(ctx)
-
-    for build in bundled_agents:
-        if build == "agent":
-            continue
-
-        bundled_agent_dir = os.path.join(BIN_DIR, build)
-        bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
-        agent_fullpath = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", bin_name("agent")))
-
-        if not os.path.exists(os.path.dirname(bundled_agent_bin)):
-            os.mkdir(os.path.dirname(bundled_agent_bin))
-
-        create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
+    create_launchers(ctx, bundled_agents,
+        embedded_path=embedded_path,
+        development=development,
+    )
 
     render_config(
         ctx,
@@ -238,6 +227,31 @@ def build(
         development=development,
         windows_sysprobe=windows_sysprobe,
     )
+
+
+def create_launchers(ctx, bundled_agents, embedded_path=None, development=True):
+    if embedded_path is None:
+        embedded_path = get_embedded_path(ctx)
+
+    for build in bundled_agents:
+        if build == "agent":
+            continue
+
+        bundled_agent_dir = os.path.join(BIN_DIR, build)
+        bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
+
+        if sys.platform == 'win32':
+            if development:
+                agent_path = os.path.join("..", "agent", bin_name("agent"))
+            else:
+                agent_path = os.path.join("..", bin_name("agent"))
+        else:
+            agent_path = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", bin_name("agent")))
+
+        if not os.path.exists(os.path.dirname(bundled_agent_bin)):
+            os.mkdir(os.path.dirname(bundled_agent_bin))
+
+        create_launcher(ctx, build, agent_path, bundled_agent_bin)
 
 
 def create_launcher(ctx, agent, src, dst):
