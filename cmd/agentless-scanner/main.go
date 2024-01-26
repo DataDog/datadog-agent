@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/docker/distribution/reference"
 	"go.uber.org/fx"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -2327,7 +2328,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 					resultsCh <- ctrResult
 				} else {
 					for _, ctr := range ctrResult.Containers.Containers {
-						entityID, entityTags := containerTags(*ctr)
+						entityTags := containerTags(*ctr)
 						mountPoint, err := mountContainer(ctx, scan, *ctr)
 						if err != nil {
 							resultsCh <- opts.ErrResult(err)
@@ -2341,8 +2342,11 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 						})
 						if result.Vulns != nil {
 							result.Vulns.SourceType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
-							result.Vulns.ID = entityID
+							result.Vulns.ID = ctr.ImageRefCanonical.Reference().String()
 							result.Vulns.Tags = entityTags
+							appendSBOMRepoMetadata(result.Vulns.BOM,
+								ctr.ImageRefTagged.Reference().(reference.NamedTagged),
+								ctr.ImageRefCanonical.Reference().(reference.Canonical))
 						}
 
 						// We cleanup overlays as we go instead of acumulating
