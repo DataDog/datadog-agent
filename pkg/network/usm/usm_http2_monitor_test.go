@@ -733,7 +733,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() []byte {
 				const multiHeadersCount = 25
 				framer := newFramer()
-				return framer.writeHeaders(t, 1, multipuleTestHeaders(multiHeadersCount)).
+				return framer.writeHeaders(t, 1, multipleTestHeaders(multiHeadersCount)).
 					writeData(t, 1, true, []byte{}).
 					writeHeaders(t, 1, testHeaders()).
 					writeData(t, 1, true, []byte{}).bytes()
@@ -1149,8 +1149,8 @@ func headersWithGivenEndpoint(path string) []hpack.HeaderField {
 // testHeaders returns a set of header fields.
 func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, false, false, "", "") }
 
-// multipuleTestHeaders returns a set of header fields, with the given number of headers.
-func multipuleTestHeaders(testHeadersCount int) []hpack.HeaderField {
+// multipleTestHeaders returns a set of header fields, with the given number of headers.
+func multipleTestHeaders(testHeadersCount int) []hpack.HeaderField {
 	headers := generateTestHeaderFields(false, false, false, "", "")
 
 	for i := 0; i < testHeadersCount; i++ {
