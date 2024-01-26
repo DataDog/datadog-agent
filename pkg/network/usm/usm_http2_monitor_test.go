@@ -13,6 +13,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"reflect"
@@ -1053,31 +1054,16 @@ func getHTTP2UnixClientArray(size int, unixPath string) []*http.Client {
 // Presently, the timeout is configured to one second for all readings.
 // In case of encountered issues, increasing this duration might be necessary.
 func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
-	_, err := c.Write(input)
-	if err != nil {
+	if _, err := c.Write(input); err != nil {
 		return err
 	}
-	frame := make([]byte, 9)
 	// Since we don't know when to stop reading from the socket, we set a timeout.
-	c.SetReadDeadline(time.Now().Add(timeout))
+	if err := c.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		return err
+	}
+	http2Framer := http2.NewFramer(io.Discard, c)
 	for {
-		// Read the frame header.
-		_, err := c.Read(frame)
-		if err != nil {
-			// we want to stop reading from the socket when we encounter an i/o timeout.
-			if strings.Contains(err.Error(), "i/o timeout") {
-				return nil
-			}
-			return err
-		}
-		// Calculate frame length.
-		frameLength := int(binary.BigEndian.Uint32(append([]byte{0}, frame[:3]...)))
-		if frameLength == 0 {
-			continue
-		}
-		// Read the frame payload.
-		payload := make([]byte, frameLength)
-		_, err = c.Read(payload)
+		_, err := http2Framer.ReadFrame()
 		if err != nil {
 			// we want to stop reading from the socket when we encounter an i/o timeout.
 			if strings.Contains(err.Error(), "i/o timeout") {
