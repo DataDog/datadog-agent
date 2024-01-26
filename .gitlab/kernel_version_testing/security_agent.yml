@@ -1,5 +1,6 @@
 # Security agent overrides
 upload_dependencies_security_agent_x64:
+  needs: []
   extends:
     - .package_dependencies
   rules: !reference [.on_security_agent_changes_or_manual]
@@ -10,6 +11,7 @@ upload_dependencies_security_agent_x64:
     TEST_COMPONENT: security-agent
 
 upload_dependencies_security_agent_arm64:
+  needs: []
   extends:
     - .package_dependencies
   rules: !reference [.on_security_agent_changes_or_manual]
