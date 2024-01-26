@@ -132,8 +132,7 @@ func (c *Check) CustomQueries() error {
 					if v != nil {
 						tags = append(tags, fmt.Sprintf("%s:%s", q.Columns[i].Name, v))
 					}
-					//} else if methodFunc, ok := methods[q.Columns[i].Type]; ok {
-				} else if method, err := getMetricFunctionCode(q.Columns[i].Type); err != nil {
+				} else if method, err := getMetricFunctionCode(q.Columns[i].Type); err == nil {
 					metricRow.name = fmt.Sprintf("%s.%s", metricPrefix, q.Columns[i].Name)
 					if v_str, ok := v.(string); ok {
 						metricRow.value, err = strconv.ParseFloat(v_str, 64)
