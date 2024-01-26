@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -1295,17 +1294,16 @@ func getClientsIndex(index, totalCount int) int {
 func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDynamicTablePathIndexes []int) {
 	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
 	require.NoError(t, err)
-	key := make([]byte, dynamicTableMap.KeySize())
-	value := make([]byte, dynamicTableMap.ValueSize())
-	iterator := dynamicTableMap.Iterate()
 	resultIndexes := make([]int, 0)
+	var key usmhttp2.HTTP2DynamicTableIndex
+	var value usmhttp2.HTTP2DynamicTableEntry
+	iterator := dynamicTableMap.Iterate()
+
 	for iterator.Next(&key, &value) {
-		tableIndex := usmhttp2.HTTP2DynamicTableIndex{}
-		require.NoError(t, binary.Read(bytes.NewReader(key), binary.LittleEndian, &tableIndex))
-		resultIndexes = append(resultIndexes, int(tableIndex.Index))
+		resultIndexes = append(resultIndexes, int(key.Index))
 	}
 	sort.Ints(resultIndexes)
-	require.True(t, assert.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes))
+	require.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes)
 }
 
 // validateHuffmanEncoded validates that the dynamic table map contains the expected huffman encoded paths.
