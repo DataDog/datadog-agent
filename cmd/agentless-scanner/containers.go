@@ -790,11 +790,22 @@ func dockerReadMetadata(scan *scanTask, dockerRoot string) ([]dockerContainer, e
 					}
 				}
 			}
-			if ctr.ImageRefTagged == nil {
-				ctr.ImageRefTagged, _ = reference.WithTag(ctr.ImageRefCanonical, "latest")
+			if ctr.ImageRefCanonical == nil && ctr.ImageRefTagged == nil {
+				ref, err := reference.ParseNormalizedNamed(ctr.Config.Image)
+				if err != nil {
+					return nil, fmt.Errorf("docker: container %s has no valid image reference: %w", ctr, err)
+				}
+				if refT, ok := ref.(reference.NamedTagged); ok {
+					ctr.ImageRefTagged = refT
+				} else {
+					ctr.ImageRefTagged, _ = reference.WithTag(ref, "latest")
+				}
 			}
 			if ctr.ImageRefCanonical == nil {
 				ctr.ImageRefCanonical, _ = reference.WithDigest(ctr.ImageRefTagged, ctr.Image)
+			}
+			if ctr.ImageRefTagged == nil {
+				ctr.ImageRefTagged, _ = reference.WithTag(ctr.ImageRefCanonical, "latest")
 			}
 		}
 	}
