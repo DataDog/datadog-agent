@@ -59,7 +59,7 @@ func getTrivyDisabledAnalyzers(allowedAnalyzers []analyzer.Type) []analyzer.Type
 	return disabledAnalyzers
 }
 
-func launchScannerTrivyLocal(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
+func launchScannerTrivyHost(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
 	trivyCache := newMemoryCache()
 	trivyArtifact, err := trivyartifactlocal.NewArtifact(opts.Root, trivyCache, artifact.Option{
 		Offline:           true,
@@ -82,7 +82,7 @@ func launchScannerTrivyLocal(ctx context.Context, opts scannerOptions) (*cdx.BOM
 	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
 }
 
-func launchScannerTrivyVM(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
+func launchScannerTrivyHostVM(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
 	assumedRole := opts.Scan.Roles[opts.Scan.ARN.AccountID]
 	cfg, err := newAWSConfig(ctx, opts.Scan.ARN.Region, assumedRole)
 	if err != nil {
