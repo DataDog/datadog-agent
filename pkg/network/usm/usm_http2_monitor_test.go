@@ -507,7 +507,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				return framer.
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
 					writeHeaders(t, getStreamID(1), testHeaders()).
-					writeData(t, getStreamID(1), true, []byte{}).
+					writeData(t, getStreamID(1), true, emptyBody).
 					bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
@@ -527,7 +527,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				return framer.
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
 					writeHeaders(t, getStreamID(1), testHeaders()).
-					writeData(t, getStreamID(1), true, []byte{}).
+					writeData(t, getStreamID(1), true, emptyBody).
 					bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
@@ -550,7 +550,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				return framer.
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
 					writeHeaders(t, getStreamID(1), testHeaders()).
-					writeData(t, getStreamID(1), true, []byte{}).
+					writeData(t, getStreamID(1), true, emptyBody).
 					bytes()
 			},
 			expectedEndpoints: nil,
@@ -566,7 +566,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					streamID := getStreamID(i)
 					framer.
 						writeHeaders(t, streamID, testHeaders()).
-						writeData(t, streamID, true, []byte{})
+						writeData(t, streamID, true, emptyBody)
 				}
 				return framer.bytes()
 			},
@@ -590,7 +590,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					streamID := getStreamID(i)
 					framer.
 						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralWithoutIndexing}), setDynamicTableSize).
-						writeData(t, streamID, true, []byte{})
+						writeData(t, streamID, true, emptyBody)
 				}
 				return framer.bytes()
 			},
@@ -613,7 +613,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					streamID := getStreamID(i)
 					framer.
 						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralNeverIndexed})).
-						writeData(t, streamID, true, []byte{})
+						writeData(t, streamID, true, emptyBody)
 				}
 				return framer.bytes()
 
@@ -644,7 +644,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					streamID := getStreamID(i)
 					framer.
 						writeRawHeaders(t, streamID, headersFrame).
-						writeData(t, streamID, true, []byte{})
+						writeData(t, streamID, true, emptyBody)
 				}
 				return framer.bytes()
 			},
@@ -668,7 +668,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeHeaders(t, streamID, testHeaders()).
 						writePing(t).
 						writeWindowUpdate(t, streamID, 1).
-						writeData(t, streamID, true, []byte{})
+						writeData(t, streamID, true, emptyBody)
 				}
 
 				return framer.bytes()
@@ -693,7 +693,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					streamID := getStreamID(i)
 					framer.
 						writeHeaders(t, streamID, testHeaders()).
-						writeData(t, streamID, true, []byte{})
+						writeData(t, streamID, true, emptyBody)
 					if rstFramesCount > 0 {
 						framer.writeRSTStream(t, streamID, http2.ErrCodeCancel)
 						rstFramesCount--
@@ -719,7 +719,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					streamID := getStreamID(i)
 					framer.
 						writeHeaders(t, streamID, testHeaders()).
-						writeData(t, streamID, true, []byte{}).
+						writeData(t, streamID, true, emptyBody).
 						writeRSTStream(t, streamID, http2.ErrCodeNo)
 				}
 				return framer.bytes()
@@ -737,9 +737,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				const multiHeadersCount = 25
 				framer := newFramer()
 				return framer.writeHeaders(t, 1, multipleTestHeaders(multiHeadersCount)).
-					writeData(t, 1, true, []byte{}).
+					writeData(t, 1, true, emptyBody).
 					writeHeaders(t, 1, testHeaders()).
-					writeData(t, 1, true, []byte{}).bytes()
+					writeData(t, 1, true, emptyBody).bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -749,7 +749,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() []byte {
 				framer := newFramer()
 				return framer.writeHeaders(t, 1, headersWithGivenEndpoint(pathWithStatusCode300)).
-					writeData(t, 1, true, []byte{}).bytes()
+					writeData(t, 1, true, emptyBody).bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -759,7 +759,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() []byte {
 				framer := newFramer()
 				return framer.writeHeaders(t, 1, headersWithGivenEndpoint(pathWithStatusCode401)).
-					writeData(t, 1, true, []byte{}).bytes()
+					writeData(t, 1, true, emptyBody).bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -773,7 +773,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					streamID := getStreamID(i)
 					framer.
 						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})).
-						writeData(t, streamID, true, []byte{})
+						writeData(t, streamID, true, emptyBody)
 				}
 				return framer.bytes()
 			},
@@ -786,7 +786,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				return framer.
 					writeHeaders(t, getStreamID(1), generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathTooLarge})).
-					writeData(t, getStreamID(1), true, []byte{}).bytes()
+					writeData(t, getStreamID(1), true, emptyBody).bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -804,7 +804,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				headersFrame = append(pathHeaderField, headersFrame...)
 				framer := newFramer()
 				return framer.writeRawHeaders(t, 1, headersFrame).
-					writeData(t, 1, true, []byte{}).bytes()
+					writeData(t, 1, true, emptyBody).bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -871,7 +871,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 					streamID := getStreamID(i)
 					framer.
 						writeHeaders(t, streamID, testHeaders()).
-						writeData(t, streamID, true, []byte{})
+						writeData(t, streamID, true, emptyBody)
 				}
 
 				return framer.bytes()
@@ -944,9 +944,9 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			messageBuilder: func() []byte {
 				framer := newFramer()
 				return framer.writeHeaders(t, 1, testHeaders()).
-					writeData(t, 1, true, []byte{}).
+					writeData(t, 1, true, emptyBody).
 					writeHeaders(t, 3, headersWithGivenEndpoint("/a")).
-					writeData(t, 3, true, []byte{}).bytes()
+					writeData(t, 3, true, emptyBody).bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
