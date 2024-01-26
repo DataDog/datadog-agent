@@ -996,7 +996,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 }
 
 // validateStats validates that the stats we get from the monitor are as expected.
-func validateStats(usmMonitor *Monitor, res map[usmhttp.Key]int, expectedEndpoints map[usmhttp.Key]int) bool {
+func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int) bool {
 	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
 			count := stat.Data[200].Count
