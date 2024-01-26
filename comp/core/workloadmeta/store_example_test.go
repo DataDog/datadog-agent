@@ -23,7 +23,7 @@ func TestExampleStoreSubscribe(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).Comp.(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 	SetGlobalStore(s)
 
 	filterParams := FilterParams{

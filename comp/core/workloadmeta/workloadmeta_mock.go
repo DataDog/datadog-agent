@@ -367,9 +367,8 @@ type workloadMetaMockV2 struct {
 
 // newWorkloadMetaMockV2 returns a Mock
 func newWorkloadMetaMockV2(deps dependencies) Mock {
-	provider := newWorkloadMeta(deps)
 	w := &workloadMetaMockV2{
-		workloadmeta: provider.Comp.(*workloadmeta),
+		workloadmeta: newWorkloadMeta(deps).Comp.(*workloadmeta),
 	}
 	return w
 }
