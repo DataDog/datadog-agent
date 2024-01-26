@@ -9,7 +9,9 @@ package rcserviceimpl
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
+	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter"
@@ -29,20 +31,40 @@ func Module() fxutil.Module {
 	)
 }
 
+// ModuleOptional conditially provides the remote config service.
+func ModuleOptional() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newRemoteConfigServiceOptional),
+	)
+}
+
 type dependencies struct {
 	fx.In
 
+	Lc fx.Lifecycle
+
 	DdRcTelemetryReporter rctelemetryreporter.Component
 	Hostname              hostname.Component
+	Cfg                   cfgcomp.Component
 }
 
-// newRemoteConfigService creates and configures a new remote config service.
-func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
-	// TODO is there a better way to do this utilizing fx to conditionally initialize a dep?
-	if !config.IsRemoteConfigEnabled(config.Datadog) {
-		return &remoteconfig.Service{}, nil
+// newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
+func newRemoteConfigServiceOptional(deps dependencies) (optional.Option[rcservice.Component], error) {
+	none := optional.NewNoneOption[rcservice.Component]()
+	if !config.IsRemoteConfigEnabled(deps.Cfg) {
+		return none, nil
 	}
 
+	configService, err := newRemoteConfigService(deps)
+	if err != nil {
+		return none, err
+	}
+
+	return optional.NewOption[rcservice.Component](configService), nil
+}
+
+// newRemoteConfigServiceOptional creates and configures a new remote config service
+func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	apiKey := config.Datadog.GetString("api_key")
 	if config.Datadog.IsSet("remote_configuration.api_key") {
 		apiKey = config.Datadog.GetString("remote_configuration.api_key")
@@ -65,6 +87,14 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
 	}
+
+	deps.Lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
+		configService.Start(ctx)
+		return nil
+	}})
+	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		return configService.Stop()
+	}})
 
 	return configService, nil
 }

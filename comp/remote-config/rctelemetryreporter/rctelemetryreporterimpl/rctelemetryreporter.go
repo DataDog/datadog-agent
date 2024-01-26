@@ -17,7 +17,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewDdRcTelemetryReporter),
+		fx.Provide(newDdRcTelemetryReporter),
 	)
 }
 
@@ -37,8 +37,8 @@ func (r *DdRcTelemetryReporter) IncTimeout() {
 	r.BypassTimeoutCounter.Inc()
 }
 
-// NewDdRcTelemetryReporter creates a new Remote Config telemetry reporter for sending RC metrics to Datadog
-func NewDdRcTelemetryReporter() rctelemetryreporter.Component {
+// newDdRcTelemetryReporter creates a new Remote Config telemetry reporter for sending RC metrics to Datadog
+func newDdRcTelemetryReporter() rctelemetryreporter.Component {
 	commonOpts := telemetry.Options{NoDoubleUnderscoreSep: true}
 	return &DdRcTelemetryReporter{
 		BypassRateLimitCounter: telemetry.NewCounterWithOpts(

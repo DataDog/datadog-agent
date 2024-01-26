@@ -11,6 +11,7 @@ package start
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"net/http"
 	"os"
 	"os/signal"
@@ -131,8 +132,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmeta.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
-				rcserviceimpl.Module(),
-				fx.Provide(rctelemetryreporterimpl.NewDdRcTelemetryReporter),
+				rcserviceimpl.ModuleOptional(),
+				rctelemetryreporterimpl.Module(),
 			)
 		},
 	}
@@ -140,7 +141,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, rcService rccomp.Component) error {
+func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, rcServiceOptional optional.Option[rccomp.Component]) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -196,16 +197,15 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 
 	// Initialize remote configuration
 	var rcClient *rcclient.Client
-	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
+	rcService, isSet := rcServiceOptional.Get()
+	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) && isSet {
 		var err error
 		rcClient, err = initializeRemoteConfigClient(mainCtx, rcService)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
-			rcService.Start(mainCtx)
 			rcClient.Start()
 			defer func() {
-				_ = rcService.Stop()
 				rcClient.Close()
 			}()
 		}

@@ -15,10 +15,6 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// Start starts the remote configuration management service
-	Start(ctx context.Context)
-	// Stop stops the refresh loop and closes the on-disk DB cache
-	Stop() error
 	// ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 	ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error)
 	// ConfigGetState returns the state of the configuration and the director repos in the local store
