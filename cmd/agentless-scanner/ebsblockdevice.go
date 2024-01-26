@@ -207,8 +207,10 @@ func (bd *ebsBlockDevice) waitServerClosed(ctx context.Context) error {
 	case <-bd.closed:
 		return nil
 	case <-ctx.Done():
-		log.Warnf("nbdserver: %q forced to close", bd.deviceName)
-		bd.srv.Close() // forcing close of server
+		if bd.srv != nil {
+			log.Warnf("nbdserver: %q forced to close", bd.deviceName)
+			bd.srv.Close() // forcing close of server
+		}
 		return ctx.Err()
 	}
 }
