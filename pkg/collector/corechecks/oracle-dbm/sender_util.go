@@ -29,6 +29,9 @@ const (
 type metricSender func(string, float64, string, []string)
 
 func getMetricFunction(sender sender.Sender, method metricType) (metricSender, error) {
+	if sender == nil {
+		return nil, fmt.Errorf("sender is nil")
+	}
 	methods := map[metricType]metricSender{
 		gauge:          sender.Gauge,
 		count:          sender.Count,
@@ -59,20 +62,6 @@ func getMetricFunctionCode(name string) (metricType, error) {
 		return unknownMetricType, fmt.Errorf("unknown metric type: %s", name)
 	}
 }
-
-/*
-func sendMetric(c *Check, method metricType, metric string, value float64) {
-	sender, err := c.GetSender()
-	if err != nil {
-		log.Errorf("%s failed to get metric sender %s", err)
-	}
-	metricFunction, err := getMetricFunction(sender, method)
-	if err != nil {
-		log.Errorf("failed to get metric function: %s", err)
-	}
-	metricFunction(metric, value, c.dbHostname, c.tags)
-}
-*/
 
 func sendMetric(c *Check, method metricType, metric string, value float64, tags []string) {
 	sender, err := c.GetSender()
