@@ -48,16 +48,7 @@ const (
 
 type agentSuite struct {
 	e2e.BaseSuite[environments.Host]
-	apiClient     *api.Client
-	testID        string
-	ddHostname    string
-	signalRuleID  string
-	agentRuleID   string
-	dirname       string
-	filename      string
-	desc          string
-	agentRuleName string
-	policies      string
+	testID string
 }
 
 //go:embed config/e2e-system-probe.yaml
@@ -68,12 +59,12 @@ var securityAgentConfig string
 
 func TestAgentSuite(t *testing.T) {
 	testID := uuid.NewString()[:4]
-	ddHostname := fmt.Sprintf("%s-%s", ec2HostnamePrefix, testID)
-	e2e.Run(t, &agentSuite{testID: testID, ddHostname: ddHostname},
+
+	e2e.Run(t, &agentSuite{testID: testID},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
 				awshost.WithAgentOptions(
-					agentparams.WithAgentConfig(fmt.Sprintf("hostname: %s", ddHostname)),
+					agentparams.WithAgentConfig(fmt.Sprintf("hostname: %s-%s", ec2HostnamePrefix, testID)),
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
 				),
@@ -82,40 +73,26 @@ func TestAgentSuite(t *testing.T) {
 	)
 }
 
-func (a *agentSuite) SetupSuite() {
-	a.BaseSuite.SetupSuite()
-	a.apiClient = api.NewClient()
-}
-
-func (a *agentSuite) TearDownSuite() {
-	if len(a.signalRuleID) != 0 {
-		a.apiClient.DeleteSignalRule(a.signalRuleID)
-	}
-	if len(a.agentRuleID) != 0 {
-		a.apiClient.DeleteAgentRule(a.agentRuleID)
-	}
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", a.dirname))
-	a.BaseSuite.TearDownSuite()
-}
-
 func (a *agentSuite) TestOpenSignal() {
+	apiClient := api.NewClient()
+
 	// Create temporary directory
 	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
-	a.dirname = strings.TrimSuffix(tempDir, "\n")
-	a.filename = fmt.Sprintf("%s/secret", a.dirname)
-	a.desc = fmt.Sprintf("e2e test rule %s", a.testID)
-	a.agentRuleName = fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
+	dirname := strings.TrimSuffix(tempDir, "\n")
+	filename := fmt.Sprintf("%s/secret", dirname)
+	desc := fmt.Sprintf("e2e test rule %s", a.testID)
+	agentRuleName := fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
 
 	// Create CWS Agent rule
-	rule := fmt.Sprintf("open.file.path == \"%s\"", a.filename)
-	res, err := a.apiClient.CreateCWSAgentRule(a.agentRuleName, a.desc, rule)
+	rule := fmt.Sprintf("open.file.path == \"%s\"", filename)
+	res, err := apiClient.CreateCWSAgentRule(agentRuleName, desc, rule)
 	require.NoError(a.T(), err, "Agent rule creation failed")
-	a.agentRuleID = res.Data.GetId()
+	agentRuleID := res.Data.GetId()
 
 	// Create Signal Rule (backend)
-	res2, err := a.apiClient.CreateCwsSignalRule(a.desc, "signal rule for e2e testing", a.agentRuleName, []string{})
+	res2, err := apiClient.CreateCwsSignalRule(desc, "signal rule for e2e testing", agentRuleName, []string{})
 	require.NoError(a.T(), err, "Signal rule creation failed")
-	a.signalRuleID = res2.GetId()
+	signalRuleID := res2.GetId()
 
 	// Check if the agent is ready
 	isReady := a.Env().Agent.Client.IsReady()
@@ -136,44 +113,51 @@ func (a *agentSuite) TestOpenSignal() {
 	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
 	require.NoError(a.T(), err, "Could not get APP KEY")
 
+	var policies string
 	a.EventuallyWithT(func(c *assert.CollectT) {
-		policies := a.Env().RemoteHost.MustExecute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download >| temp.txt && cat temp.txt", appKey, apiKey, securityAgentPath))
+		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download >| temp.txt && cat temp.txt", appKey, apiKey, securityAgentPath))
 		assert.NotEmpty(c, policies, "should not be empty")
-		a.policies = policies
 	}, 5*time.Minute, 10*time.Second)
 
 	// Check that the newly created rule is in the policies
-	assert.Contains(a.T(), a.policies, a.desc, "The policies should contain the created rule")
+	assert.Contains(a.T(), policies, desc, "The policies should contain the created rule")
 
 	// Push policies
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp temp.txt %s", policiesPath))
 	a.Env().RemoteHost.MustExecute("rm temp.txt")
 	policiesFile := a.Env().RemoteHost.MustExecute(fmt.Sprintf("cat %s", policiesPath))
-	assert.Contains(a.T(), policiesFile, a.desc, "The policies file should contain the created rule")
+	assert.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", securityAgentPath))
 
 	// Check `downloaded` ruleset_loaded
-	result, err := api.WaitAppLogs(a.apiClient, fmt.Sprintf("host:%s rule_id:ruleset_loaded", a.ddHostname))
+	result, err := api.WaitAppLogs(apiClient, fmt.Sprintf("host:%s rule_id:ruleset_loaded", a.Env().Agent.Client.Hostname()))
 	require.NoError(a.T(), err, "could not get new ruleset")
 
 	agentContext := result.Attributes["agent"].(map[string]interface{})
 	assert.EqualValues(a.T(), "ruleset_loaded", agentContext["rule_id"], "Ruleset should be loaded")
 
 	// Trigger agent event
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", a.filename))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filename))
 
 	// Check agent event
 	err = a.waitAgentLogs("security-agent", "Successfully posted payload to")
 	require.NoError(a.T(), err, "could not send payload")
 
 	// Check app signal
-	signal, err := api.WaitAppSignal(a.apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.ddHostname, a.signalRuleID))
+	signal, err := api.WaitAppSignal(apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
 	require.NoError(a.T(), err)
-	assert.Contains(a.T(), signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(a.agentRuleName)), "unable to find rule_id tag")
+	assert.Contains(a.T(), signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
 	agentContext = signal.Attributes["agent"].(map[string]interface{})
-	assert.Contains(a.T(), agentContext["rule_id"], a.agentRuleName, "unable to find tag")
+	assert.Contains(a.T(), agentContext["rule_id"], agentRuleName, "unable to find tag")
+
+	// Cleanup
+	err = apiClient.DeleteSignalRule(signalRuleID)
+	assert.NoErrorf(a.T(), err, "failed to delete signal rule %s", signalRuleID)
+	err = apiClient.DeleteAgentRule(agentRuleID)
+	assert.NoErrorf(a.T(), err, "failed to delete agent rule %s", agentRuleID)
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", dirname))
 }
 
 // TestFeatureCWSEnabled tests that the CWS activation is properly working
@@ -190,7 +174,6 @@ func (a *agentSuite) TestFeatureCWSEnabled() {
 		if !assert.NoErrorf(collect, err, "ddsql query failed") {
 			return
 		}
-		fmt.Printf("ddsql query: %s\nresponse: %+v\n", query, resp)
 		if !assert.Len(collect, resp.Data, 1, "ddsql query didn't returned a single row") {
 			return
 		}
