@@ -167,7 +167,6 @@ func isPrefixPath(path string) bool {
 func normalizePrefixPath(path string) string {
 	if isPrefixPath(path) {
 		return prefixPathToPath(path)
-	} else {
-		return path
 	}
+	return path
 }

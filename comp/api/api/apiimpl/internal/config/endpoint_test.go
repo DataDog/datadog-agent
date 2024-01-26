@@ -26,13 +26,6 @@ type testCase struct {
 	expectedStatus int
 }
 
-type nestedTestCase struct {
-	name           string
-	hasDefault     bool
-	override       bool
-	expectedStatus int
-}
-
 type prefixTestCase struct {
 	name           string
 	configName     string
