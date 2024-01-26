@@ -474,26 +474,27 @@ func offlineCommand() *cobra.Command {
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
 			var filters []ec2types.Filter
-			filter := cliArgs.filters
-			if !strings.HasPrefix(filter, "Name=") {
-				return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
+			if filter := cliArgs.filters; filter != "" {
+				if !strings.HasPrefix(filter, "Name=") {
+					return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
+				}
+				filter = filter[len("Name="):]
+				split := strings.SplitN(filter, ",", 2)
+				if len(split) != 2 {
+					return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
+				}
+				name := split[0]
+				filter = split[1]
+				if !strings.HasPrefix(filter, "Values=") {
+					return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
+				}
+				filter = filter[len("Values="):]
+				values := strings.Split(filter, ",")
+				filters = append(filters, ec2types.Filter{
+					Name:   aws.String(name),
+					Values: values,
+				})
 			}
-			filter = filter[len("Name="):]
-			split := strings.SplitN(filter, ",", 2)
-			if len(split) != 2 {
-				return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
-			}
-			name := split[0]
-			filter = split[1]
-			if !strings.HasPrefix(filter, "Values=") {
-				return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
-			}
-			filter = filter[len("Values="):]
-			values := strings.Split(filter, ",")
-			filters = append(filters, ec2types.Filter{
-				Name:   aws.String(name),
-				Values: values,
-			})
 			return offlineCmd(cliArgs.poolSize, scanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, globalParams.defaultActions, filters)
 		}),
 	}
