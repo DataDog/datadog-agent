@@ -16,18 +16,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const sysMetricsQuery11 = `SELECT 
+const sysMetricsQuery11 = `SELECT
 	metric_name,
-	value, 
+	value,
 	metric_unit
   FROM %s s`
 
-const sysMetricsQuery12 = `SELECT 
+const sysMetricsQuery12 = `SELECT
 	metric_name,
-	value, 
-	metric_unit, 
-	name pdb_name 
-  FROM %s s, v$containers c 
+	value,
+	metric_unit,
+	name pdb_name
+  FROM %s s, v$containers c
   WHERE s.con_id = c.con_id(+)`
 
 const (
@@ -126,7 +126,7 @@ func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]b
 		}
 		if !SYSMETRICS_COLS[r.MetricName].DBM || SYSMETRICS_COLS[r.MetricName].DBM && c.dbmEnabled {
 			log.Debugf("%s %s: %f", c.logPrompt, metric.DDmetric, value)
-			s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, "", appendPDBTag(c.tags, r.PdbName))
+			sendMetric(c, gauge, fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, appendPDBTag(c.tags, r.PdbName))
 			seen[r.MetricName] = true
 			*n++
 		}
