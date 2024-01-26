@@ -1,0 +1,6 @@
+
+features:
+  - |
+    Add `span_links` field to  trace payload. This field
+    contains a list of casual relationships between spans and is only
+    populated when v0.4 trace api is used.
