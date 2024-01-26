@@ -177,7 +177,7 @@ func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConf
 		log.Errorf("Failed to marshal apm tracing update??!??? %v", err)
 		return
 	}
-	fileLocation := "DD_SINGLE_STEP_CONFIG_DATA.json"
+	fileLocation := "/opt/datadog/inject/inject_config.json"
 	err = os.WriteFile(fileLocation, configFile, 0666)
 	if err != nil {
 		log.Errorf("failed to write single step config data file: %v", err)
