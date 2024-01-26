@@ -22,6 +22,7 @@ import (
 
 	_ "crypto/sha256"
 	_ "crypto/sha512"
+
 	"github.com/docker/distribution/reference"
 	digest "github.com/opencontainers/go-digest"
 
@@ -31,11 +32,11 @@ import (
 )
 
 type container struct {
-	MountName     string
-	ImageName     string // public.ecr.aws/datadog/agent:7-rc
-	ImageDigest   string // sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-	ContainerName string
-	Layers        []string
+	MountName         string
+	ImageRefTagged    reference.Field // public.ecr.aws/datadog/agent:7-rc
+	ImageRefCanonical reference.Field // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
+	ContainerName     string
+	Layers            []string
 }
 
 func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*container, error) {
@@ -64,11 +65,11 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 			ctrLayers := ctrdLayersPaths(ctrdRoot, ctr.Snapshot)
 			ctrMountName := fmt.Sprintf("%s%s-%s-%d", ctrdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
 			containers = append(containers, &container{
-				MountName:     ctrMountName,
-				ImageName:     ctr.ImageName,
-				ImageDigest:   ctr.Image.Digest.String(),
-				ContainerName: ctr.Name,
-				Layers:        ctrLayers,
+				MountName:         ctrMountName,
+				ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
+				ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
+				ContainerName:     ctr.Name,
+				Layers:            ctrLayers,
 			})
 		}
 	}
@@ -95,11 +96,11 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 				continue
 			}
 			containers = append(containers, &container{
-				MountName:     ctrMountName,
-				ImageName:     ctr.ImageName,
-				ImageDigest:   ctr.ImageDigest.String(),
-				ContainerName: ctr.Name,
-				Layers:        ctrLayers,
+				MountName:         ctrMountName,
+				ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
+				ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
+				ContainerName:     ctr.Name,
+				Layers:            ctrLayers,
 			})
 		}
 	}
@@ -107,25 +108,32 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 	return containers, nil
 }
 
-func containerTags(ctr container) (string, []string) {
-	imageNameSplit := strings.SplitN(ctr.ImageName, ":", 2)
-	if len(imageNameSplit) == 1 {
-		imageNameSplit = append(imageNameSplit, "")
-	}
-	imageRepo := imageNameSplit[0]
-	imageRepoSplit := strings.Split(imageRepo, "/")
-	entityID := imageRepo + "@" + ctr.ImageDigest
-	entityTags := []string{
-		"image_id:" + entityID,                                      // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-		"image_name:" + imageRepo,                                   // public.ecr.aws/datadog/agent
-		"image_registry:" + imageRepoSplit[0],                       // public.ecr.aws
-		"image_repository:" + strings.Join(imageRepoSplit[1:], "/"), // datadog/agent
-		"short_image:" + imageRepoSplit[len(imageRepoSplit)-1],      // agent
-		"repo_digest:" + ctr.ImageDigest,                            // sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-		"image_tag:" + imageNameSplit[1],                            // 7-rc
+func containerTags(ctr container) []string {
+	// Tracking some examples as reference:
+	//     Name:  public.ecr.aws/datadog/agent
+	//      Tag:  3
+	//      Domain:  public.ecr.aws
+	//      Path:  datadog/agent
+	//      FamiliarName:  public.ecr.aws/datadog/agent
+	//      FamiliarString:  public.ecr.aws/datadog/agent:3
+	//     Name:  docker.io/library/python
+	//      Tag:  3
+	//      Domain:  docker.io
+	//      Path:  library/python
+	//      FamiliarName:  python
+	//      FamiliarString:  python:3
+	refTagged := ctr.ImageRefTagged.Reference().(reference.NamedTagged)
+	refCanon := ctr.ImageRefCanonical.Reference().(reference.Canonical)
+	return []string{
+		"image_id:" + refCanon.String(),                       // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
+		"image_name:" + refTagged.Name(),                      // public.ecr.aws/datadog/agent
+		"image_registry:" + reference.Domain(refTagged),       // public.ecr.aws
+		"image_repository:" + reference.Path(refTagged),       // datadog/agent
+		"short_image:" + path.Base(reference.Path(refTagged)), // agent
+		"repo_digest:" + refCanon.Digest().String(),           // sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
+		"image_tag:" + refTagged.Tag(),                        // 7-rc
 		"container_name:" + ctr.ContainerName,
 	}
-	return entityID, entityTags
 }
 
 func mountContainer(ctx context.Context, scan *scanTask, ctr container) (string, error) {
@@ -227,16 +235,17 @@ type ctrdImage struct {
 }
 
 type ctrdContainer struct {
-	NS          string
-	Name        string
-	Snapshotter string
-	SnapshotKey string
-	Snapshot    *ctrdSnapshot
-	Labels      map[string]string
-	ImageName   string
-	Image       *ctrdImage
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	NS                string
+	Name              string
+	Snapshotter       string
+	SnapshotKey       string
+	Snapshot          *ctrdSnapshot
+	Labels            map[string]string
+	ImageRefTagged    reference.NamedTagged
+	ImageRefCanonical reference.Canonical
+	Image             *ctrdImage
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 func (c ctrdContainer) String() string {
@@ -433,8 +442,21 @@ func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) 
 
 				container.NS = string(ns)
 				container.Name = string(containerName)
-				container.ImageName = string(bktCtr.Get(bucketKeyImage))
-				container.Image = images[container.ImageName]
+				imageName := string(bktCtr.Get(bucketKeyImage))
+				ref, err := reference.ParseNormalizedNamed(imageName)
+				if err != nil {
+					return err
+				}
+				switch r := ref.(type) {
+				case reference.NamedTagged:
+					container.ImageRefTagged = r
+				case reference.Named:
+					container.ImageRefTagged, _ = reference.WithTag(r, "latest")
+				default:
+					return fmt.Errorf("containerd: image name is not a valid reference: %q", ref)
+				}
+				container.Image = images[imageName]
+				container.ImageRefCanonical, _ = reference.WithDigest(container.ImageRefTagged, container.Image.Digest)
 				container.Snapshotter = string(bktCtr.Get(bucketKeySnapshotter))
 				container.SnapshotKey = string(bktCtr.Get(bucketKeySnapshotKey))
 				container.Labels = make(map[string]string)
@@ -654,9 +676,9 @@ type dockerContainer struct {
 	Driver string        `json:"Driver"`
 	OS     string        `json:"OS"`
 
-	ImageManifest *dockerImage  `json:"_ImageManifest"` // XXX
-	ImageName     string        `json:"_ImageName"`     // XXX
-	ImageDigest   digest.Digest `json:"_ImageDigest"`   // XXX
+	ImageManifest     *dockerImage          `json:"_ImageManifest"`
+	ImageRefTagged    reference.NamedTagged `json:"_ImageName"`
+	ImageRefCanonical reference.Canonical   `json:"_ImageDigest"`
 }
 
 func (c dockerContainer) String() string {
@@ -749,11 +771,11 @@ func dockerReadMetadata(scan *scanTask, dockerRoot string) ([]dockerContainer, e
 			refs, ok := repos.referencesByID[ctr.Image]
 			if ok {
 				for _, ref := range refs {
-					if refC, ok := ref.(reference.Canonical); ok && ctr.ImageDigest == "" {
-						ctr.ImageDigest = refC.Digest()
+					if refC, ok := ref.(reference.Canonical); ok && ctr.ImageRefCanonical != nil {
+						ctr.ImageRefCanonical = refC
 					}
-					if _, ok := ref.(reference.NamedTagged); ok && ctr.ImageName == "" {
-						ctr.ImageName = ref.String()
+					if refT, ok := ref.(reference.NamedTagged); ok && ctr.ImageRefTagged != nil {
+						ctr.ImageRefTagged = refT
 					}
 				}
 			}
