@@ -37,8 +37,8 @@ func TestBasicTest(t *testing.T) {
 		cmd := exec.Command(executable)
 		return cmd.Run()
 	}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
-		assertFieldEqual(t, event, "exec.file.path", executable)
-		assertFieldIsOneOf(t, event, "process.parent.file.name", []string{"sh", "bash", "dash"}, "wrong process parent file name")
+		assertFieldEqualCaseInsensitve(t, event, "exec.file.path", `c:\windows\system32\schtasks.exe`, "wrong exec file path")
+		assertFieldIsOneOf(t, event, "process.parent.file.name", []string{"testsuite.exe"}, "wrong process parent file name")
 	}))
 
 }

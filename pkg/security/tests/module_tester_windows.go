@@ -9,18 +9,14 @@
 package tests
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
-	"path"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
-	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -33,6 +29,148 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 )
+
+var (
+	testActivityDumpDuration             = time.Second * 30
+	testActivityDumpLoadControllerPeriod = time.Second * 10
+)
+
+const testPolicy = `---
+version: 1.2.3
+
+macros:
+{{range $Macro := .Macros}}
+  - id: {{$Macro.ID}}
+    expression: >-
+      {{$Macro.Expression}}
+{{end}}
+
+rules:
+{{range $Rule := .Rules}}
+  - id: {{$Rule.ID}}
+    version: {{$Rule.Version}}
+    expression: >-
+      {{$Rule.Expression}}
+    tags:
+{{- range $Tag, $Val := .Tags}}
+      {{$Tag}}: {{$Val}}
+{{- end}}
+    actions:
+{{- range $Action := .Actions}}
+{{- if $Action.Set}}
+      - set:
+          name: {{$Action.Set.Name}}
+		  {{- if $Action.Set.Value}}
+          value: {{$Action.Set.Value}}
+          {{- else if $Action.Set.Field}}
+          field: {{$Action.Set.Field}}
+          {{- end}}
+          scope: {{$Action.Set.Scope}}
+          append: {{$Action.Set.Append}}
+{{- end}}
+{{- if $Action.Kill}}
+      - kill:
+          {{- if $Action.Kill.Signal}}
+          signal: {{$Action.Kill.Signal}}
+          {{- end}}
+{{- end}}
+{{- end}}
+{{end}}
+`
+
+const testConfig = `---
+log_level: DEBUG
+system_probe_config:
+  enabled: true
+
+event_monitoring_config:
+  remote_tagger: false
+  custom_sensitive_words:
+    - "*custom*"
+  network:
+    enabled: true
+  flush_discarder_window: 0
+{{if .DisableFilters}}
+  enable_kernel_filters: false
+{{end}}
+{{if .DisableApprovers}}
+  enable_approvers: false
+{{end}}
+{{if .DisableDiscarders}}
+  enable_discarders: false
+{{end}}
+  erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
+  map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
+  envs_with_value:
+  {{range .EnvsWithValue}}
+    - {{.}}
+  {{end}}
+
+runtime_security_config:
+  enabled: {{ .RuntimeSecurityEnabled }}
+  internal_monitoring:
+    enabled: true
+  remote_configuration:
+    enabled: false
+  sbom:
+    enabled: {{ .SBOMEnabled }}
+  activity_dump:
+    enabled: {{ .EnableActivityDump }}
+{{if .EnableActivityDump}}
+    rate_limiter: {{ .ActivityDumpRateLimiter }}
+    tag_rules:
+      enabled: {{ .ActivityDumpTagRules }}
+    dump_duration: {{ .ActivityDumpDuration }}
+    {{if .ActivityDumpLoadControllerPeriod }}
+    load_controller_period: {{ .ActivityDumpLoadControllerPeriod }}
+    {{end}}
+    {{if .ActivityDumpCleanupPeriod }}
+    cleanup_period: {{ .ActivityDumpCleanupPeriod }}
+    {{end}}
+    {{if .ActivityDumpLoadControllerTimeout }}
+    min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
+    {{end}}
+    traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
+    traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
+    - {{.}}
+    {{end}}
+    local_storage:
+      output_directory: {{ .ActivityDumpLocalStorageDirectory }}
+      compression: {{ .ActivityDumpLocalStorageCompression }}
+      formats: {{range .ActivityDumpLocalStorageFormats}}
+      - {{.}}
+      {{end}}
+{{end}}
+  security_profile:
+    enabled: {{ .EnableSecurityProfile }}
+{{if .EnableSecurityProfile}}
+    dir: {{ .SecurityProfileDir }}
+    watch_dir: {{ .SecurityProfileWatchDir }}
+    anomaly_detection:
+      enabled: true
+      default_minimum_stable_period: {{.AnomalyDetectionDefaultMinimumStablePeriod}}
+      minimum_stable_period:
+        exec: {{.AnomalyDetectionMinimumStablePeriodExec}}
+        dns: {{.AnomalyDetectionMinimumStablePeriodDNS}}
+      workload_warmup_period: {{.AnomalyDetectionWarmupPeriod}}
+{{end}}
+
+  self_test:
+    enabled: false
+
+  policies:
+    dir: {{.TestPoliciesDir}}
+  log_patterns:
+  {{range .LogPatterns}}
+    - "{{.}}"
+  {{end}}
+  log_tags:
+  {{range .LogTags}}
+    - {{.}}
+  {{end}}
+  ebpfless:
+    enabled: {{.EnableEBPFLess}}
+`
 
 type onRuleHandler func(*model.Event, *rules.Rule)
 type onProbeEventHandler func(*model.Event)
@@ -76,8 +214,19 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opt(&opts)
 	}
 
+	if commonCfgDir == "" {
+		cd, err := os.MkdirTemp("", "test-cfgdir")
+		if err != nil {
+			fmt.Println(err)
+		}
+		commonCfgDir = cd
+	}
+
 	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
 	if err != nil {
+		return nil, err
+	}
+	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 	statsdClient := statsdclient.NewStatsdClient()
@@ -192,43 +341,4 @@ func (tm *testModule) NewTimeoutError() ErrTimeout {
 	}
 
 	return ErrTimeout{msg.String()}
-}
-
-func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.Config, error) {
-	buffer := new(bytes.Buffer)
-	_, sysprobeConfigName, err := func() (string, string, error) {
-		ddConfig, err := os.OpenFile(path.Join(cfgDir, "datadog.yaml"), os.O_CREATE|os.O_RDWR, 0o644)
-		if err != nil {
-			return "", "", err
-		}
-		defer ddConfig.Close()
-
-		sysprobeConfig, err := os.Create(path.Join(cfgDir, "system-probe.yaml"))
-		if err != nil {
-			return "", "", err
-		}
-		defer sysprobeConfig.Close()
-
-		_, err = io.Copy(sysprobeConfig, buffer)
-		if err != nil {
-			return "", "", err
-		}
-		return ddConfig.Name(), sysprobeConfig.Name(), nil
-	}()
-	if err != nil {
-		return nil, nil, err
-	}
-	spconfig, err := spconfig.New(sysprobeConfigName)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load config: %w", err)
-	}
-
-	emconfig := emconfig.NewConfig(spconfig)
-
-	secconfig, err := secconfig.NewConfig()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load config: %w", err)
-	}
-
-	return emconfig, secconfig, nil
 }
