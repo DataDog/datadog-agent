@@ -27,7 +27,11 @@ func NewRemoteConfig(hostname string) (*RemoteConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to create rc service: %w", err)
 	}
-	client, err := client.NewClient(service, client.WithAgent("updater", "1.0"), client.WithProducts(state.ProductUpdaterCatalogDD, state.ProductUpdaterAgent, state.ProductUpdaterTask), client.WithoutTufVerification())
+	client, err := client.NewClient(
+		service,
+		client.WithUpdater("injector_tag:test"),
+		client.WithProducts(state.ProductUpdaterCatalogDD, state.ProductUpdaterAgent, state.ProductUpdaterTask), client.WithoutTufVerification(),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create rc client: %w", err)
 	}

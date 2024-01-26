@@ -771,12 +771,16 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 		return status.Error(codes.InvalidArgument, "client.client_tracer is a required field for tracer client config update requests")
 	}
 
-	if request.Client.IsTracer && request.Client.IsAgent {
-		return status.Error(codes.InvalidArgument, "client.is_tracer and client.is_agent cannot both be true")
+	if request.Client.IsUpdater && request.Client.ClientUpdater == nil {
+		return status.Error(codes.InvalidArgument, "client.client_updater is a required field for updater client config update requests")
 	}
 
-	if !request.Client.IsTracer && !request.Client.IsAgent {
-		return status.Error(codes.InvalidArgument, "agents only support remote config updates from tracer or agent at this time")
+	if (request.Client.IsTracer && request.Client.IsAgent) || (request.Client.IsTracer && request.Client.IsUpdater) || (request.Client.IsAgent && request.Client.IsUpdater) {
+		return status.Error(codes.InvalidArgument, "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive")
+	}
+
+	if !request.Client.IsTracer && !request.Client.IsAgent && !request.Client.IsUpdater {
+		return status.Error(codes.InvalidArgument, "agents only support remote config updates from tracer or agent or updater at this time")
 	}
 
 	if request.Client.Id == "" {
