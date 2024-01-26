@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1132,15 +1133,9 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 
 // removeHeaderFieldByKey removes the header field with the given key from the given header fields.
 func removeHeaderFieldByKey(headerFields []hpack.HeaderField, keyToRemove string) []hpack.HeaderField {
-	for i := 0; i < len(headerFields); i++ {
-		if headerFields[i].Name == keyToRemove {
-			// Remove the element by modifying the slice in-place
-			headerFields = append(headerFields[:i], headerFields[i+1:]...)
-			break
-		}
-	}
-
-	return headerFields
+	return slices.DeleteFunc(headerFields, func(value hpack.HeaderField) bool {
+		return value.Name == keyToRemove
+	})
 }
 
 func getStreamID(streamID int) uint32 {
