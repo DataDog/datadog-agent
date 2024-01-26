@@ -25,6 +25,8 @@ import (
 )
 
 func TestDNS(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()

@@ -168,7 +168,7 @@ func getRemoteConfigAuthKeys(apiKey string, rcKey string) (remoteConfigAuthKeys,
 	}, nil
 }
 
-func buildLatestConfigsRequest(hostname string, agentVersion string, traceAgentEnv string, orgUUID string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {
+func buildLatestConfigsRequest(hostname string, agentVersion string, tags []string, traceAgentEnv string, orgUUID string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {
 	productsList := make([]data.Product, len(products))
 	i := 0
 	for k := range products {
@@ -200,6 +200,7 @@ func buildLatestConfigsRequest(hostname string, agentVersion string, traceAgentE
 		Error:                        lastUpdateErrString,
 		TraceAgentEnv:                traceAgentEnv,
 		OrgUuid:                      orgUUID,
+		Tags:                         tags,
 	}
 }
 

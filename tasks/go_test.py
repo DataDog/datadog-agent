@@ -18,18 +18,18 @@ from typing import Dict, List
 from invoke import task
 from invoke.exceptions import Exit
 
-from .agent import integration_tests as agent_integration_tests
-from .build_tags import compute_build_tags_for_flavor
-from .cluster_agent import integration_tests as dca_integration_tests
-from .dogstatsd import integration_tests as dsd_integration_tests
-from .flavor import AgentFlavor
-from .libs.common.color import color_message
-from .libs.common.utils import clean_nested_paths, get_build_flags
-from .libs.datadog_api import create_count, send_metrics
-from .libs.junit_upload_core import add_flavor_to_junitxml, produce_junit_tar
-from .modules import DEFAULT_MODULES, GoModule
-from .test_core import ModuleTestResult, process_input_args, process_module_results, test_core
-from .trace_agent import integration_tests as trace_integration_tests
+from tasks.agent import integration_tests as agent_integration_tests
+from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.cluster_agent import integration_tests as dca_integration_tests
+from tasks.dogstatsd import integration_tests as dsd_integration_tests
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import clean_nested_paths, get_build_flags
+from tasks.libs.datadog_api import create_count, send_metrics
+from tasks.libs.junit_upload_core import add_flavor_to_junitxml, produce_junit_tar
+from tasks.modules import DEFAULT_MODULES, GoModule
+from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
+from tasks.trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "coverage.out"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
@@ -198,24 +198,6 @@ def codecov_flavor(
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
 
-def deprecating_skip_linters_flag(skip_linters):
-    """
-    We're deprecating the --skip-linters flag in the test invoke task
-
-    Displays a warning when user is running inv -e test --skip-linters
-    Also displays the command the user should run to
-    """
-    if skip_linters:
-        deprecation_msg = """Warning: the --skip-linters is deprecated for the test invoke task.
-Feel free to remove the flag when running inv -e test.
-"""
-    else:
-        deprecation_msg = """Warning: the linters were removed from the test invoke task.
-If you want to run the linters, please run inv -e lint-go instead.
-"""
-    print(deprecation_msg, file=sys.stderr)
-
-
 def sanitize_env_vars():
     """
     Sanitizes environment variables
@@ -249,7 +231,6 @@ def test(
     arch="x64",
     cache=True,
     test_run_name="",
-    skip_linters=False,
     save_result_json=None,
     rerun_fails=None,
     go_mod="mod",
@@ -274,8 +255,6 @@ def test(
     modules_results_per_phase = defaultdict(dict)
 
     sanitize_env_vars()
-
-    deprecating_skip_linters_flag(skip_linters)
 
     modules, flavors = process_input_args(module, targets, flavors)
 

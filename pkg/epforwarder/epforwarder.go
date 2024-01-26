@@ -62,7 +62,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    10e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -75,7 +76,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:   eventTypeDBMMetadata,
@@ -91,7 +93,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -104,7 +107,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:                     EventTypeNetworkDevicesMetadata,
@@ -437,8 +441,10 @@ func (p *passthroughPipeline) Start() {
 }
 
 func (p *passthroughPipeline) Stop() {
-	p.strategy.Stop()
-	p.sender.Stop()
+	if p.strategy != nil {
+		p.strategy.Stop()
+		p.sender.Stop()
+	}
 	p.auditor.Stop()
 }
 

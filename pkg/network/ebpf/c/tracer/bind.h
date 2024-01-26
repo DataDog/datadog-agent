@@ -28,14 +28,14 @@ static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *
     }
 
     if (addr == NULL) {
-        log_debug("sys_enter_bind: could not read sockaddr, sock=%llx, tid=%u\n", sock, tid);
+        log_debug("sys_enter_bind: could not read sockaddr, sock=%llx, tid=%u", sock, tid);
         return 0;
     }
 
     // ignore binds to port 0, as these are most
     // likely from clients, not servers
     if (sockaddr_sin_port(addr) == 0) {
-        log_debug("sys_enter_bind: ignoring bind to 0 port, sock=%llx\n", sock);
+        log_debug("sys_enter_bind: ignoring bind to 0 port, sock=%llx", sock);
         return 0;
     }
 
@@ -50,7 +50,7 @@ static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *
     args.addr = addr;
 
     bpf_map_update_with_telemetry(pending_bind, &tid, &args, BPF_ANY);
-    log_debug("sys_enter_bind: started a bind on UDP sock=%llx tid=%u\n", sock, tid);
+    log_debug("sys_enter_bind: started a bind on UDP sock=%llx tid=%u", sock, tid);
 
     return 0;
 }
@@ -61,10 +61,10 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     // bail if this bind() is not the one we're instrumenting
     bind_syscall_args_t *args = bpf_map_lookup_elem(&pending_bind, &tid);
 
-    log_debug("sys_exit_bind: tid=%u, ret=%d\n", tid, ret);
+    log_debug("sys_exit_bind: tid=%u, ret=%d", tid, ret);
 
     if (args == NULL) {
-        log_debug("sys_exit_bind: was not a UDP bind, will not process\n");
+        log_debug("sys_exit_bind: was not a UDP bind, will not process");
         return 0;
     }
 
@@ -82,7 +82,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     }
 
     if (sin_port == 0) {
-        log_debug("ERR(sys_exit_bind): sin_port is 0\n");
+        log_debug("ERR(sys_exit_bind): sin_port is 0");
         return 0;
     }
 
@@ -90,8 +90,8 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     pb.netns = get_netns_from_sock(sk);
     pb.port = sin_port;
     add_port_bind(&pb, udp_port_bindings);
-    log_debug("sys_exit_bind: netns=%u\n", pb.netns);
-    log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
+    log_debug("sys_exit_bind: netns=%u", pb.netns);
+    log_debug("sys_exit_bind: bound UDP port %u", sin_port);
 
     return 0;
 }

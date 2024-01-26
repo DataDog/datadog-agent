@@ -21,6 +21,8 @@ import (
 )
 
 func TestK8SUserSession(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable := which(t, "touch")
 
 	ruleDefs := []*rules.RuleDefinition{

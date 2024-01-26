@@ -35,13 +35,13 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
     kafka_transaction_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
     if (kafka == NULL) {
-        log_debug("socket__kafka_filter: kafka_transaction state is NULL\n");
+        log_debug("socket__kafka_filter: kafka_transaction state is NULL");
         return 0;
     }
     bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
 
     if (!fetch_dispatching_arguments(&kafka->base.tup, &skb_info)) {
-        log_debug("socket__kafka_filter failed to fetch arguments for tail call\n");
+        log_debug("socket__kafka_filter failed to fetch arguments for tail call");
         return 0;
     }
 
@@ -70,8 +70,8 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     kafka_header.correlation_id = bpf_ntohl(kafka_header.correlation_id);
     kafka_header.client_id_size = bpf_ntohs(kafka_header.client_id_size);
 
-    log_debug("kafka: kafka_header.api_key: %d\n", kafka_header.api_key);
-    log_debug("kafka: kafka_header.api_version: %d\n", kafka_header.api_version);
+    log_debug("kafka: kafka_header.api_key: %d", kafka_header.api_key);
+    log_debug("kafka: kafka_header.api_version: %d", kafka_header.api_version);
 
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
@@ -119,7 +119,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
 
     CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->base.topic_name);
 
-    log_debug("kafka: topic name is %s\n", kafka_transaction->base.topic_name);
+    log_debug("kafka: topic name is %s", kafka_transaction->base.topic_name);
 
     kafka_batch_enqueue(&kafka_transaction->base);
     return true;
@@ -143,12 +143,12 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
 
     // Check that we didn't see this tcp segment before so we won't process
     // the same traffic twice
-    log_debug("kafka: Current tcp sequence: %lu\n", skb_info->tcp_seq);
+    log_debug("kafka: Current tcp sequence: %lu", skb_info->tcp_seq);
     // Hack to make verifier happy on 4.14.
     conn_tuple_t tup = kafka->base.tup;
     __u32 *last_tcp_seq = bpf_map_lookup_elem(&kafka_last_tcp_seq_per_connection, &tup);
     if (last_tcp_seq != NULL && *last_tcp_seq == skb_info->tcp_seq) {
-        log_debug("kafka: already seen this tcp sequence: %lu\n", *last_tcp_seq);
+        log_debug("kafka: already seen this tcp sequence: %lu", *last_tcp_seq);
         return false;
     }
     bpf_map_update_with_telemetry(kafka_last_tcp_seq_per_connection, &tup, &skb_info->tcp_seq, BPF_ANY);

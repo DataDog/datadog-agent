@@ -99,7 +99,6 @@ const (
 
 var (
 	supportedLanguages = []language{java, js, python, dotnet, ruby}
-	targetNamespaces   = config.Datadog.GetStringSlice("admission_controller.auto_instrumentation.inject_all.namespaces")
 
 	singleStepInstrumentationInstallTypeEnvVar = corev1.EnvVar{
 		Name:  instrumentationInstallTypeEnvVarName,
@@ -191,18 +190,6 @@ func injectApmTelemetryConfig(pod *corev1.Pod) {
 	_ = injectEnv(pod, instrumentationInstallIDEnvVar)
 }
 
-func isNsTargeted(ns string) bool {
-	if len(targetNamespaces) == 0 {
-		return false
-	}
-	for _, targetNs := range targetNamespaces {
-		if ns == targetNs {
-			return true
-		}
-	}
-	return false
-}
-
 func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string) ([]libInfo, bool) {
 	libsToInject := []libInfo{}
 	autoDetected := false
@@ -239,24 +226,22 @@ func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string)
 	return libsToInject, autoDetected
 }
 
-func getAllLibsToInject(ns, registry string) map[string]libInfo {
+func getAllLibsToInject(registry string) map[string]libInfo {
 	libsToInject := map[string]libInfo{}
 	var libVersion string
+	singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
 
-	if isApmInstrumentationEnabled(ns) {
-		singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
-		// If APM Instrumentation is enabled and configuration apm_config.instrumentation.lib_versions specified, inject only the libraries from the configuration
-		for lang, version := range singleStepLibraryVersions {
-			if !slices.Contains(supportedLanguages, language(lang)) {
-				log.Warnf("APM Instrumentation detected configuration for unsupported language: %s", lang)
-			} else {
-				log.Infof("Library version %s is specified for language %s", version, lang)
-				libVersion = version
-				libsToInject[lang] = libInfo{
-					lang:  language(lang),
-					image: libImageName(registry, language(lang), libVersion),
-				}
-			}
+	for _, lang := range supportedLanguages {
+		libVersion = "latest"
+
+		if version, ok := singleStepLibraryVersions[string(lang)]; ok {
+			log.Warnf("Library version %s is specified for language %s", version, string(lang))
+			libVersion = version
+		}
+
+		libsToInject[string(lang)] = libInfo{
+			lang:  lang,
+			image: libImageName(registry, lang, libVersion),
 		}
 	}
 	if len(libsToInject) > 0 {
