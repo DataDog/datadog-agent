@@ -102,6 +102,7 @@ func WithPermission(elevatedPermissions bool) Option {
 	}
 }
 
+// WithPermission configures if process collection should ignore zombie processes or not
 func WithIgnoreZombieProcesses(ignoreZombieProcesses bool) Option {
 	return func(p Probe) {
 		if linuxProbe, ok := p.(*probe); ok {
