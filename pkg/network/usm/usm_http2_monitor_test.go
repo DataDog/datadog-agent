@@ -1312,17 +1312,16 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 func validateHuffmanEncoded(t *testing.T, ebpfProgram *ebpfProgram, expectedHuffmanEncoded map[int]bool) {
 	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
 	require.NoError(t, err)
-	key := make([]byte, dynamicTableMap.KeySize())
-	value := make([]byte, dynamicTableMap.ValueSize())
-	iterator := dynamicTableMap.Iterate()
 	resultEncodedPaths := make(map[int]bool, 0)
+
+	var key usmhttp2.HTTP2DynamicTableIndex
+	var value usmhttp2.HTTP2DynamicTableEntry
+	iterator := dynamicTableMap.Iterate()
 	for iterator.Next(&key, &value) {
-		tableEntry := usmhttp2.HTTP2DynamicTableEntry{}
-		require.NoError(t, binary.Read(bytes.NewReader(value), binary.LittleEndian, &tableEntry))
-		resultEncodedPaths[int(tableEntry.String_len)] = tableEntry.Is_huffman_encoded
+		resultEncodedPaths[int(value.String_len)] = value.Is_huffman_encoded
 	}
 	// we compare the size of the path and if it is huffman encoded.
-	require.True(t, assert.EqualValues(t, expectedHuffmanEncoded, resultEncodedPaths))
+	require.EqualValues(t, expectedHuffmanEncoded, resultEncodedPaths)
 }
 
 // dialHTTP2Server dials the http2 server and performs the initial handshake
