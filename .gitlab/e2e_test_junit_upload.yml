@@ -9,7 +9,7 @@
     - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     - set -x
     - set +e
-    - for f in junit-new-e2e-*.tgz; do inv -e junit-upload --tgz-path "$f"; done
+    - for f in junit*-e2e-*.tgz; do inv -e junit-upload --tgz-path "$f"; done
 
 e2e_installer_test_junit_upload:
   extends: .e2e_test_junit_template
