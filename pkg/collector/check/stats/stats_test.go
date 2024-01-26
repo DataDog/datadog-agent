@@ -153,9 +153,3 @@ func TestTranslateEventPlatformEventTypes(t *testing.T) {
 	assert.True(t, assert.ObjectsAreEqual(expected, result))
 	assert.EqualValues(t, expected, result)
 }
-
-func TestCodecovFail(t *testing.T) {
-	time.Sleep(2 * time.Second)
-	t.Log("Failing after 2 seconds sleep !")
-	assert.True(t, false)
-}
