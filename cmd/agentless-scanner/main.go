@@ -1206,7 +1206,7 @@ func humanParseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
 		AccountID: self.AccountID,
 		Resource:  s,
 	}
-	if strings.HasPrefix(s, "/") && fs.ValidPath(s) {
+	if strings.HasPrefix(s, "/") && fs.ValidPath(s[1:]) {
 		a.Partition = "localhost"
 	} else if strings.HasPrefix(s, "vol-") {
 		a.Service = "ec2"
