@@ -6,6 +6,8 @@ import (
 	// "github.com/stretchr/testify/assert"
 )
 
+//go:build !linux && !windows
+
 // func TestStripArguments(b *testing.B) {
 
 // 	cases := []struct {
@@ -20,9 +22,9 @@ import (
 // 		{[]string{"agent password:1234"}, []string{"agent"}},
 // 	}
 
-// 	// for i := range cases {
-// 	// 	fp := &Process{Cmdline: cases[i].cmdline}
-// 	// 	cases[i].cmdline.stripArguments
-// 	// 	assert.Equal(t, cases[i].triplessCmdline, cases[i].cmdline)
-// 	// }
+	// for i := range cases {
+	// 	fp := &Process{Cmdline: cases[i].cmdline}
+	// 	cases[i].cmdline.stripArguments
+	// 	assert.Equal(t, cases[i].triplessCmdline, cases[i].cmdline)
+	// }
 // }
