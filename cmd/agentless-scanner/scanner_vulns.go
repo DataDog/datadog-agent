@@ -79,7 +79,6 @@ func launchScannerTrivyLocal(ctx context.Context, opts scannerOptions) (*cdx.BOM
 	if err != nil {
 		return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
 	}
-
 	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
 }
 
@@ -113,13 +112,12 @@ func launchScannerTrivyVM(ctx context.Context, opts scannerOptions) (*cdx.BOM, e
 	if err != nil {
 		return nil, err
 	}
-
 	trivyArtifactEBS := trivyArtifact.(*vm.EBS)
 	trivyArtifactEBS.SetEBS(EBSClientWithWalk{ebsclient})
 	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
 }
 
-func launchScannerTrivyLambda(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
+func launchScannerTrivyApp(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
 	var allowedAnalyzers []analyzer.Type
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLanguages...)
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLockfiles...)
@@ -131,6 +129,7 @@ func launchScannerTrivyLambda(ctx context.Context, opts scannerOptions) (*cdx.BO
 		DisabledAnalyzers: getTrivyDisabledAnalyzers(allowedAnalyzers),
 		Parallel:          1,
 		SBOMSources:       []string{},
+		DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
 		AWSRegion:         opts.Scan.ARN.Region,
 	})
 	if err != nil {
