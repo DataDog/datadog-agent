@@ -817,18 +817,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
 			}
 
-			c, err := net.Dial("unix", unixPath)
-			require.NoError(t, err, "could not dial")
-			defer c.Close()
-
-			// Create a buffer to write the frame into.
-			var buf bytes.Buffer
-			framer := http2.NewFramer(&buf, nil)
-			// Write the empty SettingsFrame to the buffer using the Framer
-			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
-
-			// Writing a magic and the settings in the same packet to socket.
-			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
+			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
 			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
@@ -903,18 +892,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
 			}
 
-			c, err := net.Dial("unix", unixPath)
-			require.NoError(t, err, "could not dial")
-			defer c.Close()
-
-			// Create a buffer to write the frame into.
-			var buf bytes.Buffer
-			framer := http2.NewFramer(&buf, nil)
-			// Write the empty SettingsFrame to the buffer using the Framer
-			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
-
-			// Writing a magic and the settings in the same packet to socket.
-			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
+			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
 			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
@@ -995,18 +973,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
 			}
 
-			c, err := net.Dial("unix", unixPath)
-			require.NoError(t, err, "could not dial")
-			defer c.Close()
-
-			// Create a buffer to write the frame into.
-			var buf bytes.Buffer
-			framer := http2.NewFramer(&buf, nil)
-			// Write the empty SettingsFrame to the buffer using the Framer
-			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
-
-			// Writing a magic and the settings in the same packet to socket.
-			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
+			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
 			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
@@ -1392,4 +1359,15 @@ func validateHuffmanEncoded(t *testing.T, ebpfProgram *ebpfProgram, expectedHuff
 	}
 	// we compare the size of the path and if it is huffman encoded.
 	require.True(t, assert.EqualValues(t, expectedHuffmanEncoded, resultEncodedPaths))
+}
+
+// dialHTTP2Server dials the http2 server and performs the initial handshake
+func dialHTTP2Server(t *testing.T) net.Conn {
+	c, err := net.Dial("unix", unixPath)
+	require.NoError(t, err, "failed to dial")
+	t.Cleanup(func() { _ = c.Close() })
+
+	// Writing a magic and the settings in the same packet to socket.
+	require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), newFramer().writeSettings(t).bytes()), time.Second))
+	return c
 }
