@@ -29,7 +29,7 @@ import (
 	"unsafe"
 
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 
