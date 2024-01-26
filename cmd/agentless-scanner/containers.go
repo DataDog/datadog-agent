@@ -771,13 +771,22 @@ func dockerReadMetadata(scan *scanTask, dockerRoot string) ([]dockerContainer, e
 			refs, ok := repos.referencesByID[ctr.Image]
 			if ok {
 				for _, ref := range refs {
-					if refC, ok := ref.(reference.Canonical); ok && ctr.ImageRefCanonical != nil {
+					if refC, ok := ref.(reference.Canonical); ok && ctr.ImageRefCanonical == nil {
 						ctr.ImageRefCanonical = refC
 					}
-					if refT, ok := ref.(reference.NamedTagged); ok && ctr.ImageRefTagged != nil {
+					if refT, ok := ref.(reference.NamedTagged); ok && ctr.ImageRefTagged == nil {
 						ctr.ImageRefTagged = refT
 					}
+					if refN, ok := ref.(reference.Named); ok && ctr.ImageRefTagged == nil {
+						ctr.ImageRefTagged, _ = reference.WithTag(refN, "latest")
+					}
 				}
+			}
+			if ctr.ImageRefTagged == nil {
+				ctr.ImageRefTagged, _ = reference.WithTag(ctr.ImageRefCanonical, "latest")
+			}
+			if ctr.ImageRefCanonical == nil {
+				ctr.ImageRefCanonical, _ = reference.WithDigest(ctr.ImageRefTagged, ctr.Image)
 			}
 		}
 	}
