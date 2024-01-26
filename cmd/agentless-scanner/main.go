@@ -244,7 +244,7 @@ type (
 	}
 
 	scanContainerResult struct {
-		Containers []*container `json:"MountPoints"`
+		Containers []*container `json:"Containers"`
 	}
 
 	scanMalwareResult struct {
@@ -494,6 +494,11 @@ func offlineCommand() *cobra.Command {
 					Name:   aws.String(name),
 					Values: values,
 				})
+			}
+			for _, action := range globalParams.defaultActions {
+				if action == string(vulnsContainers) && globalParams.diskMode == noAttach {
+					globalParams.diskMode = volumeAttach
+				}
 			}
 			return offlineCmd(cliArgs.poolSize, scanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, globalParams.defaultActions, filters)
 		}),
@@ -2097,7 +2102,7 @@ func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error
 	resp, err := rt.transport.RoundTrip(req)
 	duration := float64(time.Since(startTime).Milliseconds())
 	defer func() {
-		if err := statsd.Histogram("datadog.agentless_scanner.aws.responses", duration, tags, 1.0); err != nil {
+		if err := statsd.Histogram("datadog.agentless_scanner.aws.responses", duration, tags, 0.2); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
 	}()
@@ -2152,7 +2157,7 @@ func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error
 		}
 	}
 	if contentLength, err := strconv.Atoi(resp.Header.Get("Content-Length")); err == nil {
-		if err := statsd.Histogram("datadog.agentless_scanner.responses.size", float64(contentLength), tags, 1.0); err != nil {
+		if err := statsd.Histogram("datadog.agentless_scanner.responses.size", float64(contentLength), tags, 0.2); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
 	}
@@ -2328,7 +2333,14 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				if ctrResult.Err != nil {
 					resultsCh <- ctrResult
 				} else {
+					log.Infof("%s: found %d containers on %q", opts.Scan, len(ctrResult.Containers.Containers), opts.Root)
 					for _, ctr := range ctrResult.Containers.Containers {
+						{
+							tags := tagScan(scan, fmt.Sprintf("container_runtime:%s", ctr.Runtime))
+							if err := statsd.Count("datadog.agentless_scanner.containers.count", int64(len(ctrResult.Containers.Containers)), tags, 1.0); err != nil {
+								log.Warnf("failed to send metric: %v", err)
+							}
+						}
 						mountPoint, err := mountContainer(ctx, scan, *ctr)
 						if err != nil {
 							resultsCh <- opts.ErrResult(err)
@@ -2557,7 +2569,7 @@ func launchScannerLocally(ctx context.Context, opts scannerOptions) scanResult {
 		if err != nil {
 			return opts.ErrResult(err)
 		}
-		return scanResult{scannerOptions: opts, Containers: &scanContainerResult{Containers: containers}}
+		return scanResult{scannerOptions: opts, Containers: &containers}
 	case scannerNameMalware:
 		result, err := launchScannerMalware(ctx, opts)
 		if err != nil {
