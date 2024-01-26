@@ -111,12 +111,6 @@ kitchen_centos_install_script_agent-a7:
     - .kitchen_scenario_centos_without_fips_a7
     - .kitchen_test_install_script_agent
 
-kitchen_centos_fips_install_script_agent-a6:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_centos_with_fips_a6
-    - .kitchen_test_install_script_agent
-
 kitchen_centos_fips_install_script_agent-a7:
   # Run install script test on branches, on a reduced number of platforms
   rules:
@@ -148,22 +142,6 @@ kitchen_centos_fips_install_script_dogstatsd-a7:
 
 # We only want to run step-by-step tests on deploy pipelines,
 # which is why they have a different rule (if_deploy_6/7)
-
-kitchen_centos_step_by_step_agent-a6:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_centos_without_fips_a6
-    - .kitchen_test_step_by_step_agent
-  rules:
-    !reference [.on_deploy_a6]
-
-kitchen_centos_fips_step_by_step_agent-a6:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_centos_with_fips_a6
-    - .kitchen_test_step_by_step_agent
-  rules:
-    !reference [.on_deploy_a6]
 
 kitchen_centos_step_by_step_agent-a7:
   extends:
