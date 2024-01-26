@@ -84,7 +84,6 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
@@ -101,7 +100,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
@@ -194,7 +192,6 @@ func run(log log.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
-	rcservice rcservice.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
@@ -265,7 +262,6 @@ func run(log log.Component,
 		serverDebug,
 		wmeta,
 		taggerComp,
-		rcservice,
 		rcclient,
 		logsAgent,
 		forwarder,
@@ -337,8 +333,8 @@ func getSharedFxOption() fx.Option {
 
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),
-		fx.Provide(rctelemetryreporterimpl.NewDdRcTelemetryReporter),
-		rcserviceimpl.Module(),
+		rctelemetryreporterimpl.Module(),
+		rcserviceimpl.ModuleOptional(),
 		rcclient.Module(),
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		tagger.Module(),
@@ -399,7 +395,6 @@ func startAgent(
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
-	rcservice rcservice.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	_ defaultforwarder.Component,
@@ -508,10 +503,7 @@ func startAgent(
 	log.Infof("Hostname is: %s", hostnameDetected)
 
 	// start remote configuration management
-	var configService *remoteconfig.Service
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
-		rcservice.Start(context.Background())
-
 		if err := rcclient.Start("core-agent"); err != nil {
 			pkglog.Errorf("Failed to start the RC client component: %s", err)
 		} else {
@@ -545,7 +537,6 @@ func startAgent(
 
 	// start the cmd HTTP server
 	if err = agentAPI.StartServer(
-		configService,
 		wmeta,
 		taggerComp,
 		logsAgent,

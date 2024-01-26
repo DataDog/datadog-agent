@@ -10,6 +10,8 @@ package jmx
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -141,6 +143,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() demultiplexer.Component { return nil }),
 			fx.Provide(func() inventorychecks.Component { return nil }),
 			fx.Provide(func() packagesigning.Component { return nil }),
+			fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewOption[rcservice.Component](nil) }),
 			fx.Provide(func() status.Component { return nil }),
 			fx.Provide(func() eventplatformreceiver.Component { return nil }),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),

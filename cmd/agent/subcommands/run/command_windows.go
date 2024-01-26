@@ -62,7 +62,6 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -93,7 +92,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			serverDebug dogstatsddebug.Component,
 			wmeta workloadmeta.Component,
 			taggerComp tagger.Component,
-			rcservice rcservice.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
@@ -126,7 +124,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				serverDebug,
 				wmeta,
 				taggerComp,
-				rcservice,
 				rcclient,
 				logsAgent,
 				forwarder,
