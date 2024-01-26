@@ -52,12 +52,10 @@ const (
 )
 
 const (
-	srvPort               = 8082
-	unixPath              = "/tmp/transparent.sock"
-	pathWithStatusCode300 = "/raw-test-300"
-	pathWithStatusCode401 = "/raw-test-401"
-	http2DefaultTestPath  = "/aaa"
-	defaultMethod         = http.MethodPost
+	srvPort              = 8082
+	unixPath             = "/tmp/transparent.sock"
+	http2DefaultTestPath = "/aaa"
+	defaultMethod        = http.MethodPost
 )
 
 var (
@@ -747,7 +745,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify that currently we do not support status code 300.
 			messageBuilder: func() []byte {
 				framer := newFramer()
-				return framer.writeHeaders(t, 1, headersWithGivenEndpoint(pathWithStatusCode300)).
+				return framer.writeHeaders(t, 1, headersWithGivenEndpoint("/status/300")).
 					writeData(t, 1, true, emptyBody).bytes()
 			},
 			expectedEndpoints: nil,
@@ -757,7 +755,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify that currently we do not support status code 401.
 			messageBuilder: func() []byte {
 				framer := newFramer()
-				return framer.writeHeaders(t, 1, headersWithGivenEndpoint(pathWithStatusCode401)).
+				return framer.writeHeaders(t, 1, headersWithGivenEndpoint("/status/401")).
 					writeData(t, 1, true, emptyBody).bytes()
 			},
 			expectedEndpoints: nil,
@@ -1248,16 +1246,14 @@ func startH2CServer(t *testing.T, address string, isTLS bool) func() {
 	srv := &http.Server{
 		Addr: authority,
 		Handler: h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Check the request path and set the appropriate status code
-			switch r.URL.Path {
-			case pathWithStatusCode300:
-				w.WriteHeader(http.StatusMultipleChoices) // HTTP status code 300
-			case pathWithStatusCode401:
-				w.WriteHeader(http.StatusUnauthorized) // HTTP status code 401
-			default:
+			statusCode := testutil.StatusFromPath(r.URL.Path)
+			if statusCode == 0 {
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("test"))
+			} else {
+				w.WriteHeader(int(statusCode))
 			}
+			defer func() { _ = r.Body.Close() }()
+			_, _ = io.Copy(w, r.Body)
 		}), &http2.Server{}),
 		IdleTimeout: 2 * time.Second,
 	}
