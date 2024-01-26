@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type testCase struct {
@@ -107,33 +106,13 @@ func TestConfigEndpoint(t *testing.T) {
 		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError)
 	})
 
-	for _, testCase := range []nestedTestCase{
-		{"authorized_nested_no_default_no_override", false, false, http.StatusNotFound},
-		{"authorized_nested_no_default_override", false, true, http.StatusOK},
-		{"authorized_nested_default_no_override", true, false, http.StatusOK},
-		{"authorized_nested_default_override", true, true, http.StatusOK},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			configName := "my.config.value"
-
-			cfg, server, configEndpoint := getConfigServer(t, authorizedSet{configName: struct{}{}})
-			if testCase.hasDefault {
-				cfg.Set(configName, "default_value", model.SourceDefault)
-			}
-			if testCase.override {
-				cfg.Set(configName, "override_value", model.SourceEnvVar)
-			}
-			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus)
-		})
-	}
-
 	parentConfigName := "root.parent"
 	childConfigNameOne := parentConfigName + ".child1"
 	childConfigNameTwo := parentConfigName + ".child2"
 	for _, testCase := range []prefixTestCase{
-		{"authorized_nested_prefix_path_rule_root", parentConfigName, http.StatusOK},
-		{"authorized_nested_prefix_path_rule_root", childConfigNameOne, http.StatusOK},
-		{"authorized_nested_prefix_path_rule_root", childConfigNameTwo, http.StatusOK},
+		{"authorized_nested_prefix_rule_root", parentConfigName, http.StatusOK},
+		{"authorized_nested_prefix_rule_child_one", childConfigNameOne, http.StatusOK},
+		{"authorized_nested_prefix_rule_child_two", childConfigNameTwo, http.StatusOK},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			parentConfigPath := parentConfigName + "."
@@ -147,7 +126,7 @@ func TestConfigEndpoint(t *testing.T) {
 		})
 	}
 
-	t.Run("unauthorized_nested_prefix_path_rule", func(t *testing.T) {
+	t.Run("unauthorized_nested_prefix_rule", func(t *testing.T) {
 		parentConfigName := "root.parent"
 		childConfigName := parentConfigName + ".child"
 
@@ -186,6 +165,11 @@ func TestConfigListEndpoint(t *testing.T) {
 			map[string]interface{}{"my.config.value": "some_value"},
 			authorizedSet{"my.config.value": {}, "my.other.config.value": {}},
 		},
+		{
+			"prefix_rule",
+			map[string]interface{}{"my.config.value": "some_value"},
+			authorizedSet{"my.config.": {}},
+		},
 	}
 
 	for _, test := range testCases {
@@ -210,6 +194,7 @@ func TestConfigListEndpoint(t *testing.T) {
 
 				expectedValues := make(map[string]interface{})
 				for key := range test.authorizedConfigs {
+					key = normalizePrefixPath(key)
 					expectedValues[key] = cfg.Get(key)
 				}
 

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"strings"
 
 	gorilla "github.com/gorilla/mux"
 
@@ -19,13 +20,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const prefixPathSuffix string = "."
+
 type authorizedSet map[string]struct{}
 
-var authorizedConfigPathsCore = authorizedSet{
-	"api_key": {},
-	"site":    {},
-	"dd_url":  {},
-	"ha.":     {},
+var authorizedConfigPathsCore = buildAuthorizedSet(
+	"api_key", "site", "dd_url", pathToPrefixPath("ha"),
+)
+
+func buildAuthorizedSet(paths ...string) authorizedSet {
+	authorizedPaths := make(authorizedSet)
+	for _, path := range paths {
+		authorizedPaths[path] = struct{}{}
+	}
+	return authorizedPaths
 }
 
 type configEndpoint struct {
@@ -41,12 +49,32 @@ type configEndpoint struct {
 
 func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Request) {
 	vars := gorilla.Vars(r)
-	path := vars["path"]
 	// escape in case it contains html special characters that would be unsafe to include as is in a response
 	// all valid config paths won't contain such characters so for a valid request this is a no-op
-	path = html.EscapeString(path)
+	path := html.EscapeString(vars["path"])
 
-	if _, ok := c.authorizedConfigPaths[path]; !ok {
+	authorized := false
+	if _, ok := c.authorizedConfigPaths[path]; ok {
+		authorized = true
+	} else {
+		// check to see if the requested path matches any of the authorized paths
+		//
+		// if an authorized path ends in a period, it authorizes any paths under that prefix,
+		// including the prefix itself: an authorized path of `my.config` allows for reading
+		// `my.config`, `my.config.field1`, `my.config.field2`, etc
+		for authorizedPath := range c.authorizedConfigPaths {
+			isPrefixPathRule := isPrefixPath(authorizedPath)
+			isPrefixSubpath := strings.HasPrefix(path, authorizedPath)
+			isPrefixPathRoot := pathToPrefixPath(path) == authorizedPath
+
+			if isPrefixPathRule && (isPrefixSubpath || isPrefixPathRoot) {
+				authorized = true
+				break
+			}
+		}
+	}
+
+	if !authorized {
 		c.unauthorizedExpvar.Add(path, 1)
 		log.Warnf("config endpoint received a request from '%s' for config '%s' which is not allowed", r.RemoteAddr, path)
 		http.Error(w, fmt.Sprintf("querying config value '%s' is not allowed", path), http.StatusForbidden)
@@ -62,6 +90,7 @@ func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *htt
 	log.Debug("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
 	allValues := make(map[string]interface{}, len(c.authorizedConfigPaths))
 	for key := range c.authorizedConfigPaths {
+		key = normalizePrefixPath(key)
 		allValues[key] = c.cfg.Get(key)
 	}
 
@@ -112,6 +141,7 @@ func (c *configEndpoint) marshalAndSendResponse(w http.ResponseWriter, path stri
 		return
 	}
 
+	w.Header().Add("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(body)
 	if err != nil {
@@ -120,4 +150,24 @@ func (c *configEndpoint) marshalAndSendResponse(w http.ResponseWriter, path stri
 		return
 	}
 	c.successExpvar.Add(path, 1)
+}
+
+func pathToPrefixPath(path string) string {
+	return path + prefixPathSuffix
+}
+
+func prefixPathToPath(prefixPath string) string {
+	return strings.TrimSuffix(prefixPath, prefixPathSuffix)
+}
+
+func isPrefixPath(path string) bool {
+	return strings.HasSuffix(path, prefixPathSuffix)
+}
+
+func normalizePrefixPath(path string) string {
+	if isPrefixPath(path) {
+		return prefixPathToPath(path)
+	} else {
+		return path
+	}
 }
