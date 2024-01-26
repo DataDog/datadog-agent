@@ -94,16 +94,6 @@ kitchen_ubuntu_install_script_agent-a7_arm64:
     - .kitchen_scenario_ubuntu_a7_arm64
     - .kitchen_test_install_script_agent
 
-kitchen_ubuntu_install_script_iot_agent-a7:
-  extends:
-    - .kitchen_scenario_ubuntu_a7_x64
-    - .kitchen_test_install_script_iot_agent
-
-kitchen_ubuntu_install_script_dogstatsd-a7:
-  extends:
-    - .kitchen_scenario_ubuntu_a7_x64
-    - .kitchen_test_install_script_dogstatsd
-
 # We only want to run step-by-step tests on deploy pipelines,
 # which is why they have a different rule (if_deploy_6/7)
 

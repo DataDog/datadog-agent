@@ -139,3 +139,37 @@ dogstatsd_suse-x64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
+
+agentless_scanner_suse-x64:
+  rules:
+    !reference [.on_a7]
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_x64", "go_deps"]
+  variables:
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
+    - !reference [.setup_ruby_mirror_linux]
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
+    - set +x
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+    - set -x
+    # Use --skip-deps since the deps are installed by `before_script`.
+    - inv -e agentless-scanner.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - ls -la $OMNIBUS_PACKAGE_DIR
+    # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
+    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
+    - !reference [.upload_sbom_artifacts]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR_SUSE
