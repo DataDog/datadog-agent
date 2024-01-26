@@ -748,9 +748,8 @@ func dockerReadMetadata(scan *scanTask, dockerRoot string) ([]dockerContainer, e
 					}
 					if refT, ok := ref.(reference.NamedTagged); ok && ctr.ImageRefTagged == nil {
 						ctr.ImageRefTagged = refT
-					}
-					if refN, ok := ref.(reference.Named); ok && ctr.ImageRefTagged == nil {
-						ctr.ImageRefTagged, _ = reference.WithTag(refN, "latest")
+					} else {
+						ctr.ImageRefTagged, _ = reference.WithTag(ref, "latest")
 					}
 				}
 			}
