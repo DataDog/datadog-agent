@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a crash in the ``win32_event_log`` check when processing an event that has
+    a missing publisher and no ``EventData``.

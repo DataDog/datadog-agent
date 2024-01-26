@@ -230,6 +230,53 @@ start: oldest
 	s.assertCountEvents(check, s.numEvents)
 }
 
+// Test that check's fallback interpret_messages option works
+func (s *GetEventsTestSuite) TestGetEventsWithMissingProvider() {
+
+	source := "source-does-not-exist"
+	// Per MSDN: If source is not found then Application log is used
+	// https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registereventsourcew
+	logName := "Application"
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+filters:
+  source:
+    - %s
+`, logName, source))
+
+	check, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	s.assertNoEvents(check)
+
+	s.sender.On("Commit").Return()
+	// match event with data
+	eventData := []string{"teststring1", "teststring2"}
+	matchString := strings.Join(eventData, "\n")
+	s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
+		return strings.Contains(e.Text, matchString)
+	})).Once()
+	// match event with no data
+	s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
+		return e.Text == ""
+	})).Once()
+
+	reporter, err := evtreporter.New(source, s.ti.API())
+	require.NoError(s.T(), err)
+	defer reporter.Close()
+	// Generate an event with event data
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, eventData, nil)
+	s.Require().NoError(err)
+	// Generate an event with no event data
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, nil, nil)
+	s.Require().NoError(err)
+
+	s.EventuallyWithT(func(t *assert.CollectT) {
+		s.sender.AssertExpectations(newCollectTWithLog(t, s.T().Logf))
+	}, 30*time.Second, 500*time.Millisecond)
+}
+
 // Test that the check can detect and recover from a broken subscription
 func (s *GetEventsTestSuite) TestRecoverFromBrokenSubscription() {
 	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
