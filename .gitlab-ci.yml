@@ -118,6 +118,7 @@ variables:
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
+  AGENTLESS_SCANNER_BINARIES_DIR: bin/agentless-scanner
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
