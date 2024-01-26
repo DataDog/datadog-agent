@@ -142,18 +142,18 @@ kernel_matrix_testing_run_security_agent_tests_x64:
   parallel:
     matrix:
       - TAG:
-          - ubuntu_18.04
-          - ubuntu_20.04
-          - ubuntu_22.04
-          - ubuntu_23.10
-          - amzn_5.4
-          - amzn_5.10
-          - fedora_37
-          - fedora_38
-          - debian_10
-          - debian_11
-          - debian_12
-          - centos_79
+          - "ubuntu_18.04"
+          - "ubuntu_20.04"
+          - "ubuntu_22.04"
+          - "ubuntu_23.10"
+          - "amzn_5.4"
+          - "amzn_5.10"
+          - "fedora_37"
+          - "fedora_38"
+          - "debian_10"
+          - "debian_11"
+          - "debian_12"
+          - "centos_79"
         TEST_SET: [all_tests]
 
 kernel_matrix_testing_run_security_agent_tests_arm64:
