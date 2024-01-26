@@ -176,6 +176,63 @@ func (a *agentSuite) TestOpenSignal() {
 	assert.Contains(a.T(), agentContext["rule_id"], a.agentRuleName, "unable to find tag")
 }
 
+// TestFeatureCWSEnabled tests that the CWS activation is properly working
+func (a *agentSuite) TestFeatureCWSEnabled() {
+	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
+	a.Require().NoError(err, "could not get API key")
+	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
+	a.Require().NoError(err, "could not get APP key")
+	ddSQLClient := api.NewDDSQLClient(apiKey, appKey)
+
+	query := fmt.Sprintf("SELECT h.hostname, a.feature_cws_enabled FROM host h JOIN datadog_agent a USING (datadog_agent_key) WHERE h.hostname = '%s'", a.Env().Agent.Client.Hostname())
+	a.Assert().EventuallyWithT(func(collect *assert.CollectT) {
+		resp, err := ddSQLClient.Do(query)
+		if !assert.NoErrorf(collect, err, "ddsql query failed") {
+			return
+		}
+		fmt.Printf("ddsql query: %s\nresponse: %+v\n", query, resp)
+		if !assert.Len(collect, resp.Data, 1, "ddsql query didn't returned a single row") {
+			return
+		}
+		if !assert.Len(collect, resp.Data[0].Attributes.Columns, 2, "ddsql query didn't returned two columns") {
+			return
+		}
+
+		columnChecks := []struct {
+			name          string
+			expectedValue interface{}
+		}{
+			{
+				name:          "hostname",
+				expectedValue: a.Env().Agent.Client.Hostname(),
+			},
+			{
+				name:          "feature_cws_enabled",
+				expectedValue: true,
+			},
+		}
+
+		for _, columnCheck := range columnChecks {
+			result := false
+			for _, column := range resp.Data[0].Attributes.Columns {
+				if column.Name == columnCheck.name {
+					if !assert.Len(collect, column.Values, 1, "column %s should have a single value", columnCheck.name) {
+						return
+					}
+					if !assert.Equal(collect, columnCheck.expectedValue, column.Values[0], "column %s should be equal", columnCheck.name) {
+						return
+					}
+					result = true
+					break
+				}
+			}
+			if !assert.Truef(collect, result, "column %s isn't present or has an unexpected value", columnCheck.name) {
+				return
+			}
+		}
+	}, 10*time.Minute, 1*time.Minute, "cws activation check timeout")
+}
+
 func (a *agentSuite) waitAgentLogs(agentName string, pattern string) error {
 	err := backoff.Retry(func() error {
 		output, err := a.Env().RemoteHost.Execute(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
