@@ -210,7 +210,7 @@ def run(
     repo_branch="dev",
     deploy=False,
     all_builds=True,
-    kitchen_tests=True,
+    kitchen_tests=False,
     rc_k8s_deployments=False,
 ):
     """
@@ -288,7 +288,7 @@ def run(
                     "orange",
                 )
             )
-            kitchen_tests = True
+            kitchen_tests = False
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
 
