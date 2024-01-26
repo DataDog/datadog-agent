@@ -108,34 +108,6 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 	return containers, nil
 }
 
-func containerTags(ctr container) []string {
-	// Tracking some examples as reference:
-	//     Name:  public.ecr.aws/datadog/agent
-	//      Tag:  3
-	//      Domain:  public.ecr.aws
-	//      Path:  datadog/agent
-	//      FamiliarName:  public.ecr.aws/datadog/agent
-	//      FamiliarString:  public.ecr.aws/datadog/agent:3
-	//     Name:  docker.io/library/python
-	//      Tag:  3
-	//      Domain:  docker.io
-	//      Path:  library/python
-	//      FamiliarName:  python
-	//      FamiliarString:  python:3
-	refTagged := ctr.ImageRefTagged.Reference().(reference.NamedTagged)
-	refCanon := ctr.ImageRefCanonical.Reference().(reference.Canonical)
-	return []string{
-		"image_id:" + refCanon.String(),                       // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-		"image_name:" + refTagged.Name(),                      // public.ecr.aws/datadog/agent
-		"image_registry:" + reference.Domain(refTagged),       // public.ecr.aws
-		"image_repository:" + reference.Path(refTagged),       // datadog/agent
-		"short_image:" + path.Base(reference.Path(refTagged)), // agent
-		"repo_digest:" + refCanon.Digest().String(),           // sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-		"image_tag:" + refTagged.Tag(),                        // 7-rc
-		"container_name:" + ctr.ContainerName,
-	}
-}
-
 func mountContainer(ctx context.Context, scan *scanTask, ctr container) (string, error) {
 	if len(ctr.Layers) == 0 {
 		return "", fmt.Errorf("container without any layer")
