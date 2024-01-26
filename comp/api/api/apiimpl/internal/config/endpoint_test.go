@@ -34,6 +34,12 @@ type nestedTestCase struct {
 	expectedStatus int
 }
 
+type prefixTestCase struct {
+	name           string
+	configName     string
+	expectedStatus int
+}
+
 type expvals struct {
 	Success      map[string]int `json:"success"`
 	Errors       map[string]int `json:"errors"`
@@ -120,6 +126,38 @@ func TestConfigEndpoint(t *testing.T) {
 			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus)
 		})
 	}
+
+	parentConfigName := "root.parent"
+	childConfigNameOne := parentConfigName + ".child1"
+	childConfigNameTwo := parentConfigName + ".child2"
+	for _, testCase := range []prefixTestCase{
+		{"authorized_nested_prefix_path_rule_root", parentConfigName, http.StatusOK},
+		{"authorized_nested_prefix_path_rule_root", childConfigNameOne, http.StatusOK},
+		{"authorized_nested_prefix_path_rule_root", childConfigNameTwo, http.StatusOK},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			parentConfigPath := parentConfigName + "."
+
+			cfg, server, configEndpoint := getConfigServer(t, authorizedSet{parentConfigPath: struct{}{}})
+
+			cfg.SetWithoutSource(childConfigNameOne, "child1_value")
+			cfg.SetWithoutSource(childConfigNameTwo, "child2_value")
+
+			testConfigValue(t, configEndpoint, server, testCase.configName, testCase.expectedStatus)
+		})
+	}
+
+	t.Run("unauthorized_nested_prefix_path_rule", func(t *testing.T) {
+		parentConfigName := "root.parent"
+		childConfigName := parentConfigName + ".child"
+
+		cfg, server, configEndpoint := getConfigServer(t, authorizedSet{childConfigName: struct{}{}})
+
+		cfg.SetWithoutSource(childConfigName, "child_value")
+
+		testConfigValue(t, configEndpoint, server, childConfigName, http.StatusOK)
+		testConfigValue(t, configEndpoint, server, parentConfigName, http.StatusForbidden)
+	})
 }
 
 func TestConfigListEndpoint(t *testing.T) {
