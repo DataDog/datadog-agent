@@ -17,9 +17,9 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/netflow/format"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
@@ -40,7 +40,7 @@ type FlowAggregator struct {
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      *flowAccumulator
 	sender                       sender.Sender
-	epForwarder                  epforwarder.EventPlatformForwarder
+	epForwarder                  eventplatformimpl.EventPlatformForwarder
 	stopChan                     chan struct{}
 	flushLoopDone                chan struct{}
 	runDone                      chan struct{}
@@ -77,7 +77,7 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender sender.Sender, epForwarder epforwarder.EventPlatformForwarder, config *config.NetflowConfig, hostname string, logger log.Component) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder eventplatformimpl.EventPlatformForwarder, config *config.NetflowConfig, hostname string, logger log.Component) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
@@ -148,7 +148,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 		agg.logger.Tracef("flushed flow: %s", string(payloadBytes))
 
 		m := message.NewMessage(payloadBytes, nil, "", 0)
-		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow)
+		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatformimpl.EventTypeNetworkDevicesNetFlow)
 		if err != nil {
 			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
 			agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
@@ -200,7 +200,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			}
 			agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
 			m := message.NewMessage(payloadBytes, nil, "", 0)
-			err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesMetadata)
+			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatformimpl.EventTypeNetworkDevicesMetadata)
 			if err != nil {
 				agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
 			}

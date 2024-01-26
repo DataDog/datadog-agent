@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,7 +51,7 @@ func newProcessor(sender sender.Sender, maxNbItem int, maxRetentionTime time.Dur
 				return
 			}
 
-			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerImages)
+			sender.EventPlatformEvent(encoded, eventplatformimpl.EventTypeContainerImages)
 		}),
 	}
 }

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package epforwarder contains the logic for forwarding events to the event platform
-package epforwarder
+// Package eventplatformimpl contains the logic for forwarding events to the event platform
+package eventplatformimpl
 
 import (
 	"fmt"

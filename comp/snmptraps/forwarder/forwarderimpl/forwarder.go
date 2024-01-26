@@ -12,13 +12,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -117,5 +117,5 @@ func (tf *trapForwarder) sendTrap(packet *packet.SnmpPacket) {
 	}
 	tf.logger.Tracef("send trap payload: %s", string(data))
 	tf.sender.Count("datadog.snmp_traps.forwarded", 1, "", packet.GetTags())
-	tf.sender.EventPlatformEvent(data, epforwarder.EventTypeSnmpTraps)
+	tf.sender.EventPlatformEvent(data, eventplatformimpl.EventTypeSnmpTraps)
 }

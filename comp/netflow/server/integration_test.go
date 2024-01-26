@@ -9,22 +9,23 @@ package server
 
 import (
 	"context"
+	"net"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
-	"net"
-	"testing"
-	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
@@ -110,7 +111,7 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	)).(*Server)
 
 	// Test later content of payloads if needed for more precise test.
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(29)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), eventplatformimpl.EventTypeNetworkDevicesNetFlow).Return(nil).Times(29)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
 	packetData, err := testutil.GetNetFlow9Packet()
@@ -133,7 +134,7 @@ func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	)).(*Server)
 
 	// Test later content of payloads if needed for more precise test.
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(7)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), eventplatformimpl.EventTypeNetworkDevicesNetFlow).Return(nil).Times(7)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
 	packetData, err := testutil.GetSFlow5Packet()

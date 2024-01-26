@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -21,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -36,7 +36,7 @@ type DemultiplexerWithAggregator interface {
 	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
-	GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error)
+	GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error)
 	GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck)
 	DumpDogstatsdContexts(io.Writer) error
 }
@@ -109,7 +109,7 @@ type statsd struct {
 type forwarders struct {
 	shared             forwarder.Forwarder
 	orchestrator       orchestratorforwarder.Component
-	eventPlatform      epforwarder.EventPlatformForwarder
+	eventPlatform      eventplatformimpl.EventPlatformForwarder
 	containerLifecycle *forwarder.DefaultForwarder
 }
 
@@ -136,11 +136,11 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	// orchestrator forwarder
 
 	// event platform forwarder
-	var eventPlatformForwarder epforwarder.EventPlatformForwarder
+	var eventPlatformForwarder eventplatformimpl.EventPlatformForwarder
 	if options.UseNoopEventPlatformForwarder {
-		eventPlatformForwarder = epforwarder.NewNoopEventPlatformForwarder()
+		eventPlatformForwarder = eventplatformimpl.NewNoopEventPlatformForwarder()
 	} else if options.UseEventPlatformForwarder {
-		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
+		eventPlatformForwarder = eventplatformimpl.NewEventPlatformForwarder()
 	}
 
 	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
@@ -508,7 +508,7 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.
 }
 
 // GetEventPlatformForwarder returns underlying events and service checks channels.
-func (d *AgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error) {
 	return d.aggregator.GetEventPlatformForwarder()
 }
 

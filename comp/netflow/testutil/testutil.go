@@ -23,7 +23,7 @@ import (
 	"github.com/google/gopacket/pcapgo"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
@@ -158,7 +158,7 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponen
 		payloadBytes, _ := json.Marshal(p)
 		m := message.NewMessage(payloadBytes, nil, "", 0)
 
-		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, eventplatformimpl.EventTypeNetworkDevicesNetFlow).Return(nil)
 	}
 }
 
@@ -221,8 +221,8 @@ func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwarder.M
 
 		m := message.NewMessage(compactEvent.Bytes(), nil, "", 0)
 
-		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
-		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(28)
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, eventplatformimpl.EventTypeNetworkDevicesNetFlow).Return(nil)
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), eventplatformimpl.EventTypeNetworkDevicesNetFlow).Return(nil).Times(28)
 	}
 }
 
