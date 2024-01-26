@@ -76,8 +76,6 @@ func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 			tags, ok := t.Tags["_dd.tags.container"]
 			if ok && strings.Count(tags, tag) > 0 {
 				return true
-			} else if ok {
-				fmt.Printf("CONTAINER TAGS: %v\n", tags)
 			}
 		}
 	}

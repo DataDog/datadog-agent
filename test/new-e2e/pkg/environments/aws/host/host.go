@@ -166,8 +166,9 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 			return err
 		}
 
+		var dockerRes pulumi.Resource
 		if params.installDocker {
-			_, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true)
+			_, dockerRes, err = docker.NewManager(*awsEnv.CommonEnvironment, host, true)
 			if err != nil {
 				return err
 			}
@@ -197,7 +198,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 
 		// Create Agent if required
 		if params.agentOptions != nil {
-			agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, params.agentOptions...)
+			agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, dockerRes, params.agentOptions...)
 			if err != nil {
 				return err
 			}
