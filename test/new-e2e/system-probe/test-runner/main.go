@@ -61,13 +61,12 @@ var timeouts = map[*regexp.Regexp]time.Duration{
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
 	regexp.MustCompile("pkg/network/usm$"):            30 * time.Minute,
+	regexp.MustCompile("pkg/security$"):               30 * time.Minute,
 }
-
-// Note: security tests don't have the full path to the test, so increase the timeout as a temporary solution
 
 func getTimeout(pkg string) time.Duration {
 	matchSize := 0
-	to := 30 * time.Minute
+	to := 10 * time.Minute
 	for re, rto := range timeouts {
 		if re.MatchString(pkg) && len(re.String()) > matchSize {
 			matchSize = len(re.String())
