@@ -338,7 +338,11 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			}
 		case ebpf.Hash, ebpf.LRUHash, ebpf.PerCPUHash, ebpf.LRUCPUHash, ebpf.HashOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
-			baseMapStats.Entries = hashMapNumberOfEntries(mp, &k.mapBuffers)
+			if module != "unknown" {
+				// hashMapNumberOfEntries might allocate memory, so we only do it if we have a module name, as
+				// unknown modules get discarded anyway (only RSS is used for total counts)
+				baseMapStats.Entries = hashMapNumberOfEntries(mp, &k.mapBuffers)
+			}
 		case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
 		case ebpf.LPMTrie:
