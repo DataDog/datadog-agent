@@ -1279,7 +1279,7 @@ func startH2CServer(address string, isTLS bool) (func(), error) {
 				w.WriteHeader(http.StatusUnauthorized) // HTTP status code 401
 			default:
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("test"))
+				_, _ = w.Write([]byte("test"))
 			}
 		}), &http2.Server{}),
 		IdleTimeout: 2 * time.Second,
