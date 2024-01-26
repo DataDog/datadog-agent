@@ -309,7 +309,7 @@ func (p *WindowsProbe) Start() error {
 					case idCreate:
 					case idCreateNewFile:
 						if ca, err := parseCreateArgs(e); err == nil {
-							log.Infof("Got create/create new file on file %s", ca.string())
+							// log.Infof("Got create/create new file on file %s", ca.string())
 							ev = p.zeroEvent()
 							ev.Type = uint32(model.CreateNewFileEventType)
 							ev.CreateNewFile = model.CreateNewFileEvent{
