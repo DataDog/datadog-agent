@@ -878,6 +878,11 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
+	_, err = spconfig.New(sysprobeConfigName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
 	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()
