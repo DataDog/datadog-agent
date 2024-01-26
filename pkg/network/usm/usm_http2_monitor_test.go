@@ -42,12 +42,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+type pathType uint8
+
+const (
+	pathDefault pathType = iota
+	pathLiteralNeverIndexed
+	pathLiteralWithoutIndexing
+	pathTooLarge
+	pathOverride
+)
+
 const (
 	srvPort               = 8082
 	unixPath              = "/tmp/transparent.sock"
 	pathWithStatusCode300 = "/raw-test-300"
 	pathWithStatusCode401 = "/raw-test-401"
 	http2DefaultTestPath  = "/aaa"
+	defaultMethod         = http.MethodPost
 )
 
 var (
@@ -578,7 +589,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, headersWithoutIndexingPath(), setDynamicTableSize).
+						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralWithoutIndexing}), setDynamicTableSize).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.bytes()
@@ -601,7 +612,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, headersWithNeverIndexedPath()).
+						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralNeverIndexed})).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.bytes()
@@ -761,7 +772,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i, method := range httpMethods {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, headersWithGivenPathMethod(method), false).
+						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{overrideMethod: method}), false).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.bytes()
@@ -774,7 +785,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() []byte {
 				framer := newFramer()
 				return framer.
-					writeHeaders(t, getStreamID(1), headersWithExceedingPathLen(), false).
+					writeHeaders(t, getStreamID(1), generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathTooLarge}), false).
 					writeData(t, getStreamID(1), true, []byte{}).bytes()
 			},
 			expectedEndpoints: nil,
@@ -1061,33 +1072,13 @@ func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
 	}
 }
 
-// headersWithNeverIndexedPath returns a set of header fields with path that never indexed.
-func headersWithNeverIndexedPath() []hpack.HeaderField {
-	return generateTestHeaderFields(true, false, false, "", "")
-}
-
-// headersWithoutIndexingPath returns a set of header fields with path without-indexing.
-func headersWithoutIndexingPath() []hpack.HeaderField {
-	return generateTestHeaderFields(false, true, false, "", "")
-}
-
-// headersWithGivenPathMethod returns a set of header fields with the given method for the header includes the path.
-func headersWithGivenPathMethod(method string) []hpack.HeaderField {
-	return generateTestHeaderFields(false, false, false, method, "")
-}
-
-// headersWithExceedingPathLen returns a set of header fields with a path that exceeds the maximum length.
-func headersWithExceedingPathLen() []hpack.HeaderField {
-	return generateTestHeaderFields(false, false, true, "", "")
-}
-
 // headersWithGivenEndpoint returns a set of header fields with the given path.
 func headersWithGivenEndpoint(path string) []hpack.HeaderField {
-	return generateTestHeaderFields(false, false, false, "", path)
+	return generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathOverride, overrideEndpoint: path})
 }
 
 // testHeaders returns a set of header fields.
-func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, false, false, "", "") }
+func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(headersGenerationOptions{}) }
 
 // multipleTestHeaders returns a set of header fields, with the given number of headers.
 func multipleTestHeaders(testHeadersCount int) []hpack.HeaderField {
@@ -1098,40 +1089,41 @@ func multipleTestHeaders(testHeadersCount int) []hpack.HeaderField {
 	return append(testHeaders(), additionalHeaders...)
 }
 
+type headersGenerationOptions struct {
+	pathTypeValue    pathType
+	overrideMethod   string
+	overrideEndpoint string
+}
+
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
-func generateTestHeaderFields(pathNeverIndexed, withoutIndexing, pathExceedingMax bool, pathMethod, endpoint string) []hpack.HeaderField {
-	headerPathMethod := "POST"
-	path := http2DefaultTestPath
-	if pathMethod != "" {
-		headerPathMethod = pathMethod
+func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderField {
+	method := defaultMethod
+	if options.overrideMethod != "" {
+		method = options.overrideMethod
 	}
-	if endpoint != "" {
-		path = endpoint
-	}
-	pathHeaderField := hpack.HeaderField{Name: ":path", Value: path, Sensitive: false}
-
-	// If we want to create a case without indexing, we need to make sure that the path is longer than 100 characters.
-	// The indexing is determined by the dynamic table size (which we set to dynamicTableSize) and the size of the path.
-	// ref: https://github.com/golang/net/blob/07e05fd6e95ab445ebe48840c81a027dbace3b8e/http2/hpack/encode.go#L140
-	// Therefore, we want to make sure that the path is longer or equal to 100 characters so that the path will not be indexed.
-	if withoutIndexing {
-		pathHeaderField = hpack.HeaderField{Name: ":path", Value: "/" + strings.Repeat("a", usmhttp2.DynamicTableSize), Sensitive: true}
-	}
-
-	// If we want to create a case with a path that exceeds the maximum length,
-	// we need to make sure that the path is longer than HTTP2_MAX_PATH_LEN.
-	if pathExceedingMax {
-		pathHeaderField = hpack.HeaderField{Name: ":path", Value: "/" + pathExceedingMaxSize, Sensitive: false}
-	}
-
-	// If the path is sensitive, we are in a case where a path is never indexed
-	if pathNeverIndexed {
-		pathHeaderField = hpack.HeaderField{Name: ":path", Value: http2DefaultTestPath, Sensitive: true}
+	pathHeaderField := hpack.HeaderField{Name: ":path"}
+	switch options.pathTypeValue {
+	case pathDefault:
+		pathHeaderField.Value = http2DefaultTestPath
+	case pathLiteralNeverIndexed:
+		pathHeaderField.Value = http2DefaultTestPath
+		pathHeaderField.Sensitive = true
+	case pathLiteralWithoutIndexing:
+		// If we want to create a case without indexing, we need to make sure that the path is longer than 100 characters.
+		// The indexing is determined by the dynamic table size (which we set to dynamicTableSize) and the size of the path.
+		// ref: https://github.com/golang/net/blob/07e05fd6e95ab445ebe48840c81a027dbace3b8e/http2/hpack/encode.go#L140
+		// Therefore, we want to make sure that the path is longer or equal to 100 characters so that the path will not be indexed.
+		pathHeaderField.Value = "/" + strings.Repeat("a", usmhttp2.DynamicTableSize)
+		pathHeaderField.Sensitive = true
+	case pathTooLarge:
+		pathHeaderField.Value = "/" + pathExceedingMaxSize
+	case pathOverride:
+		pathHeaderField.Value = options.overrideEndpoint
 	}
 
 	return []hpack.HeaderField{
 		{Name: ":authority", Value: authority},
-		{Name: ":method", Value: headerPathMethod},
+		{Name: ":method", Value: method},
 		pathHeaderField,
 		{Name: ":scheme", Value: "http"},
 		{Name: "content-type", Value: "application/json"},
