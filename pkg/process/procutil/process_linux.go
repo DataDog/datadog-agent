@@ -261,7 +261,7 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 				continue
 
 				// Check if toggle for ignoring zombies is on, and if it is ignore process
-			} else if probe.ignoreZombieProcesses {
+			} else if p.ignoreZombieProcesses {
 				continue
 			}
 			log.Debugf("process with empty cmdline not skipped pid:%d", pid)
