@@ -617,7 +617,15 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, o
     vms_to_generate = list_all_distro_normalized_vms(arch_ls)
     if host_cpus is None:
         raise Exit("no value for available cpus provided")
-    vm_config = generate_vmconfig({"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci, int(host_cpus))
+    vm_config = generate_vmconfig(
+        {"vmsets": []},
+        vms_to_generate,
+        ls_to_int(vcpu_ls),
+        ls_to_int(memory_ls),
+        set_ls,
+        ci,
+        int(host_cpus),
+    )
 
     with open(output_file, "w") as f:
         f.write(json.dumps(vm_config, indent=4))
