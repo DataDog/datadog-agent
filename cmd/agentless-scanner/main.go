@@ -2334,12 +2334,14 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 							continue
 						}
 						result := launchScanner(ctx, scannerOptions{
-							Scanner:   scannerNameHostVulns,
+							Scanner:   scannerNameAppVulns,
 							Scan:      scan,
 							Root:      mountPoint,
 							StartedAt: time.Now(),
 						})
 						if result.Vulns != nil {
+							refTag := ctr.ImageRefTagged.Reference().(reference.NamedTagged)
+							refCan := ctr.ImageRefCanonical.Reference().(reference.Canonical)
 							result.Vulns.SourceType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
 							result.Vulns.ID = ctr.ImageRefCanonical.Reference().String()
 							// Tracking some examples as reference:
@@ -2355,23 +2357,19 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 							//      Path:  library/python
 							//      FamiliarName:  python
 							//      FamiliarString:  python:3
-							refTagged := ctr.ImageRefTagged.Reference().(reference.NamedTagged)
-							refCanon := ctr.ImageRefCanonical.Reference().(reference.Canonical)
 							result.Vulns.Tags = []string{
-								"image_id:" + refCanon.String(),                       // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-								"image_name:" + refTagged.Name(),                      // public.ecr.aws/datadog/agent
-								"image_registry:" + reference.Domain(refTagged),       // public.ecr.aws
-								"image_repository:" + reference.Path(refTagged),       // datadog/agent
-								"short_image:" + path.Base(reference.Path(refTagged)), // agent
-								"repo_digest:" + refCanon.Digest().String(),           // sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-								"image_tag:" + refTagged.Tag(),                        // 7-rc
+								"image_id:" + refCan.String(),                      // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
+								"image_name:" + refTag.Name(),                      // public.ecr.aws/datadog/agent
+								"image_registry:" + reference.Domain(refTag),       // public.ecr.aws
+								"image_repository:" + reference.Path(refTag),       // datadog/agent
+								"short_image:" + path.Base(reference.Path(refTag)), // agent
+								"repo_digest:" + refCan.Digest().String(),          // sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
+								"image_tag:" + refTag.Tag(),                        // 7-rc
 								"container_name:" + ctr.ContainerName,
 							}
 							// TODO: remove this when we backport
 							// https://github.com/DataDog/datadog-agent/pull/22161
-							appendSBOMRepoMetadata(result.Vulns.BOM,
-								ctr.ImageRefTagged.Reference().(reference.NamedTagged),
-								ctr.ImageRefCanonical.Reference().(reference.Canonical))
+							appendSBOMRepoMetadata(result.Vulns.BOM, refTag, refCan)
 						}
 
 						// We cleanup overlays as we go instead of acumulating
@@ -2548,7 +2546,7 @@ func launchScannerLocally(ctx context.Context, opts scannerOptions) scanResult {
 		}
 		return scanResult{scannerOptions: opts, Vulns: &scanVulnsResult{BOM: bom}}
 	case scannerNameAppVulns:
-		bom, err := launchScannerTrivyLambda(ctx, opts)
+		bom, err := launchScannerTrivyApp(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
