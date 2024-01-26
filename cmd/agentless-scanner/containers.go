@@ -121,19 +121,55 @@ func mountContainer(ctx context.Context, scan *scanTask, ctr container) (string,
 	if err := os.MkdirAll(ctrMountPoint, 0700); err != nil {
 		return "", fmt.Errorf("could not create container mountPoint directory %q: %w", ctrMountPoint, err)
 	}
+	// We try to reduce the size of the mount options by using the longest common prefix for the layers.
+	// We are limited to a page size for mount options.
+	layersDir := longestLayerPrefix(ctr.Layers)
+	layers := make([]string, 0, len(ctr.Layers))
+	for _, layer := range ctr.Layers {
+		layers = append(layers, strings.TrimPrefix(layer, layersDir))
+	}
+	mountPointRel, err := filepath.Rel(layersDir, ctrMountPoint)
+	if err != nil {
+		return "", err
+	}
 	ctrMountOpts := []string{
-		"-o", "ro,noauto,nodev,noexec,nosuid,index=off," + fmt.Sprintf("lowerdir=%s", strings.Join(ctr.Layers, ":")),
+		"-o", "ro,noauto,nodev,noexec,nosuid,index=off," + fmt.Sprintf("lowerdir=%s", strings.Join(layers, ":")),
 		"-t", "overlay",
 		"--source", "overlay",
-		"--target", ctrMountPoint,
+		"--target", mountPointRel,
 	}
 	log.Debugf("%s: execing mount %s", scan, ctrMountOpts)
-	mountOutput, err := exec.CommandContext(ctx, "mount", ctrMountOpts...).CombinedOutput()
+	mountCmd := exec.CommandContext(ctx, "mount", ctrMountOpts...)
+	mountCmd.Dir = layersDir
+	mountOutput, err := mountCmd.CombinedOutput()
 	if err != nil {
 		err = fmt.Errorf("could not mount into target=%q options=%q output=%q: %w", ctrMountPoint, ctrMountOpts, string(mountOutput), err)
 		return "", err
 	}
 	return ctrMountPoint, nil
+}
+
+func longestLayerPrefix(strs []string) string {
+	if len(strs) == 0 {
+		return ""
+	} else if len(strs) == 1 {
+		return strs[0]
+	}
+	min, max := strs[0], strs[0]
+	for _, str := range strs[1:] {
+		if min > str {
+			min = str
+		}
+		if max < str {
+			max = str
+		}
+	}
+	for i := 0; i < len(min) && i < len(max); i++ {
+		if min[i] != max[i] {
+			return min[:i]
+		}
+	}
+	return min
 }
 
 const ctrdSupportedVersion = 3
