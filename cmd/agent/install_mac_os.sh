@@ -435,6 +435,7 @@ else
     # the GUI was not running for the user (e.g. a run of this script via
     # ssh for user not logged in via GUI).
     if $cmd_launchctl print "gui/$user_uid/$service_name" 1>/dev/null 2>/dev/null; then
+        $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
         $cmd_launchctl stop "$service_name"
         $cmd_launchctl unload "$user_plist_file"
     fi
