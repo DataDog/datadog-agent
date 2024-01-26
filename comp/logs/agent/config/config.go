@@ -201,54 +201,42 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
-	main := Endpoint{
-		APIKey:                  logsConfig.getLogsAPIKey(),
-		UseCompression:          logsConfig.useCompression(),
-		CompressionLevel:        logsConfig.compressionLevel(),
-		ConnectionResetInterval: logsConfig.connectionResetInterval(),
-		BackoffBase:             logsConfig.senderBackoffBase(),
-		BackoffMax:              logsConfig.senderBackoffMax(),
-		BackoffFactor:           logsConfig.senderBackoffFactor(),
-		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
-		RecoveryReset:           logsConfig.senderRecoveryReset(),
-		UseSSL:                  pointer.Ptr(defaultNoSSL),
-	}
+	main := newEndpoint(logsConfig, defaultNoSSL, intakeTrackType, intakeProtocol, intakeOrigin)
+	var dualEndpoint *Endpoint
 
-	if logsConfig.useV2API() && intakeTrackType != "" {
-		main.Version = EPIntakeVersion2
-		main.TrackType = intakeTrackType
-		main.Protocol = intakeProtocol
-		main.Origin = intakeOrigin
-	} else {
-		main.Version = EPIntakeVersion1
-	}
+	setNextEndpoint := true
+	nextEndpoint := &main
 
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
-		host, port, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
+		err := setEndpointAddress(&main, vectorURL, defaultNoSSL, parseAddress)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
-		}
-		main.Host = host
-		main.Port = port
-		*main.UseSSL = useSSL
-	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
-		host, port, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
-		}
-		main.Host = host
-		main.Port = port
-		*main.UseSSL = useSSL
-	} else {
-		addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
-		host, port, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
+			return nil, err
 		}
 
-		main.Host = host
-		main.Port = port
-		*main.UseSSL = useSSL
+		if logsConfig.obsPipelineWorkerDualShip() {
+			// Set up the endpoint to dual ship to.
+			endpoint := newEndpoint(logsConfig, defaultNoSSL, intakeTrackType, intakeProtocol, intakeOrigin)
+			dualEndpoint = &endpoint
+			nextEndpoint = dualEndpoint
+		} else {
+			// We don't need another endpoint.
+			setNextEndpoint = false
+		}
+	}
+
+	if setNextEndpoint {
+		if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
+			err := setEndpointAddress(nextEndpoint, logsDDURL, defaultNoSSL, parseAddress)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
+			err := setEndpointAddress(nextEndpoint, addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()
@@ -281,7 +269,53 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 	batchMaxContentSize := logsConfig.batchMaxContentSize()
 	inputChanSize := logsConfig.inputChanSize()
 
+	if dualEndpoint != nil {
+		additionals = append(additionals, *dualEndpoint)
+	}
+
 	return NewEndpointsWithBatchSettings(main, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
+}
+
+// Update the endpoint with the components of the given url.
+func setEndpointAddress(endpoint *Endpoint, url string, useSSL bool, parseAddress defaultParseAddressFunc) error {
+	host, port, useSSL, err := parseAddressWithScheme(url, useSSL, parseAddress)
+	if err != nil {
+		return fmt.Errorf("could not parse %s: %v", url, err)
+	}
+	endpoint.Host = host
+	endpoint.Port = port
+	*endpoint.UseSSL = useSSL
+
+	return nil
+}
+
+// Creates a new EndPoint from the given config.
+// The host, port and ssl fields are set later and can come from the main endpoint
+// or from the OPW host.
+func newEndpoint(logsConfig *LogsConfigKeys, defaultNoSSL bool, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) Endpoint {
+	endpoint := Endpoint{
+		APIKey:                  logsConfig.getLogsAPIKey(),
+		UseCompression:          logsConfig.useCompression(),
+		CompressionLevel:        logsConfig.compressionLevel(),
+		ConnectionResetInterval: logsConfig.connectionResetInterval(),
+		BackoffBase:             logsConfig.senderBackoffBase(),
+		BackoffMax:              logsConfig.senderBackoffMax(),
+		BackoffFactor:           logsConfig.senderBackoffFactor(),
+		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
+		RecoveryReset:           logsConfig.senderRecoveryReset(),
+		UseSSL:                  pointer.Ptr(defaultNoSSL),
+	}
+
+	if logsConfig.useV2API() && intakeTrackType != "" {
+		endpoint.Version = EPIntakeVersion2
+		endpoint.TrackType = intakeTrackType
+		endpoint.Protocol = intakeProtocol
+		endpoint.Origin = intakeOrigin
+	} else {
+		endpoint.Version = EPIntakeVersion1
+	}
+
+	return endpoint
 }
 
 type defaultParseAddressFunc func(string) (host string, port int, err error)

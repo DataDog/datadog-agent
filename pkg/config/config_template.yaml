@@ -619,6 +619,12 @@ api_key:
     #
     # enabled: false
 
+    ## @param dualship - boolean - optional - default: false
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_DUALSHIP - boolean - optional - default: false
+    ## Enables dual shipping of logs to the main endpoint as well as the Observability Pipelines Worker
+    #
+    # dualship: false
+
     ## @param url - string - optional - default: ""
     ## @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_URL - string - optional - default: ""
     ## URL endpoint for the Observability Pipelines Worker to send logs to

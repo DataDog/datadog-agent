@@ -579,12 +579,12 @@ func getTestEndpoint(host string, port int, ssl bool) Endpoint {
 	return e
 }
 
-func getTestEndpoints(e Endpoint) *Endpoints {
+func getTestEndpoints(e ...Endpoint) *Endpoints {
 	return &Endpoints{
 		UseHTTP:                true,
 		BatchWait:              pkgconfigsetup.DefaultBatchWait * time.Second,
-		Main:                   e,
-		Endpoints:              []Endpoint{e},
+		Main:                   e[0],
+		Endpoints:              e,
 		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
@@ -598,6 +598,37 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, false))
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorDualShip() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dualship", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "http://vector.host:8080/")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	expectedEndpoints := getTestEndpoints(
+		getTestEndpoint("vector.host", 8080, false),
+		getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorAndLogsDDUrlDualShip() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dualship", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "http://vector.host:8080/")
+
+	suite.config.SetWithoutSource("logs_config.logs_dd_url", "https://thing.com:9900")
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	expectedEndpoints := getTestEndpoints(
+		getTestEndpoint("vector.host", 8080, false),
+		getTestEndpoint("thing.com", 9900, true))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
