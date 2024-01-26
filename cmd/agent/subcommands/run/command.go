@@ -197,7 +197,7 @@ func run(log log.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	otelcollector otelcollector.Component,
 	_ host.Component,
-	invAgent inventoryagent.Component,
+	_ inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
@@ -264,7 +264,6 @@ func run(log log.Component,
 		sharedSerializer,
 		otelcollector,
 		demultiplexer,
-		invAgent,
 		agentAPI,
 		invChecks,
 		statusComponent,
@@ -397,10 +396,9 @@ func startAgent(
 	_ serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
 	demultiplexer demultiplexer.Component,
-	invAgent inventoryagent.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
-	_ status.Component,
+	statusComponent status.Component,
 ) error {
 
 	var err error
@@ -569,7 +567,7 @@ func startAgent(
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
 		log.Infof("GUI server port -1 specified: not starting the GUI.")
-	} else if err = gui.StartGUIServer(guiPort, flare, invAgent); err != nil {
+	} else if err = gui.StartGUIServer(guiPort, flare, statusComponent); err != nil {
 		log.Errorf("Error while starting GUI: %v", err)
 	}
 

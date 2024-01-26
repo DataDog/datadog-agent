@@ -39,10 +39,10 @@
               Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
               Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
               Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>
-              {{- if index $.Stats.inventories .CheckID }}
+              {{- if index $.inventories .CheckID }}
               Metadata:<br>
               <span class="stat_subdata">
-                {{- range $k, $v := index $.Stats.inventories .CheckID }}
+                {{- range $k, $v := index $.inventories .CheckID }}
                   {{ $k }}: {{ $v }}<br>
                 {{- end }}
               </span>

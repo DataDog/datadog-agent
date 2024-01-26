@@ -228,9 +228,10 @@ func TestGetStatus(t *testing.T) {
 	assert.NoError(t, err)
 
 	testCases := []struct {
-		name       string
-		format     string
-		assertFunc func(*testing.T, []byte)
+		name            string
+		format          string
+		excludeSections []string
+		assertFunc      func(*testing.T, []byte)
 	}{
 		{
 			name:   "JSON",
@@ -242,6 +243,20 @@ func TestGetStatus(t *testing.T) {
 				assert.NoError(t, err)
 
 				assert.Equal(t, "bar", result["foo"])
+				assert.Equal(t, "header_bar", result["header_foo"])
+			},
+		},
+		{
+			name:            "JSON exclude section",
+			format:          "json",
+			excludeSections: []string{status.CollectorSection},
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err = json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+
+				assert.Nil(t, result["foo"])
 				assert.Equal(t, "header_bar", result["header_foo"])
 			},
 		},
@@ -276,6 +291,52 @@ Collector
 =========
  text from a
  text from b
+
+=========
+A Section
+=========
+ text from a
+
+=========
+X Section
+=========
+ text from a
+ text from x
+
+`, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
+				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			},
+		},
+		{
+			name:            "Text exclude section",
+			format:          "text",
+			excludeSections: []string{status.CollectorSection},
+			assertFunc: func(t *testing.T, bytes []byte) {
+				expectedStatusTextOutput := fmt.Sprintf(`%s
+  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
+  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+  Pid: %d
+  Go Version: %s
+  Python Version: n/a
+  Build arch: %s
+  Agent flavor: %s
+  Log Level: info
+
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
+
+==========
+Header Foo
+==========
+  header foo: header bar
+  header foo2: header bar 2
 
 =========
 A Section
@@ -350,11 +411,59 @@ X Section
 				assert.Equal(t, expectedResult, output)
 			},
 		},
+		{
+			name:            "HTML exclude section",
+			format:          "html",
+			excludeSections: []string{status.CollectorSection},
+			assertFunc: func(t *testing.T, bytes []byte) {
+				// We have to do this strings replacement because html/temaplte escapes the `+` sign
+				// https://github.com/golang/go/issues/42506
+				result := string(bytes)
+				unescapedResult := strings.Replace(result, "&#43;", "+", -1)
+
+				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
+  <span class="stat_title">Agent Info</span>
+  <span class="stat_data">
+    Version: %s
+    <br>Flavor: %s
+    <br>PID: %d
+    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+    <br>Log Level: info
+    <br>Config File: There is no config file
+    <br>Conf.d Path: %s
+    <br>Checks.d Path: %s
+  </span>
+</div>
+
+<div class="stat">
+  <span class="stat_title">System Info</span>
+  <span class="stat_data">
+    System time: 2018-01-05 11:25:15 UTC (1515151515000)
+    <br>Go Version: %s
+    <br>Python Version: n/a
+    <br>Build arch: %s
+  </span>
+</div>
+<div class="stat">
+  <span class="stat_title">Header Foo</span>
+  <span class="stat_data">
+    <br>Header Bar: bar
+  </span>
+</div>
+`, agentVersion, agentFlavor, pid, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
+
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(expectedStatusHTMLOutput, "\r\n", "\n", -1)
+				output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bytesResult, err := statusComponent.GetStatus(testCase.format, false)
+			bytesResult, err := statusComponent.GetStatus(testCase.format, false, testCase.excludeSections...)
 
 			assert.NoError(t, err)
 
