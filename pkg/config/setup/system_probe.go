@@ -285,6 +285,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// ebpf module
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "kernel_bpf_stats"), false)
+	// Note that there are two buffers that might reach this size, so the actual memory usage might be up to 2x this value.
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "max_buffer_size_for_entry_count_in_bytes"), 20*1024*1024)
 
 	// service monitoring
