@@ -279,13 +279,28 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 		return err
 	}
 
+	filteredImages := make(map[workloadmeta.EntityID]*workloadmeta.ContainerImageMetadata)
 	for _, image := range existingImages {
-		if err := c.notifyEventForImage(ctx, namespace, image, nil); err != nil {
+		wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, image, nil)
+		if err != nil {
 			log.Warnf("error getting information for image with name %q: %s", image.Name(), err.Error())
 			continue
 		}
+		//Image is referenced by several different names but has only one entity id (= manifest.Config.Digest).
+		//filteredImages will be refreshed by updated workloadmeta.ContainerImageMetadata
+		if wlmImage != nil {
+			filteredImages[wlmImage.EntityID] = wlmImage
+		}
 	}
-
+	for _, wlmImage := range filteredImages {
+		c.store.Notify([]workloadmeta.CollectorEvent{
+			{
+				Type:   workloadmeta.EventTypeSet,
+				Source: workloadmeta.SourceRuntime,
+				Entity: wlmImage,
+			},
+		})
+	}
 	return nil
 }
 

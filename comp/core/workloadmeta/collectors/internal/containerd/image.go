@@ -244,7 +244,10 @@ func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace str
 	return c.notifyEventForImage(ctx, namespace, img, bom)
 }
 
-func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, sbom *workloadmeta.SBOM) error {
+func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
+	namespace string,
+	img containerd.Image,
+	sbom *workloadmeta.SBOM) (*workloadmeta.ContainerImageMetadata, error) {
 	c.handleImagesMut.Lock()
 	defer c.handleImagesMut.Unlock()
 
@@ -253,7 +256,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	// Build initial workloadmeta.ContainerImageMetadata from manifest and image
 	manifest, err := images.Manifest(ctxWithNamespace, img.ContentStore(), img.Target(), img.Platform())
 	if err != nil {
-		return fmt.Errorf("error getting image manifest: %w", err)
+		return nil, fmt.Errorf("error getting image manifest: %w", err)
 	}
 
 	totalSizeBytes := manifest.Config.Size
@@ -315,15 +318,21 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	// if the `imgMeta` object does not contain all the metadata when it is sent.
 	// We add them here to make sure they are present.
 	wlmImage.SBOM = util.UpdateSBOMRepoMetadata(wlmImage.SBOM, wlmImage.RepoTags, wlmImage.RepoDigests)
+	return &wlmImage, nil
+}
 
+func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, sbom *workloadmeta.SBOM) error {
+	wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, img, sbom)
+	if err != nil {
+		return err
+	}
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceRuntime,
-			Entity: &wlmImage,
+			Entity: wlmImage,
 		},
 	})
-
 	return nil
 }
 
