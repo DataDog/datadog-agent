@@ -25,6 +25,7 @@ var All = []module.Factory{
 	DynamicInstrumentation,
 	LanguageDetectionModule,
 	ComplianceModule,
+	Pinger,
 }
 
 func inactivityEventLog(_ time.Duration) {

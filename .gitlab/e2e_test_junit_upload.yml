@@ -95,6 +95,17 @@ e2e_pre_test_junit_upload:
     # to avoid downloading all the artifacts of all the jobs of all the previous stages.
     - e2e_pre_test
 
+e2e_container_test_junit_upload:
+  extends: .e2e_test_junit_template
+  rules:
+    - !reference [.on_container_e2e_changes_or_manual]
+  when: always
+  stage: e2e_test_junit_upload
+  dependencies:
+    # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
+    # to avoid downloading all the artifacts of all the jobs of all the previous stages.
+    - new-e2e-containers
+
 e2e_test_junit_upload:
   extends: .e2e_test_junit_template
   rules: !reference [.on_main]
@@ -103,7 +114,6 @@ e2e_test_junit_upload:
   dependencies:
     # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
     # to avoid downloading all the artifacts of all the jobs of all the previous stages.
-    - new-e2e-containers-main
     - new-e2e-agent-shared-components-main
     - new-e2e-agent-subcommands-main
     - new-e2e-language-detection-main

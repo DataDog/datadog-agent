@@ -9,9 +9,10 @@ package telemetry
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EBPFErrorsCollector implements the prometheus Collector interface
@@ -51,7 +52,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 	if e.helperErrMap != nil {
 		var hval HelperErrTelemetry
 		for probeName, k := range e.probeKeys {
-			err := e.helperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&hval))
+			err := e.helperErrMap.Lookup(&k, &hval)
 			if err != nil {
 				log.Debugf("failed to get telemetry for probe:key %s:%d\n", probeName, k)
 				continue
@@ -70,7 +71,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 	if e.mapErrMap != nil {
 		var val MapErrTelemetry
 		for m, k := range e.mapKeys {
-			err := e.mapErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
+			err := e.mapErrMap.Lookup(&k, &val)
 			if err != nil {
 				log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
 				continue

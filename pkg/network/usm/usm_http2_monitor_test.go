@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -41,8 +42,11 @@ import (
 )
 
 const (
-	srvPort  = 8082
-	unixPath = "/tmp/transparent.sock"
+	srvPort               = 8082
+	unixPath              = "/tmp/transparent.sock"
+	pathWithStatusCode300 = "/raw-test-300"
+	pathWithStatusCode401 = "/raw-test-401"
+	http2DefaultTestPath  = "/aaa"
 )
 
 var (
@@ -294,24 +298,29 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	}
 }
 
-var http2UniquePaths = []string{
-	// size 82 bucket 0
-	"C9ZaSMOpthT9XaRh9yc6AKqfIjT43M8gOz3p9ASKCNRIcLbc3PTqEoms2SDwt6Q90QM7DxjWKlmZUfRU1eOx5DjQOOhLaIJQke4N",
-	// size 127 bucket 1
-	"ZtZuUQeVB7BOl3F45oFicOOOJl21ePFwunMBvBh3bXPMBZqdEZepVsemYA0frZb5M83VHLDWq68KFELDHu0Xo28lzpzO3L7kDXuYuClivgEgURUn47kfwfUfW1PKjfsV6HaYpAZxly48lTGiRIXRINVC8b9",
-	// size 137, bucket 2
-	"RDBVk5COXAz52GzvuHVWRawNoKhmfxhBiTuyj5QZ6qR1DMsNOn4sWFLnaGXVzrqA8NLr2CaW1IDupzh9AzJlIvgYSf6OYIafIOsImL5O9M3AHzUHGMJ0KhjYGJAzXeTgvwl2qYWmlD9UYGELFpBSzJpykoriocvl3RRoYt4l",
-	// size 147, bucket 3
-	"T5r8QcP8qCiKVwhWlaxWjYCX8IrTmPrt2HRjfQJP2PxbWjLm8dP4BTDxUAmXJJWNyv4HIIaR3Fj6n8Tu6vSoDcBtKFuMqIPAdYEJt0qo2aaYDKomIJv74z7SiN96GrOufPTm6Eutl3JGeAKW2b0dZ4VYUsIOO8aheEOGmyhyWBymgCtBcXeki1",
-	// size 158, bucket 4
-	"VP4zOrIPiGhLDLSJYSVU78yUcb8CkU0dVDIZqPq98gVoenX5p1zS6cRX4LtrfSYKCQFX6MquluhDD2GPjZYFIraDLIHCno3yipQBLPGcPbPTgv9SD6jOlHMuLjmsGxyC3y2Hk61bWA6Af4D2SYS0q3BS7ahJ0vjddYYBRIpwMOOIez2jaR56rPcGCRW2eq0T1x",
-	// size 166, bucket 5
-	"X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7Ph",
-	// size 172, bucket 6
-	"bq5bcpUgiW1CpKgwdRVIulFMkwRenJWYdW8aek69anIV8w3br0pjGNtfnoPCyj4HUMD5MxWB2xM4XGp7fZ1JRHvskRZEgmoM7ag9BeuigmH05p7dzMwKsD76MqKyPmfhwBUZHLKtJ52ia3mOuMvyYiQNwA6KAU509bwuy4NCREVUAP76WFeAzr0jBvqMFXLg3eQQERIW0tKTcjQg8m9Jse",
-	// size 247, bucket 7
-	"LUhWUWPMztVFuEs83i7RmoxRiV1KzOq0NsZmGXVyW49BbBaL63m8H5vDwiewrrKbldXBuctplDxB28QekDclM6cO9BIsRqvzS3a802aOkRHTEruotA8Xh5K9GOMv9DzdoOL9P3GFPsUPgBy0mzFyyRJGk3JXpIH290Bj2FIRnIIpIjjKE1akeaimsuGEheA4D95axRpGmz4cm2s74UiksfBi4JnVX2cBzZN3oQaMt7zrWofwyzcZeF5W1n6BAQWxPPWe4Jyoc34jQ2fiEXQO0NnXe1RFbBD1E33a0OycziXZH9hEP23xvh",
-}
+var (
+	// pathExceedingMaxSize is path with size 166, which is exceeding the maximum path size in the kernel (HTTP2_MAX_PATH_LEN).
+	pathExceedingMaxSize = "X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7Ph"
+
+	http2UniquePaths = []string{
+		// size 82 bucket 0
+		"C9ZaSMOpthT9XaRh9yc6AKqfIjT43M8gOz3p9ASKCNRIcLbc3PTqEoms2SDwt6Q90QM7DxjWKlmZUfRU1eOx5DjQOOhLaIJQke4N",
+		// size 127 bucket 1
+		"ZtZuUQeVB7BOl3F45oFicOOOJl21ePFwunMBvBh3bXPMBZqdEZepVsemYA0frZb5M83VHLDWq68KFELDHu0Xo28lzpzO3L7kDXuYuClivgEgURUn47kfwfUfW1PKjfsV6HaYpAZxly48lTGiRIXRINVC8b9",
+		// size 137, bucket 2
+		"RDBVk5COXAz52GzvuHVWRawNoKhmfxhBiTuyj5QZ6qR1DMsNOn4sWFLnaGXVzrqA8NLr2CaW1IDupzh9AzJlIvgYSf6OYIafIOsImL5O9M3AHzUHGMJ0KhjYGJAzXeTgvwl2qYWmlD9UYGELFpBSzJpykoriocvl3RRoYt4l",
+		// size 147, bucket 3
+		"T5r8QcP8qCiKVwhWlaxWjYCX8IrTmPrt2HRjfQJP2PxbWjLm8dP4BTDxUAmXJJWNyv4HIIaR3Fj6n8Tu6vSoDcBtKFuMqIPAdYEJt0qo2aaYDKomIJv74z7SiN96GrOufPTm6Eutl3JGeAKW2b0dZ4VYUsIOO8aheEOGmyhyWBymgCtBcXeki1",
+		// size 158, bucket 4
+		"VP4zOrIPiGhLDLSJYSVU78yUcb8CkU0dVDIZqPq98gVoenX5p1zS6cRX4LtrfSYKCQFX6MquluhDD2GPjZYFIraDLIHCno3yipQBLPGcPbPTgv9SD6jOlHMuLjmsGxyC3y2Hk61bWA6Af4D2SYS0q3BS7ahJ0vjddYYBRIpwMOOIez2jaR56rPcGCRW2eq0T1x",
+		// size 166, bucket 5
+		pathExceedingMaxSize,
+		// size 172, bucket 6
+		"bq5bcpUgiW1CpKgwdRVIulFMkwRenJWYdW8aek69anIV8w3br0pjGNtfnoPCyj4HUMD5MxWB2xM4XGp7fZ1JRHvskRZEgmoM7ag9BeuigmH05p7dzMwKsD76MqKyPmfhwBUZHLKtJ52ia3mOuMvyYiQNwA6KAU509bwuy4NCREVUAP76WFeAzr0jBvqMFXLg3eQQERIW0tKTcjQg8m9Jse",
+		// size 247, bucket 7
+		"LUhWUWPMztVFuEs83i7RmoxRiV1KzOq0NsZmGXVyW49BbBaL63m8H5vDwiewrrKbldXBuctplDxB28QekDclM6cO9BIsRqvzS3a802aOkRHTEruotA8Xh5K9GOMv9DzdoOL9P3GFPsUPgBy0mzFyyRJGk3JXpIH290Bj2FIRnIIpIjjKE1akeaimsuGEheA4D95axRpGmz4cm2s74UiksfBi4JnVX2cBzZN3oQaMt7zrWofwyzcZeF5W1n6BAQWxPPWe4Jyoc34jQ2fiEXQO0NnXe1RFbBD1E33a0OycziXZH9hEP23xvh",
+	}
+)
 
 func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	t := s.T()
@@ -500,7 +509,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -520,7 +529,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -560,7 +569,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: getTLSNumber(120, 60, s.isTLS),
 			},
@@ -608,7 +617,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -638,7 +647,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -663,7 +672,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -691,7 +700,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -707,9 +716,92 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					streamID := getStreamID(i)
 					framer.
 						writeHeaders(t, streamID, testHeaders(), false).
-						writeData(t, streamID, true, []byte{}).writeRSTStream(t, streamID, http2.ErrCodeNo)
+						writeData(t, streamID, true, []byte{}).
+						writeRSTStream(t, streamID, http2.ErrCodeNo)
 				}
 				return framer.bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate capability to process up to max limit filtering frames",
+			// The purpose of this test is to verify our ability to process up to HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING frames.
+			// We write the path "/aaa" for the first time with an additional 25 headers (reaching to a total of 26 headers).
+			// When we exceed the limit, we expect to lose our internal counter (because we can filter up to 25 requests),
+			// and therefore, the next time we write the request "/aaa",
+			// its internal index will not be correct, and we will not be able to find it.
+			messageBuilder: func() []byte {
+				const multiHeadersCount = 25
+				framer := newFramer()
+				return framer.writeHeaders(t, 1, multipuleTestHeaders(multiHeadersCount)).
+					writeData(t, 1, true, []byte{}).
+					writeHeaders(t, 1, testHeaders()).
+					writeData(t, 1, true, []byte{}).bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate 300 status code",
+			// The purpose of this test is to verify that currently we do not support status code 300.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.writeHeaders(t, 1, headersWithGivenEndpoint(pathWithStatusCode300)).
+					writeData(t, 1, true, []byte{}).bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate 401 status code",
+			// The purpose of this test is to verify that currently we do not support status code 401.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.writeHeaders(t, 1, headersWithGivenEndpoint(pathWithStatusCode401)).
+					writeData(t, 1, true, []byte{}).bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate http methods",
+			// The purpose of this test is to validate that we are not supporting http2 methods different from POST and GET.
+			messageBuilder: func() []byte {
+				httpMethods = []string{http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}
+				framer := newFramer()
+				for i, method := range httpMethods {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, headersWithGivenPathMethod(method), false).
+						writeData(t, streamID, true, []byte{})
+				}
+				return framer.bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate max path length",
+			// The purpose of this test is to validate that we are not able to process a path longer than HTTP2_MAX_PATH_LEN.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.
+					writeHeaders(t, getStreamID(1), headersWithExceedingPathLen(), false).
+					writeData(t, getStreamID(1), true, []byte{}).bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate path sent by value (:path)",
+			// The purpose of this test is to verify our ability to identify paths which were sent with a key that
+			// sent by value (:path).
+			messageBuilder: func() []byte {
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
+				require.NoError(t, err, "could not create headers frame")
+				// pathHeaderField is created with a key that sent by value (:path) and
+				// the value (of the path) is /aaa.
+				pathHeaderField := []byte{0x40, 0x84, 0xb9, 0x58, 0xd3, 0x3f, 0x83, 0x60, 0x63, 0x1f}
+				headersFrame = append(pathHeaderField, headersFrame...)
+				framer := newFramer()
+				return framer.writeRawHeaders(t, 1, headersFrame).
+					writeData(t, 1, true, []byte{}).bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -743,34 +835,96 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
-					if key.DstPort == srvPort || key.SrcPort == srvPort {
-						count := stat.Data[200].Count
-						newKey := usmhttp.Key{
-							Path:   usmhttp.Path{Content: key.Path.Content},
-							Method: key.Method,
-						}
-						if _, ok := res[newKey]; !ok {
-							res[newKey] = count
-						} else {
-							res[newKey] += count
-						}
+				return validateStats(usmMonitor, res, tt.expectedEndpoints)
+			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+			if t.Failed() {
+				for key := range tt.expectedEndpoints {
+					if _, ok := res[key]; !ok {
+						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
+				}
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+			}
+		})
+	}
+}
+
+func (s *usmHTTP2Suite) TestDynamicTable() {
+	t := s.T()
+	cfg := s.getCfg()
+
+	// Start local server
+	cleanup, err := startH2CServer(authority, s.isTLS)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	tests := []struct {
+		name                            string
+		skip                            bool
+		messageBuilder                  func() []byte
+		expectedEndpoints               map[usmhttp.Key]int
+		expectedDynamicTablePathIndexes []int
+	}{
+		{
+			name: "dynamic table contains only index of path",
+			// The purpose of this test is to validate that the dynamic table contains only paths indexes.
+			messageBuilder: func() []byte {
+				const iterations = 10
+				framer := newFramer()
+
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, testHeaders()).
+						writeData(t, streamID, true, []byte{})
 				}
 
-				if len(res) != len(tt.expectedEndpoints) {
-					return false
-				}
+				return framer.bytes()
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 10,
+			},
+			expectedDynamicTablePathIndexes: []int{1, 7, 13, 19, 25, 31, 37, 43, 49, 55},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 
-				for key, endpointCount := range res {
-					_, ok := tt.expectedEndpoints[key]
-					if !ok {
-						return false
-					}
-					if endpointCount != tt.expectedEndpoints[key] {
-						return false
-					}
-				}
+			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+
+			c, err := net.Dial("unix", unixPath)
+			require.NoError(t, err, "could not dial")
+			defer c.Close()
+
+			// Create a buffer to write the frame into.
+			var buf bytes.Buffer
+			framer := http2.NewFramer(&buf, nil)
+			// Write the empty SettingsFrame to the buffer using the Framer
+			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+
+			// Writing a magic and the settings in the same packet to socket.
+			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
+
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
+
+			res := make(map[usmhttp.Key]int)
+			assert.Eventually(t, func() bool {
+				// validate the stats we get
+				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints))
+
+				validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
 
 				return true
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
@@ -784,6 +938,131 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			}
 		})
 	}
+}
+
+func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
+	t := s.T()
+	cfg := s.getCfg()
+
+	// Start local server
+	cleanup, err := startH2CServer(authority, s.isTLS)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	tests := []struct {
+		name                   string
+		skip                   bool
+		messageBuilder         func() []byte
+		expectedEndpoints      map[usmhttp.Key]int
+		expectedHuffmanEncoded map[int]bool
+	}{
+		{
+			name: "validate huffman encoding",
+			// The purpose of this test is to verify that we are able to identify if the path is huffman encoded.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.writeHeaders(t, 1, testHeaders()).
+					writeData(t, 1, true, []byte{}).
+					writeHeaders(t, 3, headersWithGivenEndpoint("/a")).
+					writeData(t, 3, true, []byte{}).bytes()
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/a")},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+			// the key is the path size, and the value is if it should be huffman encoded or not.
+			expectedHuffmanEncoded: map[int]bool{
+				2: false,
+				3: true,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+
+			c, err := net.Dial("unix", unixPath)
+			require.NoError(t, err, "could not dial")
+			defer c.Close()
+
+			// Create a buffer to write the frame into.
+			var buf bytes.Buffer
+			framer := http2.NewFramer(&buf, nil)
+			// Write the empty SettingsFrame to the buffer using the Framer
+			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+
+			// Writing a magic and the settings in the same packet to socket.
+			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
+
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
+
+			res := make(map[usmhttp.Key]int)
+			assert.Eventually(t, func() bool {
+				// validate the stats we get
+				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints))
+
+				validateHuffmanEncoded(t, usmMonitor.ebpfProgram, tt.expectedHuffmanEncoded)
+
+				return true
+			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+			if t.Failed() {
+				for key := range tt.expectedEndpoints {
+					if _, ok := res[key]; !ok {
+						t.Logf("key: %v was not found in res", key.Path.Content.Get())
+					}
+				}
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+			}
+		})
+	}
+}
+
+// validateStats validates that the stats we get from the monitor are as expected.
+func validateStats(usmMonitor *Monitor, res map[usmhttp.Key]int, expectedEndpoints map[usmhttp.Key]int) bool {
+	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
+		if key.DstPort == srvPort || key.SrcPort == srvPort {
+			count := stat.Data[200].Count
+			newKey := usmhttp.Key{
+				Path:   usmhttp.Path{Content: key.Path.Content},
+				Method: key.Method,
+			}
+			if _, ok := res[newKey]; !ok {
+				res[newKey] = count
+			} else {
+				res[newKey] += count
+			}
+		}
+	}
+
+	if len(res) != len(expectedEndpoints) {
+		return false
+	}
+
+	for key, endpointCount := range res {
+		_, ok := expectedEndpoints[key]
+		if !ok {
+			return false
+		}
+		if endpointCount != expectedEndpoints[key] {
+			return false
+		}
+	}
+	return true
 }
 
 // getHTTP2UnixClientArray creates an array of http2 clients over a unix socket.
@@ -843,17 +1122,54 @@ func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
 }
 
 // headersWithNeverIndexedPath returns a set of header fields with path that never indexed.
-func headersWithNeverIndexedPath() []hpack.HeaderField { return generateTestHeaderFields(true, false) }
+func headersWithNeverIndexedPath() []hpack.HeaderField {
+	return generateTestHeaderFields(true, false, false, "", "")
+}
 
 // headersWithoutIndexingPath returns a set of header fields with path without-indexing.
-func headersWithoutIndexingPath() []hpack.HeaderField { return generateTestHeaderFields(false, true) }
+func headersWithoutIndexingPath() []hpack.HeaderField {
+	return generateTestHeaderFields(false, true, false, "", "")
+}
+
+// headersWithGivenPathMethod returns a set of header fields with the given method for the header includes the path.
+func headersWithGivenPathMethod(method string) []hpack.HeaderField {
+	return generateTestHeaderFields(false, false, false, method, "")
+}
+
+// headersWithExceedingPathLen returns a set of header fields with a path that exceeds the maximum length.
+func headersWithExceedingPathLen() []hpack.HeaderField {
+	return generateTestHeaderFields(false, false, true, "", "")
+}
+
+// headersWithGivenEndpoint returns a set of header fields with the given path.
+func headersWithGivenEndpoint(path string) []hpack.HeaderField {
+	return generateTestHeaderFields(false, false, false, "", path)
+}
 
 // testHeaders returns a set of header fields.
-func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, false) }
+func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, false, false, "", "") }
+
+// multipuleTestHeaders returns a set of header fields, with the given number of headers.
+func multipuleTestHeaders(testHeadersCount int) []hpack.HeaderField {
+	headers := generateTestHeaderFields(false, false, false, "", "")
+
+	for i := 0; i < testHeadersCount; i++ {
+		headers = append(headers, hpack.HeaderField{Name: fmt.Sprintf("name%d", i), Value: fmt.Sprintf("test%d", i)})
+	}
+	return headers
+}
 
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
-func generateTestHeaderFields(pathNeverIndexed, withoutIndexing bool) []hpack.HeaderField {
-	pathHeaderField := hpack.HeaderField{Name: ":path", Value: "/aaa", Sensitive: false}
+func generateTestHeaderFields(pathNeverIndexed, withoutIndexing, pathExceedingMax bool, pathMethod, endpoint string) []hpack.HeaderField {
+	headerPathMethod := "POST"
+	path := http2DefaultTestPath
+	if pathMethod != "" {
+		headerPathMethod = pathMethod
+	}
+	if endpoint != "" {
+		path = endpoint
+	}
+	pathHeaderField := hpack.HeaderField{Name: ":path", Value: path, Sensitive: false}
 
 	// If we want to create a case without indexing, we need to make sure that the path is longer than 100 characters.
 	// The indexing is determined by the dynamic table size (which we set to dynamicTableSize) and the size of the path.
@@ -863,14 +1179,20 @@ func generateTestHeaderFields(pathNeverIndexed, withoutIndexing bool) []hpack.He
 		pathHeaderField = hpack.HeaderField{Name: ":path", Value: "/" + strings.Repeat("a", usmhttp2.DynamicTableSize), Sensitive: true}
 	}
 
+	// If we want to create a case with a path that exceeds the maximum length,
+	// we need to make sure that the path is longer than HTTP2_MAX_PATH_LEN.
+	if pathExceedingMax {
+		pathHeaderField = hpack.HeaderField{Name: ":path", Value: "/" + pathExceedingMaxSize, Sensitive: false}
+	}
+
 	// If the path is sensitive, we are in a case where a path is never indexed
 	if pathNeverIndexed {
-		pathHeaderField = hpack.HeaderField{Name: ":path", Value: "/aaa", Sensitive: true}
+		pathHeaderField = hpack.HeaderField{Name: ":path", Value: http2DefaultTestPath, Sensitive: true}
 	}
 
 	return []hpack.HeaderField{
 		{Name: ":authority", Value: authority},
-		{Name: ":method", Value: "POST"},
+		{Name: ":method", Value: headerPathMethod},
 		pathHeaderField,
 		{Name: ":scheme", Value: "http"},
 		{Name: "content-type", Value: "application/json"},
@@ -996,8 +1318,16 @@ func startH2CServer(address string, isTLS bool) (func(), error) {
 	srv := &http.Server{
 		Addr: authority,
 		Handler: h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(200)
-			w.Write([]byte("test"))
+			// Check the request path and set the appropriate status code
+			switch r.URL.Path {
+			case pathWithStatusCode300:
+				w.WriteHeader(http.StatusMultipleChoices) // HTTP status code 300
+			case pathWithStatusCode401:
+				w.WriteHeader(http.StatusUnauthorized) // HTTP status code 401
+			default:
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("test"))
+			}
 		}), &http2.Server{}),
 		IdleTimeout: 2 * time.Second,
 	}
@@ -1028,4 +1358,38 @@ func startH2CServer(address string, isTLS bool) (func(), error) {
 
 func getClientsIndex(index, totalCount int) int {
 	return index % totalCount
+}
+
+// validateDynamicTableMap validates that the dynamic table map contains the expected indexes.
+func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDynamicTablePathIndexes []int) {
+	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
+	require.NoError(t, err)
+	key := make([]byte, dynamicTableMap.KeySize())
+	value := make([]byte, dynamicTableMap.ValueSize())
+	iterator := dynamicTableMap.Iterate()
+	resultIndexes := make([]int, 0)
+	for iterator.Next(&key, &value) {
+		tableIndex := usmhttp2.HTTP2DynamicTableIndex{}
+		require.NoError(t, binary.Read(bytes.NewReader(key), binary.LittleEndian, &tableIndex))
+		resultIndexes = append(resultIndexes, int(tableIndex.Index))
+	}
+	sort.Ints(resultIndexes)
+	require.True(t, assert.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes))
+}
+
+// validateHuffmanEncoded validates that the dynamic table map contains the expected huffman encoded paths.
+func validateHuffmanEncoded(t *testing.T, ebpfProgram *ebpfProgram, expectedHuffmanEncoded map[int]bool) {
+	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
+	require.NoError(t, err)
+	key := make([]byte, dynamicTableMap.KeySize())
+	value := make([]byte, dynamicTableMap.ValueSize())
+	iterator := dynamicTableMap.Iterate()
+	resultEncodedPaths := make(map[int]bool, 0)
+	for iterator.Next(&key, &value) {
+		tableEntry := usmhttp2.HTTP2DynamicTableEntry{}
+		require.NoError(t, binary.Read(bytes.NewReader(value), binary.LittleEndian, &tableEntry))
+		resultEncodedPaths[int(tableEntry.String_len)] = tableEntry.Is_huffman_encoded
+	}
+	// we compare the size of the path and if it is huffman encoded.
+	require.True(t, assert.EqualValues(t, expectedHuffmanEncoded, resultEncodedPaths))
 }
