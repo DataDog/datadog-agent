@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -200,6 +201,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() inventoryagent.Component { return nil }),
 				fx.Provide(func() inventoryhost.Component { return nil }),
 				fx.Provide(func() packagesigning.Component { return nil }),
+				fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewOption[rcservice.Component](nil) }),
 			)
 		},
 	}
