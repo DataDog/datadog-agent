@@ -692,7 +692,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders(), false).
+						writeHeaders(t, streamID, testHeaders()).
 						writeData(t, streamID, true, []byte{})
 					if rstFramesCount > 0 {
 						framer.writeRSTStream(t, streamID, http2.ErrCodeCancel)
@@ -718,7 +718,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders(), false).
+						writeHeaders(t, streamID, testHeaders()).
 						writeData(t, streamID, true, []byte{}).
 						writeRSTStream(t, streamID, http2.ErrCodeNo)
 				}
@@ -772,7 +772,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i, method := range httpMethods {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{overrideMethod: method}), false).
+						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.bytes()
@@ -785,7 +785,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() []byte {
 				framer := newFramer()
 				return framer.
-					writeHeaders(t, getStreamID(1), generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathTooLarge}), false).
+					writeHeaders(t, getStreamID(1), generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathTooLarge})).
 					writeData(t, getStreamID(1), true, []byte{}).bytes()
 			},
 			expectedEndpoints: nil,
