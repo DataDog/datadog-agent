@@ -122,7 +122,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	for i := 0; i < usmhttp2.HTTP2TerminatedBatchSize; i++ {
 		req, err := clients[i%2].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
 		require.NoError(t, err, "could not make request")
-		req.Body.Close()
+		_ = req.Body.Close()
 	}
 
 	matches := PrintableInt(0)
@@ -191,7 +191,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 					client := clients[getClientsIndex(i, clientsCount)]
 					req, err := client.Post(http2SrvAddr+"/", "application/json", bytes.NewReader([]byte("test")))
 					require.NoError(t, err, "could not make request")
-					req.Body.Close()
+					_ = req.Body.Close()
 				}
 			},
 			expectedEndpoints: map[usmhttp.Key]captureRange{
@@ -213,7 +213,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 					client := clients[getClientsIndex(i, clientsCount)]
 					req, err := client.Post(http2SrvAddr+"/index.html", "application/json", bytes.NewReader([]byte("test")))
 					require.NoError(t, err, "could not make request")
-					req.Body.Close()
+					_ = req.Body.Close()
 				}
 			},
 			expectedEndpoints: map[usmhttp.Key]captureRange{
@@ -236,7 +236,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 					client := clients[getClientsIndex(i, clientsCount)]
 					req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
 					require.NoError(t, err, "could not make request")
-					req.Body.Close()
+					_ = req.Body.Close()
 				}
 			},
 			expectedEndpoints: getExpectedOutcomeForPathWithRepeatedChars(),
@@ -349,7 +349,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 					client := clients[getClientsIndex(1, clientsCount)]
 					req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
 					require.NoError(t, err, "could not make request")
-					req.Body.Close()
+					_ = req.Body.Close()
 				}
 			},
 
@@ -437,7 +437,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 		for j := 0; j < repetitionsPerRequest; j++ {
 			req, err := clients[0].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
 			require.NoError(t, err, "could not make request")
-			req.Body.Close()
+			_ = req.Body.Close()
 		}
 	}
 
