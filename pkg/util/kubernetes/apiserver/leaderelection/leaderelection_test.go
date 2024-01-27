@@ -49,27 +49,6 @@ func makeLeaderLease(name, namespace, leaderIdentity string, leaseDuration int) 
 	}
 }
 
-func makeLeaderCM(name, namespace, leaderIdentity string, leaseDuration int) *v1.ConfigMap {
-	record := rl.LeaderElectionRecord{
-		HolderIdentity:       leaderIdentity,
-		LeaseDurationSeconds: leaseDuration,
-		AcquireTime:          metav1.NewTime(time.Now()),
-		RenewTime:            metav1.NewTime(time.Now().Add(time.Duration(leaseDuration) * time.Second)),
-		LeaderTransitions:    1,
-	}
-	b, _ := json.Marshal(&record)
-
-	return &v1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Annotations: map[string]string{
-				"control-plane.alpha.kubernetes.io/leader": string(b),
-			},
-		},
-	}
-}
-
 type testSuite struct {
 	suite.Suite
 }
