@@ -25,7 +25,7 @@ const (
 
 // Install installs the default version for the given package.
 // It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, rc *RemoteConfig, pkg string) error {
+func Install(ctx context.Context, rc RemoteConfig, pkg string) error {
 	log.Infof("Updater: Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
 	repository := &repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)}
@@ -51,8 +51,17 @@ func Install(ctx context.Context, rc *RemoteConfig, pkg string) error {
 	return nil
 }
 
+type Updater interface {
+	StartExperiment(ctx context.Context, version string) error
+	StopExperiment() error
+	PromoteExperiment() error
+
+	GetRepositoryPath() string
+	GetPackage() string
+}
+
 // Updater is the updater used to update packages.
-type Updater struct {
+type updaterImpl struct {
 	m              sync.Mutex
 	pkg            string
 	repositoryPath string
@@ -62,7 +71,7 @@ type Updater struct {
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(rc *RemoteConfig, pkg string) (*Updater, error) {
+func NewUpdater(rc RemoteConfig, pkg string) (Updater, error) {
 	repository := repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)}
 	state, err := repository.GetState()
 	if err != nil {
@@ -71,7 +80,7 @@ func NewUpdater(rc *RemoteConfig, pkg string) (*Updater, error) {
 	if !state.HasStable() {
 		return nil, fmt.Errorf("attempt to create an updater for a package that has not been bootstrapped with a stable version")
 	}
-	return &Updater{
+	return &updaterImpl{
 		pkg:            pkg,
 		repositoryPath: defaultRepositoryPath,
 		orgConfig:      newOrgConfig(rc),
@@ -80,8 +89,18 @@ func NewUpdater(rc *RemoteConfig, pkg string) (*Updater, error) {
 	}, nil
 }
 
+// GetRepositoryPath returns the path to the repository.
+func (u *updaterImpl) GetRepositoryPath() string {
+	return u.repositoryPath
+}
+
+// GetPackage returns the package.
+func (u *updaterImpl) GetPackage() string {
+	return u.pkg
+}
+
 // StartExperiment starts an experiment with the given package.
-func (u *Updater) StartExperiment(ctx context.Context, version string) error {
+func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Starting experiment for package %s version %s", u.pkg, version)
@@ -107,7 +126,7 @@ func (u *Updater) StartExperiment(ctx context.Context, version string) error {
 }
 
 // PromoteExperiment promotes the experiment to stable.
-func (u *Updater) PromoteExperiment() error {
+func (u *updaterImpl) PromoteExperiment() error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Promoting experiment for package %s", u.pkg)
@@ -120,7 +139,7 @@ func (u *Updater) PromoteExperiment() error {
 }
 
 // StopExperiment stops the experiment.
-func (u *Updater) StopExperiment() error {
+func (u *updaterImpl) StopExperiment() error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Stopping experiment for package %s", u.pkg)

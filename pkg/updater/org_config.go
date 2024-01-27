@@ -28,17 +28,17 @@ type orgConfig struct {
 	catalogReceived     chan struct{}
 	catalogReceivedSync sync.Once
 
-	rc      *RemoteConfig
+	rc      RemoteConfig
 	catalog catalog
 }
 
 // NewOrgConfig returns a new OrgConfig.
-func newOrgConfig(rc *RemoteConfig) *orgConfig {
+func newOrgConfig(rc RemoteConfig) *orgConfig {
 	c := &orgConfig{
 		catalogReceived: make(chan struct{}),
 		rc:              rc,
 	}
-	rc.client.Subscribe(state.ProductUpdaterCatalogDD, c.onCatalogUpdate)
+	rc.GetClient().Subscribe(state.ProductUpdaterCatalogDD, c.onCatalogUpdate)
 	return c
 }
 

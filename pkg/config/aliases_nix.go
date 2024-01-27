@@ -12,8 +12,7 @@ import (
 )
 
 // Aliases to setup package
-
->>>>>>> origin/main
+var (
 	DefaultUpdaterLogFile       = pkgconfigsetup.DefaultUpdaterLogFile
 	DefaultSecurityAgentLogFile = pkgconfigsetup.DefaultSecurityAgentLogFile
 	DefaultProcessAgentLogFile  = pkgconfigsetup.DefaultProcessAgentLogFile

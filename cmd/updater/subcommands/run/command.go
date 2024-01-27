@@ -15,13 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/updater"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
-	updaterrccomp "github.com/DataDog/datadog-agent/comp/updater/rc"
-	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
+	"github.com/DataDog/datadog-agent/comp/updater/localapi/localapiimpl"
+	"github.com/DataDog/datadog-agent/comp/updater/rc/rcimpl"
+	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/spf13/cobra"
@@ -57,16 +57,16 @@ func runFxWrapper(params *cliParams, fct interface{}) error {
 			LogParams:            logimpl.ForDaemon("UPDATER", "updater.log_file", pkgconfig.DefaultUpdaterLogFile),
 		}),
 		core.Bundle(),
-		fx.Supply(updatercomp.Options{
+		fx.Supply(updaterimpl.Options{
 			Package: params.Package,
 		}),
-		updaterrccomp.Module(),
-		updatercomp.Module(),
-		localapi.Module(),
+		rcimpl.Module(),
+		updaterimpl.Module(),
+		localapiimpl.Module(),
 		fx.Invoke(fct),
 	)
 }
 
-func run(localAPI *updater.LocalAPI) error {
+func run(localAPI localapi.Component) error {
 	return localAPI.Serve()
 }

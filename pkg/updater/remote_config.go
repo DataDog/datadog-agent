@@ -15,14 +15,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-// RemoteConfig is a wrapper around the remote config service and client
-type RemoteConfig struct {
+// remoteConfigImpl is a wrapper around the remote config service and client for the updater
+type remoteConfigImpl struct {
 	service *service.Service
 	client  *client.Client
 }
 
+// RemoteConfig is the interface for the remote config service and client
+type RemoteConfig interface {
+	// GetClient returns the remote config client
+	GetClient() *client.Client
+}
+
 // NewRemoteConfig returns a new RemoteConfig instance
-func NewRemoteConfig(hostname string) (*RemoteConfig, error) {
+func NewRemoteConfig(hostname string) (RemoteConfig, error) {
 	service, err := common.NewRemoteConfigService(hostname, service.WithDatabaseFileName("remote-config-updater.db"))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create rc service: %w", err)
@@ -37,8 +43,13 @@ func NewRemoteConfig(hostname string) (*RemoteConfig, error) {
 	}
 	service.Start(context.Background())
 	client.Start()
-	return &RemoteConfig{
+	return &remoteConfigImpl{
 		service: service,
 		client:  client,
 	}, nil
+}
+
+// GetClient returns the remote config client
+func (r *remoteConfigImpl) GetClient() *client.Client {
+	return r.client
 }

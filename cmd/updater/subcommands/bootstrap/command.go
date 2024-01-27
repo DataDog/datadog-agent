@@ -17,12 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/updater/rc"
+	"github.com/DataDog/datadog-agent/comp/updater/rc/rcimpl"
 	"github.com/DataDog/datadog-agent/pkg/updater"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
 	"go.uber.org/fx"
-
-	updaterrccomp "github.com/DataDog/datadog-agent/comp/updater/rc"
-
 	"github.com/spf13/cobra"
 )
 
@@ -62,11 +62,11 @@ func boostrapFxWrapper(ctx context.Context, params *cliParams, fct interface{}) 
 			LogParams:            logimpl.ForOneShot("UPDATER", "info", true),
 		}),
 		core.Bundle(),
-		updaterrccomp.Module(),
+		rcimpl.Module(),
 	)
 }
 
-func bootstrap(ctx context.Context, params *cliParams, rc *updater.RemoteConfig) error {
+func bootstrap(ctx context.Context, params *cliParams, rc rc.Component) error {
 	err := updater.Install(ctx, rc, params.Package)
 	if err != nil {
 		return fmt.Errorf("could not install package: %w", err)
