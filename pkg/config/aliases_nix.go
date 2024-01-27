@@ -12,7 +12,8 @@ import (
 )
 
 // Aliases to setup package
-const (
+
+>>>>>>> origin/main
 	DefaultUpdaterLogFile       = pkgconfigsetup.DefaultUpdaterLogFile
 	DefaultSecurityAgentLogFile = pkgconfigsetup.DefaultSecurityAgentLogFile
 	DefaultProcessAgentLogFile  = pkgconfigsetup.DefaultProcessAgentLogFile

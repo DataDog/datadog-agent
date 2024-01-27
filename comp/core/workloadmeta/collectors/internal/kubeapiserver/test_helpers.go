@@ -46,7 +46,6 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 		workloadmeta.MockModuleV2(),
 	))
 	ctx := context.TODO()
-	wlm.Start(ctx)
 
 	store, _ := newStore(ctx, wlm, client)
 	stopStore := make(chan struct{})

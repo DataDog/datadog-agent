@@ -25,11 +25,12 @@ func NewRemoteConfigService(hostname string, opts ...remoteconfig.Option) (*remo
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
 	baseRawURL := configUtils.GetMainEndpoint(config.Datadog, "https://config.", "remote_configuration.rc_dd_url")
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(config.Datadog)
+	configuredTags := configUtils.GetConfiguredTags(config.Datadog, false)
 
 	telemetryReporter := newRcTelemetryReporter()
 
 	opts = append(opts, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
-	configService, err := remoteconfig.NewService(config.Datadog, apiKey, baseRawURL, hostname, telemetryReporter, version.AgentVersion, opts...)
+	configService, err := remoteconfig.NewService(config.Datadog, apiKey, baseRawURL, hostname, configuredTags, telemetryReporter, version.AgentVersion, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
 	}

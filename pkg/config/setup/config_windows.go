@@ -30,6 +30,8 @@ var (
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
+	// InstallPath is the default install path for the agent
+	InstallPath = "c:\\Program Files\\Datadog\\Datadog Agent"
 )
 
 func osinit() {

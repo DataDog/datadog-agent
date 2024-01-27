@@ -9,6 +9,7 @@ package devicecheck
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
@@ -43,6 +45,9 @@ const (
 	serviceCheckName        = "snmp.can_check"
 	deviceReachableMetric   = "snmp.device.reachable"
 	deviceUnreachableMetric = "snmp.device.unreachable"
+	pingCanConnectMetric    = "ndm.ping.canConnect"
+	pingPacketLoss          = "ndm.ping.packetLoss"
+	pingAvgRttMetric        = "ndm.ping.avgRtt"
 	deviceHostnamePrefix    = "device:"
 	checkDurationThreshold  = 30 // Thirty seconds
 )
@@ -55,6 +60,7 @@ type DeviceCheck struct {
 	config                  *checkconfig.CheckConfig
 	sender                  *report.MetricSender
 	session                 session.Session
+	devicePinger            pinger.Pinger
 	sessionCloseErrorCount  *atomic.Uint64
 	savedDynamicTags        []string
 	nextAutodetectMetrics   time.Time
@@ -71,9 +77,18 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		return nil, fmt.Errorf("failed to configure session: %s", err)
 	}
 
+	var devicePinger pinger.Pinger
+	if newConfig.PingEnabled {
+		devicePinger, err = createPinger(newConfig.PingConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create pinger: %s", err)
+		}
+	}
+
 	return &DeviceCheck{
 		config:                  newConfig,
 		session:                 sess,
+		devicePinger:            devicePinger,
 		sessionCloseErrorCount:  atomic.NewUint64(0),
 		nextAutodetectMetrics:   timeNow(),
 		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
@@ -132,6 +147,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
+	var pingCanConnect *bool
 
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
 	tags := common.CopyStrings(staticTags)
@@ -148,6 +164,24 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
+	}
+
+	// Get a system appropriate ping check
+	if d.devicePinger != nil {
+		log.Tracef("%s: pinging host", d.config.IPAddress)
+		pingResult, err := d.devicePinger.Ping(d.config.IPAddress)
+		if err != nil {
+			// if the ping fails, send no metrics/metadata, log and add diagnosis
+			log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
+			d.diagnoses.Add("error", "SNMP_FAILED_TO_PING_DEVICE", "Agent encountered an error when pinging this network device. Check agent logs for more details.")
+		} else {
+			// if ping succeeds, set pingCanConnect for use in metadata and send metrics
+			log.Debugf("%s: ping returned: %+v", d.config.IPAddress, pingResult)
+			pingCanConnect = &pingResult.CanConnect
+			d.submitPingMetrics(pingResult, tags)
+		}
+	} else {
+		log.Tracef("%s: SNMP ping disabled for host", d.config.IPAddress)
 	}
 
 	if d.config.CollectDeviceMetadata {
@@ -171,7 +205,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 		deviceDiagnosis := d.diagnoses.Report()
 
-		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus, deviceDiagnosis)
+		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus, pingCanConnect, deviceDiagnosis)
 	}
 
 	d.submitTelemetryMetrics(startTime, tags)
@@ -366,4 +400,21 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 // GetDiagnoses collects diagnoses for diagnose CLI
 func (d *DeviceCheck) GetDiagnoses() []diagnosis.Diagnosis {
 	return d.diagnoses.ReportAsAgentDiagnoses()
+}
+
+// createPinger creates a pinger using the passed configuration
+func createPinger(cfg pinger.Config) (pinger.Pinger, error) {
+	// if OS is Windows or Mac, we should override UseRawSocket
+	if runtime.GOOS == "windows" {
+		cfg.UseRawSocket = true
+	} else if runtime.GOOS == "darwin" {
+		cfg.UseRawSocket = false
+	}
+	return pinger.New(cfg)
+}
+
+func (d *DeviceCheck) submitPingMetrics(pingResult *pinger.Result, tags []string) {
+	d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgRtt/time.Millisecond), tags)
+	d.sender.Gauge(pingCanConnectMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
+	d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
 }

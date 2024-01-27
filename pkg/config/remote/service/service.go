@@ -94,6 +94,7 @@ type Service struct {
 
 	clock         clock.Clock
 	hostname      string
+	tags          []string
 	traceAgentEnv string
 	db            *bbolt.DB
 	uptane        uptaneClient
@@ -172,13 +173,12 @@ func WithDatabaseFileName(fileName string) func(s *options) {
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*Service, error) {
+func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*Service, error) {
+	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 	options := defaultOptions
 	for _, opt := range opts {
 		opt(&options)
 	}
-
-	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 
 	var refreshInterval time.Duration
 	if cfg.IsSet("remote_configuration.refresh_interval") {
@@ -290,6 +290,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetry
 		products:                       make(map[rdata.Product]struct{}),
 		newProducts:                    make(map[rdata.Product]struct{}),
 		hostname:                       hostname,
+		tags:                           tags,
 		clock:                          clock,
 		db:                             db,
 		api:                            http,
@@ -454,7 +455,7 @@ func (s *Service) refresh() error {
 		return err
 	}
 
-	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tags, s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
 	s.Unlock()
 	ctx := context.Background()
 	response, err := s.api.Fetch(ctx, request)

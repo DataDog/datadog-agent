@@ -11,10 +11,11 @@ from subprocess import check_output
 from invoke import task
 from invoke.exceptions import Exit
 
-from .agent import generate_config
-from .build_tags import get_default_build_tags
-from .go import run_golangci_lint
-from .libs.common.utils import (
+from tasks.agent import build as agent_build
+from tasks.agent import generate_config
+from tasks.build_tags import get_default_build_tags
+from tasks.go import run_golangci_lint
+from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     environ,
@@ -25,16 +26,16 @@ from .libs.common.utils import (
     get_gopath,
     get_version,
 )
-from .libs.ninja_syntax import NinjaWriter
-from .process_agent import TempDir
-from .system_probe import (
+from tasks.libs.ninja_syntax import NinjaWriter
+from tasks.process_agent import TempDir
+from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
     check_for_ninja,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
@@ -50,6 +51,7 @@ def build(
     build_tags,
     race=False,
     incremental_build=True,
+    install_path=None,
     major_version='7',
     # arch is never used here; we keep it to have a
     # consistent CLI on the build task for all agents.
@@ -57,13 +59,22 @@ def build(
     go_mod="mod",
     skip_assets=False,
     static=False,
+    bundle=True,
 ):
     """
     Build the security agent
     """
+    if bundle and sys.platform != "win32":
+        return agent_build(
+            ctx,
+            install_path=install_path,
+            race=race,
+            arch=arch,
+            go_mod=go_mod,
+        )
+
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
 
-    # TODO use pkg/version for this
     main = "main."
     ld_vars = {
         "Version": get_version(ctx, major_version=major_version),
@@ -90,11 +101,11 @@ def build(
         )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(
-        build="security-agent"
-    )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
+    build_tags += get_default_build_tags(build="security-agent")
 
-    # TODO static option
+    if os.path.exists(BIN_PATH):
+        os.remove(BIN_PATH)
+
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/security-agent'
 
@@ -111,6 +122,10 @@ def build(
 
     ctx.run(cmd.format(**args), env=env)
 
+    render_config(ctx, env=env, skip_assets=skip_assets)
+
+
+def render_config(ctx, env, skip_assets=False):
     if not skip_assets:
         dist_folder = os.path.join(BIN_DIR, "agent", "dist")
         generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
@@ -192,7 +207,7 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
 
 @task
 def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
-    cmd = '{testsuite} -trace {verbose_opt} {testflags} {tests}'
+    cmd = '{testsuite} -trace {verbose_opt} {testflags}'
 
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
@@ -203,7 +218,6 @@ def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=F
         "verbose_opt": "-test.v" if verbose else "",
         "testflags": testflags,
         "path": os.environ['PATH'],
-        "tests": "-test.run '^(TestOpen|TestProcess|TimestampVariable|KillAction|TestRmdir|TestUnlink|TestRename)'",
     }
 
     ctx.run(cmd.format(**args))

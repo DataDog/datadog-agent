@@ -116,7 +116,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	assert.Eventually(t, func() bool {
 		_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 		return !ok
-	}, 5*time.Second, 500*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 
 }
 
@@ -467,10 +467,9 @@ func (s *TracerSuite) TestConntrackDelays() {
 	// This will ensure that the first lookup for every connection fails, while the following ones succeed
 	tr.conntracker = tracertest.NewDelayedConntracker(tr.conntracker, 1)
 
-	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
+	// Letting the OS pick an open port is necessary to avoid flakiness in the test. Running the the test multiple
 	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	port := 5430 + rand.Intn(100)
-	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
 		defer c.Close()
@@ -481,7 +480,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
+	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", server.ln.Addr().(*net.TCPAddr).Port))
 	require.NoError(t, err)
 	defer c.Close()
 	_, err = c.Write([]byte("ping"))
@@ -507,8 +506,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	tr := setupTracer(t, testConfig())
 
 	// Setup TCP server
-	port := 5430 + rand.Intn(100)
-	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
 		defer c.Close()
@@ -520,7 +518,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	require.NoError(t, server.Run())
 
 	// Send data to 2.2.2.2 (which should be translated to 1.1.1.1)
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
+	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", server.ln.Addr().(*net.TCPAddr).Port))
 	require.NoError(t, err)
 	defer c.Close()
 	_, err = c.Write([]byte("ping"))
@@ -676,7 +674,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 		var ok bool
 		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
-	}, 3*time.Second, 500*time.Millisecond)
+	}, 3*time.Second, 100*time.Millisecond)
 
 	require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
 	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
@@ -733,7 +731,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 		var ok bool
 		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
-	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -746,7 +744,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 		var ok bool
 		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
-	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
 
 	require.Equal(t, 1, calls, "calls to subnetForHwAddrFunc are != 1 for hw addr %s", ifi.HardwareAddr)
@@ -847,9 +845,11 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 		require.Eventually(t, func() bool {
 			var ok bool
-			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+			conns := getConnections(t, tr)
+			t.Log(conns)
+			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 			return ok && conn.Direction == network.OUTGOING
-		}, 2*time.Second, 500*time.Millisecond)
+		}, 3*time.Second, 100*time.Millisecond)
 
 		// conn.Via should be nil, since traffic is local
 		require.Nil(t, conn.Via)
@@ -877,9 +877,11 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var conn *network.ConnectionStats
 		require.Eventually(t, func() bool {
 			var ok bool
-			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+			conns := getConnections(t, tr)
+			t.Log(conns)
+			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 			return ok && conn.Direction == network.OUTGOING
-		}, 2*time.Second, 500*time.Millisecond)
+		}, 3*time.Second, 100*time.Millisecond)
 
 		// traffic is local, so Via field should not be set
 		require.Nil(t, conn.Via)
@@ -907,7 +909,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 			var ok bool
 			conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 			return ok && conn.Direction == network.OUTGOING
-		}, 3*time.Second, 500*time.Millisecond)
+		}, 3*time.Second, 100*time.Millisecond)
 
 		require.NotNil(t, conn.Via)
 		require.Equal(t, fmt.Sprintf("subnet-%s", ifi.Name), conn.Via.Subnet.Alias)
@@ -950,7 +952,7 @@ func (s *TracerSuite) TestConnectionAssured() {
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		return ok && conn.Monotonic.SentBytes > 0 && conn.Monotonic.RecvBytes > 0
-	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
+	}, 3*time.Second, 100*time.Millisecond, "could not find udp connection")
 
 	// verify the connection is marked as assured
 	require.True(t, conn.IsAssured)
@@ -985,7 +987,7 @@ func (s *TracerSuite) TestConnectionNotAssured() {
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		return ok && conn.Monotonic.SentBytes > 0 && conn.Monotonic.RecvBytes == 0
-	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
+	}, 3*time.Second, 100*time.Millisecond, "could not find udp connection")
 
 	// verify the connection is marked as not assured
 	require.False(t, conn.IsAssured)
@@ -1111,7 +1113,7 @@ func (s *TracerSuite) TestSelfConnect() {
 
 		t.Logf("connections: %v", conns)
 		return len(conns) == 2
-	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 2")
+	}, 5*time.Second, 100*time.Millisecond, "could not find expected number of tcp connections, expected: 2")
 }
 
 func (s *TracerSuite) TestUDPPeekCount() {
@@ -1307,7 +1309,6 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	tr := setupTracer(t, cfg)
 
-	port := rand.Intn(32768) + 32768
 	createReuseServer := func(port int) *UDPServer {
 		return &UDPServer{
 			network: udpnet,
@@ -1330,12 +1331,13 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 		}
 	}
 
-	s1 := createReuseServer(port)
-	s2 := createReuseServer(port)
+	s1 := createReuseServer(0)
 	err := s1.Run(clientMessageSize)
+	assignedPort := s1.ln.LocalAddr().(*net.UDPAddr).Port
 	require.NoError(t, err)
 	t.Cleanup(s1.Shutdown)
 
+	s2 := createReuseServer(assignedPort)
 	err = s2.Run(clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(s2.Shutdown)
@@ -1353,7 +1355,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	require.NoError(t, err)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	t.Logf("port: %d", port)
+	t.Logf("port: %d", assignedPort)
 	connections := getConnections(t, tr)
 	for _, c := range connections.Conns {
 		t.Log(c)
@@ -1476,7 +1478,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 		c.Close()
 		require.Eventually(t, func() bool {
 			return int64(clientMessageSize) == rcvdFunc()
-		}, 3*time.Second, 500*time.Millisecond, "TCP server didn't receive data")
+		}, 3*time.Second, 100*time.Millisecond, "TCP server didn't receive data")
 
 		t.Logf("looking for connections %+v <-> %+v", c.LocalAddr(), c.RemoteAddr())
 		var outConn, inConn *network.ConnectionStats
@@ -1490,7 +1492,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 				inConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
 			}
 			return outConn != nil && inConn != nil
-		}, 3*time.Second, 500*time.Millisecond, "couldn't find connections used by sendfile(2)")
+		}, 3*time.Second, 100*time.Millisecond, "couldn't find connections used by sendfile(2)")
 
 		if assert.NotNil(t, outConn, "couldn't find outgoing connection used by sendfile(2)") {
 			assert.Equalf(t, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile send data wasn't properly traced")
@@ -1596,7 +1598,7 @@ func (s *TracerSuite) TestSendfileError() {
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		return ok
-	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by sendfile(2)")
 
 	assert.Equalf(t, int64(0), int64(conn.Monotonic.SentBytes), "sendfile data wasn't properly traced")
 }
@@ -1696,7 +1698,7 @@ func (s *TracerSuite) TestShortWrite() {
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		return ok
-	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by short write")
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 
 	assert.Equal(t, sent, conn.Monotonic.SentBytes)
 }
@@ -1938,7 +1940,7 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 		conns := getConnections(t, tr)
 		conn, _ = findConnection(net.UDPAddrFromAddrPort(ap), raddr, conns)
 		return conn != nil
-	}, 3*time.Second, 500*time.Millisecond)
+	}, 3*time.Second, 100*time.Millisecond)
 
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 }
@@ -1957,7 +1959,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
-	mapsTelemetry := tr.bpfTelemetry.GetMapsTelemetry()
+	mapsTelemetry := tr.bpfErrorsCollector.GetMapsTelemetry()
 	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
 
 	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
@@ -2011,7 +2013,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
 	})
 
-	helperTelemetry := tr.bpfTelemetry.GetHelpersTelemetry()
+	helperTelemetry := tr.bpfErrorsCollector.GetHelpersTelemetry()
 	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
 
 	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})

@@ -2490,9 +2490,9 @@ func (z *GetStateConfigResponse) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *LatestConfigsRequest) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 13
+	// map header, size 14
 	// string "Hostname"
-	o = append(o, 0x8d, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
+	o = append(o, 0x8e, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.Hostname)
 	// string "AgentVersion"
 	o = append(o, 0xac, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
@@ -2547,6 +2547,12 @@ func (z *LatestConfigsRequest) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "OrgUuid"
 	o = append(o, 0xa7, 0x4f, 0x72, 0x67, 0x55, 0x75, 0x69, 0x64)
 	o = msgp.AppendString(o, z.OrgUuid)
+	// string "Tags"
+	o = append(o, 0xa4, 0x54, 0x61, 0x67, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.Tags)))
+	for za0004 := range z.Tags {
+		o = msgp.AppendString(o, z.Tags[za0004])
+	}
 	return
 }
 
@@ -2696,6 +2702,25 @@ func (z *LatestConfigsRequest) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "OrgUuid")
 				return
 			}
+		case "Tags":
+			var zb0005 uint32
+			zb0005, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Tags")
+				return
+			}
+			if cap(z.Tags) >= int(zb0005) {
+				z.Tags = (z.Tags)[:zb0005]
+			} else {
+				z.Tags = make([]string, zb0005)
+			}
+			for za0004 := range z.Tags {
+				z.Tags[za0004], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Tags", za0004)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -2726,7 +2751,10 @@ func (z *LatestConfigsRequest) Msgsize() (s int) {
 			s += z.ActiveClients[za0003].Msgsize()
 		}
 	}
-	s += 19 + msgp.BytesPrefixSize + len(z.BackendClientState) + 9 + msgp.BoolSize + 6 + msgp.StringPrefixSize + len(z.Error) + 14 + msgp.StringPrefixSize + len(z.TraceAgentEnv) + 8 + msgp.StringPrefixSize + len(z.OrgUuid)
+	s += 19 + msgp.BytesPrefixSize + len(z.BackendClientState) + 9 + msgp.BoolSize + 6 + msgp.StringPrefixSize + len(z.Error) + 14 + msgp.StringPrefixSize + len(z.TraceAgentEnv) + 8 + msgp.StringPrefixSize + len(z.OrgUuid) + 5 + msgp.ArrayHeaderSize
+	for za0004 := range z.Tags {
+		s += msgp.StringPrefixSize + len(z.Tags[za0004])
+	}
 	return
 }
 

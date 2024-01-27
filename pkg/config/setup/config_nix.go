@@ -7,10 +7,26 @@
 
 package setup
 
+import "path/filepath"
+
+// Variables to initialize at build time
+var (
+	// InstallPath is the default install path for the agent
+	// It might be overridden at build time
+	InstallPath = "/opt/datadog-agent"
+)
+
+var (
+	defaultRunPath = filepath.Join(InstallPath, "run")
+	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
+	defaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
+	// DefaultDDAgentBin the process agent's binary
+	DefaultDDAgentBin = filepath.Join(InstallPath, "bin/agent/agent")
+)
+
 const (
 	defaultConfdPath            = "/etc/datadog-agent/conf.d"
 	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
-	defaultRunPath              = "/opt/datadog-agent/run"
 	defaultGuiPort              = -1
 	// DefaultUpdaterLogFile is the default updater log file
 	DefaultUpdaterLogFile = "/var/log/datadog/updater.log"
@@ -18,12 +34,8 @@ const (
 	DefaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
-
-	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeAddress     = "/opt/datadog-agent/run/sysprobe.sock"
+	// defaultSystemProbeLogFilePath is the default system-probe log file
 	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
-	// DefaultDDAgentBin the process agent's binary
-	DefaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
 )
 
 // called by init in config.go, to ensure any os-specific config is done

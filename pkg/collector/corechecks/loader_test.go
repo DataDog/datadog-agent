@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // FIXTURE
@@ -39,12 +40,14 @@ func TestNewGoCheckLoader(t *testing.T) {
 	}
 }
 
-func testCheckFactory() check.Check {
-	return &TestCheck{}
+func testCheckNew() optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &TestCheck{}
+	})
 }
 
 func TestRegisterCheck(t *testing.T) {
-	RegisterCheck("foo", testCheckFactory)
+	RegisterCheck("foo", testCheckNew())
 	_, found := catalog["foo"]
 	if !found {
 		t.Fatal("Check foo not found in catalog")
@@ -52,7 +55,7 @@ func TestRegisterCheck(t *testing.T) {
 }
 
 func TestLoad(t *testing.T) {
-	RegisterCheck("foo", testCheckFactory)
+	RegisterCheck("foo", testCheckNew())
 
 	// check is in catalog, pass 1 good instance
 	i := []integration.Data{

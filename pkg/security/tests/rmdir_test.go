@@ -24,6 +24,8 @@ import (
 )
 
 func TestRmdir(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rmdir.file.path in ["{{.Root}}/test-rmdir", "{{.Root}}/test-unlink-rmdir"] && rmdir.file.uid == 0 && rmdir.file.gid == 0`,
@@ -58,9 +60,7 @@ func TestRmdir(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
-			}
+			assertInode(t, event.Rmdir.File.Inode, inode)
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
@@ -90,9 +90,7 @@ func TestRmdir(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
-			}
+			assertInode(t, event.Rmdir.File.Inode, inode)
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
@@ -103,9 +101,8 @@ func TestRmdir(t *testing.T) {
 	})
 
 	t.Run("unlinkat-io_uring", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("io_uring not supported")
-		}
+		SkipIfNotAvailable(t)
+
 		testDir, _, err := test.Path("test-unlink-rmdir")
 		if err != nil {
 			t.Fatal(err)
@@ -172,6 +169,8 @@ func TestRmdir(t *testing.T) {
 }
 
 func TestRmdirInvalidate(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rmdir.file.path =~ "{{.Root}}/test-rmdir-*"`,
