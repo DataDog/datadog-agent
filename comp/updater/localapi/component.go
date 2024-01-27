@@ -39,3 +39,7 @@ func newLocalAPIComponent(params Params) (*updater.LocalAPI, error) {
 	}
 	return localAPI, nil
 }
+
+// Component is the interface for the updater local api component.
+type Component interface {
+}

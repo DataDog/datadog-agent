@@ -13,7 +13,7 @@ var AgentVersion string
 // Commit is populated with the short commit hash from which the Agent was built
 var Commit string
 
-var agentVersionDefault = "7.50.0"
+var agentVersionDefault = "6.0.0"
 
 func init() {
 	if AgentVersion == "" {

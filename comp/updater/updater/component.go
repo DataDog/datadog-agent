@@ -47,3 +47,7 @@ func newUpdaterComponent(params Params) (*updater.Updater, error) {
 	}
 	return updater, nil
 }
+
+// Component is the interface for the updater component.
+type Component interface {
+}

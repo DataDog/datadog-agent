@@ -45,3 +45,7 @@ func newRemoteConfigComponent(params Params) (*updater.RemoteConfig, error) {
 	}
 	return rc, nil
 }
+
+// Component is the interface for the rc updater component.
+type Component interface {
+}
