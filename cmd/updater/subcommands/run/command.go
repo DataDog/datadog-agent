@@ -40,13 +40,13 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFxWrapper(&cliParams{
 				GlobalParams: *global,
-			}, run)
+			})
 		},
 	}
 	return []*cobra.Command{runCmd}
 }
 
-func runFxWrapper(params *cliParams, fct interface{}) error {
+func runFxWrapper(params *cliParams) error {
 	ctx := context.Background()
 	return fxutil.Run(
 		fx.Provide(func() context.Context { return ctx }),
@@ -63,7 +63,7 @@ func runFxWrapper(params *cliParams, fct interface{}) error {
 		rcimpl.Module(),
 		updaterimpl.Module(),
 		localapiimpl.Module(),
-		fx.Invoke(fct),
+		fx.Invoke(run),
 	)
 }
 

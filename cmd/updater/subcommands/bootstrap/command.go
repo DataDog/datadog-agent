@@ -44,15 +44,15 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 			defer cancel()
 			return boostrapFxWrapper(ctx, &cliParams{
 				GlobalParams: *global,
-			}, bootstrap)
+			})
 		},
 	}
 	bootstrapCmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
 	return []*cobra.Command{bootstrapCmd}
 }
 
-func boostrapFxWrapper(ctx context.Context, params *cliParams, fct interface{}) error {
-	return fxutil.OneShot(fct,
+func boostrapFxWrapper(ctx context.Context, params *cliParams) error {
+	return fxutil.OneShot(bootstrap,
 		fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(params),
 		fx.Supply(core.BundleParams{
