@@ -1,3 +1,35 @@
+{{- define "longRunningCheckStats" -}}
+      Instance ID: {{.CheckID}} {{status .}}
+      Long Running Check: true
+      Configuration Source: {{.CheckConfigSource}}
+      Total Metric Samples: {{humanize .TotalMetricSamples}}
+      Total Events: {{humanize .TotalEvents}}
+      {{- range $k, $v := .TotalEventPlatformEvents }}
+      Total {{ $k }}: {{humanize $v}}
+      {{- end }}
+      Total Service Checks: {{humanize .TotalServiceChecks}}
+      {{- if .TotalHistogramBuckets}}
+      Total Histogram Buckets: {{humanize .TotalHistogramBuckets}}
+      {{- end }}
+{{- end -}}
+{{- define "checkStats" -}}
+      Instance ID: {{.CheckID}} {{status .}}
+      Long Running Check: false
+      Configuration Source: {{.CheckConfigSource}}
+      Total Runs: {{humanize .TotalRuns}}
+      Metric Samples: Last Run: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
+      Events: Last Run: {{humanize .Events}}, Total: {{humanize .TotalEvents}}
+      {{- range $k, $v := .TotalEventPlatformEvents }}
+      {{ $k }}: Last Run: {{humanize (index .EventPlatformEvents $k) }}, Total: {{humanize $v}}
+      {{- end }}
+      Service Checks: Last Run: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
+      {{- if .TotalHistogramBuckets}}
+      Histogram Buckets: Last Run: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}
+      {{- end }}
+      Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
+      Last Execution Date : {{formatUnixTime .UpdateTimestamp}}
+      Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
+{{- end -}}
 {{- with .pythonInit -}}
   {{- if .Errors }}
   Error initializing Python
@@ -20,21 +52,11 @@
     {{$CheckName}}{{ if $version }} ({{$version}}){{ end }}
     {{printDashes $CheckName "-"}}{{- if $version }}{{printDashes $version "-"}}---{{ end }}
     {{- range $instance := $CheckInstances }}
-      Instance ID: {{.CheckID}} {{status .}}
-      Configuration Source: {{.CheckConfigSource}}
-      Total Runs: {{humanize .TotalRuns}}
-      Metric Samples: Last Run: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
-      Events: Last Run: {{humanize .Events}}, Total: {{humanize .TotalEvents}}
-      {{- range $k, $v := .TotalEventPlatformEvents }}
-      {{ $k }}: Last Run: {{humanize (index $instance.EventPlatformEvents $k) }}, Total: {{humanize $v}}
+      {{ if .LongRunning -}}
+        {{ template "longRunningCheckStats" . }}
+        {{- else -}}
+        {{ template "checkStats" . }}
       {{- end }}
-      Service Checks: Last Run: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
-      {{- if .TotalHistogramBuckets}}
-      Histogram Buckets: Last Run: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}
-      {{- end }}
-      Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
-      Last Execution Date : {{formatUnixTime .UpdateTimestamp}}
-      Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
       {{- if $.inventories }}
       {{- if index $.inventories .CheckID }}
       metadata:

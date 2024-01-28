@@ -5,7 +5,8 @@ NOTE: Changes made to this template should be reflected on the following templat
 */}}=========
 Collector
 =========
-{{- define "longRunningCheckStats" }}Instance ID: {{.CheckID}} {{status .}}
+{{- define "longRunningCheckStats" -}}
+      Instance ID: {{.CheckID}} {{status .}}
       Long Running Check: true
       Configuration Source: {{.CheckConfigSource}}
       Total Metric Samples: {{humanize .TotalMetricSamples}}
@@ -18,7 +19,8 @@ Collector
       Total Histogram Buckets: {{humanize .TotalHistogramBuckets}}
       {{- end }}
 {{- end }}
-{{- define "checkStats" }}Instance ID: {{.CheckID}} {{status .}}
+{{- define "checkStats" -}}
+      Instance ID: {{.CheckID}} {{status .}}
       Long Running Check: false
       Configuration Source: {{.CheckConfigSource}}
       Total Runs: {{humanize .TotalRuns}}

@@ -1,19 +1,5 @@
-{{ with .pythonInit }}
-  {{- if .Errors }}
-  <div class="stat">
-    <span class="stat_title">Error initializing Python</span>
-    <span class="stat_data">
-    {{ range $err := .Errors -}}
-      <span class="stat_subdata">
-        {{ $err -}}
-      </span>
-    {{ end }}
-    </span>
-  {{- end -}}
-  </div>
-{{- end -}}
-
-{{- define "longRunningCheckStats" }}Instance ID: {{.CheckID}} {{status .}}<br>
+{{- define "longRunningCheckStats" -}}
+              Instance ID: {{.CheckID}} {{status .}}<br>
               Long Running Check: true<br>
               Total Metrics Samples: {{humanize .TotalMetricSamples}}<br>
               Total Events: {{humanize .TotalEvents}}<br>
@@ -25,7 +11,8 @@
               Histogram Buckets: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}<br>
               {{- end -}}
 {{- end -}}
-{{- define "checkStats" }}Instance ID: {{.CheckID}} {{status .}}<br>
+{{- define "checkStats" -}}
+              Instance ID: {{.CheckID}} {{status .}}<br>
               Long Running Check: false<br>
               Total Runs: {{humanize .TotalRuns}}<br>
               Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
@@ -40,6 +27,21 @@
               Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
               Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
               Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>
+{{- end -}}
+
+{{ with .pythonInit }}
+  {{- if .Errors }}
+  <div class="stat">
+    <span class="stat_title">Error initializing Python</span>
+    <span class="stat_data">
+    {{ range $err := .Errors -}}
+      <span class="stat_subdata">
+        {{ $err -}}
+      </span>
+    {{ end }}
+    </span>
+  {{- end -}}
+  </div>
 {{- end }}
 
 <div class="stat">
