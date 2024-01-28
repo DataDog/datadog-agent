@@ -29,8 +29,8 @@ const (
 // for collecting statistics about errors of ebpf helpers and ebpf maps operations.
 type EBPFErrorsCollector struct {
 	*EBPFTelemetry
-	ebpfMapOpsErrorsGauge *prometheus.Desc
-	ebpfHelperErrorsGauge *prometheus.Desc
+	ebpfMapOpsErrors *prometheus.Desc
+	ebpfHelperErrors *prometheus.Desc
 	//we can use one map for both map errors and ebpf helpers errors, as the keys are different
 	lastValues map[string]uint64
 }
@@ -45,16 +45,16 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 			mapKeys:   make(map[string]uint64),
 			probeKeys: make(map[string]uint64),
 		},
-		ebpfMapOpsErrorsGauge: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
-		ebpfHelperErrorsGauge: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
-		lastValues:            make(map[string]uint64),
+		ebpfMapOpsErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
+		ebpfHelperErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
+		lastValues:       make(map[string]uint64),
 	}
 }
 
 // Describe returns all descriptions of the collector
 func (e *EBPFErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- e.ebpfHelperErrorsGauge
-	ch <- e.ebpfHelperErrorsGauge
+	ch <- e.ebpfHelperErrors
+	ch <- e.ebpfHelperErrors
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -76,7 +76,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 					for errStr, errCount := range count {
 						errorsDelta := float64(errCount - e.lastValues[errStr])
 						if errorsDelta > 0 {
-							ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrorsGauge, prometheus.CounterValue, errorsDelta, helperName, probeName, errStr)
+							ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.CounterValue, errorsDelta, helperName, probeName, errStr)
 						}
 						e.lastValues[errStr] = errCount
 					}
@@ -97,7 +97,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 				for errStr, errCount := range count {
 					errorsDelta := float64(errCount - e.lastValues[errStr])
 					if errorsDelta > 0 {
-						ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrorsGauge, prometheus.CounterValue, errorsDelta, m, errStr)
+						ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.CounterValue, errorsDelta, m, errStr)
 					}
 					e.lastValues[errStr] = errCount
 				}
