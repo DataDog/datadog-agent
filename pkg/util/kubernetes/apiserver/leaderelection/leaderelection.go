@@ -32,8 +32,8 @@ import (
 	"k8s.io/client-go/discovery"
 	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/leaderelection"
-	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
+	"github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection"
+  rl "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 )
 
 const (

@@ -19,8 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientcoord "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	ld "k8s.io/client-go/tools/leaderelection"
-	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
+	ld "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection"
+	rl "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
