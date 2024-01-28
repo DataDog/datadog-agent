@@ -8,11 +8,11 @@
 #include "protocols/http2/helpers.h"
 #include "protocols/grpc/defs.h"
 
-#define GRPC_MAX_FRAMES_TO_FILTER 10
+#define GRPC_MAX_FRAMES_TO_FILTER 45
 // We only try to process one frame at the moment. Trying to process more yields
 // a verifier issue due to the way clang manages a pointer to the stack.
-#define GRPC_MAX_FRAMES_TO_PROCESS 1
-#define GRPC_MAX_HEADERS_TO_PROCESS 10
+#define GRPC_MAX_FRAMES_TO_PROCESS 10
+#define GRPC_MAX_HEADERS_TO_PROCESS 20
 
 // The HPACK specification defines the specific Huffman encoding used for string
 // literals in HPACK. This allows us to precomputed the encoded string for
@@ -37,7 +37,7 @@ static __always_inline bool is_encoded_grpc_content_type(const char *content_typ
     return !bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN);
 }
 
-static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
+static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx, __u8 *content_type_buf) {
     // We only care about indexed names
     if (idx != HTTP2_CONTENT_TYPE_IDX) {
         return PAYLOAD_UNDETERMINED;
@@ -58,7 +58,6 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
         return PAYLOAD_NOT_GRPC;
     }
 
-    char content_type_buf[GRPC_CONTENT_TYPE_LEN];
     bpf_skb_load_bytes(skb, skb_info->data_off, content_type_buf, GRPC_CONTENT_TYPE_LEN);
     skb_info->data_off += len.length;
 
@@ -88,7 +87,7 @@ static __always_inline void skip_literal_header(const struct __sk_buff *skb, skb
 
 // Scan headers goes through the headers in a frame, and tries to find a
 // content-type header or a method header.
-static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
+static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length, __u8 *content_type_buf) {
     field_index_t idx;
     grpc_status_t status = PAYLOAD_UNDETERMINED;
 
@@ -114,7 +113,7 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
                 break;
             }
 
-            status = is_content_type_grpc(skb, skb_info, frame_end, idx.literal.index);
+            status = is_content_type_grpc(skb, skb_info, frame_end, idx.literal.index, content_type_buf);
             if (status != PAYLOAD_UNDETERMINED) {
                 break;
             }
@@ -178,15 +177,20 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
         info.data_off += current_frame.length;
     }
 
+    char content_type_buf[GRPC_CONTENT_TYPE_LEN];
+
 #pragma unroll(GRPC_MAX_FRAMES_TO_PROCESS)
-    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_PROCESS && status == PAYLOAD_UNDETERMINED; ++i) {
+    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_PROCESS; ++i) {
         if (i >= frames_count) {
             break;
         }
 
         info.data_off = frames[i].offset;
 
-        status = scan_headers(skb, &info, frames[i].length);
+        status = scan_headers(skb, &info, frames[i].length, content_type_buf);
+        if (status != PAYLOAD_UNDETERMINED) {
+            break;
+        }
     }
 
     return status;
