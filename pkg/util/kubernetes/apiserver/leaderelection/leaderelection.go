@@ -18,7 +18,6 @@ import (
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection"
-	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	rl "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -173,7 +172,7 @@ func (le *LeaderEngine) init() error {
 	} else {
 		// for kubernetes <= 1.13
 		log.Debugf("leader election will use ConfigMaps to store the leader token")
-		le.lockType = configmaplock.ConfigMapsResourceLock
+		le.lockType = rl.ConfigMapsResourceLock
 	}
 	le.leaderElector, err = le.newElection()
 	if err != nil {
