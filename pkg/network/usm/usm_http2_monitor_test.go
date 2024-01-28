@@ -829,6 +829,46 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: nil,
 		},
+		{
+			name: "Interesting frame header sent separately from frame payload",
+			// Testing the scenario in which the frame header (of an interesting type) is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				headersFrame := newFramer().writeHeaders(t, 1, testHeaders()).bytes()
+				dataFrame := newFramer().writeData(t, 1, true, emptyBody).bytes()
+				headersFrameHeader := headersFrame[:9]
+				secondMessage := append(headersFrame[9:], dataFrame...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "Not interesting frame header sent separately from frame payload",
+			// Testing the scenario in which the frame header (of a not interesting type) is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				pingFrame := newFramer().writePing(t).bytes()
+				fullFrame := newFramer().writeHeaders(t, 1, testHeaders()).writeData(t, 1, true, emptyBody).bytes()
+				pingFrameHeader := pingFrame[:9]
+				secondMessage := append(pingFrame[9:], fullFrame...)
+				return [][]byte{
+					pingFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
