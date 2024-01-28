@@ -59,8 +59,11 @@ static __always_inline bool read_hpack_int(struct __sk_buff *skb, skb_info_t *sk
     return read_hpack_int_with_given_current_char(skb, skb_info, current_char_as_number, max_number_for_bits, out);
 }
 
-// tasik was the first part of the parse_literal_function
-static __always_inline bool tasik(struct __sk_buff *skb, skb_info_t *skb_info, __u64 index) {
+// handle_non_pseudo_headers the case in which we are not in a pseudo header. we do not need to parse the header,
+// only update our internal counts.
+// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.3
+// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.4
+static __always_inline bool handle_non_pseudo_headers(struct __sk_buff *skb, skb_info_t *skb_info, __u64 index) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -119,7 +122,6 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     }
     update_path_size_telemetry(http2_tel, str_len);
 
-
     // We skip if:
     // - The string is too big
     // - This is not a path
@@ -171,9 +173,6 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     if (global_dynamic_counter == NULL) {
         return 0;
     }
-
-//    __u64 str_len = 0;
-//    bool is_huffman_encoded = false;
 
 #pragma unroll(HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
@@ -276,10 +275,8 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // Increment the global dynamic counter for each literal header field.
         // We're not increasing the counter for literal without indexing or literal never indexed.
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
-        // 6.2.1 Literal Header Field with Incremental Indexing
-        // top two bits are 11
-        // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!tasik(skb, skb_info, index)){
+        // Handle frame headers which are not pseudo headers fields.
+        if (!handle_non_pseudo_headers(skb, skb_info, index)){
             break;
         }
     }

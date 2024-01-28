@@ -63,8 +63,11 @@ static __always_inline bool tls_read_hpack_int(tls_dispatcher_arguments_t *info,
     return tls_read_hpack_int_with_given_current_char(info, current_char_as_number, max_number_for_bits, out);
 }
 
-// dynamic table, and will skip headers that are not path headers.
-static __always_inline bool tls_tasik(tls_dispatcher_arguments_t *info, __u64 index) {
+// handle_non_pseudo_headers the case in which we are not in a pseudo header. we do not need to parse the header,
+// only update our internal counts.
+// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.3
+// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.4
+static __always_inline bool tls_handle_non_pseudo_headers(tls_dispatcher_arguments_t *info, __u64 index) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -276,7 +279,7 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
 
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!tls_tasik(info, index)) {
+        if (!tls_handle_non_pseudo_headers(info, index)) {
             break;
         }
     }
