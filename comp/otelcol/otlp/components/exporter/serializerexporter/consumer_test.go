@@ -7,6 +7,7 @@ package serializerexporter
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -99,7 +99,7 @@ var statsPayloads = []*pb.ClientStatsPayload{
 }
 
 func TestConsumeAPMStats(t *testing.T) {
-	sc := serializerConsumer{extraTags: []string{"k:v"}}
+	sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: "http://localhost:1234/v0.6/stats"}
 	sc.ConsumeAPMStats(statsPayloads[0])
 	require.Len(t, sc.apmstats, 1)
 	sc.ConsumeAPMStats(statsPayloads[1])
@@ -116,19 +116,16 @@ func TestConsumeAPMStats(t *testing.T) {
 }
 
 func TestSendAPMStats(t *testing.T) {
-	withHandler := func(response http.Handler) *httptest.Server {
+	withHandler := func(response http.Handler) (*httptest.Server, string) {
 		srv := httptest.NewServer(response)
 		_, port, err := net.SplitHostPort(srv.Listener.Addr().String())
 		require.NoError(t, err)
-		const cfgkey = "apm_config.receiver_port"
-		config.Datadog.SetWithoutSource(cfgkey, port)
-		defer func(old string) { config.Datadog.SetWithoutSource(cfgkey, old) }(config.Datadog.GetString(cfgkey))
-		return srv
+		return srv, port
 	}
 
 	t.Run("ok", func(t *testing.T) {
 		var called int
-		srv := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv, port := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			require.Equal(t, req.URL.Path, "/v0.6/stats")
 			in := &pb.ClientStatsPayload{}
 			in.Reset()
@@ -141,7 +138,7 @@ func TestSendAPMStats(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		var sc serializerConsumer
+		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
 		sc.ConsumeAPMStats(statsPayloads[0])
 		sc.ConsumeAPMStats(statsPayloads[1])
 		err := sc.Send(&MockSerializer{})
@@ -151,7 +148,7 @@ func TestSendAPMStats(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var called int
-		srv := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv, port := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			io.Copy(io.Discard, req.Body)
 			req.Body.Close()
 			w.WriteHeader(http.StatusInternalServerError)
@@ -159,7 +156,7 @@ func TestSendAPMStats(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		var sc serializerConsumer
+		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
 		sc.ConsumeAPMStats(statsPayloads[0])
 		err := sc.Send(&MockSerializer{})
 		require.ErrorContains(t, err, "HTTP Status code == 500 Internal Server Error")
@@ -168,7 +165,7 @@ func TestSendAPMStats(t *testing.T) {
 
 	t.Run("error-msg", func(t *testing.T) {
 		var called int
-		srv := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv, port := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			io.Copy(io.Discard, req.Body)
 			req.Body.Close()
 			w.WriteHeader(http.StatusInternalServerError)
@@ -177,7 +174,7 @@ func TestSendAPMStats(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		var sc serializerConsumer
+		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
 		sc.ConsumeAPMStats(statsPayloads[0])
 		err := sc.Send(&MockSerializer{})
 		require.ErrorContains(t, err, "HTTP Status code == 500 Internal Server Error "+strings.Repeat("A", 1024))

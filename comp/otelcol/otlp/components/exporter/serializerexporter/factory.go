@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 )
 
 const (
@@ -25,12 +26,27 @@ const (
 )
 
 type factory struct {
-	s serializer.MetricSerializer
+	s               serializer.MetricSerializer
+	enricher        tagenricher
+	apmReceiverAddr string
+	extraTags       []string
+	hostName        string
+}
+
+type tagenricher interface {
+	SetCardinality(cardinality string) error
+	Enrich(ctx context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string
 }
 
 // NewFactory creates a new serializer exporter factory.
-func NewFactory(s serializer.MetricSerializer) exp.Factory {
-	f := &factory{s}
+func NewFactory(s serializer.MetricSerializer, enricher tagenricher, apmReceiverAddr string, extraTags []string, hostname string) exp.Factory {
+	f := &factory{
+		s:               s,
+		enricher:        enricher,
+		apmReceiverAddr: apmReceiverAddr,
+		extraTags:       extraTags,
+		hostName:        hostname,
+	}
 
 	return exp.NewFactory(
 		TypeStr,
@@ -50,7 +66,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSet
 		return nil, err
 	}
 
-	newExp, err := newExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg)
+	newExp, err := newExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.apmReceiverAddr, f.extraTags, f.hostName)
 	if err != nil {
 		return nil, err
 	}

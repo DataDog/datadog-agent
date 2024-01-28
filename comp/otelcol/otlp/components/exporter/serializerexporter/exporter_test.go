@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -53,8 +52,6 @@ func (r *metricRecorder) SendIterableSeries(s metrics.SerieSource) error {
 }
 
 func Test_ConsumeMetrics_Tags(t *testing.T) {
-	config.Datadog.SetWithoutSource("hostname", "otlp-testhostname")
-	defer config.Datadog.SetWithoutSource("hostname", "")
 
 	const (
 		histogramMetricName        = "test.histogram"
@@ -65,9 +62,9 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 	tests := []struct {
 		name           string
 		genMetrics     func(t *testing.T) pmetric.Metrics
-		setConfig      func(t *testing.T)
 		wantSketchTags tagset.CompositeTags
 		wantSerieTags  tagset.CompositeTags
+		extraTags      []string
 	}{
 		{
 			name: "no tags",
@@ -81,7 +78,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				n.SetIntValue(777)
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
-			setConfig:      func(t *testing.T) {},
+			extraTags:      []string{},
 			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
 			wantSerieTags:  tagset.NewCompositeTags([]string{}, nil),
 		},
@@ -105,13 +102,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				nAttrs.PutStr("gauge_3_id", "value3")
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
-			setConfig: func(t *testing.T) {
-				config.SetFeatures(t, config.EKSFargate)
-				config.Datadog.SetDefault("tags", []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"})
-				t.Cleanup(func() {
-					config.Datadog.SetDefault("tags", []string{})
-				})
-			},
+			extraTags: []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
 			wantSketchTags: tagset.NewCompositeTags(
 				[]string{
 					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
@@ -139,7 +130,6 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				n.SetIntValue(777)
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
-			setConfig:      func(t *testing.T) {},
 			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
 			wantSerieTags:  tagset.NewCompositeTags([]string{}, nil),
 		},
@@ -163,13 +153,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				nAttrs.PutStr("gauge_3_id", "value3")
 				return newMetrics(histogramRuntimeMetricName, h, numberRuntimeMetricName, n)
 			},
-			setConfig: func(t *testing.T) {
-				config.SetFeatures(t, config.EKSFargate)
-				config.Datadog.SetDefault("tags", []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"})
-				t.Cleanup(func() {
-					config.Datadog.SetDefault("tags", []string{})
-				})
-			},
+			extraTags: []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
 			wantSketchTags: tagset.NewCompositeTags(
 				[]string{
 					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
@@ -188,12 +172,9 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setConfig != nil {
-				tt.setConfig(t)
-			}
 			rec := &metricRecorder{}
 			ctx := context.Background()
-			f := NewFactory(rec)
+			f := NewFactory(rec, &MockTagEnricher{}, "", tt.extraTags, "otlp-testhostname")
 			exp, err := f.CreateMetricsExporter(
 				ctx,
 				exportertest.NewNopCreateSettings(),
