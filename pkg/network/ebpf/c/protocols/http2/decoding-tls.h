@@ -63,6 +63,30 @@ static __always_inline bool tls_read_hpack_int(tls_dispatcher_arguments_t *info,
     return tls_read_hpack_int_with_given_current_char(info, current_char_as_number, max_number_for_bits, out);
 }
 
+// dynamic table, and will skip headers that are not path headers.
+static __always_inline bool tls_tasik(tls_dispatcher_arguments_t *info, __u64 index) {
+    __u64 str_len = 0;
+    bool is_huffman_encoded = false;
+    // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
+    if (!tls_read_hpack_int(info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+        return false;
+    }
+
+    // The header name is new and inserted in the dynamic table - we skip the new value.
+    if (index == 0) {
+        info->data_off += str_len;
+        str_len = 0;
+        // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
+        // At this point the huffman code is not interesting due to the fact that we already read the string length,
+        // We are reading the current size in order to skip it.
+        if (!tls_read_hpack_int(info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+            return false;
+        }
+    }
+    info->data_off += str_len;
+    return true;
+}
+
 // tls_parse_field_literal parses a header with a literal value.
 //
 // We are only interested in path headers, that we will store in our internal
@@ -149,8 +173,8 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
         return 0;
     }
 
-#pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
-    for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
+#pragma unroll(HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING)
+    for (__u8 headers_index = 0; headers_index < HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
         if (info->data_off >= end) {
             break;
         }
@@ -210,6 +234,49 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
 
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
         if (!tls_parse_field_literal(info, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal)) {
+            break;
+        }
+    }
+
+#pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
+    for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
+        if (info->data_off >= end) {
+            break;
+        }
+        bpf_probe_read_user(&current_ch, sizeof(current_ch), info->buffer_ptr + info->data_off);
+        info->data_off++;
+
+        is_indexed = (current_ch & 128) != 0;
+        is_literal = (current_ch & 192) == 64;
+        // If all (is_indexed, is_literal, is_dynamic_table_update) are false, then we
+        // have a literal header field without indexing (prefix 0000) or literal header field never indexed (prefix 0001).
+
+        max_bits = MAX_4_BITS;
+        // If we're in an indexed header - the max bits are 7.
+        max_bits = is_indexed ? MAX_7_BITS : max_bits;
+        // else, if we're in a literal header - the max bits are 6.
+        max_bits = is_literal ? MAX_6_BITS : max_bits;
+        // otherwise, we're in literal header without indexing or literal header never indexed - and for both, the
+        // max bits are 4.
+        // See RFC7541 - https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.2
+
+        index = 0;
+        if (!tls_read_hpack_int_with_given_current_char(info, current_ch, max_bits, &index)) {
+            break;
+        }
+
+        if (is_indexed) {
+            // Indexed representation.
+            // MSB bit set.
+            // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
+            continue;
+        }
+        // Increment the global dynamic counter for each literal header field.
+        // We're not increasing the counter for literal without indexing or literal never indexed.
+        __sync_fetch_and_add(global_dynamic_counter, is_literal);
+
+        // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
+        if (!tls_tasik(info, index)) {
             break;
         }
     }

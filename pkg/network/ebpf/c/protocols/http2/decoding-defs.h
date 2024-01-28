@@ -15,7 +15,7 @@
 // Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 23
 // Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 240 frames in a packet, thus 14 (15*16 = 240) tail calls is enough.
+// Currently we have up to 240 frames in a packet, thus 14 (11*23 = 253) tail calls is enough.
 #define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 11
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 // Maximum number of frames to be processed in a single tail call.
@@ -27,10 +27,10 @@
 #define HTTP2_MAX_FRAMES_TO_FILTER  120
 
 // Represents the maximum number of frames we'll process in a single tail call in `uprobe__http2_tls_headers_parser` program.
-#define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 10
+#define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 15
 // Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 120 frames in a packet, thus 12 (12*10 = 120) tail calls is enough.
-#define HTTP2_TLS_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 12
+// Currently we have up to 120 frames in a packet, thus 12 (8*15 = 120) tail calls is enough.
+#define HTTP2_TLS_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 8
 #define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_TLS_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 
 // A limit of max headers which we process in the request/response.
