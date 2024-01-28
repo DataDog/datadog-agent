@@ -76,7 +76,7 @@
     <Compile Include="Flare\FlareUnitTests.cs" />
     <Compile Include="IntegrationTests\TestConfig.cs" />
     <Compile Include="Logs\ProcessConfigTests.cs" />
-    <Compile Include="ProcessUserCustomActions\LookupAccountNameDelegate.cs" />
+    <Compile Include="ProcessUserCustomActions\TestDelegate.cs" />
     <Compile Include="Process\ProcessConfigTests.cs" />
     <Compile Include="Proxy\ProcessConfigTests.cs" />
     <Compile Include="Telemetry\TelemetryUnitTests.cs" />

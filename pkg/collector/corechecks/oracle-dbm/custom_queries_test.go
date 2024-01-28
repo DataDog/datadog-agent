@@ -51,7 +51,7 @@ tns_admin: %s
 }
 
 func TestCustomQueries(t *testing.T) {
-	db, dbMock, err := sqlmock.newCheck()
+	db, dbMock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}

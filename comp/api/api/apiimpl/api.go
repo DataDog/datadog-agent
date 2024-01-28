@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -50,6 +51,7 @@ type apiServer struct {
 	secretResolver  secrets.Component
 	invChecks       inventorychecks.Component
 	pkgSigning      packagesigning.Component
+	statusComponent status.Component
 }
 
 type dependencies struct {
@@ -66,6 +68,7 @@ type dependencies struct {
 	SecretResolver  secrets.Component
 	InvChecks       inventorychecks.Component
 	PkgSigning      packagesigning.Component
+	StatusComponent status.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -83,6 +86,7 @@ func newAPIServer(deps dependencies) api.Component {
 		secretResolver:  deps.SecretResolver,
 		invChecks:       deps.InvChecks,
 		pkgSigning:      deps.PkgSigning,
+		statusComponent: deps.StatusComponent,
 	}
 }
 
@@ -110,6 +114,7 @@ func (server *apiServer) StartServer(
 		server.secretResolver,
 		server.invChecks,
 		server.pkgSigning,
+		server.statusComponent,
 	)
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -77,6 +78,7 @@ func StartServers(
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
+	statusComponent status.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -126,6 +128,7 @@ func StartServers(
 		secretResolver,
 		invChecks,
 		pkgSigning,
+		statusComponent,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

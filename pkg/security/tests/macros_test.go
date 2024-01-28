@@ -19,6 +19,8 @@ import (
 )
 
 func TestMacros(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	macros := []*rules.MacroDefinition{
 		{
 			ID:         "testmacro",
