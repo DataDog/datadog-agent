@@ -53,7 +53,7 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 
 // Describe returns all descriptions of the collector
 func (e *EBPFErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- e.ebpfHelperErrors
+	ch <- e.ebpfMapOpsErrors
 	ch <- e.ebpfHelperErrors
 }
 
