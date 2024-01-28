@@ -59,8 +59,7 @@ static __always_inline bool read_hpack_int(struct __sk_buff *skb, skb_info_t *sk
     return read_hpack_int_with_given_current_char(skb, skb_info, current_char_as_number, max_number_for_bits, out);
 }
 
-// handle_non_pseudo_headers the case in which we are not in a pseudo header. we do not need to parse the header,
-// only update our internal counts.
+// Handles the case in which a header is not a pseudo header. We don't need to save it as interesting or modify our telemetry.
 // https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.3
 // https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.4
 static __always_inline bool handle_non_pseudo_headers(struct __sk_buff *skb, skb_info_t *skb_info, __u64 index) {
