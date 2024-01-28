@@ -32,7 +32,7 @@ type EBPFErrorsCollector struct {
 	ebpfMapOpsErrorsGauge *prometheus.Desc
 	ebpfHelperErrorsGauge *prometheus.Desc
 	//we can use one map for both map errors and ebpf helpers errors, as the keys are different
-	lastValues map[string]uint64 // used to calculate the delta of the error counters
+	lastValues map[string]uint64
 }
 
 // NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
