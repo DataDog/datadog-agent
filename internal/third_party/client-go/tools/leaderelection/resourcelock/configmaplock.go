@@ -28,7 +28,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
-  // rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 )
 
 const ConfigMapsResourceLock = "configmaps"
