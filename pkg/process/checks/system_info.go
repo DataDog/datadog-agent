@@ -8,9 +8,10 @@
 package checks
 
 import (
-	"github.com/DataDog/gopsutil/cpu"
+	// waiting for upstream fix to platform collection in containerized environments
 	"github.com/DataDog/gopsutil/host"
-	"github.com/DataDog/gopsutil/mem"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 )
@@ -34,15 +35,7 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 	cpus := make([]*model.CPUInfo, 0, len(cpuInfo))
 	for _, c := range cpuInfo {
 		cpus = append(cpus, &model.CPUInfo{
-			Number:     c.CPU,
-			Vendor:     c.VendorID,
-			Family:     c.Family,
-			Model:      c.Model,
-			PhysicalId: c.PhysicalID,
-			CoreId:     c.CoreID,
-			Cores:      c.Cores,
-			Mhz:        int64(c.Mhz),
-			CacheSize:  c.CacheSize,
+			Cores: c.Cores,
 		})
 	}
 

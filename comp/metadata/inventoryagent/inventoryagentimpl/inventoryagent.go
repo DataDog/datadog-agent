@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -90,9 +91,10 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp          iainterface.Component
-	Provider      runnerimpl.Provider
-	FlareProvider flaretypes.Provider
+	Comp                 iainterface.Component
+	Provider             runnerimpl.Provider
+	FlareProvider        flaretypes.Provider
+	StatusHeaderProvider status.HeaderInformationProvider
 }
 
 func newInventoryAgentProvider(deps dependencies) provides {
@@ -113,9 +115,10 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	}
 
 	return provides{
-		Comp:          ia,
-		Provider:      ia.MetadataProvider(),
-		FlareProvider: ia.FlareProvider(),
+		Comp:                 ia,
+		Provider:             ia.MetadataProvider(),
+		FlareProvider:        ia.FlareProvider(),
+		StatusHeaderProvider: status.NewHeaderInformationProvider(ia),
 	}
 }
 
@@ -211,7 +214,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_networks_https_enabled"] = getBoolSysProbe("service_monitoring_config.tls.native.enabled")
 
 	ia.data["feature_usm_enabled"] = getBoolSysProbe("service_monitoring_config.enabled")
-	ia.data["feature_usm_kafka_enabled"] = getBoolSysProbe("data_streams_config.enabled")
+	ia.data["feature_usm_kafka_enabled"] = getBoolSysProbe("service_monitoring_config.enable_kafka_monitoring")
 	ia.data["feature_usm_java_tls_enabled"] = getBoolSysProbe("service_monitoring_config.tls.java.enabled")
 	ia.data["feature_usm_http2_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http2_monitoring")
 	ia.data["feature_usm_istio_enabled"] = getBoolSysProbe("service_monitoring_config.tls.istio.enabled")
@@ -256,32 +259,28 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 }
 
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
+	ia.m.Lock()
+	defer ia.m.Unlock()
+
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
 	for k, v := range ia.data {
 		data[k] = v
 	}
 
-	if fullConf, err := ia.getFullAgentConfiguration(); err == nil {
-		data["full_configuration"] = fullConf
+	configLayer := map[string]func() (string, error){
+		"full_configuration":                 ia.getFullConfiguration,
+		"provided_configuration":             ia.getProvidedConfiguration,
+		"file_configuration":                 ia.getFileConfiguration,
+		"environment_variable_configuration": ia.getEnvVarConfiguration,
+		"agent_runtime_configuration":        ia.getRuntimeConfiguration,
+		"remote_configuration":               ia.getRemoteConfiguration,
+		"cli_configuration":                  ia.getCliConfiguration,
 	}
-	if providedConf, err := ia.getProvidedAgentConfiguration(); err == nil {
-		data["provided_configuration"] = providedConf
-	}
-	if fileConf, err := ia.getAgentFileConfiguration(); err == nil {
-		data["file_configuration"] = fileConf
-	}
-	if envVarConf, err := ia.getAgentEnvVarConfiguration(); err == nil {
-		data["environment_variable_configuration"] = envVarConf
-	}
-	if agentRuntimeConf, err := ia.getAgentRuntimeConfiguration(); err == nil {
-		data["agent_runtime_configuration"] = agentRuntimeConf
-	}
-	if remoteConf, err := ia.getAgentRemoteConfiguration(); err == nil {
-		data["remote_configuration"] = remoteConf
-	}
-	if cliConf, err := ia.getAgentCliConfiguration(); err == nil {
-		data["cli_configuration"] = cliConf
+	for layer, getter := range configLayer {
+		if conf, err := getter(); err == nil {
+			data[layer] = conf
+		}
 	}
 
 	return &Payload{
@@ -293,6 +292,9 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 func (ia *inventoryagent) Get() map[string]interface{} {
+	ia.m.Lock()
+	defer ia.m.Unlock()
+
 	data := map[string]interface{}{}
 	for k, v := range ia.data {
 		data[k] = v

@@ -4,13 +4,18 @@
   variables:
     TARGETS: ./tests/windows/install-test
     TEAM: windows-agent
-    EXTRA_PARAMS: --run TestMSI/TestUpgrade
+    EXTRA_PARAMS: --run 'TestMSI/Agent*/TestUpgrade$'
+  before_script:
+    # WINDOWS_AGENT_VERSION is used to verify the installed agent version
+    # Must run before new_e2e_template changes the aws profile
+    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    - !reference [.new_e2e_template, before_script]
   script:
     # LAST_STABLE_VERSION is used for upgrade test
     - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
-    # WINDOWS_AGENT_VERSION is used to verify the installed agent version
-    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION --version-cached)
     - !reference [.new_e2e_template, script]
+  # temporarily allow failure so we can collect any new system snapshot files we need to add to the ignore list
+  allow_failure: true
 
 # Agent 6
 .new-e2e_windows_a6_x86_64:

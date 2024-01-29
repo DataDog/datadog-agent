@@ -17,20 +17,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -40,7 +35,7 @@ import (
 )
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
-func runAgentSidekicks(ctx context.Context, cfg config.Component, wmeta workloadmeta.Component, telemetryCollector telemetry.TelemetryCollector) error {
+func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryCollector telemetry.TelemetryCollector) error {
 	tracecfg := cfg.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
@@ -60,30 +55,6 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, wmeta workload
 	}
 
 	rand.Seed(time.Now().UTC().UnixNano())
-
-	remoteTagger := coreconfig.Datadog.GetBool("apm_config.remote_tagger")
-	if remoteTagger {
-		options, err := remote.NodeAgentOptions()
-		if err != nil {
-			log.Errorf("Unable to configure the remote tagger: %s", err)
-			remoteTagger = false
-		} else {
-			tagger.SetDefaultTagger(remote.NewTagger(options))
-			if err := tagger.Init(ctx); err != nil {
-				log.Infof("Starting remote tagger failed. Falling back to local tagger: %s", err)
-				remoteTagger = false
-			}
-		}
-	}
-
-	// starts the local tagger if apm_config says so, or if starting the
-	// remote tagger has failed.
-	if !remoteTagger {
-		tagger.SetDefaultTagger(local.NewTagger(wmeta))
-		if err := tagger.Init(ctx); err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
-	}
 
 	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
 		rcClient, err := newConfigFetcher()
@@ -170,11 +141,6 @@ func stopAgentSidekicks(cfg config.Component) {
 	log.Flush()
 	metrics.Flush()
 
-	timing.Stop()
-	err := tagger.Stop()
-	if err != nil {
-		log.Error(err)
-	}
 	tracecfg := cfg.Object()
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {
 		profiling.Stop()

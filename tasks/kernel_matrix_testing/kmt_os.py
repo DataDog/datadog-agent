@@ -1,7 +1,7 @@
 import os
 import sys
 
-from .tool import Exit
+from tasks.kernel_matrix_testing.tool import Exit
 
 
 def get_home_linux():

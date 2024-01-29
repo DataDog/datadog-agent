@@ -19,49 +19,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetWorkloadmetaInit provides the InitHelper for workloadmeta so it can be injected as a Param
 // at workloadmeta comp fx injection.
 func GetWorkloadmetaInit() workloadmeta.InitHelper {
 	return workloadmeta.InitHelper(func(ctx context.Context, wm workloadmeta.Component) error {
-		var t tagger.Tagger
-		var e error
-		if config.IsCLCRunner() {
-			options, err := remote.CLCRunnerOptions()
-			if err != nil {
-				e = fmt.Errorf("unable to configure the remote tagger: %s", err)
-				t = local.NewFakeTagger()
-			} else if options.Disabled {
-				// TODO(components): log the remote tagger being disabled.
-				// wm.log.Info("remote tagger is disabled")
-				t = local.NewFakeTagger()
-			} else {
-				t = remote.NewTagger(options)
-			}
-		} else {
-			t = local.NewTagger(wm)
-		}
-
 		// SBOM scanner needs to be called here as initialization is required prior to the
 		// catalog getting instantiated and initialized.
 		sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
 		if err != nil {
-			log.Errorf("failed to create SBOM scanner: %s", err)
+			return fmt.Errorf("failed to create SBOM scanner: %s", err)
 		} else if sbomScanner != nil {
 			sbomScanner.Start(ctx)
 		}
 
-		tagger.SetDefaultTagger(t)
-		if err := tagger.Init(ctx); err != nil {
-			e = fmt.Errorf("failed to start the tagger: %s", err)
-		}
-
-		return e
+		return nil
 	})
 }
 
