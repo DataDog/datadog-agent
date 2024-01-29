@@ -519,7 +519,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when we do not surpass
 			// the tail call limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER.
 			messageBuilder: func() []byte {
-				settingsFramesCount := getTLSNumber(241, 241, s.isTLS)
+				settingsFramesCount := 241
 				framer := newFramer()
 				return framer.
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
