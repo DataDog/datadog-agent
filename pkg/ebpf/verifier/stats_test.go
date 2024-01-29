@@ -109,7 +109,9 @@ func TestBuildVerifierStats(t *testing.T) {
 
 	// sanity check the values we can somehow bound
 	for _, stat := range stats {
-		require.True(t, stat.VerificationTime.Value > 0)
+		if kversion >= kernel.VersionCode(5, 2, 0) {
+			require.True(t, stat.VerificationTime.Value > 0)
+		}
 		require.True(t, stat.StackDepth.Value >= 0 && stat.StackDepth.Value <= EBPFStackLimit)
 		require.True(t, stat.InstructionsProcessedLimit.Value > 0 && stat.InstructionsProcessedLimit.Value <= bpfComplexity)
 		require.True(t, stat.InstructionsProcessed.Value > 0 && stat.InstructionsProcessed.Value <= stat.InstructionsProcessedLimit.Value)
