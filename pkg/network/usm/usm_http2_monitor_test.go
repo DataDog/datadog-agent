@@ -1232,7 +1232,6 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 		pathHeaderField,
 		{Name: ":scheme", Value: "http"},
 		{Name: "content-type", Value: "application/json"},
-		//{Name: "content-length", Value: "4"},
 		{Name: "accept-encoding", Value: "gzip"},
 		{Name: "user-agent", Value: "Go-http-client/2.0"},
 	}
