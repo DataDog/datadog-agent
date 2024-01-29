@@ -499,7 +499,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
 			messageBuilder: func() []byte {
-				const settingsFramesCount = 220
+				const settingsFramesCount = 238
 				framer := newFramer()
 				return framer.
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
