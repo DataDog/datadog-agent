@@ -451,22 +451,20 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 	cfg := ddconfig.Mock(t)
 	processCheck.config = cfg
-	processCheck.skipZombieProcesses = processCheck.config.GetBool(configDisallowZombies)
+	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 
 	now := time.Now().Unix()
 	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
-	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
-	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
-	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
-	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
-	proc4.Stats.Status = "Z"
-	proc5.Stats.Status = "Z"
-	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+	proc2 := makeProcessWithCreateTime(2, "foo -bar -bim", now+1)
+	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	proc2.Stats.Status = "Z"
+	proc3.Stats.Status = "Z"
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
 
-	expectedModel4 := makeProcessModel(t, proc4)
-	expectedModel4.State = 7
-	expectedModel5 := makeProcessModel(t, proc5)
-	expectedModel5.State = 7
+	expectedModel2 := makeProcessModel(t, proc2)
+	expectedModel2.State = 7
+	expectedModel3 := makeProcessModel(t, proc3)
+	expectedModel3.State = 7
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
 		Return(processesByPid, nil)
@@ -484,25 +482,13 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc2)},
+			Processes: []*model.Process{expectedModel2},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc3)},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-		&model.CollectorProc{
-			Processes: []*model.Process{expectedModel4},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-		&model.CollectorProc{
-			Processes: []*model.Process{expectedModel5},
+			Processes: []*model.Process{expectedModel3},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
@@ -518,22 +504,20 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 	cfg := ddconfig.Mock(t)
 	processCheck.config = cfg
-	processCheck.skipZombieProcesses = processCheck.config.GetBool(configDisallowZombies)
+	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 
 	now := time.Now().Unix()
 	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
-	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
-	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
-	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
-	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
-	proc4.Stats.Status = "Z"
-	proc5.Stats.Status = "Z"
-	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+	proc2 := makeProcessWithCreateTime(2, "foo -bar -bim", now+1)
+	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	proc2.Stats.Status = "Z"
+	proc3.Stats.Status = "Z"
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
 
-	expectedModel4 := makeProcessModel(t, proc4)
-	expectedModel4.State = 7
-	expectedModel5 := makeProcessModel(t, proc5)
-	expectedModel5.State = 7
+	expectedModel2 := makeProcessModel(t, proc2)
+	expectedModel2.State = 7
+	expectedModel3 := makeProcessModel(t, proc3)
+	expectedModel3.State = 7
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
 		Return(processesByPid, nil)
@@ -544,22 +528,10 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	assert.Equal(t, CombinedRunResult{}, first)
 
 	cfg.SetWithoutSource("process_config.ignore_zombie_processes", "true")
-	processCheck.skipZombieProcesses = processCheck.config.GetBool(configDisallowZombies)
+	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 	expected := []model.MessageBody{
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc2)},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc3)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},

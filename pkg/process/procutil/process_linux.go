@@ -260,8 +260,6 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 				//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
 				//       Moving this check down the stack saves us from a number of needless follow-up system calls.
 				continue
-
-				// Check if toggle for ignoring zombies is on, and if it is ignore process
 			} else if p.ignoreZombieProcesses {
 				continue
 			}

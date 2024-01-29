@@ -36,7 +36,7 @@ const (
 	configScrubArgs            = configPrefix + "scrub_args"
 	configStripProcArgs        = configPrefix + "strip_proc_arguments"
 	configDisallowList         = configPrefix + "blacklist_patterns"
-	configDisallowZombies      = configPrefix + "ignore_zombie_processes"
+	configIgnoreZombies        = configPrefix + "ignore_zombie_processes"
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
@@ -71,7 +71,7 @@ type ProcessCheck struct {
 	disallowList []*regexp.Regexp
 
 	// determine if zombies process will be collected
-	skipZombieProcesses bool
+	ignoreZombieProcesses bool
 
 	hostInfo                   *HostInfo
 	lastCPUTime                cpu.TimesStat
@@ -116,7 +116,9 @@ type ProcessCheck struct {
 func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
-	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled), procutil.WithIgnoreZombieProcesses(p.config.GetBool(configDisallowZombies)))
+	p.probe = newProcessProbe(p.config,
+		procutil.WithPermission(syscfg.ProcessModuleEnabled),
+		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
 	p.containerProvider = proccontainers.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
@@ -141,7 +143,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.disallowList = initDisallowList(p.config)
 
-	p.skipZombieProcesses = p.config.GetBool(configDisallowZombies)
+	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
 
 	p.initConnRates()
 
@@ -281,7 +283,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	p.checkCount++
 
 	connsRates := p.getLastConnRates()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.skipZombieProcesses)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -436,12 +438,12 @@ func fmtProcesses(
 	connRates ProcessConnRates,
 	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe,
-	zombiesDisallowed bool,
+	zombiesIgnored bool,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
 	for _, fp := range procs {
-		if skipProcess(disallowList, fp, lastProcs, zombiesDisallowed) {
+		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
 			continue
 		}
 
@@ -585,7 +587,7 @@ func skipProcess(
 	disallowList []*regexp.Regexp,
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
-	zombiesDisallowed bool,
+	zombiesIgnored bool,
 ) bool {
 	cl := fp.Cmdline
 	if len(cl) == 0 {
@@ -600,7 +602,7 @@ func skipProcess(
 		// This means short-lived processes (<2s) will never be captured.
 		return true
 	}
-	if zombiesDisallowed && fp.Stats != nil && fp.Stats.Status == "Z" {
+	if zombiesIgnored && fp.Stats != nil && fp.Stats.Status == "Z" {
 		return true
 	}
 	return false
