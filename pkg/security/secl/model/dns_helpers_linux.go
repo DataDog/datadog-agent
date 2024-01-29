@@ -9,7 +9,6 @@
 package model
 
 import (
-	"bytes"
 	"errors"
 	"strings"
 )
@@ -33,7 +32,7 @@ func decodeDNSName(raw []byte) (string, error) {
 		i       = 0
 		rawLen  = len(raw)
 		atStart = true
-		rep     bytes.Buffer
+		rep     strings.Builder
 		err     error
 	)
 
