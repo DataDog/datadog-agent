@@ -121,8 +121,6 @@ func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 				// spans boasting the same span ID is not valid)
 				span.SpanID += uint64(j)
 				span.TraceID = traceID
-				span.SpanLinks[0].SpanID += uint64(j)
-				span.SpanLinks[0].TraceID = traceID
 			}
 			trace = append(trace, span)
 		}

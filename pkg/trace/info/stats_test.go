@@ -72,7 +72,6 @@ func TestSpansMalformed(t *testing.T) {
 			"service_invalid":          1,
 			"span_name_truncate":       1,
 			"type_truncate":            1,
-			"invalid_span_links":	    1,
 		}, s.tagValues())
 	})
 
@@ -257,7 +256,6 @@ func TestReceiverStats(t *testing.T) {
 		stats.SpansMalformed.InvalidStartDate.Store(12)
 		stats.SpansMalformed.InvalidDuration.Store(13)
 		stats.SpansMalformed.InvalidHTTPStatusCode.Store(14)
-		stats.SpansMalformed.InvalidHTTPStatusCode.Store(15)
 		return &ReceiverStats{
 			Stats: map[Tags]*TagStats{
 				tags: {

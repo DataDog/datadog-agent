@@ -327,7 +327,7 @@ func RandomSpanLink() *pb.SpanLink {
 		SpanID:      RandomSpanID(),
 		Attributes:  RandomStringMap(),
 		Tracestate:  strconv.Itoa(rand.Int()),
-		Flags:       rand.Uint32(),
+		Flags:       rand.Uint32() % 1,
 	}
 }
 
