@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add ``ddagenthostname`` tag.
+    [oracle] Add ``ddagenthostname`` tag.
