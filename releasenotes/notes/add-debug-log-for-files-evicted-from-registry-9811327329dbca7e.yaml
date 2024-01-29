@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Add debug level logs when files are evicted from ```registry.log```
+    Add debug level logs when files are evicted from ``registry.log``
     after their TTL expires.
