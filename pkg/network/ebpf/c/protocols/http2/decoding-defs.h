@@ -22,7 +22,7 @@
 #define HTTP2_MAX_FRAMES_ITERATIONS 240
 // This represents a limit on the number of tail calls that can be executed within the frames_filter program.
 // The number of frames to parse is determined by HTTP2_MAX_FRAMES_ITERATIONS, resulting in a total defined as:
-// HTTP2_MAX_FRAMES_ITERATIONS * HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER (for tail call 0-1)
+// HTTP2_MAX_FRAMES_TO_FILTER * HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER (for tail call 0-1)
 #define HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER 1
 #define HTTP2_MAX_FRAMES_TO_FILTER 240
 
