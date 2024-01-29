@@ -1024,20 +1024,6 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_e2e_changes_or_manual:
-  - <<: *if_main_branch
-  - <<: *if_mergequeue
-    when: never
-  - changes:
-      paths:
-        - test/new-e2e/pkg/**/*
-        - test/new-e2e/test-infra-definition/*
-        - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
-  - when: manual
-    allow_failure: true
-
 .on_container_e2e_changes_or_manual:
   - <<: *if_disable_e2e
     when: never
