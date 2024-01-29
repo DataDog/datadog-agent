@@ -400,7 +400,6 @@ func TestInfoConfig(t *testing.T) {
 	assert.Equal("", confCopy.DebuggerDiagnosticsProxy.APIKey, "Debugger Diagnostics Proxy API Key should *NEVER* be exported")
 	conf.DebuggerDiagnosticsProxy.APIKey = ""
 
-
 	// Any key-like data should scrubbed
 	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
 	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
