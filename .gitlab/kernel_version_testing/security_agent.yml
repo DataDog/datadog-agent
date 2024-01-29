@@ -32,6 +32,7 @@ kernel_matrix_testing_setup_env_security_agent_arm64:
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     TEST_COMPONENT: security-agent
+    TEST_SETS: all_tests
 
 kernel_matrix_testing_setup_env_security_agent_x64:
   extends:
@@ -44,6 +45,7 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     TEST_COMPONENT: security-agent
+    TEST_SETS: all_tests
 
 .upload_security_agent_tests:
   stage: kernel_matrix_testing_prepare

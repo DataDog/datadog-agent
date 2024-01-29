@@ -19,6 +19,38 @@ upload_dependencies_system_probe_arm64:
     INSTANCE_TYPE: m6gd.metal
     TEST_COMPONENT: system-probe
 
+# -- BTF
+.upload_minimized_btfs:
+  stage: kernel_matrix_testing_prepare
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
+  allow_failure: true
+  script:
+    # Build dependencies directory
+    - mkdir -p $DEPENDENCIES
+    - pushd $DEPENDENCIES
+    # download and copy btf files
+    - mkdir -p $BTF_DIR
+    - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz $BTF_DIR/minimized-btfs.tar.xz
+    # package all the dependencies
+    - ls -la $DEPENDENCIES
+    - pushd $DD_AGENT_TESTING_DIR/$ARCH
+    - tar czvf ../$ARCHIVE_NAME btfs
+    - popd
+    # upload tests
+    # Switch to new profile after the btfs have been downloaded. Switching before
+    # causes permission issues.
+    - !reference [.kernel_matrix_testing_new_profile]
+    - !reference [.write_ssh_key_file]
+    - !reference [.wait_for_instances]
+    - !reference [.get_instance_ip_by_type]
+    - !reference [.setup_ssh_config]
+    - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+  variables:
+    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/btfs
+    BTF_DIR: opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+
 upload_minimized_btfs_system_probe_x64:
   extends:
     - .upload_minimized_btfs
@@ -52,6 +84,7 @@ kernel_matrix_testing_setup_env_system_probe_arm64:
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     TEST_COMPONENT: system-probe
+    TEST_SETS: "no_tracersuite,only_tracersuite"
 
 kernel_matrix_testing_setup_env_system_probe_x64:
   extends:
@@ -64,6 +97,7 @@ kernel_matrix_testing_setup_env_system_probe_x64:
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     TEST_COMPONENT: system-probe
+    TEST_SETS: "no_tracersuite,only_tracersuite"
 
 .upload_system_probe_tests:
   stage: kernel_matrix_testing_prepare
