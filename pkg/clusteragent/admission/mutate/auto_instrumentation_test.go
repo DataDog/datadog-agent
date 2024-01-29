@@ -15,7 +15,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1492,25 +1494,6 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
 		},
 		{
-			name: "Single Step Instrumentation: disabled namespaces should not be instrumented",
-			pod:  fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-app-123"),
-			expectedEnvs: []corev1.EnvVar{
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			},
-			wantErr: false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
-			},
-		},
-		{
 			name: "Single Step Instrumentation: enabled namespaces should be instrumented",
 			pod: fakePodWithParent(
 				"ns",
@@ -1593,6 +1576,102 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		t.Cleanup(func() {
 			os.Unsetenv("DD_INSTRUMENTATION_INSTALL_ID")
 			os.Unsetenv("DD_INSTRUMENTATION_INSTALL_TIME")
+		})
+	}
+}
+
+func TestLibIbjectionNamespaceLabelSelector(t *testing.T) {
+	var mockConfig *config.MockConfig
+
+	tests := []struct {
+		name                  string
+		setupConfig           func()
+		expectedLabelSelector *metav1.LabelSelector
+	}{
+		{
+			name: "apm instrumentation disabled",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
+			},
+			expectedLabelSelector: nil,
+		},
+		{
+			name: "apm instrumentation enabled without enabled/disabled namespaces",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+			},
+			expectedLabelSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      corev1.LabelMetadataName,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"kube-system", apiServerCommon.GetResourcesNamespace()},
+					},
+				},
+			},
+		},
+		{
+			name: "apm instrumentation enabled with enabled namespaces",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns1", "ns2"})
+			},
+			expectedLabelSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      corev1.LabelMetadataName,
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{"ns1", "ns2"},
+					},
+				},
+			},
+		},
+		{
+			name: "apm instrumentation enabled with disabled namespaces",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns1", "ns2"})
+			},
+			expectedLabelSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      corev1.LabelMetadataName,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"kube-system", apiServerCommon.GetResourcesNamespace()},
+					},
+					{
+						Key:      corev1.LabelMetadataName,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"ns1", "ns2"},
+					},
+				},
+			},
+		},
+		{
+			name: "apm instrumentation enabled with enabled and disabled namespaces",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns1", "ns2"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns3", "ns4"})
+			},
+			expectedLabelSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      corev1.LabelMetadataName,
+						Operator: metav1.LabelSelectorOpDoesNotExist,
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockConfig = config.Mock(t)
+			if test.setupConfig != nil {
+				test.setupConfig()
+			}
+			assert.Equal(t, test.expectedLabelSelector, LibIbjectionNamespaceLabelSelector())
 		})
 	}
 }

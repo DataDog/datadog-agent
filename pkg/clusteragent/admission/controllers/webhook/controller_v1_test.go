@@ -352,12 +352,54 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 		},
 		{
+			name: "lib injection, mutate labelled, with APM instrumentation and some namespaces included",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns1", "ns2"})
+			},
+			configFunc: func() Config { return NewConfig(false, false) },
+			want: func() []admiv1.MutatingWebhook {
+				webhook := webhook(
+					"datadog.webhook.auto.instrumentation",
+					"/injectlib",
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "admission.datadoghq.com/enabled",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"false"},
+							},
+						},
+					},
+					&metav1.LabelSelector{
+						MatchLabels: map[string]string{},
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      corev1.LabelMetadataName,
+								Operator: metav1.LabelSelectorOpIn,
+								Values:   []string{"ns1", "ns2"},
+							},
+						},
+					},
+					[]admiv1.OperationType{admiv1.Create},
+					[]string{"pods"},
+				)
+				return []admiv1.MutatingWebhook{webhook}
+			},
+		},
+		{
 			name: "config and tags injection, mutate labelled",
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{})
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {

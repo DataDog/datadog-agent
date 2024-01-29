@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"github.com/wI2L/jsondiff"
-	"golang.org/x/exp/slices"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
@@ -20,12 +19,7 @@ import (
 
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	namespaceWithAlwaysDisabledInjections = "kube-system"
 )
 
 type mutateFunc func(*corev1.Pod, string, dynamic.Interface) error
@@ -222,44 +216,15 @@ func shouldInject(pod *corev1.Pod) bool {
 		}
 	}
 
-	return isApmInstrumentationEnabled(pod.GetNamespace()) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+	return isApmInstrumentationEnabled() || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
 
 // isApmInstrumentationEnabled indicates if Single Step Instrumentation is enabled for the namespace in the cluster
-func isApmInstrumentationEnabled(namespace string) bool {
+func isApmInstrumentationEnabled() bool {
 	apmInstrumentationEnabled := config.Datadog.GetBool("apm_config.instrumentation.enabled")
 
 	if !apmInstrumentationEnabled {
 		log.Debugf("APM Instrumentation is disabled")
-		return false
-	}
-
-	return filterNamespace(namespace)
-}
-
-// filterNamespace returns a bool indicating if Single Step Instrumentation on the namespace
-func filterNamespace(ns string) bool {
-	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
-
-	// apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set at the same time
-	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
-		log.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set together")
-		return false
-	}
-
-	// Always disable Single Step Instrumentation in kube-system and Datadog namespaces
-	if (ns == namespaceWithAlwaysDisabledInjections) || (ns == apiServerCommon.GetResourcesNamespace()) {
-		return false
-	}
-
-	// If apm_config.instrumentation.enabled_namespaces option set, enable Single Step Instrumentation only in listed namespaces
-	if len(apmEnabledNamespaces) > 0 {
-		return slices.Contains[[]string, string](apmEnabledNamespaces, ns)
-	}
-
-	// Disable Single Step Instrumentation in all excluded namespaces
-	if slices.Contains[[]string, string](apmDisabledNamespaces, ns) {
 		return false
 	}
 

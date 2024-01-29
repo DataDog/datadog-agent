@@ -125,3 +125,30 @@ func azureAKSLabelSelectorRequirement() []metav1.LabelSelectorRequirement {
 		},
 	}
 }
+
+func mergedLabelSelector(labelSelector1 *metav1.LabelSelector, labelSelector2 *metav1.LabelSelector) *metav1.LabelSelector {
+	if labelSelector1 == nil && labelSelector2 == nil {
+		return nil
+	}
+
+	merged := metav1.LabelSelector{
+		MatchLabels: map[string]string{},
+	}
+
+	for _, labelSelector := range []*metav1.LabelSelector{labelSelector1, labelSelector2} {
+		if labelSelector == nil {
+			continue
+		}
+
+		merged.MatchExpressions = append(
+			merged.MatchExpressions,
+			labelSelector.MatchExpressions...,
+		)
+
+		for label, value := range labelSelector.MatchLabels {
+			merged.MatchLabels[label] = value
+		}
+	}
+
+	return &merged
+}

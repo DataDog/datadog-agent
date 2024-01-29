@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -225,7 +226,10 @@ func (c *ControllerV1beta1) generateTemplates() {
 	// Auto instrumentation - lib injection
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.enabled") {
 		// generate selectors
-		nsSelector, objSelector := buildLabelSelectors(c.config.useNamespaceSelector())
+		commonNamespaceSelector, objSelector := buildLabelSelectors(c.config.useNamespaceSelector())
+		libInjectionNamespaceSelector := mutate.LibIbjectionNamespaceLabelSelector()
+
+		namespaceSelector := mergedLabelSelector(commonNamespaceSelector, libInjectionNamespaceSelector)
 
 		webhook := c.getWebhookSkeleton(
 			"auto-instrumentation",
@@ -234,7 +238,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 				admiv1beta1.Create,
 			},
 			[]string{"pods"},
-			nsSelector,
+			namespaceSelector,
 			objSelector,
 		)
 		webhooks = append(webhooks, webhook)

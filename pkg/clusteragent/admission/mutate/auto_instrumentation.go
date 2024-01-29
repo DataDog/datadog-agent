@@ -16,9 +16,11 @@ import (
 	"strconv"
 	"strings"
 
+	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	k8s "k8s.io/client-go/kubernetes"
 
@@ -115,6 +117,67 @@ func InjectAutoInstrumentation(rawPod []byte, _ string, ns string, _ *authentica
 	return mutate(rawPod, ns, injectAutoInstrumentation, dc)
 }
 
+// LibIbjectionNamespaceLabelSelector returns a label selector with the namespaces where libraries should be injected
+func LibIbjectionNamespaceLabelSelector() *v1.LabelSelector {
+	if !isApmInstrumentationEnabled() {
+		return nil
+	}
+
+	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
+	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
+
+	// apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set at the same time
+	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
+		log.Error("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set together")
+		return &v1.LabelSelector{
+			// Does not match anything because LabelMetadataName should always be set.
+			MatchExpressions: []v1.LabelSelectorRequirement{
+				{
+					Key:      corev1.LabelMetadataName,
+					Operator: v1.LabelSelectorOpDoesNotExist,
+				},
+			},
+		}
+	}
+
+	// "kube-system" and the datadog namespace are excluded by default, but can
+	// be included with apm.instrumentation.enabled_namespaces
+	if len(apmEnabledNamespaces) > 0 {
+		return &v1.LabelSelector{
+			MatchExpressions: []v1.LabelSelectorRequirement{
+				{
+					Key:      corev1.LabelMetadataName,
+					Operator: v1.LabelSelectorOpIn,
+					Values:   apmEnabledNamespaces,
+				},
+			},
+		}
+	}
+
+	labelSelector := v1.LabelSelector{
+		MatchExpressions: []v1.LabelSelectorRequirement{
+			{
+				Key:      corev1.LabelMetadataName,
+				Operator: v1.LabelSelectorOpNotIn,
+				Values:   []string{"kube-system", apiServerCommon.GetResourcesNamespace()},
+			},
+		},
+	}
+
+	if len(apmDisabledNamespaces) > 0 {
+		labelSelector.MatchExpressions = append(
+			labelSelector.MatchExpressions,
+			v1.LabelSelectorRequirement{
+				Key:      corev1.LabelMetadataName,
+				Operator: v1.LabelSelectorOpNotIn,
+				Values:   apmDisabledNamespaces,
+			},
+		)
+	}
+
+	return &labelSelector
+}
+
 func initContainerName(lang language) string {
 	return fmt.Sprintf("datadog-lib-%s-init", lang)
 }
@@ -130,7 +193,7 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 	}
 	injectApmTelemetryConfig(pod)
 
-	if isApmInstrumentationEnabled(pod.Namespace) {
+	if isApmInstrumentationEnabled() {
 		// if Single Step Instrumentation is enabled, pods can still opt out using the label
 		if pod.GetLabels()[common.EnabledLabelKey] == "false" {
 			log.Debugf("Skipping single step instrumentation of pod %q due to label", podString(pod))
@@ -156,7 +219,7 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 	}
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
-	if isApmInstrumentationEnabled(pod.Namespace) {
+	if isApmInstrumentationEnabled() {
 		// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
 		_ = injectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
 		injectionType = singleStepInstrumentationInstallType
@@ -224,7 +287,7 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool)
 	var autoDetected = false
 
 	// Inject all libraries if Single Step Instrumentation is enabled
-	if isApmInstrumentationEnabled(pod.Namespace) {
+	if isApmInstrumentationEnabled() {
 		libInfoMap = getAllLibsToInject(containerRegistry)
 		if len(libInfoMap) > 0 {
 			log.Debugf("Single Step Instrumentation: Injecting all libraries into pod %q in namespace %q", podString(pod), pod.Namespace)
@@ -475,7 +538,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 
 	injectLibVolume(pod)
 
-	if isApmInstrumentationEnabled(pod.Namespace) {
+	if isApmInstrumentationEnabled() {
 		libConfig := basicConfig()
 		if name, err := getServiceNameFromPod(pod); err == nil {
 			// Set service name if it can be derived from a pod
