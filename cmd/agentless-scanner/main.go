@@ -109,7 +109,7 @@ var (
 
 	cleanupMaxDuration = 2 * time.Minute
 
-	awsConfigs   = make(map[string]*aws.Config)
+	awsConfigs   = make(map[awsConfigKey]*aws.Config)
 	awsConfigsMu sync.Mutex
 )
 
@@ -2186,13 +2186,20 @@ func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error
 	return resp, nil
 }
 
+type awsConfigKey struct {
+	role   arn.ARN
+	region string
+}
+
 func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Config, error) {
 	awsConfigsMu.Lock()
 	defer awsConfigsMu.Unlock()
 
-	key := region
+	key := awsConfigKey{
+		region: region,
+	}
 	if assumedRole != nil {
-		key += assumedRole.String()
+		key.role = *assumedRole
 	}
 	if cfg, ok := awsConfigs[key]; ok {
 		return *cfg, nil
@@ -2207,16 +2214,25 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 	if err != nil {
 		return aws.Config{}, err
 	}
+
+	stsclient := sts.NewFromConfig(cfg)
 	if assumedRole != nil {
-		stsclient := sts.NewFromConfig(cfg)
 		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.String())
 		cfg.Credentials = aws.NewCredentialsCache(stsassume)
-		stsclient = sts.NewFromConfig(cfg)
-		result, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	}
+
+	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("awsconfig: could not assumerole %q: %w", assumedRole, err)
+	}
+	log.Tracef("aws config: assuming role with arn=%q", *identity.Arn)
+
+	if assumedRole == nil {
+		roleARN, err := arn.Parse(*identity.Arn)
 		if err != nil {
-			return aws.Config{}, fmt.Errorf("awsconfig: could not assumerole %q: %w", assumedRole, err)
+			return aws.Config{}, err
 		}
-		log.Tracef("aws config: assuming role with arn=%q", *result.Arn)
+		cfg.HTTPClient = newHTTPClientWithAWSStats(region, &roleARN, limits)
 	}
 
 	awsConfigs[key] = &cfg
