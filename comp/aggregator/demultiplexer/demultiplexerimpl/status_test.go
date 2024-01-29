@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -57,6 +58,7 @@ func TestStatusOutPut(t *testing.T) {
 		logimpl.MockModule(),
 		defaultforwarder.MockModule(),
 		orchestratorimpl.MockModule(),
+		eventplatformimpl.MockModule(),
 		fx.Supply(
 			Params{
 				ContinueOnMissingHostname: true,

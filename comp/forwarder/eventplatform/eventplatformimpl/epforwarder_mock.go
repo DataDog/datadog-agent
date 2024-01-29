@@ -8,11 +8,19 @@
 package eventplatformimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(NewNoopEventPlatformForwarder),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMockComponent),
+	)
+}
+
+func newMockComponent() eventplatform.Component {
+	return optional.NewOptionPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder())
+}

@@ -69,7 +69,6 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	eventplatformimpl.Params
 	FlushInterval time.Duration
 
 	EnableNoAggregationPipeline bool
@@ -84,7 +83,6 @@ type AgentDemultiplexerOptions struct {
 func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 	return AgentDemultiplexerOptions{
 		FlushInterval: DefaultFlushInterval,
-		Params:        eventplatformimpl.NewDefaultParams(),
 		// the different agents/binaries enable it on a per-need basis
 		EnableNoAggregationPipeline: false,
 	}
@@ -121,19 +119,27 @@ type dataOutputs struct {
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, orchestratorForwarder orchestratorforwarder.Component, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, hostname)
+func InitAndStartAgentDemultiplexer(
+	log log.Component,
+	sharedForwarder forwarder.Forwarder,
+	orchestratorForwarder orchestratorforwarder.Component,
+	options AgentDemultiplexerOptions,
+	eventPlatformForwarder eventplatform.Component,
+	hostname string) *AgentDemultiplexer {
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, hostname)
 	go demux.run()
 	return demux
 }
 
-func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, orchestratorForwarder orchestratorforwarder.Component, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func initAgentDemultiplexer(
+	log log.Component,
+	sharedForwarder forwarder.Forwarder,
+	orchestratorForwarder orchestratorforwarder.Component,
+	options AgentDemultiplexerOptions,
+	eventPlatformForwarder eventplatform.Component,
+	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
-
-	log.Debugf("Creating forwarders")
-	eventPlatformForwarder := eventplatformimpl.NewEventPlatformForwarder(options.Params)
-
 	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
 		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
 		config.Datadog.Set("telemetry.dogstatsd_origin", false, model.SourceAgentRuntime)

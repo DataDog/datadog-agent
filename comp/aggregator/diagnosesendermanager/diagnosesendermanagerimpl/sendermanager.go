@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -58,17 +60,18 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 0
 	opts.DontStartForwarders = true
-	opts.UseNoopEventPlatformForwarder = true
 
 	log := sender.deps.Log
 	config := sender.deps.Config
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
-	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	orchestratorForwarder := optional.NewOptionPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder())
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
 		forwarder,
-		&orchestratorForwarder,
+		orchestratorForwarder,
 		opts,
+		eventPlatformForwarder,
 		hostnameDetected)
 
 	sender.senderManager.Set(senderManager)

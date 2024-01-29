@@ -32,9 +32,9 @@ import (
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(NewEventPlatformForwarder),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(fx.Provide(newEventPlatformForwarder))
+}
 
 const (
 	eventTypeDBMSamples  = "dbm-samples"
@@ -467,8 +467,8 @@ func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
 	}
 }
 
-// NewEventPlatformForwarder creates a new EventPlatformForwarder
-func NewEventPlatformForwarder(params Params) eventplatform.Component {
+// newEventPlatformForwarder creates a new EventPlatformForwarder
+func newEventPlatformForwarder(params Params) eventplatform.Component {
 	var forwarder EventPlatformForwarder
 
 	if params.UseNoopEventPlatformForwarder {
