@@ -433,8 +433,9 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
-	log.Debugf("event in dispatch -----event.Type:%v", event.Type.String())
+
 	if event.Type == model.CreateNewFileEventType {
+		log.Debugf("event in dispatch -----event.Type:%v", event.Type)
 		log.Debugf("event in dispatch -----event.CreateNewFile.File.Path:%v", event.CreateNewFile.File.PathnameStr)
 		log.Debugf("event in dispatch -----event.CreateNewFile.File.Name:%v", event.CreateNewFile.File.BasenameStr)
 		log.Debugf("event in dispatch -----event.ProcessContext.Process.PIDContext.Pid:%v", event.ProcessContext.Process.PIDContext.Pid)
