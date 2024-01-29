@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package events handles process events
 package events
 
 import (
