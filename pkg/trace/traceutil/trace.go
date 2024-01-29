@@ -129,7 +129,7 @@ func ComputeTopLevel(trace pb.Trace) {
 			SetTopLevel(span, true)
 			continue
 		}
-		if trace[parentIndex].Service != span.Service {
+		if ok && trace[parentIndex].Service != span.Service {
 			// parent is not in the same service
 			SetTopLevel(span, true)
 			continue
