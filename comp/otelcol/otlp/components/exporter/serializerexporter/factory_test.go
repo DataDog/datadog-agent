@@ -21,10 +21,10 @@ import (
 
 type MockTagEnricher struct{}
 
-func (m *MockTagEnricher) SetCardinality(cardinality string) error {
+func (m *MockTagEnricher) SetCardinality(_ string) error {
 	return nil
 }
-func (m *MockTagEnricher) Enrich(ctx context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
+func (m *MockTagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
 	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
