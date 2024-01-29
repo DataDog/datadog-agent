@@ -200,8 +200,10 @@ func (p *WindowsProbe) setupEtw() error {
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
 		//log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
 		ev := p.zeroEvent()
-		_ := p.setProcessContext(e.Eventheader.ProcessID, ev)
-
+		errRes := p.setProcessContext(e.EventHeader.ProcessID, ev)
+		if errRes != nil {
+			log.Debugf(err)
+		}
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
@@ -415,17 +417,17 @@ func (p *WindowsProbe) Start() error {
 	return p.pm.Start()
 }
 
-func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) bool {
-	found := backoff.Retry(func() bool {
+func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
+	err := backoff.Retry(func() error {
 		pce := p.Resolvers.ProcessResolver.GetEntry(pid)
 		if pce == nil {
-			return false
+			return errors.New("Could not resolve process for Process: %v", pid)
 		}
 		event.ProcessCacheEntry = pce
 		event.ProcessContext = &pce.ProcessContext
-		return true
+		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 5))
-	return found
+	return err
 }
 
 // DispatchEvent sends an event to the probe event handler
