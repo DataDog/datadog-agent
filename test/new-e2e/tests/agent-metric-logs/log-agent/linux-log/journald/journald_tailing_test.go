@@ -107,16 +107,16 @@ func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
 	t := s.T()
 
 	// Create journald log generation script
-	python_script := string(pythonScript)
+	pythonScript := string(pythonScript)
 
-	_, err := vm.Execute(python_script)
+	_, err := vm.Execute(pythonScript)
 	if assert.NoErrorf(t, err, "Failed to create python script that generate journald log: %s", err) {
 		t.Log("Successfully created python script for journald log generation")
 	}
 
 	// Create journald log generation service
-	logger_service := string(randomLogger)
-	_, err = vm.Execute(logger_service)
+	loggerService := string(randomLogger)
+	_, err = vm.Execute(loggerService)
 	if assert.NoErrorf(t, err, "Failed to create journald log service: %s ", err) {
 		t.Log("Successfully created journald log service")
 	}
