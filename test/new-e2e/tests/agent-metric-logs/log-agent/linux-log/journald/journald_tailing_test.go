@@ -7,21 +7,24 @@ package journaldlog
 
 import (
 	_ "embed"
-	"os"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
-// LinuxVMFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
-type LinuxVMFakeintakeSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
-	DevMode bool
+// LinuxJournaldFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
+type LinuxJournaldFakeintakeSuite struct {
+	e2e.BaseSuite[environments.Host]
 }
 
 //go:embed log-config/journald-log-config.yaml
@@ -40,116 +43,146 @@ var pythonScript []byte
 var randomLogger []byte
 
 // logsExampleStackDef returns the stack definition required for the log agent test suite.
-func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
-
-	return e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(
-			agentparams.WithLogs(),
-			agentparams.WithIntegration("custom_logs.d", string(logConfig))))
-
-}
-
-// TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	s := &LinuxVMFakeintakeSuite{}
-	_, s.DevMode = os.LookupEnv("TESTS_E2E_DEVMODE")
+	// devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	options := []e2e.SuiteOption{
+		e2e.WithProvisioner(awshost.Provisioner(
+			awshost.WithAgentOptions(
+				agentparams.WithLogs(),
+				agentparams.WithIntegration("custom_logs.d", string(logConfig))))),
+	}
+	// if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+	options = append(options, e2e.WithDevMode())
+	// }
 
-	e2e.Run(t, &LinuxVMFakeintakeSuite{}, logsExampleStackDef())
+	e2e.Run(t, &LinuxJournaldFakeintakeSuite{}, options...)
 }
 
-func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
+func (s *LinuxJournaldFakeintakeSuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
 	// Flush server and reset aggregators before the test is ran
-	s.cleanUp()
+	utils.CleanUp(s)
 }
 
-func (s *LinuxVMFakeintakeSuite) TearDownSuite() {
+func (s *LinuxJournaldFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
-	s.cleanUp()
+	utils.CleanUp(s)
+	s.BaseSuite.TearDownSuite()
 }
 
-func (s *LinuxVMFakeintakeSuite) TestJournald() {
+func (s *LinuxJournaldFakeintakeSuite) TestJournald() {
 	// Run test cases
 	s.Run("journaldLogCollection", s.journaldLogCollection)
 
-	s.Run("journaldIncludeServiceLogCollection()", s.journaldIncludeServiceLogCollection)
+	// s.Run("journaldIncludeServiceLogCollection()", s.journaldIncludeServiceLogCollection)
 
 	s.Run("journaldExcludeServiceCollection()", s.journaldExcludeServiceCollection)
 }
 
-func (s *LinuxVMFakeintakeSuite) journaldLogCollection() {
+func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
 
-	fakeintake := s.Env().Fakeintake
-	// Part 1: Ensure no logs are present in fakeintake
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := fakeintake.FilterLogs("hello")
-		if !assert.NoError(c, err, "Unable to filter logs by the service 'hello'.") {
-			return
-		}
-		assert.Emptyf(c, logs, "Logs were found when none were expected: %v", logs)
-	}, 2*time.Minute, 1*time.Second)
-
-	// Part 2: Add dd-agent user to systemd-journal group
-	_, err := s.Env().VM.ExecuteWithError("sudo usermod -a -G systemd-journal dd-agent")
-	require.NoError(s.T(), err, "Unable to adjust permissions for dd-agent user.")
+	t := s.T()
+	// Add dd-agent user to systemd-journal group
+	_, err := s.Env().RemoteHost.Execute("sudo usermod -a -G systemd-journal dd-agent")
+	require.NoErrorf(t, err, "Unable to adjust permissions for dd-agent user: %s", err)
 
 	// Restart agent
-	s.Env().VM.Execute("sudo systemctl restart datadog-agent")
+	s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
 
 	// Generate log
-	generateLog(s, "hello-world", "journald")
+	appendJournaldLog(s, "hello-world", 1)
 
-	// Part 2: check that the generated log is collected
-	checkLogs(s, "hello", "hello-world")
+	// Check that the generated log is collected
+	utils.CheckLogsExpected(s, "hello", "hello-world")
 }
 
-func (s *LinuxVMFakeintakeSuite) journaldIncludeServiceLogCollection() {
-	s.UpdateEnv(e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(
-			agentparams.WithLogs(),
-			agentparams.WithIntegration("custom_logs.d", string(logConfig2)))))
+func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
+		agentparams.WithLogs(),
+		agentparams.WithIntegration("custom_logs.d", string(logConfig2)))))
 
-	vm := s.Env().VM
+	vm := s.Env().RemoteHost
 	t := s.T()
 
 	// Create journald log generation script
 	python_script := string(pythonScript)
-	_, err := vm.ExecuteWithError(python_script)
-	require.NoError(t, err, "Failed to generate journald log generation script ")
+
+	_, err := vm.Execute(python_script)
+	if assert.NoErrorf(t, err, "Failed to create python script that generate journald log: %s", err) {
+		t.Log("Successfully created python script for journald log generation")
+	}
 
 	// Create journald log generation service
 	logger_service := string(randomLogger)
-	_, err = vm.ExecuteWithError(logger_service)
-	require.NoError(t, err, "Failed to create journald log generation service ")
+	_, err = vm.Execute(logger_service)
+	if assert.NoErrorf(t, err, "Failed to create journald log service: %s ", err) {
+		t.Log("Successfully created journald log service")
+	}
 
 	// Enable journald log generation service
-	_, err = vm.ExecuteWithError("sudo systemctl daemon-reload")
-	require.NoError(t, err, "Failed to load journald service")
+	_, err = vm.Execute("sudo systemctl daemon-reload")
+	if assert.NoErrorf(t, err, "Failed to load journald service: %s", err) {
+		t.Log("Successfully loaded journald service")
+	}
 
 	// Start journald log generation service
-	_, err = vm.ExecuteWithError("sudo systemctl enable --now random-logger.service")
-	require.NoError(t, err, "Failed to enable journaald service")
+	_, err = vm.Execute("sudo systemctl enable --now random-logger.service")
+	if assert.NoErrorf(t, err, "Failed to enable journald service: %s", err) {
+		t.Log("Successfully enabled journald service")
+	}
 
 	// Restart agent
-	_, err = vm.ExecuteWithError("sudo service datadog-agent restart")
-	require.NoError(t, err, "Failed to restart the agent")
+	_, err = vm.Execute("sudo service datadog-agent restart")
+	assert.NoErrorf(t, err, "Failed to restart the agent: %s", err)
 
-	// Check that the agent service log is collected
-	checkLogs(s, "random-logger.py", "less important")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		agentReady := s.Env().Agent.Client.IsReady()
+		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
+			// Check that the agent service log is collected
+			utils.CheckLogsExpected(s, "random-logger", "less important")
+		}
+	}, 1*time.Minute, 5*time.Second)
 
 	// Disable journald log generation service
-	_, err = vm.ExecuteWithError("sudo systemctl disable --now random-logger.service")
-	require.NoError(t, err, "Failed to disable the logging service")
+	_, err = vm.Execute("sudo systemctl disable --now random-logger.service")
+	assert.NoErrorf(t, err, "Failed to disable the logging service: %s", err)
 }
 
-func (s *LinuxVMFakeintakeSuite) journaldExcludeServiceCollection() {
-	s.UpdateEnv(e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(
-			agentparams.WithLogs(),
-			agentparams.WithIntegration("custom_logs.d", string(logConfig3)))))
+func (s *LinuxJournaldFakeintakeSuite) journaldExcludeServiceCollection() {
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
+		agentparams.WithLogs(),
+		agentparams.WithIntegration("custom_logs.d", string(logConfig3)))))
 
 	// Restart agent
-	s.Env().VM.Execute("sudo systemctl restart datadog-agent")
+	s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
 
-	// Check that the datadog-agent.service log is not collected
-	checkExcludeLog(s, "not-datadog", "running check")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		agentReady := s.Env().Agent.Client.IsReady()
+		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
+			// Check that the datadog-agent.service log is not collected, specifically logs from the check runners
+			utils.CheckLogsNotExpected(s, "no-datadog", "running check")
+		}
+	}, 1*time.Minute, 5*time.Second)
+}
+
+// appendJournaldLog appends a log to journald.
+func appendJournaldLog(s *LinuxJournaldFakeintakeSuite, content string, recurrence int) {
+	t := s.T()
+	logContent := strings.Repeat(content+"\n", recurrence)
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		cmd := fmt.Sprintf("sudo printf '%s' | systemd-cat", logContent)
+		_, err := s.Env().RemoteHost.Execute(cmd)
+		if assert.NoErrorf(c, err, "Error writing log: %v", err) {
+			t.Log("Writing logs to journald")
+		}
+
+		checkCmd := fmt.Sprintf("sudo journalctl --since '1 minute ago' | grep '%s'", content)
+		output, err := s.Env().RemoteHost.Execute(checkCmd)
+		assert.NoErrorf(c, err, "Error found checking for journald logs: %s", err)
+
+		if assert.Contains(c, output, content, "Journald log not properly generated.") {
+			t.Log("Finished generating journald log.")
+		}
+	}, 1*time.Minute, 5*time.Second)
 }

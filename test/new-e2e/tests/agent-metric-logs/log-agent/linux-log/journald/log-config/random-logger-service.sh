@@ -1,5 +1,5 @@
 #!/bin/bash
-cat > /etc/systemd/system/random-logger.service << EOF
+sudo bash -c 'cat > /etc/systemd/system/random-logger.service << EOF
 [Unit]
 Description=Random logger
 
@@ -8,5 +8,6 @@ ExecStart=/usr/bin/random-logger.py
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOF'
+
 sudo chmod 644 /etc/systemd/system/random-logger.service
