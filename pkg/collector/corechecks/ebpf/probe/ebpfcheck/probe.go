@@ -556,7 +556,7 @@ func (e *entryCountBuffers) ensureSizeAll(referenceMap *ebpf.Map) error {
 	if e.bufferSizeLimit > 0 && keysSize > e.bufferSizeLimit {
 		return fmt.Errorf("cannot allocate keys buffer: map %s requires %d bytes (%d entries x %dB key size), limit is %d", referenceMap.String(), keysSize, maxSize, referenceMap.KeySize(), e.bufferSizeLimit)
 	}
-	if uint32(cap(e.keys)) < keysSize {
+	if uint32(len(e.keys)) < keysSize {
 		e.keys = make([]byte, keysSize)
 		e.maxKeysSize = keysSize
 	}
@@ -565,7 +565,7 @@ func (e *entryCountBuffers) ensureSizeAll(referenceMap *ebpf.Map) error {
 	if e.bufferSizeLimit > 0 && valuesSize > e.bufferSizeLimit {
 		return fmt.Errorf("cannot allocate values buffer: map %s requires %d bytes (%d entries x %dB value size), limit is %d", referenceMap.String(), valuesSize, maxSize, referenceMap.ValueSize(), e.bufferSizeLimit)
 	}
-	if uint32(cap(e.values)) < valuesSize {
+	if uint32(len(e.values)) < valuesSize {
 		e.values = make([]byte, valuesSize)
 		e.maxValuesSize = valuesSize
 	}
@@ -578,7 +578,7 @@ func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) error {
 	if e.bufferSizeLimit > 0 && cursorSize > e.bufferSizeLimit {
 		return fmt.Errorf("cannot allocate cursor buffer: map %s requires %d bytes, limit is %d", referenceMap.String(), referenceMap.KeySize(), e.bufferSizeLimit)
 	}
-	if uint32(cap(e.cursor)) < cursorSize {
+	if uint32(len(e.cursor)) < cursorSize {
 		e.cursor = make([]byte, cursorSize)
 		e.maxCursorSize = cursorSize
 	}
