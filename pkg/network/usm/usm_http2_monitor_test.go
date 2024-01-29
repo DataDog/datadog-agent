@@ -869,6 +869,48 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}: 1,
 			},
 		},
+		{
+			name: "Data frame header sent separately from frame payload",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				headersFrame := newFramer().writeHeaders(t, 1, testHeaders()).bytes()
+				dataFrame := newFramer().writeData(t, 1, true, emptyBody).bytes()
+				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
+				secondMessage := dataFrame[9:]
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "Data frame header sent separately from frame payload with PING between them",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload and a PING
+			// frame between them.
+			messageBuilder: func() [][]byte {
+				headersFrame := newFramer().writeHeaders(t, 1, testHeaders()).bytes()
+				dataFrame := newFramer().writeData(t, 1, true, emptyBody).bytes()
+				pingFrame := newFramer().writePing(t).bytes()
+				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
+				secondMessage := append(pingFrame, dataFrame[9:]...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1190,7 +1232,7 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 		pathHeaderField,
 		{Name: ":scheme", Value: "http"},
 		{Name: "content-type", Value: "application/json"},
-		{Name: "content-length", Value: "4"},
+		//{Name: "content-length", Value: "4"},
 		{Name: "accept-encoding", Value: "gzip"},
 		{Name: "user-agent", Value: "Go-http-client/2.0"},
 	}
