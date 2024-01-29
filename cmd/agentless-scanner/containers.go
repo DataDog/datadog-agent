@@ -41,7 +41,7 @@ type container struct {
 }
 
 func (c container) String() string {
-	return fmt.Sprintf("%s/%s/%s", c.Runtime, c.ContainerName, c.ImageRefCanonical)
+	return fmt.Sprintf("%s/%s/%s", c.Runtime, c.ContainerName, c.ImageRefCanonical.Reference())
 }
 
 func launchScannerContainers(_ context.Context, opts scannerOptions) (scanContainerResult, error) {
