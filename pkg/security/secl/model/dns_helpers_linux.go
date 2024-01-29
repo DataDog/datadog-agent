@@ -83,6 +83,10 @@ LOOP:
 }
 
 func validateDNSName(dns string) error {
+	if dns == "" {
+		return nil
+	}
+
 	// Maximum length of the DNS name field in the DNS protocol is 255 bytes:
 	//
 	//                  <------------- 255 --------------->
@@ -94,11 +98,25 @@ func validateDNSName(dns string) error {
 		return ErrDNSNameMalformatted
 	}
 
+	// Check that the DNS doesn't start or end with a dot.
+	if dns[0] == '.' || dns[len(dns)-1] == '.' {
+		return ErrDNSNameMalformatted
+	}
+
 	// Check that each label isn't empty and at most 63 characters.
-	for _, sub := range strings.Split(dns, ".") {
-		if n := len(sub); n < 1 || n > 63 {
+	previousIndex := -1
+	for previousIndex < len(dns) {
+		delta := strings.IndexByte(dns[previousIndex+1:], '.')
+		if delta < 0 {
+			break
+		}
+
+		if delta < 1 || delta > 63 {
 			return ErrDNSNameMalformatted
 		}
+
+		previousIndex += delta + 1
 	}
+
 	return nil
 }
