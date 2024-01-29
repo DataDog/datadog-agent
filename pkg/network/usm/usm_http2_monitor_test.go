@@ -1112,7 +1112,7 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 		// ref: https://github.com/golang/net/blob/07e05fd6e95ab445ebe48840c81a027dbace3b8e/http2/hpack/encode.go#L140
 		// Therefore, we want to make sure that the path is longer or equal to 100 characters so that the path will not be indexed.
 		pathHeaderField.Value = "/" + strings.Repeat("a", usmhttp2.DynamicTableSize)
-		pathHeaderField.Sensitive = true
+		pathHeaderField.Sensitive = false
 	case pathTooLarge:
 		pathHeaderField.Value = "/" + pathExceedingMaxSize
 	case pathOverride:
