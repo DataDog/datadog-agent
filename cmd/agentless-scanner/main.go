@@ -2713,7 +2713,7 @@ func nextXenDevice() (string, bool) {
 
 	// loops from "xvdaa" to "xvddx"
 	// we found out that xvddy and xvddz are problematic for some undocumented reason
-	const xenMax = ('d' - 'a' + 1) * 26 - 2
+	const xenMax = ('d'-'a'+1)*26 - 2
 	count := xenDeviceName.count % xenMax
 	dev := 'a' + uint8(count/26)
 	rst := 'a' + uint8(count%26)
