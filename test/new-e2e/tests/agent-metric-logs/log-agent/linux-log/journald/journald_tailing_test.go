@@ -8,6 +8,8 @@ package journaldlog
 import (
 	_ "embed"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -27,33 +29,33 @@ type LinuxJournaldFakeintakeSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-//go:embed log-config/journald-log-config.yaml
+//go:embed log-config/journald.yaml
 var logConfig []byte
 
-//go:embed log-config/journald-include-log-config.yaml
+//go:embed log-config/include.yaml
 var logConfig2 []byte
 
-//go:embed log-config/journald-exclude-log-config.yaml
+//go:embed log-config/exclude.yaml
 var logConfig3 []byte
 
-//go:embed log-config/python-log-script.sh
+//go:embed log-config/python-script.sh
 var pythonScript []byte
 
-//go:embed log-config/random-logger-service.sh
+//go:embed log-config/logger-service.sh
 var randomLogger []byte
 
 // logsExampleStackDef returns the stack definition required for the log agent test suite.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	// devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithLogs(),
 				agentparams.WithIntegration("custom_logs.d", string(logConfig))))),
 	}
-	// if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-	options = append(options, e2e.WithDevMode())
-	// }
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
+	}
 
 	e2e.Run(t, &LinuxJournaldFakeintakeSuite{}, options...)
 }
@@ -74,7 +76,7 @@ func (s *LinuxJournaldFakeintakeSuite) TestJournald() {
 	// Run test cases
 	s.Run("journaldLogCollection", s.journaldLogCollection)
 
-	// s.Run("journaldIncludeServiceLogCollection()", s.journaldIncludeServiceLogCollection)
+	s.Run("journaldIncludeServiceLogCollection()", s.journaldIncludeServiceLogCollection)
 
 	s.Run("journaldExcludeServiceCollection()", s.journaldExcludeServiceCollection)
 }
