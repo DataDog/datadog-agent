@@ -362,7 +362,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if err == nil {
 		c.agentHostname = agentHostname
 	} else {
-		log.Errorf("%s failed to retrieve agent hostname: %s", c.logPrompt)
+		log.Errorf("%s failed to retrieve agent hostname: %s", c.logPrompt, err)
 	}
 	tags = append(tags, fmt.Sprintf("ddagenthostname:%s", c.agentHostname))
 
