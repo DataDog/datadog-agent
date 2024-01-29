@@ -9,10 +9,10 @@ package telemetry
 
 import (
 	"fmt"
-	"golang.org/x/sys/unix"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
