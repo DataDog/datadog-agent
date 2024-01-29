@@ -9,6 +9,7 @@ package probe
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -202,7 +203,7 @@ func (p *WindowsProbe) setupEtw() error {
 		ev := p.zeroEvent()
 		errRes := p.setProcessContext(e.EventHeader.ProcessID, ev)
 		if errRes != nil {
-			log.Debugf(err)
+			log.Debugf(errRes)
 		}
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
@@ -421,7 +422,7 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	err := backoff.Retry(func() error {
 		pce := p.Resolvers.ProcessResolver.GetEntry(pid)
 		if pce == nil {
-			return errors.New("Could not resolve process for Process: %v", pid)
+			return errors.New(fmt.Sprintf("Could not resolve process for Process: %v", pid))
 		}
 		event.ProcessCacheEntry = pce
 		event.ProcessContext = &pce.ProcessContext
