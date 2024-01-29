@@ -90,9 +90,11 @@ def cleanup_verifier_stats(verifier_stats):
         "base": "JSON file holding verifier statistics to compare against",
         "jsonfmt": "Output in json format rather than tabulating",
         "out": "Output file to write results to. By default results are written to stdout",
+        "debug_build": "Collect verification statistics for debug builds",
+        "object_files": "Comma separated list of object files to print statistics for",
     }
 )
-def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=False, out=None, debug_build=False):
+def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=False, out=None, debug_build=False, object_files=None):
     sudo = "sudo -E" if not is_root() else ""
     if not skip_object_files:
         build_object_files(ctx)
@@ -106,10 +108,7 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
     debug = "--debug" if debug_build else ""
-    res = ctx.run(
-        f"DD_SYSTEM_PROBE_BPF_DIR=./pkg/ebpf/bytecode/build {sudo} ./main {debug}",
-        hide='out'
-    )
+    res = ctx.run(f"DD_SYSTEM_PROBE_BPF_DIR=./pkg/ebpf/bytecode/build {sudo} ./main {debug}", hide='out')
     if res.exited == 0:
         verifier_stats = cleanup_verifier_stats(json.loads(res.stdout))
     else:
