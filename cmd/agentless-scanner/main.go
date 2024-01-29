@@ -626,21 +626,20 @@ func runScannerCmd(sock string) error {
 
 	dec := json.NewDecoder(conn)
 	enc := json.NewEncoder(conn)
-	for {
-		_ = conn.SetReadDeadline(time.Now().Add(4 * time.Second))
-		if err := dec.Decode(&opts); err != nil {
-			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
-				return nil
-			}
-			return err
+	_ = conn.SetReadDeadline(time.Now().Add(4 * time.Second))
+	if err := dec.Decode(&opts); err != nil {
+		if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+			return nil
 		}
-
-		result := launchScannerLocally(ctx, opts)
-		_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
-		if err := enc.Encode(result); err != nil {
-			return err
-		}
+		return err
 	}
+
+	result := launchScannerInSameProcess(ctx, opts)
+	_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
+	if err := enc.Encode(result); err != nil {
+		return err
+	}
+	return nil
 }
 
 func parseDiskMode(diskModeStr string) (diskMode, error) {
@@ -994,8 +993,6 @@ func (s *sideScanner) cleanup(ctx context.Context, maxTTL time.Duration, region 
 }
 
 func (s *sideScanner) cleanupProcess(ctx context.Context) {
-	log.Infof("Starting cleanup process")
-
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
@@ -1006,6 +1003,7 @@ func (s *sideScanner) cleanupProcess(ctx context.Context) {
 			return
 		}
 
+		log.Infof("starting cleanup process")
 		s.regionsCleanupMu.Lock()
 		regionsCleanup := make(map[string]*arn.ARN, len(s.regionsCleanup))
 		for region, role := range s.regionsCleanup {
@@ -3308,15 +3306,21 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 		if volumeNotFound {
 			break
 		}
-		if !sleepCtx(ctx, 2*time.Second) {
-			errd = ctx.Err()
-			break
-		}
 		_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
 			VolumeId: aws.String(volumeID),
 		})
-		if errd == nil {
+		if errd != nil {
+			var aerr smithy.APIError
+			if errors.As(err, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" {
+				errd = nil
+				break
+			}
+		} else {
 			log.Debugf("%s: volume deleted %q", maybeScan, volumeID)
+			break
+		}
+		if !sleepCtx(ctx, 2*time.Second) {
+			errd = ctx.Err()
 			break
 		}
 	}
