@@ -35,14 +35,6 @@ var bufferPool = sync.Pool{
 	},
 }
 
-type ServiceEnvKey struct {
-	Service string
-	Env     string
-}
-
-var serviceEnvTracingEnabled = map[ServiceEnvKey]bool{}
-var servEnvMapMutex = sync.Mutex{}
-
 func getBuffer() *bytes.Buffer {
 	buffer := bufferPool.Get().(*bytes.Buffer)
 	buffer.Reset()

@@ -137,30 +137,38 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 	}
 }
 
+const InvalidApmTracingPayload = "INVALID_APM_TRACING_PAYLOAD"
+const MissingServiceTarget = "MISSING_SERVICE_TARGET"
+const FileWriteFailure = "FILE_WRITE_FAILURE"
+
 func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive // TODO fix revive unused-parameter
 	log.Infof("ON APM TRACING UPDATE WAS CALLED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!: %v", update)
-	if len(update) == 0 {
-		//TODO: Should we write an empty file to overwrite any previous config?
-		log.Debugf("empty update - what should we do with this")
-		return
-	}
-
 	var senvConfigs []ServiceEnvConfig
+	// Maps update IDs to their error, empty string indicates success
+	var updateStatus map[string]string
 	var hostTracingEnabled bool
 	for id, rawConfig := range update {
 		tcu := TracingConfigUpdate{}
 		err := json.Unmarshal(rawConfig.Config, &tcu)
-		log.Infof("GOT AN APM TRACING UPDATE %s: %v, any err: %v", id, tcu, err)
+		if err != nil {
+			log.Warnf("Skipping invalid APM_TRACING remote update %s: %v, any err: %v", id, tcu, err)
+			updateStatus[id] = InvalidApmTracingPayload
+			continue
+		}
+		log.Debugf("Received APM_TRACING remote update %s: %v, any err: %v", id, tcu, err)
 		if tcu.InfraTarget != nil {
 			// This is an infra targeting payload
 			hostTracingEnabled = tcu.LibConfig.TracingEnabled
+			updateStatus[id] = ""
 			continue
 		}
 		if tcu.ServiceTarget == nil {
 			log.Warnf("Missing service_target from APM_TRACING config update, SKIPPING: %v", tcu)
+			updateStatus[id] = MissingServiceTarget
 			continue
 		}
 
+		updateStatus[id] = ""
 		senvConfigs = append(senvConfigs, ServiceEnvConfig{
 			Service:        tcu.ServiceTarget.Service, // TODO: Is this the right service or should we be looking in the tcu.LibConfig?
 			Env:            tcu.ServiceTarget.Env,
@@ -174,15 +182,34 @@ func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConf
 	}
 	configFile, err := json.Marshal(tec)
 	if err != nil {
-		log.Errorf("Failed to marshal apm tracing update??!??? %v", err)
+		//TODO: do we bother sending this back? This shouldn't be possible
+		log.Errorf("Failed to marshal APM_TRACING config update %v", err)
 		return
 	}
 	fileLocation := "/opt/datadog/inject/inject_config.json"
 	err = os.WriteFile(fileLocation, configFile, 0666)
 	if err != nil {
-		log.Errorf("failed to write single step config data file: %v", err)
+		log.Errorf("Failed to write single step config data file from APM_TRACING config: %v", err)
+		// Failed to write file, report failure for all updates
+		for id, _ := range update {
+			applyStateCallback(id, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: FileWriteFailure,
+			})
+		}
 	} else {
-		log.Infof("WE DID ITTTTTTTTTTTTTTTTTTTTTTTTTTTTTT THE FILE WAS WRITTEN AT %s", fileLocation)
+		log.Debugf("Successfully wrote APM_TRACING config to %s", fileLocation)
+		// Successfully wrote file, report success/failure
+		for id, errStatus := range updateStatus {
+			applyState := state.ApplyStateAcknowledged
+			if errStatus != "" {
+				applyState = state.ApplyStateError
+			}
+			applyStateCallback(id, state.ApplyStatus{
+				State: applyState,
+				Error: errStatus,
+			})
+		}
 	}
 }
 

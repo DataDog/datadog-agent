@@ -13,14 +13,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cihub/seelog"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/cihub/seelog"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 )
 
 // nolint: revive
@@ -39,6 +40,8 @@ func TestStart(t *testing.T) {
 
 	remoteClient.EXPECT().Subscribe(state.ProductAPMSampling, gomock.Any()).Times(1)
 	remoteClient.EXPECT().Subscribe(state.ProductAgentConfig, gomock.Any()).Times(1)
+	remoteClient.EXPECT().Subscribe(state.ProductAPMTracing, gomock.Any()).Times(1)
+
 	remoteClient.EXPECT().Start().Times(1)
 
 	h.Start()
