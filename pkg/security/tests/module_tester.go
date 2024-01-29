@@ -13,11 +13,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -42,7 +40,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -157,6 +155,7 @@ runtime_security_config:
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
     anomaly_detection:
+      enabled: true
       default_minimum_stable_period: {{.AnomalyDetectionDefaultMinimumStablePeriod}}
       minimum_stable_period:
         exec: {{.AnomalyDetectionMinimumStablePeriodExec}}
@@ -178,7 +177,7 @@ runtime_security_config:
     - {{.}}
   {{end}}
   ebpfless:
-    enabled: {{.EnableEBPFLess}}
+    enabled: {{.EBPFLessEnabled}}
 `
 
 const testPolicy = `---
@@ -224,16 +223,6 @@ rules:
 {{end}}
 `
 
-var (
-	testEnvironment  string
-	logLevelStr      string
-	logPatterns      stringSlice
-	logTags          stringSlice
-	logStatusMetrics bool
-	withProfile      bool
-	trace            bool
-)
-
 const (
 	// HostEnvironment for the Host environment
 	HostEnvironment = "host"
@@ -272,7 +261,6 @@ type testOpts struct {
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
-	enableEBPFLess                             bool
 }
 
 type dynamicTestOpts struct {
@@ -317,8 +305,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
-		to.preStartCallback == nil && opts.preStartCallback == nil &&
-		to.enableEBPFLess == opts.enableEBPFLess
+		to.preStartCallback == nil && opts.preStartCallback == nil
 }
 
 type testModule struct {
@@ -406,6 +393,20 @@ func copyFile(src string, dst string, mode fs.FileMode) error {
 	}
 
 	return os.WriteFile(dst, input, mode)
+}
+
+//nolint:deadcode,unused
+func assertInode(tb testing.TB, actualInode, expectedInode uint64, msgAndArgs ...interface{}) bool {
+	tb.Helper()
+
+	if ebpfLessEnabled {
+		return true
+	}
+
+	if len(msgAndArgs) == 0 {
+		msgAndArgs = append(msgAndArgs, "wrong inode")
+	}
+	return assert.Equal(tb, strconv.FormatUint(uint64(expectedInode), 8), strconv.FormatUint(uint64(actualInode), 8), msgAndArgs...)
 }
 
 //nolint:deadcode,unused
@@ -844,7 +845,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnvsWithValue":                              opts.envsWithValue,
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
-		"EnableEBPFLess":                             opts.enableEBPFLess,
+		"EBPFLessEnabled":                            ebpfLessEnabled,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -877,12 +878,12 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	spconfig, err := spconfig.New(sysprobeConfigName)
+	_, err = spconfig.New(sysprobeConfigName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	emconfig := emconfig.NewConfig(spconfig)
+	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()
 	if err != nil {
@@ -918,10 +919,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	var opts tmOpts
 	for _, opt := range fopts {
 		opt(&opts)
-	}
-
-	if env := os.Getenv("EBPFLESS"); env != "" {
-		opts.staticOpts.enableEBPFLess = true
 	}
 
 	if commonCfgDir == "" {
@@ -965,7 +962,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	var cmdWrapper cmdWrapper
-	if testEnvironment == DockerEnvironment {
+	if testEnvironment == DockerEnvironment || ebpfLessEnabled {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
 		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
@@ -977,7 +974,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 	}
 
-	if testMod != nil && opts.staticOpts.enableEBPFLess {
+	if testMod != nil && ebpfLessEnabled {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
@@ -1000,8 +997,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
-		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
-			return testMod, err
+
+		if !ebpfLessEnabled {
+			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+				return testMod, err
+			}
 		}
 
 		if opts.staticOpts.preStartCallback != nil {
@@ -1015,7 +1015,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 
 		if ruleDefs != nil && logStatusMetrics {
-			t.Logf("%s entry stats: %s\n", t.Name(), GetEBPFStatusMetrics(testMod.probe))
+			t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 		}
 		return testMod, nil
 	} else if testMod != nil {
@@ -1050,7 +1050,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			PathResolutionEnabled:  true,
 			SyscallsMonitorEnabled: true,
 			TTYFallbackEnabled:     true,
-			EBPFLessEnabled:        opts.staticOpts.enableEBPFLess,
+			EBPFLessEnabled:        ebpfLessEnabled,
 		},
 	}
 	if opts.staticOpts.tagsResolver != nil {
@@ -1110,8 +1110,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opts.staticOpts.preStartCallback(testMod)
 	}
 
-	if testMod.tracePipe, err = testMod.startTracing(); err != nil {
-		return nil, err
+	if !ebpfLessEnabled {
+		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+			return nil, err
+		}
 	}
 
 	if opts.staticOpts.snapshotRuleMatchHandler != nil {
@@ -1131,11 +1133,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	if logStatusMetrics {
-		t.Logf("%s entry stats: %s\n", t.Name(), GetEBPFStatusMetrics(testMod.probe))
+		t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
-	if opts.staticOpts.enableEBPFLess {
-		t.Logf("EBPFLess mode, waiting for a client to connect\n")
+	if ebpfLessEnabled {
+		t.Logf("EBPFLess mode, waiting for a client to connect")
 		err := retry.Do(func() error {
 			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {
 				return nil
@@ -1146,7 +1148,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			return nil, err
 		}
 		time.Sleep(time.Second * 2) // sleep another sec to let tests starting before the tracing is ready
-		t.Logf("client connected\n")
+		t.Logf("client connected")
 	}
 	return testMod, nil
 }
@@ -1354,7 +1356,7 @@ func (tm *testModule) NewTimeoutError() ErrTimeout {
 
 	msg.WriteString("timeout, details: ")
 	msg.WriteString(GetEBPFStatusMetrics(tm.probe))
-	msg.WriteString(spew.Sdump(ddebpf.GetProbeStats()))
+	msg.WriteString(spew.Sdump(ebpftelemetry.GetProbeStats()))
 
 	events := tm.ruleEngine.StopEventCollector()
 	if len(events) != 0 {
@@ -1813,7 +1815,7 @@ func (tm *testModule) Close() {
 	tm.statsdClient.Flush()
 
 	if logStatusMetrics {
-		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
+		tm.t.Logf("%s exit stats: %s", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
 	}
 
 	if withProfile {
@@ -1991,20 +1993,6 @@ func waitForProbeEvent(test *testModule, action func() error, key string, value 
 //nolint:deadcode,unused
 func waitForOpenProbeEvent(test *testModule, action func() error, filename string) error {
 	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
-}
-
-func init() {
-	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
-	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
-	flag.Var(&logPatterns, "logpattern", "List of log pattern")
-	flag.Var(&logTags, "logtag", "List of log tag")
-	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
-	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
-	flag.BoolVar(&trace, "trace", false, "wrap the test suite with the ptracer")
-
-	rand.Seed(time.Now().UnixNano())
-
-	testSuitePid = utils.Getpid()
 }
 
 //nolint:deadcode,unused
@@ -2518,31 +2506,4 @@ func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupMode
 
 	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
 	return &selector, err
-}
-
-func (tm *testModule) SetProfileStatus(selector *cgroupModel.WorkloadSelector, newStatus model.Status) error {
-	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		return errors.New("not supported")
-	}
-
-	managers := p.GetProfileManagers()
-	if managers == nil {
-		return errors.New("no manager")
-	}
-
-	spm := managers.GetSecurityProfileManager()
-	if spm == nil {
-		return errors.New("No security profile manager")
-	}
-
-	profile := spm.GetProfile(*selector)
-	if profile == nil || profile.Status == 0 {
-		return errors.New("No profile found for given selector")
-	}
-
-	profile.Lock()
-	profile.Status = newStatus
-	profile.Unlock()
-	return nil
 }

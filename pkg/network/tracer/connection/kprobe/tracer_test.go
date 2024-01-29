@@ -16,8 +16,8 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -169,8 +169,8 @@ func testTracerFallbackCOREAndRCErr(t *testing.T) {
 	runFallbackTests(t, "CORE and RC error", true, true, tests)
 }
 
-func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ *ddebpf.PerfHandler, _ *errtelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
-	return func(_ *config.Config, _ manager.Options, _ *ddebpf.PerfHandler, _ *errtelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ *ddebpf.PerfHandler, _ *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+	return func(_ *config.Config, _ manager.Options, _ *ddebpf.PerfHandler, _ *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 		return nil, closeFn, err
 	}
 }
@@ -246,12 +246,12 @@ func TestCORETracerSupported(t *testing.T) {
 	})
 
 	coreCalled := false
-	coreTracerLoader = func(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *errtelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+	coreTracerLoader = func(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 		coreCalled = true
 		return nil, nil, nil
 	}
 	prebuiltCalled := false
-	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *errtelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 		prebuiltCalled = true
 		return nil, nil, nil
 	}

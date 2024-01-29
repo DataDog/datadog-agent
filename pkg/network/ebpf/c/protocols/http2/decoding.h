@@ -65,7 +65,7 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
-static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
+static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -86,11 +86,14 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    if (index == kIndexPath) {
-        update_path_size_telemetry(http2_tel, str_len);
-    } else {
+    // Path headers in HTTP2 that are not "/" or "/index.html"  are represented
+    // with an indexed name, literal value, reusing the index 4 and 5 in the
+    // static table. A different index means that the header is not a path, so
+    // we skip it.
+    if (index != kIndexPath && index != kEmptyPath) {
         goto end;
     }
+    update_path_size_telemetry(http2_tel, str_len);
 
     // We skip if:
     // - The string is too big
@@ -105,8 +108,12 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    headers_to_process->index = global_dynamic_counter - 1;
-    headers_to_process->type = kNewDynamicHeader;
+    if (save_header) {
+        headers_to_process->index = global_dynamic_counter - 1;
+        headers_to_process->type = kNewDynamicHeader;
+    } else {
+        headers_to_process->type = kNewDynamicHeaderNotIndexed;
+    }
     headers_to_process->new_dynamic_value_offset = skb_info->data_off;
     headers_to_process->new_dynamic_value_size = str_len;
     headers_to_process->is_huffman_encoded = is_huffman_encoded;
@@ -130,6 +137,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     const __u32 frame_end = skb_info->data_off + frame_length;
     const __u32 end = frame_end < skb_info->data_end + 1 ? frame_end : skb_info->data_end + 1;
     bool is_indexed = false;
+    bool is_literal = false;
     bool is_dynamic_table_update = false;
     __u64 max_bits = 0;
     __u64 index = 0;
@@ -156,25 +164,25 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             is_dynamic_table_update = (current_ch & 128) != 0;
             continue;
         }
-        // 224 is represented as 0b11100000, which is the OR operation for
-        // - indexed representation     (0b10000000)
-        // - literal representation     (0b01000000)
-        // - dynamic table size update  (0b00100000)
-        // Thus current_ch & 224 will be 0 only if the top 3 bits are 0, which means that the current byte is not
-        // representing any of the above.
-        if ((current_ch & 224) == 0) {
-            continue;
-        }
-        // 32 is represented as 0b00100000, which is the scenario of dynamic table size update.
-        // From the previous condition we know that the top 3 bits are not 0, so if the top 3 bits are 001, then
-        // we have a dynamic table size update.
+
+        // If the top 3 bits are 001, then we have a dynamic table size update.
         is_dynamic_table_update = (current_ch & 224) == 32;
         if (is_dynamic_table_update) {
             continue;
         }
 
         is_indexed = (current_ch & 128) != 0;
-        max_bits = is_indexed ? MAX_7_BITS : MAX_6_BITS;
+        is_literal = (current_ch & 192) == 64;
+        // If all (is_indexed, is_literal, is_dynamic_table_update) are false, then we
+        // have a literal header field without indexing (prefix 0000) or literal header field never indexed (prefix 0001).
+
+        max_bits = MAX_4_BITS;
+        // If we're in an indexed header - the max bits are 7.
+        max_bits = is_indexed ? MAX_7_BITS : max_bits;
+        // else, if we're in a literal header - the max bits are 6.
+        max_bits = is_literal ? MAX_6_BITS : max_bits;
+        // otherwise, we're in literal header without indexing or literal header never indexed - and for both, the
+        // max bits are 4.
 
         index = 0;
         if (!read_hpack_int_with_given_current_char(skb, skb_info, current_ch, max_bits, &index)) {
@@ -191,14 +199,16 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers);
-        } else {
-            __sync_fetch_and_add(global_dynamic_counter, 1);
-            // 6.2.1 Literal Header Field with Incremental Indexing
-            // top two bits are 11
-            // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            if (!parse_field_literal(skb, skb_info, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel)) {
-                break;
-            }
+            continue;
+        }
+        // Increment the global dynamic counter for each literal header field.
+        // We're not increasing the counter for literal without indexing or literal never indexed.
+        __sync_fetch_and_add(global_dynamic_counter, is_literal);
+        // 6.2.1 Literal Header Field with Incremental Indexing
+        // top two bits are 11
+        // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
+        if (!parse_field_literal(skb, skb_info, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal)) {
+            break;
         }
     }
 
@@ -248,12 +258,14 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
             bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
         } else {
-            dynamic_value.string_len = current_header->new_dynamic_value_size;
-            dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
-
             // create the new dynamic value which will be added to the internal table.
             read_into_buffer_path(dynamic_value.buffer, skb, current_header->new_dynamic_value_offset);
-            bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
+            // If the value is indexed - add it to the dynamic table.
+            if (current_header->type == kNewDynamicHeader) {
+                dynamic_value.string_len = current_header->new_dynamic_value_size;
+                dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
+                bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
+            }
             current_stream->path_size = current_header->new_dynamic_value_size;
             current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
             bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
@@ -516,6 +528,22 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         return 0;
     }
 
+    // A case where we read an interesting valid frame header in the previous call, and now we're trying to read the
+    // rest of the frame payload. But, since we already read a valid frame, we just fill it as an interesting frame,
+    // and continue to the next tail call.
+    if (frame_state != NULL && frame_state->header_length == HTTP2_FRAME_HEADER_SIZE) {
+        // Copy the cached frame header to the current frame.
+        bpf_memcpy((char *)&current_frame, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
+        // Delete the cached frame header.
+        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+        // Save the frame as an interesting frame (a.k.a, restoring the state we had in the previous call).
+        // We need to do so, as we're zeroing the iteration_value at the beginning of this function.
+        iteration_value->frames_array[0].frame = current_frame;
+        iteration_value->frames_array[0].offset = 0;
+        iteration_value->frames_count = 1;
+        // Continuing to the next tail call.
+        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
+    }
     if (!get_first_frame(skb, &dispatcher_args_copy.skb_info, frame_state, &current_frame, http2_tel)) {
         return 0;
     }
@@ -533,6 +561,23 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         iteration_value->frames_count = 1;
     }
     dispatcher_args_copy.skb_info.data_off += current_frame.length;
+    // We're exceeding the packet boundaries, so we have a remainder.
+    if (dispatcher_args_copy.skb_info.data_off > dispatcher_args_copy.skb_info.data_end) {
+        frame_header_remainder_t new_frame_state = { 0 };
+
+        // Saving the remainder.
+        new_frame_state.remainder = dispatcher_args_copy.skb_info.data_off - dispatcher_args_copy.skb_info.data_end;
+        // We did find an interesting frame (as frames_count == 1), so we cache the current frame and waiting for the
+        // next call.
+        if (iteration_value->frames_count == 1) {
+            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE;
+            bpf_memcpy(new_frame_state.buf, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
+        }
+
+        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        // Not calling the next tail call as we have nothing to process.
+        return 0;
+    }
     // Overriding the data_off field of the cached skb_info. The next prog will start from the offset of the next valid
     // frame.
     args->skb_info.data_off = dispatcher_args_copy.skb_info.data_off;

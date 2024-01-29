@@ -23,6 +23,8 @@ import (
 )
 
 func TestChown(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",

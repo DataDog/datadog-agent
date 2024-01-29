@@ -108,8 +108,16 @@ type WindowsRegistryCheck struct {
 	integrationLogsDelegate *integrationLogsRegistryDelegate
 }
 
+func createOptionMapping[T any](reflector *jsonschema.Reflector, sourceType jsonschema.SimpleType) {
+	option := jsonschema.Schema{}
+	option.AddType(sourceType)
+	reflector.AddTypeMapping(optional.Option[T]{}, option)
+}
+
 func createSchema() ([]byte, error) {
 	reflector := jsonschema.Reflector{}
+	createOptionMapping[bool](&reflector, jsonschema.Boolean)
+	createOptionMapping[float64](&reflector, jsonschema.Number)
 	schema, err := reflector.Reflect(checkCfg{})
 	if err != nil {
 		return nil, err
@@ -350,14 +358,14 @@ func (c *WindowsRegistryCheck) Run() error {
 func newWindowsRegistryComponent(deps dependencies) winregistry.Component {
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			core.RegisterCheck(checkName, func() check.Check {
+			core.RegisterCheck(checkName, optional.NewOption(func() check.Check {
 				integrationLogs, _ := deps.LogsComponent.Get()
 				return &WindowsRegistryCheck{
 					CheckBase:     core.NewCheckBase(checkName),
 					logsComponent: integrationLogs,
 					log:           deps.Log,
 				}
-			})
+			}))
 			return nil
 		},
 	})

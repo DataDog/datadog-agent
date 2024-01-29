@@ -22,6 +22,8 @@ import (
 )
 
 func TestUtimes(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `utimes.file.path == "{{.Root}}/test-utime" && utimes.file.uid == 98 && utimes.file.gid == 99`,
@@ -56,7 +58,7 @@ func TestUtimes(t *testing.T) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(123), event.Utimes.Atime.Unix())
 			assert.Equal(t, int64(456), event.Utimes.Mtime.Unix())
-			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode, "wrong inode")
+			assertInode(t, event.Utimes.File.Inode, getInode(t, testFile))
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
@@ -95,7 +97,7 @@ func TestUtimes(t *testing.T) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(111), event.Utimes.Atime.Unix())
 			assert.Equal(t, int64(222), event.Utimes.Atime.UnixNano()%int64(time.Second)/int64(time.Microsecond))
-			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode)
+			assertInode(t, event.Utimes.File.Inode, getInode(t, testFile))
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
@@ -137,7 +139,7 @@ func TestUtimes(t *testing.T) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(555), event.Utimes.Mtime.Unix())
 			assert.Equal(t, int64(666), event.Utimes.Mtime.UnixNano()%int64(time.Second)/int64(time.Nanosecond))
-			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode)
+			assertInode(t, event.Utimes.File.Inode, getInode(t, testFile))
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)

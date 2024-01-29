@@ -43,7 +43,17 @@ func NewLocalProfile() (Profile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return localProfile{baseProfile: newProfile("e2elocal", strings.Split(environments, " "), store, nil)}, nil
+	outputDir := getLocalOutputDir()
+	return localProfile{baseProfile: newProfile("e2elocal", strings.Split(environments, " "), store, nil, outputDir)}, nil
+}
+
+func getLocalOutputDir() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// let base profile handle the default
+		return ""
+	}
+	return homeDir
 }
 
 func getConfigFilePath() (string, error) {

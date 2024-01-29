@@ -10,7 +10,7 @@ e2e_test_junit_upload:
   dependencies:
     # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
     # to avoid downloading all the artifacts of all the jobs of all the previous stages.
-    - new-e2e-containers-main
+    - new-e2e-containers
     - new-e2e-agent-shared-components-main
     - new-e2e-agent-subcommands-main
     - new-e2e-language-detection-main
@@ -78,6 +78,10 @@ e2e_test_junit_upload:
     - new-e2e-aml-main
     - new-e2e-process-main
     - new-e2e-cws-main
+    - new-e2e-windows-agent-msi-windows-server-a6-x86_64
+    - new-e2e-windows-agent-msi-windows-server-a7-x86_64
+    - new-e2e-orchestrator-main
+    - new-e2e-apm-main
 
   script:
     - set +x

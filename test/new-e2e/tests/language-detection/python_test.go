@@ -12,16 +12,16 @@ import (
 )
 
 func (s *languageDetectionSuite) installPython() {
-	s.Env().VM.Execute("sudo apt-get -y install python3")
-	pyVersion := s.Env().VM.Execute("python3 --version")
+	s.Env().RemoteHost.MustExecute("sudo apt-get -y install python3")
+	pyVersion := s.Env().RemoteHost.MustExecute("python3 --version")
 	require.True(s.T(), strings.HasPrefix(pyVersion, "Python 3"))
 }
 
 func (s *languageDetectionSuite) TestPythonDetection() {
 	s.installPython()
 
-	s.Env().VM.Execute("echo 'import time\ntime.sleep(30)' > prog.py")
-	s.Env().VM.Execute("nohup python3 prog.py >myscript.log 2>&1 </dev/null &")
+	s.Env().RemoteHost.MustExecute("echo 'import time\ntime.sleep(30)' > prog.py")
+	s.Env().RemoteHost.MustExecute("nohup python3 prog.py >myscript.log 2>&1 </dev/null &")
 
 	s.checkDetectedLanguage("python3", "python")
 }

@@ -53,12 +53,16 @@ else
   end
 end
 
-if ENV.has_key?("KUBERNETES_CPU_REQUEST")
-  COMPRESSION_THREADS = ENV["KUBERNETES_CPU_REQUEST"].to_i
+if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
+  COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
 else
   COMPRESSION_THREADS = 1
 end
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+
+# On armv7, dpkg is built as a 32bits application, which means
+# we can only address 32 bits of memory, which is likely to OOM
+# if we use too many compression threads or a too agressive level
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && (!ENV.has_key?("PACKAGE_ARCH") || ENV["PACKAGE_ARCH"] != "armhf")
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5

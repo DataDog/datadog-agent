@@ -23,7 +23,7 @@ static __always_inline void http_begin_request(http_transaction_t *http, http_me
     http->response_last_seen = 0;
     http->response_status_code = 0;
     bpf_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
-    log_debug("http_begin_request: htx=%llx method=%d start=%llx\n", http, http->request_method, http->request_started);
+    log_debug("http_begin_request: htx=%llx method=%d start=%llx", http, http->request_method, http->request_started);
 }
 
 static __always_inline void http_begin_response(http_transaction_t *http, const char *buffer) {
@@ -32,7 +32,7 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
     status_code += (buffer[HTTP_STATUS_OFFSET+1]-'0') * 10;
     status_code += (buffer[HTTP_STATUS_OFFSET+2]-'0') * 1;
     http->response_status_code = status_code;
-    log_debug("http_begin_response: htx=%llx status=%d\n", http, status_code);
+    log_debug("http_begin_response: htx=%llx status=%d", http, status_code);
 }
 
 static __always_inline void http_batch_enqueue_wrapper(conn_tuple_t *tuple, http_transaction_t *http) {
@@ -187,7 +187,7 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
         bpf_memcpy(http, &event->http, sizeof(http_transaction_t));
     }
 
-    log_debug("http_process: type=%d method=%d\n", packet_type, method);
+    log_debug("http_process: type=%d method=%d", packet_type, method);
     if (packet_type == HTTP_REQUEST) {
         http_begin_request(http, method, buffer);
     } else if (packet_type == HTTP_RESPONSE) {
@@ -239,7 +239,7 @@ int socket__http_filter(struct __sk_buff* skb) {
     bpf_memset(&event, 0, sizeof(http_event_t));
 
     if (!fetch_dispatching_arguments(&event.tuple, &skb_info)) {
-        log_debug("http_filter failed to fetch arguments for tail call\n");
+        log_debug("http_filter failed to fetch arguments for tail call");
         return 0;
     }
 
@@ -250,9 +250,6 @@ int socket__http_filter(struct __sk_buff* skb) {
 
     read_into_buffer_skb((char *)event.http.request_fragment, skb, skb_info.data_off);
     http_process(&event, &skb_info, NO_TAGS);
-    if (is_direct_flush_supported()) {
-        http_batch_flush(skb);
-    }
     return 0;
 }
 

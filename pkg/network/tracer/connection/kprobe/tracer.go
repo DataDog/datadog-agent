@@ -17,11 +17,11 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -124,7 +124,7 @@ func addBoolConst(options *manager.Options, flag bool, name string) {
 }
 
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
-func LoadTracer(cfg *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *errtelemetry.EBPFTelemetry) (*manager.Manager, func(), TracerType, error) {
+func LoadTracer(cfg *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), TracerType, error) {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
@@ -185,8 +185,8 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, perfHandlerTCP *dde
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
-func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *errtelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
-	m := errtelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
+func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
 	if err := initManager(m, perfHandlerTCP, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
@@ -272,7 +272,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	return m.Manager, closeProtocolClassifierSocketFilterFn, nil
 }
 
-func loadCORETracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *errtelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+func loadCORETracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 	var m *manager.Manager
 	var closeFn func()
 	var err error
@@ -288,7 +288,7 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, perfHandlerT
 	return m, closeFn, err
 }
 
-func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *errtelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 	buf, err := getRuntimeCompiledTracer(config)
 	if err != nil {
 		return nil, nil, err
@@ -298,7 +298,7 @@ func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, p
 	return loadTracerFromAsset(buf, true, false, config, mgrOpts, perfHandlerTCP, bpfTelemetry)
 }
 
-func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *errtelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 	buf, err := netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read bpf module: %w", err)

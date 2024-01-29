@@ -11,10 +11,10 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
-from .licenses import get_licenses_list
-from .modules import DEFAULT_MODULES, generate_dummy_package
-from .utils import get_build_flags, timed
+from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.libs.common.utils import get_build_flags, timed
+from tasks.licenses import get_licenses_list
+from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -371,7 +371,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
-                res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
+                res = ctx.run("git diff --exit-code go.mod go.sum", warn=True)
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 

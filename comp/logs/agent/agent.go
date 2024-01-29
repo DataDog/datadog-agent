@@ -15,8 +15,11 @@ import (
 	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -58,6 +61,14 @@ type dependencies struct {
 	InventoryAgent inventoryagent.Component
 }
 
+type provides struct {
+	fx.Out
+
+	Comp           optional.Option[Component]
+	FlareProvider  flaretypes.Provider
+	StatusProvider statusComponent.InformationProvider
+}
+
 // agent represents the data pipeline that collects, decodes,
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
@@ -77,12 +88,13 @@ type agent struct {
 	launchers                 *launchers.Launchers
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
+	flarecontroller           *flareController.FlareController
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
 }
 
-func newLogsAgent(deps dependencies) optional.Option[Component] {
+func newLogsAgent(deps dependencies) provides {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -94,20 +106,28 @@ func newLogsAgent(deps dependencies) optional.Option[Component] {
 			inventoryAgent: deps.InventoryAgent,
 			started:        atomic.NewBool(false),
 
-			sources:  sources.NewLogSources(),
-			services: service.NewServices(),
-			tracker:  tailers.NewTailerTracker(),
+			sources:         sources.NewLogSources(),
+			services:        service.NewServices(),
+			tracker:         tailers.NewTailerTracker(),
+			flarecontroller: flareController.NewFlareController(),
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
 			OnStop:  logsAgent.stop,
 		})
 
-		return optional.NewOption[Component](logsAgent)
+		return provides{
+			Comp:           optional.NewOption[Component](logsAgent),
+			StatusProvider: statusComponent.NewInformationProvider(logsAgent),
+			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
+		}
 	}
 
 	deps.Log.Info("logs-agent disabled")
-	return optional.NewNoneOption[Component]()
+	return provides{
+		Comp:           optional.NewNoneOption[Component](),
+		StatusProvider: statusComponent.NoopInformationProvider(),
+	}
 }
 
 func (a *agent) start(context.Context) error {

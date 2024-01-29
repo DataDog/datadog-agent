@@ -37,9 +37,17 @@ const (
 	// MaxStringSize defines the max read size
 	MaxStringSize = 4096
 
-	// Nsig number of signal
+	// nsig number of signal
 	// https://elixir.bootlin.com/linux/v6.5.12/source/arch/x86/include/uapi/asm/signal.h#L16
-	Nsig = 32
+	nsig = 32
+
+	ptraceFlags = 0 |
+		syscall.PTRACE_O_TRACEVFORK |
+		syscall.PTRACE_O_TRACEFORK |
+		syscall.PTRACE_O_TRACECLONE |
+		syscall.PTRACE_O_TRACEEXEC |
+		syscall.PTRACE_O_TRACESYSGOOD |
+		unix.PTRACE_O_TRACESECCOMP
 )
 
 // Tracer represents a tracer
@@ -49,6 +57,7 @@ type Tracer struct {
 
 	// internals
 	info *arch.Info
+	opts Opts
 }
 
 // Creds defines credentials
@@ -61,6 +70,7 @@ type Creds struct {
 type Opts struct {
 	Syscalls []string
 	Creds    Creds
+	Logger   Logger
 }
 
 func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
@@ -229,11 +239,15 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 		return err
 	}
 
-	var regs syscall.PtraceRegs
+	var (
+		regs   syscall.PtraceRegs
+		prevNr int
+	)
 
 	for {
 		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
 		if err != nil {
+			t.opts.Logger.Debugf("unable to wait for pid %d: %v", pid, err)
 			break
 		}
 
@@ -247,53 +261,61 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 		if waitStatus.Stopped() {
 			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
-				if signal < Nsig {
-					_ = syscall.PtraceCont(pid, int(signal))
+				if signal < nsig {
+					if err := syscall.PtraceCont(pid, int(signal)); err != nil {
+						t.opts.Logger.Debugf("unable to call ptrace continue for pid %d: %v", pid, err)
+					}
 					continue
 				}
 			}
 
 			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
+				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
 				break
 			}
 
 			nr := GetSyscallNr(regs)
+			if nr == 0 {
+				nr = prevNr
+			}
+			prevNr = nr
 
 			switch waitStatus.TrapCause() {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
 				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
 					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
 				}
+			case syscall.PTRACE_EVENT_EXEC:
+				cb(CallbackPostType, ExecveNr, pid, 0, regs, nil)
 			case unix.PTRACE_EVENT_SECCOMP:
 				switch nr {
-				case ForkNr, VforkNr, CloneNr:
+				case ForkNr, VforkNr, CloneNr, Clone3Nr:
 					// already handled
 				default:
 					cb(CallbackPreType, nr, pid, 0, regs, nil)
 
 					// force a ptrace syscall in order to get to return value
 					if err := syscall.PtraceSyscall(pid, 0); err != nil {
-						continue
+						t.opts.Logger.Debugf("unable to call ptrace syscall for pid %d: %v", pid, err)
 					}
+					continue
 				}
 			default:
 				switch nr {
-				case ForkNr, VforkNr, CloneNr:
+				case ForkNr, VforkNr, CloneNr, Clone3Nr:
 					// already handled
 				case ExecveNr, ExecveatNr:
-					// does not return on success, thus ret value stay at syscall.ENOSYS
-					if ret := -t.ReadRet(regs); ret == int64(syscall.ENOSYS) {
-						cb(CallbackPostType, nr, pid, 0, regs, nil)
-					}
+					// triggered in case of error
+					cb(CallbackPostType, nr, pid, 0, regs, nil)
 				default:
-					if ret := -t.ReadRet(regs); ret != int64(syscall.ENOSYS) {
+					if ret := t.ReadRet(regs); ret != -int64(syscall.ENOSYS) {
 						cb(CallbackPostType, nr, pid, 0, regs, nil)
 					}
 				}
 			}
 
 			if err := syscall.PtraceCont(pid, 0); err != nil {
-				continue
+				t.opts.Logger.Debugf("unable to call ptrace continue for pid %d: %v", pid, err)
 			}
 		}
 	}
@@ -368,5 +390,6 @@ func NewTracer(path string, args []string, envs []string, opts Opts) (*Tracer, e
 	return &Tracer{
 		PID:  pid,
 		info: info,
+		opts: opts,
 	}, nil
 }

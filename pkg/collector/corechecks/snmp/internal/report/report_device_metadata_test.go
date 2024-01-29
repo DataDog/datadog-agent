@@ -28,6 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
+var (
+	trueVal  = true
+	falseVal = false
+)
+
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -117,6 +122,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 							},
 						},
 					},
+					"type": {
+						Value: "router",
+					},
 				},
 			},
 		},
@@ -126,7 +134,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &trueVal, nil)
 
 	// language=json
 	event := []byte(`
@@ -145,12 +153,14 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             ],
             "ip_address": "1.2.3.4",
             "status":1,
+			"can_connect": true,
             "name": "my-sys-name",
             "description": "my-sys-descr",
             "location": "my-sys-location",
             "profile": "my-profile",
             "profile_version": 10,
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "router"
         }
     ],
     "collect_timestamp":1415792726
@@ -205,7 +215,7 @@ profiles:
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &trueVal, nil)
 
 	// language=json
 	event := []byte(`
@@ -225,9 +235,11 @@ profiles:
             ],
             "ip_address": "1.2.3.4",
             "status":1,
+			"can_connect": true,
             "profile": "f5-big-ip",
             "vendor": "f5",
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "load_balancer"
         }
     ],
     "collect_timestamp":1415792726
@@ -285,6 +297,13 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
 		Metadata: profiledefinition.MetadataConfig{
+			"device": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"type": {
+						Value: "switch",
+					},
+				},
+			},
 			"interface": {
 				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
@@ -335,7 +354,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
-	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, diagnosis)
+	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &falseVal, diagnosis)
 
 	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
 	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
@@ -359,7 +378,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
             ],
             "ip_address": "1.2.3.4",
             "status":1,
-            "subnet": "127.0.0.0/29"
+			"can_connect": false,
+            "subnet": "127.0.0.0/29",
+			"device_type": "switch"
         }
     ],
     "interfaces": [
@@ -435,6 +456,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 						},
 						Value: "my-fallback-value",
 					},
+					"type": {
+						Value: "firewall",
+					},
 				},
 			},
 		},
@@ -444,7 +468,78 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &trueVal, nil)
+
+	// language=json
+	event := []byte(`
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+    "devices": [
+        {
+            "id": "1234",
+            "id_tags": [
+                "device_name:127.0.0.1"
+            ],
+            "tags": [
+                "tag1",
+                "tag2"
+            ],
+            "ip_address": "1.2.3.4",
+            "status":1,
+			"can_connect": true,
+            "name": "my-fallback-value",
+            "subnet": "127.0.0.0/29",
+			"device_type": "firewall"
+        }
+    ],
+    "collect_timestamp":1415792726
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
+}
+
+func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing.T) {
+	var emptyMetadataStore = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{},
+	}
+
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{
+		sender: sender,
+	}
+
+	config := &checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		DeviceID:           "1234",
+		DeviceIDTags:       []string{"device_name:127.0.0.1"},
+		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
+		Metadata: profiledefinition.MetadataConfig{
+			"device": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"name": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.999",
+							Name: "doesNotExist",
+						},
+						Value: "my-fallback-value",
+					},
+				},
+			},
+		},
+	}
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil, nil)
 
 	// language=json
 	event := []byte(`
@@ -464,7 +559,150 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
             "ip_address": "1.2.3.4",
             "status":1,
             "name": "my-fallback-value",
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "other"
+        }
+    ],
+    "collect_timestamp":1415792726
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
+}
+
+func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testing.T) {
+	var emptyMetadataStore = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{},
+	}
+
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{
+		sender: sender,
+	}
+
+	config := &checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		DeviceID:           "1234",
+		DeviceIDTags:       []string{"device_name:127.0.0.1"},
+		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
+		Metadata: profiledefinition.MetadataConfig{
+			"device": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"name": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.999",
+							Name: "doesNotExist",
+						},
+						Value: "my-fallback-value",
+					},
+				},
+			},
+		},
+	}
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &trueVal, nil)
+
+	// language=json
+	event := []byte(`
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+    "devices": [
+        {
+            "id": "1234",
+            "id_tags": [
+                "device_name:127.0.0.1"
+            ],
+            "tags": [
+                "tag1",
+                "tag2"
+            ],
+            "ip_address": "1.2.3.4",
+            "status":1,
+			"can_connect": true,
+            "name": "my-fallback-value",
+            "subnet": "127.0.0.0/29",
+			"device_type": "other"
+        }
+    ],
+    "collect_timestamp":1415792726
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
+}
+
+func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testing.T) {
+	var emptyMetadataStore = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{},
+	}
+
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{
+		sender: sender,
+	}
+
+	config := &checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		DeviceID:           "1234",
+		DeviceIDTags:       []string{"device_name:127.0.0.1"},
+		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
+		Metadata: profiledefinition.MetadataConfig{
+			"device": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"name": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.999",
+							Name: "doesNotExist",
+						},
+						Value: "my-fallback-value",
+					},
+				},
+			},
+		},
+	}
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &falseVal, nil)
+
+	// language=json
+	event := []byte(`
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+    "devices": [
+        {
+            "id": "1234",
+            "id_tags": [
+                "device_name:127.0.0.1"
+            ],
+            "tags": [
+                "tag1",
+                "tag2"
+            ],
+            "ip_address": "1.2.3.4",
+            "status":1,
+			"can_connect": false,
+            "name": "my-fallback-value",
+            "subnet": "127.0.0.0/29",
+			"device_type": "other"
         }
     ],
     "collect_timestamp":1415792726

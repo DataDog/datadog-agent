@@ -37,3 +37,6 @@ type DDProcmonStats C.struct__dd_procmon_stats
 
 type DDProcessNotifyType C.enum__dd_notify_type
 type DDProcessNotification C.struct__dd_process_notification
+
+const DDProcessNotificationSize = C.sizeof_struct__dd_process_notification
+const DDProcmonStatsSize = C.sizeof_struct__dd_procmon_stats

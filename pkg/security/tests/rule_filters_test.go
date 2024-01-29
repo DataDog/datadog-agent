@@ -21,6 +21,8 @@ import (
 )
 
 func TestSECLRuleFilter(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	kv := &kernel.Version{
 		OsRelease:    map[string]string{},
 		UnameRelease: "5.9.0-48-generic",

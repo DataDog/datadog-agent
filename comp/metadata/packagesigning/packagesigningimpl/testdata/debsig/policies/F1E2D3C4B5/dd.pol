@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!DOCTYPE Policy SYSTEM "https://www.debian.org/debsig/1.0/policy.dtd">
+<Policy xmlns="https://www.debian.org/debsig/1.0/">
+	<Origin Name="Datadog" id="F1E2D3C4B5" Description="Datadog, Inc" />
+
+	<Selection>
+		<Required Type="origin" File="debsig.gpg" id="F1E2D3C4B5" />
+	</Selection>
+
+	<Verification MinOptional="0">
+		<Required Type="origin" File="debsig.gpg" id="F1E2D3C4B5" />
+	</Verification>
+</Policy>

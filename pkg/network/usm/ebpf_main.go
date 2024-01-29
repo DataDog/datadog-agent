@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"time"
 	"unsafe"
 
@@ -21,6 +22,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -29,11 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -69,11 +69,10 @@ const (
 )
 
 type ebpfProgram struct {
-	*errtelemetry.Manager
+	*ebpftelemetry.Manager
 	cfg                   *config.Config
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
-	kversion              kernel.Version
 
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
@@ -83,12 +82,7 @@ type ebpfProgram struct {
 	buildMode  buildmode.Type
 }
 
-func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warnf("unable to detect kernel version. some features might be disabled: %s", err)
-	}
-
+func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
@@ -139,10 +133,9 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 	}
 
 	program := &ebpfProgram{
-		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:               ebpftelemetry.NewManager(mgr, bpfTelemetry),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
-		kversion:              kversion,
 	}
 
 	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, sockFD, bpfTelemetry)
@@ -257,7 +250,7 @@ func (e *ebpfProgram) Close() error {
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
-	ddebpf.UnregisterTelemetry(e.Manager.Manager)
+	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	return e.Stop(manager.CleanAll)
 }
 
@@ -319,11 +312,36 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 		e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
 	}
 	return func() {
-		for _, spec := range protocols {
-			e.Maps = e.Maps[:len(e.Maps)-len(spec.Maps)]
-			e.Probes = e.Probes[:len(e.Probes)-len(spec.Probes)]
-			e.tailCallRouter = e.tailCallRouter[:len(e.tailCallRouter)-len(spec.TailCalls)]
-		}
+		e.Maps = slices.DeleteFunc(e.Maps, func(m *manager.Map) bool {
+			for _, spec := range protocols {
+				for _, specMap := range spec.Maps {
+					if m.Name == specMap.Name {
+						return true
+					}
+				}
+			}
+			return false
+		})
+		e.Probes = slices.DeleteFunc(e.Probes, func(p *manager.Probe) bool {
+			for _, spec := range protocols {
+				for _, probe := range spec.Probes {
+					if p.EBPFFuncName == probe.EBPFFuncName {
+						return true
+					}
+				}
+			}
+			return false
+		})
+		e.tailCallRouter = slices.DeleteFunc(e.tailCallRouter, func(tc manager.TailCallRoute) bool {
+			for _, spec := range protocols {
+				for _, tailCall := range spec.TailCalls {
+					if tc.ProbeIdentificationPair.EBPFFuncName == tailCall.ProbeIdentificationPair.EBPFFuncName {
+						return true
+					}
+				}
+			}
+			return false
+		})
 	}
 }
 
@@ -361,10 +379,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
 		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
 
-	// Enable event flushes from socket filter programs if possible
-	isDirectFlushSupported := e.kversion >= kernel.VersionCode(5, 4, 0)
-	utils.AddBoolConst(&options, isDirectFlushSupported, "direct_flush_supported")
-
 	for _, p := range e.Manager.Probes {
 		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
 	}
@@ -385,7 +399,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	if e.cfg.InternalTelemetryEnabled {
 		for _, pm := range e.PerfMaps {
 			pm.TelemetryEnabled = true
-			ddebpf.ReportPerfMapTelemetry(pm)
+			ebpftelemetry.ReportPerfMapTelemetry(pm)
 		}
 	}
 
