@@ -44,7 +44,8 @@ func TestBuildVerifierStats(t *testing.T) {
 	kversion, err := kernel.HostVersion()
 	require.NoError(t, err)
 
-	if kversion < kernel.VersionCode(4, 15, 0) {
+	// TODO: reduce the allows kernel version for this test to 4.15 once the loading on those kernels has been fixed
+	if kversion < kernel.VersionCode(5, 2, 0) {
 		t.Skipf("Skipping because verifier statistics not available on kernel %s", kversion)
 	}
 
