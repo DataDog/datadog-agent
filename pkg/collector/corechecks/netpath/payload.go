@@ -8,8 +8,9 @@ type TracerouteHop struct {
 	Success   bool    `json:"success"`
 }
 
-type Traceroute struct {
+type TraceroutePath struct {
 	TracerouteSource string                   `json:"traceroute_source"`
+	Format           string                   `json:"format"`
 	Timestamp        int64                    `json:"timestamp"`
 	AgentHost        string                   `json:"agent_host"`
 	DestinationHost  string                   `json:"destination_host"`
@@ -30,9 +31,10 @@ type TracerouteV2 struct {
 	Success          bool    `json:"success"`
 }
 
-func NewTraceroute() *Traceroute {
-	return &Traceroute{
+func NewTraceroutePath() *TraceroutePath {
+	return &TraceroutePath{
 		TracerouteSource: "netpath_integration",
+		Format:           "path_per_event",
 		HopsByIpAddress:  make(map[string]TracerouteHop),
 	}
 }

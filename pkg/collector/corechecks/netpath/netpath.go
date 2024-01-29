@@ -35,7 +35,7 @@ import (
 
 // Program constants and default values
 const (
-	ProgramName         = "Dublin Traceroute"
+	ProgramName         = "Dublin TraceroutePath"
 	ProgramVersion      = "v0.2"
 	ProgramAuthorName   = "Andrea Barberio"
 	ProgramAuthorInfo   = "https://insomniac.slackware.it"
@@ -132,7 +132,7 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 	}
 	results, err := dt.Traceroute()
 	if err != nil {
-		return 0, fmt.Errorf("Traceroute() failed: %v", err)
+		return 0, fmt.Errorf("TraceroutePath() failed: %v", err)
 	}
 
 	hname, err := hostname.Get(context.TODO())
@@ -173,6 +173,11 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 		return 0, errors.New("no hops")
 	}
 
+	err = c.traceRouteV1(senderInstance, hostHops, hname, destinationHost)
+	if err != nil {
+		return 0, err
+	}
+
 	err = c.traceRouteV2(senderInstance, hostHops, hname, destinationHost)
 	if err != nil {
 		return 0, err
@@ -182,7 +187,7 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 }
 
 func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
-	tr := NewTraceroute()
+	tr := NewTraceroutePath()
 	tr.Timestamp = time.Now().UnixMilli()
 	tr.AgentHost = hname
 	tr.DestinationHost = destinationHost
