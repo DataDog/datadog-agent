@@ -13,7 +13,7 @@ try:
 except ImportError:
     tabulate = None
 
-from .system_probe import build_object_files, is_root
+from .system_probe import build_object_files, is_root, build_cws_object_files
 
 headers = [
     "Filename/Program",
@@ -93,9 +93,10 @@ def cleanup_verifier_stats(verifier_stats):
     }
 )
 def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=False, out=None, debug_build=False):
-    sudo = "sudo" if not is_root() else ""
+    sudo = "sudo -E" if not is_root() else ""
     if not skip_object_files:
         build_object_files(ctx)
+        build_cws_object_files(ctx)
 
     # generate programs.go
     use_debug_build = "USE_DEBUG_BUILDS='true' " if debug_build else ""
@@ -105,7 +106,7 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
     debug = "--debug" if debug_build else ""
-    res = ctx.run(f"{sudo} ./main --directory pkg/ebpf/bytecode/build/co-re {debug}", hide=True)
+    res = ctx.run(f"DD_SYSTEM_PROBE_BPF_DIR=./pkg/ebpf/bytecode/build {sudo} ./main --directory pkg/ebpf/bytecode/build {debug}", hide=True)
     print(res.stderr, file=sys.stderr)
     if res.exited == 0:
         verifier_stats = cleanup_verifier_stats(json.loads(res.stdout))
