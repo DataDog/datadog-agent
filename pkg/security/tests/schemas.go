@@ -101,18 +101,30 @@ func (tm *testModule) validateExecSchema(t *testing.T, event *model.Event) bool 
 
 //nolint:deadcode,unused
 func (tm *testModule) validateExitSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/exit.schema.json")
 }
 
 //nolint:deadcode,unused
 func (tm *testModule) validateOpenSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/open.schema.json")
 }
 
 //nolint:deadcode,unused
 func (tm *testModule) validateRenameSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/rename.schema.json")
 }

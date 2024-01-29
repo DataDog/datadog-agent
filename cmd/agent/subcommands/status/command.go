@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -150,6 +149,12 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 		v.Set("verbose", "true")
 	}
 
+	if cliParams.prettyPrintJSON || cliParams.jsonStatus {
+		v.Set("format", "json")
+	} else {
+		v.Set("format", "text")
+	}
+
 	url := url.URL{
 		Scheme:   "https",
 		Host:     fmt.Sprintf("%v:%v", ipcAddress, config.GetInt("cmd_port")),
@@ -170,11 +175,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	} else if cliParams.jsonStatus {
 		s = string(r)
 	} else {
-		formattedStatus, err := render.FormatStatus(r)
-		if err != nil {
-			return err
-		}
-		s = scrubMessage(formattedStatus)
+		s = scrubMessage(string(r))
 	}
 
 	if cliParams.statusFilePath != "" {

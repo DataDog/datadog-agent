@@ -205,7 +205,6 @@ func (f *telemetryCollector) SendFirstTrace() {
 	ev := newOnboardingTelemetryPayload(f.cfg)
 	ev.Payload.EventName = "agent.first_trace.sent"
 	err := f.sendEvent(&ev)
-	fmt.Println(err)
 	if err != nil {
 		if f.firstTraceFailures.Inc() < maxFirstTraceFailures {
 			f.collectedFirstTrace.Store(false)
