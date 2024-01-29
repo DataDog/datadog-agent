@@ -334,7 +334,7 @@ func getSharedFxOption() fx.Option {
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),
 		rctelemetryreporterimpl.Module(),
-		rcserviceimpl.ModuleOptional(),
+		rcserviceimpl.Module(),
 		rcclient.Module(),
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		tagger.Module(),

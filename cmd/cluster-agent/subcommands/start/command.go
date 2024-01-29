@@ -137,7 +137,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
 				collectorimpl.Module(),
-				rcserviceimpl.ModuleOptional(),
+				rcserviceimpl.Module(),
 				rctelemetryreporterimpl.Module(),
 			)
 		},
