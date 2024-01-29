@@ -108,9 +108,8 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
     debug = "--debug" if debug_build else ""
     res = ctx.run(
         f"DD_SYSTEM_PROBE_BPF_DIR=./pkg/ebpf/bytecode/build {sudo} ./main {debug}",
-        hide=True
+        hide='out'
     )
-    print(res.stderr, file=sys.stderr)
     if res.exited == 0:
         verifier_stats = cleanup_verifier_stats(json.loads(res.stdout))
     else:
