@@ -28,6 +28,8 @@ import (
 var testActivityDumpCleanupPeriod = 15 * time.Second
 
 func TestActivityDumps(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -90,9 +91,10 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp          iainterface.Component
-	Provider      runnerimpl.Provider
-	FlareProvider flaretypes.Provider
+	Comp                 iainterface.Component
+	Provider             runnerimpl.Provider
+	FlareProvider        flaretypes.Provider
+	StatusHeaderProvider status.HeaderInformationProvider
 }
 
 func newInventoryAgentProvider(deps dependencies) provides {
@@ -113,9 +115,10 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	}
 
 	return provides{
-		Comp:          ia,
-		Provider:      ia.MetadataProvider(),
-		FlareProvider: ia.FlareProvider(),
+		Comp:                 ia,
+		Provider:             ia.MetadataProvider(),
+		FlareProvider:        ia.FlareProvider(),
+		StatusHeaderProvider: status.NewHeaderInformationProvider(ia),
 	}
 }
 
@@ -265,26 +268,19 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		data[k] = v
 	}
 
-	if fullConf, err := ia.getFullAgentConfiguration(); err == nil {
-		data["full_configuration"] = fullConf
+	configLayer := map[string]func() (string, error){
+		"full_configuration":                 ia.getFullConfiguration,
+		"provided_configuration":             ia.getProvidedConfiguration,
+		"file_configuration":                 ia.getFileConfiguration,
+		"environment_variable_configuration": ia.getEnvVarConfiguration,
+		"agent_runtime_configuration":        ia.getRuntimeConfiguration,
+		"remote_configuration":               ia.getRemoteConfiguration,
+		"cli_configuration":                  ia.getCliConfiguration,
 	}
-	if providedConf, err := ia.getProvidedAgentConfiguration(); err == nil {
-		data["provided_configuration"] = providedConf
-	}
-	if fileConf, err := ia.getAgentFileConfiguration(); err == nil {
-		data["file_configuration"] = fileConf
-	}
-	if envVarConf, err := ia.getAgentEnvVarConfiguration(); err == nil {
-		data["environment_variable_configuration"] = envVarConf
-	}
-	if agentRuntimeConf, err := ia.getAgentRuntimeConfiguration(); err == nil {
-		data["agent_runtime_configuration"] = agentRuntimeConf
-	}
-	if remoteConf, err := ia.getAgentRemoteConfiguration(); err == nil {
-		data["remote_configuration"] = remoteConf
-	}
-	if cliConf, err := ia.getAgentCliConfiguration(); err == nil {
-		data["cli_configuration"] = cliConf
+	for layer, getter := range configLayer {
+		if conf, err := getter(); err == nil {
+			data[layer] = conf
+		}
 	}
 
 	return &Payload{
