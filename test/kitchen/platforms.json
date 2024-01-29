@@ -56,7 +56,7 @@
         "ec2": {
             "x86_64": {
                 "fedora-36": "ami-05e7ccec1e0408397",
-                "fedora-37": "ami-023fb534213ca41da"
+                "fedora-37": "ami-032e9a5778bde5a1a"
             },
             "arm64": {
                 "fedora-36": "ami-0487fbde1f898f0f1",
