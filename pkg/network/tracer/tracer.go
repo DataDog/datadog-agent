@@ -20,8 +20,6 @@ import (
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
-
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
