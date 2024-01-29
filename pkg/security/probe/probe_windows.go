@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
@@ -25,6 +26,7 @@ import (
 	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/cenkalti/backoff"
 
 	"golang.org/x/sys/windows"
 )
@@ -199,7 +201,7 @@ func (p *WindowsProbe) setupEtw() error {
 		//log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
 		ev := p.zeroEvent()
 		_ := p.setProcessContext(e.Eventheader.ProcessID, ev)
-		
+
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
@@ -415,7 +417,7 @@ func (p *WindowsProbe) Start() error {
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) bool {
 	found := backoff.Retry(func() bool {
-		pce :== p.Resolvers.ProcessResolver.GetEntry(pid)
+		pce := p.Resolvers.ProcessResolver.GetEntry(pid)
 		if pce == nil {
 			return false
 		}
