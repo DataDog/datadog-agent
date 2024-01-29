@@ -9,9 +9,9 @@ from time import sleep
 
 from invoke.exceptions import Exit
 
-from .common.color import color_message
-from .common.github_api import GithubAPI
-from .common.utils import DEFAULT_BRANCH
+from tasks.libs.common.color import color_message
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.utils import DEFAULT_BRANCH
 
 
 def trigger_macos_workflow(

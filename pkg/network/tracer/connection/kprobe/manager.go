@@ -108,7 +108,7 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ru
 		},
 	}
 	mgr.PerfMaps = []*manager.PerfMap{pm}
-	ebpf.ReportPerfMapTelemetry(pm)
+	ebpftelemetry.ReportPerfMapTelemetry(pm)
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

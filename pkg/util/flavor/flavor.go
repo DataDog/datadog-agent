@@ -6,7 +6,7 @@
 // Package flavor defines the various flavors of the agent
 package flavor
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 const (
 	// DefaultAgent is the default Agent flavor
@@ -50,7 +50,7 @@ func SetFlavor(flavor string) {
 	agentFlavor = flavor
 
 	if agentFlavor == IotAgent {
-		config.Datadog.SetDefault("iot_host", true)
+		pkgconfigsetup.Datadog.SetDefault("iot_host", true)
 	}
 }
 

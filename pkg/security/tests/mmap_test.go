@@ -21,6 +21,8 @@ import (
 )
 
 func TestMMapEvent(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mmap",

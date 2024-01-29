@@ -77,6 +77,10 @@ const (
 	// SourceRemoteProcessCollector reprents processes entities detected
 	// by the RemoteProcessCollector.
 	SourceRemoteProcessCollector Source = "remote_process_collector"
+
+	// SourceLanguageDetectionServer represents container languages
+	// detected by node agents
+	SourceLanguageDetectionServer Source = "language_detection_server"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -677,14 +681,26 @@ func (n KubernetesNode) String(verbose bool) string {
 
 var _ Entity = &KubernetesNode{}
 
+// Languages represents languages detected for containers of a pod
+type Languages struct {
+	ContainerLanguages     map[string][]languagemodels.Language
+	InitContainerLanguages map[string][]languagemodels.Language
+}
+
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
-	Env                    string
-	Service                string
-	Version                string
-	ContainerLanguages     map[string][]languagemodels.Language
-	InitContainerLanguages map[string][]languagemodels.Language
+	Env     string
+	Service string
+	Version string
+
+	// InjectableLanguages indicate containers languages that can be injected by the admission controller
+	// These languages are determined by parsing the deployment annotations
+	InjectableLanguages Languages
+
+	// DetectedLanguages languages indicate containers languages detected and reported by the language
+	// detection server.
+	DetectedLanguages Languages
 }
 
 // GetID implements Entity#GetID.
@@ -717,7 +733,6 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
 	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
-	_, _ = fmt.Fprintln(&sb, "----------- Languages -----------")
 
 	langPrinter := func(m map[string][]languagemodels.Language, ctype string) {
 		for container, languages := range m {
@@ -731,8 +746,13 @@ func (d KubernetesDeployment) String(verbose bool) string {
 			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
 		}
 	}
-	langPrinter(d.InitContainerLanguages, "InitContainer")
-	langPrinter(d.ContainerLanguages, "Container")
+	_, _ = fmt.Fprintln(&sb, "----------- Injectable Languages -----------")
+	langPrinter(d.InjectableLanguages.InitContainerLanguages, "InitContainer")
+	langPrinter(d.InjectableLanguages.ContainerLanguages, "Container")
+
+	_, _ = fmt.Fprintln(&sb, "----------- Detected Languages -----------")
+	langPrinter(d.DetectedLanguages.InitContainerLanguages, "InitContainer")
+	langPrinter(d.DetectedLanguages.ContainerLanguages, "Container")
 	return sb.String()
 }
 

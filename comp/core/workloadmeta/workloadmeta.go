@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"context"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"sync"
 	"time"
 
@@ -57,7 +58,21 @@ type dependencies struct {
 	Params Params
 }
 
-func newWorkloadMeta(deps dependencies) Component {
+type provider struct {
+	fx.Out
+
+	Comp          Component
+	FlareProvider flaretypes.Provider
+}
+
+type optionalProvider struct {
+	fx.Out
+
+	Comp          optional.Option[Component]
+	FlareProvider flaretypes.Provider
+}
+
+func newWorkloadMeta(deps dependencies) provider {
 	candidates := make(map[string]Collector)
 	for _, c := range deps.Catalog {
 		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
@@ -95,7 +110,7 @@ func newWorkloadMeta(deps dependencies) Component {
 				return err
 			}
 		}
-		wm.Start(mainCtx)
+		wm.start(mainCtx)
 		return nil
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
@@ -103,14 +118,22 @@ func newWorkloadMeta(deps dependencies) Component {
 		return nil
 	}})
 
-	return wm
+	return provider{
+		Comp:          wm,
+		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
+	}
 }
 
-func newWorkloadMetaOptional(deps dependencies) optional.Option[Component] {
+func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 	if deps.Params.NoInstance {
-		return optional.NewNoneOption[Component]()
+		return optionalProvider{
+			Comp: optional.NewNoneOption[Component](),
+		}
 	}
 	c := newWorkloadMeta(deps)
 
-	return optional.NewOption[Component](c)
+	return optionalProvider{
+		Comp:          optional.NewOption(c.Comp),
+		FlareProvider: c.FlareProvider,
+	}
 }

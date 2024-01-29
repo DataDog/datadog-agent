@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,7 +30,6 @@ type expvals struct {
 	Success      map[string]int `json:"success"`
 	Errors       map[string]int `json:"errors"`
 	Unauthorized map[string]int `json:"unauthorized"`
-	Unset        map[string]int `json:"unset"`
 }
 
 func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httptest.Server, configName string, expectedStatus int) {
@@ -61,21 +61,15 @@ func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httpt
 
 func TestConfigEndpoint(t *testing.T) {
 	t.Run("core_config", func(t *testing.T) {
-		cfg, server, configEndpoint := getConfigServer(t, authorizedConfigPathsCore)
+		_, server, configEndpoint := getConfigServer(t, authorizedConfigPathsCore)
 		for configName := range authorizedConfigPathsCore {
-			var expectedStatus int
-			if cfg.IsSet(configName) {
-				expectedStatus = http.StatusOK
-			} else {
-				expectedStatus = http.StatusNotFound
-			}
-			testConfigValue(t, configEndpoint, server, configName, expectedStatus)
+			testConfigValue(t, configEndpoint, server, configName, http.StatusOK)
 		}
 	})
 
 	for _, testCase := range []testCase{
 		{"authorized_existing_config", true, true, http.StatusOK},
-		{"authorized_missing_config", true, false, http.StatusNotFound},
+		{"authorized_missing_config", true, false, http.StatusOK},
 		{"unauthorized_existing_config", false, true, http.StatusForbidden},
 		{"unauthorized_missing_config", false, false, http.StatusForbidden},
 	} {
@@ -101,14 +95,72 @@ func TestConfigEndpoint(t *testing.T) {
 	})
 }
 
+func TestConfigListEndpoint(t *testing.T) {
+	testCases := []struct {
+		name              string
+		configValues      map[string]interface{}
+		authorizedConfigs authorizedSet
+	}{
+		{
+			"empty_config",
+			map[string]interface{}{"some.config": "some_value"},
+			authorizedSet{},
+		},
+		{
+			"single_config",
+			map[string]interface{}{"some.config": "some_value", "my.config.value": "some_value"},
+			authorizedSet{"my.config.value": {}},
+		},
+		{
+			"multiple_configs",
+			map[string]interface{}{"my.config.value": "some_value", "my.other.config.value": 12.5},
+			authorizedSet{"my.config.value": {}, "my.other.config.value": {}},
+		},
+		{
+			"missing_config",
+			map[string]interface{}{"my.config.value": "some_value"},
+			authorizedSet{"my.config.value": {}, "my.other.config.value": {}},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, server, _ := getConfigServer(t, test.authorizedConfigs)
+			for key, value := range test.configValues {
+				cfg.SetWithoutSource(key, value)
+			}
+
+			// test with and without trailing slash
+			for _, urlSuffix := range []string{"", "/"} {
+				resp, err := server.Client().Get(server.URL + urlSuffix)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				data, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+
+				var configValues map[string]interface{}
+				err = json.Unmarshal(data, &configValues)
+				require.NoError(t, err)
+
+				expectedValues := make(map[string]interface{})
+				for key := range test.authorizedConfigs {
+					expectedValues[key] = cfg.Get(key)
+				}
+
+				assert.Equal(t, expectedValues, configValues)
+			}
+		})
+	}
+
+}
+
 func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string, expectedStatus int) {
 	t.Helper()
 
 	switch expectedStatus {
 	case http.StatusOK:
 		beforeVars.Success[configName]++
-	case http.StatusNotFound:
-		beforeVars.Unset[configName]++
 	case http.StatusForbidden:
 		beforeVars.Unauthorized[configName]++
 	case http.StatusInternalServerError:

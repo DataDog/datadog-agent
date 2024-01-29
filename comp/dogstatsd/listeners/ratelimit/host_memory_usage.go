@@ -6,7 +6,7 @@
 package ratelimit
 
 import (
-	"github.com/DataDog/gopsutil/mem"
+	"github.com/shirou/gopsutil/v3/mem"
 )
 
 var _ memoryUsage = (*hostMemoryUsage)(nil)
@@ -23,5 +23,7 @@ func (m *hostMemoryUsage) getMemoryStats() (float64, float64, error) {
 		return 0, 0, err
 	}
 
+	// using shirou/gopsutil results in a different Used value, see
+	// https://github.com/shirou/gopsutil/commit/4510db20dbab6fdd64061e5d6c7e93015c115fd5
 	return float64(memoryStats.Used), float64(memoryStats.Total), nil
 }

@@ -15,11 +15,11 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from .flavor import AgentFlavor
-from .go_test import test_flavor
-from .libs.common.utils import REPO_PATH, get_git_commit
-from .libs.junit_upload_core import produce_junit_tar
-from .modules import DEFAULT_MODULES
+from tasks.flavor import AgentFlavor
+from tasks.go_test import test_flavor
+from tasks.libs.common.utils import REPO_PATH, get_git_commit
+from tasks.libs.junit_upload_core import produce_junit_tar
+from tasks.modules import DEFAULT_MODULES
 
 
 @task(
@@ -52,9 +52,9 @@ def run(
     src_agent_version="",
     dest_agent_version="",
     keep_stacks=False,
+    extra_flags="",
     cache=False,
     junit_tar="",
-    coverage=False,
     test_run_name="",
 ):
     """
@@ -86,17 +86,13 @@ def run(
         envVars["E2E_STACK_PARAMS"] = json.dumps(parsedParams)
 
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
-    coverage_opt = ""
-    coverage_path = "coverage.out"
-    if coverage:
-        coverage_opt = f"-cover -covermode=count -coverprofile={coverage_path} -coverpkg=./...,github.com/DataDog/test-infra-definitions/..."
 
     test_run_arg = ""
     if test_run_name != "":
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
 
     args = {
         "go_mod": "mod",
@@ -107,7 +103,6 @@ def run(
         "commit": get_git_commit(),
         "run": '-test.run ' + run if run else '',
         "skip": '-test.skip ' + skip if skip else '',
-        "coverage_opt": coverage_opt,
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else '',
         "platform": f"-platform {platform}" if platform else '',
@@ -120,6 +115,7 @@ def run(
         "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else '',
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
         "keep_stacks": '-keep-stacks' if keep_stacks else '',
+        "extra_flags": extra_flags,
     }
 
     test_res = test_flavor(
@@ -147,8 +143,6 @@ def run(
         some_test_failed = some_test_failed or failed
         if failed:
             print(failure_string)
-    if coverage:
-        print(f"In folder `test/new-e2e`, run `go tool cover -html={coverage_path}` to generate HTML coverage report")
 
     if some_test_failed:
         # Exit if any of the modules failed
