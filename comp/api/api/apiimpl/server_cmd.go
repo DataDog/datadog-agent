@@ -26,6 +26,7 @@ import (
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -71,6 +72,7 @@ func startCMDServer(
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
+	statusComponent status.Component,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	cmdListener, err = getListener(cmdAddr)
@@ -148,6 +150,7 @@ func startCMDServer(
 				secretResolver,
 				invChecks,
 				pkgSigning,
+				statusComponent,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)

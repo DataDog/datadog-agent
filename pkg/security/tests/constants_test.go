@@ -43,6 +43,8 @@ var BTFVsFallbackPossiblyMissingConstants = []string{
 }
 
 func TestOctogonConstants(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if err := initLogger(); err != nil {
 		t.Fatal(err)
 	}

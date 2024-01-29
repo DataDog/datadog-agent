@@ -8,9 +8,22 @@
 // Package systemprobe fetch information about the system probe
 package systemprobe
 
+import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+)
+
 // GetStatus returns a notice that it is not supported on systems that do not at least build the process agent
-func GetStatus(_ string) map[string]interface{} {
-	return map[string]interface{}{
+func GetStatus(stats map[string]interface{}, _ string) {
+	stats["systemProbeStats"] = map[string]interface{}{
 		"Errors": "System Probe is not supported on this system",
 	}
 }
+
+// GetProvider returns NoopProvider
+func GetProvider(_ config.Component) status.Provider {
+	return status.NoopProvider{}
+}
+
+// Provider provides the functionality to populate the status output
+type Provider status.NoopProvider

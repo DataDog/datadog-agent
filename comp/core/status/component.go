@@ -27,7 +27,7 @@ type Component interface {
 
 // Params store configurable options for the status component
 type Params struct {
-	PythonVersion string
+	PythonVersionGetFunc func() string
 }
 
 // Provider interface
@@ -37,9 +37,9 @@ type Provider interface {
 	// Section is used to group the status providers.
 	// When displaying the Text output the section is render as a header
 	Section() string
-	JSON(stats map[string]interface{}) error
-	Text(buffer io.Writer) error
-	HTML(buffer io.Writer) error
+	JSON(verbose bool, stats map[string]interface{}) error
+	Text(verbose bool, buffer io.Writer) error
+	HTML(verbose bool, buffer io.Writer) error
 }
 
 // HeaderProvider interface
@@ -48,9 +48,9 @@ type HeaderProvider interface {
 	Index() int
 	// When displaying the Text output the name is render as a header
 	Name() string
-	JSON(stats map[string]interface{}) error
-	Text(buffer io.Writer) error
-	HTML(buffer io.Writer) error
+	JSON(verbose bool, stats map[string]interface{}) error
+	Text(verbose bool, buffer io.Writer) error
+	HTML(verbose bool, buffer io.Writer) error
 }
 
 // InformationProvider stores the Provider instance
@@ -67,6 +67,64 @@ type HeaderInformationProvider struct {
 	Provider HeaderProvider `group:"header_status"`
 }
 
+// NoopProvider implements the InformationProvider interface
+// This provides is ignored by the status component
+type NoopProvider struct{}
+
+// Name returns the name
+func (p NoopProvider) Name() string {
+	return ""
+}
+
+// Section return the section
+func (p NoopProvider) Section() string {
+	return ""
+}
+
+// JSON populates the status map
+func (p NoopProvider) JSON(_ bool, _ map[string]interface{}) error {
+	return nil
+}
+
+// Text renders the text output
+func (p NoopProvider) Text(_ bool, _ io.Writer) error {
+	return nil
+}
+
+// HTML renders the html output
+func (p NoopProvider) HTML(_ bool, _ io.Writer) error {
+	return nil
+}
+
+// NoopHeaderProvider implements the HeaderProvider interface
+// This provides is ignored by the status component
+type NoopHeaderProvider struct{}
+
+// Name returns the name
+func (p NoopHeaderProvider) Name() string {
+	return ""
+}
+
+// Index return index
+func (p NoopHeaderProvider) Index() int {
+	return 0
+}
+
+// JSON populates the status map
+func (p NoopHeaderProvider) JSON(_ bool, _ map[string]interface{}) error {
+	return nil
+}
+
+// Text renders the text output
+func (p NoopHeaderProvider) Text(_ bool, _ io.Writer) error {
+	return nil
+}
+
+// HTML renders the html output
+func (p NoopHeaderProvider) HTML(_ bool, _ io.Writer) error {
+	return nil
+}
+
 // NewInformationProvider returns a InformationProvider to be called when generating the agent status
 func NewInformationProvider(provider Provider) InformationProvider {
 	return InformationProvider{
@@ -74,9 +132,23 @@ func NewInformationProvider(provider Provider) InformationProvider {
 	}
 }
 
+// NoopInformationProvider returns a Noop InformationProvider
+func NoopInformationProvider() InformationProvider {
+	return InformationProvider{
+		Provider: NoopProvider{},
+	}
+}
+
 // NewHeaderInformationProvider returns a new HeaderInformationProvider to be called when generating the agent status
 func NewHeaderInformationProvider(provider HeaderProvider) HeaderInformationProvider {
 	return HeaderInformationProvider{
 		Provider: provider,
+	}
+}
+
+// NoopHeaderInformationProvider returns a Noop HeaderInformationProvider
+func NoopHeaderInformationProvider() HeaderInformationProvider {
+	return HeaderInformationProvider{
+		Provider: NoopHeaderProvider{},
 	}
 }

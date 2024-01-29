@@ -21,6 +21,8 @@ import (
 )
 
 func TestSBOM(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID: "test_file_package",

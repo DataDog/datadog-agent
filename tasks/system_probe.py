@@ -575,6 +575,7 @@ def build_sysprobe_binary(
             python_runtimes=python_runtimes,
             arch=arch,
             go_mod=go_mod,
+            bundle_ebpf=bundle_ebpf,
             bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
         )
 

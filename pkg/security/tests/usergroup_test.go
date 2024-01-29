@@ -17,6 +17,8 @@ import (
 )
 
 func TestUserGroup(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
