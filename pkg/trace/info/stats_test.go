@@ -55,7 +55,6 @@ func TestSpansMalformed(t *testing.T) {
 	s.ServiceInvalid.Store(1)
 	s.SpanNameTruncate.Store(1)
 	s.TypeTruncate.Store(1)
-	s.InvalidSpanLinks.Store(1)
 
 	t.Run("tagValues", func(t *testing.T) {
 		assert.Equal(t, map[string]int64{

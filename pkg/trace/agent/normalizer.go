@@ -160,22 +160,11 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 
 	if len(s.SpanLinks) > 0 {
-		validatedLinks := make([]*pb.SpanLink, len(s.SpanLinks))
 		for _, link := range s.SpanLinks {
-			if link.SpanID == 0 || link.TraceID == 0 {	
-				ts.SpansMalformed.InvalidSpanLinks.Inc()
-				log.Debugf("Fixing malformed trace. SpanLink is invalid (reason:span_link_invalid), dropping invalid span_link=%s: %s", link, s)
-				continue
-			}
-
 			if val, ok := link.Attributes["link.name"]; ok {
-				link.Attributes["link.name"] = traceutil.NormalizeTagValue(val)
+				link.Attributes["link.name"], _ = traceutil.NormalizeName(val)
 			}
-			// TODO: Validate link.Attributes["dd.kind"] dd.kind
-
-			validatedLinks = append(validatedLinks, link)
 		}
-		s.SpanLinks = validatedLinks
 	}
 	return nil
 }

@@ -31,11 +31,11 @@ type SpanLink struct {
 	TraceIDHigh uint64 `protobuf:"varint,2,opt,name=traceID_high,json=traceIDHigh,proto3" json:"trace_id_high" msg:"trace_id_high,omitempty"` // Optional. The high 64 bits of a referenced trace id.
 	// @gotags: json:"span_id" msg:"span_id"
 	SpanID uint64 `protobuf:"varint,3,opt,name=spanID,proto3" json:"span_id" msg:"span_id"` // Required.
-	// @gotags: msg:"attributes,omitempty"
+	// @gotags: json:"attributes,omitempty" msg:"attributes,omitempty"
 	Attributes map[string]string `protobuf:"bytes,4,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3" msg:"attributes,omitempty"` // Optional. Simple mapping of keys to string values.
-	// @gotags: msg:"tracestate,omitempty"
+	// @gotags: json:"tracestate,omitempty" msg:"tracestate,omitempty"
 	Tracestate string `protobuf:"bytes,5,opt,name=tracestate,proto3" json:"tracestate,omitempty" msg:"tracestate,omitempty"` // Optional. W3C tracestate.
-	// @gotags: msg:"flags,omitempty"
+	// @gotags: json:"flags,omitempty" msg:"flags,omitempty"
 	Flags uint32 `protobuf:"varint,6,opt,name=flags,proto3" json:"flags,omitempty" msg:"flags,omitempty"` // Optional. W3C trace flags. If set, the high bit (bit 31) must be set.
 }
 

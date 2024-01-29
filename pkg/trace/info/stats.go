@@ -276,8 +276,6 @@ type SpansMalformed struct {
 	InvalidDuration atomic.Int64
 	// InvalidHTTPStatusCode is when a span's metadata contains an invalid http status code
 	InvalidHTTPStatusCode atomic.Int64
-	// InvalidSpanLinks is when a span's metadata contains an invalid span link
-	InvalidSpanLinks atomic.Int64
 }
 
 func (s *SpansMalformed) tagCounters() map[string]*atomic.Int64 {
@@ -296,7 +294,6 @@ func (s *SpansMalformed) tagCounters() map[string]*atomic.Int64 {
 		"invalid_start_date":       &s.InvalidStartDate,
 		"invalid_duration":         &s.InvalidDuration,
 		"invalid_http_status_code": &s.InvalidHTTPStatusCode,
-		"invalid_span_links":       &s.InvalidSpanLinks,
 	}
 }
 
@@ -439,7 +436,6 @@ func (s *Stats) update(recent *Stats) {
 	s.SpansMalformed.InvalidStartDate.Add(recent.SpansMalformed.InvalidStartDate.Load())
 	s.SpansMalformed.InvalidDuration.Add(recent.SpansMalformed.InvalidDuration.Load())
 	s.SpansMalformed.InvalidHTTPStatusCode.Add(recent.SpansMalformed.InvalidHTTPStatusCode.Load())
-	s.SpansMalformed.InvalidSpanLinks.Add(recent.SpansMalformed.InvalidSpanLinks.Load())
 	s.TracesFiltered.Add(recent.TracesFiltered.Load())
 	s.TracesPriorityNone.Add(recent.TracesPriorityNone.Load())
 	s.ClientDroppedP0Traces.Add(recent.ClientDroppedP0Traces.Load())
