@@ -58,10 +58,22 @@ func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httpt
 		return
 	}
 
+	// roundtrip our existing config value so that we emulate how values get serialized when we
+	// write them out in the HTTP response in the first place: if we don't do this, then we
+	// potentially end up with test failures purely do to property type mismatches, even when the
+	// data is exactly the same
+	existing := configEndpoint.cfg.Get(configName)
+	existingBody, err := json.Marshal(existing)
+	require.NoError(t, err)
+
+	var existingValue interface{}
+	err = json.Unmarshal(existingBody, &existingValue)
+	require.NoError(t, err)
+
 	var configValue interface{}
 	err = json.Unmarshal(body, &configValue)
 	require.NoError(t, err)
-	require.EqualValues(t, configEndpoint.cfg.Get(configName), configValue)
+	require.EqualValues(t, existingValue, configValue)
 }
 
 func TestConfigEndpoint(t *testing.T) {
@@ -108,9 +120,7 @@ func TestConfigEndpoint(t *testing.T) {
 		{"authorized_nested_prefix_rule_child_two", childConfigNameTwo, http.StatusOK},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			parentConfigPath := parentConfigName + "."
-
-			cfg, server, configEndpoint := getConfigServer(t, authorizedSet{parentConfigPath: struct{}{}})
+			cfg, server, configEndpoint := getConfigServer(t, authorizedSet{parentConfigName: struct{}{}})
 
 			cfg.SetWithoutSource(childConfigNameOne, "child1_value")
 			cfg.SetWithoutSource(childConfigNameTwo, "child2_value")
@@ -161,7 +171,7 @@ func TestConfigListEndpoint(t *testing.T) {
 		{
 			"prefix_rule",
 			map[string]interface{}{"my.config.value": "some_value"},
-			authorizedSet{"my.config.": {}},
+			authorizedSet{"my.config": {}},
 		},
 	}
 
@@ -187,7 +197,6 @@ func TestConfigListEndpoint(t *testing.T) {
 
 				expectedValues := make(map[string]interface{})
 				for key := range test.authorizedConfigs {
-					key = normalizePrefixPath(key)
 					expectedValues[key] = cfg.Get(key)
 				}
 

@@ -25,7 +25,7 @@ const prefixPathSuffix string = "."
 type authorizedSet map[string]struct{}
 
 var authorizedConfigPathsCore = buildAuthorizedSet(
-	"api_key", "site", "dd_url", pathToPrefixPath("ha"),
+	"api_key", "site", "dd_url", "logs_config", "ha",
 )
 
 func buildAuthorizedSet(paths ...string) authorizedSet {
@@ -57,17 +57,12 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 	if _, ok := c.authorizedConfigPaths[path]; ok {
 		authorized = true
 	} else {
-		// check to see if the requested path matches any of the authorized paths
-		//
-		// if an authorized path ends in a period, it authorizes any paths under that prefix,
-		// including the prefix itself: an authorized path of `my.config` allows for reading
-		// `my.config`, `my.config.field1`, `my.config.field2`, etc
+		// check to see if the requested path matches any of the authorized paths by trying to treat
+		// the authorized path as a prefix: if the requested path is `foo.bar` and we have an
+		// authorized path of `foo`, then `foo.bar` would be allowed, or if we had a requested path
+		// of `foo.bar.quux`, and an authorized path of `foo.bar`, it would also be allowed
 		for authorizedPath := range c.authorizedConfigPaths {
-			isPrefixPathRule := isPrefixPath(authorizedPath)
-			isPrefixSubpath := strings.HasPrefix(path, authorizedPath)
-			isPrefixPathRoot := pathToPrefixPath(path) == authorizedPath
-
-			if isPrefixPathRule && (isPrefixSubpath || isPrefixPathRoot) {
+			if strings.HasPrefix(path, authorizedPath+prefixPathSuffix) {
 				authorized = true
 				break
 			}
@@ -90,7 +85,6 @@ func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *htt
 	log.Debug("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
 	allValues := make(map[string]interface{}, len(c.authorizedConfigPaths))
 	for key := range c.authorizedConfigPaths {
-		key = normalizePrefixPath(key)
 		allValues[key] = c.cfg.Get(key)
 	}
 
@@ -150,23 +144,4 @@ func (c *configEndpoint) marshalAndSendResponse(w http.ResponseWriter, path stri
 		return
 	}
 	c.successExpvar.Add(path, 1)
-}
-
-func pathToPrefixPath(path string) string {
-	return path + prefixPathSuffix
-}
-
-func prefixPathToPath(prefixPath string) string {
-	return strings.TrimSuffix(prefixPath, prefixPathSuffix)
-}
-
-func isPrefixPath(path string) bool {
-	return strings.HasSuffix(path, prefixPathSuffix)
-}
-
-func normalizePrefixPath(path string) string {
-	if isPrefixPath(path) {
-		return prefixPathToPath(path)
-	}
-	return path
 }
