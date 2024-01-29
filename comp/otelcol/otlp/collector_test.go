@@ -23,6 +23,9 @@ import (
 )
 
 func TestGetComponents(t *testing.T) {
+	oldhostname := config.Datadog.GetString("hostname")
+	config.Datadog.SetDefault("hostname", "otlp-testhostname")
+	defer config.Datadog.SetDefault("hostname", oldhostname)
 	_, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message))
 	// No duplicate component
 	require.NoError(t, err)
