@@ -41,6 +41,8 @@ type Resolver struct {
 	cacheSize *atomic.Int64
 
 	processCacheEntryPool *Pool
+
+	exitedQueue []uint32
 }
 
 // NewResolver returns a new process resolver
@@ -85,6 +87,37 @@ func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
 	entry.Exit(exitTime)
 	delete(p.processes, entry.Pid)
 	entry.Release()
+}
+
+// AddToExitedQueue adds the exited processes to a queue
+func (p *Resolver) AddToExitedQueue(pid uint32) {
+	p.exitedQueue = append(p.exitedQueue, pid)
+}
+
+// dequeueExited dequeue exited process
+func (p *EBPFResolver) DequeueExited() {
+	p.Lock()
+	defer p.Unlock()
+
+	delEntry := func(pid uint32, exitTime time.Time) {
+		p.deleteEntry(pid, exitTime)
+		p.flushedEntries.Inc()
+	}
+
+	now := time.Now()
+	for index, pid := range p.exitedQueue {
+		entry := p.entryCache[pid]
+		if entry == nil {
+			p.exitedQueue = append(p.exitedQueue[:index], p.exitedQueue[index+1:]...)
+			continue
+		}
+
+		if tm := entry.ExecTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+			delEntry(pid, now)
+			p.exitedQueue = append(p.exitedQueue[:index], p.exitedQueue[index+1:]...)
+
+		}
+	}
 }
 
 // DeleteEntry tries to delete an entry in the process cache
