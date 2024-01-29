@@ -2,6 +2,7 @@
 #define __HTTP2_DECODING_H
 
 #include "protocols/http2/decoding-common.h"
+#include "protocols/http2/skb-common.h"
 #include "protocols/http2/usm-events.h"
 #include "protocols/http/types.h"
 
@@ -285,17 +286,6 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
 
     __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length, http2_tel);
     process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
-}
-
-// skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
-// of an HTTP2 connection, and skip it if present.
-static __always_inline void skip_preface(struct __sk_buff *skb, skb_info_t *skb_info) {
-    char preface[HTTP2_MARKER_SIZE];
-    bpf_memset((char *)preface, 0, HTTP2_MARKER_SIZE);
-    bpf_skb_load_bytes(skb, skb_info->data_off, preface, HTTP2_MARKER_SIZE);
-    if (is_http2_preface(preface, HTTP2_MARKER_SIZE)) {
-        skb_info->data_off += HTTP2_MARKER_SIZE;
-    }
 }
 
 // The function is trying to read the remaining of a split frame header. We have the first part in
