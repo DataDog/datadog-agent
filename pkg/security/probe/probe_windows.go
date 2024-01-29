@@ -203,7 +203,7 @@ func (p *WindowsProbe) setupEtw() error {
 		ev := p.zeroEvent()
 		errRes := p.setProcessContext(e.EventHeader.ProcessID, ev)
 		if errRes != nil {
-			log.Debugf(errRes)
+			log.Debugf("%v", errRes)
 		}
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
