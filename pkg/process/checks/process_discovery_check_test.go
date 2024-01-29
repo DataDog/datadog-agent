@@ -10,8 +10,10 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -72,5 +74,50 @@ func TestProcessDiscoveryChunking(t *testing.T) {
 		procs := make([]*model.ProcessDiscovery, test.procs)
 		chunkedProcs := chunkProcessDiscoveries(procs, test.chunkSize)
 		assert.Len(t, chunkedProcs, test.expectedChunks)
+	}
+}
+
+func TestPidMapToProcDiscoveriesScrubbed(t *testing.T) {
+	proc := &procutil.Process{
+		Pid:      10,
+		Ppid:     99,
+		NsPid:    77,
+		Name:     "test1",
+		Cwd:      "cwd_test",
+		Exe:      "exec_test",
+		Comm:     "comm_test",
+		Username: "usertest",
+		Uids:     []int32{1, 2, 3, 4, 5, 6},
+		Gids:     []int32{1, 2, 3, 4, 5, 6},
+		Stats: &procutil.Stats{
+			CreateTime: 1705688277,
+		},
+	}
+
+	testCases := map[string]struct {
+		cmdline  []string
+		expected []string
+	}{
+		"replace sensitive word": {
+			cmdline:  []string{"java", "apikey:838372"},
+			expected: []string{"java", "apikey:********"},
+		},
+		"no replacements": {
+			cmdline:  []string{"java", "key:838372"},
+			expected: []string{"java", "key:838372"},
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			proc.Cmdline = testCase.cmdline
+			pidMap := map[int32]*procutil.Process{
+				1: proc,
+			}
+			scrubber := procutil.NewDefaultDataScrubber()
+			rsul := pidMapToProcDiscoveries(pidMap, nil, scrubber)
+			require.Len(t, rsul, 1)
+			assert.Equal(t, testCase.expected, rsul[0].Command.Args)
+		})
 	}
 }

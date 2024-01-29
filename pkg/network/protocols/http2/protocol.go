@@ -334,8 +334,8 @@ func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	} else if mapName == dynamicTable {
 		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
-		var key http2DynamicTableIndex
-		var value http2DynamicTableEntry
+		var key HTTP2DynamicTableIndex
+		var value HTTP2DynamicTableEntry
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}

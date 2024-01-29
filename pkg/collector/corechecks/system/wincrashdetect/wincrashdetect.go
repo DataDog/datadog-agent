@@ -22,10 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	crashDetectCheckName = "wincrashdetect"
+	// CheckName is the name of the check
+	CheckName = "wincrashdetect"
 )
 
 var (
@@ -48,13 +50,14 @@ type WinCrashDetect struct {
 	reporter *crashreport.WinCrashReporter
 }
 
-func init() {
-	core.RegisterCheck(crashDetectCheckName, crashDetectFactory)
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func crashDetectFactory() check.Check {
+func newCheck() check.Check {
 	return &WinCrashDetect{
-		CheckBase: core.NewCheckBase(crashDetectCheckName),
+		CheckBase: core.NewCheckBase(CheckName),
 		instance:  &WinCrashConfig{},
 	}
 }
@@ -99,8 +102,8 @@ func (wcd *WinCrashDetect) Run() error {
 	}
 	ev := event.Event{
 		Priority:       event.EventPriorityNormal,
-		SourceTypeName: crashDetectCheckName,
-		EventType:      crashDetectCheckName,
+		SourceTypeName: CheckName,
+		EventType:      CheckName,
 		Title:          formatTitle(crash),
 		Text:           formatText(crash),
 		AlertType:      event.EventAlertTypeError,

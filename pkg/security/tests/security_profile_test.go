@@ -26,6 +26,8 @@ import (
 )
 
 func TestSecurityProfile(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -199,6 +201,8 @@ func TestSecurityProfile(t *testing.T) {
 }
 
 func TestAnomalyDetection(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -383,6 +387,8 @@ func TestAnomalyDetection(t *testing.T) {
 }
 
 func TestAnomalyDetectionWarmup(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -552,6 +558,8 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 }
 
 func TestSecurityProfileReinsertionPeriod(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -738,6 +746,8 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 }
 
 func TestSecurityProfileAutoSuppression(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")

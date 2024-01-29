@@ -9,14 +9,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
 
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // Tester is a test helper for testing agent installations
@@ -113,10 +115,12 @@ func (t *Tester) TestRuntimeExpectations(tt *testing.T) {
 		t.testDefaultPythonVersion(tt)
 		if t.ExpectPython2Installed() {
 			tt.Run("switch to Python3", func(tt *testing.T) {
-				common.CheckAgentPython(tt, t.InstallTestClient, "3")
+				common.SetAgentPythonMajorVersion(tt, t.InstallTestClient, "3")
+				common.CheckAgentPython(tt, t.InstallTestClient, common.ExpectedPythonVersion3)
 			})
 			tt.Run("switch to Python2", func(tt *testing.T) {
-				common.CheckAgentPython(tt, t.InstallTestClient, "2")
+				common.SetAgentPythonMajorVersion(tt, t.InstallTestClient, "2")
+				common.CheckAgentPython(tt, t.InstallTestClient, common.ExpectedPythonVersion2)
 			})
 		}
 
@@ -214,6 +218,12 @@ func (t *Tester) testDoesNotChangeSystemFiles(tt *testing.T) bool {
 		output, err := t.host.Execute(cmd)
 		require.NoError(tt, err, "should compare system files")
 		output = strings.TrimSpace(output)
+		// Log the output if it's not empty so we have a record of what changed.
+		// Normally require.Empty would log this but flake.Mark might Skip the test before its called.
+		if output != "" {
+			tt.Logf("should not remove system files: %s", output)
+		}
+		flake.Mark(tt)
 		require.Empty(tt, output, "should not remove system files")
 	})
 }
