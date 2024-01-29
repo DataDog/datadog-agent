@@ -15,3 +15,8 @@ type Params struct {
 func NewDefaultParams() Params {
 	return Params{UseEventPlatformForwarder: true, UseNoopEventPlatformForwarder: false}
 }
+
+// NewDisabledParams returns the disabled parameters for the event platform forwarder.
+func NewDisabledParams() Params {
+	return Params{UseEventPlatformForwarder: false, UseNoopEventPlatformForwarder: false}
+}

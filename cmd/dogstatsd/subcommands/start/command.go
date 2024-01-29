@@ -140,11 +140,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		eventplatformimpl.Module(),
-		fx.Provide(func() eventplatformimpl.Params {
-			params := eventplatformimpl.NewDefaultParams()
-			params.UseEventPlatformForwarder = false
-			return params
-		}),
+		fx.Supply(eventplatformimpl.NewDisabledParams()),
 		tagger.OptionalModule(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
