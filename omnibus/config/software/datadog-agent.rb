@@ -25,6 +25,9 @@ build do
   if linux_target?
     bundled_agents = ["process-agent"]
     bundled_agents << "security-agent" << "system-probe" unless heroku_target?
+    if heroku_target?
+      bundled_agents << "trace-agent"
+    end
   end
 
   # set GOPATH on the omnibus source dir for this software
