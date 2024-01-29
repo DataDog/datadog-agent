@@ -42,7 +42,7 @@ func Test_batchPayloads(t *testing.T) {
 			FlowType:  "netflow5",
 		})
 	}
-	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks, netflowExporters)
+	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks, netflowExporters, nil)
 
 	require.Len(t, payloads, 7)
 

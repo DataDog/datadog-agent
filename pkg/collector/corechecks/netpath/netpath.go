@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/uuid"
@@ -35,7 +36,7 @@ import (
 
 // Program constants and default values
 const (
-	ProgramName         = "Dublin TraceroutePath"
+	ProgramName         = "Dublin NetworkPath"
 	ProgramVersion      = "v0.2"
 	ProgramAuthorName   = "Andrea Barberio"
 	ProgramAuthorInfo   = "https://insomniac.slackware.it"
@@ -132,10 +133,15 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 	}
 	results, err := dt.Traceroute()
 	if err != nil {
-		return 0, fmt.Errorf("TraceroutePath() failed: %v", err)
+		return 0, fmt.Errorf("NetworkPath() failed: %v", err)
 	}
 
 	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		return 0, err
+	}
+
+	err = c.traceRouteDublinAsPath(senderInstance, results, hname, rawTarget)
 	if err != nil {
 		return 0, err
 	}
@@ -152,50 +158,56 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 			return len(hops), nil
 		}
 	}
+
 	//results.Flows[0].hop
 	return 0, nil
-	options := traceroute.TracerouteOptions{}
-	options.SetRetries(1)
-	options.SetMaxHops(15)
-	//options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
-	times := 1
-	destinationHost := c.config.DestHostname
-
-	ipAddr, err := net.ResolveIPAddr("ip", destinationHost)
-	if err != nil {
-		return 0, nil
-	}
-
-	fmt.Printf("traceroute to %v (%v), %v hops max, %v byte packets\n", destinationHost, ipAddr, options.MaxHops(), options.PacketSize())
-
-	hostHops := getHops(options, times, err, destinationHost)
-	if len(hostHops) == 0 {
-		return 0, errors.New("no hops")
-	}
-
-	err = c.traceRouteV1(senderInstance, hostHops, hname, destinationHost)
-	if err != nil {
-		return 0, err
-	}
-
-	err = c.traceRouteV2(senderInstance, hostHops, hname, destinationHost)
-	if err != nil {
-		return 0, err
-	}
-
-	return len(hostHops[0]), nil
+	//options := traceroute.TracerouteOptions{}
+	//options.SetRetries(1)
+	//options.SetMaxHops(15)
+	////options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
+	//times := 1
+	//destinationHost := c.config.DestHostname
+	//
+	//ipAddr, err := net.ResolveIPAddr("ip", destinationHost)
+	//if err != nil {
+	//	return 0, nil
+	//}
+	//
+	//fmt.Printf("traceroute to %v (%v), %v hops max, %v byte packets\n", destinationHost, ipAddr, options.MaxHops(), options.PacketSize())
+	//
+	//hostHops := getHops(options, times, err, destinationHost)
+	//if len(hostHops) == 0 {
+	//	return 0, errors.New("no hops")
+	//}
+	//
+	//err = c.traceRouteV1(senderInstance, hostHops, hname, destinationHost)
+	//if err != nil {
+	//	return 0, err
+	//}
+	//
+	//err = c.traceRouteV2(senderInstance, hostHops, hname, destinationHost)
+	//if err != nil {
+	//	return 0, err
+	//}
+	//
+	//return len(hostHops[0]), nil
 }
 
 func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
-	tr := NewTraceroutePath()
-	tr.Timestamp = time.Now().UnixMilli()
-	tr.AgentHost = hname
-	tr.DestinationHost = destinationHost
+	tr := metadata.NetworkPath{
+		TracerouteSource: "netpath_integration",
+		Format:           "path_per_event",
+		HopsByIpAddress:  make(map[string]metadata.TracerouteHop),
+
+		Timestamp:       time.Now().UnixMilli(),
+		AgentHost:       hname,
+		DestinationHost: destinationHost,
+	}
 
 	hops := hostHops[0]
 	for _, hop := range hops {
 		ip := hop.AddressString()
-		hop := TracerouteHop{
+		hop := metadata.TracerouteHop{
 			TTL:       hop.TTL,
 			IpAddress: ip,
 			Host:      hop.HostOrAddressString(),
@@ -206,14 +218,31 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 		tr.HopsByIpAddress[strings.ReplaceAll(ip, ".", "-")] = hop
 	}
 
-	tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
-	if err != nil {
-		return err
+	flushTime := time.Now()
+	metadataPayloads := metadata.BatchPayloads(
+		"default",
+		"",
+		flushTime,
+		metadata.PayloadMetadataBatchSize,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]metadata.NetworkPath{tr},
+	)
+
+	log.Debugf("metadataPayloads: %d", len(metadataPayloads))
+	for _, payload := range metadataPayloads {
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			log.Errorf("Error marshalling device metadata: %s", err)
+			continue
+		}
+		log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
+		sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
 	}
 
-	log.Debugf("traceroute: %s", tracerouteStr)
-
-	sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 	return nil
 }
 
@@ -424,6 +453,205 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 	//}
 	//gv.Close()
 	//return buf.String(), nil
+	return nil
+}
+
+func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results, hname string, destinationHost string) error {
+	var err error
+	type node struct {
+		node  string
+		probe *results.Probe
+	}
+
+	traceroutePath := metadata.NetworkPath{
+		TracerouteSource: "netpath_integration",
+		Format:           "path_per_event",
+		HopsByIpAddress:  make(map[string]metadata.TracerouteHop),
+
+		Timestamp:       time.Now().UnixMilli(),
+		AgentHost:       hname,
+		DestinationHost: destinationHost,
+	}
+
+	pathId := uuid.New().String()
+
+	for idx, probes := range r.Flows {
+		log.Debugf("flow idx: %d\n", idx)
+		for probleIndex, probe := range probes {
+			//log.Debugf("probleIndex: %d, probe %+v\n", probleIndex, probe)
+			log.Debugf("%d - %d - %s\n", probleIndex, probe.Sent.IP.TTL, probe.Name)
+		}
+	}
+
+	flowIDs := make([]int, 0, len(r.Flows))
+	for flowID := range r.Flows {
+		flowIDs = append(flowIDs, int(flowID))
+	}
+	sort.Ints(flowIDs)
+
+	for _, flowID := range flowIDs {
+		hops := r.Flows[uint16(flowID)]
+		if len(hops) == 0 {
+			log.Debugf("No hops for flow ID %d", flowID)
+			continue
+		}
+		var nodes []node
+		// add first hop
+		firstNodeName := hops[0].Sent.IP.SrcIP.String()
+		//firstHop, err := graph.CreateNode(firstNodeName)
+		if err != nil {
+			return fmt.Errorf("failed to create first node: %w", err)
+		}
+		//firstHop.SetShape(cgraph.RectShape)
+		nodes = append(nodes, node{node: firstNodeName, probe: &hops[0]})
+
+		// then add all the other hops
+		for _, hop := range hops {
+			hop := hop
+			nodename := fmt.Sprintf("unknown_hop_%d)", hop.Sent.IP.TTL)
+			label := "*"
+			hostname := ""
+			if hop.Received != nil {
+				nodename = hop.Received.IP.SrcIP.String()
+				if hop.Name != nodename {
+					hostname = "\n" + hop.Name
+				}
+				// MPLS labels
+				mpls := ""
+				if len(hop.Received.ICMP.MPLSLabels) > 0 {
+					mpls = "MPLS labels: \n"
+					for _, mplsLabel := range hop.Received.ICMP.MPLSLabels {
+						mpls += fmt.Sprintf(" - %d, ttl: %d\n", mplsLabel.Label, mplsLabel.TTL)
+					}
+				}
+				label = fmt.Sprintf("%s%s\n%s\n%s", nodename, hostname, hop.Received.ICMP.Description, mpls)
+			}
+			//n, err := graph.CreateNode(nodename)
+			//if err != nil {
+			//	return "", fmt.Errorf("failed to create node '%s': %w", nodename, err)
+			//}
+			//if hop.IsLast {
+			//	n.SetShape(cgraph.RectShape)
+			//}
+			//n.SetLabel(label)
+			nodes = append(nodes, node{node: nodename, probe: &hop})
+
+			if hop.IsLast {
+				break
+			}
+			log.Debugf("label: %s", label)
+		}
+		// add edges
+		if len(nodes) <= 1 {
+			// no edges to add if there is only one node
+			continue
+		}
+		//color := rand.Intn(0xffffff)
+		// start at node 1. Each node back-references the previous one
+		for idx := 1; idx < len(nodes); idx++ {
+			if idx >= len(nodes) {
+				// we are at the second-to-last node
+				break
+			}
+			prev := nodes[idx-1]
+			cur := nodes[idx]
+			//edgeName := fmt.Sprintf("%s - %s - %d - %d", prev.node, cur.node, idx, flowID)
+			edgeLabel := ""
+			if idx == 1 {
+				edgeLabel += fmt.Sprintf(
+					"srcport %d\ndstport %d",
+					cur.probe.Sent.UDP.SrcPort,
+					cur.probe.Sent.UDP.DstPort,
+				)
+			}
+			if prev.probe.NATID != cur.probe.NATID {
+				edgeLabel += "\nNAT detected"
+			}
+			edgeLabel += fmt.Sprintf("\n%d.%d ms", int(cur.probe.RttUsec/1000), int(cur.probe.RttUsec%1000))
+
+			//tags := []string{
+			//	"dest_name:" + c.config.DestName,
+			//	"agent_host:" + hname,
+			//	"dest_hostname:" + destinationHost,
+			//	"hop_ip_address:" + cur.node,
+			//	"hop_host:" + c.getHostname(cur.node),
+			//	"ttl:" + strconv.Itoa(idx),
+			//}
+			//tags = append(tags, "prev_hop_ip_address:"+prev.node)
+			//tags = append(tags, "prev_hop_host:"+c.getHostname(prev.node))
+			//log.Infof("[netpath] tags: %s", tags)
+			//sender.Gauge("netpath.hop.duration", float64(cur.probe.RttUsec)/1000, "", CopyStrings(tags))
+			//sender.Count("netpath.hop.record", float64(1), "", CopyStrings(tags))
+
+			ip := cur.node
+			durationMs := float64(cur.probe.RttUsec) / 1000
+			tr := TracerouteV2{
+				PathId:           pathId,
+				TracerouteSource: "netpath_integration",
+				Timestamp:        time.Now().UnixMilli(),
+				AgentHost:        hname,
+				DestinationHost:  destinationHost,
+				TTL:              idx,
+				IpAddress:        ip,
+				Host:             c.getHostname(cur.node),
+				Duration:         durationMs,
+				//Success:          hop.Success,
+			}
+			tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
+			if err != nil {
+				return err
+			}
+
+			log.Debugf("traceroute: %s", tracerouteStr)
+
+			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
+
+			hop := metadata.TracerouteHop{
+				TTL:       idx,
+				IpAddress: ip,
+				Host:      c.getHostname(cur.node),
+				Duration:  durationMs,
+				//Success:   hop.Success,
+			}
+			traceroutePath.Hops = append(traceroutePath.Hops, hop)
+			traceroutePath.HopsByIpAddress[strings.ReplaceAll(ip, ".", "-")] = hop
+
+			//prevHop = hop
+
+			//edge, err := graph.CreateEdge(edgeName, prev.node, cur.node)
+			//if err != nil {
+			//	return "", fmt.Errorf("failed to create edge '%s': %w", edgeName, err)
+			//}
+			//edge.SetLabel(edgeLabel)
+			//edge.SetColor(fmt.Sprintf("#%06x", color))
+		}
+	}
+
+	flushTime := time.Now()
+	metadataPayloads := metadata.BatchPayloads(
+		"default",
+		"",
+		flushTime,
+		metadata.PayloadMetadataBatchSize,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]metadata.NetworkPath{traceroutePath},
+	)
+
+	log.Debugf("metadataPayloads: %d", len(metadataPayloads))
+	for _, payload := range metadataPayloads {
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			log.Errorf("Error marshalling device metadata: %s", err)
+			continue
+		}
+		log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
+		sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
+	}
+
 	return nil
 }
 

@@ -7,7 +7,17 @@ package metadata
 
 import "time"
 
-func BatchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter) []NetworkDevicesMetadata {
+func BatchPayloads(namespace string,
+	subnet string,
+	collectTime time.Time,
+	batchSize int,
+	devices []DeviceMetadata,
+	interfaces []InterfaceMetadata,
+	ipAddresses []IPAddressMetadata,
+	topologyLinks []TopologyLinkMetadata,
+	netflowExporters []NetflowExporter,
+	traceroutePaths []NetworkPath,
+) []NetworkDevicesMetadata {
 
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
@@ -36,6 +46,10 @@ func BatchPayloads(namespace string, subnet string, collectTime time.Time, batch
 	for _, netflowExporter := range netflowExporters {
 		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.NetflowExporters = append(curPayload.NetflowExporters, netflowExporter)
+	}
+	for _, traceroutePath := range traceroutePaths {
+		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		curPayload.NetworkPaths = append(curPayload.NetworkPaths, traceroutePath)
 	}
 	payloads = append(payloads, curPayload)
 	return payloads
