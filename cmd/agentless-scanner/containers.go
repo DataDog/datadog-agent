@@ -40,6 +40,10 @@ type container struct {
 	Layers            []string        `json:"Layers"`
 }
 
+func (c container) String() string {
+	return fmt.Sprintf("%s/%s/%s", c.Runtime, c.ContainerName, c.ImageRefCanonical)
+}
+
 func launchScannerContainers(_ context.Context, opts scannerOptions) (scanContainerResult, error) {
 	var containers []*container
 
