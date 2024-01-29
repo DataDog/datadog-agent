@@ -496,8 +496,7 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	}
 	actual, err := processCheck.run(0, false)
 	require.NoError(t, err)
-	assert.Equal(t, len(expected), len(actual.Payloads()))
-
+	assert.ElementsMatch(t, expected, actual.Payloads())
 }
 
 func TestProcessCheckZombieToggleTrue(t *testing.T) {
@@ -532,7 +531,7 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	expected := []model.MessageBody{
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
-			GroupSize: int32(len(processesByPid)),
+			GroupSize: int32(1),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
@@ -540,5 +539,5 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 
 	actual, err := processCheck.run(0, false)
 	require.NoError(t, err)
-	assert.Equal(t, len(expected), len(actual.Payloads())) // ordering is not guaranteed
+	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
 }
