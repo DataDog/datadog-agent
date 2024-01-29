@@ -53,28 +53,29 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) (scanContai
 		log.Debugf("%s: starting scanning for containerd containers", opts.Scan)
 		ctrdContainers, err := ctrdReadMetadata(opts.Scan, ctrdRoot)
 		if err != nil {
-			return scanContainerResult{}, err
-		}
-		for _, ctr := range ctrdContainers {
-			if ctr.Snapshot.Backend.Kind != kindActive {
-				continue
-			}
+			log.Errorf("%s: containerd: could not read metadata: %v", opts.Scan, err)
+		} else {
+			for _, ctr := range ctrdContainers {
+				if ctr.Snapshot.Backend.Kind != kindActive {
+					continue
+				}
 
-			if ctr.Snapshot == nil {
-				log.Warnf("%s: containerd: %s is active but without an associated snapshot", opts.Scan, ctr)
-				continue
-			}
+				if ctr.Snapshot == nil {
+					log.Warnf("%s: containerd: %s is active but without an associated snapshot", opts.Scan, ctr)
+					continue
+				}
 
-			ctrLayers := ctrdLayersPaths(ctrdRoot, ctr.Snapshot)
-			ctrMountName := fmt.Sprintf("%s%s-%s-%d", ctrdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
-			containers = append(containers, &container{
-				Runtime:           "containerd",
-				MountName:         ctrMountName,
-				ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
-				ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
-				ContainerName:     ctr.Name,
-				Layers:            ctrLayers,
-			})
+				ctrLayers := ctrdLayersPaths(ctrdRoot, ctr.Snapshot)
+				ctrMountName := fmt.Sprintf("%s%s-%s-%d", ctrdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
+				containers = append(containers, &container{
+					Runtime:           "containerd",
+					MountName:         ctrMountName,
+					ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
+					ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
+					ContainerName:     ctr.Name,
+					Layers:            ctrLayers,
+				})
+			}
 		}
 	}
 
@@ -84,27 +85,28 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) (scanContai
 		log.Debugf("%s: starting scanning for docker containers", opts.Scan)
 		dockerContainers, err := dockerReadMetadata(opts.Scan, dockerRoot)
 		if err != nil {
-			return scanContainerResult{}, err
-		}
-		for _, ctr := range dockerContainers {
-			if !ctr.State.Running {
-				continue
-			}
+			log.Errorf("%s: docker: could not read metadata: %v", opts.Scan, err)
+		} else {
+			for _, ctr := range dockerContainers {
+				if !ctr.State.Running {
+					continue
+				}
 
-			ctrMountName := dockerMountPrefix + ctr.ID
-			ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
-			if err != nil {
-				log.Errorf("%s: docker: could not get container layers %s: %v", opts.Scan, ctr, err)
-				continue
+				ctrMountName := dockerMountPrefix + ctr.ID
+				ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
+				if err != nil {
+					log.Errorf("%s: docker: could not get container layers %s: %v", opts.Scan, ctr, err)
+					continue
+				}
+				containers = append(containers, &container{
+					Runtime:           "docker",
+					MountName:         ctrMountName,
+					ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
+					ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
+					ContainerName:     ctr.Name,
+					Layers:            ctrLayers,
+				})
 			}
-			containers = append(containers, &container{
-				Runtime:           "docker",
-				MountName:         ctrMountName,
-				ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
-				ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
-				ContainerName:     ctr.Name,
-				Layers:            ctrLayers,
-			})
 		}
 	}
 
@@ -127,11 +129,12 @@ func mountContainer(ctx context.Context, scan *scanTask, ctr container) (string,
 	}
 	// We try to reduce the size of the mount options by using the longest common prefix for the layers.
 	// We are limited to a page size for mount options.
-	layersDir := longestLayerPrefix(ctr.Layers)
+	layersDir := path.Dir(longestLayerPrefix(ctr.Layers)) + "/"
 	layers := make([]string, 0, len(ctr.Layers))
 	for _, layer := range ctr.Layers {
 		layers = append(layers, strings.TrimPrefix(layer, layersDir))
 	}
+
 	mountPointRel, err := filepath.Rel(layersDir, ctrMountPoint)
 	if err != nil {
 		return "", err
@@ -142,7 +145,7 @@ func mountContainer(ctx context.Context, scan *scanTask, ctr container) (string,
 		"--source", "overlay",
 		"--target", mountPointRel,
 	}
-	log.Debugf("%s: execing mount %s", scan, ctrMountOpts)
+	log.Debugf("%s: execing mount (chdir=%s) %s", layersDir, scan, ctrMountOpts)
 	mountCmd := exec.CommandContext(ctx, "mount", ctrMountOpts...)
 	mountCmd.Dir = layersDir
 	mountOutput, err := mountCmd.CombinedOutput()
@@ -729,7 +732,7 @@ func dockerReadMetadata(scan *scanTask, dockerRoot string) ([]dockerContainer, e
 			return nil, err
 		}
 
-		if ctr.Driver != "overlay2" {
+		if ctr.Driver != "overlay2" && ctr.Driver != "overlayfs" {
 			log.Warnf("%s: docker: driver %q not supported for container %s", scan, ctr.Driver, ctr)
 			continue
 		}
