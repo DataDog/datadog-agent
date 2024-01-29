@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package rcserviceimpl is a remote config service that can run within the agent to receive remote config updates from the DD backend.
-package rcserviceimpl
+// Package rcservicehaimpl is a remote config service that can run within the agent to receive remote config updates from the configured DD failover DC
+package rcservicehaimpl
 
 import (
 	"context"
@@ -24,10 +24,10 @@ import (
 	"go.uber.org/fx"
 )
 
-// Module conditionally provides the remote config service.
+// Module conditionally provides the HA DC remote config service.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newRemoteConfigServiceOptional),
+		fx.Provide(newHaRemoteConfigServiceOptional),
 	)
 }
 
@@ -41,34 +41,30 @@ type dependencies struct {
 	Cfg                   cfgcomp.Component
 }
 
-// newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
-func newRemoteConfigServiceOptional(deps dependencies) (optional.Option[rcservice.Component], error) {
+// newHaRemoteConfigServiceOptional conditionally creates and configures a new HA remote config service, based on whether RC is enabled.
+func newHaRemoteConfigServiceOptional(deps dependencies) (optional.Option[rcservice.Component], error) {
 	none := optional.NewNoneOption[rcservice.Component]()
-	if !config.IsRemoteConfigEnabled(deps.Cfg) {
+	if !config.IsRemoteConfigEnabled(deps.Cfg) || !deps.Cfg.GetBool("ha.enabled") {
 		return none, nil
 	}
 
-	configService, err := newRemoteConfigService(deps)
+	haConfigService, err := newHaRemoteConfigService(deps)
 	if err != nil {
 		return none, err
 	}
 
-	return optional.NewOption[rcservice.Component](configService), nil
+	return optional.NewOption[rcservice.Component](haConfigService), nil
 }
 
-// newRemoteConfigServiceOptional creates and configures a new remote config service
-func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
-	apiKey := config.Datadog.GetString("api_key")
-	if config.Datadog.IsSet("remote_configuration.api_key") {
-		apiKey = config.Datadog.GetString("remote_configuration.api_key")
-	}
-	apiKey = configUtils.SanitizeAPIKey(apiKey)
-	baseRawURL := configUtils.GetMainEndpoint(config.Datadog, "https://config.", "remote_configuration.rc_dd_url")
+// newHaRemoteConfigServiceOptional creates and configures a new service that receives remote config updates from the configured DD failover DC
+func newHaRemoteConfigService(deps dependencies) (rcservice.Component, error) {
+	apiKey := configUtils.SanitizeAPIKey(config.Datadog.GetString("ha.api_key"))
+	baseRawURL := configUtils.GetHAEndpoint(config.Datadog, "https://config.", "ha.rc_dd_url")
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(config.Datadog)
-	dbName := "remote-config.db"
+	dbName := "remote-config-ha.db"
 	configuredTags := configUtils.GetConfiguredTags(config.Datadog, false)
 
-	configService, err := remoteconfig.NewService(
+	haConfigService, err := remoteconfig.NewService(
 		config.Datadog,
 		apiKey,
 		baseRawURL,
@@ -80,16 +76,16 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
+		return nil, fmt.Errorf("unable to create HA remote-config service: %w", err)
 	}
 
 	deps.Lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
-		configService.Start(ctx)
+		haConfigService.Start(ctx)
 		return nil
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
-		return configService.Stop()
+		return haConfigService.Stop()
 	}})
 
-	return configService, nil
+	return haConfigService, nil
 }

@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
 	"net"
 	"net/http"
 	"time"
@@ -57,6 +58,7 @@ func startCMDServer(
 	tlsConfig *tls.Config,
 	tlsCertPool *x509.CertPool,
 	configService optional.Option[rcservice.Component],
+	configServiceHA optional.Option[rcserviceha.Component],
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
@@ -93,8 +95,9 @@ func startCMDServer(
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
-		configService: configService,
-		taggerServer:  taggerserver.NewServer(taggerComp),
+		configService:   configService,
+		configServiceHA: configServiceHA,
+		taggerServer:    taggerserver.NewServer(taggerComp),
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,

@@ -8,6 +8,7 @@ package apiimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
 	"net"
 
 	"go.uber.org/fx"
@@ -53,6 +54,7 @@ type apiServer struct {
 	pkgSigning      packagesigning.Component
 	statusComponent status.Component
 	rcService       optional.Option[rcservice.Component]
+	rcServiceHA     optional.Option[rcserviceha.Component]
 }
 
 type dependencies struct {
@@ -71,6 +73,7 @@ type dependencies struct {
 	PkgSigning      packagesigning.Component
 	StatusComponent status.Component
 	RcService       optional.Option[rcservice.Component]
+	rcServiceHA     optional.Option[rcserviceha.Component]
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -90,6 +93,7 @@ func newAPIServer(deps dependencies) api.Component {
 		pkgSigning:      deps.PkgSigning,
 		statusComponent: deps.StatusComponent,
 		rcService:       deps.RcService,
+		rcServiceHA:     deps.rcServiceHA,
 	}
 }
 
@@ -101,6 +105,7 @@ func (server *apiServer) StartServer(
 	senderManager sender.DiagnoseSenderManager,
 ) error {
 	return StartServers(server.rcService,
+		server.rcServiceHA,
 		server.flare,
 		server.dogstatsdServer,
 		server.capture,

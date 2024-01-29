@@ -7,6 +7,7 @@ package state
 
 var validProducts = map[string]struct{}{
 	ProductAgentConfig:       {},
+	ProductAgentFailover:     {},
 	ProductAgentTask:         {},
 	ProductAgentIntegrations: {},
 	ProductAPMSampling:       {},
@@ -26,6 +27,8 @@ var validProducts = map[string]struct{}{
 const (
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
+	// ProductAgentFailover is to receive the multi-region failover configuration
+	ProductAgentFailover = "AGENT_FAILOVER"
 	// ProductAgentIntegrations is to receive integrations to schedule
 	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
 	// ProductAgentTask is to receive agent task instruction, like a flare
