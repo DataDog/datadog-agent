@@ -299,7 +299,7 @@ qa_dogstatsd:
 qa_main_cws_instrumentation:
   extends: .qa_cws_instrumentation
   rules:
-    !reference [.on_main_and_no_skip_e2e]
+    !reference [.on_main_or_rc_and_no_skip_e2e]
 
 qa_branch_cws_instrumentation:
   extends: .qa_cws_instrumentation

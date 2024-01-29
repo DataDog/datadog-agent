@@ -1067,7 +1067,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_main_and_no_skip_e2e:
+.on_main_or_rc_and_no_skip_e2e:
   - <<: *if_not_e2e
     when: never
   - <<: *if_main_branch
