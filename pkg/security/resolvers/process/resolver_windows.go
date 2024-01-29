@@ -95,7 +95,7 @@ func (p *Resolver) AddToExitedQueue(pid uint32) {
 }
 
 // dequeueExited dequeue exited process
-func (p *EBPFResolver) DequeueExited() {
+func (p *Resolver) DequeueExited() {
 	p.Lock()
 	defer p.Unlock()
 
