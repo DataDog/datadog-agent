@@ -45,13 +45,14 @@ const maxMapsTracked = 20
 
 // Probe is the eBPF side of the eBPF check
 type Probe struct {
-	statsFD       io.Closer
-	coll          *ebpf.Collection
-	perfBufferMap *ebpf.Map
-	ringBufferMap *ebpf.Map
-	pidMap        *ebpf.Map
-	links         []link.Link
-	mapBuffers    entryCountBuffers
+	statsFD               io.Closer
+	coll                  *ebpf.Collection
+	perfBufferMap         *ebpf.Map
+	ringBufferMap         *ebpf.Map
+	pidMap                *ebpf.Map
+	links                 []link.Link
+	mapBuffers            entryCountBuffers
+	entryCountMaxRestarts int
 
 	nrcpus uint32
 }
@@ -87,7 +88,9 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		}
 	}
 
-	probe.mapBuffers.bufferSizeLimit = uint32(ddconfig.SystemProbe.GetInt("ebpf_check.max_buffer_size_for_entry_count_in_bytes"))
+	probe.mapBuffers.keysBufferSizeLimit = uint32(ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_keys_buffer_size_bytes"))
+	probe.mapBuffers.valuesBufferSizeLimit = uint32(ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_values_buffer_size_bytes"))
+	probe.entryCountMaxRestarts = ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_restarts")
 
 	log.Debugf("successfully loaded ebpf check probe")
 	return probe, nil
@@ -341,7 +344,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			if module != "unknown" {
 				// hashMapNumberOfEntries might allocate memory, so we only do it if we have a module name, as
 				// unknown modules get discarded anyway (only RSS is used for total counts)
-				baseMapStats.Entries = hashMapNumberOfEntries(mp, &k.mapBuffers)
+				baseMapStats.Entries = hashMapNumberOfEntries(mp, &k.mapBuffers, k.entryCountMaxRestarts)
 			}
 		case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
@@ -540,49 +543,72 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 // also keeps track of the biggest allocation performed, so that on repeated calls we always
 // allocate the biggest map we have seen so far, reducing the number of allocations.
 type entryCountBuffers struct {
-	keys            []byte
-	values          []byte
-	cursor          []byte
-	maxKeysSize     uint32
-	maxValuesSize   uint32
-	maxCursorSize   uint32
-	bufferSizeLimit uint32
+	// Buffer to store the keys returned from the batch
+	keys []byte
+
+	// Buffer to store the values from the batch
+	values []byte
+
+	// A map that stores the hashes of the keys seen in the first batch of a batch lookup
+	// This is only used when the buffer limits do not allow us to get all the entries in a single batch
+	// and we need to iterate. In that case, we need to check against the keys we got in the first batch
+	// to see if we got restarted.
+	firstBatchKeys map[uint32]struct{}
+
+	// Buffer for the cursor indicating the next key to get
+	cursor []byte
+
+	// Track the maximum size of each buffer type, to avoid multiple reallocations
+	// each time we call the function. This way, after buffers are reset, we allocate
+	// directly the maximum size we will need and save on allocations
+	maxKeysSize   uint32
+	maxValuesSize uint32
+	maxCursorSize uint32
+
+	// size limits, originating from configuration
+	keysBufferSizeLimit   uint32
+	valuesBufferSizeLimit uint32
 }
 
-func (e *entryCountBuffers) ensureSizeAll(referenceMap *ebpf.Map) error {
+// growBufferWithLimit creates or grows the given buffer with a configured limit.
+// Returns the new buffer, the length allocated and the boolean indicating if the buffer
+// was allocated the desired size
+func growBufferWithLimit(buffer []byte, newSize uint32, limit uint32) ([]byte, uint32, bool) {
+	if newSize <= uint32(len(buffer)) {
+		return buffer, uint32(len(buffer)), true
+	}
+	if limit > 0 && newSize > limit && len(buffer) < int(limit) {
+		return make([]byte, limit), limit, false
+	}
+	return make([]byte, newSize), newSize, true
+}
+
+func (e *entryCountBuffers) tryEnsureSizeForFullBatch(referenceMap *ebpf.Map) bool {
 	maxSize := referenceMap.MaxEntries()
+	var keysAllocatedAsNeeded, valuesAllocatedAsNeeded bool
+	e.keys, e.maxKeysSize, keysAllocatedAsNeeded = growBufferWithLimit(e.keys, max(e.maxKeysSize, referenceMap.KeySize()*maxSize), e.keysBufferSizeLimit)
+	e.values, e.maxValuesSize, valuesAllocatedAsNeeded = growBufferWithLimit(e.values, max(e.maxKeysSize, referenceMap.ValueSize()*maxSize), e.valuesBufferSizeLimit)
 
-	keysSize := max(e.maxKeysSize, referenceMap.KeySize()*maxSize)
-	if e.bufferSizeLimit > 0 && keysSize > e.bufferSizeLimit {
-		return fmt.Errorf("cannot allocate keys buffer: map %s requires %d bytes (%d entries x %dB key size), limit is %d", referenceMap.String(), keysSize, maxSize, referenceMap.KeySize(), e.bufferSizeLimit)
-	}
-	if uint32(len(e.keys)) < keysSize {
-		e.keys = make([]byte, keysSize)
-		e.maxKeysSize = keysSize
-	}
+	e.ensureSizeCursor(referenceMap)
 
-	valuesSize := max(e.maxValuesSize, referenceMap.ValueSize()*maxSize)
-	if e.bufferSizeLimit > 0 && valuesSize > e.bufferSizeLimit {
-		return fmt.Errorf("cannot allocate values buffer: map %s requires %d bytes (%d entries x %dB value size), limit is %d", referenceMap.String(), valuesSize, maxSize, referenceMap.ValueSize(), e.bufferSizeLimit)
-	}
-	if uint32(len(e.values)) < valuesSize {
-		e.values = make([]byte, valuesSize)
-		e.maxValuesSize = valuesSize
-	}
-
-	return e.ensureSizeCursor(referenceMap)
+	return keysAllocatedAsNeeded || valuesAllocatedAsNeeded
 }
 
-func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) error {
-	cursorSize := max(e.maxCursorSize, referenceMap.KeySize())
-	if e.bufferSizeLimit > 0 && cursorSize > e.bufferSizeLimit {
-		return fmt.Errorf("cannot allocate cursor buffer: map %s requires %d bytes, limit is %d", referenceMap.String(), referenceMap.KeySize(), e.bufferSizeLimit)
+func (e *entryCountBuffers) prepareFirstBatchKeys(referenceMap *ebpf.Map) {
+	numEntries := len(e.keys) / int(referenceMap.KeySize())
+	if e.firstBatchKeys == nil {
+		e.firstBatchKeys = make(map[uint32]struct{}, numEntries) // Give a hint for allocation
 	}
-	if uint32(len(e.cursor)) < cursorSize {
-		e.cursor = make([]byte, cursorSize)
-		e.maxCursorSize = cursorSize
+	// Maps grow automatically and do not shrink, so it does not make sense
+	// to reallocate them if we already have a map. However, we do want to reset it
+	// so that we don't keep old keys from previous iterations
+	for k := range e.firstBatchKeys {
+		delete(e.firstBatchKeys, k)
 	}
-	return nil
+}
+
+func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) {
+	e.cursor, e.maxCursorSize, _ = growBufferWithLimit(e.values, max(e.maxCursorSize, referenceMap.KeySize()), 0) // No limit with cursors, they are always small
 }
 
 // resetBuffers resets the buffers to nil, so that they can be garbage collected
@@ -592,7 +618,19 @@ func (e *entryCountBuffers) resetBuffers() {
 	e.cursor = nil
 }
 
-func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers) (int64, error) {
+func inplaceHash(data []byte, offset int, length int, seed uint32) uint32 {
+	hash := uint32(2166136261)
+	prime32 := uint32(16777619)
+	hash *= prime32
+	hash ^= seed
+	for i := 0; i < length; i++ {
+		hash *= prime32
+		hash ^= uint32(data[offset+i])
+	}
+	return hash
+}
+
+func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, maxRestarts int) (int64, error) {
 	// Here we duplicate a bit the code from cilium/ebpf to use the batch API
 	// in our own way, because the way it's coded there it cannot be used with
 	// key sizes that are only known at runtime.
@@ -615,40 +653,97 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers) (
 		ElemFlags uint64
 		Flags     uint64
 	}
-	// Ensure that the buffers have enough size. Doing this avoids allocating
-	// big buffers every time the function is called
-	if err := buffers.ensureSizeAll(mp); err != nil {
-		return -1, err
-	}
-	attr := MapLookupBatchAttr{
-		MapFd:    uint32(mp.FD()),
-		Keys:     NewPointer(unsafe.Pointer(&buffers.keys[0])),
-		Values:   NewPointer(unsafe.Pointer(&buffers.values[0])),
-		Count:    uint32(mp.MaxEntries()),
-		InBatch:  NewPointer(nil),
-		OutBatch: NewPointer(unsafe.Pointer(&buffers.cursor[0])),
+
+	// Allocate the buffers we need, and check if we got enough for getting
+	// all the entries in a single batch or if we reached the limit and we need to
+	// iterate
+	allocatedEnoughSpace := buffers.tryEnsureSizeForFullBatch(mp)
+
+batchStart:
+	for restarts := 0; restarts < maxRestarts; restarts++ {
+		batchSize := min(mp.MaxEntries(), uint32(len(buffers.keys)))
+		totalCount := int64(0)
+		if !allocatedEnoughSpace {
+			buffers.prepareFirstBatchKeys(mp)
+		}
+
+		// Do the batch lookup
+		for i := uint32(0); i*batchSize < mp.MaxEntries(); i++ {
+			// Prepare the arguments
+			attr := MapLookupBatchAttr{
+				MapFd:    uint32(mp.FD()),
+				Values:   NewPointer(unsafe.Pointer(&buffers.values[0])),
+				Keys:     NewPointer(unsafe.Pointer(&buffers.keys[0])),
+				Count:    batchSize,
+				OutBatch: NewPointer(unsafe.Pointer(&buffers.cursor[0])),
+				InBatch:  NewPointer(nil), // nil means start at the beginning
+			}
+			if i == 0 {
+				// First batch, start at the beginning
+				attr.InBatch = NewPointer(nil)
+			} else {
+				// continue from where we left off
+				attr.InBatch = NewPointer(unsafe.Pointer(&buffers.cursor[0]))
+			}
+
+			_, _, errno := unix.Syscall(unix.SYS_BPF, uintptr(BpfMapLookupBatchCommandCode), uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
+			totalCount += int64(attr.Count)
+
+			if errno == 0 && i == 0 {
+				// We got a batch and it's the first one, and we didn't reach the end of the map, so we need to store the keys we got here
+				// so that later on we can check against them to see if we got an iteration restart
+				if !allocatedEnoughSpace { // A sanity check
+					return -1, fmt.Errorf("Unexpected batch lookup result: we got a batch but we didn't reach the end of the map, and we didn't reach the limit of the buffers")
+				}
+
+				// Keep track the keys of the first batch so we can look them up later to see if we got restarted
+				// Instead of storing the keys in the map, which is not trivial because Go doesn't support maps
+				// of slices with runtime-decide length, we store the hashes of the keys in a map and check against
+				// that later. This is not perfect as there is a chance of collision between hashes (0.003% for 131072 keys)
+				// but avoiding extra memory usage is more important.
+				// One thing to note is that, in the case of a hash collision, the collision would still happen in multiple restarts,
+				// which means that if we have two colliding keys in a map we would never be able to get the number of entries.
+				// To mitigate that, we add the number of restarts we have to the hash, so that if we get restarted we will
+				// get a different hash and we will be able to get the number of entries.
+				for keyOffset := 0; keyOffset < int(attr.Count)*int(mp.KeySize()); keyOffset += int(mp.KeySize()) {
+					// To avoid allocations, we calculate hash in-place
+					buffers.firstBatchKeys[inplaceHash(buffers.keys, keyOffset, int(mp.KeySize()), uint32(restarts))] = struct{}{}
+				}
+			} else if i > 0 {
+				// We got a batch and it's not the first one. Check against the keys received in the first batch
+				// to see if we got an iteration restart
+				for keyOffset := 0; keyOffset < int(attr.Count)*int(mp.KeySize()); keyOffset += int(mp.KeySize()) {
+					// To avoid allocations, we calculate hash in-place
+					if _, present := buffers.firstBatchKeys[inplaceHash(buffers.keys, keyOffset, int(mp.KeySize()), uint32(restarts))]; present {
+						// We got a key that was already returned in the first batch, we got restarted.
+						// We need to try again
+						continue batchStart
+					}
+				}
+			}
+
+			if errno == unix.ENOENT {
+				// We looked up all elements, count is valid, return it
+				return totalCount, nil
+			} else if errno != 0 {
+				// Something happened, abort everything
+				return -1, fmt.Errorf("error iterating map %s: %s", mp.String(), errno)
+			}
+		}
+
+		// If the for loop above ends without returning, it means we reached the number
+		// of batches that should have returned all the elements in the map, but we didn't
+		// get an ENOENT, so something is wrong and we probably got restarted.
 	}
 
-	_, _, errno := unix.Syscall(unix.SYS_BPF, uintptr(BpfMapLookupBatchCommandCode), uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
-
-	// We only care about the errno returned. Note that batch lookup commands return
-	// ENOENT to indicate it is the last batch. In this case, we want a single batch with all
-	// the elements so it should return ENOENT in normal operation
-	if errno != 0 && errno != unix.ENOENT {
-		return -1, fmt.Errorf("error iterating map %s: %s", mp.String(), errno)
-	}
-
-	// The syscall modifies this field with the number of elements returned
-	return int64(attr.Count), nil
+	return -1, fmt.Errorf("the iteration got restarted too many times for map %s (%d entries)", mp.String(), mp.MaxEntries())
 }
 
 func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffers) (int64, error) {
 	numElements := int64(0)
 	maxEntries := int64(mp.MaxEntries())
 	firstIter := true
-	if err := buffers.ensureSizeCursor(mp); err != nil {
-		return -1, err
-	}
+	buffers.ensureSizeCursor(mp)
 
 	for numElements <= maxEntries {
 		var err error
@@ -678,7 +773,7 @@ func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffer
 	return numElements, nil
 }
 
-func hashMapNumberOfEntries(mp *ebpf.Map, buffers *entryCountBuffers) int64 {
+func hashMapNumberOfEntries(mp *ebpf.Map, buffers *entryCountBuffers, maxRestarts int) int64 {
 	if isPerCPU(mp.Type()) {
 		return -1
 	}
@@ -686,7 +781,7 @@ func hashMapNumberOfEntries(mp *ebpf.Map, buffers *entryCountBuffers) int64 {
 	var numElements int64
 	var err error
 	if ddebpf.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
-		numElements, err = hashMapNumberOfEntriesWithBatch(mp, buffers)
+		numElements, err = hashMapNumberOfEntriesWithBatch(mp, buffers, maxRestarts)
 	} else {
 		numElements, err = hashMapNumberOfEntriesWithIteration(mp, buffers)
 	}

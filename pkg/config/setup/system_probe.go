@@ -285,9 +285,14 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// ebpf module
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "kernel_bpf_stats"), false)
-	// Note that there are two buffers that might reach this size, so the actual memory usage might be up to 2x this value.
-	// Set to 0 for no limit.
-	cfg.BindEnvAndSetDefault(join("ebpf_check", "max_buffer_size_for_entry_count_in_bytes"), 20*1024*1024)
+
+	// settings for the entry count of the ebpfcheck
+	// control the size of the buffers used for the batch lookups of the ebpf maps
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "max_keys_buffer_size_bytes"), 512*1024)
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "max_values_buffer_size_bytes"), 1024*1024)
+	// How many times we can restart the entry count of a map before we give up if we get an iteration restart
+	// due to the map changing while we look it up
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "max_restarts"), 3)
 
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
