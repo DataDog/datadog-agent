@@ -190,12 +190,17 @@ func injectApmTelemetryConfig(pod *corev1.Pod) {
 	_ = injectEnv(pod, instrumentationInstallIDEnvVar)
 }
 
+// getLibrariesToInjectForApmInstrumentation returns the list of tracing libraries to inject, when APM Instrumentation is enabled
+// - if apm_config.instrumentation.lib_versions set, returns only tracing libraries from apm_config.instrumentation.lib_versions
+// - if language detection is on and can detect the apps' languages, returns only auto-detected languages
+// - otherwise returns all tracing libraries supported by APM Instrumentation
 func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string) ([]libInfo, bool) {
 	libsToInject := []libInfo{}
 	autoDetected := false
 	var libVersion string
 
 	singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
+
 	// If APM Instrumentation is enabled and configuration apm_config.instrumentation.lib_versions specified, inject only the libraries from the configuration
 	for lang, version := range singleStepLibraryVersions {
 		if !slices.Contains(supportedLanguages, language(lang)) {
@@ -210,7 +215,7 @@ func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string)
 		return libsToInject, autoDetected
 	}
 
-	// If user doesn't provide langages information, try getting the languages from process languages auto-detection. The langages information are available in workloadmeta-store and attached on the pod's owner.
+	// Try getting the languages from process languages auto-detection. The langages information are available in workloadmeta-store and attached on the pod's owner.
 	if config.Datadog.GetBool("admission_controller.inject_auto_detected_libraries") {
 		libsToInject = extractLibrariesFromOwnerAnnotations(pod, registry)
 		if len(libsToInject) > 0 {
@@ -219,6 +224,7 @@ func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string)
 		}
 	}
 
+	// If language auto-detection didn't return any language libraries, inject "latest" version of all tracing libraries
 	for _, lang := range supportedLanguages {
 		libsToInject = append(libsToInject, libInfo{lang: language(lang), image: libImageName(registry, lang, "latest")})
 	}
@@ -281,9 +287,6 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool)
 	// If APM Instrumentation is enabled, derive libraries from apm_config.instrumentation.lib_versions configuration or Language Detection
 	if isApmInstrumentationEnabled(pod.Namespace) {
 		libInfoList, autoDetected = getLibrariesToInjectForApmInstrumentation(pod, containerRegistry)
-		if len(libInfoList) > 0 {
-			log.Debugf("Single Step Instrumentation: Injecting all libraries into pod %q in namespace %q", podString(pod), pod.Namespace)
-		}
 	}
 
 	return libInfoList, autoDetected
