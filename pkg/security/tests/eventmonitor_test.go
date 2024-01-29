@@ -95,6 +95,8 @@ func (fc *FakeEventConsumer) Copy(incomingEvent *model.Event) any {
 }
 
 func TestEventMonitor(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	var fc *FakeEventConsumer
 	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
 		disableRuntimeSecurity: true,

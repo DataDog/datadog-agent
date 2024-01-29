@@ -44,6 +44,7 @@ import (
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
+	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -205,6 +206,14 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 				rcClient.Close()
 			}()
 		}
+	}
+
+	// Setup the leader forwarder for language detection and cluster checks
+	if pkgconfig.Datadog.GetBool("cluster_checks.enabled") || pkgconfig.Datadog.GetBool("language_detection.enabled") {
+		apidca.NewGlobalLeaderForwarder(
+			pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"),
+			pkgconfig.Datadog.GetInt("cluster_agent.max_connections"),
+		)
 	}
 
 	// Starting server early to ease investigations
@@ -421,7 +430,6 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 
 	close(stopCh)
 
-	demultiplexer.Stop(true)
 	if err := metricsServer.Shutdown(context.Background()); err != nil {
 		pkglog.Errorf("Error shutdowning metrics server on port %d: %v", metricsPort, err)
 	}
