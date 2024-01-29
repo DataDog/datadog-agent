@@ -51,8 +51,8 @@ func TestMain(m *testing.M) {
 }
 
 var (
-	ip4Re = regexp.MustCompile(".+listening on.+0.0.0.0:([0-9]+)")
-	ip6Re = regexp.MustCompile(".+listening on.+\\[0000:0000:0000:0000:0000:0000:0000:0000\\]:([0-9]+)")
+	ip4Re = regexp.MustCompile(`.+listening on.+0.0.0.0:([0-9]+)`)
+	ip6Re = regexp.MustCompile(`.+listening on.+\[0000:0000:0000:0000:0000:0000:0000:0000\]:([0-9]+)`)
 )
 
 // runServerProcess runs a server using `socat` externally
