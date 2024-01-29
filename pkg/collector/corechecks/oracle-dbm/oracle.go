@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -76,6 +78,7 @@ type Check struct {
 	connection                              *go_ora.Connection
 	dbmEnabled                              bool
 	agentVersion                            string
+	agentHostname                           string
 	checkInterval                           float64
 	tags                                    []string
 	tagsWithoutDbRole                       []string
@@ -329,12 +332,20 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	agentVersion, _ := version.Agent()
 	c.agentVersion = agentVersion.GetNumberAndPre()
 
+	agentHostname, err := hostname.Get(context.Background())
+	if err == nil {
+		c.agentHostname = agentHostname
+	} else {
+		log.Errorf("%s failed to retrieve agent hostname: %s", err)
+	}
+
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
 
 	tags := make([]string, len(c.config.Tags))
 	copy(tags, c.config.Tags)
 
 	tags = append(tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
+	tags = append(tags, fmt.Sprintf("ddagenthostname:%s", c.agentHostname))
 	tags = append(tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
 	if c.config.TnsAlias != "" {
 		tags = append(tags, fmt.Sprintf("tns-alias:%s", c.config.TnsAlias))
