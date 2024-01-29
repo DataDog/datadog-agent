@@ -3,7 +3,7 @@
   needs: []
   tags: ["arch:amd64"]
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_e2e_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
     # DockerHub login for build to limit rate limit when pulling base images
@@ -78,7 +78,7 @@ pull_test_dockers_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   allow_failure: true
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_e2e_changes_or_manual ]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
@@ -114,7 +114,7 @@ upload_dependencies_arm64:
   stage: kernel_matrix_testing
   allow_failure: true
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_e2e_changes_or_manual ]
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
@@ -212,7 +212,7 @@ upload_system_probe_tests_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_e2e_changes_or_manual ]
   allow_failure: true
   script:
     # Build dependencies directory
@@ -270,7 +270,7 @@ upload_minimized_btfs_arm64:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_e2e_changes_or_manual ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
@@ -343,7 +343,7 @@ kernel_matrix_testing_setup_env_x64:
   stage: kernel_matrix_testing
   allow_failure: true
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_e2e_changes_or_manual ]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
@@ -423,7 +423,7 @@ kernel_matrix_testing_run_tests_arm64:
   when: always
   tags: ["arch:amd64"]
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_e2e_changes_or_manual ]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
