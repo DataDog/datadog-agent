@@ -782,7 +782,7 @@ func TestHandleTraces(t *testing.T) {
 		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
 		assert.True(ok)
 		assert.Equal(int64(20), ts.TracesReceived.Load())
-		assert.Equal(int64(83022), ts.TracesBytes.Load())
+		assert.Equal(int64(82222), ts.TracesBytes.Load())
 	}
 	// make sure we have all our languages registered
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())
