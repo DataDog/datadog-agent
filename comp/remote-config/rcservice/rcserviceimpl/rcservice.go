@@ -24,15 +24,8 @@ import (
 	"go.uber.org/fx"
 )
 
-// Module defines the fx options for this component.
+// Module conditionally provides the remote config service.
 func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRemoteConfigService),
-	)
-}
-
-// ModuleOptional conditially provides the remote config service.
-func ModuleOptional() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newRemoteConfigServiceOptional),
 	)

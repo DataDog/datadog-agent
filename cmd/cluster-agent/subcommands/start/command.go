@@ -132,7 +132,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmeta.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
-				rcserviceimpl.ModuleOptional(),
+				rcserviceimpl.Module(),
 				rctelemetryreporterimpl.Module(),
 			)
 		},

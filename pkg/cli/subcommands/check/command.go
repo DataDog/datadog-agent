@@ -201,7 +201,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() inventoryagent.Component { return nil }),
 				fx.Provide(func() inventoryhost.Component { return nil }),
 				fx.Provide(func() packagesigning.Component { return nil }),
-				fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewOption[rcservice.Component](nil) }),
+				fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
 			)
 		},
 	}
