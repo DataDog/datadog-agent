@@ -14,12 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
-
-func TestThatWindowsCanRunATest(t *testing.T) {
-	assert.Equal(t, 2, 2)
-}
 
 func TestBasicTest(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
