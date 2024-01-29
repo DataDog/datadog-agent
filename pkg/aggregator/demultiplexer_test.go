@@ -70,7 +70,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDeps(t, opts)
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.Nil(demux.forwarders.eventPlatform)
+	_, found = demux.forwarders.eventPlatform.Get()
+	require.False(found)
 	_, found = demux.forwarders.orchestrator.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)

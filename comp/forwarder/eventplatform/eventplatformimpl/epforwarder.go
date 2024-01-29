@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"go.uber.org/fx"
 )
@@ -467,8 +468,18 @@ func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
 }
 
 // NewEventPlatformForwarder creates a new EventPlatformForwarder
-func NewEventPlatformForwarder() EventPlatformForwarder {
-	return newDefaultEventPlatformForwarder()
+func NewEventPlatformForwarder(params Params) eventplatform.Component {
+	var forwarder EventPlatformForwarder
+
+	if params.UseNoopEventPlatformForwarder {
+		forwarder = NewNoopEventPlatformForwarder()
+	} else if params.UseEventPlatformForwarder {
+		forwarder = newDefaultEventPlatformForwarder()
+	}
+	if forwarder == nil {
+		return optional.NewNoneOptionPtr[eventplatform.Forwarder]()
+	}
+	return optional.NewOptionPtr[eventplatform.Forwarder](forwarder)
 }
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events

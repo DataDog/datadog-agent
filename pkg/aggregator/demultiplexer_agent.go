@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -68,9 +69,8 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	UseNoopEventPlatformForwarder bool
-	UseEventPlatformForwarder     bool
-	FlushInterval                 time.Duration
+	eventplatformimpl.Params
+	FlushInterval time.Duration
 
 	EnableNoAggregationPipeline bool
 
@@ -83,9 +83,8 @@ type AgentDemultiplexerOptions struct {
 // DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
 func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 	return AgentDemultiplexerOptions{
-		FlushInterval:                 DefaultFlushInterval,
-		UseEventPlatformForwarder:     true,
-		UseNoopEventPlatformForwarder: false,
+		FlushInterval: DefaultFlushInterval,
+		Params:        eventplatformimpl.NewDefaultParams(),
 		// the different agents/binaries enable it on a per-need basis
 		EnableNoAggregationPipeline: false,
 	}
@@ -109,7 +108,7 @@ type statsd struct {
 type forwarders struct {
 	shared             forwarder.Forwarder
 	orchestrator       orchestratorforwarder.Component
-	eventPlatform      eventplatformimpl.EventPlatformForwarder
+	eventPlatform      eventplatform.Component
 	containerLifecycle *forwarder.DefaultForwarder
 }
 
@@ -133,15 +132,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	// -------------------------------
 
 	log.Debugf("Creating forwarders")
-	// orchestrator forwarder
-
-	// event platform forwarder
-	var eventPlatformForwarder eventplatformimpl.EventPlatformForwarder
-	if options.UseNoopEventPlatformForwarder {
-		eventPlatformForwarder = eventplatformimpl.NewNoopEventPlatformForwarder()
-	} else if options.UseEventPlatformForwarder {
-		eventPlatformForwarder = eventplatformimpl.NewEventPlatformForwarder()
-	}
+	eventPlatformForwarder := eventplatformimpl.NewEventPlatformForwarder(options.Params)
 
 	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
 		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
@@ -276,8 +267,9 @@ func (d *AgentDemultiplexer) run() {
 		}
 
 		// event platform forwarder
-		if d.forwarders.eventPlatform != nil {
-			d.forwarders.eventPlatform.Start()
+		eventPlatform, found := d.forwarders.eventPlatform.Get()
+		if found {
+			eventPlatform.Start()
 		} else {
 			d.log.Debug("not starting the event platform forwarder")
 		}
@@ -388,9 +380,11 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 			orchestratorforwarder.Stop()
 			d.dataOutputs.forwarders.orchestrator.Reset()
 		}
-		if d.dataOutputs.forwarders.eventPlatform != nil {
-			d.dataOutputs.forwarders.eventPlatform.Stop()
-			d.dataOutputs.forwarders.eventPlatform = nil
+		eventPlatform, found := d.dataOutputs.forwarders.eventPlatform.Get()
+
+		if found {
+			eventPlatform.Stop()
+			d.dataOutputs.forwarders.eventPlatform.Reset()
 		}
 		if d.dataOutputs.forwarders.containerLifecycle != nil {
 			d.dataOutputs.forwarders.containerLifecycle.Stop()
