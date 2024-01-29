@@ -44,7 +44,7 @@ var pythonScript []byte
 //go:embed log-config/logger-service.sh
 var randomLogger []byte
 
-// logsExampleStackDef returns the stack definition required for the log agent test suite.
+// TestE2EVMFakeintakeSuite returns the stack definition required for the log agent test suite.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
 	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
@@ -63,12 +63,12 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 func (s *LinuxJournaldFakeintakeSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 	// Flush server and reset aggregators before the test is ran
-	utils.CleanUp(s)
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 }
 
 func (s *LinuxJournaldFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
-	utils.CleanUp(s)
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.BaseSuite.TearDownSuite()
 }
 
