@@ -221,6 +221,7 @@ func (a *RegistryAuditor) cleanupRegistry() {
 	expireBefore := time.Now().UTC().Add(-a.entryTTL)
 	for path, entry := range a.registry {
 		if entry.LastUpdated.Before(expireBefore) {
+			log.Debug("TTL for %s expired, removing from registry.", path)
 			delete(a.registry, path)
 		}
 	}
