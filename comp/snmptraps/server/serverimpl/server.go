@@ -32,9 +32,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newServer),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newServer))
+}
 
 type dependencies struct {
 	fx.In
@@ -102,11 +103,11 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 			Logger:    deps.Logger,
 			Status:    stat,
 		}),
-		configimpl.Module,
-		formatterimpl.Module,
-		forwarderimpl.Module,
-		listenerimpl.Module,
-		oidresolverimpl.Module,
+		configimpl.Module(),
+		formatterimpl.Module(),
+		forwarderimpl.Module(),
+		listenerimpl.Module(),
+		oidresolverimpl.Module(),
 		fx.Invoke(func(_ forwarder.Component, _ listener.Component) {}),
 	)
 	server := &TrapsServer{app: app, stat: stat}

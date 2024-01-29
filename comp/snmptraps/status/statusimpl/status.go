@@ -21,9 +21,11 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(New),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(New),
+	)
+}
 
 var (
 	trapsExpvars                       = expvar.NewMap("snmp_traps")

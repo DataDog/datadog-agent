@@ -43,12 +43,12 @@ func setUp(t *testing.T) *services {
 	t.Helper()
 	s := fxutil.Test[services](t,
 		hostnameimpl.MockModule(),
-		configimpl.MockModule,
+		configimpl.MockModule(),
 		logimpl.MockModule(),
 		senderhelper.Opts,
-		formatterimpl.MockModule,
-		listenerimpl.MockModule,
-		Module,
+		formatterimpl.MockModule(),
+		listenerimpl.MockModule(),
+		Module(),
 	)
 	return &s
 }
