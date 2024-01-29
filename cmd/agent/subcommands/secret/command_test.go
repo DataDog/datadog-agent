@@ -20,8 +20,8 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"secret"},
-		secretCommand,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		showSecretInfo,
+		func(coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)
 		})
 }
@@ -30,8 +30,8 @@ func TestRefreshCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"secret", "refresh"},
-		secretCommand,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		secretRefresh,
+		func(coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)
 		})
 }
