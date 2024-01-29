@@ -93,7 +93,6 @@
         },
         "ec2": {
             "x86_64": {
-                "ubuntu-16-04-4.4": "ami-a4dc46db",
                 "ubuntu-16-04": "ami-089043ae24872fe78",
                 "ubuntu-18-04": "ami-015715c1584e7243c",
                 "ubuntu-20-04": "ami-0ffb8e1df897204c4",
