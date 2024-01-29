@@ -261,13 +261,13 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
     bpf_memset(&t, 0, sizeof(conn_tuple_t));
     int data_len = sk_buff_to_tuple(skb, &t);
     if (data_len <= 0) {
-        log_debug("ERR(skb_consume_udp): error reading tuple ret=%d\n", data_len);
+        log_debug("ERR(skb_consume_udp): error reading tuple ret=%d", data_len);
         return 0;
     }
     // we are receiving, so we want the daddr to become the laddr
     flip_tuple(&t);
 
-    log_debug("skb_consume_udp: bytes=%d\n", data_len);
+    log_debug("skb_consume_udp: bytes=%d", data_len);
     t.pid = pid_tgid >> 32;
     t.netns = get_netns_from_sock(sk);
     return handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);

@@ -111,35 +111,17 @@ k8s-e2e-otlp-main:
     reports:
       junit: test/new-e2e/junit-*.xml
 
-new-e2e-containers-dev:
+new-e2e-containers:
   extends: .new_e2e_template
   # TODO once images are deployed to ECR for dev branches, update
   # on_main_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
   rules:
-    - !reference [.if_run_e2e_tests]
-    - !reference [.on_dev_branch_manual]
+    !reference [.on_container_changes_or_manual]
   needs:
-    - qa_branch_agent
-    - qa_branch_dca
-    - qa_branch_dogstatsd
-  variables:
-    TARGETS: ./tests/containers
-    TEAM: container-integrations
-  parallel:
-    matrix:
-      - EXTRA_PARAMS: --run TestKindSuite
-      - EXTRA_PARAMS: --run TestEKSSuite
-      - EXTRA_PARAMS: --run TestECSSuite
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS)Suite"
-
-new-e2e-containers-main:
-  extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
-  needs:
-    - qa_main_agent
-    - qa_main_dca
-    - qa_main_dogstatsd
+    - qa_agent
+    - qa_dca
+    - qa_dogstatsd
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
@@ -304,9 +286,9 @@ new-e2e-orchestrator-dev:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
   needs:
-    - qa_branch_agent
-    - qa_branch_dca
-    - qa_branch_dogstatsd
+    - qa_agent
+    - qa_dca
+    - qa_dogstatsd
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app
@@ -315,14 +297,34 @@ new-e2e-orchestrator-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
   needs:
-    - qa_main_agent
-    - qa_main_dca
-    - qa_main_dogstatsd
+    - qa_agent
+    - qa_dca
+    - qa_dogstatsd
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app
 
   allow_failure: true #TODO: Remove when https://github.com/DataDog/datadog-agent/pull/22113 is merged
+
+new-e2e-apm-dev:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs:
+    - qa_agent
+    - qa_dca
+    - qa_dogstatsd
+  variables:
+    TARGETS: ./tests/apm
+    TEAM: apm-agent
+
+new-e2e-apm-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  variables:
+    TARGETS: ./tests/apm
+    TEAM: apm-agent
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the

@@ -278,4 +278,27 @@ func TestProfileProxyHandler(t *testing.T) {
 		}
 		assert.Equal(t, expected, called, "The request should be proxied to all valid targets")
 	})
+
+	t.Run("lambda_function", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			v := req.Header.Get("X-Datadog-Additional-Tags")
+			if !strings.Contains(v, "functionname:my-function-name") || !strings.Contains(v, "_dd.origin:lambda") {
+				t.Fatalf("invalid X-Datadog-Additional-Tags header, fargate env should contain '%s' tag: %q", "orchestrator", v)
+			}
+			called = true
+		}))
+		conf := newTestReceiverConfig()
+		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
+		conf.LambdaFunctionName = "my-function-name"
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		if !called {
+			t.Fatal("request not proxied")
+		}
+	})
 }

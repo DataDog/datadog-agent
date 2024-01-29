@@ -230,6 +230,7 @@
 /comp/otelcol @DataDog/opentelemetry
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
+/comp/snmptraps @DataDog/network-device-monitoring
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
@@ -515,6 +516,7 @@
 /test/new-e2e/tests/agent-platform            @DataDog/agent-platform
 /test/new-e2e/tests/agent-metric-logs   @DataDog/agent-metrics-logs
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
+/test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm

@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
-
 package resolver
 
 import (
@@ -200,6 +198,44 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedRaddrID: "foo3",
 		},
 		{
+			name: "raddr resolution within same netns (1)",
+			conn: &model.Connection{
+				Pid:   3,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				IntraHost: true,
+				Direction: model.ConnectionDirection_incoming,
+			},
+			expectedLaddrID: "foo3",
+			expectedRaddrID: "foo5",
+		},
+		{
+			name: "raddr resolution within same netns (2)",
+			conn: &model.Connection{
+				Pid:   5,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+				IntraHost: true,
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo5",
+			expectedRaddrID: "foo3",
+		},
+		{
 			name: "raddr failed resolution, known address in different netns",
 			conn: &model.Connection{
 				Pid:   5,
@@ -294,6 +330,42 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedLaddrID: "foo7",
 			expectedRaddrID: "foo6",
 		},
+		{
+			name: "zero src netns failed resolution",
+			conn: &model.Connection{
+				Pid:   22,
+				NetNS: 0,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8282,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1250,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo22",
+			expectedRaddrID: "", // should NOT resolve to foo7
+		},
+		{
+			name: "zero src and dst netns failed resolution",
+			conn: &model.Connection{
+				Pid:   21,
+				NetNS: 0,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8181,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8282,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo21",
+			expectedRaddrID: "", // should NOT resolve to foo22
+		},
 	}
 
 	resolver := &LocalResolver{}
@@ -308,6 +380,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		8:  "bar",
 		20: "foo20",
 		21: "foo21",
+		22: "foo22",
 	})
 
 	conns := &model.Connections{}

@@ -45,3 +45,8 @@ func nskey(ns string, pieces ...string) string {
 func wcdNS(k ...string) string {
 	return nskey("windows_crash_detection", k...)
 }
+
+// pngNS adds `ping` namespace to config key
+func pngNS(k ...string) string {
+	return nskey("ping", k...)
+}

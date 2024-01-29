@@ -27,6 +27,7 @@ const (
 	smjtNS                       = smNS + ".tls.java"
 	diNS                         = "dynamic_instrumentation"
 	wcdNS                        = "windows_crash_detection"
+	pngNS                        = "ping"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -339,6 +340,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Windows crash detection
 	cfg.BindEnvAndSetDefault(join(wcdNS, "enabled"), false)
+
+	// Ping
+	cfg.BindEnvAndSetDefault(join(pngNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

@@ -1,5 +1,5 @@
 {
-	"commit": "e5ae49ca682c3a7d674dd008808645efd860d58f",
+	"commit": "5c0a589727a887fc75bbd6a47d296823d5ac8788",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -10710,6 +10710,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.105.1.el7.x86_64",
+			"cindex": 37
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.108.1.el7.x86_64",
 			"cindex": 37
 		},
 		{
