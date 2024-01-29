@@ -98,7 +98,7 @@ e2e_pre_test_junit_upload:
 e2e_container_test_junit_upload:
   extends: .e2e_test_junit_template
   rules:
-    - !reference [.on_container_e2e_changes_or_manual]
+    - !reference [.on_container_or_e2e_changes_or_manual]
   when: always
   stage: e2e_test_junit_upload
   dependencies:

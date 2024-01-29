@@ -982,7 +982,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_system_probe_e2e_changes_or_manual:
+.on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
   - <<: *if_mergequeue
     when: never
@@ -1024,7 +1024,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_container_e2e_changes_or_manual:
+.on_container_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e
     when: never
   - <<: *if_main_branch
