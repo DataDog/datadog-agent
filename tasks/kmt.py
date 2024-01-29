@@ -459,7 +459,7 @@ def ssh_config(_, stacks=None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version
         ):
             continue
 
-        for _, instance in build_infrastructure(stack, remote_ssh_key=""):
+        for _, instance in build_infrastructure(stack, remote_ssh_key="").items():
             print(f"Host kmt-{stack_name}-{instance.arch}")
             print(f"    HostName {instance.ip}")
             print("    User ubuntu")
