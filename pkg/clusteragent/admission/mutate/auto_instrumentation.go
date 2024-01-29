@@ -278,7 +278,7 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool)
 		}
 	}
 
-	// Single Step Instrumentation - derive libraries from apm_config.instrumentation.lib_versions configuration or Language Detection
+	// If APM Instrumentation is enabled, derive libraries from apm_config.instrumentation.lib_versions configuration or Language Detection
 	if isApmInstrumentationEnabled(pod.Namespace) {
 		libInfoList, autoDetected = getLibrariesToInjectForApmInstrumentation(pod, containerRegistry)
 		if len(libInfoList) > 0 {
