@@ -101,12 +101,12 @@ func (p *Resolver) DequeueExited() {
 
 	delEntry := func(pid uint32, exitTime time.Time) {
 		p.deleteEntry(pid, exitTime)
-		p.flushedEntries.Inc()
+		// p.flushedEntries.Inc()
 	}
 
 	now := time.Now()
 	for index, pid := range p.exitedQueue {
-		entry := p.entryCache[pid]
+		entry := p.processes[pid]
 		if entry == nil {
 			p.exitedQueue = append(p.exitedQueue[:index], p.exitedQueue[index+1:]...)
 			continue
