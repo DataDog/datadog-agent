@@ -1,7 +1,7 @@
 {
     "debian": {
         "debian-10": "ami-041540a5c191757a0",
-        "debian-11": "ami-09e24b0cfe072ecef",
-        "debian-12": "ami-06db4d78cb1d3bbf9"
+        "debian-11": "ami-02ba6eae41e089e8d",
+        "debian-12": "ami-07edaec601cf2b6d3"
     }
 }
