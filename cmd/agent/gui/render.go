@@ -29,21 +29,6 @@ type Data struct {
 	CheckStats []*stats.Stats
 }
 
-func renderStatus(rawData []byte, request string) (string, error) {
-	var b = new(bytes.Buffer)
-	stats := make(map[string]interface{})
-	if err := json.Unmarshal(rawData, &stats); err != nil {
-		return "", err
-	}
-
-	data := Data{Stats: stats}
-	e := fillTemplate(b, data, request+"Status")
-	if e != nil {
-		return "", e
-	}
-	return b.String(), nil
-}
-
 func renderRunningChecks() (string, error) {
 	var b = new(bytes.Buffer)
 

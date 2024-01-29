@@ -109,13 +109,17 @@ func newStatus(deps dependencies) (status.Component, error) {
 	}, nil
 }
 
-func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, error) {
+func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSections ...string) ([]byte, error) {
 	var errors []error
 
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
 		for _, sc := range s.sortedHeaderProviders {
+			if present(sc.Name(), excludeSections) {
+				continue
+			}
+
 			if err := sc.JSON(verbose, stats); err != nil {
 				errors = append(errors, err)
 			}
@@ -123,6 +127,9 @@ func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, e
 
 		for _, providers := range s.sortedProvidersBySection {
 			for _, provider := range providers {
+				if present(provider.Section(), excludeSections) {
+					continue
+				}
 				if err := provider.JSON(verbose, stats); err != nil {
 					errors = append(errors, err)
 				}
@@ -143,6 +150,10 @@ func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, e
 
 		for _, sc := range s.sortedHeaderProviders {
 			name := sc.Name()
+			if present(name, excludeSections) {
+				continue
+			}
+
 			if len(name) > 0 {
 				printHeader(b, name)
 				newLine(b)
@@ -156,6 +167,10 @@ func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, e
 		}
 
 		for _, section := range s.sortedSectionNames {
+			if present(section, excludeSections) {
+				continue
+			}
+
 			if len(section) > 0 {
 				printHeader(b, section)
 				newLine(b)
@@ -182,6 +197,10 @@ func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, e
 		var b = new(bytes.Buffer)
 
 		for _, sc := range s.sortedHeaderProviders {
+			if present(sc.Name(), excludeSections) {
+				continue
+			}
+
 			err := sc.HTML(verbose, b)
 			if err != nil {
 				return b.Bytes(), err
@@ -189,6 +208,10 @@ func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, e
 		}
 
 		for _, section := range s.sortedSectionNames {
+			if present(section, excludeSections) {
+				continue
+			}
+
 			for _, provider := range s.sortedProvidersBySection[section] {
 				err := provider.HTML(verbose, b)
 				if err != nil {

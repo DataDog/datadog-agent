@@ -53,7 +53,7 @@
     Internal JMXFetch Telemetry
     ===========================
       {{- if .ChecksStatus.InitializedChecks }}
-        {{- range $check,$instances := .checks.initialized_checks }}
+        {{- range $check,$instances := .ChecksStatus.InitializedChecks }}
           {{- range $instance := $instances }}
       - instance_name: {{ .instance_name }}
         instance_bean_count: {{ .instance_bean_count }}
