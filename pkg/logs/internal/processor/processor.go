@@ -149,9 +149,14 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 // GetHostname returns the hostname to applied the given log message
 func (p *Processor) GetHostname(msg *message.Message) string {
+	if msg.Hostname != "" {
+		return msg.Hostname
+	}
+
 	if msg.Lambda != nil {
 		return msg.Lambda.ARN
 	}
+
 	if p.hostname == nil {
 		return "unknown"
 	}
