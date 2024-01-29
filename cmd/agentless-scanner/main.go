@@ -3291,6 +3291,7 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 	ec2client := ec2.NewFromConfig(cfg)
 
 	volumeNotFound := false
+	volumeDetached := false
 	log.Debugf("%s: detaching volume %q", maybeScan, volumeID)
 	for i := 0; i < 5; i++ {
 		if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
@@ -3302,6 +3303,7 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 			// state for instance. Just bail.
 			if errors.As(err, &aerr) {
 				if aerr.ErrorCode() == "IncorrectState" {
+					volumeDetached = true
 					break
 				}
 				if aerr.ErrorCode() == "InvalidVolume.NotFound" {
@@ -3311,6 +3313,7 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 			}
 			log.Warnf("%s: could not detach volume %s: %v", maybeScan, volumeID, err)
 		} else {
+			volumeDetached = true
 			break
 		}
 		if !sleepCtx(ctx, 10*time.Second) {
@@ -3319,9 +3322,16 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 	}
 
 	var errd error
-	for i := 0; i < 25; i++ {
+	for i := 0; i < 10; i++ {
 		if volumeNotFound {
 			break
+		}
+		// TODO: we could poll lsblk on the volume device to check if it was detached maybe ?
+		if volumeDetached || i > 0 {
+			if !sleepCtx(ctx, 10*time.Second) {
+				errd = ctx.Err()
+				break
+			}
 		}
 		_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
 			VolumeId: aws.String(volumeID),
@@ -3334,10 +3344,6 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 			}
 		} else {
 			log.Debugf("%s: volume deleted %q", maybeScan, volumeID)
-			break
-		}
-		if !sleepCtx(ctx, 2*time.Second) {
-			errd = ctx.Err()
 			break
 		}
 	}
