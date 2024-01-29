@@ -351,10 +351,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if c.config.ServiceName != "" {
 		tags = append(tags, fmt.Sprintf("service:%s", c.config.ServiceName))
 	}
-	c.configTags = make([]string, len(tags))
-	copy(c.configTags, tags)
-	c.tags = make([]string, len(tags))
-	copy(c.tags, tags)
 
 	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
 
@@ -365,6 +361,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		log.Errorf("%s failed to retrieve agent hostname: %s", c.logPrompt, err)
 	}
 	tags = append(tags, fmt.Sprintf("ddagenthostname:%s", c.agentHostname))
+
+	c.configTags = make([]string, len(tags))
+	copy(c.configTags, tags)
+	c.tags = make([]string, len(tags))
+	copy(c.tags, tags)
 
 	return nil
 }
