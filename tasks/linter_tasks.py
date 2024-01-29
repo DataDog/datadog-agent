@@ -1,5 +1,4 @@
 import sys
-from collections import defaultdict
 from typing import List
 
 from invoke import Exit, task
@@ -85,7 +84,7 @@ def lint_go(
     ctx,
     module=None,
     targets=None,
-    flavors=None,
+    flavor=None,
     build="lint",
     build_tags=None,
     build_include=None,
@@ -115,20 +114,11 @@ def lint_go(
         inv lint-go --module=.
     """
 
-    # Format:
-    # {
-    #     "phase1": {
-    #         "flavor1": [module_result1, module_result2],
-    #         "flavor2": [module_result3, module_result4],
-    #     }
-    # }
-    modules_results_per_phase = defaultdict(dict)
-
-    modules_results_per_phase["lint"] = run_lint_go(
+    lint_results = run_lint_go(
         ctx=ctx,
         module=module,
         targets=targets,
-        flavors=flavors,
+        flavor=flavor,
         build=build,
         build_tags=build_tags,
         build_include=build_include,
@@ -141,7 +131,7 @@ def lint_go(
         headless_mode=headless_mode,
     )
 
-    success = process_module_results(modules_results_per_phase)
+    success = process_module_results(flavor=flavor, module_results=lint_results)
 
     if success:
         if not headless_mode:
@@ -155,7 +145,7 @@ def run_lint_go(
     ctx,
     module=None,
     targets=None,
-    flavors=None,
+    flavor=None,
     build="lint",
     build_tags=None,
     build_include=None,
@@ -167,33 +157,26 @@ def run_lint_go(
     golangci_lint_kwargs="",
     headless_mode=False,
 ):
-    modules, flavors = process_input_args(module, targets, flavors, headless_mode)
+    modules, flavor = process_input_args(module, targets, flavor, headless_mode)
 
-    linter_tags = {
-        f: build_tags
-        or compute_build_tags_for_flavor(
-            flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
-        )
-        for f in flavors
-    }
+    linter_tags = build_tags or compute_build_tags_for_flavor(
+        flavor=flavor, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
+    )
 
-    modules_lint_results_per_flavor = {flavor: [] for flavor in flavors}
+    lint_results = lint_flavor(
+        ctx,
+        modules=modules,
+        flavor=flavor,
+        build_tags=linter_tags,
+        arch=arch,
+        rtloader_root=rtloader_root,
+        concurrency=cpus,
+        timeout=timeout,
+        golangci_lint_kwargs=golangci_lint_kwargs,
+        headless_mode=headless_mode,
+    )
 
-    for flavor, build_tags in linter_tags.items():
-        modules_lint_results_per_flavor[flavor] = lint_flavor(
-            ctx,
-            modules=modules,
-            flavor=flavor,
-            build_tags=build_tags,
-            arch=arch,
-            rtloader_root=rtloader_root,
-            concurrency=cpus,
-            timeout=timeout,
-            golangci_lint_kwargs=golangci_lint_kwargs,
-            headless_mode=headless_mode,
-        )
-
-    return modules_lint_results_per_flavor
+    return lint_results
 
 
 def lint_flavor(

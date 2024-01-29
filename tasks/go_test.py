@@ -11,7 +11,6 @@ import os
 import platform
 import re
 import sys
-from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List
 
@@ -282,12 +281,12 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-@task(iterable=['flavors'])
+@task
 def test(
     ctx,
     module=None,
     targets=None,
-    flavors=None,
+    flavor=None,
     coverage=False,
     print_coverage=False,
     build_include=None,
@@ -326,18 +325,13 @@ def test(
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
-    modules_results_per_phase = defaultdict(dict)
-
     sanitize_env_vars()
 
-    modules, flavors = process_input_args(module, targets, flavors)
+    modules, flavor = process_input_args(module, targets, flavor)
 
-    unit_tests_tags = {
-        f: compute_build_tags_for_flavor(
-            flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
-        )
-        for f in flavors
-    }
+    unit_tests_tags = compute_build_tags_for_flavor(
+        flavor=flavor, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
+    )
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -408,45 +402,43 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
     }
 
     # Test
-    for flavor, build_tags in unit_tests_tags.items():
-        build_stdlib(
-            ctx,
-            build_tags=build_tags,
-            cmd=stdlib_build_cmd,
-            env=env,
-            args=args,
-            test_profiler=test_profiler,
-        )
-        if only_modified_packages:
-            modules = get_modified_packages(ctx, build_tags=build_tags)
-        modules_results_per_phase["test"][flavor] = test_flavor(
-            ctx,
-            flavor=flavor,
-            build_tags=build_tags,
-            modules=modules,
-            cmd=cmd,
-            env=env,
-            args=args,
-            junit_tar=junit_tar,
-            save_result_json=save_result_json,
-            test_profiler=test_profiler,
-            coverage=coverage,
-            coverage_script_template=coverage_script_template,
-        )
+    build_stdlib(
+        ctx,
+        build_tags=unit_tests_tags,
+        cmd=stdlib_build_cmd,
+        env=env,
+        args=args,
+        test_profiler=test_profiler,
+    )
+    if only_modified_packages:
+        modules = get_modified_packages(ctx)
+
+    test_results = test_flavor(
+        ctx,
+        flavor=flavor,
+        build_tags=unit_tests_tags,
+        modules=modules,
+        cmd=cmd,
+        env=env,
+        args=args,
+        junit_tar=junit_tar,
+        save_result_json=save_result_json,
+        test_profiler=test_profiler,
+        coverage=coverage,
+        coverage_script_template=coverage_script_template,
+    )
 
     # Output
     if junit_tar:
         junit_files = []
-        for flavor in modules_results_per_phase["test"]:
-            for module_test_result in modules_results_per_phase["test"][flavor]:
-                if module_test_result.junit_file_path:
-                    junit_files.append(module_test_result.junit_file_path)
+        for module_test_result in test_results:
+            if module_test_result.junit_file_path:
+                junit_files.append(module_test_result.junit_file_path)
 
         produce_junit_tar(junit_files, junit_tar)
 
     if coverage and print_coverage:
-        for flavor in flavors:
-            coverage_flavor(ctx, flavor, modules)
+        coverage_flavor(ctx, flavor, modules)
 
     # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
     # in the meantime to avoid confusion
@@ -454,7 +446,7 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
         # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
-    success = process_module_results(modules_results_per_phase)
+    success = process_module_results(flavor=flavor, module_results=test_results)
 
     if success:
         print(color_message("All tests passed", "green"))
