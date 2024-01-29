@@ -3008,7 +3008,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 		TagSpecifications: cloudResourceTagSpec(resourceTypeVolume, scan.ScannerHostname),
 	})
 	if err != nil {
-		return fmt.Errorf("could not create volume from snapshot: %s", err)
+		return fmt.Errorf("could not create volume from snapshot: %w", err)
 	}
 
 	volumeARN := ec2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, resourceTypeVolume, *volume.VolumeId)
