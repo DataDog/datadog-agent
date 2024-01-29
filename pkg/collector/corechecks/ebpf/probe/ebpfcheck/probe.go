@@ -553,7 +553,7 @@ type entryCountBuffers struct {
 	// This is only used when the buffer limits do not allow us to get all the entries in a single batch
 	// and we need to iterate. In that case, we need to check against the keys we got in the first batch
 	// to see if we got restarted.
-	firstBatchKeys map[uint32]struct{}
+	firstBatchKeys inplaceSet
 
 	// Buffer for the cursor indicating the next key to get
 	cursor []byte
@@ -595,16 +595,12 @@ func (e *entryCountBuffers) tryEnsureSizeForFullBatch(referenceMap *ebpf.Map) bo
 }
 
 func (e *entryCountBuffers) prepareFirstBatchKeys(referenceMap *ebpf.Map) {
-	numEntries := len(e.keys) / int(referenceMap.KeySize())
-	if e.firstBatchKeys == nil {
-		e.firstBatchKeys = make(map[uint32]struct{}, numEntries) // Give a hint for allocation
-	}
+	e.firstBatchKeys.keySize = int(referenceMap.KeySize())
+	e.firstBatchKeys.prepare(len(e.keys) / int(referenceMap.KeySize()))
 	// Maps grow automatically and do not shrink, so it does not make sense
-	// to reallocate them if we already have a map. However, we do want to reset it
+	// to reallocate them if we already have a map. However, we do want to clear it
 	// so that we don't keep old keys from previous iterations
-	for k := range e.firstBatchKeys {
-		delete(e.firstBatchKeys, k)
-	}
+	e.firstBatchKeys.clear()
 }
 
 func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) {
@@ -614,22 +610,95 @@ func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) {
 // resetBuffers resets the buffers to nil, so that they can be garbage collected
 func (e *entryCountBuffers) resetBuffers() {
 	e.keys = nil
+	e.firstBatchKeys.reset()
 	e.values = nil
 	e.cursor = nil
 }
 
-func inplaceHash(data []byte, offset int, length int, seed uint32) uint32 {
+// inplaceSet is a set that stores the hashes of keys. It's only used for the specific case of this entry count, where
+// we want to check if we got a restarted iteration.
+//
+// Context: when iterating eBPF maps, the kernel returns a cursor that indicates the next key to get. If the map is changed
+// in between calls and that "next key" disappears, the kernel just starts the iteration from the beginning. This means that
+// we could be infinitely restarting the iteration if the map is constantly changing. To avoid this, we keep track of the
+// entries we have seen in the first batch lookup call. If for any subsequent batch we get a repeated key, then we know the
+// kernel restarted the iteration.
+//
+// Now, considering that we want to reduce as much as possible the memory usage, and that we are dealing with keys of arbitrary
+// sizes (only known at runtime), we cannot just use a map[[]byte]struct{} to store the keys. Solutions like using a string for the keys
+// would work, but they require extra copies and allocations. So, instead, we store the hashes of the keys in a map and check against
+// that later. This is not perfect as there is a chance of collision between hashes (0.003% for 131072 keys). However, saving memory
+// is more important and this approach lets us have a set without any allocations or copies, everything is done in-place as much as possible.
+//
+// One thing to note is that, in the case of a hash collision, we would detect a restart (false positive). The problem is that the collision
+// would always happen no matter how many restarts we have, which means that if we have two colliding keys in a map we would never
+// be able to get the number of entries. To mitigate that, we add the number of restarts we have to the hash as a "seed", so that if
+// we get restarted we will get a different hash and we should be able to get the number of entries.
+type inplaceSet struct {
+	set     map[uint32]struct{}
+	keySize int
+	seed    uint32
+}
+
+func (s *inplaceSet) reset() {
+	s.set = nil
+}
+
+// prepare prepares the set to store the given number of entries. Maps in Go grow automatically and never shrink, so we don't need to reallocate
+// anything. This just ensures that the map is initialized and ready to be used and with a size hint to reduce reallocations.
+func (s *inplaceSet) prepare(hintNumEntries int) {
+	if s.set == nil {
+		s.set = make(map[uint32]struct{}, hintNumEntries)
+	}
+}
+
+// clear deletes all entries in the set
+func (s *inplaceSet) clear() {
+	for k := range s.set {
+		delete(s.set, k)
+	}
+}
+
+// hash calculates the hash of the key at the given offset in a certain buffer
+// This is a FNV hash function with 32 bits
+func (s *inplaceSet) hash(data []byte, offset int) uint32 {
 	hash := uint32(2166136261)
 	prime32 := uint32(16777619)
 	hash *= prime32
-	hash ^= seed
-	for i := 0; i < length; i++ {
+	hash ^= s.seed
+	for i := 0; i < int(s.keySize); i++ {
 		hash *= prime32
 		hash ^= uint32(data[offset+i])
 	}
 	return hash
 }
 
+// load loads the keys from the given buffer into the set, clearing any old entry
+func (s *inplaceSet) load(buffer []byte, entries int) {
+	s.clear()
+	for keyOffset := 0; keyOffset < entries*s.keySize; keyOffset += s.keySize {
+		// To avoid allocations, we calculate hash in-place, without copying the slice
+		s.set[s.hash(buffer, keyOffset)] = struct{}{}
+	}
+}
+
+// containsAny checks if any of the keys in the given buffer is present in the set
+func (s *inplaceSet) containsAny(buffer []byte, entries int) bool {
+	for keyOffset := 0; keyOffset < entries*s.keySize; keyOffset += s.keySize {
+		// To avoid allocations, we calculate hash in-place, without copying the slice
+		if _, present := s.set[s.hash(buffer, keyOffset)]; present {
+			return true
+		}
+	}
+	return false
+}
+
+// hashMapNumberOfEntries gets the number of entries in the given map using the batch API.
+// Batch lookups are used to improve the behavior when maps are constantly changing, reducing the chance
+// that we get a deleted key forcing us to restart the iteration, getting stuck in an infinite loop or
+// returning completely wrong counts.
+// The function is a little bit complex because it needs to deal with arbitrary key sizes and partial batches
+// to reduce the number of allocations. See the comments below for more details.
 func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, maxRestarts int) (int64, error) {
 	// Here we duplicate a bit the code from cilium/ebpf to use the batch API
 	// in our own way, because the way it's coded there it cannot be used with
@@ -658,82 +727,68 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 	// all the entries in a single batch or if we reached the limit and we need to
 	// iterate
 	allocatedEnoughSpace := buffers.tryEnsureSizeForFullBatch(mp)
+	if !allocatedEnoughSpace {
+		buffers.prepareFirstBatchKeys(mp)
+	}
 
-batchStart:
-	for restarts := 0; restarts < maxRestarts; restarts++ {
-		batchSize := min(mp.MaxEntries(), uint32(len(buffers.keys)))
-		totalCount := int64(0)
-		if !allocatedEnoughSpace {
-			buffers.prepareFirstBatchKeys(mp)
+	batchSize := min(mp.MaxEntries(), uint32(len(buffers.keys)))
+	totalCount := int64(0)
+
+	// To avoid inifinte loops, we limit the number of restarts and we
+	for restarts, batchIndex := 0, uint32(0); restarts < maxRestarts && batchIndex*batchSize < mp.MaxEntries(); batchIndex++ {
+		// Ensure that we get a different hash if we get restarted, so false positives caused by hash collisions can be mitigated
+		buffers.firstBatchKeys.seed = uint32(restarts)
+
+		// Prepare the arguments to the lookup call
+		attr := MapLookupBatchAttr{
+			MapFd:    uint32(mp.FD()),
+			Values:   NewPointer(unsafe.Pointer(&buffers.values[0])),
+			Keys:     NewPointer(unsafe.Pointer(&buffers.keys[0])),
+			Count:    batchSize,
+			OutBatch: NewPointer(unsafe.Pointer(&buffers.cursor[0])),
+			InBatch:  NewPointer(nil), // nil means start at the beginning
+		}
+		if batchIndex == 0 {
+			// First batch, start at the beginning
+			attr.InBatch = NewPointer(nil)
+		} else {
+			// continue from where we left off
+			attr.InBatch = NewPointer(unsafe.Pointer(&buffers.cursor[0]))
 		}
 
-		// Do the batch lookup
-		for i := uint32(0); i*batchSize < mp.MaxEntries(); i++ {
-			// Prepare the arguments
-			attr := MapLookupBatchAttr{
-				MapFd:    uint32(mp.FD()),
-				Values:   NewPointer(unsafe.Pointer(&buffers.values[0])),
-				Keys:     NewPointer(unsafe.Pointer(&buffers.keys[0])),
-				Count:    batchSize,
-				OutBatch: NewPointer(unsafe.Pointer(&buffers.cursor[0])),
-				InBatch:  NewPointer(nil), // nil means start at the beginning
-			}
-			if i == 0 {
-				// First batch, start at the beginning
-				attr.InBatch = NewPointer(nil)
-			} else {
-				// continue from where we left off
-				attr.InBatch = NewPointer(unsafe.Pointer(&buffers.cursor[0]))
+		_, _, errno := unix.Syscall(unix.SYS_BPF, uintptr(BpfMapLookupBatchCommandCode), uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
+		totalCount += int64(attr.Count)
+
+		if errno == 0 && batchIndex == 0 {
+			// We got a batch and it's the first one, and we didn't reach the end of the map, so we need to store the keys we got here
+			// so that later on we can check against them to see if we got an iteration restart
+			if !allocatedEnoughSpace { // A sanity check
+				return -1, fmt.Errorf("Unexpected batch lookup result: we should have enough space to get the full map in one batch, but BatchLookup returned a partial result")
 			}
 
-			_, _, errno := unix.Syscall(unix.SYS_BPF, uintptr(BpfMapLookupBatchCommandCode), uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
-			totalCount += int64(attr.Count)
-
-			if errno == 0 && i == 0 {
-				// We got a batch and it's the first one, and we didn't reach the end of the map, so we need to store the keys we got here
-				// so that later on we can check against them to see if we got an iteration restart
-				if !allocatedEnoughSpace { // A sanity check
-					return -1, fmt.Errorf("Unexpected batch lookup result: we got a batch but we didn't reach the end of the map, and we didn't reach the limit of the buffers")
-				}
-
-				// Keep track the keys of the first batch so we can look them up later to see if we got restarted
-				// Instead of storing the keys in the map, which is not trivial because Go doesn't support maps
-				// of slices with runtime-decide length, we store the hashes of the keys in a map and check against
-				// that later. This is not perfect as there is a chance of collision between hashes (0.003% for 131072 keys)
-				// but avoiding extra memory usage is more important.
-				// One thing to note is that, in the case of a hash collision, the collision would still happen in multiple restarts,
-				// which means that if we have two colliding keys in a map we would never be able to get the number of entries.
-				// To mitigate that, we add the number of restarts we have to the hash, so that if we get restarted we will
-				// get a different hash and we will be able to get the number of entries.
-				for keyOffset := 0; keyOffset < int(attr.Count)*int(mp.KeySize()); keyOffset += int(mp.KeySize()) {
-					// To avoid allocations, we calculate hash in-place
-					buffers.firstBatchKeys[inplaceHash(buffers.keys, keyOffset, int(mp.KeySize()), uint32(restarts))] = struct{}{}
-				}
-			} else if i > 0 {
-				// We got a batch and it's not the first one. Check against the keys received in the first batch
-				// to see if we got an iteration restart
-				for keyOffset := 0; keyOffset < int(attr.Count)*int(mp.KeySize()); keyOffset += int(mp.KeySize()) {
-					// To avoid allocations, we calculate hash in-place
-					if _, present := buffers.firstBatchKeys[inplaceHash(buffers.keys, keyOffset, int(mp.KeySize()), uint32(restarts))]; present {
-						// We got a key that was already returned in the first batch, we got restarted.
-						// We need to try again
-						continue batchStart
-					}
-				}
-			}
-
-			if errno == unix.ENOENT {
-				// We looked up all elements, count is valid, return it
-				return totalCount, nil
-			} else if errno != 0 {
-				// Something happened, abort everything
-				return -1, fmt.Errorf("error iterating map %s: %s", mp.String(), errno)
+			// Keep track the keys of the first batch so we can look them up later to see if we got restarted
+			buffers.firstBatchKeys.load(buffers.keys, int(attr.Count))
+		} else if batchIndex > 0 {
+			// We got a batch and it's not the first one. Check against the keys received in the first batch
+			// to see if we got an iteration restart
+			if buffers.firstBatchKeys.containsAny(buffers.keys, int(attr.Count)) {
+				// We got a restart, reset the counters and start from this batch as if were the first
+				buffers.firstBatchKeys.load(buffers.keys, int(attr.Count))
+				restarts++
+				batchIndex = 0
+				totalCount = 0
+				continue
 			}
 		}
 
-		// If the for loop above ends without returning, it means we reached the number
-		// of batches that should have returned all the elements in the map, but we didn't
-		// get an ENOENT, so something is wrong and we probably got restarted.
+		if errno == unix.ENOENT {
+			// We looked up all elements, count is valid, return it
+			return totalCount, nil
+		} else if errno != 0 {
+			// Something happened, abort everything
+			return -1, fmt.Errorf("error iterating map %s: %s", mp.String(), errno)
+		}
+
 	}
 
 	return -1, fmt.Errorf("the iteration got restarted too many times for map %s (%d entries)", mp.String(), mp.MaxEntries())
