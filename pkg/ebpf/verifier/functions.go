@@ -51,7 +51,6 @@ func main() {
 	}
 	defer f.Close()
 
-	var objectFiles []string
 	skipDebugBuilds := func(path string) bool {
 		debugBuild := strings.Contains(path, "-debug")
 		if os.Getenv("USE_DEBUG_BUILDS") != "" {
@@ -60,6 +59,7 @@ func main() {
 		return debugBuild
 	}
 
+	objectFiles := make(map[string]string)
 	if err := filepath.WalkDir(args[0], func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -71,8 +71,16 @@ func main() {
 		if skipDebugBuilds(path) || !strings.HasSuffix(path, ".o") {
 			return nil
 		}
-		objectFiles = append(objectFiles, path)
+		coreFile := filepath.Join(args[0], "co-re", d.Name())
+		if _, err := os.Stat(coreFile); err == nil {
+			objectFiles[d.Name()] = coreFile
+			return nil
+		}
 
+		// if not co-re file present then save normal path
+		if _, ok := objectFiles[d.Name()]; !ok {
+			objectFiles[d.Name()] = path
+		}
 		return nil
 	}); err != nil {
 		log.Fatalf("failed to walk directory %s: %v", args[0], err)

@@ -39,20 +39,21 @@ func TestMain(m *testing.M) {
 }
 
 func TestBuildVerifierStats(t *testing.T) {
-	var objectFiles []string
 
 	kversion, err := kernel.HostVersion()
 	require.NoError(t, err)
 
 	// TODO: reduce the allows kernel version for this test to 4.15 once the loading on those kernels has been fixed
-	if kversion < kernel.VersionCode(5, 2, 0) {
+	if kversion < kernel.VersionCode(4, 15, 0) {
 		t.Skipf("Skipping because verifier statistics not available on kernel %s", kversion)
 	}
 
 	err = rlimit.RemoveMemlock()
 	require.NoError(t, err)
 
-	err = filepath.WalkDir(filepath.Join(os.Getenv("DD_SYSTEM_PROBE_BPF_DIR"), "co-re"), func(path string, d fs.DirEntry, err error) error {
+	objectFiles := make(map[string]string)
+	directory := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
+	err = filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -63,13 +64,25 @@ func TestBuildVerifierStats(t *testing.T) {
 		if strings.Contains(path, "-debug") || !strings.HasSuffix(path, ".o") {
 			return nil
 		}
-		objectFiles = append(objectFiles, path)
+		coreFile := filepath.Join(directory, "co-re", d.Name())
+		if _, err := os.Stat(coreFile); err == nil {
+			objectFiles[d.Name()] = coreFile
+			return nil
+		}
 
+		// if not co-re file present then save normal path
+		if _, ok := objectFiles[d.Name()]; !ok {
+			objectFiles[d.Name()] = path
+		}
 		return nil
 	})
 	require.NoError(t, err)
 
-	stats, failedToLoad, err := BuildVerifierStats(objectFiles)
+	var files []string
+	for _, path := range objectFiles {
+		files = append(files, path)
+	}
+	stats, failedToLoad, err := BuildVerifierStats(files)
 	require.NoError(t, err)
 
 	require.True(t, len(stats) > 0)

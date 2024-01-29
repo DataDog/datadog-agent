@@ -13,7 +13,9 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -21,16 +23,11 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 )
 
-var directory = flag.String("directory", "", "Directory containing ebpf object files")
 var debug = flag.Bool("debug", false, "Calculate statistics of debug builds")
 
 func main() {
-	var objectFiles []string
 	var err error
 
-	flag.Parse()
-
-	objDir := *directory
 	skipDebugBuilds := func(path string) bool {
 		debugBuild := strings.Contains(path, "-debug")
 		if *debug {
@@ -43,7 +40,9 @@ func main() {
 		log.Fatalf("failed to remove memlock %v", err)
 	}
 
-	if err := filepath.WalkDir(objDir, func(path string, d fs.DirEntry, err error) error {
+	objectFiles := make(map[string]string)
+	directory := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
+	if err := filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -54,13 +53,38 @@ func main() {
 		if skipDebugBuilds(path) || !strings.HasSuffix(path, ".o") {
 			return nil
 		}
-		objectFiles = append(objectFiles, path)
+		coreFile := filepath.Join(directory, "co-re", d.Name())
+		if _, err := os.Stat(coreFile); err == nil {
+			objectFiles[d.Name()] = coreFile
+			return nil
+		}
 
+		// if not co-re file present then save normal path
+		if _, ok := objectFiles[d.Name()]; !ok {
+			objectFiles[d.Name()] = path
+		}
 		return nil
 	}); err != nil {
-		log.Fatalf("failed to discover all object files: %v", err)
+		log.Fatalf("failed to walk directory %s: %v", directory, err)
 	}
-	stats, _, err := verifier.BuildVerifierStats(objectFiles)
+
+	var files []string
+	// copy object files to temp directory with the correct permissions
+	// loader code expects object files to be owned by root.
+	for _, path := range objectFiles {
+		data, err := ioutil.ReadFile(path)
+		if err != nil {
+			log.Fatalf("failed to read file %q for copy: %v", path, err)
+		}
+
+		dst := filepath.Join(os.TempDir(), filepath.Base(path))
+		if err := ioutil.WriteFile(dst, data, 0644); err != nil {
+			log.Fatalf("failed to write file %q: %v", dst, err)
+		}
+
+		files = append(files, dst)
+	}
+	stats, _, err := verifier.BuildVerifierStats(files)
 	if err != nil {
 		log.Fatalf("failed to build verifier stats: %v", err)
 	}

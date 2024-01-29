@@ -12,6 +12,7 @@ package verifier
 import (
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -55,8 +56,12 @@ var maxStates = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
 var totalStates = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
 var peakStates = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
 
-//go:generate go run functions.go ../bytecode/build/co-re
+//go:generate go run functions.go ../bytecode/build/
 //go:generate go fmt programs.go
+
+func isCOREAsset(path string) bool {
+	return filepath.Base(filepath.Dir(path)) == "co-re"
+}
 
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics
@@ -72,6 +77,20 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[strin
 	failedToLoad := make(map[string]struct{})
 	stats := make(map[string]*Statistics)
 	for _, file := range objectFiles {
+		if !isCOREAsset(file) {
+			bc, err := os.Open(file)
+			if err != nil {
+				return nil, nil, fmt.Errorf("couldn't open asset: %v", err)
+			}
+			defer bc.Close()
+
+			if err := generateLoadFunction(file, stats, failedToLoad)(bc, manager.Options{}); err != nil {
+				return nil, nil, fmt.Errorf("failed to load non-core asset: %w", err)
+			}
+
+			continue
+		}
+
 		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, stats, failedToLoad)); err != nil {
 			return nil, nil, fmt.Errorf("failed to load core asset: %w", err)
 		}
