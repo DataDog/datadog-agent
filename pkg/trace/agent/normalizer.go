@@ -57,7 +57,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		ts.SpansMalformed.ServiceTruncate.Inc()
 		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", traceutil.MaxServiceLen, s)
 	case traceutil.ErrInvalid:
-		ts.SpansMalformed.ServiceInvalid.Inc() 
+		ts.SpansMalformed.ServiceInvalid.Inc()
 		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, svc, s)
 	}
 	s.Service = svc
