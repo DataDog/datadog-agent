@@ -209,7 +209,7 @@ func run(log log.Component,
 	statusComponent status.Component,
 ) error {
 	defer func() {
-		stopAgent(cliParams, server, demultiplexer, agentAPI)
+		stopAgent(cliParams, server, agentAPI)
 	}()
 
 	// prepare go runtime
@@ -629,12 +629,12 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer, agentAPI)
+func StopAgentWithDefaults(server dogstatsdServer.Component, agentAPI internalAPI.Component) {
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, agentAPI)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
+func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -659,10 +659,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
-
-	if demultiplexer != nil {
-		demultiplexer.Stop(true)
-	}
 
 	gui.StopGUIServer()
 	profiler.Stop()
