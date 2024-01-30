@@ -9,9 +9,8 @@ package clientimpl
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
@@ -28,19 +27,17 @@ func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadm
 		return podInfo
 	}
 	b[podName] = &podInfo{
-		namespace:         podnamespace,
-		containerInfo:     util.NewContainersLanguages(),
-		initContainerInfo: util.NewContainersLanguages(),
-		ownerRef:          ownerRef,
+		namespace:     podnamespace,
+		containerInfo: make(langUtil.ContainersLanguages),
+		ownerRef:      ownerRef,
 	}
 	return b[podName]
 }
 
 type podInfo struct {
-	namespace         string
-	containerInfo     util.ContainersLanguages
-	initContainerInfo util.ContainersLanguages
-	ownerRef          *workloadmeta.KubernetesPodOwner
+	namespace     string
+	containerInfo langUtil.ContainersLanguages
+	ownerRef      *workloadmeta.KubernetesPodOwner
 }
 
 func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
@@ -52,22 +49,23 @@ func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
 			Name: p.ownerRef.Name,
 			Kind: p.ownerRef.Kind,
 		},
-		ContainerDetails:     p.containerInfo.ToProto(),
-		InitContainerDetails: p.initContainerInfo.ToProto(),
+		ContainerDetails: p.containerInfo.ToProto(),
 	}
 }
 
-func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) util.LanguageSet {
+func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) langUtil.LanguageSet {
 	cInfo := p.containerInfo
-	if isInitContainer {
-		cInfo = p.initContainerInfo
-	}
 
-	if languageSet, ok := cInfo[containerName]; ok {
+	container := langUtil.Container{
+		Name: containerName,
+		Init: isInitContainer,
+	}
+	if languageSet, ok := cInfo[container]; ok {
 		return languageSet
 	}
-	cInfo[containerName] = util.NewLanguageSet()
-	return cInfo[containerName]
+
+	cInfo[container] = make(langUtil.LanguageSet)
+	return cInfo[container]
 }
 
 func (b batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
