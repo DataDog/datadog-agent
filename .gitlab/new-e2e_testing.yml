@@ -1,6 +1,6 @@
 ---
 # new-e2e_testing stage
-# Contains jobs which run kitchen tests on the Agent packages.
+# Contains jobs which run new-e2e tests on the Agent packages.
 
 include:
   - /.gitlab/new-e2e_testing/debian.yml

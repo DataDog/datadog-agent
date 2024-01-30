@@ -23,7 +23,8 @@ build do
 
   bundled_agents = []
   if linux_target?
-    bundled_agents = ["process-agent", "security-agent", "system-probe"]
+    bundled_agents = ["process-agent"]
+    bundled_agents << "security-agent" << "system-probe" unless heroku_target?
   end
 
   # set GOPATH on the omnibus source dir for this software
@@ -97,9 +98,6 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  if linux_target? or (windows_target? and not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?)
-      move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
-  end
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
 
   unless windows_target?
@@ -137,7 +135,7 @@ build do
   end
 
   # System-probe
-  sysprobe_support = linux_target? || (windows_target? && do_windows_sysprobe != "")
+  sysprobe_support = (not heroku_target?) && (linux_target? || (windows_target? && do_windows_sysprobe != ""))
   if sysprobe_support
     if not bundled_agents.include? "system-probe"
       if windows_target?
@@ -153,12 +151,14 @@ build do
     elsif linux_target?
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
-  end
 
-  # Add SELinux policy for system-probe
-  if debian_target? || redhat_target?
-    mkdir "#{conf_dir}/selinux"
-    command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
+    # Add SELinux policy for system-probe
+    if debian_target? || redhat_target?
+      mkdir "#{conf_dir}/selinux"
+      command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
+    end
+
+    move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
 
   # Security agent
@@ -179,7 +179,6 @@ build do
   if windows_target?
     if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
       command "inv agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
-     #move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
       move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
     end
   end
