@@ -47,6 +47,11 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
         return PAYLOAD_NOT_GRPC;
     }
 
+    // Ensuring we can read at least the expected content-type length.
+    if (skb_info->data_off + GRPC_CONTENT_TYPE_LEN > frame_end) {
+        return PAYLOAD_NOT_GRPC;
+    }
+
     bpf_skb_load_bytes(skb, skb_info->data_off, content_type_buf, GRPC_CONTENT_TYPE_LEN);
     skb_info->data_off += len.length;
 
