@@ -42,7 +42,6 @@ upload_minimized_btfs_system_probe_x64:
   extends:
     - .upload_minimized_btfs
   needs: ["generate_minimized_btfs_x64"]
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCHIVE_NAME: btfs-x86_64.tar.gz
     ARCH: x86_64
@@ -53,7 +52,6 @@ upload_minimized_btfs_system_probe_arm64:
   extends:
     - .upload_minimized_btfs
   needs: ["generate_minimized_btfs_arm64"]
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCHIVE_NAME: btfs-arm64.tar.gz
     ARCH: arm64
