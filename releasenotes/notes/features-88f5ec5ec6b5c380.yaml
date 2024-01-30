@@ -15,4 +15,4 @@ upgrade:
     affected and 2. handle the change gracefully on their end.
 features:
   - |
-    Enabling the option to strip the arguments of the commands collected by the process agent on Windows. 
+    Enabling the option to strip the arguments of the commands collected by the process agent on Windows.
