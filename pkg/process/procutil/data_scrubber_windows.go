@@ -73,4 +73,3 @@ func extensionParser (validCmdline string, winDotExec []string) int {
 		}
 	return i
 }
-
