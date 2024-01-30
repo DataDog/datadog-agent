@@ -91,7 +91,6 @@ def cleanup_verifier_stats(verifier_stats):
         "jsonfmt": "Output in json format rather than tabulating",
         "out": "Output file to write results to. By default results are written to stdout",
         "debug_build": "Collect verification statistics for debug builds",
-        "object_files": "Comma separated list of object files to print statistics for",
     }
 )
 def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=False, out=None, debug_build=False):
