@@ -6,7 +6,7 @@ import os
 import platform
 from urllib.parse import urlparse
 
-from tasks.kernel_matrix_testing.download import arch_mapping, platforms_file, vmconfig_file
+from tasks.kernel_matrix_testing.download import arch_mapping, get_vmconfig_file, platforms_file
 from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.stacks import create_stack, stack_exists
@@ -460,11 +460,11 @@ def build_vmsets(normalized_vm_defs, sets):
     return vmsets
 
 
-def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
+def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci, template):
     with open(platforms_file) as f:
         platforms = json.load(f)
 
-    with open(vmconfig_file) as f:
+    with open(get_vmconfig_file(template)) as f:
         vmconfig_template = json.load(f)
 
     vmsets = build_vmsets(normalized_vm_defs, sets)
@@ -522,7 +522,16 @@ def build_normalized_vm_def_set(vms):
 
 
 def gen_config_for_stack(
-    ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False
+    ctx,
+    stack=None,
+    vms="",
+    sets="",
+    init_stack=False,
+    vcpu="4",
+    memory="8192",
+    new=False,
+    ci=False,
+    template="system-probe",
 ):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
@@ -544,7 +553,7 @@ def gen_config_for_stack(
         orig_vm_config = f.read()
     vm_config = json.loads(orig_vm_config)
 
-    vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_set(vms), vcpu, memory, sets, ci)
+    vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_set(vms), vcpu, memory, sets, ci, template)
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"
@@ -579,7 +588,7 @@ def list_all_distro_normalized_vms(archs):
     return vms
 
 
-def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file):
+def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, template):
     vcpu_ls = vcpu.split(',')
     memory_ls = memory.split(',')
 
@@ -591,7 +600,7 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, o
 
     if not ci:
         return gen_config_for_stack(
-            ctx, stack, vms, set_ls, init_stack, ls_to_int(vcpu_ls), ls_to_int(memory_ls), new, ci
+            ctx, stack, vms, set_ls, init_stack, ls_to_int(vcpu_ls), ls_to_int(memory_ls), new, ci, template
         )
 
     arch_ls = ["x86_64", "arm64"]
@@ -599,7 +608,9 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, o
         arch_ls = [arch_mapping[arch]]
 
     vms_to_generate = list_all_distro_normalized_vms(arch_ls)
-    vm_config = generate_vmconfig({"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci)
+    vm_config = generate_vmconfig(
+        {"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci, template
+    )
 
     with open(output_file, "w") as f:
         f.write(json.dumps(vm_config, indent=4))
