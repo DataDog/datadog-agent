@@ -76,7 +76,6 @@ pull_test_dockers_arm64:
 .package_dependencies:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  allow_failure: true
   rules:
     !reference [ .on_system_probe_or_e2e_changes_or_manual ]
   before_script:
@@ -112,7 +111,6 @@ upload_dependencies_arm64:
 
 .upload_system_probe_tests:
   stage: kernel_matrix_testing
-  allow_failure: true
   rules:
     !reference [ .on_system_probe_or_e2e_changes_or_manual ]
   before_script:
@@ -213,7 +211,6 @@ upload_system_probe_tests_arm64:
   tags: ["arch:amd64"]
   rules:
     !reference [ .on_system_probe_or_e2e_changes_or_manual ]
-  allow_failure: true
   script:
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
@@ -343,7 +340,6 @@ kernel_matrix_testing_setup_env_x64:
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
-  allow_failure: true
   rules:
     !reference [ .on_system_probe_or_e2e_changes_or_manual ]
   variables:
