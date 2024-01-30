@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    Added config that allows user to toggle on and off the collection of Zombie processes in the agent.
+    Added config that allows user to toggle on and off the collection of zombie processes in the Process Agent.
 fixes:
   - |
-    Prevention of OOMs due to excessive collection of Zombie processes.
+    Prevention of OOMs when collecting a large number of zombie processes.
