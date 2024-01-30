@@ -313,6 +313,20 @@ func assertMode(tb testing.TB, actualMode, expectedMode uint32, msgAndArgs ...in
 }
 
 //nolint:deadcode,unused
+func assertInode(tb testing.TB, actualInode, expectedInode uint64, msgAndArgs ...interface{}) bool {
+	tb.Helper()
+
+	if ebpfLessEnabled {
+		return true
+	}
+
+	if len(msgAndArgs) == 0 {
+		msgAndArgs = append(msgAndArgs, "wrong inode")
+	}
+	return assert.Equal(tb, strconv.FormatUint(uint64(expectedInode), 8), strconv.FormatUint(uint64(actualInode), 8), msgAndArgs...)
+}
+
+//nolint:deadcode,unused
 func assertRights(tb testing.TB, actualMode, expectedMode uint16, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	return assertMode(tb, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)

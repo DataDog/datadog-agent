@@ -208,7 +208,14 @@ var (
 	testMod      *testModule
 	commonCfgDir string
 	// for now, add this to resolve variable; should be unused in windows
-	ebpfLessEnabled bool
+	testEnvironment  string
+	logLevelStr      string
+	logPatterns      stringSlice
+	logTags          stringSlice
+	logStatusMetrics bool
+	withProfile      bool
+	trace            bool
+	ebpfLessEnabled  bool
 )
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {

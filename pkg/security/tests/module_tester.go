@@ -58,16 +58,6 @@ var (
 	errSkipEvent = errors.New("skip event")
 )
 
-var (
-	testEnvironment  string
-	logLevelStr      string
-	logPatterns      stringSlice
-	logTags          stringSlice
-	logStatusMetrics bool
-	withProfile      bool
-	trace            bool
-)
-
 func (s *stringSlice) String() string {
 	return strings.Join(*s, " ")
 }
