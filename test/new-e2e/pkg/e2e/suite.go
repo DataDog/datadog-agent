@@ -242,6 +242,10 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	}
 
 	bs.originalProvisioners = bs.params.provisioners
+
+	for k := range bs.originalProvisioners {
+		fmt.Printf("=========== %v", k)
+	}
 }
 
 func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error {

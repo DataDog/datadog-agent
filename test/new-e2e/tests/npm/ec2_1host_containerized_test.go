@@ -12,26 +12,95 @@ import (
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	compos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/assert"
 )
+
+type dockerHostNginxEnv struct {
+	//	environments.DockerHost
+	// Components
+	RemoteHost *components.RemoteHost
+	FakeIntake *components.FakeIntake
+	Agent      *components.DockerAgent
+
+	// Other clients
+	Docker *client.Docker
+
+	// Components
+	NginxHost *components.RemoteHost
+
+	// Other clients
+	//	Docker *client.Docker
+}
 
 type ec2VMContainerizedSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
 }
 
+func dockerHostNginxEnvProvisioner() e2e.PulumiEnvRunFunc[environments.DockerHost] {
+	return func(ctx *pulumi.Context, env *environments.DockerHost) error {
+		vmName := "nginxvm"
+		vmOptions := []ec2.VMOption{ec2.WithOS(compos.UbuntuDefault)}
+
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+
+		host, err := ec2.NewVM(awsEnv, vmName, vmOptions...)
+		if err != nil {
+			return err
+		}
+
+		host = host
+
+		/*
+				err = host.Export(ctx, &NginxHost.HostOutput)
+				if err != nil {
+					return err
+				}
+
+
+			fmt.Printf("====== NginxHost.HostOutput.Address: %v\n", NginxHost.HostOutput.Address)
+		*/
+		/*
+			manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true)
+			if err != nil {
+				return err
+			}
+			manager = manager
+		*/
+
+		return nil
+	}
+}
+
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
 func TestEC2VMContainerizedSuite(t *testing.T) {
 	s := &ec2VMContainerizedSuite{}
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithAgentOptions(
+
+	e2eParams := []e2e.SuiteOption{}
+	e2eParams1 := []e2e.SuiteOption{e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithAgentOptions(
 		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true")),
 	)))}
+
+	// adding nginx
+	e2eParams2 := []e2e.SuiteOption{e2e.WithPulumiProvisioner(dockerHostNginxEnvProvisioner(), nil)}
+
+	e2eParams = append(e2eParams, e2eParams1...)
+	e2eParams = append(e2eParams, e2eParams2...)
 
 	// debug helper
 	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
