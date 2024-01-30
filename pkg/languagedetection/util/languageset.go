@@ -6,75 +6,66 @@
 package util
 
 import (
-	"sort"
-	"strings"
-
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"reflect"
 )
 
-// LanguageSet is a set of languages
-type LanguageSet map[string]struct{}
+////////////////////////////////
+//                            //
+//        Language Set        //
+//                            //
+////////////////////////////////
 
-// NewLanguageSet initializes and returns a new LanguageSet object
-func NewLanguageSet() LanguageSet {
-	return make(LanguageSet)
+// Language represents a language name
+type Language string
+
+// LanguageSet handles storing sets of languages
+type LanguageSet map[Language]struct{}
+
+// Add adds a new language to the language set
+// returns false if the language is already
+// included in the set, and true otherwise
+func (s LanguageSet) Add(language Language) bool {
+	_, found := s[language]
+	s[language] = struct{}{}
+	return !found
 }
 
-// Add adds a new language to the language set, returning if something was added
-func (langSet LanguageSet) Add(languageName string) bool {
-	if _, ok := langSet[languageName]; ok {
-		return false
-	}
-	langSet[languageName] = struct{}{}
-	return true
+// Has returns whether the set contains a specific language
+func (s LanguageSet) Has(language Language) bool {
+	_, found := s[language]
+	return found
 }
 
-// Parse parses a comma-separated languages string and adds the languages to the language set
-func (langSet LanguageSet) Parse(languages string) {
-	for _, languageName := range strings.Split(languages, ",") {
-		if languageName != "" {
-			langSet.Add(languageName)
-		}
-	}
+// Remove deletes a language from the language set
+func (s LanguageSet) Remove(language Language) {
+	delete(s, language)
 }
 
-// Merge merges a set of languages with the current languages set
-func (langSet LanguageSet) Merge(languages LanguageSet) {
-	for languageName := range languages {
-		langSet.Add(languageName)
+// Merge merges another language set with the current language set
+func (s LanguageSet) Merge(other LanguageSet) {
+	if len(other) == 0 {
+		return
+	}
+
+	for language := range other {
+		s.Add(language)
 	}
 }
 
-// String prints the languages of the language set in sorted order in a comma-separated string format
-func (langSet LanguageSet) String() string {
-	langNames := make([]string, 0, len(langSet))
-	for name := range langSet {
-		langNames = append(langNames, name)
-	}
-	sort.Strings(langNames)
-	return strings.Join(langNames, ",")
+// EqualTo determines if the current languageset has the same languages
+// as another languageset
+func (s LanguageSet) EqualTo(other LanguageSet) bool {
+	return reflect.DeepEqual(s, other)
 }
 
 // ToProto returns a proto message Language
-func (langSet LanguageSet) ToProto() []*pbgo.Language {
-	res := make([]*pbgo.Language, 0, len(langSet))
-	for lang := range langSet {
+func (s LanguageSet) ToProto() []*pbgo.Language {
+	res := make([]*pbgo.Language, 0, len(s))
+	for lang := range s {
 		res = append(res, &pbgo.Language{
-			Name: lang,
+			Name: string(lang),
 		})
 	}
 	return res
-}
-
-// Equals returns if the LanguageSet is equal to another LanguageSet
-func (langSet LanguageSet) Equals(other LanguageSet) bool {
-	if len(langSet) != len(other) {
-		return false
-	}
-	for key := range langSet {
-		if _, ok := other[key]; !ok {
-			return false
-		}
-	}
-	return true
 }
