@@ -31,7 +31,7 @@ from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.trace_agent import integration_tests as trace_integration_tests
 
-PROFILE_COV = "\"coverage.out\""
+PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
 GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
@@ -155,7 +155,9 @@ powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
                     file=sys.stderr,
                 )
             else:
-                self.ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
+                self.ctx.run(
+                    f"gocovmerge {' '.join(files_to_delete)} > \"{os.path.join(self.module_path, PROFILE_COV)}\""
+                )
                 for f in files_to_delete:
                     os.remove(f)
 
