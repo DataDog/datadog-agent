@@ -392,6 +392,7 @@ func rootCommand() *cobra.Command {
 	cmd.AddCommand(runCommand())
 	cmd.AddCommand(runScannerCommand())
 	cmd.AddCommand(scanCommand())
+	cmd.AddCommand(snapshotCommand())
 	cmd.AddCommand(offlineCommand())
 	cmd.AddCommand(attachCommand())
 	cmd.AddCommand(cleanupCommand())
@@ -467,6 +468,37 @@ func scanCommand() *cobra.Command {
 	cmd.Flags().StringVar(&flags.ARN, "arn", "", "arn to scan")
 	cmd.Flags().StringVar(&flags.Hostname, "hostname", "unknown", "scan hostname")
 	_ = cmd.MarkFlagRequired("arn")
+	return cmd
+}
+
+func snapshotCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "snapshot",
+		Short: "Create a snapshot of the given (server-less mode)",
+		Args:  cobra.ExactArgs(1),
+		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
+			ctx := ctxTerminated()
+			volumeARN, err := humanParseARN(args[0], resourceTypeVolume)
+			if err != nil {
+				return err
+			}
+			scan, err := newScanTask(volumeARN.String(), "unknown", "unknown", globalParams.defaultActions, nil, globalParams.diskMode)
+			if err != nil {
+				return err
+			}
+			cfg, err := newAWSConfig(ctx, scan.ARN.Region, nil)
+			if err != nil {
+				return err
+			}
+			ec2client := ec2.NewFromConfig(cfg)
+			snapshotARN, err := createSnapshot(ctx, scan, &awsWaiter{}, ec2client, scan.ARN)
+			if err != nil {
+				return err
+			}
+			fmt.Println(snapshotARN)
+			return nil
+		}),
+	}
 	return cmd
 }
 
@@ -1891,7 +1923,13 @@ func createSnapshot(ctx context.Context, scan *scanTask, waiter *awsWaiter, ec2c
 
 	retries := 0
 retry:
-	_, volumeID, _ := getARNResource(volumeARN)
+	resourceType, volumeID, err := getARNResource(volumeARN)
+	if err != nil {
+		return arn.ARN{}, err
+	}
+	if resourceType != resourceTypeVolume {
+		return arn.ARN{}, fmt.Errorf("bad volume ARN %q: expecting a volume ARN", volumeARN)
+	}
 	createSnapshotOutput, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 		VolumeId:          aws.String(volumeID),
 		TagSpecifications: cloudResourceTagSpec(resourceTypeSnapshot, scan.ScannerHostname),
