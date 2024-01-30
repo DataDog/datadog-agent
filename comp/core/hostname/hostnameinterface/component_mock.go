@@ -5,9 +5,10 @@
 
 //go:build test
 
-package hostname
-
-import "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+package hostnameinterface
 
 // Mock implements mock-specific methods.
-type Mock = hostnameinterface.Mock
+type Mock interface {
+	// Component methods are included in Mock.
+	Component
+}
