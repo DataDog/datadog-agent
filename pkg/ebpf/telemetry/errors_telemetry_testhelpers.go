@@ -8,8 +8,6 @@
 package telemetry
 
 import (
-	"unsafe"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,7 +20,7 @@ func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
 
 	var val HelperErrTelemetry
 	for probeName, k := range b.probeKeys {
-		err := b.helperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
+		err := b.helperErrMap.Lookup(&k, &val)
 		if err != nil {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", probeName, k)
 			continue
@@ -51,7 +49,7 @@ func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 
 	var val MapErrTelemetry
 	for m, k := range b.mapKeys {
-		err := b.mapErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
+		err := b.mapErrMap.Lookup(&k, &val)
 		if err != nil {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
 			continue

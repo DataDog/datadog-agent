@@ -129,9 +129,11 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	common.CheckAgentRestarts(is.T(), client)
 	common.CheckIntegrationInstall(is.T(), client)
 	if *majorVersion == "6" {
-		common.CheckAgentPython(is.T(), client, "2")
+		common.SetAgentPythonMajorVersion(is.T(), client, "2")
+		common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion2)
 	}
-	common.CheckAgentPython(is.T(), client, "3")
+	common.SetAgentPythonMajorVersion(is.T(), client, "3")
+	common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion3)
 	common.CheckApmEnabled(is.T(), client)
 	common.CheckApmDisabled(is.T(), client)
 	if flavor == "datadog-agent" && is.cwsSupported {
