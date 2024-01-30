@@ -90,8 +90,8 @@ const (
 
 	maxLambdaUncompressed = 256 * 1024 * 1024
 
-	defaultWorkersCount = 40
-	defaultScannersMax  = 10
+	defaultWorkersCount = 15
+	defaultScannersMax  = 30
 
 	defaultSelfRegion      = "us-east-1"
 	defaultSnapshotsMaxTTL = 24 * time.Hour
