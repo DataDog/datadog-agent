@@ -1117,8 +1117,8 @@ workflow:
       paths:
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/**/*
-        - pkg/autodiscovery/listeners/**/*
-        - pkg/autodiscovery/providers/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*

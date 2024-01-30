@@ -14,13 +14,13 @@ import (
 	"go.uber.org/atomic"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
@@ -39,8 +39,11 @@ var (
 	legacyProviders = []string{"kubelet", "container", "docker"}
 )
 
-func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta workloadmeta.Component) *autodiscovery.AutoConfig {
-	ad := autodiscovery.NewAutoConfig(metaScheduler, secretResolver)
+func setupAutoDiscovery(confSearchPaths []string,
+	metaScheduler *scheduler.MetaScheduler,
+	secretResolver secrets.Component,
+	wmeta workloadmeta.Component,
+	ad autodiscovery.Component) {
 	providers.InitConfigFilesReader(confSearchPaths)
 	ad.AddConfigProvider(
 		providers.NewFileConfigProvider(),
@@ -107,7 +110,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 
 	// Adding all found providers
 	for _, cp := range uniqueConfigProviders {
-		factory, found := providers.ProviderCatalog[cp.Name]
+		factory, found := ad.GetProviderCatalog()[cp.Name]
 		if found {
 			configProvider, err := factory(&cp, wmeta)
 			if err != nil {
@@ -191,8 +194,6 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 	} else {
 		log.Errorf("Error while reading 'listeners' settings: %v", err)
 	}
-
-	return ad
 }
 
 // schedulerFunc is a type alias to allow a function to be used as an AD scheduler
