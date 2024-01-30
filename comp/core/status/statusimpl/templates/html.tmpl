@@ -19,14 +19,19 @@
   <span class="stat_title">System Info</span>
   <span class="stat_data">
     System time: {{ formatUnixTime .time_nano }}
-    {{- if .ntpOffset}}
-      <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
-      {{- if ntpWarning .ntpOffset}}
-      <br><span class="warning">NTP Offset is high. Datadog may ignore metrics sent by this Agent.</span>
-      {{- end}}
-    {{end}}
     <br>Go Version: {{.go_version}}
     <br>Python Version: {{.python_version}}
     <br>Build arch: {{.build_arch}}
   </span>
 </div>
+
+{{- if eq .config.fips_enabled "true" }}
+<div class="stat">
+  <span class="stat_title">FIPS proxy</span>
+  <span class="stat_data">
+    FIPS proxy is enabled. All communication will be routed to a local FIPS proxy:<br>
+      - Local address: {{ .config.fips_local_address }}<br>
+      - Starting port range: {{ .config.fips_port_range_start }}<br>
+  </span>
+</div>
+{{- end }}

@@ -5,6 +5,9 @@
 # Copyright (C) 2020-present Datadog
 #
 
-directory "#{node['common']['work_dir']}/tests" do
-  recursive true
+
+if platform?('windows')
+  include_recipe "::windows"
+else
+  include_recipe "::linux"
 end
