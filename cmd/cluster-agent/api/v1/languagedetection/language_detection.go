@@ -5,16 +5,17 @@
 
 //go:build kubeapiserver
 
-package v1
+// Package languagedetection defines and implements the language detection handler endpoint
+package languagedetection
 
 import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 
@@ -36,17 +37,27 @@ func InstallLanguageDetectionEndpoints(r *mux.Router, wmeta workloadmeta.Compone
 	r.HandleFunc("/languagedetection", api.WithTelemetryWrapper(pldHandlerName, handler)).Methods("POST")
 }
 
+var ownersLanguage OwnersLanguages
+var ownersLanguagesOnce sync.Once
+
+func loadOwnersLanguages() *OwnersLanguages {
+	ownersLanguagesOnce.Do(func() {
+		ownersLanguage = *newOwnersLanguages()
+	})
+	return &ownersLanguage
+}
+
 // preHandler is called by both leader and followers and returns true if the request should be forwarded or handled by the leader
 func preHandler(w http.ResponseWriter, r *http.Request) bool {
 	if !config.Datadog.GetBool("language_detection.enabled") {
-		languagedetection.ErrorResponses.Inc()
+		ErrorResponses.Inc()
 		http.Error(w, "Language detection feature is disabled on the cluster agent", http.StatusServiceUnavailable)
 		return false
 	}
 
 	// Reject if no body
 	if r.Body == nil {
-		languagedetection.ErrorResponses.Inc()
+		ErrorResponses.Inc()
 		http.Error(w, "Request body is empty", http.StatusBadRequest)
 		return false
 	}
@@ -59,7 +70,7 @@ func leaderHandler(w http.ResponseWriter, r *http.Request, wlm workloadmeta.Comp
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		languagedetection.ErrorResponses.Inc()
+		ErrorResponses.Inc()
 		return
 	}
 
@@ -69,22 +80,22 @@ func leaderHandler(w http.ResponseWriter, r *http.Request, wlm workloadmeta.Comp
 	// Unmarshal the request body into the protobuf message
 	err = proto.Unmarshal(body, requestData)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to unmarshal request body: %v", err), http.StatusBadRequest)
-		languagedetection.ErrorResponses.Inc()
+		http.Error(w, "Failed to unmarshal request body", http.StatusBadRequest)
+		ErrorResponses.Inc()
 		return
 	}
 
-	lp, err := languagedetection.NewLanguagePatcher(wlm)
+	ownersLanguagesFromRequest := getOwnersLanguages(requestData)
+	ownersLanguages := loadOwnersLanguages()
+	ownersLanguages.merge(ownersLanguagesFromRequest)
+
+	err = ownersLanguages.clean(wlm)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to initialize patcher: %v", err), http.StatusInternalServerError)
-		languagedetection.ErrorResponses.Inc()
+		http.Error(w, fmt.Sprintf("Failed to store some (or all) languages in workloadmeta store: %s", err), http.StatusInternalServerError)
+		ErrorResponses.Inc()
 		return
 	}
 
-	// Answer before patching
-	languagedetection.OkResponses.Inc()
+	OkResponses.Inc()
 	w.WriteHeader(http.StatusOK)
-
-	// Patch annotations to deployments
-	lp.PatchAllOwners(requestData)
 }
