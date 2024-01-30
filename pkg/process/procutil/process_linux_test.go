@@ -20,7 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	// relying upon fork BootTime behavior
 	"github.com/DataDog/gopsutil/host"
+	// using process.AllProcesses()
 	"github.com/DataDog/gopsutil/process"
 )
 

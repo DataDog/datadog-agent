@@ -14,17 +14,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
 	//nolint:revive // TODO(CINT) Fix revive linter
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -295,6 +296,18 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			}
 		}
 
+		repoDigests := make([]string, 0, len(img.RepoDigests))
+		for _, repoDigest := range img.RepoDigests {
+			if strings.HasPrefix(repoDigest, repo+"@sha256:") {
+				repoDigests = append(repoDigests, repoDigest)
+			}
+		}
+
+		if len(repoDigests) == 0 {
+			log.Errorf("The image %s has no repo digest for repo %s", img.ID, repo)
+			continue
+		}
+
 		// Because we split a single image entity into different payloads if it has several repo digests,
 		// me must re-compute `image_id`, `image_name`, `short_image` and `image_tag` tags.
 		ddTags2 := make([]string, 0, len(ddTags))
@@ -316,11 +329,12 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		}
 
 		sbom := &model.SBOMEntity{
-			Type:     model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-			Id:       id,
-			DdTags:   ddTags2,
-			RepoTags: repoTags,
-			InUse:    inUse,
+			Type:        model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+			Id:          id,
+			DdTags:      ddTags2,
+			RepoTags:    repoTags,
+			RepoDigests: repoDigests,
+			InUse:       inUse,
 		}
 
 		switch img.SBOM.Status {

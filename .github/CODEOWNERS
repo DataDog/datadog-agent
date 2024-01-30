@@ -230,11 +230,13 @@
 /comp/otelcol @DataDog/opentelemetry
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
+/comp/snmptraps @DataDog/network-device-monitoring
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
+/comp/core/tagger @DataDog/container-integrations
 /comp/core/workloadmeta @DataDog/container-integrations
 /comp/dogstatsd/statsd @DataDog/agent-shared-components
 /comp/forwarder/orchestrator @DataDog/agent-metrics-logs
@@ -350,7 +352,6 @@
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/serializer/                        @DataDog/agent-metrics-logs
-/pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/updater/                           @DataDog/fleet
 /pkg/util/                              @DataDog/agent-shared-components
@@ -509,11 +510,13 @@
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
+/test/new-e2e/tests/orchestrator              @DataDog/container-app
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/cws                       @DataDog/agent-security
 /test/new-e2e/tests/agent-platform            @DataDog/agent-platform
 /test/new-e2e/tests/agent-metric-logs   @DataDog/agent-metrics-logs
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
+/test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm

@@ -27,6 +27,7 @@ const (
 	smjtNS                       = smNS + ".tls.java"
 	diNS                         = "dynamic_instrumentation"
 	wcdNS                        = "windows_crash_detection"
+	pngNS                        = "ping"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -238,6 +239,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
+	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
@@ -336,6 +338,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Windows crash detection
 	cfg.BindEnvAndSetDefault(join(wcdNS, "enabled"), false)
+
+	// Ping
+	cfg.BindEnvAndSetDefault(join(pngNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

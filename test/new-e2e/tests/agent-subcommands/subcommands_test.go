@@ -80,7 +80,7 @@ func verifySectionContent(t *testing.T, statusOutput string, section expectedSec
 	sectionContent, err := getStatusComponentContent(statusOutput, section.name)
 
 	if section.shouldBePresent {
-		if assert.NoError(t, err, "Section %v was expected in the status output, but was not found", section.name) {
+		if assert.NoError(t, err, "Section %v was expected in the status output, but was not found. \n Here is the status output %s", section.name, statusOutput) {
 			for _, expectedContent := range section.shouldContain {
 				assert.Contains(t, sectionContent.content, expectedContent)
 			}
@@ -102,8 +102,12 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
 			shouldBePresent:  true,
-			shouldContain:    []string{fmt.Sprintf("hostname: %v", resourceID), "hostname provider: aws"},
 			shouldNotContain: []string{"FIPS proxy"},
+		},
+		{
+			name:            `Hostname`,
+			shouldBePresent: true,
+			shouldContain:   []string{fmt.Sprintf("hostname: %v", resourceID), "hostname provider: aws"},
 		},
 		{
 			name:            "Aggregator",
@@ -151,7 +155,7 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 			shouldBePresent: true,
 		},
 		{
-			name:            "JMXFetch",
+			name:            "JMX Fetch",
 			shouldBePresent: true,
 			shouldContain:   []string{"no checks"},
 		},

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -25,12 +25,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestOpen(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.path == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
@@ -62,12 +63,7 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0755)
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-
-			if !test.opts.staticOpts.enableEBPFLess {
-				// don't check some fields on ebpfless mode until they are implemented
-				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
-				test.validateOpenSchema(t, event)
-			}
+			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
 		})
 	}))
 
@@ -84,10 +80,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
-
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
-			}
+			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
@@ -100,14 +93,6 @@ func TestOpen(t *testing.T) {
 	}
 
 	t.Run("openat2", func(t *testing.T) {
-		kv, err := kernel.NewKernelVersion()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if test.opts.staticOpts.enableEBPFLess && kv.Code < kernel.Kernel6_0 {
-			t.Skip("openat2 is not supported")
-		}
-
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {
@@ -123,10 +108,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
-
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
-			}
+			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
@@ -146,9 +128,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
-			}
+			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
@@ -156,9 +136,7 @@ func TestOpen(t *testing.T) {
 	}))
 
 	t.Run("truncate", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("SYS_TRUNCATE not supported yet")
-		}
+		SkipIfNotAvailable(t)
 
 		defer os.Remove(testFile)
 
@@ -232,19 +210,14 @@ func TestOpen(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
-			}
-
+			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 		})
 	})
 
 	t.Run("io_uring", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("io_uring not supported yet")
-		}
+		SkipIfNotAvailable(t)
 
 		defer os.Remove(testFile)
 
@@ -361,6 +334,8 @@ func TestOpen(t *testing.T) {
 }
 
 func TestOpenMetadata(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.path == "{{.Root}}/test-open" && open.file.uid == 98 && open.file.gid == 99`,
@@ -393,9 +368,7 @@ func TestOpenMetadata(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertRights(t, event.Open.File.Mode, expectedMode)
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
-			}
+			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
 			assertNearTime(t, event.Open.File.MTime)
 			assertNearTime(t, event.Open.File.CTime)
 
@@ -406,6 +379,8 @@ func TestOpenMetadata(t *testing.T) {
 }
 
 func TestOpenDiscarded(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_open_pipefs",
@@ -419,11 +394,9 @@ func TestOpenDiscarded(t *testing.T) {
 	}
 	defer test.Close()
 
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("not supported yet")
-	}
-
 	t.Run("pipefs", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		var pipeFDs [2]int
 		if err := unix.Pipe(pipeFDs[:]); err != nil {
 			t.Fatal(err)

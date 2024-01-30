@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
@@ -844,6 +845,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
 	config.BindEnvAndSetDefault("internal_profiling.extra_tags", []string{})
+	config.BindEnvAndSetDefault("internal_profiling.custom_attributes", []string{"check_id"})
 
 	config.BindEnvAndSetDefault("internal_profiling.capture_all_allocations", false)
 
@@ -1056,7 +1058,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_auto_detected_libraries", true)                                                         // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
-	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_all.namespaces", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
@@ -1668,7 +1669,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 		networkDevicesNetflow      = 15 // 14 is reserved for compliance (#20230)
 	)
 
-	localAddress, err := IsLocalAddress(config.GetString("fips.local_address"))
+	localAddress, err := system.IsLocalAddress(config.GetString("fips.local_address"))
 	if err != nil {
 		return fmt.Errorf("fips.local_address: %s", err)
 	}

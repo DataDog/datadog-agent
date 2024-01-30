@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests && !386
+//go:build linux && functionaltests && !386
 
 // Package tests holds tests related files
 package tests
@@ -23,6 +23,8 @@ import (
 )
 
 func TestChown(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
