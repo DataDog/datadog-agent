@@ -167,7 +167,7 @@ Package eventplatform contains the logic for forwarding events to the event plat
 
 ### [comp/forwarder/eventplatformreceiver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver)
 
-*Datadog Team*: Agent shared components
+*Datadog Team*: agent-metrics-logs
 
 Package eventplatformreceiver implements the global receiver for the epforwarder package
 
