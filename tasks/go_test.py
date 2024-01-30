@@ -210,10 +210,12 @@ def test_flavor(
         else:
             lines = res.stdout.splitlines()
             if lines is not None and 'DONE 0 tests' in lines[-1]:
-                print(color_message("No tests were run, skipping coverage report", "orange"))
                 cov_path = os.path.join(module_path, PROFILE_COV)
-                if os.path.exists(cov_path):
+                print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
+                try:
                     os.remove(cov_path)
+                except FileNotFoundError as e:
+                    print(f"Couldn't remove coverage file {cov_path}\n{e}")
                 return
 
         if save_result_json:
