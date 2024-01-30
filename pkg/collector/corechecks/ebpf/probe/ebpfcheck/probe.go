@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"strings"
 	"syscall"
@@ -90,6 +91,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 
 	probe.mapBuffers.keysBufferSizeLimit = uint32(ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_keys_buffer_size_bytes"))
 	probe.mapBuffers.valuesBufferSizeLimit = uint32(ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_values_buffer_size_bytes"))
+	probe.mapBuffers.iterationRestartDetectionEntries = ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.entries_for_iteration_restart_detection")
 	probe.entryCountMaxRestarts = ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_restarts")
 
 	log.Debugf("successfully loaded ebpf check probe")
@@ -568,6 +570,9 @@ type entryCountBuffers struct {
 	// size limits, originating from configuration
 	keysBufferSizeLimit   uint32
 	valuesBufferSizeLimit uint32
+
+	// Number of entries we keep track of for detecting restarts in single-item iteration
+	iterationRestartDetectionEntries int
 }
 
 // growBufferWithLimit creates or grows the given buffer with a configured limit.
@@ -596,11 +601,17 @@ func (e *entryCountBuffers) tryEnsureSizeForFullBatch(referenceMap *ebpf.Map) bo
 
 func (e *entryCountBuffers) prepareFirstBatchKeys(referenceMap *ebpf.Map) {
 	e.firstBatchKeys.keySize = int(referenceMap.KeySize())
-	e.firstBatchKeys.prepare(len(e.keys) / int(referenceMap.KeySize()))
+	numEntries := len(e.keys) / int(referenceMap.KeySize())
+
+	if numEntries == 0 {
+		numEntries = e.iterationRestartDetectionEntries
+	}
+
+	e.firstBatchKeys.prepare(numEntries)
 	// Maps grow automatically and do not shrink, so it does not make sense
 	// to reallocate them if we already have a map. However, we do want to clear it
 	// so that we don't keep old keys from previous iterations
-	e.firstBatchKeys.clear()
+	maps.Clear(e.firstBatchKeys.set)
 }
 
 func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) {
@@ -637,11 +648,15 @@ func (e *entryCountBuffers) resetBuffers() {
 type inplaceSet struct {
 	set     map[uint32]struct{}
 	keySize int
-	seed    uint32
+	seed    byte
 }
 
 func (s *inplaceSet) reset() {
 	s.set = nil
+}
+
+func (s *inplaceSet) clear() {
+	maps.Clear(s.set)
 }
 
 // prepare prepares the set to store the given number of entries. Maps in Go grow automatically and never shrink, so we don't need to reallocate
@@ -652,25 +667,13 @@ func (s *inplaceSet) prepare(hintNumEntries int) {
 	}
 }
 
-// clear deletes all entries in the set
-func (s *inplaceSet) clear() {
-	for k := range s.set {
-		delete(s.set, k)
-	}
-}
-
-// hash calculates the hash of the key at the given offset in a certain buffer
-// This is a FNV hash function with 32 bits
+// hash calculates the hash of the key at the given offset in a certain buffer, including the seed
 func (s *inplaceSet) hash(data []byte, offset int) uint32 {
-	hash := uint32(2166136261)
-	prime32 := uint32(16777619)
-	hash *= prime32
-	hash ^= s.seed
-	for i := 0; i < int(s.keySize); i++ {
-		hash *= prime32
-		hash ^= uint32(data[offset+i])
-	}
-	return hash
+	hash := fnv.New32()
+	hash.Write([]byte{s.seed})
+	hash.Write(data[offset : offset+s.keySize])
+
+	return hash.Sum32()
 }
 
 // load loads the keys from the given buffer into the set, clearing any old entry
@@ -737,7 +740,8 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 	// To avoid inifinte loops, we limit the number of restarts and we
 	for restarts, batchIndex := 0, uint32(0); restarts < maxRestarts && batchIndex*batchSize < mp.MaxEntries(); batchIndex++ {
 		// Ensure that we get a different hash if we get restarted, so false positives caused by hash collisions can be mitigated
-		buffers.firstBatchKeys.seed = uint32(restarts)
+		// It shouldn't overflow (we're not allowing hundreds of restarts), but even if it does it's ok to wrap around, we just want to mitigate collisions)
+		buffers.firstBatchKeys.seed = byte(restarts)
 
 		// Prepare the arguments to the lookup call
 		attr := MapLookupBatchAttr{
@@ -794,13 +798,18 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 	return -1, fmt.Errorf("the iteration got restarted too many times for map %s (%d entries)", mp.String(), mp.MaxEntries())
 }
 
-func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffers) (int64, error) {
+func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffers, maxRestarts int) (int64, error) {
 	numElements := int64(0)
+	restarts := 0
 	maxEntries := int64(mp.MaxEntries())
 	firstIter := true
 	buffers.ensureSizeCursor(mp)
+	buffers.prepareFirstBatchKeys(mp)
+	buffers.firstBatchKeys.clear()
 
-	for numElements <= maxEntries {
+	for ; numElements <= maxEntries && restarts < maxRestarts; numElements++ {
+		// It shouldn't overflow (we're not allowing hundreds of restarts), but even if it does it's ok to wrap around, we just want to mitigate collisions
+		buffers.firstBatchKeys.seed = byte(restarts)
 		var err error
 		if firstIter {
 			// Pass nil as the current key to signal that we start at the beginning of the map
@@ -819,11 +828,27 @@ func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffer
 			return -1, err
 		}
 
-		numElements++
+		if buffers.firstBatchKeys.containsAny(buffers.cursor, 1) {
+			// We got a repeated key, this is a restart. Reset the counters and start from the beginning
+			numElements = 0
+			restarts++
+			buffers.firstBatchKeys.clear()
+			buffers.firstBatchKeys.load(buffers.cursor, 1)
+			fmt.Println("restart")
+			continue
+		}
+
+		if numElements < int64(buffers.iterationRestartDetectionEntries) {
+			// Keep track of the first entries
+			buffers.firstBatchKeys.load(buffers.cursor, 1)
+		}
 	}
 
 	if numElements > maxEntries {
 		return -1, fmt.Errorf("map %s has more elements than its max entries (%d), not returning a count", mp.String(), mp.MaxEntries())
+	}
+	if restarts >= maxRestarts {
+		return -1, fmt.Errorf("the iteration got restarted too many times for map %s (%d entries)", mp.String(), mp.MaxEntries())
 	}
 	return numElements, nil
 }
@@ -838,7 +863,7 @@ func hashMapNumberOfEntries(mp *ebpf.Map, buffers *entryCountBuffers, maxRestart
 	if ddebpf.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
 		numElements, err = hashMapNumberOfEntriesWithBatch(mp, buffers, maxRestarts)
 	} else {
-		numElements, err = hashMapNumberOfEntriesWithIteration(mp, buffers)
+		numElements, err = hashMapNumberOfEntriesWithIteration(mp, buffers, maxRestarts)
 	}
 	if err != nil {
 		log.Debugf("error getting number of elements for map %s: %s", mp.String(), err)

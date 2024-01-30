@@ -293,6 +293,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// How many times we can restart the entry count of a map before we give up if we get an iteration restart
 	// due to the map changing while we look it up
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "max_restarts"), 3)
+	// How many entries we should keep track of in the entry count map to detect restarts in the
+	// single-item iteration
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "entries_for_iteration_restart_detection"), 100)
 
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")

@@ -227,7 +227,7 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 		}
 
 		t.Run("Iteration", func(t *testing.T) {
-			num, err := hashMapNumberOfEntriesWithIteration(m, &buffers)
+			num, err := hashMapNumberOfEntriesWithIteration(m, &buffers, 1)
 			require.NoError(t, err)
 			require.Equal(t, int64(filledEntries), num)
 		})
@@ -278,7 +278,7 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 
 			t.Run("Iteration", func(t *testing.T) {
 				allocs := testing.AllocsPerRun(10, func() {
-					hashMapNumberOfEntriesWithIteration(m, &buffers)
+					hashMapNumberOfEntriesWithIteration(m, &buffers, 1)
 				})
 				require.LessOrEqual(t, allocs, 2.0) // Allocations come from the ErrKeyNotExist (which is the end-of-iteration marker) in cilium/ebpf
 			})
