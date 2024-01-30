@@ -140,35 +140,44 @@ func (rc rcClient) Start(agentName string) error {
 }
 
 func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	var failover *bool
-	for _, update := range updates {
+	for cfgPath, update := range updates {
 		haUpdate, err := parseHighAvailabilityConfig(update.Config)
 		if err != nil {
 			pkglog.Errorf("HA update unmarshal failed: %s", err)
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
 			continue
 		}
 
-		if haUpdate.Failover != nil {
-			failover = haUpdate.Failover
+		// Accept and apply only the first valid update. Disregard any remaining, which will be left in the UNKNOWN state
+		if haUpdate != nil && haUpdate.Failover != nil {
+			pkglog.Infof("Setting `ha.failover: %t` through remote config", *haUpdate.Failover)
+			err = settings.SetRuntimeSetting("ha_failover", *haUpdate.Failover, model.SourceRC)
+			if err != nil {
+				pkglog.Errorf("HA failover update failed: %s", err)
+				applyStateCallback(cfgPath, state.ApplyStatus{
+					State: state.ApplyStateError,
+					Error: err.Error(),
+				})
+			} else {
+				applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			}
+		} else {
+			// Config update is nil, so we should unset the failover value if it was set via RC previously
+			shouldLog := false
+			if config.Datadog.GetSource("ha.failover") == model.SourceRC {
+				shouldLog = true
+			}
+			config.Datadog.UnsetForSource("ha.failover", model.SourceRC)
+			if shouldLog {
+				// Log the current ha.failover value AFTER unsetting the remote-config sourced value
+				pkglog.Infof("Falling back to `ha.failover: %t`", config.Datadog.GetBool("ha.failover"))
+			}
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
-	}
-
-	if failover == nil {
-		shouldLog := false
-		if config.Datadog.GetSource("ha.failover") == model.SourceRC {
-			shouldLog = true
-		}
-		config.Datadog.UnsetForSource("ha.failover", model.SourceRC)
-		if shouldLog {
-			// Log the current ha.failover value AFTER unsetting the remote-config sourced value
-			pkglog.Infof("Falling back to `ha.failover: %t`", config.Datadog.GetBool("ha.failover"))
-		}
-	} else {
-		pkglog.Infof("Setting `ha.failover: %t` through remote config", *failover)
-		err := settings.SetRuntimeSetting("ha_failover", *failover, model.SourceRC)
-		if err != nil {
-			pkglog.Errorf("HA failover update failed: %s", err)
-		}
+		break
 	}
 }
 
