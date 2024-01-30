@@ -31,7 +31,7 @@ from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.trace_agent import integration_tests as trace_integration_tests
 
-PROFILE_COV = "\"coverage.out\""
+PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
 GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
@@ -151,11 +151,13 @@ powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
             ]
             if not files_to_delete:
                 print(
-                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.'",
+                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.' in {self.module_path}",
                     file=sys.stderr,
                 )
             else:
-                self.ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
+                self.ctx.run(
+                    f"gocovmerge {' '.join(files_to_delete)} > \"{os.path.join(self.module_path, PROFILE_COV)}\""
+                )
                 for f in files_to_delete:
                     os.remove(f)
 
@@ -208,10 +210,12 @@ def test_flavor(
         else:
             lines = res.stdout.splitlines()
             if lines is not None and 'DONE 0 tests' in lines[-1]:
-                print(color_message("No tests were run, skipping coverage report", "orange"))
                 cov_path = os.path.join(module_path, PROFILE_COV)
-                if os.path.exists(cov_path):
+                print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
+                try:
                     os.remove(cov_path)
+                except FileNotFoundError as e:
+                    print(f"Couldn't remove coverage file {cov_path}\n{e}")
                 return
 
         if save_result_json:
