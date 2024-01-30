@@ -102,8 +102,12 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
 			shouldBePresent:  true,
-			shouldContain:    []string{fmt.Sprintf("hostname: %v", resourceID), "hostname provider: aws"},
 			shouldNotContain: []string{"FIPS proxy"},
+		},
+		{
+			name:            `Hostname`,
+			shouldBePresent: true,
+			shouldContain:   []string{fmt.Sprintf("hostname: %v", resourceID), "hostname provider: aws"},
 		},
 		{
 			name:            "Aggregator",
