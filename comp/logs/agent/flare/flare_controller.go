@@ -35,17 +35,18 @@ func (fc *FlareController) FillFlare(fb flaretypes.FlareBuilder) error {
 	defer fc.mu.Unlock()
 
 	// Don't add to the flare if there are no logs files
-	if len(fc.allFiles) == 0 {
+	if len(fc.allFiles) == 0 && len(fc.journalFiles) == 0 {
 		return nil
 	}
 	fb.AddFileFromFunc("logs_file_permissions.log", func() ([]byte, error) {
 		var writer []byte
 		var fileInfo string
 		// Timer to prevent function from running too long in the event that the
-		// agent detects a long time to os.Stat() the files it detects
+		// agent takes a long time to os.Stat() the files it detects
 		timer := time.NewTimer(15 * time.Second)
+		combinedFiles := append(fc.allFiles, fc.journalFiles...)
 
-		for _, file := range fc.allFiles {
+		for _, file := range combinedFiles {
 
 			select {
 			case t := <-timer.C:
