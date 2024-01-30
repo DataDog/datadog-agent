@@ -14,10 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-<<<<<<< HEAD
-	"io/fs"
-=======
->>>>>>> c7269a8bad (one working test)
 	"os"
 	"os/exec"
 	"path"
