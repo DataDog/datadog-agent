@@ -13,7 +13,7 @@ try:
 except ImportError:
     tabulate = None
 
-from .system_probe import build_object_files, is_root, build_cws_object_files
+from .system_probe import build_cws_object_files, build_object_files, is_root
 
 headers = [
     "Filename/Program",
@@ -94,7 +94,7 @@ def cleanup_verifier_stats(verifier_stats):
         "object_files": "Comma separated list of object files to print statistics for",
     }
 )
-def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=False, out=None, debug_build=False, object_files=None):
+def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=False, out=None, debug_build=False):
     sudo = "sudo -E" if not is_root() else ""
     if not skip_object_files:
         build_object_files(ctx)
