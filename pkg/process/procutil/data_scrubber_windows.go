@@ -15,6 +15,8 @@ import (
 
 func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 
+	winDotExec := []string{".com",".exe",".bat",".cmd",".vbs", ".vbe",".js",".jse",".wsf",".wsh",".psc1"}
+
 	if len(cmdline) > 0 {
 
 		if len(cmdline) > 1  {
@@ -27,12 +29,10 @@ func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 			strCmdline := strings.Join(cmdline,"")
 
 			validCmdline := validWindowsPrefix(strCmdline)
-		
-			re := regexp.MustCompile(`.exe?`)
-		
-			ind := re.FindStringIndex(validCmdline)
-		
-			strippedcmdline := validCmdline[:ind[1]]
+
+			i := extensionParser(validCmdline, winDotExec)
+
+			strippedcmdline := validCmdline[:i+4]
 		
 			slicedCmdline := []string{}
 		
@@ -45,11 +45,8 @@ func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 }
 
 
-
-
 func validWindowsPrefix(cmdline string, ) string {
 
-	
 	for _, c := range cmdline {
 		if unicode.IsLetter(c) {
 			break
@@ -63,4 +60,16 @@ func validWindowsPrefix(cmdline string, ) string {
 
 }
 
+func extensionParser (validCmdline string, winDotExec []string) int {
 
+	var i int
+
+	for _, c := range winDotExec {
+
+		if strings.Contains(validCmdline, c) {
+			i := strings.Index(validCmdline, c)
+			return i
+		} 
+		}
+	return i
+}
