@@ -29,5 +29,5 @@ func TestTablespaces(t *testing.T) {
 	err := c.Run()
 	require.NoError(t, err)
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	s.AssertMetricOnce(t, "Gauge", "oracle.tablespace.size", 104857600, "", tags)
+	s.AssertMetricOnce(t, "Gauge", "oracle.tablespace.size", 104857600, c.dbHostname, tags)
 }

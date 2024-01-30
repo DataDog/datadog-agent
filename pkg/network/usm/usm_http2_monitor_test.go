@@ -492,21 +492,23 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	tests := []struct {
 		name              string
 		skip              bool
-		messageBuilder    func() []byte
+		messageBuilder    func() [][]byte
 		expectedEndpoints map[usmhttp.Key]int
 	}{
 		{
 			name: "parse_frames tail call using 1 program",
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				const settingsFramesCount = 100
 				framer := newFramer()
-				return framer.
-					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-					writeHeaders(t, 1, testHeaders()).
-					writeData(t, 1, true, emptyBody).
-					bytes()
+				return [][]byte{
+					framer.
+						writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
+						writeHeaders(t, 1, testHeaders()).
+						writeData(t, 1, true, emptyBody).
+						bytes(),
+				}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -519,14 +521,16 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "parse_frames tail call using 2 programs",
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
 			// the filtering of subsequent frames will continue using tail calls.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				const settingsFramesCount = 130
 				framer := newFramer()
-				return framer.
-					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-					writeHeaders(t, 1, testHeaders()).
-					writeData(t, 1, true, emptyBody).
-					bytes()
+				return [][]byte{
+					framer.
+						writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
+						writeHeaders(t, 1, testHeaders()).
+						writeData(t, 1, true, emptyBody).
+						bytes(),
+				}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -542,14 +546,16 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate frames_filter tail calls limit",
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
 			// for 2 filter_frames we do not use more than two tail calls.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				settingsFramesCount := getTLSNumber(241, 121, s.isTLS)
 				framer := newFramer()
-				return framer.
-					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-					writeHeaders(t, 1, testHeaders()).
-					writeData(t, 1, true, emptyBody).
-					bytes()
+				return [][]byte{
+					framer.
+						writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
+						writeHeaders(t, 1, testHeaders()).
+						writeData(t, 1, true, emptyBody).
+						bytes(),
+				}
 			},
 			expectedEndpoints: nil,
 		},
@@ -557,7 +563,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate max interesting frames limit",
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				iterations := getTLSNumber(120, 60, s.isTLS)
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
@@ -566,7 +572,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeHeaders(t, streamID, testHeaders()).
 						writeData(t, streamID, true, emptyBody)
 				}
-				return framer.bytes()
+				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -580,7 +586,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability the case:
 			// Literal Header Field without Indexing (0b0000xxxx: top four bits are 0000)
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.C.2.2
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				const iterations = 5
 				const setDynamicTableSize = true
 				framer := newFramer()
@@ -590,7 +596,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralWithoutIndexing}), setDynamicTableSize).
 						writeData(t, streamID, true, emptyBody)
 				}
-				return framer.bytes()
+				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -604,7 +610,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability the case:
 			// Literal Header Field never Indexed (0b0001xxxx: top four bits are 0001)
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.3
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				const iterations = 5
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
@@ -613,8 +619,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralNeverIndexed})).
 						writeData(t, streamID, true, emptyBody)
 				}
-				return framer.bytes()
-
+				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -626,7 +631,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		{
 			name: "validate path with index 4",
 			// The purpose of this test is to verify our ability to identify paths with index 4.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				const iterations = 5
 				// pathHeaderField is the hex representation of the path /aaa with index 4.
 				pathHeaderField := []byte{0x44, 0x83, 0x60, 0x63, 0x1f}
@@ -644,7 +649,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeRawHeaders(t, streamID, headersFrame).
 						writeData(t, streamID, true, emptyBody)
 				}
-				return framer.bytes()
+				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -656,7 +661,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		{
 			name: "validate PING and WINDOWS_UPDATE frames between HEADERS and DATA",
 			// The purpose of this test is to verify our ability to process PING and WINDOWS_UPDATE frames between HEADERS and DATA.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				const iterations = 5
 				framer := newFramer()
 
@@ -669,7 +674,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeData(t, streamID, true, emptyBody)
 				}
 
-				return framer.bytes()
+				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -683,7 +688,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when a cancel error code is sent, we will not count the request.
 			// We are sending 10 requests, and 5 of them will contain RST_STREAM with a cancel error code.Therefore, we expect to
 			// capture five valid requests.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				const iterations = 10
 				rstFramesCount := 5
 				framer := newFramer()
@@ -697,7 +702,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						rstFramesCount--
 					}
 				}
-				return framer.bytes()
+				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -710,7 +715,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate RST_STREAM before server status ok",
 			// The purpose of this test is to validate that when we see RST before DATA frame with status ok,
 			// we will not count the requests.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				const iterations = 10
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
@@ -720,7 +725,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeData(t, streamID, true, emptyBody).
 						writeRSTStream(t, streamID, http2.ErrCodeNo)
 				}
-				return framer.bytes()
+				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: nil,
 		},
@@ -731,40 +736,51 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// When we exceed the limit, we expect to lose our internal counter (because we can filter up to 25 requests),
 			// and therefore, the next time we write the request "/aaa",
 			// its internal index will not be correct, and we will not be able to find it.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				const multiHeadersCount = 25
 				framer := newFramer()
-				return framer.writeHeaders(t, 1, multipleTestHeaders(multiHeadersCount)).
-					writeData(t, 1, true, emptyBody).
-					writeHeaders(t, 1, testHeaders()).
-					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					framer.writeHeaders(t, 1, multipleTestHeaders(multiHeadersCount)).
+						writeData(t, 1, true, emptyBody).
+						writeHeaders(t, 1, testHeaders()).
+						writeData(t, 1, true, emptyBody).
+						bytes(),
+				}
 			},
 			expectedEndpoints: nil,
 		},
 		{
 			name: "validate 300 status code",
 			// The purpose of this test is to verify that currently we do not support status code 300.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				framer := newFramer()
-				return framer.writeHeaders(t, 1, headersWithGivenEndpoint("/status/300")).
-					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					framer.
+						writeHeaders(t, 1, headersWithGivenEndpoint("/status/300")).
+						writeData(t, 1, true, emptyBody).
+						bytes(),
+				}
 			},
 			expectedEndpoints: nil,
 		},
 		{
 			name: "validate 401 status code",
 			// The purpose of this test is to verify that currently we do not support status code 401.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				framer := newFramer()
-				return framer.writeHeaders(t, 1, headersWithGivenEndpoint("/status/401")).
-					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					framer.
+						writeHeaders(t, 1, headersWithGivenEndpoint("/status/401")).
+						writeData(t, 1, true, emptyBody).
+						bytes(),
+				}
 			},
 			expectedEndpoints: nil,
 		},
 		{
 			name: "validate http methods",
 			// The purpose of this test is to validate that we are not supporting http2 methods different from POST and GET.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				httpMethods = []string{http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}
 				framer := newFramer()
 				for i, method := range httpMethods {
@@ -773,18 +789,21 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})).
 						writeData(t, streamID, true, emptyBody)
 				}
-				return framer.bytes()
+				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: nil,
 		},
 		{
 			name: "validate max path length",
 			// The purpose of this test is to validate that we are not able to process a path longer than HTTP2_MAX_PATH_LEN.
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				framer := newFramer()
-				return framer.
-					writeHeaders(t, 1, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathTooLarge})).
-					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					framer.
+						writeHeaders(t, 1, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathTooLarge})).
+						writeData(t, 1, true, emptyBody).
+						bytes(),
+				}
 			},
 			expectedEndpoints: nil,
 		},
@@ -792,7 +811,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate path sent by value (:path)",
 			// The purpose of this test is to verify our ability to identify paths which were sent with a key that
 			// sent by value (:path).
-			messageBuilder: func() []byte {
+			messageBuilder: func() [][]byte {
 				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
 				headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
 				require.NoError(t, err, "could not create headers frame")
@@ -801,10 +820,54 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				pathHeaderField := []byte{0x40, 0x84, 0xb9, 0x58, 0xd3, 0x3f, 0x83, 0x60, 0x63, 0x1f}
 				headersFrame = append(pathHeaderField, headersFrame...)
 				framer := newFramer()
-				return framer.writeRawHeaders(t, 1, headersFrame).
-					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					framer.
+						writeRawHeaders(t, 1, headersFrame).
+						writeData(t, 1, true, emptyBody).
+						bytes(),
+				}
 			},
 			expectedEndpoints: nil,
+		},
+		{
+			name: "Interesting frame header sent separately from frame payload",
+			// Testing the scenario in which the frame header (of an interesting type) is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				headersFrame := newFramer().writeHeaders(t, 1, testHeaders()).bytes()
+				dataFrame := newFramer().writeData(t, 1, true, emptyBody).bytes()
+				headersFrameHeader := headersFrame[:9]
+				secondMessage := append(headersFrame[9:], dataFrame...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "Not interesting frame header sent separately from frame payload",
+			// Testing the scenario in which the frame header (of a not interesting type) is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				pingFrame := newFramer().writePing(t).bytes()
+				fullFrame := newFramer().writeHeaders(t, 1, testHeaders()).writeData(t, 1, true, emptyBody).bytes()
+				pingFrameHeader := pingFrame[:9]
+				secondMessage := append(pingFrame[9:], fullFrame...)
+				return [][]byte{
+					pingFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -821,7 +884,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
-			require.NoError(t, writeInput(c, tt.messageBuilder(), 500*time.Millisecond))
+			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
@@ -894,7 +957,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
-			require.NoError(t, writeInput(c, tt.messageBuilder(), 500*time.Millisecond))
+			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()))
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
@@ -973,7 +1036,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
-			require.NoError(t, writeInput(c, tt.messageBuilder(), 500*time.Millisecond))
+			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()))
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
@@ -1049,9 +1112,11 @@ func getHTTP2UnixClientArray(size int, unixPath string) []*http.Client {
 // writeInput writes the given input to the socket and reads the response.
 // Presently, the timeout is configured to one second for all readings.
 // In case of encountered issues, increasing this duration might be necessary.
-func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
-	if _, err := c.Write(input); err != nil {
-		return err
+func writeInput(c net.Conn, timeout time.Duration, inputs ...[]byte) error {
+	for _, input := range inputs {
+		if _, err := c.Write(input); err != nil {
+			return err
+		}
 	}
 	// Since we don't know when to stop reading from the socket, we set a timeout.
 	if err := c.SetReadDeadline(time.Now().Add(timeout)); err != nil {
@@ -1112,7 +1177,6 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 		// ref: https://github.com/golang/net/blob/07e05fd6e95ab445ebe48840c81a027dbace3b8e/http2/hpack/encode.go#L140
 		// Therefore, we want to make sure that the path is longer or equal to 100 characters so that the path will not be indexed.
 		pathHeaderField.Value = "/" + strings.Repeat("a", usmhttp2.DynamicTableSize)
-		pathHeaderField.Sensitive = true
 	case pathTooLarge:
 		pathHeaderField.Value = "/" + pathExceedingMaxSize
 	case pathOverride:
@@ -1323,6 +1387,6 @@ func dialHTTP2Server(t *testing.T) net.Conn {
 	t.Cleanup(func() { _ = c.Close() })
 
 	// Writing a magic and the settings in the same packet to socket.
-	require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), newFramer().writeSettings(t).bytes()), time.Millisecond*200))
+	require.NoError(t, writeInput(c, time.Millisecond*200, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), newFramer().writeSettings(t).bytes())))
 	return c
 }
