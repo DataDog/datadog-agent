@@ -25,6 +25,7 @@ if ($Env:TARGET_ARCH -eq "x86") {
 }
 & .\tasks\winbuildscripts\pre-go-build.ps1 -Architecture "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
 
+
 & inv -e security-agent.kitchen-prepare --skip-linters
 
 $err = $LASTEXITCODE
