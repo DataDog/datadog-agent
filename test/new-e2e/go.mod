@@ -28,11 +28,11 @@ require (
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
 	github.com/DataDog/test-infra-definitions v0.0.0-20240130144300-931a883f86ed
-	github.com/aws/aws-sdk-go-v2 v1.24.0
+	github.com/aws/aws-sdk-go-v2 v1.24.1
 	github.com/aws/aws-sdk-go-v2/config v1.25.10
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
 	github.com/aws/aws-sdk-go-v2/service/eks v1.35.1
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.44.1
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.44.7
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/cli v24.0.7+incompatible
 	github.com/docker/docker v24.0.7+incompatible
@@ -75,8 +75,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.5.4 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.8 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.9 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.9 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.10 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.10 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.7.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.2.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.35.1
