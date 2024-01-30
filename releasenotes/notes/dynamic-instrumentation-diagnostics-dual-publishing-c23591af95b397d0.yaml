@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL, DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY
+    and DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS to allow sending Live
+    Debugger / Dynamic Instrumentation diagnostic data to multiple intakes.
