@@ -8,7 +8,6 @@
 package procutil
 
 import (
-	"regexp"
 	"strings"
 	"unicode"
 )
