@@ -9,6 +9,7 @@ package rcserviceimpl
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
@@ -39,21 +40,23 @@ type dependencies struct {
 	DdRcTelemetryReporter rctelemetryreporter.Component
 	Hostname              hostname.Component
 	Cfg                   cfgcomp.Component
+	Logger                log.Component
 }
 
 // newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
-func newRemoteConfigServiceOptional(deps dependencies) (optional.Option[rcservice.Component], error) {
+func newRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservice.Component] {
 	none := optional.NewNoneOption[rcservice.Component]()
 	if !config.IsRemoteConfigEnabled(deps.Cfg) {
-		return none, nil
+		return none
 	}
 
 	configService, err := newRemoteConfigService(deps)
 	if err != nil {
-		return none, err
+		deps.Logger.Errorf("remote config service not initialized or started: %s", err)
+		return none
 	}
 
-	return optional.NewOption[rcservice.Component](configService), nil
+	return optional.NewOption[rcservice.Component](configService)
 }
 
 // newRemoteConfigServiceOptional creates and configures a new remote config service
