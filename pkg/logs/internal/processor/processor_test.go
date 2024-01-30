@@ -6,12 +6,12 @@
 package processor
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
