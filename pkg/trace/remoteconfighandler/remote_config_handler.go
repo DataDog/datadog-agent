@@ -14,6 +14,8 @@ import (
 	"os"
 	"strconv"
 
+	yamlv2 "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -46,6 +48,8 @@ type RemoteConfigHandler struct {
 	configState                   *state.AgentConfigState
 	configSetEndpointFormatString string
 }
+
+var apmTracingFilePath = "/opt/datadog/inject/inject_config.json"
 
 //nolint:revive // TODO(APM) Fix revive linter
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
@@ -141,8 +145,7 @@ const InvalidApmTracingPayload = "INVALID_APM_TRACING_PAYLOAD"
 const MissingServiceTarget = "MISSING_SERVICE_TARGET"
 const FileWriteFailure = "FILE_WRITE_FAILURE"
 
-func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive // TODO fix revive unused-parameter
-	log.Infof("ON APM TRACING UPDATE WAS CALLED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!: %v", update)
+func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
 	var senvConfigs []ServiceEnvConfig
 	// Maps update IDs to their error, empty string indicates success
 	updateStatus := map[string]string{}
@@ -170,7 +173,7 @@ func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConf
 
 		updateStatus[id] = ""
 		senvConfigs = append(senvConfigs, ServiceEnvConfig{
-			Service:        tcu.ServiceTarget.Service, // TODO: Is this the right service or should we be looking in the tcu.LibConfig?
+			Service:        tcu.ServiceTarget.Service,
 			Env:            tcu.ServiceTarget.Env,
 			TracingEnabled: tcu.LibConfig.TracingEnabled,
 		})
@@ -180,14 +183,13 @@ func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConf
 		TracingEnabled:    hostTracingEnabled,
 		ServiceEnvConfigs: senvConfigs,
 	}
-	configFile, err := json.Marshal(tec)
+	configFile, err := yamlv2.Marshal(tec)
 	if err != nil {
 		//TODO: do we bother sending this back? This shouldn't be possible
 		log.Errorf("Failed to marshal APM_TRACING config update %v", err)
 		return
 	}
-	fileLocation := "/opt/datadog/inject/inject_config.json"
-	err = os.WriteFile(fileLocation, configFile, 0666)
+	err = os.WriteFile(apmTracingFilePath, configFile, 0666) //TODO: are these the right permissions?
 	if err != nil {
 		log.Errorf("Failed to write single step config data file from APM_TRACING config: %v", err)
 		// Failed to write file, report failure for all updates
@@ -198,7 +200,7 @@ func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConf
 			})
 		}
 	} else {
-		log.Debugf("Successfully wrote APM_TRACING config to %s", fileLocation)
+		log.Debugf("Successfully wrote APM_TRACING config to %s", apmTracingFilePath)
 		// Successfully wrote file, report success/failure
 		for id, errStatus := range updateStatus {
 			applyState := state.ApplyStateAcknowledged
@@ -214,14 +216,14 @@ func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConf
 }
 
 type ServiceEnvConfig struct {
-	Service        string `json:"service"`
-	Env            string `json:"env"`
-	TracingEnabled bool   `json:"tracing_enabled"`
+	Service        string `yaml:"service"`
+	Env            string `yaml:"env"`
+	TracingEnabled bool   `yaml:"tracing_enabled"`
 }
 
 type TracingEnabledConfig struct {
-	TracingEnabled    bool               `json:"tracing_enabled"`
-	ServiceEnvConfigs []ServiceEnvConfig `json:"service_env_configs"`
+	TracingEnabled    bool               `yaml:"tracing_enabled"`
+	ServiceEnvConfigs []ServiceEnvConfig `yaml:"service_env_configs"`
 }
 
 type TracingConfigUpdate struct {
