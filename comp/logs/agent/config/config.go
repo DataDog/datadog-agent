@@ -205,34 +205,39 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 	var dualEndpoint *Endpoint
 
 	setNextEndpoint := true
-	nextEndpoint := &main
 
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
-		err := setEndpointAddress(&main, vectorURL, defaultNoSSL, parseAddress)
-		if err != nil {
-			return nil, err
-		}
-
-		if logsConfig.obsPipelineWorkerDualShip() {
-			// Set up the endpoint to dual ship to.
+		var opEndpoint *Endpoint
+		if logsConfig.obsPipelineWorkerDualShipEnabled() {
 			endpoint := newEndpoint(logsConfig, defaultNoSSL, intakeTrackType, intakeProtocol, intakeOrigin)
+			if logsConfig.obsPipelineWorkerDualShipReliable() {
+				endpoint.IsReliable = pointer.Ptr(true)
+			}
 			dualEndpoint = &endpoint
-			nextEndpoint = dualEndpoint
+
+			opEndpoint = &endpoint
 		} else {
 			// We don't need another endpoint.
 			setNextEndpoint = false
+
+			opEndpoint = &main
+		}
+
+		err := setEndpointAddress(opEndpoint, vectorURL, defaultNoSSL, parseAddress)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	if setNextEndpoint {
 		if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
-			err := setEndpointAddress(nextEndpoint, logsDDURL, defaultNoSSL, parseAddress)
+			err := setEndpointAddress(&main, logsDDURL, defaultNoSSL, parseAddress)
 			if err != nil {
 				return nil, err
 			}
 		} else {
 			addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
-			err := setEndpointAddress(nextEndpoint, addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
+			err := setEndpointAddress(&main, addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
 			if err != nil {
 				return nil, err
 			}

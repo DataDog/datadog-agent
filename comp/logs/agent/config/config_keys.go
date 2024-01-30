@@ -280,14 +280,24 @@ func (l *LogsConfigKeys) obsPipelineWorkerEnabled() bool {
 	return l.getConfig().GetBool(l.getObsPipelineConfigKey("vector", "enabled"))
 }
 
-func (l *LogsConfigKeys) obsPipelineWorkerDualShip() bool {
+func (l *LogsConfigKeys) obsPipelineWorkerDualShipEnabled() bool {
 	if l.vectorPrefix == "" {
 		return false
 	}
-	if l.getConfig().GetBool(l.getObsPipelineConfigKey("observability_pipelines_worker", "dualship")) {
+	if l.getConfig().GetBool(l.getObsPipelineConfigKey("observability_pipelines_worker", "dualship.enabled")) {
 		return true
 	}
-	return l.getConfig().GetBool(l.getObsPipelineConfigKey("vector", "dualship"))
+	return l.getConfig().GetBool(l.getObsPipelineConfigKey("vector", "dualship.enabled"))
+}
+
+func (l *LogsConfigKeys) obsPipelineWorkerDualShipReliable() bool {
+	if l.vectorPrefix == "" {
+		return false
+	}
+	if l.getConfig().GetBool(l.getObsPipelineConfigKey("observability_pipelines_worker", "dualship.reliable")) {
+		return true
+	}
+	return l.getConfig().GetBool(l.getObsPipelineConfigKey("vector", "dualship.reliable"))
 }
 
 func (l *LogsConfigKeys) getObsPipelineURL() (string, bool) {

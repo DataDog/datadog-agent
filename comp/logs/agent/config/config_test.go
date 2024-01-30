@@ -605,13 +605,32 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorDualShip() {
 	suite.config.SetWithoutSource("api_key", "123")
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
-	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dualship", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dualship.enabled", true)
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "http://vector.host:8080/")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(
-		getTestEndpoint("vector.host", 8080, false),
-		getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
+		getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true),
+		getTestEndpoint("vector.host", 8080, false))
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorReliableDualShip() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dualship.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dualship.reliable", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "http://vector.host:8080/")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Nil(err)
+
+	reliableEndpoint := getTestEndpoint("vector.host", 8080, false)
+	reliableEndpoint.IsReliable = pointer.Ptr(true)
+
+	expectedEndpoints := getTestEndpoints(
+		getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true),
+		reliableEndpoint)
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -619,7 +638,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorDualShip() {
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorAndLogsDDUrlDualShip() {
 	suite.config.SetWithoutSource("api_key", "123")
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
-	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dualship", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dualship.enabled", true)
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "http://vector.host:8080/")
 
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", "https://thing.com:9900")
@@ -627,8 +646,8 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorAndLogsDDUrlDualShip()
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(
-		getTestEndpoint("vector.host", 8080, false),
-		getTestEndpoint("thing.com", 9900, true))
+		getTestEndpoint("thing.com", 9900, true),
+		getTestEndpoint("vector.host", 8080, false))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
