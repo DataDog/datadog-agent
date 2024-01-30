@@ -33,6 +33,7 @@ kernel_matrix_testing_setup_env_security_agent_arm64:
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     TEST_COMPONENT: security-agent
     TEST_SETS: all_tests
+    AVAILABLE_CPUS: "64"
 
 kernel_matrix_testing_setup_env_security_agent_x64:
   extends:
@@ -46,6 +47,7 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     TEST_COMPONENT: security-agent
     TEST_SETS: all_tests
+    AVAILABLE_CPUS: "96"
 
 .upload_security_agent_tests:
   stage: kernel_matrix_testing_prepare
