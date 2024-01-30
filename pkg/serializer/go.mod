@@ -35,8 +35,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/json => ../util/json
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../util/optional/
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../util/sort/
+	github.com/DataDog/datadog-agent/pkg/util/system => ../util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../util/system/socket/
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ../version/
@@ -87,8 +89,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.51.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.51.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.51.0-rc.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
@@ -114,6 +118,7 @@ require (
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
+	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -130,12 +135,15 @@ require (
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.23.12 // indirect
+	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spf13/afero v1.9.5 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.1 // indirect
+	github.com/tklauser/go-sysconf v0.3.12 // indirect
+	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opentelemetry.io/otel v1.21.0 // indirect

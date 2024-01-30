@@ -58,11 +58,9 @@ type LeaderProxyHandler struct {
 
 // WithLeaderProxyHandler returns a http handler function that emits telemetry.
 func WithLeaderProxyHandler(handlerName string, preHandler RequestPreHandler, leaderHandler RequestHandler) RequestHandler {
-	leaderEngine, _ := leaderelection.GetLeaderEngine()
 	lph := LeaderProxyHandler{
 		handlerName:           handlerName,
 		leaderForwarder:       GetGlobalLeaderForwarder(),
-		le:                    leaderEngine,
 		leaderElectionEnabled: config.Datadog.GetBool("leader_election"),
 		preHandler:            preHandler,
 		leaderHandler:         leaderHandler,

@@ -381,7 +381,6 @@ def build_functional_tests(
             kernel_release=kernel_release,
             debug=debug,
         )
-
         build_embed_syscall_tester(ctx)
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
@@ -840,14 +839,16 @@ def kitchen_prepare(ctx, windows=is_windows, skip_linters=False):
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
 
     out_binary = "testsuite"
+    race = True
     if windows:
         out_binary = "testsuite.exe"
+        race = False
 
     testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", out_binary)
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
-        race=True,
+        race=race,
         debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,

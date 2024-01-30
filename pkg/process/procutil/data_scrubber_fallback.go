@@ -10,6 +10,7 @@ package procutil
 import (
 	"strings"
 )
+
 func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 	// We will sometimes see the entire command line come in via the first element -- splitting guarantees removal
 	// of arguments in these cases.

@@ -846,6 +846,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		MinCollectionInterval: c.checkInterval,
 		Tags:                  c.tags,
 		AgentVersion:          c.agentVersion,
+		AgentHostname:         c.agentHostname,
 		OracleRows:            oracleRows,
 		OracleVersion:         c.dbVersion,
 	}
