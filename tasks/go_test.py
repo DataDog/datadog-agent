@@ -70,7 +70,7 @@ def ensure_bytes(s):
     return s
 
 
-def build_stdlib(
+def build_standard_lib(
     ctx,
     build_tags: List[str],
     cmd: str,
@@ -311,6 +311,7 @@ def test(
     junit_tar="",
     only_modified_packages=False,
     skip_flakes=False,
+    build_stdlib=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -409,14 +410,15 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
 
     # Test
     for flavor, build_tags in unit_tests_tags.items():
-        build_stdlib(
-            ctx,
-            build_tags=build_tags,
-            cmd=stdlib_build_cmd,
-            env=env,
-            args=args,
-            test_profiler=test_profiler,
-        )
+        if build_stdlib:
+            build_standard_lib(
+                ctx,
+                build_tags=build_tags,
+                cmd=stdlib_build_cmd,
+                env=env,
+                args=args,
+                test_profiler=test_profiler,
+            )
         if only_modified_packages:
             modules = get_modified_packages(ctx, build_tags=build_tags)
         modules_results_per_phase["test"][flavor] = test_flavor(
