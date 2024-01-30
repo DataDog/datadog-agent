@@ -29,7 +29,7 @@ func NewHighAvailabilityRuntimeSetting(name, desc string) *HighAvailabilityRunti
 
 // Description returns the runtime setting's description
 func (h *HighAvailabilityRuntimeSetting) Description() string {
-	return h.desc
+	return h.desc + " Possible values: true, false"
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
