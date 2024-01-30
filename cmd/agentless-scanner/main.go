@@ -1488,7 +1488,7 @@ func (s *sideScanner) cleanSlate() error {
 	}
 
 	var attachedVolumes []string
-	if blockDevices, err := listBlockDevices(); err == nil {
+	if blockDevices, err := listBlockDevices(ctx); err == nil {
 		for _, bd := range blockDevices {
 			if strings.HasPrefix(bd.Name, "nbd") || strings.HasPrefix(bd.Serial, "vol") {
 				for _, child := range bd.getChildrenType("lvm") {
@@ -3097,15 +3097,18 @@ func (bd blockDevice) recurse(cb func(blockDevice)) {
 	cb(bd)
 }
 
-func listBlockDevices(deviceName ...string) ([]blockDevice, error) {
+func listBlockDevices(ctx context.Context, deviceName ...string) ([]blockDevice, error) {
 	var blockDevices struct {
 		BlockDevices []blockDevice `json:"blockdevices"`
 	}
 	_, _ = exec.Command("udevadm", "settle", "--timeout=1").CombinedOutput()
 	lsblkArgs := []string{"--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE,MOUNTPOINTS"}
 	lsblkArgs = append(lsblkArgs, deviceName...)
-	lsblkJSON, err := exec.Command("lsblk", lsblkArgs...).Output()
+	lsblkJSON, err := exec.CommandContext(ctx, "lsblk", lsblkArgs...).Output()
 	if err != nil {
+		if !errors.Is(err, context.Canceled) {
+			log.Warnf("lsblk exited with error: %v", err)
+		}
 		return nil, fmt.Errorf("lsblk exited with error: %w", err)
 	}
 	if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
@@ -3148,9 +3151,8 @@ func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartitio
 		if !sleepCtx(ctx, 500*time.Millisecond) {
 			return nil, ctx.Err()
 		}
-		blockDevices, err := listBlockDevices()
+		blockDevices, err := listBlockDevices(ctx)
 		if err != nil {
-			log.Warn(err)
 			continue
 		}
 		for _, bd := range blockDevices {
@@ -3175,9 +3177,8 @@ func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartitio
 
 	var partitions []devicePartition
 	for i := 0; i < 5; i++ {
-		blockDevices, err := listBlockDevices(foundBlockDevice.Path)
+		blockDevices, err := listBlockDevices(ctx, foundBlockDevice.Path)
 		if err != nil {
-			log.Warn(err)
 			continue
 		}
 		if len(blockDevices) != 1 {
@@ -3339,7 +3340,7 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 		}
 	}
 	if errd != nil {
-		return fmt.Errorf("could not delete volume %q: %v", volumeID, errd)
+		return fmt.Errorf("could not delete volume %q: %w", volumeID, errd)
 	}
 	return nil
 }
@@ -3468,7 +3469,7 @@ func cleanupScan(scan *scanTask) {
 	}
 
 	if scan.AttachedDeviceName != nil {
-		blockDevices, err := listBlockDevices(*scan.AttachedDeviceName)
+		blockDevices, err := listBlockDevices(ctx, *scan.AttachedDeviceName)
 		if err == nil && len(blockDevices) == 1 {
 			for _, child := range blockDevices[0].getChildrenType("lvm") {
 				if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
