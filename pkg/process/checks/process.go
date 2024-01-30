@@ -602,6 +602,8 @@ func skipProcess(
 		// This means short-lived processes (<2s) will never be captured.
 		return true
 	}
+	// Skipping zombie processes (defined in docs as Status = "Z") if the config
+	// for skipping zombie processes is on.
 	if zombiesIgnored && fp.Stats != nil && fp.Stats.Status == "Z" {
 		return true
 	}
