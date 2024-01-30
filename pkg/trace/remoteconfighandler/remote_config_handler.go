@@ -49,7 +49,7 @@ type RemoteConfigHandler struct {
 	configSetEndpointFormatString string
 }
 
-var apmTracingFilePath = "/opt/datadog/inject/inject_config.json"
+var apmTracingFilePath = "/opt/datadog/inject/inject_config.yaml"
 
 //nolint:revive // TODO(APM) Fix revive linter
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
