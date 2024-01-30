@@ -806,6 +806,29 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: nil,
 		},
+		{
+			name: "validate dynamic table update with indexed header field",
+			// The purpose of this test is to verify our ability to support dynamic table update
+			// while using a path with indexed header field.
+			messageBuilder: func() []byte {
+				const iterations = 5
+				const setDynamicTableSize = true
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, headersWithGivenEndpoint("/"), setDynamicTableSize).
+						writeData(t, streamID, true, emptyBody)
+				}
+				return framer.bytes()
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
+					Method: usmhttp.MethodPost,
+				}: 5,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
