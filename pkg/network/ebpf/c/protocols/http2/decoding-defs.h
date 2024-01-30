@@ -36,7 +36,7 @@
 // A limit of max non pseudo headers which we process in the request/response.
 // In HTTP/2 we know that we start with pseudo headers and then we have non pseudo headers.
 // The max number of headers we process in the request/response is HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING + HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING.
-#define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 35
+#define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 33
 
 // A limit of max pseudo headers which we process in the request/response.
 #define HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING 4
