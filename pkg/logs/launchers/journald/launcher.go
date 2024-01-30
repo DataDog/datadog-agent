@@ -84,7 +84,10 @@ func (l *Launcher) run() {
 				continue
 			}
 
-			allJournalSources = append(allJournalSources, tailer.Identifier(source.Config))
+			if source.Config.Path != "" {
+				allJournalSources = append(allJournalSources, source.Config.Path)
+			}
+
 			tailer, err := l.setupTailer(source)
 			if err != nil {
 				log.Warn("Could not set up journald tailer: ", err)
