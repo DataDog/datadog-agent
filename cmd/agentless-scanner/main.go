@@ -1568,7 +1568,7 @@ func (s *sideScanner) start(ctx context.Context) {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
-				log.Debugf("%s: scanner %s finished successfully (took %s)", result.Scan, result.Scanner, time.Since(result.StartedAt))
+				log.Infof("%s: scanner %s finished successfully (took %s)", result.Scan, result.Scanner, time.Since(result.StartedAt))
 				if vulns := result.Vulns; vulns != nil {
 					if hasResults(vulns.BOM) {
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.Scan), 1.0); err != nil {
@@ -2278,7 +2278,7 @@ func scanEBS(ctx context.Context, scan *scanTask, waiter *awsWaiter, pool *scann
 		return fmt.Errorf("ebs-volume: missing snapshot ID")
 	}
 
-	log.Infof("start EBS scanning %s", scan)
+	log.Infof("%s: start EBS scanning", scan)
 
 	// In noAttach mode we are only able to do host vuln scanning.
 	// TODO: remove this mode
@@ -2363,18 +2363,16 @@ func scanRootFilesystems(ctx context.Context, scan *scanTask, roots []string, po
 			})
 			if ctrResult.Err != nil {
 				resultsCh <- ctrResult
-			} else {
+			} else if len(ctrResult.Containers.Containers) > 0 {
 				log.Infof("%s: found %d containers on %q", scan, len(ctrResult.Containers.Containers), root)
-				{
-					runtimes := make(map[string]int64)
-					for _, ctr := range ctrResult.Containers.Containers {
-						runtimes[ctr.Runtime]++
-					}
-					for runtime, count := range runtimes {
-						tags := tagScan(scan, fmt.Sprintf("container_runtime:%s", runtime))
-						if err := statsd.Count("datadog.agentless_scanner.containers.count", count, tags, 1.0); err != nil {
-							log.Warnf("failed to send metric: %v", err)
-						}
+				runtimes := make(map[string]int64)
+				for _, ctr := range ctrResult.Containers.Containers {
+					runtimes[ctr.Runtime]++
+				}
+				for runtime, count := range runtimes {
+					tags := tagScan(scan, fmt.Sprintf("container_runtime:%s", runtime))
+					if err := statsd.Count("datadog.agentless_scanner.containers.count", count, tags, 1.0); err != nil {
+						log.Warnf("failed to send metric: %v", err)
 					}
 				}
 				for _, ctr := range ctrResult.Containers.Containers {
@@ -2623,6 +2621,10 @@ func launchScannerInChildProcess(ctx context.Context, opts scannerOptions) scanR
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()
+			// remove the info log at startup from log component spamming "0 Features detected from environment"
+			if len(line) < 256 && strings.Contains(line, "Features detected from environment") {
+				continue
+			}
 			// should start with "XXXX-XX-XX XX:XX:XX UTC | AGENTLESSSCANER |"
 			if len(line) > 24 && strings.HasPrefix(line[24:], "| "+loggerName+" |") {
 				fmt.Println(line)
