@@ -73,7 +73,7 @@ type dependencies struct {
 	PkgSigning      packagesigning.Component
 	StatusComponent status.Component
 	RcService       optional.Option[rcservice.Component]
-	rcServiceHA     optional.Option[rcserviceha.Component]
+	RcServiceHA     optional.Option[rcserviceha.Component]
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -93,7 +93,7 @@ func newAPIServer(deps dependencies) api.Component {
 		pkgSigning:      deps.PkgSigning,
 		statusComponent: deps.StatusComponent,
 		rcService:       deps.RcService,
-		rcServiceHA:     deps.rcServiceHA,
+		rcServiceHA:     deps.RcServiceHA,
 	}
 }
 

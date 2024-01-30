@@ -9,16 +9,16 @@ package rcservicehaimpl
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"go.uber.org/fx"
@@ -42,8 +42,8 @@ type dependencies struct {
 }
 
 // newHaRemoteConfigServiceOptional conditionally creates and configures a new HA remote config service, based on whether RC is enabled.
-func newHaRemoteConfigServiceOptional(deps dependencies) (optional.Option[rcservice.Component], error) {
-	none := optional.NewNoneOption[rcservice.Component]()
+func newHaRemoteConfigServiceOptional(deps dependencies) (optional.Option[rcserviceha.Component], error) {
+	none := optional.NewNoneOption[rcserviceha.Component]()
 	if !config.IsRemoteConfigEnabled(deps.Cfg) || !deps.Cfg.GetBool("ha.enabled") {
 		return none, nil
 	}
@@ -53,11 +53,11 @@ func newHaRemoteConfigServiceOptional(deps dependencies) (optional.Option[rcserv
 		return none, err
 	}
 
-	return optional.NewOption[rcservice.Component](haConfigService), nil
+	return optional.NewOption[rcserviceha.Component](haConfigService), nil
 }
 
 // newHaRemoteConfigServiceOptional creates and configures a new service that receives remote config updates from the configured DD failover DC
-func newHaRemoteConfigService(deps dependencies) (rcservice.Component, error) {
+func newHaRemoteConfigService(deps dependencies) (rcserviceha.Component, error) {
 	apiKey := configUtils.SanitizeAPIKey(config.Datadog.GetString("ha.api_key"))
 	baseRawURL := configUtils.GetHAEndpoint(config.Datadog, "https://config.", "ha.rc_dd_url")
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(config.Datadog)
