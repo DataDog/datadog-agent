@@ -18,25 +18,24 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	require.NotEmpty(c, traces)
 
 	trace := traces[0]
-	require.NoError(c, err)
 	assert.Equal(c, agent.Hostname(), trace.HostName)
-	assert.Equal(c, trace.Env, "none")
+	assert.Equal(c, "none", trace.Env)
 	require.NotEmpty(c, trace.TracerPayloads)
 
 	tp := trace.TracerPayloads[0]
-	assert.Equal(c, tp.LanguageName, "go")
+	assert.Equal(c, "go", tp.LanguageName)
 	require.NotEmpty(c, tp.Chunks)
 	require.NotEmpty(c, tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(c, sp.Service, service)
-		assert.Contains(c, sp.Name, "tracegen")
-		assert.Contains(c, sp.Meta, "language")
-		assert.Equal(c, sp.Meta["language"], "go")
-		assert.Contains(c, sp.Metrics, "_sampling_priority_v1")
+		assert.Equal(c, service, sp.Service)
+		assert.Contains(c, "tracegen", sp.Name)
+		assert.Contains(c, "language", sp.Meta)
+		assert.Equal(c, "go", sp.Meta["language"])
+		assert.Contains(c, "_sampling_priority_v1", sp.Metrics)
 		if sp.ParentID == 0 {
-			assert.Equal(c, sp.Metrics["_dd.top_level"], float64(1))
-			assert.Equal(c, sp.Metrics["_top_level"], float64(1))
+			assert.Equal(c, float64(1), sp.Metrics["_dd.top_level"])
+			assert.Equal(c, float64(1), sp.Metrics["_top_level"])
 		}
 	}
 }

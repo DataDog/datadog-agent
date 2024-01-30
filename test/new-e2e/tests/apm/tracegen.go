@@ -6,8 +6,6 @@
 package apm
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
@@ -45,11 +43,4 @@ func tracegenTCPCommands(service string) (string, string) {
 		" ghcr.io/datadog/apps-tracegen:main"
 	rm := "docker rm -f " + service
 	return run, rm
-}
-
-func runTracegen(h *components.RemoteHost, service string, cfg tracegenCfg) (shutdown func()) {
-	cmd := "DD_SERVICE=" + service + " go run github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen/images/tracegen"
-
-	go fmt.Printf(h.MustExecute(cmd)) // kill any existing leftover container
-	return func() {}
 }
