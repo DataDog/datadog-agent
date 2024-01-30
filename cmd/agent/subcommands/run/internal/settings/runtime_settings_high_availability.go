@@ -34,7 +34,7 @@ func (h *HighAvailabilityRuntimeSetting) Description() string {
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
 func (h *HighAvailabilityRuntimeSetting) Hidden() bool {
-	return false
+	return true
 }
 
 // Name returns the name of the runtime setting
