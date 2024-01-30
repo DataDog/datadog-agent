@@ -25,8 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	scheduler "github.com/DataDog/datadog-agent/pkg/util/delayed_scheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -80,6 +82,15 @@ type exitInfo struct {
 	exitTS   time.Time
 }
 
+// retryInfo keeps track of the number of retries and the next retry time for a given image
+// nolint: unused
+type retryInfo struct {
+	// errCount is needed to keep track of the number of retries for the retry backoff policy
+	errCount int
+	// nextRetry is needed because we might try to scan an image multiple times
+	nextRetry time.Time
+}
+
 type collector struct {
 	id                     string
 	store                  workloadmeta.Component
@@ -105,6 +116,13 @@ type collector struct {
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
 	scanOptions sbom.ScanOptions //nolint: unused
+
+	// scheduler for retrying failed SBOM generation attempts
+	scheduler *scheduler.Scheduler //nolint: unused
+	// retryCountPerImage keeps track of the number of retries for each image
+	retryCountPerImage map[string]retryInfo //nolint: unused
+	// retryBackoffPolicy is the backoff policy used for retrying SBOM generation attempts
+	backoffPolicy backoff.Policy //nolint: unused
 }
 
 // NewCollector returns a new containerd collector provider and an error
