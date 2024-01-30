@@ -135,6 +135,10 @@ Package serverdebug implements a component to run the dogstatsd server debug
 
 Package statsd implements a component to get a statsd client.
 
+### [comp/dogstatsd/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/status)
+
+Package status implements the core status component information provider interface
+
 ## [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw) (Component Bundle)
 
 *Datadog Team*: windows-agent
@@ -323,6 +327,10 @@ Package rtcontainercheck implements a component to handle realtime Container dat
 
 Package runner implements a component to run data collection checks in the Process Agent.
 
+### [comp/process/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/status)
+
+Package status implements the core status component information provider interface
+
 ### [comp/process/submitter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/submitter)
 
 Package submitter implements a component to submit collected data in the Process Agent to
@@ -337,6 +345,55 @@ Package remoteconfig defines the fx options for the Bundle
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 
 
+
+### [comp/remote-config/rcservice](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservice)
+
+Package rcservice is a remote config service that can run within the agent to receive remote config updates from the DD backend.
+
+### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
+
+Package rctelemetryreporter provides a component that sends RC-specific metrics to the DD backend.
+
+## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package snmptraps implements the a server that listens for SNMP trap data
+and sends it to the backend.
+
+### [comp/snmptraps/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/config)
+
+Package config implements the configuration type for the traps server and
+a component that provides it.
+
+### [comp/snmptraps/formatter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/formatter)
+
+Package formatter provides a component for formatting SNMP traps.
+
+### [comp/snmptraps/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/forwarder)
+
+Package forwarder defines a component that receives trap data from the
+listener component, formats it properly, and sends it to the backend.
+
+### [comp/snmptraps/listener](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/listener)
+
+Package listener implements a component that listens for SNMP messages,
+parses them, and publishes messages on a channel.
+
+### [comp/snmptraps/oidresolver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver)
+
+Package oidresolver resolves OIDs
+
+### [comp/snmptraps/server](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/server)
+
+Package server implements a component that runs the traps server.
+It listens for SNMP trap messages on a configured port, parses and
+reformats them, and sends the resulting data to the backend.
+
+### [comp/snmptraps/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/status)
+
+Package status exposes the expvars we use for status tracking to the
+component system.
 
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/systray) (Component Bundle)
 
@@ -362,3 +419,7 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 Package config implements a component to handle trace-agent configuration.  This
 component temporarily wraps pkg/trace/config.
+
+### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
+
+Package status implements the core status component information provider interface

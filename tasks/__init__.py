@@ -15,6 +15,7 @@ from tasks import (
     diff,
     docker_tasks,
     dogstatsd,
+    ebpf,
     emacs,
     epforwarder,
     fakeintake,
@@ -55,6 +56,7 @@ from tasks.go import (
 from tasks.go_test import codecov, e2e_tests, get_modified_packages, integration_tests, send_unit_tests_stats, test
 from tasks.install_tasks import download_tools, install_shellcheck, install_tools
 from tasks.junit_tasks import junit_macos_repack, junit_upload
+from tasks.libs.go_workspaces import handle_go_work
 from tasks.linter_tasks import lint_copyrights, lint_filenames, lint_go, lint_python
 from tasks.pr_checks import lint_releasenote
 from tasks.show_linters_issues import show_linters_issues
@@ -116,6 +118,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
+ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(epforwarder)
 ns.add_collection(msi)
@@ -145,3 +148,6 @@ ns.configure(
         }
     }
 )
+
+# disable go workspaces by default
+handle_go_work()

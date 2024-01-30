@@ -22,7 +22,6 @@ import (
 
 func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
 	isOOM := ContainsOutOfMemoryLog("JavaScript heap out of memory")
@@ -53,7 +52,6 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	isOOM := ContainsOutOfMemoryLog("Task timed out after 30.03 seconds")
 	if isOOM {
@@ -68,7 +66,6 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
 	runtimeStartTime := reportLogTime.Add(-20 * time.Millisecond)
@@ -144,7 +141,6 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
 	runtimeStartTime := reportLogTime.Add(-20 * time.Millisecond)
@@ -213,7 +209,6 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 
 func TestSendTimeoutEnhancedMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 
 	go SendTimeoutEnhancedMetric(tags, demux)
@@ -234,7 +229,6 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 
 func TestSendInvocationEnhancedMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 
 	go SendInvocationEnhancedMetric(tags, demux)
@@ -257,7 +251,6 @@ func TestDisableEnhancedMetrics(t *testing.T) {
 	os.Setenv("DD_ENHANCED_METRICS", "false")
 	defer os.Setenv("DD_ENHANCED_METRICS", "true")
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 
 	go SendInvocationEnhancedMetric(tags, demux)
@@ -270,7 +263,6 @@ func TestDisableEnhancedMetrics(t *testing.T) {
 
 func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	mockTime := time.Now()
 	go SendOutOfMemoryEnhancedMetric(tags, mockTime, demux)
@@ -290,7 +282,6 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 
 func TestSendErrorsEnhancedMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	mockTime := time.Now()
 	go SendErrorsEnhancedMetric(tags, mockTime, demux)
@@ -350,7 +341,6 @@ func TestCalculateEstimatedCost(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Time{}
 	endTime := time.Now()
@@ -392,7 +382,6 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Now()
 	endTime := time.Time{}
@@ -434,7 +423,6 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
 	endTime := time.Date(2020, 01, 01, 01, 01, 01, 653000000, time.UTC) //153 ms later

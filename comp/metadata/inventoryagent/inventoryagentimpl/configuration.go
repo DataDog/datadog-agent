@@ -31,7 +31,7 @@ func marshalAndScrub(conf map[string]interface{}) (string, error) {
 	return string(scrubbed), nil
 }
 
-func (ia *inventoryagent) getProvidedAgentConfiguration() (string, error) {
+func (ia *inventoryagent) getProvidedConfiguration() (string, error) {
 	if !ia.conf.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
@@ -39,7 +39,7 @@ func (ia *inventoryagent) getProvidedAgentConfiguration() (string, error) {
 	return marshalAndScrub(ia.conf.AllSettingsWithoutDefault())
 }
 
-func (ia *inventoryagent) getFullAgentConfiguration() (string, error) {
+func (ia *inventoryagent) getFullConfiguration() (string, error) {
 	if !ia.conf.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
@@ -47,7 +47,7 @@ func (ia *inventoryagent) getFullAgentConfiguration() (string, error) {
 	return marshalAndScrub(ia.conf.AllSettings())
 }
 
-func (ia *inventoryagent) getAgentFileConfiguration() (string, error) {
+func (ia *inventoryagent) getFileConfiguration() (string, error) {
 	if !ia.conf.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
@@ -55,7 +55,7 @@ func (ia *inventoryagent) getAgentFileConfiguration() (string, error) {
 	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceFile))
 }
 
-func (ia *inventoryagent) getAgentEnvVarConfiguration() (string, error) {
+func (ia *inventoryagent) getEnvVarConfiguration() (string, error) {
 	if !ia.conf.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
@@ -63,7 +63,7 @@ func (ia *inventoryagent) getAgentEnvVarConfiguration() (string, error) {
 	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceEnvVar))
 }
 
-func (ia *inventoryagent) getAgentRuntimeConfiguration() (string, error) {
+func (ia *inventoryagent) getRuntimeConfiguration() (string, error) {
 	if !ia.conf.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
@@ -71,7 +71,7 @@ func (ia *inventoryagent) getAgentRuntimeConfiguration() (string, error) {
 	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceAgentRuntime))
 }
 
-func (ia *inventoryagent) getAgentRemoteConfiguration() (string, error) {
+func (ia *inventoryagent) getRemoteConfiguration() (string, error) {
 	if !ia.conf.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
@@ -79,7 +79,7 @@ func (ia *inventoryagent) getAgentRemoteConfiguration() (string, error) {
 	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceRC))
 }
 
-func (ia *inventoryagent) getAgentCliConfiguration() (string, error) {
+func (ia *inventoryagent) getCliConfiguration() (string, error) {
 	if !ia.conf.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
