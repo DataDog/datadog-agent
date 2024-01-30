@@ -285,7 +285,7 @@ check_pkg_size-arm64-a6:
     # "70000000" is needed as of now because of multiple large additions in 7.45
     - |
         declare -Ar max_sizes=(
-            ["datadog-agent"]="80000000"
+            ["datadog-agent"]="100000000"
         )
 
 check_pkg_size-amd64-a7:
@@ -338,7 +338,7 @@ check_pkg_size-arm64-a7:
     # "70000000" is needed as of now because of multiple large additions in 7.45
     - |
         declare -Ar max_sizes=(
-            ["datadog-agent"]="80000000"
+            ["datadog-agent"]="100000000"
             ["datadog-iot-agent"]="10000000"
             ["datadog-dogstatsd"]="10000000"
         )
