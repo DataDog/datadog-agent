@@ -91,7 +91,7 @@ const (
 	maxLambdaUncompressed = 256 * 1024 * 1024
 
 	defaultWorkersCount = 15
-	defaultScannersMax  = 30
+	defaultScannersMax  = 3 // max number of child-process scanners spawned by a worker in parallel
 
 	defaultSelfRegion      = "us-east-1"
 	defaultSnapshotsMaxTTL = 24 * time.Hour
@@ -1315,11 +1315,11 @@ func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, 
 type sideScanner struct {
 	hostname         string
 	workers          int
+	scannersMax      int
 	eventForwarder   epforwarder.EventPlatformForwarder
 	findingsReporter *LogReporter
 	rcClient         *remote.Client
 	waiter           *awsWaiter
-	pool             *scannersPool
 	printResults     bool
 
 	regionsCleanupMu sync.Mutex
@@ -1346,11 +1346,11 @@ func newSideScanner(hostname string, workers, scannersMax int) (*sideScanner, er
 	return &sideScanner{
 		hostname:         hostname,
 		workers:          workers,
+		scannersMax:      scannersMax,
 		eventForwarder:   eventForwarder,
 		findingsReporter: findingsReporter,
 		rcClient:         rcClient,
 		waiter:           &awsWaiter{},
-		pool:             newScannersPool(scannersMax),
 
 		scansInProgress: make(map[arn.ARN]struct{}),
 
@@ -1704,15 +1704,16 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 		return err
 	}
 
+	pool := newScannersPool(s.scannersMax)
 	scan.StartedAt = time.Now()
 	defer cleanupScan(scan)
 	switch scan.Type {
 	case hostScanType:
-		return scanRootFilesystems(ctx, scan, []string{scan.ARN.Resource}, s.pool, s.resultsCh)
+		return scanRootFilesystems(ctx, scan, []string{scan.ARN.Resource}, pool, s.resultsCh)
 	case ebsScanType:
-		return scanEBS(ctx, scan, s.waiter, s.pool, s.resultsCh)
+		return scanEBS(ctx, scan, s.waiter, pool, s.resultsCh)
 	case lambdaScanType:
-		return scanLambda(ctx, scan, s.pool, s.resultsCh)
+		return scanLambda(ctx, scan, pool, s.resultsCh)
 	default:
 		return fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
