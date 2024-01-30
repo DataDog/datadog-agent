@@ -91,7 +91,7 @@ const (
 	maxLambdaUncompressed = 256 * 1024 * 1024
 
 	defaultWorkersCount = 15
-	defaultScannersMax  = 3 // max number of child-process scanners spawned by a worker in parallel
+	defaultScannersMax  = 8 // max number of child-process scanners spawned by a worker in parallel
 
 	defaultSelfRegion      = "us-east-1"
 	defaultSnapshotsMaxTTL = 24 * time.Hour
@@ -233,6 +233,7 @@ type (
 		Scanner   scannerName `json:"Scanner"`
 		Scan      *scanTask   `json:"Scan"`
 		Root      string      `json:"Root"`
+		CreatedAt time.Time   `jons:"CreatedAt"`
 		StartedAt time.Time   `jons:"StartedAt"`
 		Container *container  `json:"Container"`
 
@@ -297,8 +298,8 @@ func (o scannerOptions) ErrResult(err error) scanResult {
 
 func (o scannerOptions) ID() string {
 	h := sha256.New()
-	startedAt, _ := o.StartedAt.MarshalBinary()
-	h.Write(startedAt)
+	createdAt, _ := o.CreatedAt.MarshalBinary()
+	h.Write(createdAt)
 	h.Write([]byte(o.Scanner))
 	h.Write([]byte(o.Root))
 	h.Write([]byte(o.Scan.ID))
@@ -402,9 +403,6 @@ func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd 
 	return func(cmd *cobra.Command, args []string) error {
 		return fxutil.OneShot(
 			func(_ complog.Component, _ compconfig.Component) error {
-				if lvl := pkgconfig.Datadog.GetString("log_level"); lvl == "info" {
-					_ = pkgconfig.ChangeLogLevel("debug") // TODO(jinroh): remove this
-				}
 				return run(cmd, args)
 			},
 			fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
@@ -578,9 +576,23 @@ func initStatsdClient() {
 	}
 }
 
+func ctxTerminated() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		select {
+		case sig := <-ch:
+			fmt.Fprintf(os.Stderr, "received %s signal\n", sig)
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx
+}
+
 func runCmd(pidfilePath string, workers, scannersMax int) error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx := ctxTerminated()
 
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
@@ -611,8 +623,7 @@ func runCmd(pidfilePath string, workers, scannersMax int) error {
 }
 
 func runScannerCmd(sock string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx := ctxTerminated()
 
 	var opts scannerOptions
 
@@ -675,8 +686,7 @@ func getDefaultRolesMapping() rolesMapping {
 }
 
 func scanCmd(resourceARN arn.ARN, targetHostname string, actions []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx := ctxTerminated()
 
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
@@ -709,8 +719,7 @@ func scanCmd(resourceARN arn.ARN, targetHostname string, actions []string) error
 }
 
 func offlineCmd(workers int, scanType scanType, regions []string, maxScans int, printResults bool, actions []string, filters []ec2types.Filter) error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx := ctxTerminated()
 	defer statsd.Flush()
 
 	hostname, err := utils.GetHostnameWithContext(ctx)
@@ -938,8 +947,7 @@ func offlineCmd(workers int, scanType scanType, regions []string, maxScans int, 
 }
 
 func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx := ctxTerminated()
 
 	defaultCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
@@ -1019,8 +1027,7 @@ func (s *sideScanner) cleanupProcess(ctx context.Context) {
 }
 
 func attachCmd(resourceARN arn.ARN, mode diskMode, mount bool) error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx := ctxTerminated()
 
 	cfg, err := newAWSConfig(ctx, resourceARN.Region, nil)
 	if err != nil {
@@ -1568,14 +1575,14 @@ func (s *sideScanner) start(ctx context.Context) {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
-				log.Infof("%s: scanner %s finished successfully (took %s)", result.Scan, result.Scanner, time.Since(result.StartedAt))
+				log.Infof("%s: scanner %s finished successfully (waited %s | took %s)", result.Scan, result.Scanner, result.StartedAt.Sub(result.CreatedAt), time.Since(result.StartedAt))
 				if vulns := result.Vulns; vulns != nil {
 					if hasResults(vulns.BOM) {
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					} else {
-						log.Debugf("%s: scanner %s finished successfully without results (took %s)", result.Scan, result.Scanner, time.Since(result.StartedAt))
+						log.Debugf("%s: scanner %s finished successfully without results", result.Scan, result.Scanner)
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagNoResult(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
@@ -2294,7 +2301,7 @@ func scanEBS(ctx context.Context, scan *scanTask, waiter *awsWaiter, pool *scann
 			Scanner:     scannerNameHostVulnsEBS,
 			Scan:        scan,
 			SnapshotARN: &snapshotARN,
-			StartedAt:   time.Now(),
+			CreatedAt:   time.Now(),
 		})
 		if result.Vulns != nil {
 			result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
@@ -2347,7 +2354,7 @@ func scanRootFilesystems(ctx context.Context, scan *scanTask, roots []string, po
 				Scanner:   scannerNameHostVulns,
 				Scan:      scan,
 				Root:      root,
-				StartedAt: time.Now(),
+				CreatedAt: time.Now(),
 			})
 			if result.Vulns != nil {
 				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
@@ -2360,7 +2367,7 @@ func scanRootFilesystems(ctx context.Context, scan *scanTask, roots []string, po
 				Scanner:   scannerNameContainers,
 				Scan:      scan,
 				Root:      root,
-				StartedAt: time.Now(),
+				CreatedAt: time.Now(),
 			})
 			if ctrResult.Err != nil {
 				resultsCh <- ctrResult
@@ -2385,7 +2392,7 @@ func scanRootFilesystems(ctx context.Context, scan *scanTask, roots []string, po
 							Scan:      scan,
 							Root:      root,
 							Container: &ctr,
-							StartedAt: time.Now(),
+							CreatedAt: time.Now(),
 						})
 					}(*ctr)
 				}
@@ -2395,7 +2402,7 @@ func scanRootFilesystems(ctx context.Context, scan *scanTask, roots []string, po
 				Scanner:   scannerNameMalware,
 				Scan:      scan,
 				Root:      root,
-				StartedAt: time.Now(),
+				CreatedAt: time.Now(),
 			})
 		}
 	}
@@ -2429,6 +2436,7 @@ func (p *scannersPool) launchScanner(ctx context.Context, opts scannerOptions) s
 		return opts.ErrResult(ctx.Err())
 	}
 
+	opts.StartedAt = time.Now()
 	ch := make(chan scanResult, 1)
 	go func() {
 		var result scanResult
@@ -2771,7 +2779,7 @@ func scanLambda(ctx context.Context, scan *scanTask, pool *scannersPool, results
 		Scanner:   scannerNameAppVulns,
 		Scan:      scan,
 		Root:      codePath,
-		StartedAt: time.Now(),
+		CreatedAt: time.Now(),
 	})
 	if result.Vulns != nil {
 		result.Vulns.SourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA
