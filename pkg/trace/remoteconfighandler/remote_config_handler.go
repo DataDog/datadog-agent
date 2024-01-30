@@ -145,7 +145,7 @@ func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConf
 	log.Infof("ON APM TRACING UPDATE WAS CALLED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!: %v", update)
 	var senvConfigs []ServiceEnvConfig
 	// Maps update IDs to their error, empty string indicates success
-	var updateStatus map[string]string
+	updateStatus := map[string]string{}
 	var hostTracingEnabled bool
 	for id, rawConfig := range update {
 		tcu := TracingConfigUpdate{}
@@ -191,7 +191,7 @@ func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConf
 	if err != nil {
 		log.Errorf("Failed to write single step config data file from APM_TRACING config: %v", err)
 		// Failed to write file, report failure for all updates
-		for id, _ := range update {
+		for id := range update {
 			applyStateCallback(id, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: FileWriteFailure,
