@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
@@ -218,12 +217,12 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 		{
 			"logs enabled",
 			true,
-			&agent{},
+			statusProvider{},
 		},
 		{
 			"logs disabled",
 			false,
-			status.NoopProvider{},
+			statusProvider{},
 		},
 	}
 

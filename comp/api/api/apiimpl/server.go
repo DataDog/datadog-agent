@@ -8,7 +8,6 @@ package apiimpl
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	stdLog "log"
 	"net"
 	"net/http"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -62,7 +62,7 @@ func stopServer(listener net.Listener, name string) {
 
 // StartServers creates certificates and starts API servers
 func StartServers(
-	configService optional.Option[rcservice.Component],
+	configService *remoteconfig.Service,
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,

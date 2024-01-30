@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
@@ -1668,7 +1669,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 		networkDevicesNetflow      = 15 // 14 is reserved for compliance (#20230)
 	)
 
-	localAddress, err := IsLocalAddress(config.GetString("fips.local_address"))
+	localAddress, err := system.IsLocalAddress(config.GetString("fips.local_address"))
 	if err != nil {
 		return fmt.Errorf("fips.local_address: %s", err)
 	}

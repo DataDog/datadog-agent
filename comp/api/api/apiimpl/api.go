@@ -7,7 +7,6 @@
 package apiimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"net"
 
 	"go.uber.org/fx"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -52,7 +52,6 @@ type apiServer struct {
 	invChecks       inventorychecks.Component
 	pkgSigning      packagesigning.Component
 	statusComponent status.Component
-	rcService       optional.Option[rcservice.Component]
 }
 
 type dependencies struct {
@@ -70,7 +69,6 @@ type dependencies struct {
 	InvChecks       inventorychecks.Component
 	PkgSigning      packagesigning.Component
 	StatusComponent status.Component
-	RcService       optional.Option[rcservice.Component]
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -89,18 +87,18 @@ func newAPIServer(deps dependencies) api.Component {
 		invChecks:       deps.InvChecks,
 		pkgSigning:      deps.PkgSigning,
 		statusComponent: deps.StatusComponent,
-		rcService:       deps.RcService,
 	}
 }
 
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
+	configService *remoteconfig.Service,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 ) error {
-	return StartServers(server.rcService,
+	return StartServers(configService,
 		server.flare,
 		server.dogstatsdServer,
 		server.capture,
