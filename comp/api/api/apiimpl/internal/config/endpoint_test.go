@@ -86,7 +86,7 @@ func TestConfigEndpoint(t *testing.T) {
 
 	for _, testCase := range []testCase{
 		{"authorized_existing_config", true, true, http.StatusOK},
-		{"authorized_missing_config", true, false, http.StatusOK},
+		{"authorized_missing_config", true, false, http.StatusNotFound},
 		{"unauthorized_existing_config", false, true, http.StatusForbidden},
 		{"unauthorized_missing_config", false, false, http.StatusForbidden},
 	} {
@@ -99,6 +99,7 @@ func TestConfigEndpoint(t *testing.T) {
 			cfg, server, configEndpoint := getConfigServer(t, authorizedConfigPaths)
 			if testCase.existing {
 				cfg.SetWithoutSource(configName, "some_value")
+				cfg.SetKnown(configName)
 			}
 			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus)
 		})
@@ -108,6 +109,7 @@ func TestConfigEndpoint(t *testing.T) {
 		configName := "my.config.value"
 		cfg, server, configEndpoint := getConfigServer(t, authorizedSet{configName: {}})
 		cfg.SetWithoutSource(configName, make(chan int))
+		cfg.SetKnown(configName)
 		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError)
 	})
 
@@ -123,7 +125,9 @@ func TestConfigEndpoint(t *testing.T) {
 			cfg, server, configEndpoint := getConfigServer(t, authorizedSet{parentConfigName: struct{}{}})
 
 			cfg.SetWithoutSource(childConfigNameOne, "child1_value")
+			cfg.SetKnown(childConfigNameOne)
 			cfg.SetWithoutSource(childConfigNameTwo, "child2_value")
+			cfg.SetKnown(childConfigNameTwo)
 
 			testConfigValue(t, configEndpoint, server, testCase.configName, testCase.expectedStatus)
 		})
@@ -136,6 +140,7 @@ func TestConfigEndpoint(t *testing.T) {
 		cfg, server, configEndpoint := getConfigServer(t, authorizedSet{childConfigName: struct{}{}})
 
 		cfg.SetWithoutSource(childConfigName, "child_value")
+		cfg.SetKnown(childConfigName)
 
 		testConfigValue(t, configEndpoint, server, childConfigName, http.StatusOK)
 		testConfigValue(t, configEndpoint, server, parentConfigName, http.StatusForbidden)
@@ -180,6 +185,7 @@ func TestConfigListEndpoint(t *testing.T) {
 			cfg, server, _ := getConfigServer(t, test.authorizedConfigs)
 			for key, value := range test.configValues {
 				cfg.SetWithoutSource(key, value)
+				cfg.SetKnown(key)
 			}
 
 			// test with and without trailing slash
@@ -215,7 +221,7 @@ func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string
 		beforeVars.Success[configName]++
 	case http.StatusForbidden:
 		beforeVars.Unauthorized[configName]++
-	case http.StatusInternalServerError:
+	case http.StatusNotFound, http.StatusInternalServerError:
 		beforeVars.Errors[configName]++
 	default:
 		t.Fatalf("unexpected status: %d", expectedStatus)

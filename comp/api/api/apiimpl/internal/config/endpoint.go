@@ -76,6 +76,13 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	if !c.cfg.IsKnown(path) {
+		c.errorsExpvar.Add(path, 1)
+		log.Warnf("config endpoint received a request from '%s' for config '%s' which does not exist", r.RemoteAddr, path)
+		http.Error(w, fmt.Sprintf("config value '%s' does not exist", path), http.StatusNotFound)
+		return
+	}
+
 	log.Debug("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
 	value := c.cfg.Get(path)
 	c.marshalAndSendResponse(w, path, value)
