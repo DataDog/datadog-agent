@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -218,7 +219,7 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 			}
 		}
 
-		if ddebpf.BatchAPISupported() && mapType != ebpf.HashOfMaps {
+		if maps.BatchAPISupported() && mapType != ebpf.HashOfMaps {
 			t.Run("BatchAPI", func(t *testing.T) {
 				num, err := hashMapNumberOfEntriesWithBatch(m, &buffers, 1)
 				require.NoError(t, err)
@@ -283,7 +284,7 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 				require.LessOrEqual(t, allocs, 2.0) // Allocations come from the ErrKeyNotExist (which is the end-of-iteration marker) in cilium/ebpf
 			})
 
-			if ddebpf.BatchAPISupported() {
+			if maps.BatchAPISupported() {
 				t.Run("Batch", func(t *testing.T) {
 					allocs := testing.AllocsPerRun(10, func() {
 						hashMapNumberOfEntriesWithBatch(m, &buffers, 1)
@@ -361,7 +362,7 @@ func TestHashMapNumberOfEntriesMapTypeSupport(t *testing.T) {
 }
 
 func TestHashMapNumberOfEntriesWithMultipleBatch(t *testing.T) {
-	if !ddebpf.BatchAPISupported() {
+	if !maps.BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
 
