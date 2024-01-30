@@ -47,35 +47,15 @@ func (c container) String() string {
 func launchScannerContainers(_ context.Context, opts scannerOptions) (scanContainerResult, error) {
 	var containers []*container
 
-	ctrdRoot := filepath.Join(opts.Root, "/var/lib/containerd")
-	ctrdRootInfo, err := os.Stat(ctrdRoot)
-	if err == nil && ctrdRootInfo.IsDir() {
+	containerdRoot := filepath.Join(opts.Root, "/var/lib/containerd")
+	containerdRootInfo, err := os.Stat(containerdRoot)
+	if err == nil && containerdRootInfo.IsDir() {
 		log.Debugf("%s: starting scanning for containerd containers", opts.Scan)
-		ctrdContainers, err := ctrdReadMetadata(opts.Scan, ctrdRoot)
+		containerdContainers, err := containerdListMetadata(opts.Scan, containerdRoot)
 		if err != nil {
 			log.Errorf("%s: containerd: could not read metadata: %v", opts.Scan, err)
 		} else {
-			for _, ctr := range ctrdContainers {
-				if ctr.Snapshot.Backend.Kind != kindActive {
-					continue
-				}
-
-				if ctr.Snapshot == nil {
-					log.Warnf("%s: containerd: %s is active but without an associated snapshot", opts.Scan, ctr)
-					continue
-				}
-
-				ctrLayers := ctrdLayersPaths(ctrdRoot, ctr.Snapshot)
-				ctrMountName := fmt.Sprintf("%s%s-%s-%d", ctrdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
-				containers = append(containers, &container{
-					Runtime:           "containerd",
-					MountName:         ctrMountName,
-					ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
-					ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
-					ContainerName:     ctr.Name,
-					Layers:            ctrLayers,
-				})
-			}
+			containers = append(containers, containerdContainers...)
 		}
 	}
 
@@ -83,30 +63,11 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) (scanContai
 	dockerRootInfo, err := os.Stat(dockerRoot)
 	if err == nil && dockerRootInfo.IsDir() {
 		log.Debugf("%s: starting scanning for docker containers", opts.Scan)
-		dockerContainers, err := dockerReadMetadata(opts.Scan, dockerRoot)
+		dockerContainers, err := dockerListContainers(opts.Scan, dockerRoot)
 		if err != nil {
 			log.Errorf("%s: docker: could not read metadata: %v", opts.Scan, err)
 		} else {
-			for _, ctr := range dockerContainers {
-				if !ctr.State.Running {
-					continue
-				}
-
-				ctrMountName := dockerMountPrefix + ctr.ID
-				ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
-				if err != nil {
-					log.Errorf("%s: docker: could not get container layers %s: %v", opts.Scan, ctr, err)
-					continue
-				}
-				containers = append(containers, &container{
-					Runtime:           "docker",
-					MountName:         ctrMountName,
-					ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
-					ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
-					ContainerName:     ctr.Name,
-					Layers:            ctrLayers,
-				})
-			}
+			containers = append(containers, dockerContainers...)
 		}
 	}
 
@@ -179,7 +140,7 @@ func longestLayerPrefix(strs []string) string {
 	return min
 }
 
-const ctrdSupportedVersion = 3
+const containerdSupportedVersion = 3
 
 var (
 	errCtrdInvalidState = fmt.Errorf("invalid state of the containerd databaase")
@@ -219,7 +180,7 @@ const (
 	kindCommitted snapshotKind = "Committed"
 )
 
-type ctrdBlob struct {
+type containerdBlob struct {
 	ID        digest.Digest
 	Size      int64
 	Labels    map[string]string
@@ -227,13 +188,13 @@ type ctrdBlob struct {
 	UpdatedAt time.Time
 }
 
-type ctrdImage struct {
+type containerdImage struct {
 	NS           string
 	Name         string
 	Digest       digest.Digest
 	MediaType    string
 	Size         int64
-	Blob         *ctrdBlob
+	Blob         *containerdBlob
 	Labels       map[string]string
 	ManifestList struct {
 		Manifest []struct {
@@ -250,25 +211,25 @@ type ctrdImage struct {
 	UpdatedAt time.Time
 }
 
-type ctrdContainer struct {
+type containerdContainer struct {
 	NS                string
 	Name              string
 	Snapshotter       string
 	SnapshotKey       string
-	Snapshot          *ctrdSnapshot
+	Snapshot          *containerdSnapshot
 	Labels            map[string]string
 	ImageRefTagged    reference.NamedTagged
 	ImageRefCanonical reference.Canonical
-	Image             *ctrdImage
+	Image             *containerdImage
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
 
-func (c ctrdContainer) String() string {
+func (c containerdContainer) String() string {
 	return fmt.Sprintf("%s/%s", c.NS, c.Name)
 }
 
-type ctrdSnapshot struct {
+type containerdSnapshot struct {
 	Name     string
 	Parent   digest.Digest
 	Children []digest.Digest
@@ -286,13 +247,13 @@ type ctrdSnapshot struct {
 	UpdatedAt time.Time
 }
 
-func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) {
-	metadbPath := filepath.Join(ctrdRoot, "io.containerd.metadata.v1.bolt", "meta.db")
+func containerdListMetadata(scan *scanTask, containerdRoot string) ([]*container, error) {
+	metadbPath := filepath.Join(containerdRoot, "io.containerd.metadata.v1.bolt", "meta.db")
 	metadbInfo, err := os.Stat(metadbPath)
 	if err != nil || metadbInfo.Size() == 0 {
 		return nil, nil
 	}
-	snapshotterDBPath := filepath.Join(ctrdRoot, "io.containerd.snapshotter.v1.overlayfs", "metadata.db")
+	snapshotterDBPath := filepath.Join(containerdRoot, "io.containerd.snapshotter.v1.overlayfs", "metadata.db")
 	snapshotterDBInfo, err := os.Stat(snapshotterDBPath)
 	if err != nil || snapshotterDBInfo.Size() == 0 {
 		return nil, nil
@@ -313,7 +274,7 @@ func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) 
 			return errCtrdInvalidState
 		}
 		v, _ := binary.Varint(bkt.Get(bucketKeyDBVersion))
-		if v != ctrdSupportedVersion {
+		if v != containerdSupportedVersion {
 			return errCtrdInvalidState
 		}
 		return bkt.ForEachBucket(func(ns []byte) error {
@@ -324,7 +285,7 @@ func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) 
 		return nil, err
 	}
 
-	var containers []ctrdContainer
+	var containers []containerdContainer
 
 	if err := db.View(func(tx *bolt.Tx) error {
 		bkt := tx.Bucket(bucketKeyVersion)
@@ -332,8 +293,8 @@ func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) 
 			return errCtrdInvalidState
 		}
 		for _, ns := range namespaces {
-			images := make(map[string]*ctrdImage)
-			blobs := make(map[digest.Digest]*ctrdBlob)
+			images := make(map[string]*containerdImage)
+			blobs := make(map[digest.Digest]*containerdBlob)
 			bktNS := bkt.Bucket(ns)
 			if bktNS == nil {
 				return errCtrdInvalidState
@@ -353,7 +314,7 @@ func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) 
 					return errCtrdInvalidState
 				}
 
-				var blob ctrdBlob
+				var blob containerdBlob
 				blob.ID, err = digest.Parse(string(blobID))
 				if err != nil {
 					return err
@@ -396,7 +357,7 @@ func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) 
 					return errCtrdInvalidState
 				}
 
-				var image ctrdImage
+				var image containerdImage
 				if err := image.CreatedAt.UnmarshalBinary(bktImg.Get(bucketKeyCreatedAt)); err != nil {
 					return err
 				}
@@ -413,7 +374,7 @@ func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) 
 				image.Size, _ = binary.Varint(bktImageTarget.Get(bucketKeySize))
 				image.Blob = blobs[image.Digest]
 				if image.Blob != nil {
-					blobPath, err := ctrdBlobPath(ctrdRoot, image.Blob.ID)
+					blobPath, err := containerdBlobPath(containerdRoot, image.Blob.ID)
 					if err != nil {
 						return err
 					}
@@ -449,7 +410,7 @@ func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) 
 				return errCtrdInvalidState
 			}
 			if err := bktCtrs.ForEachBucket(func(containerName []byte) error {
-				var container ctrdContainer
+				var container containerdContainer
 
 				bktCtr := bktCtrs.Bucket(containerName)
 				if bktCtr == nil {
@@ -506,7 +467,7 @@ func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) 
 					if bktSnap == nil {
 						return errCtrdInvalidState
 					}
-					var snapshot ctrdSnapshot
+					var snapshot containerdSnapshot
 					snapshot.Name = string(bktSnap.Get(bucketKeyName))
 					snapshot.Parent, err = digest.Parse(string(bktSnap.Get(bucketKeyParent)))
 					if err != nil {
@@ -569,23 +530,46 @@ func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) 
 	defer snapshotterDB.Close()
 
 	for _, container := range containers {
-		if err := ctrdFillSapshotBackend(snapshotterDB, container.Snapshot); err != nil {
+		if err := containerdFillSapshotBackend(snapshotterDB, container.Snapshot); err != nil {
 			return nil, err
 		}
 	}
 
-	return containers, nil
+	results := make([]*container, 0, len(containers))
+	for _, ctr := range containers {
+		if ctr.Snapshot.Backend.Kind != kindActive {
+			continue
+		}
+
+		if ctr.Snapshot == nil {
+			log.Warnf("%s: containerd: %s is active but without an associated snapshot", scan, ctr)
+			continue
+		}
+
+		ctrLayers := containerdLayersPaths(containerdRoot, ctr.Snapshot)
+		ctrMountName := fmt.Sprintf("%s%s-%s-%d", containerdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
+		results = append(results, &container{
+			Runtime:           "containerd",
+			MountName:         ctrMountName,
+			ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
+			ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
+			ContainerName:     ctr.Name,
+			Layers:            ctrLayers,
+		})
+	}
+
+	return results, nil
 }
 
-func ctrdBlobPath(ctrdRoot string, blobID digest.Digest) (string, error) {
+func containerdBlobPath(containerdRoot string, blobID digest.Digest) (string, error) {
 	if err := blobID.Validate(); err != nil {
 		return "", fmt.Errorf("invalid blob digest: %w", err)
 	}
-	blobPath := filepath.Join(ctrdRoot, "io.containerd.content.v1.content", "blobs", blobID.Algorithm().String(), blobID.Encoded())
+	blobPath := filepath.Join(containerdRoot, "io.containerd.content.v1.content", "blobs", blobID.Algorithm().String(), blobID.Encoded())
 	return blobPath, nil
 }
 
-func ctrdFillSapshotBackend(db *bolt.DB, snapshot *ctrdSnapshot) error {
+func containerdFillSapshotBackend(db *bolt.DB, snapshot *containerdSnapshot) error {
 	var (
 		bucketKeyStorageVersion = []byte("v1")
 		bucketKeySnapshot       = []byte("snapshots")
@@ -648,19 +632,19 @@ func ctrdFillSapshotBackend(db *bolt.DB, snapshot *ctrdSnapshot) error {
 	})
 }
 
-func ctrdLayersPaths(ctrdRoot string, s *ctrdSnapshot) []string {
+func containerdLayersPaths(containerdRoot string, s *containerdSnapshot) []string {
 	mountLayers := make([]string, 0, len(s.Backend.Parents)+1)
 	if s.Backend.Kind == kindActive {
-		mountLayers = append(mountLayers, ctrdLayerPath(ctrdRoot, s.Backend.ID))
+		mountLayers = append(mountLayers, containerdLayerPath(containerdRoot, s.Backend.ID))
 	}
 	for _, parentID := range s.Backend.Parents {
-		mountLayers = append(mountLayers, ctrdLayerPath(ctrdRoot, parentID))
+		mountLayers = append(mountLayers, containerdLayerPath(containerdRoot, parentID))
 	}
 	return mountLayers
 }
 
-func ctrdLayerPath(ctrdRoot string, id uint64) string {
-	return filepath.Join(ctrdRoot, "io.containerd.snapshotter.v1.overlayfs", "snapshots", strconv.FormatInt(int64(id), 10), "fs")
+func containerdLayerPath(containerdRoot string, id uint64) string {
+	return filepath.Join(containerdRoot, "io.containerd.snapshotter.v1.overlayfs", "snapshots", strconv.FormatInt(int64(id), 10), "fs")
 }
 
 type dockerImage struct {
@@ -701,7 +685,7 @@ func (c dockerContainer) String() string {
 	return path.Join(c.ID, c.Name)
 }
 
-func dockerReadMetadata(scan *scanTask, dockerRoot string) ([]dockerContainer, error) {
+func dockerListContainers(scan *scanTask, dockerRoot string) ([]*container, error) {
 	const maxFileSize = 2 * 1024 * 1024
 
 	entries, err := os.ReadDir(filepath.Join(dockerRoot, "containers"))
@@ -817,7 +801,28 @@ func dockerReadMetadata(scan *scanTask, dockerRoot string) ([]dockerContainer, e
 		}
 	}
 
-	return containers, nil
+	results := make([]*container, 0, len(containers))
+	for _, ctr := range containers {
+		if !ctr.State.Running {
+			continue
+		}
+		ctrMountName := dockerMountPrefix + ctr.ID
+		ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
+		if err != nil {
+			log.Errorf("%s: docker: could not get container layers %s: %v", scan, ctr, err)
+			continue
+		}
+		results = append(results, &container{
+			Runtime:           "docker",
+			MountName:         ctrMountName,
+			ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
+			ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
+			ContainerName:     ctr.Name,
+			Layers:            ctrLayers,
+		})
+	}
+
+	return results, nil
 }
 
 func dockerLayersPaths(dockerRoot string, ctr dockerContainer) ([]string, error) {
