@@ -15,7 +15,7 @@
   - |
     COUNTER=0
     while [[ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS  | wc -l ) != "1" && $COUNTER -le 40 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instance"; sleep 30; done
-    # check that 2 instances are ready, or fail
+    # check that instance is ready, or fail
     if [ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS | wc -l) -ne "1" ]; then
         echo "Instance NOT found"
         "false"
