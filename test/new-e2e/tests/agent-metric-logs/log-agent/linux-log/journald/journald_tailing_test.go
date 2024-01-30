@@ -30,13 +30,13 @@ type LinuxJournaldFakeintakeSuite struct {
 }
 
 //go:embed log-config/journald.yaml
-var logConfig []byte
+var logBasicConfig []byte
 
 //go:embed log-config/include.yaml
-var logConfig2 []byte
+var logIncludeConfig []byte
 
 //go:embed log-config/exclude.yaml
-var logConfig3 []byte
+var logExcludeConfig []byte
 
 //go:embed log-config/python-script.sh
 var pythonScript []byte
@@ -51,7 +51,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithLogs(),
-				agentparams.WithIntegration("custom_logs.d", string(logConfig))))),
+				agentparams.WithIntegration("custom_logs.d", string(logBasicConfig))))),
 	}
 	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
 		options = append(options, e2e.WithDevMode())
@@ -101,7 +101,7 @@ func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
 func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
 		agentparams.WithLogs(),
-		agentparams.WithIntegration("custom_logs.d", string(logConfig2)))))
+		agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig)))))
 
 	vm := s.Env().RemoteHost
 	t := s.T()
@@ -153,7 +153,7 @@ func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
 func (s *LinuxJournaldFakeintakeSuite) journaldExcludeServiceCollection() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
 		agentparams.WithLogs(),
-		agentparams.WithIntegration("custom_logs.d", string(logConfig3)))))
+		agentparams.WithIntegration("custom_logs.d", string(logExcludeConfig)))))
 
 	// Restart agent
 	s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
