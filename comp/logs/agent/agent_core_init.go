@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -42,7 +43,7 @@ func (a *agent) SetupPipeline(
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, a.hostname)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, statusimpl.NewStatusImpl(), a.hostname, a.config)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)
@@ -71,7 +72,7 @@ func (a *agent) SetupPipeline(
 func buildEndpoints(coreConfig pkgConfig.Reader) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main)
+		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 	}
 	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }

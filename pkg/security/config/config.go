@@ -426,7 +426,7 @@ func ActivityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType l
 	if err != nil {
 		endpoints, err = logsconfig.BuildHTTPEndpoints(coreconfig.Datadog, intakeTrackType, intakeProtocol, intakeOrigin)
 		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog)
 			endpoints, err = logsconfig.BuildEndpoints(coreconfig.Datadog, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 		}
 	}
