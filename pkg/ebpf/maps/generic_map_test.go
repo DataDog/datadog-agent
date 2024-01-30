@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,6 +37,9 @@ func TestBatchAPISupported(t *testing.T) {
 }
 
 func TestSingleItemIter(t *testing.T) {
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
+
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
 		MaxEntries: 10,
@@ -71,6 +75,8 @@ func TestBatchIter(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -104,6 +110,8 @@ func TestBatchIterArray(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Array,
@@ -142,6 +150,8 @@ func TestBatchIterLessItemsThanBatchSize(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -175,6 +185,8 @@ func TestBatchIterWhileUpdated(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
 	maxEntries := 50
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
@@ -232,6 +244,9 @@ func TestIteratePerCPUMaps(t *testing.T) {
 	if kernelVersion < kernel.VersionCode(4, 6, 0) {
 		t.Skip("Per CPU maps not supported on this kernel version")
 	}
+
+	err = rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
 	m, err := NewGenericMap[uint32, []uint32](&ebpf.MapSpec{
 		Type:       ebpf.PerCPUHash,
@@ -348,6 +363,8 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -438,6 +455,8 @@ func TestBatchDelete(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -482,6 +501,8 @@ func TestBatchUpdate(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,

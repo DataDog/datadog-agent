@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -302,4 +303,32 @@ func TestStatusHeaderProvider(t *testing.T) {
 			test.assertFunc(t)
 		})
 	}
+}
+
+func TestFetchSecurityAgent(t *testing.T) {
+	defer func() {
+		fetchSecurityConfig = configFetcher.FetchSecurityAgentConfig
+	}()
+	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return "", fmt.Errorf("some error")
+	}
+
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchSecurityAgentMetadata()
+
+	assert.False(t, ia.data["feature_cspm_enabled"].(bool))
+	assert.False(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
+
+	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return `compliance_config:
+  enabled: true
+  host_benchmarks:
+    enabled: true
+`, nil
+	}
+
+	ia.fetchSecurityAgentMetadata()
+
+	assert.True(t, ia.data["feature_cspm_enabled"].(bool))
+	assert.True(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
 }

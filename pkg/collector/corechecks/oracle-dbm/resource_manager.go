@@ -14,14 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 )
 
-const resourceManagerQuery = `SELECT c.name name, consumer_group_name, plan_name, cpu_consumed_time, cpu_wait_time 
+const resourceManagerQuery = `SELECT c.name name, consumer_group_name, plan_name, cpu_consumed_time, cpu_wait_time
 FROM v$rsrcmgrmetric r, v$containers c
 WHERE c.con_id(+) = r.con_id`
 
-const resourceManagerQueryNonCdb = `SELECT consumer_group_name, plan_name, cpu_consumed_time, cpu_wait_time 
+const resourceManagerQueryNonCdb = `SELECT consumer_group_name, plan_name, cpu_consumed_time, cpu_wait_time
 FROM v$rsrcmgrmetric r`
 
-const resourceManagerQuery11 = `SELECT consumer_group_name, cpu_consumed_time, cpu_wait_time 
+const resourceManagerQuery11 = `SELECT consumer_group_name, cpu_consumed_time, cpu_wait_time
 FROM v$rsrcmgrmetric r`
 
 type resourceManagerRow struct {
@@ -58,8 +58,8 @@ func (c *Check) resourceManager() error {
 		if r.PlanName.Valid && r.PlanName.String != "" {
 			tags = append(tags, "plan_name:"+r.PlanName.String)
 		}
-		sender.Gauge(fmt.Sprintf("%s.resource_manager.cpu_consumed_time", common.IntegrationName), r.CPUConsumedTime, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.resource_manager.cpu_wait_time", common.IntegrationName), r.CPUWaitTime, "", tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.resource_manager.cpu_consumed_time", common.IntegrationName), r.CPUConsumedTime, tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.resource_manager.cpu_wait_time", common.IntegrationName), r.CPUWaitTime, tags)
 	}
 	sender.Commit()
 	return nil

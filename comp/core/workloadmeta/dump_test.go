@@ -25,7 +25,7 @@ func TestDump(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 
 	container := &Container{
 		EntityID: EntityID{

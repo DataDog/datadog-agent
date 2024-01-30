@@ -87,7 +87,6 @@ func TestNewServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 
 	deps.Server.Stop()
@@ -101,7 +100,6 @@ func TestStopServer(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	deps.Server.Stop()
 
@@ -154,7 +152,6 @@ func TestUDPReceive(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	demux := deps.Demultiplexer
-	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -437,7 +434,6 @@ func TestUDPForward(t *testing.T) {
 	defer pc.Close()
 
 	demux := deps.Demultiplexer
-	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -469,7 +465,6 @@ func TestHistToDist(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -589,7 +584,6 @@ func TestE2EParsing(t *testing.T) {
 	assert.Equal(t, 0, len(timedSamples))
 	deps.Server.Stop()
 	demux.Reset()
-	demux.Stop(false)
 }
 
 func TestExtraTags(t *testing.T) {
@@ -665,7 +659,6 @@ func TestNoMappingsConfig(t *testing.T) {
 	samples := []metrics.MetricSample{}
 
 	demux := deps.Demultiplexer
-	defer demux.Stop(false)
 	requireStart(t, s, demux)
 
 	assert.Nil(t, s.mapper)
@@ -777,7 +770,6 @@ dogstatsd_mapper_profiles:
 			cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
 			demux := deps.Demultiplexer
-			defer demux.Stop(false)
 			requireStart(t, s, demux)
 
 			assert.Equal(t, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
@@ -837,7 +829,6 @@ func TestNewServerExtraTags(t *testing.T) {
 	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
 	require.Equal(s.extraTags[1], "hello:world", "the tag hello:world should be set")
 	s.Stop()
-	demux.Stop(false)
 }
 
 func TestProcessedMetricsOrigin(t *testing.T) {
@@ -851,7 +842,6 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert := assert.New(t)
 
 		demux := deps.Demultiplexer
-		defer demux.Stop(false)
 		requireStart(t, s, demux)
 
 		s.Stop()

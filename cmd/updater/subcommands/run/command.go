@@ -37,6 +37,10 @@ func run(pkg string) error {
 	if err != nil {
 		return fmt.Errorf("could not create updater: %w", err)
 	}
+
+	u.Start()
+	defer u.Stop()
+
 	api, err := updater.NewLocalAPI(u)
 	if err != nil {
 		return fmt.Errorf("could not create local API: %w", err)

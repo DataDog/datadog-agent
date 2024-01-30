@@ -414,7 +414,6 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 		tracePayload = payload
 	}
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -508,7 +507,6 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 		tracePayload = payload
 	}
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -597,7 +595,6 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 		tracePayload = payload
 	}
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -683,7 +680,6 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 		tracePayload = payload
 	}
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
