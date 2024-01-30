@@ -66,4 +66,31 @@ static __always_inline bool read_hpack_int(const struct __sk_buff *skb, skb_info
     return read_hpack_int_with_given_current_char(skb, skb_info, current_char_as_number, max_number_for_bits, out);
 }
 
+#define SKIP_DYNAMIC_TABLE_UPDATE_SIZE 4
+
+static __always_inline void skip_dynamic_table_update(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end) {
+    __u8 current_ch;
+    bool is_dynamic_table_update = false;
+
+#pragma unroll(SKIP_DYNAMIC_TABLE_UPDATE_SIZE)
+    for (__u8 i = 0; i < SKIP_DYNAMIC_TABLE_UPDATE_SIZE; ++i) {
+        if (skb_info->data_off >= frame_end) {
+            break;
+        }
+
+        bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
+        if (is_dynamic_table_update) {
+            is_dynamic_table_update = (current_ch & 128) != 0;
+            skb_info->data_off++;
+            continue;
+        }
+        is_dynamic_table_update = (current_ch & 224) == 32;
+        if (is_dynamic_table_update) {
+            skb_info->data_off++;
+            continue;
+        }
+        break;
+    }
+}
+
 #endif // __HTTP2_SKB_COMMON_H

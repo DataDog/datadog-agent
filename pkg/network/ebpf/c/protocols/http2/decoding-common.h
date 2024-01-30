@@ -10,6 +10,7 @@
 #include "protocols/http2/decoding-defs.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/http2/maps-defs.h"
+#include "protocols/http2/usm-events.h"
 #include "protocols/classification/defs.h"
 
 // returns true if the given index is one of the relevant headers we care for in the static table.

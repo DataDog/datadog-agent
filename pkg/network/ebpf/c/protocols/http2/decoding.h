@@ -3,7 +3,6 @@
 
 #include "protocols/http2/decoding-common.h"
 #include "protocols/http2/skb-common.h"
-#include "protocols/http2/usm-events.h"
 #include "protocols/http/types.h"
 
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
