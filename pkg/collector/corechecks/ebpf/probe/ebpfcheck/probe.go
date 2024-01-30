@@ -849,7 +849,7 @@ func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffer
 		return -1, fmt.Errorf("map %s has more elements than its max entries (%d), not returning a count", mp.String(), mp.MaxEntries())
 	}
 	if restarts >= maxRestarts {
-		return -1, fmt.Errorf("the iteration got restarted too many times for map %s (%d entries)", mp.String(), mp.MaxEntries())
+		return -1, fmt.Errorf("the iteration restarted too many times for map %s (%d entries)", mp.String(), mp.MaxEntries())
 	}
 	return numElements, nil
 }
