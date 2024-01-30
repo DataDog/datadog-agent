@@ -16,8 +16,8 @@ import (
 func TestStripArguments(t *testing.T) {
 
 	cases := []struct {
-		cmdline          []string
-		striplessCmdline []string
+		cmdline       []string
+		noArgsCmdline []string
 	}{
 		{[]string{"C:\\Program Files\\Datadog\\agent.com"}, []string{"C:\\Program Files\\Datadog\\agent.com"}},
 		{[]string{"C:\\Program Files\\Datadog\\agent.exe check, process"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},
