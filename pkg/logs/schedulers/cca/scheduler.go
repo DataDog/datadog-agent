@@ -9,8 +9,8 @@ package cca
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
