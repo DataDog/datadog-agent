@@ -786,7 +786,7 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 			return totalCount, nil
 		} else if errno != 0 {
 			// Something happened, abort everything
-			return -1, fmt.Errorf("error iterating map %s: %s", mp.String(), errno)
+			return -1, fmt.Errorf("error iterating map %s: %s: %s", mp.String(), unix.ErrnoName(errno), errno)
 		}
 
 	}
