@@ -52,7 +52,7 @@ func newFindingsReporter() (*LogReporter, error) {
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Invalid endpoints: %v", err)
+		return nil, fmt.Errorf("Invalid endpoints: %w", err)
 	}
 
 	dstcontext := client.NewDestinationsContext()
