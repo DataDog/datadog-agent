@@ -18,8 +18,7 @@ TRACEHANDLE DDStartTracing(LPWSTR name, uintptr_t context)
     trace.ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_EVENT_RECORD;
     trace.EventRecordCallback = RecordEventCallback;
 
-    TRACEHANDLE tw =  OpenTraceW(&trace);
-    return tw;
+    return OpenTraceW(&trace);
 }
 
 ULONG DDEnableTrace(
