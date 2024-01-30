@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-
 package tcp
 
 import (
@@ -12,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -33,6 +32,6 @@ func AddrToEndPoint(addr net.Addr) config.Endpoint {
 }
 
 // AddrToDestination creates a Destination from an Addr
-func AddrToDestination(addr net.Addr, ctx *client.DestinationsContext) *Destination {
-	return NewDestination(AddrToEndPoint(addr), true, ctx, true)
+func AddrToDestination(addr net.Addr, ctx *client.DestinationsContext, status statusinterface.Component) *Destination {
+	return NewDestination(AddrToEndPoint(addr), true, ctx, true, status)
 }
