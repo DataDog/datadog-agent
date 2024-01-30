@@ -20,6 +20,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +33,7 @@ const (
 func TestMain(m *testing.M) {
 	logLevel := os.Getenv("DD_LOG_LEVEL")
 	if logLevel == "" {
-		logLevel = "debug"
+		logLevel = "warn"
 	}
 	log.SetupLogger(seelog.Default, logLevel)
 	os.Exit(m.Run())
@@ -85,11 +86,11 @@ func TestBuildVerifierStats(t *testing.T) {
 	stats, failedToLoad, err := BuildVerifierStats(files)
 	require.NoError(t, err)
 
-	require.True(t, len(stats) > 0)
+	assert.True(t, len(stats) > 0)
 
 	// sanity check, since we should be able to load
 	// most of the programs.
-	require.True(t, len(stats) > len(failedToLoad))
+	assert.True(t, len(stats) > len(failedToLoad))
 
 	for _, file := range objectFiles {
 		objectFileName := strings.ReplaceAll(
@@ -110,7 +111,7 @@ func TestBuildVerifierStats(t *testing.T) {
 			_, notLoaded := failedToLoad[key]
 			if !(loaded || notLoaded) {
 				t.Logf("load not attempted for program %s/%s", objectFileName, progSpec.Name)
-				require.True(t, loaded || notLoaded)
+				assert.True(t, loaded || notLoaded)
 				break
 			}
 		}
@@ -124,10 +125,10 @@ func TestBuildVerifierStats(t *testing.T) {
 	// sanity check the values we can somehow bound
 	for _, stat := range stats {
 		if kversion >= kernel.VersionCode(5, 2, 0) {
-			require.True(t, stat.VerificationTime.Value > 0)
+			assert.True(t, stat.VerificationTime.Value > 0)
 		}
-		require.True(t, stat.StackDepth.Value >= 0 && stat.StackDepth.Value <= EBPFStackLimit)
-		require.True(t, stat.InstructionsProcessedLimit.Value > 0 && stat.InstructionsProcessedLimit.Value <= bpfComplexity)
-		require.True(t, stat.InstructionsProcessed.Value > 0 && stat.InstructionsProcessed.Value <= stat.InstructionsProcessedLimit.Value)
+		assert.True(t, stat.StackDepth.Value >= 0 && stat.StackDepth.Value <= EBPFStackLimit)
+		assert.True(t, stat.InstructionsProcessedLimit.Value > 0 && stat.InstructionsProcessedLimit.Value <= bpfComplexity)
+		assert.True(t, stat.InstructionsProcessed.Value > 0 && stat.InstructionsProcessed.Value <= stat.InstructionsProcessedLimit.Value)
 	}
 }
