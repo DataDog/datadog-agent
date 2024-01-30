@@ -152,6 +152,8 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
     return PAYLOAD_UNDETERMINED;
 }
 
+BPF_PERCPU_ARRAY_MAP(grpc_classification_frames, http2_frame_t[GRPC_MAX_FRAMES_TO_PROCESS], 1);
+
 // is_grpc tries to determine if the packet in `skb` holds GRPC traffic. To do
 // that, it goes through the HTTP2 frames looking for headers frames, then goes
 // through the headers of those frames looking for:
@@ -162,7 +164,12 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
     grpc_status_t status = PAYLOAD_UNDETERMINED;
     http2_frame_t current_frame = { 0 };
 
-    frame_info_t frames[GRPC_MAX_FRAMES_TO_PROCESS];
+    const u32 zero = 0;
+    frame_info_t *frames = bpf_map_lookup_elem(&grpc_classification_frames, &zero);
+    if (!frames) {
+        return PAYLOAD_UNDETERMINED;
+    }
+    bpf_memset(frames, 0, sizeof(frame_info_t) * GRPC_MAX_FRAMES_TO_PROCESS);
     u32 frames_count = 0;
 
     // Make a mutable copy of skb_info
@@ -186,7 +193,11 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
         }
 
         if (current_frame.type == kHeadersFrame) {
-            frames[frames_count++] = (frame_info_t){ .offset = info.data_off, .length = current_frame.length };
+            if (frames_count < GRPC_MAX_FRAMES_TO_PROCESS) {
+                frames[frames_count].offset = info.data_off;
+                frames[frames_count].length = current_frame.length;
+                frames_count++;
+            }
         }
 
         info.data_off += current_frame.length;
