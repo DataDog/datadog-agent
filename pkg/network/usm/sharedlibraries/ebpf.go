@@ -60,7 +60,7 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 	mgr := &manager.Manager{
 		PerfMaps: []*manager.PerfMap{pm},
 	}
-	ddebpf.ReportPerfMapTelemetry(pm)
+	ebpftelemetry.ReportPerfMapTelemetry(pm)
 
 	probeIDs := getSysOpenHooksIdentifiers()
 	for _, identifier := range probeIDs {
@@ -113,7 +113,7 @@ func (e *ebpfProgram) GetPerfHandler() *ddebpf.PerfHandler {
 }
 
 func (e *ebpfProgram) Stop() {
-	ddebpf.UnregisterTelemetry(e.Manager.Manager)
+	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	e.Manager.Stop(manager.CleanAll) //nolint:errcheck
 	e.perfHandler.Stop()
 }

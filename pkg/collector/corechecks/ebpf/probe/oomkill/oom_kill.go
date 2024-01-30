@@ -14,18 +14,17 @@ package oomkill
 import (
 	"fmt"
 	"math"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
-	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,7 +42,7 @@ const oomMapName = "oom_stats"
 // Probe is the eBPF side of the OOM Kill check
 type Probe struct {
 	m      *manager.Manager
-	oomMap *bpflib.Map
+	oomMap *maps.GenericMap[uint32, C.struct_oom_stats]
 }
 
 // NewProbe creates a [Probe]
@@ -126,11 +125,9 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 		return nil, fmt.Errorf("failed to start manager: %w", err)
 	}
 
-	oomMap, ok, err := m.GetMap(oomMapName)
+	oomMap, err := maps.GetMap[uint32, C.struct_oom_stats](m, oomMapName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get map '%s': %w", oomMapName, err)
-	} else if !ok {
-		return nil, fmt.Errorf("failed to get map '%s'", oomMapName)
 	}
 	ebpfcheck.AddNameMappings(m, "oom_kill")
 
@@ -153,7 +150,7 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	var pid uint32
 	var stat C.struct_oom_stats
 	it := k.oomMap.Iterate()
-	for it.Next(unsafe.Pointer(&pid), unsafe.Pointer(&stat)) {
+	for it.Next(&pid, &stat) {
 		results = append(results, convertStats(stat))
 	}
 
@@ -162,7 +159,7 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	}
 
 	for _, r := range results {
-		if err := k.oomMap.Delete(unsafe.Pointer(&r.Pid)); err != nil {
+		if err := k.oomMap.Delete(&r.Pid); err != nil {
 			log.Warnf("failed to delete stat: %s", err)
 		}
 	}
