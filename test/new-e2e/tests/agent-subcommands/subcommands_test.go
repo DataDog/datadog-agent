@@ -157,7 +157,8 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 		},
 		{
 			name:            "Logs Agent",
-			shouldBePresent: false,
+			shouldBePresent: true,
+			shouldContain:   []string{"Logs Agent is not running"},
 		},
 		{
 			name:            "Metadata Mapper",
