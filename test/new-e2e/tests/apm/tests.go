@@ -41,17 +41,19 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 }
 
-func testStatsForService(c *assert.CollectT, service string, intake *components.FakeIntake) {
+func testStatsForService(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
+	t.Log("Got apm stats", stats)
 	assert.True(c, hasStatsForService(stats, service))
 }
 
-func testTracesHaveContainerTag(c *assert.CollectT, service string, intake *components.FakeIntake) {
+func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
+	t.Log("Got traces", traces)
 	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)))
 }
 
@@ -120,6 +122,7 @@ func testTraceAgentMetrics(t *testing.T, c *assert.CollectT, intake *components.
 	}
 	metrics, err := intake.Client().GetMetricNames()
 	assert.NoError(c, err)
+	t.Log("Got metric names", metrics)
 	assert.GreaterOrEqual(c, len(metrics), len(expected))
 	for _, m := range metrics {
 		delete(expected, m)
@@ -128,5 +131,6 @@ func testTraceAgentMetrics(t *testing.T, c *assert.CollectT, intake *components.
 			return
 		}
 	}
+	t.Log("Remaining metrics", expected)
 	assert.Empty(c, expected)
 }

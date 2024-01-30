@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
@@ -63,6 +64,14 @@ apm_config.receiver_socket: /var/run/datadog/apm.socket
 	e2e.Run(t, &VMFakeintakeSuite{transport: UDS}, options...)
 }
 
+func fixAgent(h *components.RemoteHost) {
+	h.MustExecute("sudo groupadd -f -r docker")
+	h.MustExecute("sudo usermod -a -G docker dd-agent")
+	h.MustExecute("sudo systemctl restart datadog-agent")
+	h.MustExecute("sudo mkdir -p /var/run/datadog")
+	h.MustExecute("sudo chown dd-agent:dd-agent /var/run/datadog")
+}
+
 // TestDockerFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestVMFakeintakeSuiteTCP(t *testing.T) {
 	cfg := `
@@ -80,6 +89,7 @@ apm_config.enabled: true
 }
 
 func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
+	fixAgent(s.Env().RemoteHost)
 
 	// Wait for agent to be live
 	s.T().Log("Waiting for Trace Agent to be live.")
@@ -99,6 +109,8 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")
 	}
 
+	fixAgent(s.Env().RemoteHost)
+
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -114,11 +126,13 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testTracesHaveContainerTag(c, service, s.Env().FakeIntake)
+		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
 func (s *VMFakeintakeSuite) TestStatsForService() {
+	fixAgent(s.Env().RemoteHost)
+
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -134,11 +148,13 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testStatsForService(c, service, s.Env().FakeIntake)
+		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
 func (s *VMFakeintakeSuite) TestBasicTrace() {
+	fixAgent(s.Env().RemoteHost)
+
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 

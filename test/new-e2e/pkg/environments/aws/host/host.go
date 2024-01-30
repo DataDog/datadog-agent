@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
@@ -166,11 +167,16 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 			return err
 		}
 
-		var dockerRes pulumi.Resource
 		if params.installDocker {
-			_, dockerRes, err = docker.NewManager(*awsEnv.CommonEnvironment, host, true)
+			_, dockerRes, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true)
 			if err != nil {
 				return err
+
+			}
+			if params.agentOptions != nil {
+				params.agentOptions = append(params.agentOptions,
+					agentparams.WithPulumiDependsOn(
+						utils.PulumiDependsOn(dockerRes)))
 			}
 		}
 
@@ -198,7 +204,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 
 		// Create Agent if required
 		if params.agentOptions != nil {
-			agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, dockerRes, params.agentOptions...)
+			agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, params.agentOptions...)
 			if err != nil {
 				return err
 			}

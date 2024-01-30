@@ -111,7 +111,7 @@ func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
 	service := fmt.Sprintf("tracegen-container-tag-%s", s.transport)
 	defer runTracegenDocker(s.Env().Host, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testTracesHaveContainerTag(c, service, s.Env().FakeIntake)
+		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
@@ -122,7 +122,7 @@ func (s *DockerFakeintakeSuite) TestStatsForService() {
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
 	defer runTracegenDocker(s.Env().Host, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testStatsForService(c, service, s.Env().FakeIntake)
+		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
