@@ -12,6 +12,8 @@ import (
 	"unicode"
 )
 
+
+
 func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 
 	winDotExec := []string{".com",".exe",".bat",".cmd",".vbs", ".vbe",".js",".jse",".wsf",".wsh",".psc1"}
