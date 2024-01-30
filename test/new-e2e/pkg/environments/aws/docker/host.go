@@ -140,7 +140,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 			return err
 		}
 
-		installEcrCredsHelperCmd, err := ec2.InstallEcrCredentialHelper(awsEnv, host)
+		installEcrCredsHelperCmd, err := ec2.InstallEcrCredentialsHelper(awsEnv, host)
 		if err != nil {
 			return err
 		}
