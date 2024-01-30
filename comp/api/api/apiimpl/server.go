@@ -8,10 +8,12 @@ package apiimpl
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	stdLog "log"
 	"net"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 
 	"github.com/cihub/seelog"
 
@@ -79,6 +81,7 @@ func StartServers(
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
+	eventPlatformReceiver eventplatformreceiver.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -129,6 +132,7 @@ func StartServers(
 		invChecks,
 		pkgSigning,
 		statusComponent,
+		eventPlatformReceiver,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

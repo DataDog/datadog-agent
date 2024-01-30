@@ -165,6 +165,12 @@ Package defaultforwarder implements a component to send payloads to the backend
 
 Package eventplatform contains the logic for forwarding events to the event platform
 
+### [comp/forwarder/eventplatformreceiver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver)
+
+*Datadog Team*: Agent shared components
+
+Package eventplatformreceiver implements the global receiver for the epforwarder package
+
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
 *Datadog Team*: agent-metrics-logs

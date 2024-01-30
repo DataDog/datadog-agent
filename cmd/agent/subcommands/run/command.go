@@ -63,6 +63,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
@@ -331,6 +332,7 @@ func getSharedFxOption() fx.Option {
 		dogstatsdStatusimpl.Module(),
 		statusimpl.Module(),
 		apiimpl.Module(),
+		eventplatformreceiverimpl.Module(),
 
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),

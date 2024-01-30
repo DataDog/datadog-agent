@@ -12,6 +12,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	aggsender "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -19,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -188,8 +189,6 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 }
 
-var globalReceiver *diagnostic.BufferedMessageReceiver
-
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
@@ -214,7 +213,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	}
 
 	// Stream to console if debug mode is enabled
-	p.diagnosticMessageReceiver.HandleMessage(e, []byte{}, eventType)
+	p.eventPlatformReceiver.HandleMessage(e, []byte{}, eventType)
 
 	select {
 	case p.in <- e:
@@ -279,7 +278,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *messag
 	}
 
 	// Stream to console if debug mode is enabled
-	p.diagnosticMessageReceiver.HandleMessage(e, []byte{}, eventType)
+	p.eventPlatformReceiver.HandleMessage(e, []byte{}, eventType)
 
 	p.in <- e
 	return nil
@@ -334,11 +333,11 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender                    *sender.Sender
-	strategy                  sender.Strategy
-	in                        chan *message.Message
-	auditor                   auditor.Auditor
-	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
+	sender                *sender.Sender
+	strategy              sender.Strategy
+	in                    chan *message.Message
+	auditor               auditor.Auditor
+	eventPlatformReceiver eventplatformreceiver.Component
 }
 
 type passthroughPipelineDesc struct {
@@ -357,7 +356,7 @@ type passthroughPipelineDesc struct {
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
-func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
+func newHTTPPassthroughPipeline(eventPlatformReceiver eventplatformreceiver.Component, desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfig.Datadog)
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfig.Datadog, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
@@ -417,11 +416,11 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:                    sender.NewSender(senderInput, a.Channel(), destinations, 10),
-		strategy:                  strategy,
-		in:                        inputChan,
-		auditor:                   a,
-		diagnosticMessageReceiver: GetGlobalReceiver(),
+		sender:                sender.NewSender(senderInput, a.Channel(), destinations, 10),
+		strategy:              strategy,
+		in:                    inputChan,
+		auditor:               a,
+		eventPlatformReceiver: eventPlatformReceiver,
 	}, nil
 }
 
@@ -449,12 +448,12 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(eventPlatformReceiver eventplatformreceiver.Component) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range passthroughPipelineDescs {
-		p, err := newHTTPPassthroughPipeline(desc, destinationsCtx, i)
+		p, err := newHTTPPassthroughPipeline(eventPlatformReceiver, desc, destinationsCtx, i)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -467,14 +466,20 @@ func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
 	}
 }
 
+type dependencies struct {
+	fx.In
+	Params                Params
+	EventPlatformReceiver eventplatformreceiver.Component
+}
+
 // newEventPlatformForwarder creates a new EventPlatformForwarder
-func newEventPlatformForwarder(params Params) eventplatform.Component {
+func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 	var forwarder EventPlatformForwarder
 
-	if params.UseNoopEventPlatformForwarder {
+	if deps.Params.UseNoopEventPlatformForwarder {
 		forwarder = NewNoopEventPlatformForwarder()
-	} else if params.UseEventPlatformForwarder {
-		forwarder = newDefaultEventPlatformForwarder()
+	} else if deps.Params.UseEventPlatformForwarder {
+		forwarder = newDefaultEventPlatformForwarder(deps.EventPlatformReceiver)
 	}
 	if forwarder == nil {
 		return optional.NewNoneOptionPtr[eventplatform.Forwarder]()
@@ -485,19 +490,10 @@ func newEventPlatformForwarder(params Params) eventplatform.Component {
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
 func NewNoopEventPlatformForwarder() EventPlatformForwarder {
-	f := newDefaultEventPlatformForwarder()
+	f := newDefaultEventPlatformForwarder(eventplatformreceiverimpl.NewReceiver())
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil
 	}
 	return f
-}
-
-// GetGlobalReceiver initializes and returns the global receiver for the epforwarder package
-func GetGlobalReceiver() *diagnostic.BufferedMessageReceiver {
-	if globalReceiver == nil {
-		globalReceiver = diagnostic.NewBufferedMessageReceiver(&epFormatter{})
-	}
-
-	return globalReceiver
 }
