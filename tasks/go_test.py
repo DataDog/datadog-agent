@@ -151,7 +151,7 @@ powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
             ]
             if not files_to_delete:
                 print(
-                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.'",
+                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.' in {self.module_path}",
                     file=sys.stderr,
                 )
             else:
