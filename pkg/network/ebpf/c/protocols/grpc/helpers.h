@@ -79,6 +79,8 @@ static __always_inline void skip_literal_header(const struct __sk_buff *skb, skb
     return;
 }
 
+#define SKIP_DYNAMIC_TABLE_UPDATE_SIZE 5
+
 // Scan headers goes through the headers in a frame, and tries to find a
 // content-type header or a method header.
 static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length, __u8 *content_type_buf) {
@@ -88,6 +90,28 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
     __u32 frame_end = skb_info->data_off + frame_length;
     // Check that frame_end does not go beyond the skb
     frame_end = frame_end < skb->len + 1 ? frame_end : skb->len + 1;
+    __u8 current_ch;
+    bool is_dynamic_table_update = false;
+
+#pragma unroll(SKIP_DYNAMIC_TABLE_UPDATE_SIZE)
+    for (__u8 i = 0; i < SKIP_DYNAMIC_TABLE_UPDATE_SIZE; ++i) {
+        if (skb_info->data_off >= frame_end) {
+            break;
+        }
+
+        bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
+        if (is_dynamic_table_update) {
+            is_dynamic_table_update = (current_ch & 128) != 0;
+            skb_info->data_off++;
+            continue;
+        }
+        is_dynamic_table_update = (current_ch & 224) == 32;
+        if (is_dynamic_table_update) {
+            skb_info->data_off++;
+            continue;
+        }
+        break;
+    }
 
 #pragma unroll(GRPC_MAX_HEADERS_TO_PROCESS)
     for (__u8 i = 0; i < GRPC_MAX_HEADERS_TO_PROCESS; ++i) {
