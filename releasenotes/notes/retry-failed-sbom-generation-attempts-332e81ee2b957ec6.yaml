@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Add a retry mechanism to the SBOM generation process to handle transient errors.
