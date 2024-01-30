@@ -585,7 +585,7 @@ func runCmd(pidfilePath string, workers, scannersMax int) error {
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
 		if err != nil {
-			return log.Errorf("could not write PID file, exiting: %v", err)
+			return fmt.Errorf("could not write PID file, exiting: %w", err)
 		}
 		defer os.Remove(pidfilePath)
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
@@ -3109,7 +3109,7 @@ func listBlockDevices(deviceName ...string) ([]blockDevice, error) {
 		return nil, fmt.Errorf("lsblk exited with error: %w", err)
 	}
 	if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
-		return nil, fmt.Errorf("lsblk output parsing error: %v", err)
+		return nil, fmt.Errorf("lsblk output parsing error: %w", err)
 	}
 	// lsblk can return [null] as mountpoints list. We need to clean this up.
 	for _, bd := range blockDevices.BlockDevices {
