@@ -1483,7 +1483,6 @@ func (s *sideScanner) cleanSlate() error {
 		log.Warnf("clean slate: removing directory %q", scanDirname)
 		if err := os.RemoveAll(scanDirname); err != nil {
 			log.Errorf("clean slate: could not remove directory %q", scanDirname)
-
 		}
 	}
 
@@ -3046,8 +3045,8 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, waiter *awsWa
 			break
 		}
 		var aerr smithy.APIError
-		// NOTE(jinroh): we're trying to detach a volume in not in 'available'
-		// state for instance. Continue.
+		// NOTE(jinroh): we're trying to attach a volume in not yet in an
+		// 'available' state. Continue.
 		if errors.As(errAttach, &aerr) && aerr.ErrorCode() == "IncorrectState" {
 			log.Tracef("%s: couldn't attach volume %q into device %q; retrying after %v (%d/%d)", scan, *volume.VolumeId, device, sleep, i+1, maxAttachRetries)
 		} else {
@@ -3057,6 +3056,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, waiter *awsWa
 	if errAttach != nil {
 		return fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, errAttach)
 	}
+
 	return nil
 }
 
@@ -3106,6 +3106,10 @@ func listBlockDevices(ctx context.Context, deviceName ...string) ([]blockDevice,
 	lsblkArgs = append(lsblkArgs, deviceName...)
 	lsblkJSON, err := exec.CommandContext(ctx, "lsblk", lsblkArgs...).Output()
 	if err != nil {
+		var errx *exec.ExitError
+		if errors.As(err, &errx) && errx.ExitCode() == 32 { // none of specified devices found
+			return nil, nil
+		}
 		if !errors.Is(err, context.Canceled) {
 			log.Warnf("lsblk exited with error: %v", err)
 		}
@@ -3173,6 +3177,11 @@ func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartitio
 	}
 	if foundBlockDevice == nil {
 		return nil, fmt.Errorf("could not find the block device %s for (volume=%q)", device, volumeARN)
+	}
+
+	// The attached device name may not be the one we expect. We update it.
+	if scan.AttachedDeviceName == nil || foundBlockDevice.Path != *scan.AttachedDeviceName {
+		scan.AttachedDeviceName = &foundBlockDevice.Path
 	}
 
 	var partitions []devicePartition
@@ -3313,17 +3322,22 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 		}
 	}
 
+	if volumeDetached && maybeScan != nil && maybeScan.AttachedDeviceName != nil {
+		for i := 0; i < 30; i++ {
+			if !sleepCtx(ctx, 1*time.Second) {
+				return ctx.Err()
+			}
+			devices, err := listBlockDevices(ctx, *maybeScan.AttachedDeviceName)
+			if err != nil || len(devices) == 0 {
+				break
+			}
+		}
+	}
+
 	var errd error
 	for i := 0; i < 10; i++ {
 		if volumeNotFound {
 			break
-		}
-		// TODO: we could poll lsblk on the volume device to check if it was detached maybe ?
-		if volumeDetached || i > 0 {
-			if !sleepCtx(ctx, 10*time.Second) {
-				errd = ctx.Err()
-				break
-			}
 		}
 		_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
 			VolumeId: aws.String(volumeID),
@@ -3336,6 +3350,10 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 			}
 		} else {
 			log.Debugf("%s: volume deleted %q", maybeScan, volumeID)
+			break
+		}
+		if !sleepCtx(ctx, 10*time.Second) {
+			errd = ctx.Err()
 			break
 		}
 	}
