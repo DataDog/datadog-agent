@@ -92,7 +92,6 @@ type TokenFetcher func() (string, error)
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
 // datadog-agent's secure GRPC client
 type agentGRPCConfigFetcher struct {
-	client           pbgo.AgentSecureClient
 	authTokenFetcher func() (string, error)
 	fetchConfigs     fetchConfigs
 }
@@ -118,8 +117,8 @@ func NewHAAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFet
 	}
 
 	return &agentGRPCConfigFetcher{
-		client:           c,
 		authTokenFetcher: authTokenFetcher,
+		fetchConfigs:     c.ClientGetConfigsHA,
 	}, nil
 }
 
@@ -149,7 +148,7 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	return g.client.ClientGetConfigs(ctx, request)
+	return g.fetchConfigs(ctx, request)
 }
 
 // NewClient creates a new client
