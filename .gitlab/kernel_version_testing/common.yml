@@ -10,19 +10,19 @@
   - QUERY_INSTANCE_IDS='Reservations[*].Instances[*].InstanceId'
   - QUERY_PRIVATE_IPS='Reservations[*].Instances[*].PrivateIpAddress'
 
-.wait_for_instances:
+.wait_for_instance:
   - !reference [.shared_filters_and_queries]
   - |
     COUNTER=0
-    while [[ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT --output text --query $QUERY_INSTANCE_IDS  | wc -l ) != "2" && $COUNTER -le 40 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instances"; sleep 30; done
+    while [[ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS  | wc -l ) != "1" && $COUNTER -le 40 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instance"; sleep 30; done
     # check that 2 instances are ready, or fail
-    if [ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT --output text --query $QUERY_INSTANCE_IDS | wc -l) -ne "2" ]; then
-        echo "Both instances NOT found"
+    if [ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS | wc -l) -ne "1" ]; then
+        echo "Instance NOT found"
         "false"
     fi
-    echo "Both Instances found"
-    INSTANCE_IDS=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT --output text --query $QUERY_INSTANCE_IDS | tr '\n' ' ')
-    aws ec2 wait instance-status-ok --instance-ids $INSTANCE_IDS
+    echo "Instance found"
+    INSTANCE_ID=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS)
+    aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
     sleep 10
 
 .write_ssh_key_file:
@@ -35,7 +35,7 @@
 
 # needs variables: ARCH, INSTANCE_TYPE
 .get_instance_ip_by_type:
-  - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT "Name=instance-type,Values=${INSTANCE_TYPE}" --output text --query $QUERY_PRIVATE_IPS)
+  - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_PRIVATE_IPS)
   - echo "$ARCH-instance-ip" $INSTANCE_IP
 
 # needs variables: INSTANCE_IP, AWS_EC2_SSH_KEY_FILE
@@ -121,7 +121,7 @@ pull_test_dockers_arm64:
   tags: ["arch:amd64"]
   script:
     # upload dependencies
-    - !reference [.wait_for_instances]
+    - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
     - scp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh metal_instance:/opt/kernel-version-testing

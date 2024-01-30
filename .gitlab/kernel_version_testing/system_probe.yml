@@ -42,7 +42,7 @@ upload_dependencies_system_probe_arm64:
     # causes permission issues.
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
-    - !reference [.wait_for_instances]
+    - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
     - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
@@ -118,7 +118,7 @@ kernel_matrix_testing_setup_env_system_probe_x64:
     - tar czvf ../$TEST_ARCHIVE_NAME system-probe-tests
     - popd
     # upload tests
-    - !reference [.wait_for_instances]
+    - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
     - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
