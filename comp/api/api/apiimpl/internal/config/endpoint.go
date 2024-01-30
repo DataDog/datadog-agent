@@ -25,7 +25,7 @@ const prefixPathSuffix string = "."
 type authorizedSet map[string]struct{}
 
 var authorizedConfigPathsCore = buildAuthorizedSet(
-	"api_key", "site", "dd_url", "logs_config", "ha",
+	"api_key", "site", "dd_url", "logs_config.dd_url", "ha",
 )
 
 func buildAuthorizedSet(paths ...string) authorizedSet {
