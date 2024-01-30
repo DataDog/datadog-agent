@@ -60,7 +60,7 @@ func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httpt
 
 	// roundtrip our existing config value so that we emulate how values get serialized when we
 	// write them out in the HTTP response in the first place: if we don't do this, then we
-	// potentially end up with test failures purely do to property type mismatches, even when the
+	// potentially end up with test failures purely due to property type mismatches, even when the
 	// data is exactly the same
 	existing := configEndpoint.cfg.Get(configName)
 	existingBody, err := json.Marshal(existing)
