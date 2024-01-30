@@ -951,21 +951,6 @@ workflow:
 .on_testing_cleanup:
   - <<: *if_testing_cleanup
 
-.on_windows_installer_changes_or_manual:
-  - <<: *if_main_branch
-  - <<: *if_mergequeue
-    when: never
-  - changes:
-      paths:
-        - tools/windows/DatadogAgentInstaller/**/*
-        - .gitlab/new-e2e_testing/windows.yml
-        - test/new-e2e/tests/windows/install-test/**/*
-        - tasks/msi.py
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
-  - when: manual
-    allow_failure: true
-
 .security_agent_change_paths: &security_agent_change_paths
   - pkg/ebpf/**/*
   - pkg/security/**/*
@@ -1066,7 +1051,7 @@ workflow:
     when: on_success
   - when: manual
 
-.çç:
+.on_windows_installer_changes_or_manual:
   - <<: *if_main_branch
   - <<: *if_mergequeue
     when: never
