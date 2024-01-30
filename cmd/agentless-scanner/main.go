@@ -116,10 +116,10 @@ var (
 const (
 	scansRootDir = "/scans"
 
-	ebsMountPrefix    = "ebs-"
-	ctrdMountPrefix   = "ctrd-"
-	dockerMountPrefix = "docker-"
-	lambdaMountPrefix = "lambda-"
+	ebsMountPrefix        = "ebs-"
+	containerdMountPrefix = "containerd-"
+	dockerMountPrefix     = "docker-"
+	lambdaMountPrefix     = "lambda-"
 )
 
 type configType string
@@ -1459,7 +1459,7 @@ func (s *sideScanner) cleanSlate() error {
 						switch {
 						case strings.HasPrefix(scanEntry.Name(), ebsMountPrefix):
 							ebsMountPoints = append(ebsMountPoints, filepath.Join(scanDirname, scanEntry.Name()))
-						case strings.HasPrefix(scanEntry.Name(), ctrdMountPrefix) || strings.HasPrefix(scanEntry.Name(), dockerMountPrefix):
+						case strings.HasPrefix(scanEntry.Name(), containerdMountPrefix) || strings.HasPrefix(scanEntry.Name(), dockerMountPrefix):
 							ctrMountPoints = append(ctrMountPoints, filepath.Join(scanDirname, scanEntry.Name()))
 						}
 					}
@@ -3422,7 +3422,7 @@ func cleanupScan(scan *scanTask) {
 				if strings.HasPrefix(entry.Name(), ebsMountPrefix) {
 					ebsMountPoints = append(ebsMountPoints, entry)
 				}
-				if strings.HasPrefix(entry.Name(), ctrdMountPrefix) || strings.HasPrefix(entry.Name(), dockerMountPrefix) {
+				if strings.HasPrefix(entry.Name(), containerdMountPrefix) || strings.HasPrefix(entry.Name(), dockerMountPrefix) {
 					ctrMountPoints = append(ctrMountPoints, entry)
 				}
 				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".pid") {
