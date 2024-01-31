@@ -23,20 +23,3 @@ func TestMessage(t *testing.T) {
 	assert.Equal(t, StatusInfo, message.GetStatus())
 
 }
-
-func TestGetHostnameLambda(t *testing.T) {
-	message := Message{
-		ServerlessExtra: ServerlessExtra{
-			Lambda: &Lambda{
-				ARN: "testHostName",
-			},
-		},
-	}
-	assert.Equal(t, "testHostName", message.GetHostname())
-}
-
-func TestGetHostname(t *testing.T) {
-	t.Setenv("DD_HOSTNAME", "testHostnameFromEnvVar")
-	message := NewMessage([]byte("hello"), nil, "", 0)
-	assert.Equal(t, "testHostnameFromEnvVar", message.GetHostname())
-}

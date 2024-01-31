@@ -81,6 +81,8 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/snmptraps"
+	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -98,8 +100,6 @@ import (
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
-	snmpStatus "github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/pkg/status/autodiscovery"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
@@ -196,18 +196,19 @@ func run(log log.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	otelcollector otelcollector.Component,
 	_ host.Component,
-	invAgent inventoryagent.Component,
+	_ inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	_ netflowServer.Component,
+	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 ) error {
 	defer func() {
-		stopAgent(cliParams, server, demultiplexer, agentAPI)
+		stopAgent(cliParams, server, agentAPI)
 	}()
 
 	// prepare go runtime
@@ -262,7 +263,6 @@ func run(log log.Component,
 		sharedSerializer,
 		otelcollector,
 		demultiplexer,
-		invAgent,
 		agentAPI,
 		invChecks,
 		statusComponent,
@@ -308,9 +308,6 @@ func getSharedFxOption() fx.Option {
 			status.NewInformationProvider(jmxStatus.Provider{}),
 			status.NewInformationProvider(endpointsStatus.Provider{}),
 		),
-		fx.Provide(func(config config.Component) status.InformationProvider {
-			return status.NewInformationProvider(snmpStatus.GetProvider(config))
-		}),
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
 		}),
@@ -371,6 +368,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
+		snmptraps.Bundle(),
 		fx.Provide(func(demultiplexer demultiplexer.Component) optional.Option[collector.Collector] {
 			return optional.NewOption(common.LoadCollector(demultiplexer))
 		}),
@@ -394,10 +392,9 @@ func startAgent(
 	_ serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
 	demultiplexer demultiplexer.Component,
-	invAgent inventoryagent.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
-	_ status.Component,
+	statusComponent status.Component,
 ) error {
 
 	var err error
@@ -566,7 +563,7 @@ func startAgent(
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
 		log.Infof("GUI server port -1 specified: not starting the GUI.")
-	} else if err = gui.StartGUIServer(guiPort, flare, invAgent); err != nil {
+	} else if err = gui.StartGUIServer(guiPort, flare, statusComponent); err != nil {
 		log.Errorf("Error while starting GUI: %v", err)
 	}
 
@@ -574,14 +571,6 @@ func startAgent(
 	if sender, err := demultiplexer.GetDefaultSender(); err == nil {
 		// TODO: to be removed when default telemetry is enabled.
 		pkgTelemetry.RegisterStatsSender(sender)
-	}
-
-	// Start SNMP trap server
-	if traps.IsEnabled(pkgconfig.Datadog) {
-		err = traps.StartServer(hostnameDetected, demultiplexer, pkgconfig.Datadog, log)
-		if err != nil {
-			log.Errorf("Failed to start snmp-traps server: %s", err)
-		}
 	}
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
@@ -636,12 +625,12 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer, agentAPI)
+func StopAgentWithDefaults(server dogstatsdServer.Component, agentAPI internalAPI.Component) {
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, agentAPI)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
+func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -663,14 +652,9 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
-	traps.StopServer()
 	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
-
-	if demultiplexer != nil {
-		demultiplexer.Stop(true)
-	}
 
 	gui.StopGUIServer()
 	profiler.Stop()

@@ -65,6 +65,10 @@ func TestBundleOneShot(t *testing.T) {
 
 			mockCoreBundleParams,
 		),
+		// sets a static hostname to avoid grpc call to get hostname from core-agent
+		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
+			"hostname": "testhost",
+		}}),
 		core.MockBundle(),
 		Bundle(),
 	)

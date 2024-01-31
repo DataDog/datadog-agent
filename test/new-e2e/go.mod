@@ -27,7 +27,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240124125737-db7cdb8d8c3a
+	github.com/DataDog/test-infra-definitions v0.0.0-20240130144300-931a883f86ed
 	github.com/aws/aws-sdk-go-v2 v1.24.0
 	github.com/aws/aws-sdk-go-v2/config v1.25.10
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
