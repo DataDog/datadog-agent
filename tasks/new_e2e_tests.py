@@ -178,9 +178,8 @@ def clean(ctx, locks=True, stacks=False, output=False):
 
 
 def _get_default_env():
-    return {
-        "PULUMI_SKIP_UPDATE_CHECK": "true"
-    }
+    return {"PULUMI_SKIP_UPDATE_CHECK": "true"}
+
 
 def _get_home_dir():
     # TODO: Go os.UserHomeDir() uses a different algorithm than Python Path.home()
@@ -278,7 +277,7 @@ def _destroy_stack(ctx: Context, stack: str):
             f"pulumi destroy --stack {stack} --yes --remove --skip-preview",
             warn=True,
             hide=True,
-            env=_get_default_env()
+            env=_get_default_env(),
         )
         if ret is not None and ret.exited != 0:
             # run with refresh on first destroy attempt failure
@@ -286,7 +285,7 @@ def _destroy_stack(ctx: Context, stack: str):
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
                 warn=True,
                 hide=True,
-                env=_get_default_env()
+                env=_get_default_env(),
             )
 
 
