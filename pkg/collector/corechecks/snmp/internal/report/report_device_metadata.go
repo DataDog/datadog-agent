@@ -50,7 +50,7 @@ var supportedDeviceTypes = map[string]bool{
 }
 
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingCanConnect *bool, diagnoses []devicemetadata.DiagnosisMetadata) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingCanConnect devicemetadata.DeviceCanConnect, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
@@ -190,7 +190,7 @@ func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values
 	return metadataStore
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus devicemetadata.DeviceStatus, pingCanConnect *bool) devicemetadata.DeviceMetadata {
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus devicemetadata.DeviceStatus, pingCanConnect devicemetadata.DeviceCanConnect) devicemetadata.DeviceMetadata {
 	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version, productName, model, osName, osVersion, osHostname, deviceType string
 	if store != nil {
 		sysName = store.GetScalarAsString("device.name")

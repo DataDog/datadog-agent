@@ -28,11 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
-var (
-	trueVal  = true
-	falseVal = false
-)
-
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -134,7 +129,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &trueVal, nil)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceCanConnectTrue, nil)
 
 	// language=json
 	event := []byte(`
@@ -153,7 +148,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             ],
             "ip_address": "1.2.3.4",
             "status":1,
-			"can_connect": true,
+			"can_connect":1,
             "name": "my-sys-name",
             "description": "my-sys-descr",
             "location": "my-sys-location",
@@ -215,7 +210,7 @@ profiles:
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &trueVal, nil)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceCanConnectTrue, nil)
 
 	// language=json
 	event := []byte(`
@@ -235,7 +230,7 @@ profiles:
             ],
             "ip_address": "1.2.3.4",
             "status":1,
-			"can_connect": true,
+			"can_connect":1,
             "profile": "f5-big-ip",
             "vendor": "f5",
             "subnet": "127.0.0.0/29",
@@ -354,7 +349,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
-	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &falseVal, diagnosis)
+	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceCanConnectFalse, diagnosis)
 
 	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
 	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
@@ -378,7 +373,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
             ],
             "ip_address": "1.2.3.4",
             "status":1,
-			"can_connect": false,
+			"can_connect":2,
             "subnet": "127.0.0.0/29",
 			"device_type": "switch"
         }
@@ -468,7 +463,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &trueVal, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceCanConnectFalse, nil)
 
 	// language=json
 	event := []byte(`
@@ -487,7 +482,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
             ],
             "ip_address": "1.2.3.4",
             "status":1,
-			"can_connect": true,
+			"can_connect":2,
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
 			"device_type": "firewall"
@@ -539,7 +534,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceCanConnectUnknown, nil)
 
 	// language=json
 	event := []byte(`
@@ -609,7 +604,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &trueVal, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceCanConnectFalse, nil)
 
 	// language=json
 	event := []byte(`
@@ -628,7 +623,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
             ],
             "ip_address": "1.2.3.4",
             "status":1,
-			"can_connect": true,
+			"can_connect":2,
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
 			"device_type": "other"
@@ -680,7 +675,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, &falseVal, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceCanConnectFalse, nil)
 
 	// language=json
 	event := []byte(`
@@ -699,7 +694,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
             ],
             "ip_address": "1.2.3.4",
             "status":1,
-			"can_connect": false,
+			"can_connect":2,
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
 			"device_type": "other"

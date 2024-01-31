@@ -41,15 +41,16 @@ import (
 )
 
 const (
-	snmpLoaderTag           = "loader:core"
-	serviceCheckName        = "snmp.can_check"
-	deviceReachableMetric   = "snmp.device.reachable"
-	deviceUnreachableMetric = "snmp.device.unreachable"
-	pingCanConnectMetric    = "ndm.ping.canConnect"
-	pingPacketLoss          = "ndm.ping.packetLoss"
-	pingAvgRttMetric        = "ndm.ping.avgRtt"
-	deviceHostnamePrefix    = "device:"
-	checkDurationThreshold  = 30 // Thirty seconds
+	snmpLoaderTag             = "loader:core"
+	serviceCheckName          = "snmp.can_check"
+	deviceReachableMetric     = "snmp.device.reachable"
+	deviceUnreachableMetric   = "snmp.device.unreachable"
+	pingCanConnectMetric      = "networkdevice.ping.canConnect"
+	pingCanConnectFalseMetric = "networkdevice.ping.canConnect.false"
+	pingPacketLoss            = "networkdevice.ping.packetLoss"
+	pingAvgRttMetric          = "networkdevice.ping.avgRtt"
+	deviceHostnamePrefix      = "device:"
+	checkDurationThreshold    = 30 // Thirty seconds
 )
 
 // define timeNow as variable to make it possible to mock it during test
@@ -147,7 +148,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
-	var pingCanConnect *bool
+	pingCanConnect := metadata.DeviceCanConnectUnknown
 
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
 	tags := common.CopyStrings(staticTags)
@@ -177,7 +178,11 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		} else {
 			// if ping succeeds, set pingCanConnect for use in metadata and send metrics
 			log.Debugf("%s: ping returned: %+v", d.config.IPAddress, pingResult)
-			pingCanConnect = &pingResult.CanConnect
+			if pingResult.CanConnect {
+				pingCanConnect = metadata.DeviceCanConnectTrue
+			} else {
+				pingCanConnect = metadata.DeviceCanConnectFalse
+			}
 			d.submitPingMetrics(pingResult, tags)
 		}
 	} else {
@@ -416,5 +421,6 @@ func createPinger(cfg pinger.Config) (pinger.Pinger, error) {
 func (d *DeviceCheck) submitPingMetrics(pingResult *pinger.Result, tags []string) {
 	d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgRtt/time.Millisecond), tags)
 	d.sender.Gauge(pingCanConnectMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
+	d.sender.Gauge(pingCanConnectFalseMetric, common.BoolToFloat64(!pingResult.CanConnect), tags)
 	d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
 }
