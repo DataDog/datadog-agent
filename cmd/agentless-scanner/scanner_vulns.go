@@ -72,6 +72,7 @@ func launchScannerTrivyHost(ctx context.Context, opts scannerOptions) (*cdx.BOM,
 			filepath.Join(opts.Root, "etc/**"),
 			filepath.Join(opts.Root, "var/lib/dpkg/**"),
 			filepath.Join(opts.Root, "var/lib/rpm/**"),
+			filepath.Join(opts.Root, "/usr/lib/sysimage/**"),
 			filepath.Join(opts.Root, "lib/apk/**"),
 		},
 		AWSRegion: opts.Scan.ARN.Region,
@@ -96,6 +97,7 @@ func launchScannerTrivyHostVM(ctx context.Context, opts scannerOptions) (*cdx.BO
 		"/etc/**",
 		"/var/lib/dpkg/**",
 		"/var/lib/rpm/**",
+		"/usr/lib/sysimage/**",
 		"/lib/apk/**",
 	}
 	w := walker.NewVM(nil, nil, onlyDirs)
