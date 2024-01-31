@@ -171,7 +171,6 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 			_, dockerRes, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true)
 			if err != nil {
 				return err
-
 			}
 			if params.agentOptions != nil {
 				params.agentOptions = append(params.agentOptions,
