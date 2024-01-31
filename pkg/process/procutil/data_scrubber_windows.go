@@ -14,35 +14,27 @@ import (
 
 func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 
-	winDotExec := []string{".com", ".exe", ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".psc1"}
-
-	if len(cmdline) > 0 {
+	winDotExec := []string{".com", ".exe ", ".bat ", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".psc1"}
 
 		if len(cmdline) > 1 {
-
+			// TODO no need to split, just return first element
 			cmdline = []string{strings.Split(cmdline[0], ",")[0]}
 			return cmdline
 
 		} else {
 
-			strCmdline := strings.Join(cmdline, "")
+			strCmdline := strings.Join(cmdline, " ")
 
 			validCmdline := validWindowsPrefix(strCmdline)
 
 			i := extensionParser(validCmdline, winDotExec)
 
 			strippedcmdline := validCmdline[:i+4]
-
-			slicedCmdline := []string{}
-
-			cmdline := append(slicedCmdline, strippedcmdline)
-
-			return cmdline
+			return []string{strippedcmdline}
 		}
 	}
-	return cmdline
-}
 
+// TODO remove
 func validWindowsPrefix(cmdline string) string {
 
 	for _, c := range cmdline {
@@ -63,9 +55,7 @@ func extensionParser(validCmdline string, winDotExec []string) int {
 	var i int
 
 	for _, c := range winDotExec {
-
-		if strings.Contains(validCmdline, c) {
-			i := strings.Index(validCmdline, c)
+		if i = strings.Index(validCmdline, c); i != -1 {
 			return i
 		}
 	}
