@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
 
+// service represents a status implementation that is required in order to decouple status methods
+// from logs agent modules. This should be replaced when pkg/logs/status is converted to a component.
 type service struct{}
 
 // AddGlobalWarning keeps track of a warning message to display on the status.
