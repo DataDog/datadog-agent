@@ -7,7 +7,6 @@ go 1.21
 // TODO: Implement hard check in CI
 
 replace (
-	github.com/DataDog/test-infra-definitions => /home/kjn/CodeBase/test-infra-definitions
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
@@ -28,7 +27,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240124125737-db7cdb8d8c3a
+	github.com/DataDog/test-infra-definitions v0.0.0-20240131175029-85b82256ac97
 	github.com/aws/aws-sdk-go-v2 v1.24.0
 	github.com/aws/aws-sdk-go-v2/config v1.25.10
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
