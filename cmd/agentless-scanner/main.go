@@ -1117,7 +1117,7 @@ func attachCmd(resourceARN arn.ARN, mode diskMode, mount bool) error {
 
 	partitions, err := listDevicePartitions(ctx, scan)
 	if err != nil {
-		log.Errorf("could list paritions (device is still available on %q): %v", *scan.AttachedDeviceName, err)
+		log.Errorf("could not list partitions (device is still available on %q): %v", *scan.AttachedDeviceName, err)
 	} else {
 		for _, part := range partitions {
 			fmt.Println(part.devicePath, part.fsType)
