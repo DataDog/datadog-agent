@@ -291,7 +291,7 @@ def _destroy_stack(ctx: Context, stack: str):
 
 
 def _remove_stack(ctx: Context, stack: str):
-    ctx.run("pulumi stack rm --force --yes --stack {stack}", hide=True, env=_get_default_env())
+    ctx.run(f"pulumi stack rm --force --yes --stack {stack}", hide=True, env=_get_default_env())
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
