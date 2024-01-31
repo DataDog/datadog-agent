@@ -64,7 +64,7 @@ func dockerHTTPBinCompose() docker.ComposeInlineManifest {
 	}
 }
 
-func dockerHostNginxEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] {
+func dockerHostHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] {
 	return func(ctx *pulumi.Context, env *dockerHostNginxEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -82,7 +82,7 @@ func dockerHostNginxEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] {
 		}
 		awsdocker.DockerRunFunction(ctx, &env.DockerHost, params)
 
-		vmName := "nginxvm"
+		vmName := "httpbinvm"
 
 		nginxHost, err := ec2.NewVM(awsEnv, vmName)
 		if err != nil {
@@ -113,7 +113,7 @@ func dockerHostNginxEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] {
 func TestEC2VMContainerizedSuite(t *testing.T) {
 	s := &ec2VMContainerizedSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("dockerHostNginx", dockerHostNginxEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("dockerHostHttpbin", dockerHostHttpbinEnvProvisioner(), nil))}
 
 	// debug helper
 	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
