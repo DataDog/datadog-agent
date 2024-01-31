@@ -34,14 +34,14 @@ import (
 `))
 
 func main() {
-	args := os.Args[1:]
-	if len(args) < 1 {
-		panic("please use 'go run functions.go <object_file_dir>'")
-	}
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("unable to get current working directory: %s", err)
+	}
+
+	bpfObjFileDir := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
+	if bpfObjFileDir == "" {
+		log.Fatalf("DD_SYSTEM_PROBE_BPF_DIR env var not set")
 	}
 
 	outputFile := filepath.Join(cwd, "programs.go")
@@ -60,7 +60,7 @@ func main() {
 	}
 
 	objectFiles := make(map[string]string)
-	if err := filepath.WalkDir(args[0], func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(bpfObjFileDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func main() {
 		if skipDebugBuilds(path) || !strings.HasSuffix(path, ".o") {
 			return nil
 		}
-		coreFile := filepath.Join(args[0], "co-re", d.Name())
+		coreFile := filepath.Join(bpfObjFileDir, "co-re", d.Name())
 		if _, err := os.Stat(coreFile); err == nil {
 			objectFiles[d.Name()] = coreFile
 			return nil
@@ -83,7 +83,7 @@ func main() {
 		}
 		return nil
 	}); err != nil {
-		log.Fatalf("failed to walk directory %s: %v", args[0], err)
+		log.Fatalf("failed to walk directory %s: %v", bpfObjFileDir, err)
 	}
 
 	var functions strings.Builder

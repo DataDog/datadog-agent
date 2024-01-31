@@ -56,7 +56,7 @@ var maxStates = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
 var totalStates = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
 var peakStates = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
 
-//go:generate go run functions.go ../bytecode/build/
+//go:generate go run functions.go
 //go:generate go fmt programs.go
 
 func isCOREAsset(path string) bool {
@@ -154,7 +154,10 @@ func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoa
 			strings.Split(filepath.Base(file), ".")[0], "-", "_",
 		)
 		for _, progSpec := range collectionSpec.Programs {
-			prog := interfaceMap[fmt.Sprintf("%s_%s", progSpec.Name, objectFileName)]
+			prog, ok := interfaceMap[fmt.Sprintf("%s_%s", progSpec.Name, objectFileName)]
+			if !ok {
+				return fmt.Errorf("no interface entry for program_file %s_%s", progSpec.Name, objectFileName)
+			}
 			err = collectionSpec.LoadAndAssign(prog, &opts)
 			if err != nil {
 				log.Printf("failed to load and assign ebpf.Program in file %s: %v", objectFileName, err)
