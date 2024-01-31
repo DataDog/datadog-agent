@@ -454,11 +454,12 @@ func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.C
 }
 
 func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
-	if err := secretResolver.Refresh(); err != nil {
+	result, err := secretResolver.Refresh()
+	if err != nil {
 		setJSONError(w, err, 500)
 		return
 	}
-	w.Write([]byte("OK"))
+	w.Write([]byte(result))
 }
 
 func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {

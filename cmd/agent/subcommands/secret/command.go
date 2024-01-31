@@ -9,6 +9,7 @@ package secret
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -73,7 +74,7 @@ func secretRefresh(config config.Component) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Secrets refresh: %s\n", r)
+	fmt.Println(string(r))
 	return nil
 }
 
@@ -87,9 +88,13 @@ func callAPIEndpoint(apiEndpointPath string, config config.Component) ([]byte, e
 	if err != nil {
 		return nil, err
 	}
-	apiConfigURL := fmt.Sprintf("https://%v:%v%v", ipcAddress, config.GetInt("cmd_port"), apiEndpointPath)
+	apiConfigURL := url.URL{
+		Scheme: "https",
+		Host:   fmt.Sprintf("%s:%d", ipcAddress, config.GetInt("cmd_port")),
+		Path:   apiEndpointPath,
+	}
 
-	r, err := util.DoGet(c, apiConfigURL, util.LeaveConnectionOpen)
+	r, err := util.DoGet(c, apiConfigURL.String(), util.LeaveConnectionOpen)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
