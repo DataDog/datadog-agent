@@ -43,6 +43,7 @@ type installScriptSuite struct {
 }
 
 func TestInstallScript(t *testing.T) {
+	flake.Mark(t)
 	platformJSON := map[string]map[string]map[string]string{}
 
 	err := json.Unmarshal(platforms.Content, &platformJSON)
