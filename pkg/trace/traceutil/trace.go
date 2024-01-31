@@ -122,9 +122,14 @@ func ComputeTopLevel(trace pb.Trace) {
 			SetTopLevel(span, true)
 			continue
 		}
-		parentIndex, ok := spanIDToIndex[span.ParentID]
 		_, isOtelTrace := span.Meta["otel.trace_id"]
-		if !isOtelTrace && !ok {
+		if isOtelTrace {
+			// the following conditions are not applicable to OTel traces, and are covered by span kind logic
+			continue
+		}
+
+		parentIndex, ok := spanIDToIndex[span.ParentID]
+		if !ok {
 			// span has no parent in chunk
 			SetTopLevel(span, true)
 			continue
