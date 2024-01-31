@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	ddHostnamePrefix    = "cws-tests-ecs-fg-task"
+	ecsFgHostnamePrefix = "cws-e2e-ecs-fg-task"
 	selfTestsPolicyName = "selftests.policy"
 	execRuleID          = "selftest_exec"
 	openRuleID          = "selftest_open"
@@ -60,7 +60,7 @@ func TestECSFargate(t *testing.T) {
 	policy, err := getPolicyContent(ruleDefs)
 	require.NoErrorf(t, err, "failed generate policy from test rules: %v", err)
 
-	ddHostname := fmt.Sprintf("%s-%s", ddHostnamePrefix, uuid.NewString()[:4])
+	ddHostname := fmt.Sprintf("%s-%s", ecsFgHostnamePrefix, uuid.NewString()[:4])
 
 	e2e.Run(t, &ecsFargateSuite{ddHostname: ddHostname},
 		e2e.WithUntypedPulumiProvisioner(func(ctx *pulumi.Context) error {
@@ -135,7 +135,7 @@ func TestECSFargate(t *testing.T) {
 							Interval:    pulumi.IntPtr(30),
 							Timeout:     pulumi.IntPtr(5),
 						},
-						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("datadog-agent"), pulumi.String(ddHostnamePrefix), apiKeyParam.Name),
+						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("datadog-agent"), pulumi.String(ecsFgHostnamePrefix), apiKeyParam.Name),
 					},
 					"ubuntu-with-tracer": {
 						Cpu:       pulumi.IntPtr(0),
@@ -179,7 +179,7 @@ func TestECSFargate(t *testing.T) {
 								ReadOnly:      pulumi.Bool(true),
 							},
 						},
-						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("ubuntu-with-tracer"), pulumi.String(ddHostnamePrefix), apiKeyParam.Name),
+						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("ubuntu-with-tracer"), pulumi.String(ecsFgHostnamePrefix), apiKeyParam.Name),
 					},
 					"cws-instrumentation-init": {
 						Cpu:       pulumi.IntPtr(0),
@@ -199,7 +199,7 @@ func TestECSFargate(t *testing.T) {
 								ReadOnly:      pulumi.Bool(false),
 							},
 						},
-						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("cws-instrumentation-init"), pulumi.String(ddHostnamePrefix), apiKeyParam.Name),
+						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("cws-instrumentation-init"), pulumi.String(ecsFgHostnamePrefix), apiKeyParam.Name),
 					},
 					"log_router": *ecsResources.FargateFirelensContainerDefinition(),
 				},

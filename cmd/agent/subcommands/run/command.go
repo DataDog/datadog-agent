@@ -83,7 +83,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	snmptrapsStatusImpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -310,9 +309,6 @@ func getSharedFxOption() fx.Option {
 			status.NewInformationProvider(endpointsStatus.Provider{}),
 		),
 		fx.Provide(func(config config.Component) status.InformationProvider {
-			return status.NewInformationProvider(snmptrapsStatusImpl.GetProvider(config))
-		}),
-		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
 		}),
 		fx.Provide(func(config config.Component) status.InformationProvider {
@@ -372,7 +368,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
-		snmptraps.Bundle,
+		snmptraps.Bundle(),
 		fx.Provide(func(demultiplexer demultiplexer.Component) optional.Option[collector.Collector] {
 			return optional.NewOption(common.LoadCollector(demultiplexer))
 		}),

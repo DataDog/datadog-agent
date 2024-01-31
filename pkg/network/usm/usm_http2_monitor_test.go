@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -368,7 +369,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupUSMTLSMonitor(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
 			}
@@ -382,7 +383,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 			var telemetry *usmhttp2.HTTP2Telemetry
 			var err error
 			assert.Eventually(t, func() bool {
-				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
+				telemetry, err = getHTTP2KernelTelemetry(monitor, s.isTLS)
 				require.NoError(t, err)
 				if telemetry.Request_seen != tt.expectedTelemetry.Request_seen {
 					return false
@@ -403,7 +404,6 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 					return false
 				}
 				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
-
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
@@ -500,7 +500,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
 			messageBuilder: func() [][]byte {
-				const settingsFramesCount = 100
+				const settingsFramesCount = 238
 				framer := newFramer()
 				return [][]byte{
 					framer.
@@ -516,38 +516,13 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
-		},
-		{
-			name: "parse_frames tail call using 2 programs",
-			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
-			// the filtering of subsequent frames will continue using tail calls.
-			messageBuilder: func() [][]byte {
-				const settingsFramesCount = 130
-				framer := newFramer()
-				return [][]byte{
-					framer.
-						writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-						writeHeaders(t, 1, testHeaders()).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
-				}
-			},
-			expectedEndpoints: map[usmhttp.Key]int{
-				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
-					Method: usmhttp.MethodPost,
-				}: 1,
-			},
-			// Currently we don't have a way to test it as TLS version does not have the ability to run 2 tail calls
-			// for filtering frames (will be fixed in USMON-684)
-			skip: s.isTLS,
 		},
 		{
 			name: "validate frames_filter tail calls limit",
-			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
-			// for 2 filter_frames we do not use more than two tail calls.
+			// The purpose of this test is to validate that when we do not surpass
+			// the tail call limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER.
 			messageBuilder: func() [][]byte {
-				settingsFramesCount := getTLSNumber(241, 121, s.isTLS)
+				settingsFramesCount := 241
 				framer := newFramer()
 				return [][]byte{
 					framer.
@@ -948,7 +923,6 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
@@ -1389,4 +1363,25 @@ func dialHTTP2Server(t *testing.T) net.Conn {
 	// Writing a magic and the settings in the same packet to socket.
 	require.NoError(t, writeInput(c, time.Millisecond*200, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), newFramer().writeSettings(t).bytes())))
 	return c
+}
+
+// getHTTP2KernelTelemetry returns the HTTP2 kernel telemetry
+func getHTTP2KernelTelemetry(monitor *Monitor, isTLS bool) (*usmhttp2.HTTP2Telemetry, error) {
+	http2Telemetry := &usmhttp2.HTTP2Telemetry{}
+	var zero uint32
+
+	mapName := usmhttp2.TelemetryMap
+	if isTLS {
+		mapName = usmhttp2.TLSTelemetryMap
+	}
+
+	mp, _, err := monitor.ebpfProgram.GetMap(mapName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get %q map: %s", mapName, err)
+	}
+
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
+	}
+	return http2Telemetry, nil
 }

@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gosnmp/gosnmp"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
@@ -18,14 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/gosnmp/gosnmp"
-	"go.uber.org/fx"
 )
 
 // Module implements the formatter component.
-var Module = fxutil.Component(
-	fx.Provide(newJSONFormatter),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newJSONFormatter),
+	)
+}
 
 const (
 	ddsource       = "snmp-traps"
