@@ -291,7 +291,7 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 					return
 				}
 
-				p.http2Telemetry.update(http2Telemetry)
+				p.http2Telemetry.update(http2Telemetry, false)
 				p.http2Telemetry.Log()
 			case <-p.kernelTelemetryStopChannel:
 				return
