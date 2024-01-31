@@ -342,15 +342,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		return err
 	}
 
-	c.OTLPReceiver = &config.OTLP{
-		BindHost:               c.ReceiverHost,
-		GRPCPort:               grpcPort,
-		MaxRequestBytes:        c.MaxRequestBytes,
-		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
-		AttributesTranslator:   attributesTranslator,
-	}
+	c.OTLPReceiver = config.NewOTLP(
+		c.ReceiverHost,
+		grpcPort,
+		coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
+		core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		c.MaxRequestBytes,
+		core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		attributesTranslator,
+	)
 
 	if core.IsSet("apm_config.install_id") {
 		c.InstallSignature.Found = true

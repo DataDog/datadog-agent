@@ -46,3 +46,16 @@ type OTLP struct {
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
 	AttributesTranslator *attributes.Translator `mapstructure:"-"`
 }
+
+func NewOTLP(host string, port int, spanNameRemappings map[string]string, spanNameAsResourceName bool,
+	maxReqBytes int64, sample float64, attributesTranslator *attributes.Translator) *OTLP {
+	return &OTLP{
+		BindHost:               host,
+		GRPCPort:               port,
+		MaxRequestBytes:        maxReqBytes,
+		SpanNameRemappings:     spanNameRemappings,
+		SpanNameAsResourceName: spanNameAsResourceName,
+		ProbabilisticSampling:  sample,
+		AttributesTranslator:   attributesTranslator,
+	}
+}

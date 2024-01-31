@@ -8,5 +8,12 @@
 
 package config
 
+import "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct{}
+
+func NewOTLP(host string, port int, spanNameRemappings map[string]string, spanNameAsResourceName bool,
+	maxReqBytes int64, sample float64, attributesTranslator *attributes.Translator) *OTLP {
+	return nil
+}
