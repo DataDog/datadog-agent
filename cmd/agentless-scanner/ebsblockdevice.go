@@ -91,7 +91,7 @@ func startEBSBlockDevice(id string, ebsclient *ebs.Client, deviceName string, sn
 
 func stopEBSBlockDevice(ctx context.Context, deviceName string) {
 	log.Debugf("nbdclient: disconnecting client for device %q", deviceName)
-	if err := exec.CommandContext(ctx, "nbd-client", "-readonly", "-d", deviceName).Run(); err != nil {
+	if err := exec.CommandContext(ctx, "nbd-client", "-d", deviceName).Run(); err != nil {
 		log.Errorf("nbd-client: %q disconnecting failed: %v", deviceName, err)
 	} else {
 		log.Tracef("nbd-client: %q disconnected", deviceName)
@@ -117,6 +117,7 @@ func (bd *ebsBlockDevice) startClient() error {
 	}
 	addr := bd.getSocketAddr()
 	cmd := exec.CommandContext(context.Background(), "nbd-client",
+		"-readonly",
 		"-unix", addr, bd.deviceName,
 		"-name", bd.id,
 		"-connections", "5")
@@ -128,7 +129,13 @@ func (bd *ebsBlockDevice) startClient() error {
 	return nil
 }
 
-func (bd *ebsBlockDevice) startServer() error {
+func (bd *ebsBlockDevice) startServer() (err error) {
+	defer func() {
+		if err != nil {
+			close(bd.closed)
+		}
+	}()
+
 	_, snapshotID, _ := getARNResource(bd.snapshotARN)
 	b, err := newEBSBackend(bd.ebsclient, snapshotID)
 	if err != nil {
@@ -207,12 +214,12 @@ func (bd *ebsBlockDevice) waitServerClosed(ctx context.Context) error {
 	case <-bd.closed:
 		return nil
 	case <-ctx.Done():
+		log.Warnf("nbdserver: %q forced to close", bd.deviceName)
 		if bd.srv != nil {
-			log.Warnf("nbdserver: %q forced to close", bd.deviceName)
 			bd.srv.Close() // forcing close of server
 		}
-		return ctx.Err()
 	}
+	return ctx.Err()
 }
 
 func (bd *ebsBlockDevice) serverHandleConn(conn net.Conn, backend backend.Backend) {
