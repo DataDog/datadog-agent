@@ -35,7 +35,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	secretInfoCommand := &cobra.Command{
 		Use:   "secret",
-		Short: "Display information secrets in configuration.",
+		Short: "Display information about secrets in configuration.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(showSecretInfo,
