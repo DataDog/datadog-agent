@@ -15,7 +15,7 @@
   stage: source_test
   variables:
     FLAVORS: '--flavors base'
-    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_CPU_REQUEST: 8
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     TEST_OUTPUT_FILE: test_output.json
@@ -41,7 +41,7 @@
   stage: source_test
   variables:
     FLAVORS: '--flavors base'
-    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_CPU_REQUEST: 8
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
