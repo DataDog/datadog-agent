@@ -782,19 +782,15 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 				return -1, fmt.Errorf("Unexpected batch lookup result: we should have enough space to get the full map in one batch, but BatchLookup returned a partial result")
 			}
 
-			if len(buffers.keys) < int(attr.Count*mp.KeySize()) {
-				return -1, fmt.Errorf("WHAT keys buffer size: %d < %d, batchSize = %d", len(buffers.keys), attr.Count*mp.KeySize(), batchSize)
-			}
-
-			if mp.KeySize() != uint32(buffers.firstBatchKeys.keySize) {
-				return -1, fmt.Errorf("WHAT keys size: %d != %d", mp.KeySize(), buffers.firstBatchKeys.keySize)
-			}
-
 			// Keep track the keys of the first batch so we can look them up later to see if we got restarted
 			buffers.firstBatchKeys.load(buffers.keys, int(attr.Count))
 		} else if (errno == 0 || errno == unix.ENOENT) && batchIndex > 0 {
 			// We got a batch and it's not the first one. Check against the keys received in the first batch
-			// to see if we got an iteration restart
+			// to see if we got an iteration restart. We have to do this even when we get to the end of the
+			// map (indicated by the return code ENOENT): for example, if we're in between batches and enough
+			// entries are deleted from the map so that the total number of entries is below our batch size,
+			// we would get a restart, and then all of the entries in a single batch: we would need to update
+			// the counts to get to that situation.
 			if buffers.firstBatchKeys.containsAny(buffers.keys, int(attr.Count)) {
 				// We got a restart, reset the counters and start from this batch as if were the first
 				buffers.firstBatchKeys.load(buffers.keys, int(attr.Count))
