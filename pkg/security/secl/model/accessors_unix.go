@@ -703,7 +703,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "dns.question.name":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.DNSNameCmp,
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.DNS.Name
@@ -713,7 +713,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "dns.question.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: eval.DNSNameCmp,
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.DNS.Name)

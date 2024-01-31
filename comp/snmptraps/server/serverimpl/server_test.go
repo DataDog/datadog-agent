@@ -48,7 +48,7 @@ func TestServer(t *testing.T) {
 			},
 		}),
 		hostnameimpl.MockModule(),
-		Module,
+		Module(),
 	)
 	assert.NotEmpty(t, server)
 	assert.NoError(t, server.Error())
@@ -73,7 +73,7 @@ func TestNonBlockingFailure(t *testing.T) {
 			},
 		}),
 		hostnameimpl.MockModule(),
-		Module,
+		Module(),
 	)
 	assert.NotEmpty(t, server)
 	assert.ErrorIs(t, server.Error(), os.ErrNotExist)
@@ -90,7 +90,7 @@ func TestDisabled(t *testing.T) {
 			},
 		}),
 		hostnameimpl.MockModule(),
-		Module,
+		Module(),
 	)
 	assert.NotNil(t, server)
 	assert.NoError(t, server.Error())

@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -76,6 +78,7 @@ type Check struct {
 	connection                              *go_ora.Connection
 	dbmEnabled                              bool
 	agentVersion                            string
+	agentHostname                           string
 	checkInterval                           float64
 	tags                                    []string
 	tagsWithoutDbRole                       []string
@@ -348,12 +351,21 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if c.config.ServiceName != "" {
 		tags = append(tags, fmt.Sprintf("service:%s", c.config.ServiceName))
 	}
+
+	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
+
+	agentHostname, err := hostname.Get(context.Background())
+	if err == nil {
+		c.agentHostname = agentHostname
+	} else {
+		log.Errorf("%s failed to retrieve agent hostname: %s", c.logPrompt, err)
+	}
+	tags = append(tags, fmt.Sprintf("ddagenthostname:%s", c.agentHostname))
+
 	c.configTags = make([]string, len(tags))
 	copy(c.configTags, tags)
 	c.tags = make([]string, len(tags))
 	copy(c.tags, tags)
-
-	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
 
 	return nil
 }

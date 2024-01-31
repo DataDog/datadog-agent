@@ -76,6 +76,10 @@ Package flare implements a component to generate flares from the agent.
 
 Package hostname exposes hostname.Get() as a component.
 
+### [comp/core/hostname/hostnameinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface)
+
+Package hostnameinterface describes the interface for hostname methods
+
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/log)
 
 Package log implements a component to handle logging internal to the agent.
@@ -345,14 +349,6 @@ Package remoteconfig defines the fx options for the Bundle
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 
 
-
-### [comp/remote-config/rcservice](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservice)
-
-Package rcservice is a remote config service that can run within the agent to receive remote config updates from the DD backend.
-
-### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
-
-Package rctelemetryreporter provides a component that sends RC-specific metrics to the DD backend.
 
 ## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps) (Component Bundle)
 
