@@ -390,21 +390,3 @@ func (p *Protocol) GetStats() *protocols.ProtocolStats {
 func (*Protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
-
-// GetHTTP2KernelTelemetry returns the HTTP2 kernel telemetry
-func (p *Protocol) GetHTTP2KernelTelemetry() (*HTTP2Telemetry, error) {
-	http2Telemetry := &HTTP2Telemetry{}
-	var zero uint32
-
-	mp, _, err := p.mgr.GetMap(telemetryMap)
-	if err != nil {
-		log.Errorf("unable to get http2 telemetry map: %s", err)
-		return nil, err
-	}
-
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-		log.Errorf("unable to lookup http2 telemetry map: %s", err)
-		return nil, err
-	}
-	return http2Telemetry, nil
-}
