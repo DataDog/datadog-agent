@@ -10,14 +10,15 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
-func getMapFromCarrier(tm tracer.TextMapReader) map[string]string {
+func getMapFromCarrier(tm ddtrace.TextMapReader) map[string]string {
 	if tm == nil {
 		return nil
 	}

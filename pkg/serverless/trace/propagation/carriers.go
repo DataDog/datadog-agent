@@ -16,9 +16,10 @@ import (
 
 	json "github.com/json-iterator/go"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -50,7 +51,7 @@ var (
 
 // extractTraceContextfromAWSTraceHeader extracts trace context from the
 // AWSTraceHeader directly. Unlike the other carriers in this file, it should
-// not be passed to the tracer.Propagator, instead extracting context directly.
+// not be passed to the ddtrace.Propagator, instead extracting context directly.
 func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) {
 	if !rootRegex.MatchString(value) {
 		return nil, errorAWSTraceHeaderMismatch
@@ -105,19 +106,19 @@ func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) 
 	return tc, nil
 }
 
-// sqsMessageCarrier returns the tracer.TextMapReader used to extract trace
+// sqsMessageCarrier returns the ddtrace.TextMapReader used to extract trace
 // context from the events.SQSMessage type.
-func sqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
+func sqsMessageCarrier(event events.SQSMessage) (ddtrace.TextMapReader, error) {
 	if attr, ok := event.MessageAttributes[datadogSQSHeader]; ok {
 		return sqsMessageAttrCarrier(attr)
 	}
 	return snsSqsMessageCarrier(event)
 }
 
-// sqsMessageAttrCarrier returns the tracer.TextMapReader used to extract trace
+// sqsMessageAttrCarrier returns the ddtrace.TextMapReader used to extract trace
 // context from the events.SQSMessageAttribute field on an events.SQSMessage
 // type.
-func sqsMessageAttrCarrier(attr events.SQSMessageAttribute) (tracer.TextMapReader, error) {
+func sqsMessageAttrCarrier(attr events.SQSMessageAttribute) (ddtrace.TextMapReader, error) {
 	var bytes []byte
 	switch attr.DataType {
 	case "String":
@@ -133,7 +134,7 @@ func sqsMessageAttrCarrier(attr events.SQSMessageAttribute) (tracer.TextMapReade
 		return nil, errorUnsupportedDataType
 	}
 
-	var carrier tracer.TextMapCarrier
+	var carrier TextMapCarrier
 	if err := json.Unmarshal(bytes, &carrier); err != nil {
 		return nil, fmt.Errorf("Error unmarshaling payload value: %w", err)
 	}
@@ -146,9 +147,9 @@ type snsBody struct {
 	MessageAttributes map[string]interface{}
 }
 
-// snsSqsMessageCarrier returns the tracer.TextMapReader used to extract trace
+// snsSqsMessageCarrier returns the ddtrace.TextMapReader used to extract trace
 // context from the body of an events.SQSMessage type.
-func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
+func snsSqsMessageCarrier(event events.SQSMessage) (ddtrace.TextMapReader, error) {
 	var body snsBody
 	err := json.Unmarshal([]byte(event.Body), &body)
 	if err != nil {
@@ -159,9 +160,9 @@ func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error)
 	})
 }
 
-// snsEntityCarrier returns the tracer.TextMapReader used to extract trace
+// snsEntityCarrier returns the ddtrace.TextMapReader used to extract trace
 // context from the attributes of an events.SNSEntity type.
-func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
+func snsEntityCarrier(event events.SNSEntity) (ddtrace.TextMapReader, error) {
 	msgAttrs, ok := event.MessageAttributes[datadogSQSHeader]
 	if !ok {
 		return nil, errorNoDDContextFound
@@ -194,7 +195,7 @@ func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
 		return nil, errorUnsupportedTypeValue
 	}
 
-	var carrier tracer.TextMapCarrier
+	var carrier TextMapCarrier
 	if err = json.Unmarshal(bytes, &carrier); err != nil {
 		return nil, fmt.Errorf("Error unmarshaling the decoded binary: %w", err)
 	}
@@ -202,12 +203,12 @@ func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
 }
 
 type invocationPayload struct {
-	Headers tracer.TextMapCarrier `json:"headers"`
+	Headers TextMapCarrier `json:"headers"`
 }
 
-// rawPayloadCarrier returns the tracer.TextMapReader used to extract trace
+// rawPayloadCarrier returns the ddtrace.TextMapReader used to extract trace
 // context from the raw json event payload.
-func rawPayloadCarrier(rawPayload []byte) (tracer.TextMapReader, error) {
+func rawPayloadCarrier(rawPayload []byte) (ddtrace.TextMapReader, error) {
 	var payload invocationPayload
 	if err := json.Unmarshal(rawPayload, &payload); err != nil {
 		return nil, errorCouldNotUnmarshal
@@ -215,8 +216,8 @@ func rawPayloadCarrier(rawPayload []byte) (tracer.TextMapReader, error) {
 	return payload.Headers, nil
 }
 
-// headersCarrier returns the tracer.TextMapReader used to extract trace
+// headersCarrier returns the ddtrace.TextMapReader used to extract trace
 // context from a Headers field of form map[string]string.
-func headersCarrier(hdrs map[string]string) (tracer.TextMapReader, error) {
-	return tracer.TextMapCarrier(hdrs), nil
+func headersCarrier(hdrs map[string]string) (ddtrace.TextMapReader, error) {
+	return TextMapCarrier(hdrs), nil
 }

@@ -84,6 +84,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
+	gopkg.in/DataDog/dd-trace-go.v1 => /Users/gustavo.caso/go/src/github.com/DataDog/dd-trace-go
 )
 
 require (
@@ -91,7 +92,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.2
-	github.com/DataDog/appsec-internal-go v1.3.0
+	github.com/DataDog/appsec-internal-go v1.4.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2
@@ -649,7 +650,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.51.0-rc.2
-	github.com/DataDog/go-libddwaf/v2 v2.2.2
+	github.com/DataDog/go-libddwaf/v2 v2.2.3
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.11.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go-v2/service/kms v1.27.1
@@ -696,7 +697,7 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/log v0.1.0 // indirect
-	github.com/ebitengine/purego v0.5.0 // indirect
+	github.com/ebitengine/purego v0.5.2 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
