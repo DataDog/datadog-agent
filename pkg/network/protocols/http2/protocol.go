@@ -58,6 +58,7 @@ const (
 	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
 	telemetryMap              = "http2_telemetry"
+	tlsTelemetryMap           = "tls_http2_telemetry"
 
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
@@ -265,17 +266,30 @@ func (p *Protocol) PostStart(mgr *manager.Manager) error {
 	return p.dynamicTable.postStart(mgr, p.cfg)
 }
 
-func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
-	mp, _, err := mgr.GetMap(telemetryMap)
+func getMap(mgr *manager.Manager, name string) (*ebpf.Map, error) {
+	m, _, err := mgr.GetMap(name)
 	if err != nil {
-		log.Warnf("unable to get http2 telemetry map: %s", err)
+		return nil, fmt.Errorf("error getting %q map: %s", name, err)
+	}
+	if m == nil {
+		return nil, fmt.Errorf("%q map is nil", name)
+	}
+	return m, nil
+}
+
+func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
+	mp, err := getMap(mgr, telemetryMap)
+	if err != nil {
+		log.Warn(err)
 		return
 	}
 
-	if mp == nil {
-		log.Warn("http2 telemetry map is nil")
+	tlsMap, err := getMap(mgr, tlsTelemetryMap)
+	if err != nil {
+		log.Warn(err)
 		return
 	}
+
 	var zero uint32
 	http2Telemetry := &HTTP2Telemetry{}
 	ticker := time.NewTicker(30 * time.Second)
@@ -287,11 +301,17 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 			select {
 			case <-ticker.C:
 				if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-					log.Errorf("unable to lookup http2 telemetry map: %s", err)
+					log.Errorf("unable to lookup %q map: %s", telemetryMap, err)
 					return
 				}
-
 				p.http2Telemetry.update(http2Telemetry, false)
+
+				if err := tlsMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", tlsTelemetryMap, err)
+					return
+				}
+				p.http2Telemetry.update(http2Telemetry, true)
+
 				p.http2Telemetry.Log()
 			case <-p.kernelTelemetryStopChannel:
 				return
