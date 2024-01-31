@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"k8s.io/client-go/util/workqueue"
 	"sync"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	scheduler "github.com/DataDog/datadog-agent/pkg/util/delayed_scheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -117,8 +117,8 @@ type collector struct {
 	sbomScanner *scanner.Scanner //nolint: unused
 	scanOptions sbom.ScanOptions //nolint: unused
 
-	// scheduler for retrying failed SBOM generation attempts
-	scheduler *scheduler.Scheduler //nolint: unused
+	// queue for retrying failed SBOM generation attempts
+	queue workqueue.DelayingInterface //nolint: unused
 	// retryCountPerImage keeps track of the number of retries for each image
 	retryCountPerImage map[string]retryInfo //nolint: unused
 	// retryBackoffPolicy is the backoff policy used for retrying SBOM generation attempts
@@ -202,6 +202,12 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 func (c *collector) stream(ctx context.Context) {
 	healthHandle := health.RegisterLiveness(componentName)
 	ctx, cancel := context.WithCancel(ctx)
+
+	defer func() {
+		if c.queue != nil {
+			c.queue.ShutDown()
+		}
+	}()
 
 	for {
 		select {
