@@ -339,9 +339,9 @@ func (s *scanTask) Path(names ...string) string {
 
 func (s *scanTask) String() string {
 	if s == nil {
-		return "<scan[nil]>"
+		return "nilscan"
 	}
-	return fmt.Sprintf("<%s[%s]>", s.ID, s.ARN)
+	return s.ID
 }
 
 func main() {
@@ -2249,7 +2249,7 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 		config.WithHTTPClient(httpClient),
 	)
 	if err != nil {
-		return aws.Config{}, err
+		return aws.Config{}, fmt.Errorf("awsconfig: could not load default config: %w", err)
 	}
 
 	stsclient := sts.NewFromConfig(cfg)
@@ -2267,7 +2267,7 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 	if assumedRole == nil {
 		roleARN, err := arn.Parse(*identity.Arn)
 		if err != nil {
-			return aws.Config{}, err
+			return aws.Config{}, fmt.Errorf("awsconfig: could not parse caller identity arn: %w", err)
 		}
 		cfg.HTTPClient = newHTTPClientWithAWSStats(region, &roleARN, limits)
 	}
@@ -3007,7 +3007,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, waiter *awsWa
 	remoteAssumedRole := scan.Roles[snapshotARN.AccountID]
 	remoteAWSCfg, err := newAWSConfig(ctx, snapshotARN.Region, remoteAssumedRole)
 	if err != nil {
-		return fmt.Errorf("could not create local aws config: %w", err)
+		return err
 	}
 	remoteEC2Client := ec2.NewFromConfig(remoteAWSCfg)
 
@@ -3051,7 +3051,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, waiter *awsWa
 	localAssumedRole := scan.Roles[self.AccountID]
 	localAWSCfg, err := newAWSConfig(ctx, self.Region, localAssumedRole)
 	if err != nil {
-		return fmt.Errorf("could not create local aws config: %w", err)
+		return err
 	}
 	locaEC2Client := ec2.NewFromConfig(localAWSCfg)
 
@@ -3457,7 +3457,7 @@ func cleanupScan(scan *scanTask) {
 		_, snapshotID, _ := getARNResource(snapshotARN)
 		cfg, err := newAWSConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
 		if err != nil {
-			log.Errorf("%s: could not create local aws config: %v", scan, err)
+			log.Errorf("%s: %v", scan, err)
 		} else {
 			ec2client := ec2.NewFromConfig(cfg)
 			log.Debugf("%s: deleting snapshot %q", scan, snapshotID)
@@ -3549,14 +3549,10 @@ func cleanupScan(scan *scanTask) {
 	switch scan.DiskMode {
 	case volumeAttach:
 		if volumeARN := scan.AttachedVolumeARN; volumeARN != nil {
-			if err != nil {
-				log.Errorf("%s: could not create local aws config: %v", scan, err)
+			if errd := cleanupScanDetach(ctx, scan, *volumeARN, scan.Roles); errd != nil {
+				log.Warnf("%s: could not delete volume %q: %v", scan, volumeARN, errd)
 			} else {
-				if errd := cleanupScanDetach(ctx, scan, *volumeARN, scan.Roles); errd != nil {
-					log.Warnf("%s: could not delete volume %q: %v", scan, volumeARN, errd)
-				} else {
-					statsResourceTTL(resourceTypeVolume, scan, *scan.AttachedVolumeCreatedAt)
-				}
+				statsResourceTTL(resourceTypeVolume, scan, *scan.AttachedVolumeCreatedAt)
 			}
 		}
 	case nbdAttach:
