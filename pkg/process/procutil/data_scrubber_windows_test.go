@@ -22,14 +22,17 @@ func TestStripArguments(t *testing.T) {
 		{[]string{"C:\\Program Files\\Datadog\\agent.com"}, []string{"C:\\Program Files\\Datadog\\agent.com"}},
 		{[]string{"C:\\Program Files\\Datadog\\agent.exe check, process"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},
 		{[]string{"C:\\Program Files\\Datadog\\agent.bat", "check", "process"}, []string{"C:\\Program Files\\Datadog\\agent.bat"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.cmd\\\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.cmd"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.vbs\\\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.vbs"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.vbe\\\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.vbe"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.js\\\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.js"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.jse\\\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.jse"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.wsf\\\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.wsf"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.wsh\\\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.wsh"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.psc1\\\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.psc1"}},
+		{[]string{"\"C:\\Program Files\\Datadog\\agent.cmd\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.cmd"}},
+		{[]string{"\"C:\\Program Files\\Datadog\\agent.vbs\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.vbs"}},
+		{[]string{"\"C:\\Program Files\\Datadog\\agent.vbe\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.vbe"}},
+		{[]string{"\"C:\\Program Files\\Datadog\\agent.js\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.js"}},
+		{[]string{"\"C:\\Program Files\\Datadog\\agent.jse\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.jse"}},
+		{[]string{"\"C:\\Program Files\\Datadog\\agent.wsf\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.wsf"}},
+		{[]string{"\"C:\\Program Files\\Datadog\\agent.wsh\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.wsh"}},
+		{[]string{"\"C:\\Program Files\\Datadog\\agent.psc1\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.psc1"}},
+		{[]string{"\"C:\\Program Files\\Datadog\\agent.psc1\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.psc1"}},
+		{[]string{"\"C:\\Program Files\\Dataexedog\\agent\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.psc1"}},
+		
 	}
 	scrubber := setupDataScrubber(t)
 	scrubber.StripAllArguments = true
