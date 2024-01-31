@@ -2,7 +2,6 @@
 #define __HTTP2_DECODING_TLS_H
 
 #include "protocols/http2/decoding-common.h"
-#include "protocols/http2/usm-events.h"
 #include "protocols/http/types.h"
 
 READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(http2_preface, HTTP2_MARKER_SIZE)
