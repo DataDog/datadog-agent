@@ -99,12 +99,6 @@
 # We do install_script, step_by_step, upgrade6, upgrade7 and upgrade7_iot
 # with FIPS on for CentOS/RHEL 8, while we do these with FIPS off
 # for CentOS/RHEL 6/7.
-kitchen_centos_install_script_agent-a6:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_centos_without_fips_a6
-    - .kitchen_test_install_script_agent
-
 kitchen_centos_install_script_agent-a7:
   extends:
     - .kitchen_os_with_cws

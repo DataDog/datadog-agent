@@ -16,7 +16,6 @@ kitchen_tests_upload_common:
     - kitchen_centos_fips_upgrade6_agent-a7
     - kitchen_centos_fips_upgrade7_agent-a7
     - kitchen_centos_fips_upgrade7_iot_agent-a7
-    - kitchen_centos_install_script_agent-a6
     - kitchen_centos_install_script_agent-a7
     - kitchen_centos_install_script_dogstatsd-a7
     - kitchen_centos_install_script_iot_agent-a7
