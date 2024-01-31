@@ -32,14 +32,14 @@ func (a *agent) SetupPipeline(
 ) {
 	health := health.RegisterLiveness("logs-agent")
 
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
 	// setup the a null auditor, not tracking data in any registry
 	a.auditor = auditor.NewNullAuditor()
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, processingRules, a.endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, processingRules, a.endpoints, destinationsCtx, a.hostname)
 
 	// setup the sole launcher for this agent
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
