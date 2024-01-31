@@ -6,7 +6,7 @@
 package npm
 
 import (
-	"errors"
+	"fmt"
 	"math"
 	"os"
 	"testing"
@@ -17,23 +17,19 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-
-	testinfracomponents "github.com/DataDog/test-infra-definitions/components"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type remoteNginx struct {
-	testinfracomponents.JSONImporter
-
-	URL string `json:"url"`
-}
-
 type dockerHostNginxEnv struct {
+	environments.DockerHost
 	// Extra Components
 	NginxHost *components.RemoteHost
 }
@@ -42,23 +38,34 @@ type ec2VMContainerizedSuite struct {
 	e2e.BaseSuite[dockerHostNginxEnv]
 }
 
-func dockerHostNginxEnvProvisioner() awsdocker.CustomPulumiCallback {
-	return func(ctx *pulumi.Context, pulumiEnv *awsdocker.ProvisionerPulumiEnv, exportedEnv any) error {
-		if pulumiEnv.AwsEnvironment == nil {
-			return errors.New("awsEnvironment is nil")
+func dockerHostNginxEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] {
+	return func(ctx *pulumi.Context, env *dockerHostNginxEnv) error {
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
 		}
+		env.DockerHost.AwsEnvironment = &awsEnv
+
+		opts := []awsdocker.ProvisionerOption{
+			awsdocker.WithAgentOptions(dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true"))),
+		}
+		params := awsdocker.NewProvisionerParams()
+		err = optional.ApplyOptions(params, opts)
+		if err != nil {
+			panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
+		}
+		awsdocker.DockerRunFunction(ctx, &env.DockerHost, params)
 
 		vmName := "nginxvm"
 
-		nginxHost, err := ec2.NewVM(*pulumiEnv.AwsEnvironment, vmName)
+		nginxHost, err := ec2.NewVM(awsEnv, vmName)
 		if err != nil {
 			return err
 		}
-		err = nginxHost.Export(ctx, &exportedEnv.(*dockerHostNginxEnv).NginxHost.HostOutput)
+		err = nginxHost.Export(ctx, &env.NginxHost.HostOutput)
 		if err != nil {
 			return err
 		}
-
 		return nil
 	}
 }
@@ -67,12 +74,7 @@ func dockerHostNginxEnvProvisioner() awsdocker.CustomPulumiCallback {
 func TestEC2VMContainerizedSuite(t *testing.T) {
 	s := &ec2VMContainerizedSuite{}
 
-	extraEnv := &dockerHostNginxEnv{}
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithAgentOptions(
-		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true")),
-	),
-		awsdocker.WithCustomPulumiCallback(dockerHostNginxEnvProvisioner(), extraEnv),
-	))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("dockerHostNginx", dockerHostNginxEnvProvisioner(), nil))}
 
 	// debug helper
 	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
@@ -82,27 +84,7 @@ func TestEC2VMContainerizedSuite(t *testing.T) {
 	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
 	// ec2params.WithImageName("ami-a4dc46db", os.AMD64Arch, ec2os.AmazonLinuxOS) // ubuntu-16-04-4.4
-	e2e.Run(t, s, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithAgentOptions(
-		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true")),
-		dockeragentparams.WithCustomPulumiCallback(func(ctx *pulumi.Context, pulumiEnv *awsdocker.ProvisionerPulumiEnv, exportedEnv any) error {
-			if pulumiEnv.AwsEnvironment == nil {
-				return errors.New("awsEnvironment is nil")
-			}
-
-			vmName := "nginxvm"
-
-			nginxHost, err := ec2.NewVM(*pulumiEnv.AwsEnvironment, vmName)
-			if err != nil {
-				return err
-			}
-			err = nginxHost.Export(ctx, &exportedEnv.(*dockerHostNginxEnv).NginxHost.HostOutput)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		}),
-	))))
+	e2e.Run(t, s, e2eParams...)
 }
 
 // SetupSuite

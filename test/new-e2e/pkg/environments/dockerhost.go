@@ -11,10 +11,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
 )
 
 // DockerHost is an environment that contains a Docker VM, FakeIntake and Agent configured to talk to each other.
 type DockerHost struct {
+	AwsEnvironment *aws.Environment
 	// Components
 	RemoteHost *components.RemoteHost
 	FakeIntake *components.FakeIntake

@@ -31,20 +31,17 @@ const (
 	defaultVMName     = "dockervm"
 )
 
-type CustomPulumiCallback func(ctx *pulumi.Context, pulumiEnv *ProvisionerPulumiEnv, env any) error
-
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
 	name string
 
-	vmOptions            []ec2.VMOption
-	agentOptions         []dockeragentparams.Option
-	fakeintakeOptions    []fakeintake.Option
-	extraConfigParams    runner.ConfigMap
-	customPulumiCallback CustomPulumiCallback
+	vmOptions         []ec2.VMOption
+	agentOptions      []dockeragentparams.Option
+	fakeintakeOptions []fakeintake.Option
+	extraConfigParams runner.ConfigMap
 }
 
-func newProvisionerParams() *ProvisionerParams {
+func NewProvisionerParams() *ProvisionerParams {
 	// We use nil arrays to decide if we should create or not
 	return &ProvisionerParams{
 		name:              defaultVMName,
@@ -114,31 +111,91 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
-// WithCustomPulumiCallback sets a custom callback to be called by the provisioner
-func WithCustomPulumiCallback(callback CustomPulumiCallback, extraEnv any) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.customPulumiCallback = callback
-		return nil
-	}
-}
-
 type ProvisionerPulumiEnv struct {
 	AwsEnvironment *aws.Environment
 	Host           *remote.Host
 	DockerManager  *docker.Manager
 }
 
+func DockerRunFunction(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerParams) error {
+	var awsEnv aws.Environment
+	var err error
+	if env.AwsEnvironment != nil {
+		awsEnv = *env.AwsEnvironment
+	} else {
+		awsEnv, err = aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
+	if err != nil {
+		return err
+	}
+	err = host.Export(ctx, &env.RemoteHost.HostOutput)
+	if err != nil {
+		return err
+	}
+
+	manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true)
+	if err != nil {
+		return err
+	}
+
+	// Create FakeIntake if required
+	if params.fakeintakeOptions != nil {
+		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+		if err != nil {
+			return err
+		}
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
+		if params.agentOptions != nil {
+			// Prepend in case it's overridden by the user
+			newOpts := []dockeragentparams.Option{dockeragentparams.WithFakeintake(fakeIntake)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
+		}
+	} else {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.FakeIntake = nil
+	}
+
+	// Create Agent if required
+	if params.agentOptions != nil {
+		agent, err := agent.NewDockerAgent(*awsEnv.CommonEnvironment, host, manager, params.agentOptions...)
+		if err != nil {
+			return err
+		}
+
+		err = agent.Export(ctx, &env.Agent.DockerAgentOutput)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.Agent = nil
+	}
+
+	return nil
+}
+
 // Provisioner creates a VM environment with an EC2 VM with Docker, an ECS Fargate FakeIntake and a Docker Agent configured to talk to each other.
 // FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.DockerHost] {
 	// We need to build params here to be able to use params.name in the provisioner name
-	params := newProvisionerParams()
+	params := NewProvisionerParams()
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
 	}
 
 	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.DockerHost) error {
+<<<<<<< HEAD
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := newProvisionerParams()
@@ -217,6 +274,9 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 		}
 
 		return nil
+=======
+		return DockerRunFunction(ctx, env, params)
+>>>>>>> 39ee74945ae7 (somethinglikethat)
 	}, params.extraConfigParams)
 
 	return provisioner
