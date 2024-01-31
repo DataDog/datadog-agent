@@ -41,7 +41,7 @@ type ProvisionerParams struct {
 	extraConfigParams runner.ConfigMap
 }
 
-func NewProvisionerParams() *ProvisionerParams {
+func newProvisionerParams() *ProvisionerParams {
 	// We use nil arrays to decide if we should create or not
 	return &ProvisionerParams{
 		name:              defaultVMName,
@@ -50,6 +50,15 @@ func NewProvisionerParams() *ProvisionerParams {
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},
 	}
+}
+
+func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
+	params := newProvisionerParams()
+	err := optional.ApplyOptions(params, opts)
+	if err != nil {
+		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
+	}
+	return params
 }
 
 // ProvisionerOption is a function that modifies the ProvisionerParams
@@ -188,12 +197,7 @@ func DockerRunFunction(ctx *pulumi.Context, env *environments.DockerHost, params
 // FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.DockerHost] {
 	// We need to build params here to be able to use params.name in the provisioner name
-	params := NewProvisionerParams()
-	err := optional.ApplyOptions(params, opts)
-	if err != nil {
-		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
-	}
-
+	params := GetProvisionerParams(opts...)
 	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.DockerHost) error {
 <<<<<<< HEAD
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.

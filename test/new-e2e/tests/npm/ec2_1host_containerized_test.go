@@ -6,7 +6,6 @@
 package npm
 
 import (
-	"fmt"
 	"math"
 	"os"
 	"testing"
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
@@ -75,11 +73,7 @@ func dockerHostHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] 
 		opts := []awsdocker.ProvisionerOption{
 			awsdocker.WithAgentOptions(dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true"))),
 		}
-		params := awsdocker.NewProvisionerParams()
-		err = optional.ApplyOptions(params, opts)
-		if err != nil {
-			panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
-		}
+		params := awsdocker.GetProvisionerParams(opts...)
 		awsdocker.DockerRunFunction(ctx, &env.DockerHost, params)
 
 		vmName := "httpbinvm"
