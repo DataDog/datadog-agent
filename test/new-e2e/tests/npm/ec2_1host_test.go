@@ -31,7 +31,7 @@ import (
 type hostHttpbinEnv struct {
 	environments.Host
 	// Extra Components
-	HttpBinHost *components.RemoteHost
+	HTTPBinHost *components.RemoteHost
 }
 type ec2VMSuite struct {
 	e2e.BaseSuite[hostHttpbinEnv]
@@ -57,7 +57,7 @@ func hostDockerHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[hostHttpbinEnv] {
 		if err != nil {
 			return err
 		}
-		err = nginxHost.Export(ctx, &env.HttpBinHost.HostOutput)
+		err = nginxHost.Export(ctx, &env.HTTPBinHost.HostOutput)
 		if err != nil {
 			return err
 		}
@@ -114,7 +114,7 @@ func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	t := v.T()
-	testURL := "http://" + v.Env().HttpBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
 	v.Env().RemoteHost.MustExecute("curl " + testURL)
@@ -159,7 +159,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
 func (v *ec2VMSuite) TestFakeIntakeNPM_600cnx_bucket() {
 	t := v.T()
-	testURL := "http://" + v.Env().HttpBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 " + testURL)
@@ -210,7 +210,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_600cnx_bucket() {
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 	t := v.T()
-	testURL := "http://" + v.Env().HttpBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("curl " + testURL)

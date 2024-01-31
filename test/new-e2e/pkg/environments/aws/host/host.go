@@ -49,6 +49,7 @@ func newProvisionerParams() *ProvisionerParams {
 	}
 }
 
+// GetProvisionerParams return ProvisionerParams from options opts setup
 func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := newProvisionerParams()
 	err := optional.ApplyOptions(params, opts)
@@ -135,6 +136,7 @@ func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[env
 	return Provisioner(mergedOpts...)
 }
 
+// HostRunFunction main provisioner work running here
 func HostRunFunction(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
 	var err error
