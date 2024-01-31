@@ -15,7 +15,6 @@ import (
 	"hash/fnv"
 	"io"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -56,7 +55,6 @@ type Probe struct {
 	links                 []link.Link
 	mapBuffers            entryCountBuffers
 	entryCountMaxRestarts int
-	entryCountLock        sync.Mutex
 
 	nrcpus uint32
 }
@@ -211,8 +209,6 @@ func (k *Probe) Close() {
 
 // GetAndFlush gets the stats
 func (k *Probe) GetAndFlush() (results model.EBPFStats) {
-	k.entryCountLock.Lock()
-	defer k.entryCountLock.Unlock()
 	if err := k.getMapStats(&results); err != nil {
 		log.Debugf("error getting map stats: %s", err)
 		return
