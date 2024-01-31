@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -40,7 +40,7 @@ func TestAddress(t *testing.T) {
 func TestNewConnection(t *testing.T) {
 	l := mock.NewMockLogsIntake(t)
 	defer l.Close()
-	util.CreateSources([]*sources.LogSource{})
+	testutils.CreateSources([]*sources.LogSource{})
 	destinationsCtx := client.NewDestinationsContext()
 
 	connManager := newConnectionManagerForAddr(l.Addr())
