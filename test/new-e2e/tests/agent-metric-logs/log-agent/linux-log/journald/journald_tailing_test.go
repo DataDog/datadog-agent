@@ -170,6 +170,8 @@ func (s *LinuxJournaldFakeintakeSuite) journaldExcludeServiceCollection() {
 // appendJournaldLog appends a log to journald.
 func appendJournaldLog(s *LinuxJournaldFakeintakeSuite, content string, recurrence int) {
 	t := s.T()
+	t.Helper()
+
 	logContent := strings.Repeat(content+"\n", recurrence)
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
