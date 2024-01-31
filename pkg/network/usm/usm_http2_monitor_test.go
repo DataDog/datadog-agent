@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -368,7 +369,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupUSMTLSMonitor(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
 			}
@@ -382,7 +383,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 			var telemetry *usmhttp2.HTTP2Telemetry
 			var err error
 			assert.Eventually(t, func() bool {
-				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry(s.isTLS)
+				telemetry, err = getHTTP2KernelTelemetry(monitor, s.isTLS)
 				require.NoError(t, err)
 				if telemetry.Request_seen != tt.expectedTelemetry.Request_seen {
 					return false
@@ -1362,4 +1363,25 @@ func dialHTTP2Server(t *testing.T) net.Conn {
 	// Writing a magic and the settings in the same packet to socket.
 	require.NoError(t, writeInput(c, time.Millisecond*200, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), newFramer().writeSettings(t).bytes())))
 	return c
+}
+
+// getHTTP2KernelTelemetry returns the HTTP2 kernel telemetry
+func getHTTP2KernelTelemetry(monitor *Monitor, isTLS bool) (*usmhttp2.HTTP2Telemetry, error) {
+	http2Telemetry := &usmhttp2.HTTP2Telemetry{}
+	var zero uint32
+
+	mapName := usmhttp2.TelemetryMap
+	if isTLS {
+		mapName = usmhttp2.TLSTelemetryMap
+	}
+
+	mp, _, err := monitor.ebpfProgram.GetMap(mapName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get %q map: %s", mapName, err)
+	}
+
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
+	}
+	return http2Telemetry, nil
 }
