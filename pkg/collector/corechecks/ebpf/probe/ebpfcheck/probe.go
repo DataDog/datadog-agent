@@ -838,7 +838,6 @@ func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffer
 			restarts++
 			buffers.firstBatchKeys.clear()
 			buffers.firstBatchKeys.load(buffers.cursor, 1)
-			fmt.Println("restart")
 			continue
 		}
 
