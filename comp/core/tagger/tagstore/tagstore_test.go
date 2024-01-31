@@ -28,7 +28,7 @@ func (s *StoreTestSuite) SetupTest() {
 	s.clock = clock.NewMock()
 	// set the mock clock to the current time
 	s.clock.Add(time.Since(time.Unix(0, 0)))
-	s.store = newTagStoreWithClock(s.clock)
+	s.store = NewTagStoreWithClock(s.clock)
 }
 
 func (s *StoreTestSuite) TestIngest() {
@@ -356,7 +356,7 @@ type entityEventExpectation struct {
 
 func TestSubscribe(t *testing.T) {
 	clock := clock.NewMock()
-	store := newTagStoreWithClock(clock)
+	store := NewTagStoreWithClock(clock)
 
 	collectors.CollectorPriorities["source2"] = collectors.ClusterOrchestrator
 	collectors.CollectorPriorities["source"] = collectors.NodeRuntime
