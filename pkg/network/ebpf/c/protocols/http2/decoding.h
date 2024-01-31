@@ -152,6 +152,29 @@ end:
     return true;
 }
 
+// handle_dynamic_table_update handles the dynamic table size update.
+static __always_inline void handle_dynamic_table_update(struct __sk_buff *skb, skb_info_t *skb_info){
+    // To determine the size of the dynamic table update, we read an integer representation byte by byte.
+    // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set,
+    // indicating that we've consumed the complete integer. While in the context of the dynamic table
+    // update, we set the state as true if the MSB is set, and false otherwise. Then, we proceed to the next byte.
+    // More on the feature - https://httpwg.org/specs/rfc7541.html#rfc.section.6.3.
+    __u8 current_ch;
+    bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
+    // If the top 3 bits are 001, then we have a dynamic table size update.
+    if ((current_ch & 224) == 32) {
+        skb_info->data_off++;
+    #pragma unroll(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS)
+        for (__u8 iter = 0; iter < HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS; ++iter) {
+            bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
+            skb_info->data_off++;
+            if ((current_ch & 128) == 0) {
+                break;
+            }
+        }
+    }
+}
+
 // filter_relevant_headers parses the http2 headers frame, and filters headers
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
@@ -172,24 +195,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         return 0;
     }
 
-    // To determine the size of the dynamic table update, we read an integer representation byte by byte.
-    // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set,
-    // indicating that we've consumed the complete integer. While in the context of the dynamic table
-    // update, we set the state as true if the MSB is set, and false otherwise. Then, we proceed to the next byte.
-    // More on the feature - https://httpwg.org/specs/rfc7541.html#rfc.section.6.3.
-    bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
-    // If the top 3 bits are 001, then we have a dynamic table size update.
-    if ((current_ch & 224) == 32) {
-        skb_info->data_off++;
-    #pragma unroll(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS)
-        for (__u8 iter = 0; iter < HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS; ++iter) {
-            bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
-            skb_info->data_off++;
-            if ((current_ch & 128) == 0) {
-                break;
-            }
-        }
-    }
+    handle_dynamic_table_update(skb, skb_info);
 
 #pragma unroll(HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
