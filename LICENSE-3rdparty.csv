@@ -29,6 +29,34 @@ core,dario.cat/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights 
 core,github.com/AdaLogics/go-fuzz-headers,Apache-2.0,AdamKorcz <44787359+AdamKorcz@users.noreply.github.com>|AdamKorcz <adam@adalogics.com>|Sebastiaan van Stijn <github@gone.nl>|AdaLogics <48351493+AdaLogics@users.noreply.github.com>|Kazuyoshi Kato <kato.kazuyoshi@gmail.com>
 core,github.com/AdamKorcz/go-118-fuzz-build/testing,Apache-2.0,AdamKorcz <adam@adalogics.com>|AdamKorcz <44787359+AdamKorcz@users.noreply.github.com>|John Howard <howardjohn@google.com>|Kazuyoshi Kato <katokazu@amazon.com>|Khaled Yakdan <yakdan@code-intelligence.de>|AdamKorcz <Adam@adalogics.com>|Sebastiaan van Stijn <thaJeztah@users.noreply.github.com>
 core,github.com/AlekSi/pointer,MIT,Copyright (c) 2015 Alexey Palazhchenko
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/internal/resource,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/runtime,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/exported,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/log,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/async,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/body,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/fake,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/loc,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/op,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/shared,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/log,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/policy,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/to,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/tracing,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/diag,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/errorinfo,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/exported,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/log,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/poller,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/temporal,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/uuid,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4,MIT,Copyright (c) Microsoft Corporation. All rights reserved
 core,github.com/BurntSushi/toml,MIT,Copyright (c) 2013 TOML authors
 core,github.com/BurntSushi/toml/internal,MIT,Copyright (c) 2013 TOML authors
 core,github.com/CycloneDX/cyclonedx-go,Apache-2.0,Copyright & License | Copyright (c) OWASP Foundation | Copyright (c) OWASP Foundation. All Rights Reserved | Copyright OWASP Foundation
