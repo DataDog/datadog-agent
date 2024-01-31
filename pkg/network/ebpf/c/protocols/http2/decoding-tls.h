@@ -511,7 +511,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
 
     frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
     if (http2_tel == NULL) {
         return 0;
     }
@@ -600,7 +600,7 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
         return 0;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
     if (http2_tel == NULL) {
         return 0;
     }
@@ -672,7 +672,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
         goto delete_iteration;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
     if (http2_tel == NULL) {
         goto delete_iteration;
     }
@@ -756,7 +756,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         return 0;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
     if (http2_tel == NULL) {
         goto delete_iteration;
     }
