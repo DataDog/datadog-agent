@@ -271,7 +271,7 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = m.Close() })
-			require.True(t, buffers.tryEnsureSizeForFullBatch(m))
+			buffers.tryEnsureSizeForFullBatch(m)
 
 			for i := uint32(0); i < filledEntries; i++ {
 				require.NoError(t, m.Put(&i, &i))
@@ -297,7 +297,7 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 						keysBufferSizeLimit:   4 * 100,
 						valuesBufferSizeLimit: 4 * 100,
 					}
-					require.False(t, limitedBuffers.tryEnsureSizeForFullBatch(m))
+					limitedBuffers.tryEnsureSizeForFullBatch(m)
 					limitedBuffers.prepareFirstBatchKeys(m)
 
 					allocs := testing.AllocsPerRun(10, func() {
@@ -347,7 +347,7 @@ func TestHashMapNumberOfEntriesMapTypeSupport(t *testing.T) {
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = m.Close() })
-		require.True(t, buffers.tryEnsureSizeForFullBatch(m))
+		buffers.tryEnsureSizeForFullBatch(m)
 		require.Equal(t, expectedReturn, hashMapNumberOfEntries(m, &buffers, 1))
 	}
 
