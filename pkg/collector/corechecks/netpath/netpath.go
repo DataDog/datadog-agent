@@ -629,7 +629,7 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 
 	flushTime := time.Now()
 	metadataPayloads := metadata.BatchPayloads(
-		"default",
+		"traceroute-ns",
 		"",
 		flushTime,
 		metadata.PayloadMetadataBatchSize,
