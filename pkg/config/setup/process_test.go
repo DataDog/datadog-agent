@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
@@ -58,6 +59,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 		{
 			key:          "process_config.container_collection.enabled",
 			defaultValue: true,
+		},
+		{
+			key:          "process_config.run_in_core_agent.enabled",
+			defaultValue: false,
 		},
 		{
 			key:          "process_config.queue_size",
@@ -259,6 +264,12 @@ func TestEnvVarOverride(t *testing.T) {
 		{
 			key:      "process_config.container_collection.enabled",
 			env:      "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.run_in_core_agent.enabled",
+			env:      "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED",
 			value:    "true",
 			expected: true,
 		},

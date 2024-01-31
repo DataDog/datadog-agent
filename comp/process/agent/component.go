@@ -8,21 +8,14 @@ package agent
 
 import (
 	"context"
-
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: processes
 
 // Component represents the no-op Component interface.
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 type Component interface {
 	Start(context.Context) error
 	Stop(context.Context) error
 }
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newProcessAgent),
-)

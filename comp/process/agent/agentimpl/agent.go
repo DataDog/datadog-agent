@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package agent
+// Package agentimpl implements a component for the process agent.
+package agentimpl
 
 import (
 	"context"
@@ -13,9 +14,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -28,6 +31,12 @@ process_config:
 to your datadog.yaml file.
 Exiting.`
 )
+
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newProcessAgent))
+}
 
 type processAgentParams struct {
 	fx.In
@@ -45,11 +54,15 @@ type processAgent struct {
 	Runner runner.Component
 }
 
-func newProcessAgent(p processAgentParams) optional.Option[Component] {
+func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
+	if !agentEnabled(p.Config) {
+		return optional.NewNoneOption[agent.Component]()
+	}
+
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !checksEnabled(p.Checks) {
 		p.Log.Info(agent6DisabledMessage)
-		return optional.NewNoneOption[Component]()
+		return optional.NewNoneOption[agent.Component]()
 	}
 
 	enabledChecks := make([]checks.Check, 0, len(p.Checks))
@@ -71,7 +84,7 @@ func newProcessAgent(p processAgentParams) optional.Option[Component] {
 		OnStop:  processAgentComponent.Stop,
 	})
 
-	return optional.NewOption[Component](processAgentComponent)
+	return optional.NewOption[agent.Component](processAgentComponent)
 }
 
 func checksEnabled(checks []types.CheckComponent) bool {
