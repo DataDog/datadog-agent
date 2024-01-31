@@ -30,7 +30,9 @@ func TestStripArguments(t *testing.T) {
 		{[]string{"\"C:\\Program Files\\Datadog\\agent.wsf\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.wsf"}},
 		{[]string{"\"C:\\Program Files\\Datadog\\agent.wsh\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.wsh"}},
 		{[]string{"\"C:\\Program Files\\Datadog\\agent.psc1\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.psc1"}},
-		{[]string{"C:\\Program Files\\Datadog\\agent.cust check process"}, []string{"C:\\Program Files\\Datadog\\agent.cust"}},
+		{[]string{"\"C:\\Program Files\\Datadog\\agent.psc1\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.psc1"}},
+		{[]string{"\"C:\\Program Files\\Dataexedog\\agent\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.psc1"}},
+		
 	}
 	scrubber := setupDataScrubber(t)
 	scrubber.StripAllArguments = true
