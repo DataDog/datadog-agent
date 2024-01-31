@@ -382,7 +382,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 			var telemetry *usmhttp2.HTTP2Telemetry
 			var err error
 			assert.Eventually(t, func() bool {
-				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
+				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry(s.isTLS)
 				require.NoError(t, err)
 				if telemetry.Request_seen != tt.expectedTelemetry.Request_seen {
 					return false

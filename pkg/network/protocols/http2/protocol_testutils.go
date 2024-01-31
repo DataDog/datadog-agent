@@ -14,18 +14,23 @@ import (
 )
 
 // GetHTTP2KernelTelemetry returns the HTTP2 kernel telemetry
-func (p *Protocol) GetHTTP2KernelTelemetry() (*HTTP2Telemetry, error) {
+func (p *Protocol) GetHTTP2KernelTelemetry(isTLS bool) (*HTTP2Telemetry, error) {
 	http2Telemetry := &HTTP2Telemetry{}
 	var zero uint32
 
-	mp, _, err := p.mgr.GetMap(telemetryMap)
+	mapName := telemetryMap
+	if isTLS {
+		mapName = tlsTelemetryMap
+	}
+
+	mp, _, err := p.mgr.GetMap(mapName)
 	if err != nil {
-		log.Errorf("unable to get http2 telemetry map: %s", err)
+		log.Errorf("unable to get %q map: %s", mapName, err)
 		return nil, err
 	}
 
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-		log.Errorf("unable to lookup http2 telemetry map: %s", err)
+		log.Errorf("unable to lookup %q map: %s", mapName, err)
 		return nil, err
 	}
 	return http2Telemetry, nil
