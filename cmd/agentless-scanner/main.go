@@ -1811,6 +1811,7 @@ func cloudResourceTagSpec(resourceType resourceType, scannerHostname string) []e
 			Tags: []ec2types.Tag{
 				{Key: aws.String("DatadogAgentlessScanner"), Value: aws.String("true")},
 				{Key: aws.String("DatadogAgentlessScannerHostOrigin"), Value: aws.String(scannerHostname)},
+				// TODO: add origin account and instance ID
 			},
 		},
 	}
