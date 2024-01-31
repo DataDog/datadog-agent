@@ -10,28 +10,24 @@ package containerd
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/util/workqueue"
 	"time"
 
 	"github.com/CycloneDX/cyclonedx-go"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/containerd"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	schedulerBufferSize = 10
-	// minBackoffFactor is set to 2 to avoid overlaps between retry intervals
-	minBackoffFactor = 2
-	// baseBackoffTime is set to 5 min to retry after 10/20/40... min
-	baseBackoffTime = 5 * 60
+	// baseBackoffTime is set to 10 minutes for the retry mechanism
+	baseBackoffTime = 10 * time.Minute
 	// maxBackoffTime is set to 1 hour to retry after 1h at most
-	maxBackoffTime = 60 * 60
+	maxBackoffTime = time.Hour
 )
 
 func sbomCollectionIsEnabled() bool {
@@ -45,9 +41,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	c.scanOptions = sbom.ScanOptionsFromConfig(config.Datadog, true)
 	c.sbomScanner = scanner.GetGlobalScanner()
-	c.queue = workqueue.NewDelayingQueue()
-	c.retryCountPerImage = make(map[string]retryInfo)
-	c.backoffPolicy = backoff.NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime, 10, true)
+	c.queue = workqueue.NewRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(baseBackoffTime, maxBackoffTime))
 	if c.sbomScanner == nil {
 		return fmt.Errorf("error retrieving global SBOM scanner")
 	}
@@ -67,6 +61,10 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	// First start the result handlers before listening to events to avoid missing events
 	go c.startScanResultHandler(ctx, resultChan)
 	go c.startRetryLoop(ctx, resultChan)
+
+	if c.queue == nil {
+		return fmt.Errorf("error creating SBOM queue")
+	}
 
 	go func() {
 		for {
@@ -90,13 +88,28 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 // startRetryLoop starts a loop that will retry SBOM generation for images that failed to generate a SBOM
 func (c *collector) startRetryLoop(ctx context.Context, resultChan chan<- sbom.ScanResult) {
 	for {
-		img, shutdown := c.queue.Get()
+		imgID, shutdown := c.queue.Get()
 		if shutdown {
 			log.Debugf("shutdown sbom retry queue")
 			return
 		}
-		c.queue.Done(img)
-		c.retrySBOMGeneration(ctx, img.(*workloadmeta.ContainerImageMetadata), resultChan)
+		id, ok := imgID.(string)
+		if !ok {
+			log.Errorf("expected string, got %T", imgID)
+			c.queue.Forget(imgID)
+			c.queue.Done(imgID)
+			continue
+		}
+		imgMeta, err := c.store.GetImage(id)
+		if err != nil {
+			log.Debugf("image %s not found in store", id)
+			c.queue.Forget(imgID)
+			c.queue.Done(imgID)
+			continue
+		}
+		log.Debugf("retrying SBOM generation for image %s (id: %s)", imgMeta.Name, imgMeta.ID)
+		c.sendScanRequest(ctx, imgMeta, resultChan)
+		// c.queue.Done() cannot be called here as it as the sbom is being processed
 	}
 }
 
@@ -108,10 +121,15 @@ func (c *collector) handleEventBundle(ctx context.Context, eventBundle workloadm
 
 		switch image.SBOM.Status {
 		case workloadmeta.Success:
-			delete(c.retryCountPerImage, image.ID)
-			log.Debugf("Image: %s/%s (id %s) SBOM already available", image.Namespace, image.Name, image.ID)
+			log.Debugf("SBOM available for image: %s/%s (id %s) available", image.Namespace, image.Name, image.ID)
+			// Forget and Done are safe to call even if the image is not in the retry queue.
+			c.queue.Forget(image.ID)
+			c.queue.Done(image.ID)
 		case workloadmeta.Failed:
-			c.retrySBOMGeneration(ctx, image, resultChan)
+			// We can't store the image itself because it is updated at every iteration so the queue won't be able to find it.
+			c.queue.AddRateLimited(image.ID)
+			// Done needs to be called after processing the image. It is only processed once the scanner returns a result.
+			c.queue.Done(image.ID)
 		case workloadmeta.Pending:
 			c.sendScanRequest(ctx, image, resultChan)
 		}
@@ -122,40 +140,6 @@ func (c *collector) sendScanRequest(ctx context.Context, img *workloadmeta.Conta
 	if err := c.extractSBOMWithTrivy(ctx, img, resultChan); err != nil {
 		log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", img.Namespace, img.Name, err)
 	}
-}
-
-// retrySBOMGeneration retries SBOM generation for an image using an exponential backoff retry policy
-func (c *collector) retrySBOMGeneration(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata, resultChan chan<- sbom.ScanResult) {
-	if c.backoffPolicy == nil {
-		log.Errorf("Backoff policy not initialized for SBOM collector, cannot retry failed scans")
-		return
-	}
-	if c.queue == nil {
-		log.Errorf("Workqueue not initialized for SBOM collector, cannot retry failed scans")
-		return
-	}
-	if c.retryCountPerImage == nil {
-		log.Errorf("Retry count map not initialized for SBOM collector, cannot retry failed scans")
-		return
-	}
-	// For images with many repotags/repodigests, we need to retry once but retry will be
-	// called several times (1 per container report)
-	if c.retryCountPerImage[storedImage.ID].nextRetry.After(time.Now()) {
-		log.Tracef("Image: %s/%s (id %s) SBOM generation failed, retry already scheduled", storedImage.Namespace, storedImage.Name, storedImage.ID)
-		return
-	}
-	newErrCount := c.retryCountPerImage[storedImage.ID].errCount + 1
-	waitFor := c.backoffPolicy.GetBackoffDuration(newErrCount)
-	nextTry := time.Now().Add(waitFor)
-	c.retryCountPerImage[storedImage.ID] = retryInfo{
-		errCount:  newErrCount,
-		nextRetry: nextTry,
-	}
-	log.Debugf("Image: %s/%s (id %s) SBOM generation failed, retrying at %s", storedImage.Namespace, storedImage.Name, storedImage.ID, nextTry.Format(time.RFC3339))
-	c.queue.AddAfter(
-		storedImage,
-		waitFor,
-	)
 }
 
 // extractSBOMWithTrivy emits a scan request to the SBOM scanner. The scan result will be sent to the resultChan.

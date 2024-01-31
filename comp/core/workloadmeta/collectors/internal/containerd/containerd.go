@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -118,11 +117,7 @@ type collector struct {
 	scanOptions sbom.ScanOptions //nolint: unused
 
 	// queue for retrying failed SBOM generation attempts
-	queue workqueue.DelayingInterface //nolint: unused
-	// retryCountPerImage keeps track of the number of retries for each image
-	retryCountPerImage map[string]retryInfo //nolint: unused
-	// retryBackoffPolicy is the backoff policy used for retrying SBOM generation attempts
-	backoffPolicy backoff.Policy //nolint: unused
+	queue workqueue.RateLimitingInterface //nolint: unused
 }
 
 // NewCollector returns a new containerd collector provider and an error
