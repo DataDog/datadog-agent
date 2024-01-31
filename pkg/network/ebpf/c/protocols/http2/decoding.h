@@ -169,7 +169,7 @@ static __always_inline void handle_dynamic_table_update(struct __sk_buff *skb, s
             bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
             skb_info->data_off++;
             if ((current_ch & 128) == 0) {
-                break;
+                return;
             }
         }
     }

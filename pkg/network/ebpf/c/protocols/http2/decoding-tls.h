@@ -171,7 +171,7 @@ static __always_inline void tls_handle_dynamic_table_update(tls_dispatcher_argum
             bpf_probe_read_user(&current_ch, sizeof(current_ch), info->buffer_ptr + info->data_off);
             info->data_off++;
             if ((current_ch & 128) == 0) {
-                break;
+                return;
             }
         }
     }
