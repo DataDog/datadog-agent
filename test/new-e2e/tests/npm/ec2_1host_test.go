@@ -69,7 +69,7 @@ func hostDockerHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[hostHttpbinEnv] {
 		}
 
 		composeContents := []docker.ComposeInlineManifest{dockerHTTPBinCompose()}
-		_, err = manager.ComposeStrUp("agent", composeContents, pulumi.StringMap{})
+		_, err = manager.ComposeStrUp("httpbin", composeContents, pulumi.StringMap{})
 		if err != nil {
 			return err
 		}
