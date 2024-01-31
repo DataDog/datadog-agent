@@ -9,7 +9,6 @@ package server
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -19,8 +18,8 @@ import (
 // Component is the component type.
 type Component interface {
 
-	// Start starts the dogstatsd server
-	Start(demultiplexer aggregator.Demultiplexer) error
+	// // Start starts the dogstatsd server
+	// Start(demultiplexer aggregator.Demultiplexer) error
 
 	// Stop stops the dogstatsd server
 	Stop()

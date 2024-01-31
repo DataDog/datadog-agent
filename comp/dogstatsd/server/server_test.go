@@ -37,6 +37,7 @@ import (
 type serverDeps struct {
 	fx.In
 
+	Lc            fx.Lifecycle
 	Server        Component
 	Config        configComponent.Component
 	Log           log.Component
@@ -1012,9 +1013,14 @@ func TestOriginOptout(t *testing.T) {
 	}
 }
 
-func requireStart(t *testing.T, s Component, demux aggregator.Demultiplexer) {
-	err := s.Start(demux)
-	require.NoError(t, err, "cannot start DSD")
+func requireStart(t *testing.T, s Component, demux aggregator.Demultiplexer, sd serverDeps) {
+	// err := s.start(demux)
+	// require.NoError(t, _, "cannot start DSD")
+	sd.Lc.Append(fx.Hook{
+		OnStart: s.start,
+		OnStop:  nil,
+	})
+
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning())
 }

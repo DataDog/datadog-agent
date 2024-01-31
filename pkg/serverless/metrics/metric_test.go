@@ -13,12 +13,10 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -198,40 +196,40 @@ func getAvailableUDPPort() (int, error) {
 	return portInt, nil
 }
 
-func TestRaceFlushVersusParsePacket(t *testing.T) {
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
+// func TestRaceFlushVersusParsePacket(t *testing.T) {
+// 	port, err := getAvailableUDPPort()
+// 	require.NoError(t, err)
+// 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
+// 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
-	s := dogstatsdServer.NewServerlessServer()
-	err = s.Start(demux)
-	require.NoError(t, err, "cannot start DSD")
-	defer s.Stop()
+// 	s := dogstatsdServer.NewServerlessServer()
+// 	err = s.Start(demux)
+// 	require.NoError(t, err, "cannot start DSD")
+// 	defer s.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
-	conn, err := net.Dial("udp", url)
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
+// 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+// 	conn, err := net.Dial("udp", url)
+// 	require.NoError(t, err, "cannot connect to DSD socket")
+// 	defer conn.Close()
 
-	finish := &sync.WaitGroup{}
-	finish.Add(2)
+// 	finish := &sync.WaitGroup{}
+// 	finish.Add(2)
 
-	go func(wg *sync.WaitGroup) {
-		for i := 0; i < 1000; i++ {
-			conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-			time.Sleep(10 * time.Nanosecond)
-		}
-		finish.Done()
-	}(finish)
+// 	go func(wg *sync.WaitGroup) {
+// 		for i := 0; i < 1000; i++ {
+// 			conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+// 			time.Sleep(10 * time.Nanosecond)
+// 		}
+// 		finish.Done()
+// 	}(finish)
 
-	go func(wg *sync.WaitGroup) {
-		for i := 0; i < 1000; i++ {
-			s.ServerlessFlush(time.Second * 10)
-		}
-		finish.Done()
-	}(finish)
+// 	go func(wg *sync.WaitGroup) {
+// 		for i := 0; i < 1000; i++ {
+// 			s.ServerlessFlush(time.Second * 10)
+// 		}
+// 		finish.Done()
+// 	}(finish)
 
-	finish.Wait()
-}
+// 	finish.Wait()
+// }

@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -588,8 +587,8 @@ func startAgent(
 
 	// start dogstatsd
 	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
-		global.DSD = server
-		err := server.Start(demultiplexer)
+		// global.DSD = server
+		// err := server.Start(demultiplexer)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		} else {

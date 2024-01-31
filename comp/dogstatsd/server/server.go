@@ -17,15 +17,14 @@ import (
 
 	"go.uber.org/fx"
 
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
-	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -66,6 +65,10 @@ var (
 
 type dependencies struct {
 	fx.In
+
+	Lc fx.Lifecycle
+
+	Demultiplexer demultiplexer.Component
 
 	Log    logComponent.Component
 	Config configComponent.Component
@@ -190,16 +193,16 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 // TODO: (components) - remove once serverless is an FX app
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessServer() Component {
-	return newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true)
-}
+// func NewServerlessServer() Component {
+// 	return newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true)
+// }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) Component {
-	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless)
+	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Lc, deps.Demultiplexer)
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool) Component {
+func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, lc fx.Lifecycle, demux demultiplexer.Component) Component {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 
@@ -272,7 +275,7 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 		sharedPacketPool:        nil,
 		sharedPacketPoolManager: nil,
 		sharedFloat64List:       newFloat64ListPool(),
-		demultiplexer:           nil,
+		demultiplexer:           demux,
 		listeners:               nil,
 		stopChan:                make(chan bool),
 		serverlessFlushChan:     make(chan bool),
@@ -301,13 +304,19 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 			originOptOutEnabled:       cfg.GetBool("dogstatsd_origin_optout_enabled"),
 		},
 	}
+
+	lc.Append(fx.Hook{
+		OnStart: s.start,
+		OnStop:  nil,
+	})
+
 	return s
 }
 
-func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
+func (s *server) start(context.Context) error {
 
 	// TODO: (components) - DI this into Server when Demultiplexer is made into a component
-	s.demultiplexer = demultiplexer
+	// s.demultiplexer = demultiplexer
 
 	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
