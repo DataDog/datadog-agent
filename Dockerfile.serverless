@@ -1,7 +1,7 @@
 # From the root folder 
-# docker buildx build --platform linux/amd64 -f Dockerfile.serverless -t go-serverless-build .
+# DOCKER_BUILDKIT=1 docker buildx build --platform linux/amd64 -f Dockerfile.serverless -t go-serverless-build --out . .
 
-FROM golang:1.21
+FROM golang:1.21 AS build
 
 # create a build dir
 RUN mkdir /build
@@ -18,6 +18,13 @@ COPY go.sum .
 # copy the project itself
 COPY . .
 
+# download dependencies
+RUN go mod download
+
 # build the serverless binary
-RUN cd cmd/serverless && go build -ldflags="-w -X github.com/DataDog/datadog-agent/pkg/serverless/tags.currentExtensionVersion=gusavo-test -X github.com/DataDog/datadog-agent/pkg/version.agentVersionDefault=gustavo-test" -tags "serverless otlp" -o datadog-agent
+RUN cd cmd/serverless && go build -ldflags="-w -X github.com/DataDog/datadog-agent/pkg/serverless/tags.currentExtensionVersion=gustavo-test -X github.com/DataDog/datadog-agent/pkg/version.agentVersionDefault=gustavo-test" -tags "serverless otlp" -o datadog-agent
+RUN mv cmd/serverless/datadog-agent .
+
+FROM scratch AS export-stage
+COPY --from=build /build/datadog-agent .
 
