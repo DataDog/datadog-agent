@@ -244,6 +244,9 @@ func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace str
 	return c.notifyEventForImage(ctx, namespace, img, bom)
 }
 
+// Create image metadata from containerd image and manifest if not already present
+// Update image metadata by adding references when existing entity is found
+// return nil when it fails to get image manifest
 func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 	namespace string,
 	img containerd.Image,
