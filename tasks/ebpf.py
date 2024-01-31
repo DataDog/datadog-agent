@@ -84,6 +84,12 @@ def cleanup_verifier_stats(verifier_stats):
     return cleaned
 
 
+@task
+def generate_programs(ctx, debug_build=False):
+    use_debug_build = "USE_DEBUG_BUILDS='true' " if debug_build else ""
+    ctx.run(f"cd pkg/ebpf/verifier && {use_debug_build}DD_SYSTEM_PROBE_BPF_DIR=../bytecode/build go generate stats.go")
+
+
 @task(
     help={
         "skip_object_files": "Do not build ebpf object files",
@@ -99,15 +105,11 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
         build_object_files(ctx)
         build_cws_object_files(ctx)
 
-    # generate programs.go
-    use_debug_build = "USE_DEBUG_BUILDS='true' " if debug_build else ""
-    ctx.run(f"{use_debug_build}go generate pkg/ebpf/verifier/stats.go")
-
-    ctx.run("cd pkg/ebpf/verifier && go generate")
+    generate_programs(ctx, debug_build)
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
     debug = "--debug" if debug_build else ""
-    res = ctx.run(f"DD_SYSTEM_PROBE_BPF_DIR=./pkg/ebpf/bytecode/build {sudo} ./main {debug}", hide='out')
+    res = ctx.run(f"DD_SYSTEM_PROBE_BPF_DIR='./pkg/ebpf/bytecode/build' {sudo} ./main {debug}", hide='out')
     if res.exited == 0:
         verifier_stats = cleanup_verifier_stats(json.loads(res.stdout))
     else:
