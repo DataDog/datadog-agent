@@ -40,6 +40,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestBuildVerifierStats(t *testing.T) {
+	t.Skip("Skipping because test currently consumes too much memory causing SIGKILL")
 
 	kversion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -53,7 +54,7 @@ func TestBuildVerifierStats(t *testing.T) {
 	require.NoError(t, err)
 
 	objectFiles := make(map[string]string)
-	directory := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
+	directory := ddebpf.NewConfig().BPFDir
 	err = filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
