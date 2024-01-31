@@ -29,10 +29,10 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
 		assert.Equal(c, service, sp.Service)
-		assert.Contains(c, "tracegen", sp.Name)
-		assert.Contains(c, "language", sp.Meta)
+		assert.Contains(c, sp.Name, "tracegen")
+		assert.Contains(c, sp.Meta, "language")
 		assert.Equal(c, "go", sp.Meta["language"])
-		assert.Contains(c, "_sampling_priority_v1", sp.Metrics)
+		assert.Contains(c, sp.Metrics, "_sampling_priority_v1")
 		if sp.ParentID == 0 {
 			assert.Equal(c, float64(1), sp.Metrics["_dd.top_level"])
 			assert.Equal(c, float64(1), sp.Metrics["_top_level"])

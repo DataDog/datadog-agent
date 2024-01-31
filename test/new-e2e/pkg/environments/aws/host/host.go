@@ -175,7 +175,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 			}
 			if params.agentOptions != nil {
 				params.agentOptions = append(params.agentOptions,
-					agentparams.WithPulumiDependsOn(
+					agentparams.WithPulumiResourceOptions(
 						utils.PulumiDependsOn(dockerRes)))
 			}
 		}

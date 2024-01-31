@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
@@ -64,14 +63,6 @@ apm_config.receiver_socket: /var/run/datadog/apm.socket
 	e2e.Run(t, &VMFakeintakeSuite{transport: UDS}, options...)
 }
 
-func fixAgent(h *components.RemoteHost) {
-	h.MustExecute("sudo groupadd -f -r docker")
-	h.MustExecute("sudo usermod -a -G docker dd-agent")
-	h.MustExecute("sudo systemctl restart datadog-agent")
-	h.MustExecute("sudo mkdir -p /var/run/datadog")
-	h.MustExecute("sudo chown dd-agent:dd-agent /var/run/datadog")
-}
-
 // TestDockerFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestVMFakeintakeSuiteTCP(t *testing.T) {
 	cfg := `
@@ -88,9 +79,25 @@ apm_config.enabled: true
 	e2e.Run(t, &VMFakeintakeSuite{transport: TCP}, options...)
 }
 
-func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
-	fixAgent(s.Env().RemoteHost)
+func (s *VMFakeintakeSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	h := s.Env().RemoteHost
+	// Agent must be in the docker group to be able to open and
+	// read container info from the docker socket.
+	h.MustExecute("sudo groupadd -f -r docker")
+	h.MustExecute("sudo usermod -a -G docker dd-agent")
 
+	// Create the /var/run/datadog directory and ensure
+	// permissions are correct so the agent can create
+	// unix sockets for the UDS transport
+	h.MustExecute("sudo mkdir -p /var/run/datadog")
+	h.MustExecute("sudo chown dd-agent:dd-agent /var/run/datadog")
+
+	// Restart the agent
+	h.MustExecute("sudo systemctl restart datadog-agent")
+}
+
+func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	// Wait for agent to be live
 	s.T().Log("Waiting for Trace Agent to be live.")
 	s.Require().NoError(waitRemotePort(s, 8126))
@@ -108,8 +115,6 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 		// We should update this to run over TCP as well once that is implemented.
 		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")
 	}
-
-	fixAgent(s.Env().RemoteHost)
 
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
@@ -131,8 +136,6 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 }
 
 func (s *VMFakeintakeSuite) TestStatsForService() {
-	fixAgent(s.Env().RemoteHost)
-
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -153,8 +156,6 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 }
 
 func (s *VMFakeintakeSuite) TestBasicTrace() {
-	fixAgent(s.Env().RemoteHost)
-
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
