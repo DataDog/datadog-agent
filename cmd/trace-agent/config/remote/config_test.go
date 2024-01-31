@@ -175,6 +175,44 @@ func TestForwardErrors(t *testing.T) {
 	r.Body.Close()
 }
 
+func TestUnexpectedError(t *testing.T) {
+	assert := assert.New(t)
+	grpc := agentGRPCConfigFetcher{}
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector())
+
+	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, status.Error(codes.Unavailable, "unavailable"))
+
+	mux := http.NewServeMux()
+	mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, &config.AgentConfig{}))
+	server := httptest.NewServer(mux)
+
+	req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(`{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`))
+	r, err := http.DefaultClient.Do(req)
+	assert.NoError(err)
+	assert.Equal(500, r.StatusCode)
+	r.Body.Close()
+}
+
+func TestEmptyResponse(t *testing.T) {
+	assert := assert.New(t)
+	grpc := agentGRPCConfigFetcher{}
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector())
+
+	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil)
+
+	mux := http.NewServeMux()
+	mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, &config.AgentConfig{}))
+	server := httptest.NewServer(mux)
+
+	req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(`{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`))
+	r, err := http.DefaultClient.Do(req)
+	assert.NoError(err)
+	assert.Equal(204, r.StatusCode)
+	r.Body.Close()
+}
+
 type agentGRPCConfigFetcher struct {
 	pbgo.AgentSecureClient
 	mock.Mock

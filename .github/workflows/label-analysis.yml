@@ -52,6 +52,6 @@ jobs:
           if [[ ($skip -eq 0 && $done -eq 0 && $noChange -eq 0) || ($skip -eq 1 && $done -ne $noChange) ]]; then
             exit 0
           else
-            echo "Skip QA labels are not correct on PR ${{github.event.number}}. You must set `qa/skip-qa` with exacly 1 justification, `qa/done` or `qa/no-code-change`"
+            echo "Skip QA labels are not correct on PR ${{github.event.number}}. You must set 'qa/skip-qa' with exacly 1 justification, 'qa/done' or 'qa/no-code-change'"
             exit 1
           fi
