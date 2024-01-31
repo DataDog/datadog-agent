@@ -26,6 +26,9 @@
 #define HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER 2
 #define HTTP2_MAX_FRAMES_TO_FILTER  120
 
+// Represents the maximum number octets we will process in the dynamic table update size.
+#define HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS 5
+
 // Represents the maximum number of frames we'll process in a single tail call in `uprobe__http2_tls_headers_parser` program.
 #define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 15
 // Represents the maximum number of tail calls to process headers frames.
@@ -36,10 +39,10 @@
 // A limit of max non pseudo headers which we process in the request/response.
 // In HTTP/2 we know that we start with pseudo headers and then we have non pseudo headers.
 // The max number of headers we process in the request/response is HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING + HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING.
-#define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 31
+#define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 33
 
 // A limit of max pseudo headers which we process in the request/response.
-#define HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING 6
+#define HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING 4
 
 // Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
 // For request - those are method, path. For response - status code.

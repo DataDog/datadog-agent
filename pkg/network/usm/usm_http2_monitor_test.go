@@ -470,6 +470,9 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	}
 }
 
+// DynamicTableSize is the size of the dynamic table used in the HPACK encoder.
+const defaultDynamicTableSize = 100
+
 func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := s.getCfg()
@@ -588,19 +591,18 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.C.2.2
 			messageBuilder: func() [][]byte {
 				const iterations = 5
-				const setDynamicTableSize = true
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralWithoutIndexing}), setDynamicTableSize).
+						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralWithoutIndexing}), usmhttp2.DynamicTableUpdateOptions{Size: defaultDynamicTableSize}).
 						writeData(t, streamID, true, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/" + strings.Repeat("a", usmhttp2.DynamicTableSize))},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/" + strings.Repeat("a", defaultDynamicTableSize))},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -875,12 +877,38 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// while using a path with indexed header field.
 			messageBuilder: func() [][]byte {
 				const iterations = 5
-				const setDynamicTableSize = true
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, headersWithGivenEndpoint("/"), setDynamicTableSize).
+						writeHeaders(t, streamID, headersWithGivenEndpoint("/"), usmhttp2.DynamicTableUpdateOptions{
+							Size: defaultDynamicTableSize,
+						}).
+						writeData(t, streamID, true, emptyBody)
+				}
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
+					Method: usmhttp.MethodPost,
+				}: 5,
+			},
+		},
+		{
+			name: "validate dynamic table update with high value and indexed header field",
+			// The purpose of this test is to verify our ability to support dynamic table update
+			// with size exceeds one octet, to validate the iteration for parsing the dynamic table update.
+			messageBuilder: func() [][]byte {
+				const iterations = 5
+				const dynamicTableSize = 4000
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, headersWithGivenEndpoint("/"), usmhttp2.DynamicTableUpdateOptions{
+							Size: dynamicTableSize,
+						}).
 						writeData(t, streamID, true, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -1199,7 +1227,7 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 		// The indexing is determined by the dynamic table size (which we set to dynamicTableSize) and the size of the path.
 		// ref: https://github.com/golang/net/blob/07e05fd6e95ab445ebe48840c81a027dbace3b8e/http2/hpack/encode.go#L140
 		// Therefore, we want to make sure that the path is longer or equal to 100 characters so that the path will not be indexed.
-		pathHeaderField.Value = "/" + strings.Repeat("a", usmhttp2.DynamicTableSize)
+		pathHeaderField.Value = "/" + strings.Repeat("a", defaultDynamicTableSize)
 	case pathTooLarge:
 		pathHeaderField.Value = "/" + pathExceedingMaxSize
 	case pathOverride:
@@ -1287,12 +1315,12 @@ func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, headerFrames []b
 	return f
 }
 
-func (f *framer) writeHeaders(t *testing.T, streamID uint32, headerFields []hpack.HeaderField, setDynamicTableSize ...bool) *framer {
-	changeDynamicTableSize := false
-	if len(setDynamicTableSize) > 0 && setDynamicTableSize[0] {
-		changeDynamicTableSize = true
+func (f *framer) writeHeaders(t *testing.T, streamID uint32, headerFields []hpack.HeaderField, setDynamicTableSize ...usmhttp2.DynamicTableUpdateOptions) *framer {
+	var dynamicTableOptions usmhttp2.DynamicTableUpdateOptions
+	if len(setDynamicTableSize) > 0 {
+		dynamicTableOptions.Size = setDynamicTableSize[0].Size
 	}
-	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, changeDynamicTableSize)
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, dynamicTableOptions)
 	require.NoError(t, err, "could not create headers frame")
 
 	require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
