@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	aggsender "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -496,7 +497,7 @@ func NewNoopEventPlatformForwarder() EventPlatformForwarder {
 // GetGlobalReceiver initializes and returns the global receiver for the epforwarder package
 func GetGlobalReceiver() *diagnostic.BufferedMessageReceiver {
 	if globalReceiver == nil {
-		globalReceiver = diagnostic.NewBufferedMessageReceiver(&epFormatter{})
+		globalReceiver = diagnostic.NewBufferedMessageReceiver(&epFormatter{}, hostnameimpl.NewHostnameService())
 	}
 
 	return globalReceiver
