@@ -14,6 +14,7 @@ import (
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
@@ -31,11 +33,35 @@ import (
 type dockerHostNginxEnv struct {
 	environments.DockerHost
 	// Extra Components
-	NginxHost *components.RemoteHost
+	HttpBinHost *components.RemoteHost
 }
 
 type ec2VMContainerizedSuite struct {
 	e2e.BaseSuite[dockerHostNginxEnv]
+}
+
+func dockerHTTPBinCompose() docker.ComposeInlineManifest {
+	httpbinManifestContent := pulumi.All().ApplyT(func(args []interface{}) (string, error) {
+		agentManifest := docker.ComposeManifest{
+			Version: "3.9",
+			Services: map[string]docker.ComposeManifestService{
+				"httpbin": {
+					Privileged:    true,
+					Image:         "mccutchen/go-httpbin",
+					ContainerName: "httpbin",
+					Pid:           "host",
+					Ports:         []string{"80:8080/tcp"},
+				},
+			},
+		}
+		data, err := yaml.Marshal(agentManifest)
+		return string(data), err
+	}).(pulumi.StringOutput)
+
+	return docker.ComposeInlineManifest{
+		Name:    "httpbin",
+		Content: httpbinManifestContent,
+	}
 }
 
 func dockerHostNginxEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] {
@@ -62,10 +88,23 @@ func dockerHostNginxEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] {
 		if err != nil {
 			return err
 		}
-		err = nginxHost.Export(ctx, &env.NginxHost.HostOutput)
+		err = nginxHost.Export(ctx, &env.HttpBinHost.HostOutput)
 		if err != nil {
 			return err
 		}
+
+		// install docker.io
+		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost, true)
+		if err != nil {
+			return err
+		}
+
+		composeContents := []docker.ComposeInlineManifest{dockerHTTPBinCompose()}
+		_, err = manager.ComposeStrUp("agent", composeContents, pulumi.StringMap{})
+		if err != nil {
+			return err
+		}
+
 		return nil
 	}
 }
@@ -157,12 +196,13 @@ func (v *ec2VMContainerizedSuite) testFakeIntakeNPM() {
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM() {
 	vt := v.T()
+	testURL := "http://" + v.Env().HttpBinHost.Address + "/"
 	vt.Run("host", func(t *testing.T) {
 		v.BaseSuite.SetT(t)
 		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
 		// generate a connection
-		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecute("curl " + testURL)
 
 		v.testFakeIntakeNPM()
 	})
@@ -171,7 +211,7 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM() {
 		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
 		// generate a connection
-		v.Env().RemoteHost.MustExecute("docker run curlimages/curl curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecute("docker run curlimages/curl curl " + testURL)
 
 		v.testFakeIntakeNPM()
 	})
@@ -234,12 +274,13 @@ func (v *ec2VMContainerizedSuite) testFakeIntakeNPM_600cnx_bucket() {
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_600cnx_bucket() {
 	vt := v.T()
+	testURL := "http://" + v.Env().HttpBinHost.Address + "/"
 	vt.Run("host", func(t *testing.T) {
 		v.BaseSuite.SetT(t)
 		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
 		// generate connections
-		v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 http://www.datadoghq.com/")
+		v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 " + testURL)
 
 		v.testFakeIntakeNPM_600cnx_bucket()
 	})
@@ -248,7 +289,7 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_600cnx_bucket() {
 		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
 		// generate connections
-		v.Env().RemoteHost.MustExecute("docker run devth/alpine-bench -n 600 -c 600 http://www.datadoghq.com/")
+		v.Env().RemoteHost.MustExecute("docker run devth/alpine-bench -n 600 -c 600 " + testURL)
 
 		v.testFakeIntakeNPM_600cnx_bucket()
 	})
@@ -318,12 +359,13 @@ func (v *ec2VMContainerizedSuite) testFakeIntakeNPM_TCP_UDP_DNS() {
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 	vt := v.T()
+	testURL := "http://" + v.Env().HttpBinHost.Address + "/"
 	vt.Run("host", func(t *testing.T) {
 		v.BaseSuite.SetT(t)
 		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
 		// generate connections
-		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecute("curl " + testURL)
 		v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
 
 		v.testFakeIntakeNPM_TCP_UDP_DNS()
@@ -333,7 +375,7 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		v.beforeTest("TestEC2VMContainerizedSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
 		// generate connections
-		v.Env().RemoteHost.MustExecute("docker run curlimages/curl curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecute("docker run curlimages/curl curl " + testURL)
 		v.Env().RemoteHost.MustExecute("docker run makocchi/alpine-dig dig @8.8.8.8 www.google.ch")
 
 		v.testFakeIntakeNPM_TCP_UDP_DNS()
