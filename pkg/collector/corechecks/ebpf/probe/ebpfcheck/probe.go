@@ -580,13 +580,16 @@ type entryCountBuffers struct {
 // Returns the new buffer, the length allocated and the boolean indicating if the buffer
 // was allocated the desired size
 func growBufferWithLimit(buffer []byte, newSize uint32, limit uint32) ([]byte, uint32, bool) {
-	if newSize <= uint32(len(buffer)) {
-		return buffer, uint32(len(buffer)), true
+	allocSize := newSize
+	if limit > 0 {
+		allocSize = min(newSize, limit)
 	}
-	if limit > 0 && newSize > limit && len(buffer) < int(limit) {
-		return make([]byte, limit), limit, false
+	enoughSpace := allocSize == newSize
+
+	if allocSize <= uint32(len(buffer)) {
+		return buffer, uint32(len(buffer)), enoughSpace
 	}
-	return make([]byte, newSize), newSize, true
+	return make([]byte, allocSize), allocSize, enoughSpace
 }
 
 func (e *entryCountBuffers) tryEnsureSizeForFullBatch(referenceMap *ebpf.Map) bool {
@@ -735,7 +738,7 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 		buffers.prepareFirstBatchKeys(mp)
 	}
 
-	batchSize := min(mp.MaxEntries(), uint32(len(buffers.keys)))
+	batchSize := min(mp.MaxEntries(), uint32(len(buffers.keys))/mp.KeySize())
 	totalCount := int64(0)
 
 	// To avoid inifinte loops, we limit the number of restarts and we
@@ -767,7 +770,7 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 		if errno == 0 && batchIndex == 0 {
 			// We got a batch and it's the first one, and we didn't reach the end of the map, so we need to store the keys we got here
 			// so that later on we can check against them to see if we got an iteration restart
-			if !allocatedEnoughSpace { // A sanity check
+			if allocatedEnoughSpace { // A sanity check
 				return -1, fmt.Errorf("Unexpected batch lookup result: we should have enough space to get the full map in one batch, but BatchLookup returned a partial result")
 			}
 
@@ -781,7 +784,7 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 				buffers.firstBatchKeys.load(buffers.keys, int(attr.Count))
 				restarts++
 				batchIndex = 0
-				totalCount = 0
+				totalCount = int64(attr.Count)
 				continue
 			}
 		}
