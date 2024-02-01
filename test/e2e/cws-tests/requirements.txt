@@ -5,4 +5,4 @@ docker==7.0.0
 retry==0.9.2
 emoji==2.9.0
 requests==2.31.0
-jsonschema==4.20.0
+jsonschema==4.21.1
