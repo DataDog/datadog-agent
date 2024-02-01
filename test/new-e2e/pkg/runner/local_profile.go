@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -113,4 +114,22 @@ func (p localProfile) NamePrefix() string {
 // AllowDevMode returns if DevMode is allowed
 func (p localProfile) AllowDevMode() bool {
 	return true
+}
+
+// GetOutputDir extends baseProfile.GetOutputDir to create a symlink to the latest run
+func (p localProfile) GetOutputDir() (string, error) {
+	outDir, err := p.baseProfile.GetOutputDir()
+	if err != nil {
+		return "", err
+	}
+
+	// Create a symlink to the latest run for user convenience
+	latestLink := filepath.Join(filepath.Dir(outDir), "latest")
+	_ = os.Remove(latestLink)
+	err = os.Symlink(outDir, latestLink)
+	if err != nil {
+		return "", err
+	}
+
+	return outDir, nil
 }
