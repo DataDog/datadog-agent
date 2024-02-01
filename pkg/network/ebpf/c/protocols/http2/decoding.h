@@ -116,7 +116,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     // with an indexed name, literal value, reusing the index 4 and 5 in the
     // static table. A different index means that the header is not a path, so
     // we skip it.
-    if (index != kIndexPath && index != kEmptyPath) {
+    if (!is_path_index(index)) {
         goto end;
     }
     update_path_size_telemetry(http2_tel, str_len);
@@ -306,12 +306,12 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         current_header = &headers_to_process[iteration];
 
         if (current_header->type == kStaticHeader) {
-            if (current_header->index == kPOST || current_header->index == kGET) {
+            if (is_method_index(current_header->index)) {
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method = current_header->index;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
-            } else if (current_header->index >= k200 && current_header->index <= k500) {
+            } else if (is_status_index(current_header->index)) {
                 current_stream->response_status_code = current_header->index;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
