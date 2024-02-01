@@ -58,6 +58,7 @@ const (
 	unixPath             = "/tmp/transparent.sock"
 	http2DefaultTestPath = "/aaa"
 	defaultMethod        = http.MethodPost
+	defaultContentLength = 4
 )
 
 var (
@@ -911,15 +912,15 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// Testing the scenario in which the data frame header is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
 				payload := []byte("test")
-				headerFields := removeHeaderFieldByKey(testHeaders(), "content-length")
 				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
 				dataFrame := newFramer().writeData(t, 1, true, payload).bytes()
-				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headerFields}).bytes()
-				secondMessageDataFrame := newFramer().writeData(t, 3, true, payload).bytes()
+				// We are creating a header frame with a content-length header field that contains the payload size.
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}).writeData(t, 3, true, payload).bytes()
 
 				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
 				secondMessage := append(dataFrame[9:], secondMessageHeadersFrame...)
-				secondMessage = append(secondMessage, secondMessageDataFrame...)
 				return [][]byte{
 					headersFrameHeader,
 					secondMessage,
@@ -938,8 +939,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// including a PING frame in the second message between the data frame.
 			messageBuilder: func() [][]byte {
 				payload := []byte("test")
-				headerFields := removeHeaderFieldByKey(testHeaders(), "content-length")
-				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: headerFields}).bytes()
+				// We are creating a header frame with a content-length header field that contains the payload size.
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}).bytes()
 				dataFrame := newFramer().writeData(t, 1, true, payload).bytes()
 				pingFrame := newFramer().writePing(t).bytes()
 
@@ -962,13 +965,15 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// Testing the scenario in which the data frame header is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
 				payload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
-				headerFields := removeHeaderFieldByKey(testHeaders(), "content-length")
-				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: headerFields}).bytes()
+				// We are creating a header frame with a content-length header field that contains the payload size.
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}).bytes()
 				dataFrame := newFramer().writeData(t, 1, true, payload).bytes()
 				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
 				secondMessageDataFrame := newFramer().writeData(t, 3, true, emptyBody).bytes()
 
-				// we are cutting in the middle of the payload
+				// We are cutting in the middle of the payload
 				firstMessage := append(headersFrame, dataFrame[:9+3]...)
 				secondMessage := append(dataFrame[9+3:], secondMessageHeadersFrame...)
 				secondMessage = append(secondMessage, secondMessageDataFrame...)
@@ -1268,14 +1273,16 @@ func multipleTestHeaders(testHeadersCount int) []hpack.HeaderField {
 }
 
 type headersGenerationOptions struct {
-	pathTypeValue    pathType
-	overrideMethod   string
-	overrideEndpoint string
+	pathTypeValue         pathType
+	overrideMethod        string
+	overrideEndpoint      string
+	overrideContentLength int
 }
 
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
 func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderField {
 	method := defaultMethod
+	contentLength := defaultContentLength
 	if options.overrideMethod != "" {
 		method = options.overrideMethod
 	}
@@ -1298,13 +1305,17 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 		pathHeaderField.Value = options.overrideEndpoint
 	}
 
+	if options.overrideContentLength != 0 {
+		contentLength = options.overrideContentLength
+	}
+
 	return []hpack.HeaderField{
 		{Name: ":authority", Value: authority},
 		{Name: ":method", Value: method},
 		pathHeaderField,
 		{Name: ":scheme", Value: "http"},
 		{Name: "content-type", Value: "application/json"},
-		{Name: "content-length", Value: "4"},
+		{Name: "content-length", Value: strconv.Itoa(contentLength)},
 		{Name: "accept-encoding", Value: "gzip"},
 		{Name: "user-agent", Value: "Go-http-client/2.0"},
 	}
