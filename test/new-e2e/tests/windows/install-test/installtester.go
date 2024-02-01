@@ -33,6 +33,8 @@ type InstallRun struct {
 	// SkipInstall can be set to true to skip actually running the installer
 	// handy for test/dev cycles.
 	SkipInstall bool
+	// Once run, path to the MSI on the remote host
+	msiPath string
 }
 
 // Tester is a test helper for testing agent installations
@@ -41,9 +43,7 @@ type Tester struct {
 	host              *components.RemoteHost
 	InstallTestClient *common.TestClient
 
-	agentInstallRuns []*InstallRun
-
-	uninstallAtEnd bool
+	lastSuccessfulRun *InstallRun
 
 	expectedAgentVersion      string
 	expectedAgentMajorVersion string
@@ -75,24 +75,7 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 		opt(t)
 	}
 
-	if t.expectedAgentVersion == "" {
-		return nil, fmt.Errorf("expectedAgentVersion is required")
-	}
-
 	return t, nil
-}
-
-func WithInstallRun(run *InstallRun) TesterOption {
-	return func(t *Tester) {
-		t.agentInstallRuns = append(t.agentInstallRuns, run)
-	}
-}
-
-// WithUninstallAtEnd sets the Tester to uninstall the agent at the end of the test
-func WithUninstallAtEnd() TesterOption {
-	return func(t *Tester) {
-		t.uninstallAtEnd = true
-	}
 }
 
 // WithExpectedAgentVersion sets the expected agent version to be installed
@@ -347,26 +330,25 @@ func (t *Tester) TestRunningExpectedAgentVersion(tt *testing.T) bool {
 }
 
 func (t *Tester) runInstallRun(tt *testing.T, run *InstallRun) bool {
-	return tt.Run(fmt.Sprintf("install agent %s", run.AgentPackage.AgentVersion()), func(tt *testing.T) {
+	return tt.Run("install", func(tt *testing.T) {
 		var err error
 		if run.SkipInstall {
 			if run.ExpectMSIFailure {
 				err = fmt.Errorf("fake error, run %s was skipped", run.AgentPackage.AgentVersion())
 			}
 		} else {
-			_, err = t.InstallAgentPackage(tt, run.AgentPackage, run.Args, run.LogFile)
+			run.msiPath, err = t.InstallAgentPackage(tt, run.AgentPackage, run.Args, run.LogFile)
 		}
 		if run.ExpectMSIFailure {
 			require.Error(tt, err, "should fail to install agent %s", run.AgentPackage.AgentVersion())
 		} else {
 			require.NoError(tt, err, "should install agent %s", run.AgentPackage.AgentVersion())
-			t.testInstallRun(tt, run)
 		}
 	})
 }
 
 func (t *Tester) testInstallRun(tt *testing.T, run *InstallRun) bool {
-	return tt.Run(fmt.Sprintf("test agent %s", run.AgentPackage.AgentVersion()), func(tt *testing.T) {
+	return tt.Run(fmt.Sprintf("test %s", run.AgentPackage.AgentVersion()), func(tt *testing.T) {
 		if !t.TestRunningPackageVersion(tt, run.AgentPackage) {
 			tt.FailNow()
 		}
@@ -375,36 +357,36 @@ func (t *Tester) testInstallRun(tt *testing.T, run *InstallRun) bool {
 			common.CheckAgentBehaviour(tt, t.InstallTestClient)
 		} else {
 			// More in depth checks on current version
+			if run.msiPath != "" {
+				windowsAgent.TestValidDatadogCodeSignatures(tt, t.host, []string{run.msiPath})
+			}
 			common.CheckInstallation(tt, t.InstallTestClient)
+			t.testAgentCodeSignature(tt)
 			t.TestRuntimeExpectations(tt)
 		}
 	})
 }
 
-// Run runs the test
-func (t *Tester) Run(tt *testing.T) bool {
-	return tt.Run("test agent installation", func(tt *testing.T) {
-		var lastSuccessfulRun *InstallRun
-		for _, run := range t.agentInstallRuns {
-			if !t.runInstallRun(tt, run) {
+func (t *Tester) TestInstallRun(tt *testing.T, run *InstallRun) bool {
+	return tt.Run(fmt.Sprintf("run %s", run.AgentPackage.AgentVersion()), func(tt *testing.T) {
+		if !t.runInstallRun(tt, run) {
+			tt.FailNow()
+		}
+		if run.ExpectMSIFailure {
+			if t.lastSuccessfulRun != nil {
+				// TODO:
+				err := windows.StartService(t.host, "DatadogAgent")
+				require.NoError(tt, err, "agent service should start after rollback")
+				// Test that previous version is working correctly
+				if !t.testInstallRun(tt, t.lastSuccessfulRun) {
+					tt.FailNow()
+				}
+			}
+		} else {
+			if !t.testInstallRun(tt, run) {
 				tt.FailNow()
 			}
-			if run.ExpectMSIFailure {
-				if lastSuccessfulRun != nil {
-					// TODO:
-					err := windows.StartService(t.host, "DatadogAgent")
-					require.NoError(tt, err, "agent service should start after rollback")
-					// Test that previous version is working correctly
-					if !t.testInstallRun(tt, lastSuccessfulRun) {
-						tt.FailNow()
-					}
-				}
-			} else {
-				lastSuccessfulRun = run
-			}
+			t.lastSuccessfulRun = run
 		}
-		// if t.uninstallAtEnd {
-		// 	t.TestUninstall(tt, "uninstall.log")
-		// }
 	})
 }

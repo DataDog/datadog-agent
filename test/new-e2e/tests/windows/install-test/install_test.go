@@ -110,18 +110,21 @@ func (is *agentMSISuite) TestUpgrade() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
-	t, err := NewTester(is.T(), vm, WithExpectedAgentVersion(is.agentPackage.AgentVersion()))
+	t, err := NewTester(is.T(), vm)
 	is.Require().NoError(err, "should create tester")
 
 	// install old agent
-	_ = is.installLastStable(t, filepath.Join(outputDir, "install.log"))
+	is.installLastStable(t, filepath.Join(outputDir, "install.log"))
 
 	// upgrade to new agent
-	if !t.TestInstallAgentPackage(is.T(), is.agentPackage, "", filepath.Join(outputDir, "upgrade.log")) {
-		is.T().Fatal("failed to upgrade agent")
+	if !t.TestInstallRun(is.T(), &InstallRun{
+		AgentPackage: is.agentPackage,
+		Args:         "",
+		LogFile:      filepath.Join(outputDir, "upgrade.log"),
+	}) {
+		is.T().FailNow()
 	}
 
-	t.TestRuntimeExpectations(is.T())
 	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
 }
 
@@ -133,29 +136,23 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
-	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
-	is.Require().NoError(err, "should get last stable agent package from env")
-
-	t, err := NewTester(is.T(), vm,
-		WithInstallRun(&InstallRun{
-			AgentPackage:    previousAgentPackage,
-			Args:            "",
-			LogFile:         filepath.Join(outputDir, "install.log"),
-			PreviousVersion: true,
-		}),
-		WithInstallRun(&InstallRun{
-			AgentPackage:     is.agentPackage,
-			Args:             "WIXFAILWHENDEFERRED=1",
-			LogFile:          filepath.Join(outputDir, "install.log"),
-			ExpectMSIFailure: true,
-		}),
-		WithUninstallAtEnd(),
-		WithExpectedAgentVersion(previousAgentPackage.AgentVersion()))
+	t, err := NewTester(is.T(), vm)
 	is.Require().NoError(err, "should create tester")
 
-	if !t.Run(is.T()) {
+	// install old agent
+	is.installLastStable(t, filepath.Join(outputDir, "install.log"))
+
+	// upgrade to new agent with rollback
+	if !t.TestInstallRun(is.T(), &InstallRun{
+		AgentPackage:     is.agentPackage,
+		Args:             "WIXFAILWHENDEFERRED=1",
+		LogFile:          filepath.Join(outputDir, "upgrade.log"),
+		ExpectMSIFailure: true,
+	}) {
 		is.T().FailNow()
 	}
+
+	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
 }
 
 func (is *agentMSISuite) TestUninstall() {
@@ -173,23 +170,17 @@ func (is *agentMSISuite) TestUninstall() {
 // This is separate from TestInstallAgentPackage because previous versions of the agent
 // may not conform to the latest test expectations.
 func (is *agentMSISuite) installLastStable(t *Tester, logfile string) *windowsAgent.Package {
-	var agentPackage *windowsAgent.Package
+	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
+	is.Require().NoError(err, "should get last stable agent package from env")
 
-	if !is.Run("install prev stable agent", func() {
-		var err error
-
-		agentPackage, err = windowsAgent.GetLastStablePackageFromEnv()
-		is.Require().NoError(err, "should get last stable agent package from env")
-
-		// _, err = t.InstallAgentPackage(is.T(), agentPackage, "", logfile)
-		// is.Require().NoError(err, "should install last stable agent")
-		err = windows.StartService(t.host, "DatadogAgent")
-		is.Require().NoError(err, "should start agent service")
-
-		t.TestRunningPackageVersion(is.T(), agentPackage)
+	if !t.TestInstallRun(is.T(), &InstallRun{
+		AgentPackage:    previousAgentPackage,
+		Args:            "",
+		LogFile:         logfile,
+		PreviousVersion: true,
 	}) {
-		is.T().Fatal("failed to install last stable agent")
+		is.T().FailNow()
 	}
 
-	return agentPackage
+	return previousAgentPackage
 }
