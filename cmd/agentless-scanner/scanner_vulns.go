@@ -69,7 +69,7 @@ func launchScannerTrivyHost(ctx context.Context, opts scannerOptions) (*cdx.BOM,
 		SBOMSources:       []string{},
 		DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
 		OnlyDirs: []string{
-			filepath.Join(opts.Root, "etc/**"),
+			filepath.Join(opts.Root, "etc/*"),
 			filepath.Join(opts.Root, "var/lib/dpkg/**"),
 			filepath.Join(opts.Root, "var/lib/rpm/**"),
 			filepath.Join(opts.Root, "/usr/lib/sysimage/**"),
@@ -94,7 +94,7 @@ func launchScannerTrivyHostVM(ctx context.Context, opts scannerOptions) (*cdx.BO
 	_, snapshotID, _ := getARNResource(*opts.SnapshotARN)
 	trivyCache := newMemoryCache()
 	onlyDirs := []string{
-		"/etc/**",
+		"/etc/*",
 		"/var/lib/dpkg/**",
 		"/var/lib/rpm/**",
 		"/usr/lib/sysimage/**",
