@@ -84,7 +84,10 @@ func (c *WorkloadMetaCollector) injectHostTags() {
 	if duration <= 0 {
 		return
 	}
-	tags := hosttags.GetHostTags(context.TODO(), false, config.Datadog).System
+	if duration <= time.Minute {
+		log.Debugf("Tags are checked for expiration once per minute. expected_tags_duration should be at least one minute and in minute intervals.")
+	}
+	tags := hosttags.Get(context.TODO(), false, config.Datadog).System
 	log.Debugf("Adding host tags to metrics for %v : %v", duration, tags)
 
 	c.tagProcessor.ProcessTagInfo([]*TagInfo{

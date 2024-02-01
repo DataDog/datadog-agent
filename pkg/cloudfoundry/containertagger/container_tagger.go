@@ -108,7 +108,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		log.Debugf("Processing Event (id %s): %+v", eventID, storeContainer)
 
 		// extract tags
-		hostTags := hostMetadataUtils.GetHostTags(ctx, true, config.Datadog)
+		hostTags := hostMetadataUtils.Get(ctx, true, config.Datadog)
 		tags := storeContainer.CollectorTags
 		tags = append(tags, hostTags.System...)
 		tags = append(tags, hostTags.GoogleCloudPlatform...)
