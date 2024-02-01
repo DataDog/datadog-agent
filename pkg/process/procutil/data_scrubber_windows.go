@@ -20,7 +20,7 @@ var (
 // stripWindowsArgs removes the arguments of the commands if they identify any of the file extensions that windows defaults to.
 // If the command doesn't identify the extension and cannot split the exec command from the args, it will return the existing characters until the first empty space occurrence.
 
-func (ds *DataScrubber)stripArguments(cmdline []string)[]string {
+func (ds *DataScrubber) stripArguments(cmdline []string)[]string {
 	
 	argLength := len(cmdline)
 	
