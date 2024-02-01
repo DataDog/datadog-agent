@@ -191,7 +191,7 @@ func (tx *EbpfTx) StatusCode() uint16 {
 // SetStatusCode sets the HTTP status code of the transaction.
 func (tx *EbpfTx) SetStatusCode(code uint16) {
 	val := strconv.Itoa(int(code))
-	if len(val) > 3 {
+	if len(val) > http2RawStatusCodeMaxLength {
 		return
 	}
 	copy(tx.Stream.Status_code.Raw_buffer[:], val)
