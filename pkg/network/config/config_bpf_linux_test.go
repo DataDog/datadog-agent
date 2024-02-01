@@ -40,10 +40,7 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 
 	if sysconfig.ProcessEventDataStreamSupported() {
 		require.True(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
-		sysProbeConfig, err := sysconfig.New("")
-		require.NoError(t, err)
-
-		emconfig := emconfig.NewConfig(sysProbeConfig)
+		emconfig := emconfig.NewConfig()
 		secconfig, err := secconfig.NewConfig()
 		require.NoError(t, err)
 

@@ -24,7 +24,7 @@ func MockModule() fxutil.Module {
 }
 
 type mock struct {
-	demultiplexerComp.Component
+	*aggregator.AgentDemultiplexer
 	sender *sender.Sender
 }
 
@@ -36,7 +36,7 @@ func (m *mock) GetDefaultSender() (sender.Sender, error) {
 	if m.sender != nil {
 		return *m.sender, nil
 	}
-	return m.Component.GetDefaultSender()
+	return m.AgentDemultiplexer.GetDefaultSender()
 }
 
 func (m *mock) LazyGetSenderManager() (sender.SenderManager, error) {
@@ -56,10 +56,7 @@ func newMock(deps mockDependencies) (demultiplexerComp.Component, demultiplexerC
 		Log:             deps.Log,
 		SharedForwarder: defaultforwarder.NoopForwarder{},
 	}
-	demultiplexer := demultiplexer{
-		AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, ""),
-	}
 
-	instance := &mock{Component: demultiplexer}
+	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}
 	return instance, instance
 }

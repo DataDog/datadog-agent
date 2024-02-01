@@ -10,6 +10,8 @@ import (
 	"context"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
@@ -20,13 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newTrapForwarder),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newTrapForwarder),
+	)
+}
 
 // trapForwarder consumes SNMP packets, formats traps and send them as EventPlatformEvents
 // The trapForwarder is an intermediate step between the listener and the epforwarder in order to limit the processing of the listener

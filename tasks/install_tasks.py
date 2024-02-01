@@ -13,6 +13,7 @@ TOOL_LIST = [
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v2',
+    'github.com/wadey/gocovmerge',
 ]
 
 TOOL_LIST_PROTO = [
