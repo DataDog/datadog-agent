@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -40,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -75,14 +75,14 @@ var tracerTelemetry = struct {
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
-	config       *config.Config
-	state        network.State
-	conntracker  netlink.Conntracker
-	reverseDNS   dns.ReverseDNS
-	usmMonitor   *usm.Monitor
-	ebpfTracer   connection.Tracer
-	bpfTelemetry *ebpftelemetry.EBPFTelemetry
-	lastCheck    *atomic.Int64
+	config             *config.Config
+	state              network.State
+	conntracker        netlink.Conntracker
+	reverseDNS         dns.ReverseDNS
+	usmMonitor         *usm.Monitor
+	ebpfTracer         connection.Tracer
+	bpfErrorsCollector *ebpftelemetry.EBPFErrorsCollector
+	lastCheck          *atomic.Int64
 
 	bufferLock sync.Mutex
 
@@ -158,20 +158,29 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}()
 
-	tr.bpfTelemetry = ebpftelemetry.NewEBPFTelemetry()
-	if tr.bpfTelemetry != nil {
-		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfTelemetry)
+	// pointer to embedded ebpfTelemetry struct within the bpfErrorsCollector,
+	// to avoid possible nil pointer dereference when accessing it via the bpfErrorsCollector pointer
+	var bpfTelemetry *ebpftelemetry.EBPFTelemetry
+
+	if eec := ebpftelemetry.NewEBPFErrorsCollector(); eec != nil {
+		coretelemetry.GetCompatComponent().RegisterCollector(eec)
+
+		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
+		if errorsCollector, ok := eec.(*ebpftelemetry.EBPFErrorsCollector); ok {
+			tr.bpfErrorsCollector = errorsCollector
+			bpfTelemetry = tr.bpfErrorsCollector.EBPFTelemetry
+		}
 	} else {
 		log.Debug("eBPF telemetry not supported")
 	}
 
-	tr.ebpfTracer, err = connection.NewTracer(cfg, tr.bpfTelemetry)
+	tr.ebpfTracer, err = connection.NewTracer(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
 	coretelemetry.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
 
-	tr.conntracker, err = newConntracker(cfg, tr.bpfTelemetry)
+	tr.conntracker, err = newConntracker(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -183,22 +192,23 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}
 
 	tr.reverseDNS = newReverseDNS(cfg)
-	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer, tr.bpfTelemetry)
+	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer, bpfTelemetry)
 
 	if cfg.EnableProcessEventMonitoring {
-		if err = events.Init(); err != nil {
-			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
-		}
-
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
-		events.RegisterHandler(tr.processCache)
 
 		if tr.timeResolver, err = timeresolver.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
 		}
+
+		if err = events.Init(); err != nil {
+			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
+		}
+
+		events.RegisterHandler(tr.processCache)
 	}
 
 	tr.sourceExcludes = network.ParseConnectionFilters(cfg.ExcludedSourceConnections)
@@ -375,8 +385,8 @@ func (t *Tracer) Stop() {
 		t.processCache.Stop()
 		coretelemetry.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
-	if t.bpfTelemetry != nil {
-		coretelemetry.GetCompatComponent().UnregisterCollector(t.bpfTelemetry)
+	if t.bpfErrorsCollector != nil {
+		coretelemetry.GetCompatComponent().UnregisterCollector(t.bpfErrorsCollector)
 	}
 }
 

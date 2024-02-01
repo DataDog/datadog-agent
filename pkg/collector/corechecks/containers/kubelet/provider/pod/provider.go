@@ -18,11 +18,11 @@ import (
 
 	"golang.org/x/exp/slices"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

@@ -5,8 +5,8 @@ import subprocess
 from collections import defaultdict
 from typing import Dict
 
-from .common.gitlab import Gitlab, get_gitlab_token
-from .types import FailedJobs, Test
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.types import FailedJobs, Test
 
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
 DEFAULT_JIRA_PROJECT = "AGNTR"

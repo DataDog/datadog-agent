@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from .libs.common.utils import get_version, load_release_versions, timed
+from tasks.libs.common.utils import get_version, load_release_versions, timed
 
 # Windows only import
 try:
@@ -180,7 +180,7 @@ def _build(
 
     # Construct build command line
     cmd = _get_vs_build_command(
-        f'cd {BUILD_SOURCE_DIR} && msbuild {project} /restore /p:Configuration={configuration} /p:Platform="{arch}"',
+        f'cd {BUILD_SOURCE_DIR} && msbuild {project} /restore /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
         vstudio_root,
     )
     print(f"Build Command: {cmd}")
@@ -210,6 +210,8 @@ def _build_wxs(ctx, env, outdir):
     # Run the builder to produce the WXS
     # Set an env var to tell WixSetup.exe where to put the output
     env['AGENT_MSI_OUTDIR'] = outdir
+    # Create a MSI build cmd, not the full MSI
+    env["BUILD_MSI_CMD"] = "true"
     succeeded = ctx.run(
         f'cd {BUILD_SOURCE_DIR}\\WixSetup && {wixsetup}',
         warn=True,

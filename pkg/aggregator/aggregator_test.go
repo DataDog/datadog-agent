@@ -19,6 +19,7 @@ import (
 	// 3p
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

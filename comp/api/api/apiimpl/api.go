@@ -7,6 +7,7 @@
 package apiimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"net"
 
 	"go.uber.org/fx"
@@ -15,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -26,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -49,6 +51,8 @@ type apiServer struct {
 	secretResolver  secrets.Component
 	invChecks       inventorychecks.Component
 	pkgSigning      packagesigning.Component
+	statusComponent status.Component
+	rcService       optional.Option[rcservice.Component]
 }
 
 type dependencies struct {
@@ -65,6 +69,8 @@ type dependencies struct {
 	SecretResolver  secrets.Component
 	InvChecks       inventorychecks.Component
 	PkgSigning      packagesigning.Component
+	StatusComponent status.Component
+	RcService       optional.Option[rcservice.Component]
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -82,22 +88,25 @@ func newAPIServer(deps dependencies) api.Component {
 		secretResolver:  deps.SecretResolver,
 		invChecks:       deps.InvChecks,
 		pkgSigning:      deps.PkgSigning,
+		statusComponent: deps.StatusComponent,
+		rcService:       deps.RcService,
 	}
 }
 
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
-	configService *remoteconfig.Service,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 ) error {
-	return StartServers(configService,
+	return StartServers(server.rcService,
 		server.flare,
 		server.dogstatsdServer,
 		server.capture,
 		server.serverDebug,
 		wmeta,
+		taggerComp,
 		logsAgent,
 		senderManager,
 		server.hostMetadata,
@@ -107,6 +116,7 @@ func (server *apiServer) StartServer(
 		server.secretResolver,
 		server.invChecks,
 		server.pkgSigning,
+		server.statusComponent,
 	)
 }
 

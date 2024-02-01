@@ -57,22 +57,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 					// closed channel case
 					return
 				}
-				eventBundle.Acknowledge()
-
-				for _, event := range eventBundle.Events {
-					image := event.Entity.(*workloadmeta.ContainerImageMetadata)
-
-					if image.SBOM.Status != workloadmeta.Pending {
-						// BOM already stored. Can happen when the same image ID
-						// is referenced with different names.
-						log.Debugf("Image: %s/%s (id %s) SBOM already available", image.Namespace, image.Name, image.ID)
-						continue
-					}
-
-					if err := c.extractSBOMWithTrivy(ctx, image, resultChan); err != nil {
-						log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
-					}
-				}
+				c.handleEventBundle(ctx, eventBundle, resultChan)
 			}
 		}
 	}()
@@ -82,6 +67,26 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	return nil
 }
 
+// handleEventBundle handles ContainerImageMetadata set events for which no SBOM generation attempt was done.
+func (c *collector) handleEventBundle(ctx context.Context, eventBundle workloadmeta.EventBundle, resultChan chan<- sbom.ScanResult) {
+	eventBundle.Acknowledge()
+	for _, event := range eventBundle.Events {
+		image := event.Entity.(*workloadmeta.ContainerImageMetadata)
+
+		if image.SBOM.Status != workloadmeta.Pending {
+			// A generation attempt has already been done. In that case, it should go through the retry logic.
+			// We can't handle them here otherwise it would keep retrying in a while loop.
+			log.Debugf("Image: %s/%s (id %s) SBOM already available", image.Namespace, image.Name, image.ID)
+			continue
+		}
+
+		if err := c.extractSBOMWithTrivy(ctx, image, resultChan); err != nil {
+			log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
+		}
+	}
+}
+
+// extractSBOMWithTrivy emits a scan request to the SBOM scanner. The scan result will be sent to the resultChan.
 func (c *collector) extractSBOMWithTrivy(_ context.Context, storedImage *workloadmeta.ContainerImageMetadata, resultChan chan<- sbom.ScanResult) error {
 	containerdImage, err := c.containerdClient.Image(storedImage.Namespace, storedImage.Name)
 	if err != nil {
@@ -102,6 +107,7 @@ func (c *collector) extractSBOMWithTrivy(_ context.Context, storedImage *workloa
 	return nil
 }
 
+// The scanResultHandler receives SBOM scan results and updates the workloadmeta entities accordingly.
 func (c *collector) startScanResultHandler(ctx context.Context, resultChan <-chan sbom.ScanResult) {
 	for {
 		select {

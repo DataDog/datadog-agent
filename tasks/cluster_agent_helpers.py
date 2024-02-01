@@ -5,8 +5,8 @@ Common utilities for building Cluster Agent variants
 import os
 import shutil
 
-from .build_tags import filter_incompatible_tags, get_build_tags
-from .libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version
+from tasks.build_tags import filter_incompatible_tags, get_build_tags
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 
 def build_common(

@@ -433,6 +433,15 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 			return "", fmt.Errorf("error marshalling interface_configs: %s", err)
 		}
 		return string(ifConfigsJson), nil
+	case "ping":
+		pingConfig := s.config.PingConfig
+
+		pingCfgJSON, err := json.Marshal(pingConfig)
+		if err != nil {
+			return "", fmt.Errorf("error marshalling ping config: %s", err)
+		}
+
+		return string(pingCfgJSON), nil
 	}
 	return "", ErrNotSupported
 }
