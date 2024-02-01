@@ -14,11 +14,11 @@ from time import sleep
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from .libs.common.color import color_message
-from .libs.common.github_api import GithubAPI
-from .libs.common.gitlab import Gitlab, get_gitlab_token
-from .libs.common.user_interactions import yes_no_question
-from .libs.common.utils import (
+from tasks.libs.common.color import color_message
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
     check_clean_branch_state,
@@ -26,9 +26,9 @@ from .libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
-from .libs.version import Version
-from .modules import DEFAULT_MODULES
-from .pipeline import edit_schedule, run
+from tasks.libs.version import Version
+from tasks.modules import DEFAULT_MODULES
+from tasks.pipeline import edit_schedule, run
 
 # Generic version regex. Aims to match:
 # - X.Y.Z

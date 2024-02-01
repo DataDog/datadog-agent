@@ -24,7 +24,7 @@ type agentSuite struct {
 }
 
 func TestAgentSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()), e2e.WithDevMode())
 }
 
 func (v *agentSuite) TestAgentCommandNoArg() {
@@ -56,7 +56,7 @@ func (v *agentSuite) TestWithAgentConfig() {
 		if param.useConfig {
 			agentParams = append(agentParams, agentparams.WithAgentConfig(param.config))
 		}
-		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentParams...)))
+		v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...)))
 		config := v.Env().Agent.Client.Config()
 		re := regexp.MustCompile(`.*log_level:(.*)\n`)
 		matches := re.FindStringSubmatch(config)
@@ -66,12 +66,13 @@ func (v *agentSuite) TestWithAgentConfig() {
 }
 
 func (v *agentSuite) TestWithTelemetry() {
-	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithTelemetry())))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithTelemetry())))
 
 	status := v.Env().Agent.Client.Status()
 	require.Contains(v.T(), status.Content, "go_expvar")
 
-	v.UpdateEnv(awshost.Provisioner())
+	v.T().Skip("APL-2816 pulumi does not restart agent on integration config removal")
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake())
 	status = v.Env().Agent.Client.Status()
 	require.NotContains(v.T(), status.Content, "go_expvar")
 }
@@ -80,7 +81,7 @@ func (v *agentSuite) TestWithLogs() {
 	config := v.Env().Agent.Client.Config()
 	require.Contains(v.T(), config, "logs_enabled: false")
 
-	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs())))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithLogs())))
 	config = v.Env().Agent.Client.Config()
 	require.Contains(v.T(), config, "logs_enabled: true")
 }

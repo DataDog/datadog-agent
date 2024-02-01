@@ -21,16 +21,14 @@ import (
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	checkName    = "sbom"
+	// CheckName is the name of the check
+	CheckName    = "sbom"
 	metricPeriod = 15 * time.Minute
 )
-
-func init() {
-	core.RegisterCheck(checkName, CheckFactory)
-}
 
 // Config holds the container_image check configuration
 type Config struct {
@@ -114,15 +112,16 @@ type Check struct {
 	stopCh            chan struct{}
 }
 
-// CheckFactory registers the sbom check
-func CheckFactory() check.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
-		// TODO)components): stop using global and rely instead on injected workloadmeta component.
-		workloadmetaStore: workloadmeta.GetGlobalStore(),
-		instance:          &Config{},
-		stopCh:            make(chan struct{}),
-	}
+// Factory returns a new check factory
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &Check{
+			CheckBase:         core.NewCheckBase(CheckName),
+			workloadmetaStore: store,
+			instance:          &Config{},
+			stopCh:            make(chan struct{}),
+		}
+	})
 }
 
 // Configure parses the check configuration and initializes the sbom check
@@ -175,7 +174,7 @@ func (c *Check) Run() error {
 	}
 
 	imgEventsCh := c.workloadmetaStore.Subscribe(
-		checkName,
+		CheckName,
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(&filterParams),
 	)

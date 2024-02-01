@@ -18,7 +18,7 @@ func InstallMSI(host *components.RemoteHost, msiPath string, args string, logPat
 	if err != nil {
 		return err
 	}
-	cmd := fmt.Sprintf(`Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /l %s /i %s %s'`,
+	cmd := fmt.Sprintf(`Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /l %s /i %s %s').ExitCode`,
 		remoteLogPath, msiPath, args)
 
 	output, installErr := host.Execute(cmd)
