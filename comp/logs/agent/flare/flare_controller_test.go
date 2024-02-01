@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -38,4 +39,21 @@ func TestAllFiles(t *testing.T) {
 
 	fc.SetAllFiles([]string{})
 	assert.Equal(t, fc.allFiles, []string{})
+}
+
+func TestNonexistantFile(t *testing.T) {
+	fc := NewFlareController()
+	f := helpers.NewFlareBuilderMock(t, false)
+	name := "file.log"
+
+	fc.SetAllFiles([]string{name})
+	fc.FillFlare(f.Fb)
+
+	fi, err := os.Stat(name)
+	if fi != nil {
+		fmt.Println("stop")
+	}
+
+	f.AssertFileExists("logs_file_permissions.log")
+	f.AssertFileContent(err.Error(), "logs_file_permissions.log")
 }
