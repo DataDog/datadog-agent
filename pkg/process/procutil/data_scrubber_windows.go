@@ -65,8 +65,12 @@ func extensionParser(cmdline string, winDotExec []string) string {
 			processedCmdline = cmdline[:i+len(c)]
 			return processedCmdline
 		}
-		processedCmdline = strings.Split(cmdline, c)[0]
 	}
+
+	if len(cmdline) >= 1 {
+		processedCmdline = strings.Split(cmdline, " ")[0]
+	}
+
 	return processedCmdline
 }
 
