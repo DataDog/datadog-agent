@@ -17,6 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/spf13/cobra"
 )
 
@@ -60,6 +64,12 @@ func main() {
 	if agentCmdBuilder == nil {
 		fmt.Fprintf(os.Stderr, "Invoked as '%s', acting as main Agent.\n", process)
 		agentCmdBuilder = coreAgentMain
+	}
+
+	// prepare go runtime
+	_, err := agentrt.SetGoMemLimit(coreconfig.IsContainerized())
+	if err != nil {
+		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
 	}
 
 	rootCmd := agentCmdBuilder()
