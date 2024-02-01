@@ -50,7 +50,7 @@ func TestNonexistantFile(t *testing.T) {
 
 	fi, err := os.Stat(name)
 	if fi != nil {
-		t.Fail()
+		t.FailNow()
 	}
 
 	f.AssertFileExists("logs_file_permissions.log")
