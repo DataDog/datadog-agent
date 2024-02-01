@@ -177,6 +177,8 @@ func (w *Watcher) Start() {
 	w.wg.Add(1)
 	go func() {
 		processSync := time.NewTicker(scanTerminatedProcessesInterval)
+		dataChannel := w.loadEvents.DataChannel()
+		lostChannel := w.loadEvents.LostChannel()
 
 		defer func() {
 			processSync.Stop()
@@ -200,7 +202,7 @@ func (w *Watcher) Start() {
 				for deletedPid := range deletedPids {
 					w.registry.Unregister(deletedPid)
 				}
-			case event, ok := <-w.loadEvents.DataChannel:
+			case event, ok := <-dataChannel:
 				if !ok {
 					return
 				}
@@ -222,7 +224,7 @@ func (w *Watcher) Start() {
 					}
 				}
 				event.Done()
-			case <-w.loadEvents.LostChannel:
+			case <-lostChannel:
 				// Nothing to do in this case
 				break
 			}

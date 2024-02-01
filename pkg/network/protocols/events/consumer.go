@@ -13,10 +13,11 @@ import (
 	"sync"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -123,10 +124,12 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 func (c *Consumer[V]) Start() {
 	c.eventLoopWG.Add(1)
 	go func() {
+		dataChannel := c.handler.DataChannel()
+		lostChannel := c.handler.LostChannel()
 		defer c.eventLoopWG.Done()
 		for {
 			select {
-			case dataEvent, ok := <-c.handler.DataChannel:
+			case dataEvent, ok := <-dataChannel:
 				if !ok {
 					return
 				}
@@ -141,9 +144,9 @@ func (c *Consumer[V]) Start() {
 
 				c.failedFlushesCount.Add(int64(b.Failed_flushes))
 				c.kernelDropsCount.Add(int64(b.Dropped_events))
-				c.process(dataEvent.CPU, b, false)
+				c.process(b, false)
 				dataEvent.Done()
-			case _, ok := <-c.handler.LostChannel:
+			case _, ok := <-lostChannel:
 				if !ok {
 					return
 				}
@@ -156,7 +159,7 @@ func (c *Consumer[V]) Start() {
 				}
 
 				c.batchReader.ReadAll(func(cpu int, b *batch) {
-					c.process(cpu, b, true)
+					c.process(b, true)
 				})
 				log.Infof("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
 				close(done)
@@ -198,7 +201,8 @@ func (c *Consumer[V]) Stop() {
 	close(c.syncRequest)
 }
 
-func (c *Consumer[V]) process(cpu int, b *batch, syncing bool) {
+func (c *Consumer[V]) process(b *batch, syncing bool) {
+	cpu := int(b.Cpu)
 	// Determine the subset of data we're interested in as we might have read
 	// part of this batch before during a Sync() call
 	begin, end := c.offsets.Get(cpu, b, syncing)

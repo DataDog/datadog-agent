@@ -20,6 +20,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
@@ -214,13 +215,17 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 	if config.ClosedChannelSize > 0 {
 		closedChannelSize = config.ClosedChannelSize
 	}
-	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	ringHandlerTCP := ddebpf.NewRingHandler(closedChannelSize)
+	var connCloseEventHandler ddebpf.EventHandler
+	if RingbuffersEnabled(config) {
+		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
+	} else {
+		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
+	}
 	var m *manager.Manager
 	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
-	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP, ringHandlerTCP, bpfTelemetry)
+	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, connCloseEventHandler, bpfTelemetry)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -230,7 +235,7 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
-		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, perfHandlerTCP, ringHandlerTCP, bpfTelemetry)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler, bpfTelemetry)
 		if err != nil {
 			return nil, err
 		}
@@ -239,12 +244,12 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 	m.DumpHandler = dumpMapsHandler
 	ebpfcheck.AddNameMappings(m, "npm_tracer")
 
-	batchMgr, err := newConnBatchManager(m)
+	batchMgr, err := newConnBatchManager(m, RingbuffersEnabled(config))
 	if err != nil {
 		return nil, fmt.Errorf("could not create connection batch manager: %w", err)
 	}
 
-	closeConsumer := newTCPCloseConsumer(perfHandlerTCP, batchMgr)
+	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
 	tr := &tracer{
 		m:              m,
@@ -305,7 +310,7 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
-	t.closeConsumer.Start(callback)
+	t.closeConsumer.Start(callback, RingbuffersEnabled(t.config))
 	return nil
 }
 
@@ -736,4 +741,9 @@ func (h *cookieHasher) Hash(stats *network.ConnectionStats) {
 		return
 	}
 	stats.Cookie = h.hash.Sum64()
+}
+
+// RingbuffersEnabled returns true if the current kernel version supports ringbuffers and the config enables it
+func RingbuffersEnabled(config *config.Config) bool {
+	return (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled
 }

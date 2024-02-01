@@ -71,7 +71,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPSendPageReturn,
 }
 
-func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ringHandlerTCP *ebpf.RingHandler, runtimeTracer bool, ringbufferSupported bool, cfg *config.Config) error {
+func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHandler, runtimeTracer bool, cfg *config.Config) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -97,11 +97,11 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ri
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
-	if ringbufferSupported {
+	switch handler := connCloseEventHandler.(type) {
+	case *ebpf.RingBufferHandler:
 		options := manager.RingBufferOptions{
-			ErrChan:          ringHandlerTCP.ErrorChannel,
-			RecordGetter:     ringHandlerTCP.RecordGetter,
-			RecordHandler:    ringHandlerTCP.RecordHandler,
+			RecordGetter:     handler.RecordGetter,
+			RecordHandler:    handler.RecordHandler,
 			TelemetryEnabled: cfg.InternalTelemetryEnabled,
 			RingBufferSize:   int(secEbpf.ComputeDefaultEventsRingBufferSize()),
 		}
@@ -112,15 +112,15 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ri
 
 		mgr.RingBuffers = []*manager.RingBuffer{rb}
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
-	} else {
+	case *ebpf.PerfHandler:
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: probes.ConnCloseEventMap},
 			PerfMapOptions: manager.PerfMapOptions{
 				PerfRingBufferSize: 8 * os.Getpagesize(),
 				Watermark:          1,
-				RecordHandler:      closedHandler.RecordHandler,
-				LostHandler:        closedHandler.LostHandler,
-				RecordGetter:       closedHandler.RecordGetter,
+				RecordHandler:      handler.RecordHandler,
+				LostHandler:        handler.LostHandler,
+				RecordGetter:       handler.RecordGetter,
 				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
 			},
 		}

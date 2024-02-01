@@ -69,7 +69,8 @@ func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*perfBatchManager, er
 }
 
 // ExtractBatchInto extracts from the given batch all connections that haven't been processed yet.
-func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, cpu int) {
+func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch) {
+	cpu := int(b.Cpu)
 	if cpu >= len(p.stateByCPU) {
 		return
 	}
@@ -175,13 +176,16 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 	}
 }
 
-func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
+func newConnBatchManager(mgr *manager.Manager, ringbufferSupported bool) (*perfBatchManager, error) {
 	connCloseMap, _, err := mgr.GetMap(probes.ConnCloseBatchMap)
 	if err != nil {
 		return nil, err
 	}
 
-	numCPUs, err := ebpf.PossibleCPU()
+	numCPUs := 1
+	if !ringbufferSupported {
+		numCPUs, err = ebpf.PossibleCPU()
+	}
 	if err != nil {
 		return nil, err
 	}

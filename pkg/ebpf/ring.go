@@ -15,66 +15,62 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-// RingHandler wraps an eBPF ring buffer
-type RingHandler struct {
-	DataChannel  chan *RingDataEvent
-	ErrorChannel chan error
-	RecordGetter func() *ringbuf.Record
-	once         sync.Once
-	closed       bool
-}
-
-// RingDataEvent is a single event read from a perf buffer
-type RingDataEvent struct {
-	Data []byte
-
-	r *ringbuf.Record
-}
-
-// Done returns the data buffer back to a sync.Pool
-func (d *RingDataEvent) Done() {
-	eventPool.Put(d.r)
-}
-
-var eventPool = sync.Pool{
+var ringPool = sync.Pool{
 	New: func() interface{} {
-		return &ringbuf.Record{}
+		return new(ringbuf.Record)
 	},
 }
 
-// NewRingHandler creates a RingHandler
-func NewRingHandler(dataChannelSize int) *RingHandler {
-	return &RingHandler{
-		DataChannel:  make(chan *RingDataEvent, dataChannelSize),
-		ErrorChannel: make(chan error, 10),
+var _ EventHandler = new(RingBufferHandler)
+
+// RingBufferHandler wraps an eBPF ring buffer
+type RingBufferHandler struct {
+	RecordGetter func() *ringbuf.Record
+
+	dataChannel chan *DataEvent
+	lostChannel chan uint64
+	once        sync.Once
+	closed      bool
+}
+
+// NewRingBufferHandler creates a RingBufferHandler
+func NewRingBufferHandler(dataChannelSize int) *RingBufferHandler {
+	return &RingBufferHandler{
 		RecordGetter: func() *ringbuf.Record {
-			return eventPool.Get().(*ringbuf.Record)
+			return ringPool.Get().(*ringbuf.Record)
 		},
+		dataChannel: make(chan *DataEvent, dataChannelSize),
+		// This channel is not used in the context of ring buffers, but
+		// it's here so `RingBufferHandler` and `PerfHandler` can be used
+		// interchangeably
+		lostChannel: make(chan uint64, 1),
 	}
 }
 
-// LostHandler is the callback intended to be used when configuring RingMapOptions
-func (c *RingHandler) LostHandler(_ int, errorCount error, _ *manager.RingBuffer, _ *manager.Manager) {
+// RecordHandler is the callback intended to be used when configuring PerfMapOptions
+func (c *RingBufferHandler) RecordHandler(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
 	if c.closed {
 		return
 	}
-	c.ErrorChannel <- errorCount
+
+	c.dataChannel <- &DataEvent{Data: record.RawSample, rr: record}
 }
 
-// RecordHandler is the callback intended to be used when configuring RingMapOptions
-func (c *RingHandler) RecordHandler(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
-	if c.closed {
-		return
-	}
+// DataChannel returns the channel with event data
+func (c *RingBufferHandler) DataChannel() <-chan *DataEvent {
+	return c.dataChannel
+}
 
-	c.DataChannel <- &RingDataEvent{Data: record.RawSample, r: record}
+// LostChannel returns the channel with lost events
+func (c *RingBufferHandler) LostChannel() <-chan uint64 {
+	return c.lostChannel
 }
 
 // Stop stops the perf handler and closes both channels
-func (c *RingHandler) Stop() {
+func (c *RingBufferHandler) Stop() {
 	c.once.Do(func() {
 		c.closed = true
-		close(c.DataChannel)
-		close(c.ErrorChannel)
+		close(c.dataChannel)
+		close(c.lostChannel)
 	})
 }

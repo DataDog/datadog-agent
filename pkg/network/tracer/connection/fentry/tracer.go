@@ -20,7 +20,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -30,7 +29,7 @@ const probeUID = "net"
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
 // LoadTracer loads a new tracer
-func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, ringHandlerTCP *ddebpf.RingHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 	if !fargate.IsFargateInstance() {
 		return nil, nil, ErrorNotSupported
 	}
@@ -47,8 +46,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 			return fmt.Errorf("invalid probe configuration: %v", err)
 		}
 
-		ringbufferEnabled := kprobe.RingbufferSupported(config)
-		initManager(m, perfHandlerTCP, ringHandlerTCP, ringbufferEnabled, config)
+		initManager(m, connCloseEventHandler, config)
 
 		file, err := os.Stat("/proc/self/ns/pid")
 

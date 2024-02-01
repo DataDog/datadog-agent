@@ -17,9 +17,10 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	secEbpf "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
 
-func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ringHandlerTCP *ebpf.RingHandler, ringbufferSupported bool, cfg *config.Config) {
+func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHandler, cfg *config.Config) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -36,25 +37,30 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ri
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},
 	}
-	if ringbufferSupported {
-		rb := &manager.RingBuffer{
-			Map: manager.Map{Name: probes.ConnCloseEventMap},
-			RingBufferOptions: manager.RingBufferOptions{
-				RingBufferSize: 16 * 256 * os.Getpagesize(),
-				RecordGetter:   ringHandlerTCP.RecordGetter,
-			},
+	switch handler := connCloseEventHandler.(type) {
+	case *ebpf.RingBufferHandler:
+		options := manager.RingBufferOptions{
+			RecordGetter:     handler.RecordGetter,
+			RecordHandler:    handler.RecordHandler,
+			TelemetryEnabled: cfg.InternalTelemetryEnabled,
+			RingBufferSize:   int(secEbpf.ComputeDefaultEventsRingBufferSize()),
 		}
+		rb := &manager.RingBuffer{
+			Map:               manager.Map{Name: probes.ConnCloseEventMap},
+			RingBufferOptions: options,
+		}
+
 		mgr.RingBuffers = []*manager.RingBuffer{rb}
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
-	} else {
+	case *ebpf.PerfHandler:
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: probes.ConnCloseEventMap},
 			PerfMapOptions: manager.PerfMapOptions{
 				PerfRingBufferSize: 8 * os.Getpagesize(),
 				Watermark:          1,
-				RecordHandler:      closedHandler.RecordHandler,
-				LostHandler:        closedHandler.LostHandler,
-				RecordGetter:       closedHandler.RecordGetter,
+				RecordHandler:      handler.RecordHandler,
+				LostHandler:        handler.LostHandler,
+				RecordGetter:       handler.RecordGetter,
 				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
 			},
 		}

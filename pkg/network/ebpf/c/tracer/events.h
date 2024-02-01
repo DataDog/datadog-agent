@@ -43,7 +43,6 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
 
 static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
-
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
     conn_stats_ts_t *cst = NULL;
@@ -96,6 +95,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 
     // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
+    batch_ptr->cpu = cpu;
     switch (batch_ptr->len) {
     case 0:
         batch_ptr->c0 = conn;
@@ -150,6 +150,7 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
         bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
         batch_ptr->len = 0;
         batch_ptr->id++;
+        batch_ptr->cpu = 0;
 
         // we cannot use the telemetry macro here because of stack size constraints
         if (ringbuffers_enabled()) {
