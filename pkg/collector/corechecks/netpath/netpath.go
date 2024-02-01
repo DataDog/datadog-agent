@@ -26,7 +26,6 @@ import (
 	"net"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -197,7 +196,6 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 	tr := metadata.NetworkPath{
 		TracerouteSource: "netpath_integration",
 		Format:           "path_per_event",
-		HopsByIpAddress:  make(map[string]metadata.TracerouteHop),
 
 		Timestamp:       time.Now().UnixMilli(),
 		AgentHost:       hname,
@@ -465,7 +463,6 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 	traceroutePath := metadata.NetworkPath{
 		TracerouteSource: "netpath_integration",
 		Format:           "path_per_event",
-		HopsByIpAddress:  make(map[string]metadata.TracerouteHop),
 
 		Timestamp:       time.Now().UnixMilli(),
 		AgentHost:       hname,
@@ -613,7 +610,6 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 				//Success:   hop.Success,
 			}
 			traceroutePath.Hops = append(traceroutePath.Hops, hop)
-			traceroutePath.HopsByIpAddress[strings.ReplaceAll(ip, ".", "-")] = hop
 
 			//prevHop = hop
 
