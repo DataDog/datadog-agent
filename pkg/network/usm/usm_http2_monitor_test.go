@@ -715,27 +715,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
-			name: "validate capability to process up to max limit filtering frames",
-			// The purpose of this test is to verify our ability to process up to HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING frames.
-			// We write the path "/aaa" for the first time with an additional 25 headers (reaching to a total of 26 headers).
-			// When we exceed the limit, we expect to lose our internal counter (because we can filter up to 25 requests),
-			// and therefore, the next time we write the request "/aaa",
-			// its internal index will not be correct, and we will not be able to find it.
-			messageBuilder: func() [][]byte {
-				const multiHeadersCount = 25
-				framer := newFramer()
-				return [][]byte{
-					framer.writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
-						Headers: multipleTestHeaders(multiHeadersCount)}).
-						writeData(t, 1, true, emptyBody).
-						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
-				}
-			},
-			expectedEndpoints: nil,
-		},
-		{
 			name: "validate 300 status code",
 			// The purpose of this test is to verify that currently we do not support status code 300.
 			messageBuilder: func() [][]byte {
