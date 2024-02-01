@@ -252,7 +252,8 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 
 func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
-	entriesToTest := []uint32{24, 104, 1000, 10000} // We will divide by 8 in total to get some limits for the MultipleBatch test, ensure all numbers are divisible by 8
+	minBatchSize := uint32(8) // Ensure all numbers are divisible by 8 so that we can have whole numbers in the MultipleBatch case
+	entriesToTest := []uint32{minBatchSize * 5, minBatchSize * 15, minBatchSize * 125, minBatchSize * 1250}
 
 	for _, maxEntries := range entriesToTest {
 		t.Run(fmt.Sprintf("%dMaxEntries", maxEntries), func(t *testing.T) {
