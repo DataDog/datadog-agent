@@ -242,7 +242,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
 
-    network_flags = "-Ipkg/network/ebpf/c -g"
+    network_flags = "-Ipkg/network/ebpf/c -g -pg"
     network_programs = [
         "prebuilt/dns",
         "prebuilt/offset-guess",
@@ -262,7 +262,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     for prog_path in network_co_re_programs:
         prog = os.path.basename(prog_path)
         src_dir = os.path.join(network_c_dir, os.path.dirname(prog_path))
-        network_co_re_flags = f"-I{src_dir} -Ipkg/network/ebpf/c"
+        network_co_re_flags = f"-I{src_dir} -Ipkg/network/ebpf/c -pg"
 
         infile = os.path.join(src_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")

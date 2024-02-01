@@ -21,7 +21,7 @@ func getRuntimeCompiledConntracker(config *config.Config) (runtime.CompiledOutpu
 }
 
 func getCFlags(config *config.Config) []string {
-	cflags := []string{"-g"}
+	cflags := []string{"-g", "-pg"}
 
 	if config.CollectTCPv6Conns {
 		cflags = append(cflags, "-DFEATURE_TCPV6_ENABLED")

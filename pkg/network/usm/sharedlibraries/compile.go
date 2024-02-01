@@ -22,7 +22,7 @@ func getRuntimeCompiledSharedLibraries(config *config.Config) (runtime.CompiledO
 }
 
 func getCFlags(config *config.Config) []string {
-	cflags := []string{"-g"}
+	cflags := []string{"-g", "-pg"}
 
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
