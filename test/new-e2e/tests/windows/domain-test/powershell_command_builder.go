@@ -22,7 +22,7 @@ func PsHost() *powerShellCommandBuilder {
 
 // GetLastBootTime uses the win32_operatingsystem Cim class to get the last time the computer was booted
 func (ps *powerShellCommandBuilder) GetLastBootTime() *powerShellCommandBuilder {
-	ps.cmds = append(ps.cmds, "Get-CimInstance -ClassName win32_operatingsystem")
+	ps.cmds = append(ps.cmds, "(Get-CimInstance -ClassName win32_operatingsystem).lastbootuptime")
 	return ps
 }
 
@@ -83,6 +83,17 @@ $HashArguments = @{
     SafeModeAdministratorPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
     Force                         = $true
 }; Install-ADDSForest @HashArguments`, activeDirectoryDomain, passwd))
+	return ps
+}
+
+func (ps *powerShellCommandBuilder) AddActiveDirectoryUser(username, passwd string) *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, fmt.Sprintf(`
+$HashArguments = @{
+    Name = '%s'
+    AccountPassword = (Read-Host -AsSecureString '%s')
+    Enabled = $true
+}
+; New-ADUser @HashArguments`, username, passwd))
 	return ps
 }
 

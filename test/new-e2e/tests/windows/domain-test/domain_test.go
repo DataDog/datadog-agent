@@ -8,13 +8,21 @@ package domain
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 type testSuite struct {
@@ -26,46 +34,136 @@ type testSuite struct {
 
 func TestDomainInstallations(t *testing.T) {
 	opts := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
+		e2e.WithProvisioner(awshost.Provisioner(
+			awshost.WithoutAgent(),
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		)),
-		//e2e.WithDevMode(),
 	}
 
-	s := &testSuite{}
+	agentPackage, err := windowsAgent.GetPackageFromEnv()
+	if err != nil {
+		t.Fatalf("failed to get MSI URL from env: %v", err)
+	}
+	t.Logf("Using Agent: %#v", agentPackage)
+	majorVersion := strings.Split(agentPackage.Version, ".")[0]
 
-	t.Run(fmt.Sprintf("Agent v%s", "7"), func(t *testing.T) {
+	s := &testSuite{
+		agentPackage: agentPackage,
+		majorVersion: majorVersion,
+	}
+
+	t.Run(fmt.Sprintf("Agent v%s", majorVersion), func(t *testing.T) {
 		e2e.Run(t, s, opts...)
 	})
 }
 
-func (suite *testSuite) Test_INS_DC_001() {
-	vm := suite.Env().RemoteHost
+func installAgentPackage(host *components.RemoteHost, agentPackage *windowsAgent.Package, args string, logfile string) (string, error) {
+	remoteMSIPath, err := windows.GetTemporaryFile(host)
+	if err != nil {
+		return "", err
+	}
+	err = windows.PutOrDownloadFile(host, agentPackage.URL, remoteMSIPath)
+	if err != nil {
+		return "", err
+	}
+	return remoteMSIPath, windows.InstallMSI(host, remoteMSIPath, args, logfile)
+}
 
-	infoCmd := PsHost().
-		GetLastBootTime().
-		SelectProperties("csname", "lastbootuptime").
-		AddColumn("Public IP Address", PsHost().GetPublicIPAddress()).
-		Compile()
+func waitForHostToReboot(host *components.RemoteHost, bootTime string) error {
+	for {
+		newBootTime, err := PsHost().GetLastBootTime().Execute(host)
+		if err != nil {
+			continue
+		}
+		if newBootTime != bootTime {
+			return nil
+		}
+	}
+}
 
-	suite.T().Logf("Command: %s", infoCmd)
-	res, err := vm.Execute(infoCmd)
-	suite.T().Logf(res)
-	suite.Require().NoError(err, "should get info")
-
-	res, err = PsHost().
+func setupForest(host *components.RemoteHost, domainName, domainPassword string) error {
+	_, err := PsHost().
 		AddActiveDirectoryDomainServicesWindowsFeature().
 		ImportActiveDirectoryDomainServicesModule().
-		InstallADDSForest("datadogqalab.com", "test1234#").
-		Execute(vm)
-	suite.T().Logf("forest output: %s", res)
+		InstallADDSForest(domainName, domainPassword).
+		Execute(host)
+	if err != nil {
+		return err
+	}
+	// Still send a reboot, just in case
+	_, _ = PsHost().Reboot().Execute(host)
+	return nil
+}
+
+// prepareHostAndExec provisions the host with the necessary pre-requisites, then calls the test function
+func (suite *testSuite) prepareHostAndExec(test func(host *components.RemoteHost, outputDir string)) {
+	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), suite.T())
+	suite.Require().NoError(err, "should get output dir")
+	suite.T().Logf("Output dir: %s", outputDir)
+
+	vm := suite.Env().RemoteHost
+	bootTime, err := PsHost().GetLastBootTime().Execute(vm)
+	suite.Require().NoError(err)
+
+	err = setupForest(vm, "datadogqalab.com", "Test1234#")
 	suite.Require().NoError(err, "should create forest")
 
-	res, err = vm.Execute(infoCmd)
-	suite.T().Logf(res)
-	suite.Require().NoError(err, "should get info")
+	suite.Require().NoError(waitForHostToReboot(vm, bootTime))
 
-	res, err = PsHost().GetActiveDirectoryDomainController().Execute(vm)
-	suite.T().Logf("Get-ADDomainController output: %s", res)
-	suite.Require().NoError(err, "should get domain controller")
+	_, err = PsHost().AddActiveDirectoryUser("DatadogTestUser", "TestPassword1234#").Execute(vm)
+	suite.Require().NoError(err)
+
+	test(vm, outputDir)
+}
+
+func (suite *testSuite) TestInvalidInstall() {
+	suite.prepareHostAndExec(func(host *components.RemoteHost, outputDir string) {
+		suite.Require().True(suite.Run("TC-INS-DC-001", func() {
+			_, err := installAgentPackage(host, suite.agentPackage, "", filepath.Join(outputDir, "tc_ins_dc_001_install.log"))
+			suite.Require().Error(err, "should not succeed to install Agent on a Domain Controller with default ddagentuser")
+		}))
+
+		suite.Require().True(suite.Run("TC-INS-DC-002", func() {
+			_, err := installAgentPackage(host, suite.agentPackage, "DDAGENTUSER_NAME=datadogqalab.com\\test", filepath.Join(outputDir, "tc_ins_dc_002_install.log"))
+			suite.Require().Error(err, "should not succeed to install Agent on a Domain Controller with a non existing domain account")
+		}))
+
+		// TODO: TC-INS-DC-003 requires a parent or sibling domain
+
+		suite.Require().True(suite.Run("TC-INS-DC-004", func() {
+			_, err := installAgentPackage(host, suite.agentPackage, "DDAGENTUSER_NAME=datadogqalab.com\\DatadogTestUser", filepath.Join(outputDir, "tc_ins_dc_004_install.log"))
+			suite.Require().Error(err, "should not succeed to install Agent on a Domain Controller without the domain account password")
+		}))
+
+		suite.Require().True(suite.Run("TC-INS-DC-005", func() {
+			_, err := installAgentPackage(host, suite.agentPackage, "DDAGENTUSER_NAME=datadogqalab.com\\DatadogTestUser DDAGENTUSER_PASSWORD='Incorrect'", filepath.Join(outputDir, "tc_ins_dc_005_install.log"))
+			suite.Require().Error(err, "should not succeed to install Agent on a Domain Controller with an incorrect domain account password")
+		}))
+	})
+}
+
+type MyAssertions struct {
+	a require.Assertions
+}
+
+func (ass *MyAssertions) UserSDDL() {
+
+}
+func (suite *testSuite) require() *MyAssertions {
+	return &MyAssertions{
+		a: *suite.Require(),
+	}
+}
+
+func (suite *testSuite) TestValidInstall() {
+	suite.prepareHostAndExec(func(host *components.RemoteHost, outputDir string) {
+		// TC-INS-DC-006
+		_, err := installAgentPackage(host, suite.agentPackage, "DDAGENTUSER_NAME=datadogqalab.com\\DatadogTestUser DDAGENTUSER_PASSWORD='TestPassword1234#'", filepath.Join(outputDir, "tc_ins_dc_006_install.log"))
+		suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			metricNames, err := suite.Env().FakeIntake.Client().GetMetricNames()
+			assert.NoError(c, err)
+			assert.Greater(c, len(metricNames), 0)
+		}, 5*time.Minute, 10*time.Second)
+	})
 }
