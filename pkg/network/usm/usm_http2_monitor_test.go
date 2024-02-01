@@ -739,7 +739,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate various status codes",
 			// The purpose of this test is to verify that we support status codes that do not appear in the static table.
 			messageBuilder: func() [][]byte {
-				statusCodes := []int{201, 300, 401, 504}
+				statusCodes := []int{http.StatusCreated, http.StatusMultipleChoices, http.StatusUnauthorized, http.StatusGatewayTimeout}
 				const iterationsPerStatusCode = 3
 				messages := make([][]byte, 0, len(statusCodes)*iterationsPerStatusCode)
 				for statusCodeIteration, statusCode := range statusCodes {
