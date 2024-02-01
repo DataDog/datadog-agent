@@ -53,7 +53,7 @@ func NewNodeRemoteTaggerParams() Params {
 		fallBackToLocalIfRemoteTaggerFails: false}
 }
 
-// NewNodeRemoteTaggerParams creates a Params struct with the NodeRemoteTagger type
+// NewNodeRemoteTaggerParamsWithFallback creates a Params struct with the NodeRemoteTagger type
 // and fallback to local tagger if remote tagger fails
 func NewNodeRemoteTaggerParamsWithFallback() Params {
 	return Params{agentTypeForTagger: NodeRemoteTaggerAgent,
