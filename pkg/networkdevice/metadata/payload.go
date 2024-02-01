@@ -13,25 +13,11 @@ const PayloadMetadataBatchSize = 100
 // DeviceStatus enum type
 type DeviceStatus int32
 
-// DeviceCanConnect enum type
-type DeviceCanConnect int32
-
 const (
 	// DeviceStatusReachable means the device can be reached by snmp integration
 	DeviceStatusReachable = DeviceStatus(1)
 	// DeviceStatusUnreachable means the device cannot be reached by snmp integration
 	DeviceStatusUnreachable = DeviceStatus(2)
-)
-
-// needs its own const block to avoid overlapping with device status
-const (
-	// DeviceCanConnectUnknown is used when the device is not being pinged or there's
-	// an agent error
-	DeviceCanConnectUnknown DeviceCanConnect = iota
-	// DeviceCanConnectTrue is used when the device is responding to ping
-	DeviceCanConnectTrue
-	// DeviceCanConnectFalse is used when the device is not reachable by ping
-	DeviceCanConnectFalse
 )
 
 //nolint:revive // TODO(NDM) Fix revive linter
@@ -61,29 +47,29 @@ type NetworkDevicesMetadata struct {
 
 // DeviceMetadata contains device metadata
 type DeviceMetadata struct {
-	ID             string           `json:"id"`
-	IDTags         []string         `json:"id_tags"` // id_tags is the input to produce device.id, it's also used to correlated with device metrics.
-	Tags           []string         `json:"tags"`
-	IPAddress      string           `json:"ip_address"`
-	Status         DeviceStatus     `json:"status"`
-	PingCanConnect DeviceCanConnect `json:"can_connect,omitempty"`
-	Name           string           `json:"name,omitempty"`
-	Description    string           `json:"description,omitempty"`
-	SysObjectID    string           `json:"sys_object_id,omitempty"`
-	Location       string           `json:"location,omitempty"`
-	Profile        string           `json:"profile,omitempty"`
-	ProfileVersion uint64           `json:"profile_version,omitempty"`
-	Vendor         string           `json:"vendor,omitempty"`
-	Subnet         string           `json:"subnet,omitempty"`
-	SerialNumber   string           `json:"serial_number,omitempty"`
-	Version        string           `json:"version,omitempty"`
-	ProductName    string           `json:"product_name,omitempty"`
-	Model          string           `json:"model,omitempty"`
-	OsName         string           `json:"os_name,omitempty"`
-	OsVersion      string           `json:"os_version,omitempty"`
-	OsHostname     string           `json:"os_hostname,omitempty"`
-	Integration    string           `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
-	DeviceType     string           `json:"device_type,omitempty"`
+	ID             string       `json:"id"`
+	IDTags         []string     `json:"id_tags"` // id_tags is the input to produce device.id, it's also used to correlated with device metrics.
+	Tags           []string     `json:"tags"`
+	IPAddress      string       `json:"ip_address"`
+	Status         DeviceStatus `json:"status"`
+	PingStatus     DeviceStatus `json:"ping_status,omitempty"`
+	Name           string       `json:"name,omitempty"`
+	Description    string       `json:"description,omitempty"`
+	SysObjectID    string       `json:"sys_object_id,omitempty"`
+	Location       string       `json:"location,omitempty"`
+	Profile        string       `json:"profile,omitempty"`
+	ProfileVersion uint64       `json:"profile_version,omitempty"`
+	Vendor         string       `json:"vendor,omitempty"`
+	Subnet         string       `json:"subnet,omitempty"`
+	SerialNumber   string       `json:"serial_number,omitempty"`
+	Version        string       `json:"version,omitempty"`
+	ProductName    string       `json:"product_name,omitempty"`
+	Model          string       `json:"model,omitempty"`
+	OsName         string       `json:"os_name,omitempty"`
+	OsVersion      string       `json:"os_version,omitempty"`
+	OsHostname     string       `json:"os_hostname,omitempty"`
+	Integration    string       `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
+	DeviceType     string       `json:"device_type,omitempty"`
 }
 
 // InterfaceMetadata contains interface metadata
