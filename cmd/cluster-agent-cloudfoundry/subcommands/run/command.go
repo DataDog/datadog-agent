@@ -140,7 +140,7 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 	// create and setup the Autoconfig instance
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(demultiplexer, secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)

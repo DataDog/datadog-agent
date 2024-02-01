@@ -55,7 +55,7 @@ func LoadCollector(senderManager sender.SenderManager) collector.Collector {
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.Component, confdPath string) {
+func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.Component, wmeta workloadmeta.Component, confdPath string) {
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(path.GetDistPath(), "conf.d"),
@@ -69,7 +69,7 @@ func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.C
 	// No big concern here, but be sure to understand there is an implicit
 	// assumption about the initializtion of the tagger prior to being here.
 	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver)
+	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver, wmeta)
 
 	LoadCollector(senderManager)
 }
