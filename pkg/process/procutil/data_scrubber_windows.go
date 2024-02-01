@@ -31,7 +31,7 @@ func (ds *DataScrubber) stripArguments(cmdline []string)[]string {
 			strippedCmdline := extensionParser(strCmdline, winDotExec)
 			cmdline = cleanUp(strippedCmdline)
 			return cmdline
-		}
+		
 		}
 	// case 2: Uses quotesFinder() to search for any existing pair of double quotes ("") existing in the string as characters and return the content between them. 
 		if argLength == 1 && strings.HasPrefix(strCmdline, "\""){
