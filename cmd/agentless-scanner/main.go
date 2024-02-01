@@ -79,6 +79,9 @@ import (
 	// DataDog agent: metrics Statsd
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	// sqlite driver, used by github.com/knqyf263/go-rpmdb
+	_ "modernc.org/sqlite"
+
 	"github.com/spf13/cobra"
 )
 
