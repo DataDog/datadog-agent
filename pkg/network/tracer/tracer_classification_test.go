@@ -1658,7 +1658,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 				buf := new(bytes.Buffer)
 				framer := http2.NewFramer(buf, nil)
-				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaderFields})
 				require.NoError(t, err)
 
 				// Writing the header frames to the buffer using the Framer.
@@ -1733,7 +1733,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					}
 				}
 
-				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaderFields})
 				require.NoError(t, err)
 
 				// Writing the header frames to the buffer using the Framer.

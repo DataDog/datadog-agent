@@ -30,6 +30,7 @@ import (
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+
 	//nolint:revive // TODO(APM) Fix revive linter
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -1614,6 +1615,70 @@ func TestLoadEnv(t *testing.T) {
 		}
 
 		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.debugger_additional_endpoints")
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "my-diagnostics-site.com")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule(),
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, "my-diagnostics-site.com", coreconfig.Datadog.GetString("apm_config.debugger_diagnostics_dd_url"))
+	})
+
+	env = "DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "my-diagnostics-key")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule(),
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, "my-diagnostics-key", coreconfig.Datadog.GetString("apm_config.debugger_diagnostics_api_key"))
+	})
+
+	env = "DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `{"diagnostics-url1": ["diagnostics-key1", "diagnostics-key2"], "diagnostics-url2": ["diagnostics-key3"]}`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule(),
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := map[string][]string{
+			"diagnostics-url1": {"diagnostics-key1", "diagnostics-key2"},
+			"diagnostics-url2": {"diagnostics-key3"},
+		}
+
+		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.debugger_diagnostics_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}

@@ -92,6 +92,7 @@ k8s-e2e-otlp-main:
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_CPU_REQUEST: 6
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
     E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
@@ -117,7 +118,7 @@ new-e2e-containers:
   # on_main_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
   rules:
-    !reference [.on_container_changes_or_manual]
+    !reference [.on_container_or_e2e_changes_or_manual]
   needs:
     - qa_agent
     - qa_dca
