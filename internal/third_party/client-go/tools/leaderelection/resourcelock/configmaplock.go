@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
+	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 )
 
 const ConfigMapsResourceLock = "configmaps"
@@ -37,13 +38,13 @@ type ConfigMapLock struct {
 	// ConfigMapMeta object that the LeaderElector will attempt to lead.
 	ConfigMapMeta metav1.ObjectMeta
 	Client        corev1client.ConfigMapsGetter
-	LockConfig    ResourceLockConfig
+	LockConfig    rl.ResourceLockConfig
 	cm            *v1.ConfigMap
 }
 
 // Get returns the election record from a ConfigMap Annotation
-func (cml *ConfigMapLock) Get(ctx context.Context) (*LeaderElectionRecord, []byte, error) {
-	var record LeaderElectionRecord
+func (cml *ConfigMapLock) Get(ctx context.Context) (*rl.LeaderElectionRecord, []byte, error) {
+	var record rl.LeaderElectionRecord
 	cm, err := cml.Client.ConfigMaps(cml.ConfigMapMeta.Namespace).Get(ctx, cml.ConfigMapMeta.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, err
@@ -52,7 +53,7 @@ func (cml *ConfigMapLock) Get(ctx context.Context) (*LeaderElectionRecord, []byt
 	if cml.cm.Annotations == nil {
 		cml.cm.Annotations = make(map[string]string)
 	}
-	recordStr, found := cml.cm.Annotations[LeaderElectionRecordAnnotationKey]
+	recordStr, found := cml.cm.Annotations[rl.LeaderElectionRecordAnnotationKey]
 	recordBytes := []byte(recordStr)
 	if found {
 		if err := json.Unmarshal(recordBytes, &record); err != nil {
@@ -62,8 +63,8 @@ func (cml *ConfigMapLock) Get(ctx context.Context) (*LeaderElectionRecord, []byt
 	return &record, recordBytes, nil
 }
 
-// Create attempts to create a LeaderElectionRecord annotation
-func (cml *ConfigMapLock) Create(ctx context.Context, ler LeaderElectionRecord) error {
+// Create attempts to create a rl.LeaderElectionRecord annotation
+func (cml *ConfigMapLock) Create(ctx context.Context, ler rl.LeaderElectionRecord) error {
 	recordBytes, err := json.Marshal(ler)
 	if err != nil {
 		return err
@@ -73,7 +74,7 @@ func (cml *ConfigMapLock) Create(ctx context.Context, ler LeaderElectionRecord) 
 			Name:      cml.ConfigMapMeta.Name,
 			Namespace: cml.ConfigMapMeta.Namespace,
 			Annotations: map[string]string{
-				LeaderElectionRecordAnnotationKey: string(recordBytes),
+				rl.LeaderElectionRecordAnnotationKey: string(recordBytes),
 			},
 		},
 	}, metav1.CreateOptions{})
@@ -81,7 +82,7 @@ func (cml *ConfigMapLock) Create(ctx context.Context, ler LeaderElectionRecord) 
 }
 
 // Update will update an existing annotation on a given resource.
-func (cml *ConfigMapLock) Update(ctx context.Context, ler LeaderElectionRecord) error {
+func (cml *ConfigMapLock) Update(ctx context.Context, ler rl.LeaderElectionRecord) error {
 	if cml.cm == nil {
 		return errors.New("configmap not initialized, call get or create first")
 	}
@@ -92,7 +93,7 @@ func (cml *ConfigMapLock) Update(ctx context.Context, ler LeaderElectionRecord) 
 	if cml.cm.Annotations == nil {
 		cml.cm.Annotations = make(map[string]string)
 	}
-	cml.cm.Annotations[LeaderElectionRecordAnnotationKey] = string(recordBytes)
+	cml.cm.Annotations[rl.LeaderElectionRecordAnnotationKey] = string(recordBytes)
 	cm, err := cml.Client.ConfigMaps(cml.ConfigMapMeta.Namespace).Update(ctx, cml.cm, metav1.UpdateOptions{})
 	if err != nil {
 		return err

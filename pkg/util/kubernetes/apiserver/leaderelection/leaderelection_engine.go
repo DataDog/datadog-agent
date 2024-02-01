@@ -12,8 +12,6 @@ import (
 	"encoding/json"
 	"strconv"
 
-	ld "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection"
-	rl "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	coordv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -21,16 +19,19 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientcoord "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	ld "k8s.io/client-go/tools/leaderelection"
+	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 
+	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func newReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient clientcoord.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
-	if lockType == rl.ConfigMapsResourceLock {
-		return &rl.ConfigMapLock{
+	if lockType == configmaplock.ConfigMapsResourceLock {
+		return &configmaplock.ConfigMapLock{
 			ConfigMapMeta: metav1.ObjectMeta{
 				Namespace: ns,
 				Name:      name,
