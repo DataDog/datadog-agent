@@ -44,5 +44,5 @@ const (
 	// PulumiLogToStdErr config file parameter name
 	PulumiLogToStdErr StoreKey = "pulumi_log_to_stderr"
 	// DevMode config flag parameter name
-	DevMode StoreKey = "devmode"
+	DevMode StoreKey = "dev_mode"
 )
