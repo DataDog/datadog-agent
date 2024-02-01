@@ -130,8 +130,8 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 		if err != nil {
 			return err
 		}
-		vmOptions := append(params.vmOptions)
-		host, err := ec2.NewVM(awsEnv, params.name, vmOptions...)
+
+		host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
 		if err != nil {
 			return err
 		}
@@ -140,7 +140,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 			return err
 		}
 
-		installEcrCredsHelperCmd, err := ec2.InstallEcrCredentialsHelper(awsEnv, host)
+		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
 		if err != nil {
 			return err
 		}
