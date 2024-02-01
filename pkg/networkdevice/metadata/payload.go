@@ -137,11 +137,10 @@ type TracerouteHop struct {
 }
 
 type NetworkPath struct {
-	TracerouteSource string                   `json:"traceroute_source"`
-	Format           string                   `json:"format"`
-	Timestamp        int64                    `json:"timestamp"`
-	AgentHost        string                   `json:"agent_host"`
-	DestinationHost  string                   `json:"destination_host"`
-	Hops             []TracerouteHop          `json:"hops"`
-	HopsByIpAddress  map[string]TracerouteHop `json:"hops_by_ip_address"`
+	TracerouteSource string          `json:"traceroute_source"`
+	Format           string          `json:"format"`
+	Timestamp        int64           `json:"timestamp"`
+	AgentHost        string          `json:"agent_host"`
+	DestinationHost  string          `json:"destination_host"`
+	Hops             []TracerouteHop `json:"hops"`
 }

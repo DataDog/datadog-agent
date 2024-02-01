@@ -215,7 +215,6 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 			Success:   hop.Success,
 		}
 		tr.Hops = append(tr.Hops, hop)
-		tr.HopsByIpAddress[strings.ReplaceAll(ip, ".", "-")] = hop
 	}
 
 	flushTime := time.Now()
