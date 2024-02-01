@@ -12,8 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// agentEnabled determines whether the process agent is enabled based on the configuration
-// The process-agent is enabled when the flavor is set to ProcessAgent in all non-linux platforms
+// agentEnabled determines whether the process agent is enabled based on the configuration.
+// The process-agent component on linux can be run in the core agent or as a standalone process-agent
+// depending on the configuration.
+// It will run as a standalone Process-agent if 'run_in_core_agent' is not enabled or a the connections/NPM check is
+// enabled.
+// If 'run_in_core_agent' flag is enabled and the connections/NPM check is not enabled, the process-agent will run in
+// the core agent.
 func agentEnabled(p processAgentParams) bool {
 	runInCoreAgent := p.Config.GetBool("process_config.run_in_core_agent.enabled")
 
