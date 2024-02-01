@@ -19,7 +19,10 @@ import (
 
 // GetTags gets the tags from the kubernetes apiserver and the kubelet
 func GetTags(ctx context.Context) (tags []string, err error) {
-	tags = appendNodeInfoTags(ctx, tags)
+	tags, e := appendNodeInfoTags(ctx, tags)
+	if e != nil {
+		err = e
+	}
 
 	annotationsToTags := getAnnotationsToTags()
 	if len(annotationsToTags) > 0 {
@@ -34,28 +37,40 @@ func GetTags(ctx context.Context) (tags []string, err error) {
 	return
 }
 
-func appendNodeInfoTags(ctx context.Context, tags []string) []string {
+func appendNodeInfoTags(ctx context.Context, tags []string) ([]string, error) {
 	nodeInfo, err := NewNodeInfo()
 	if err != nil {
 		log.Debugf("Unable to auto discover node info tags: %s", err)
-		return tags
+		return nil, err
 	}
 
 	nodeName, err := nodeInfo.GetNodeName(ctx)
-	if err == nil && nodeName != "" {
+	if err != nil {
+		log.Debugf("Unable to auto discover node name: %s", err)
+		// We can return an error here because nodeName needs to be retrieved
+		// for node labels and node annotations.
+		return nil, err
+	}
+
+	if nodeName != "" {
 		tags = append(tags, "kube_node:"+nodeName)
 	}
-
 	labelsToTags := getLabelsToTags()
-	if len(labelsToTags) > 0 {
-		var nodeLabels map[string]string
-		nodeLabels, err = nodeInfo.GetNodeLabels(ctx)
-		if err == nil && len(nodeLabels) > 0 {
-			tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
-		}
+	if len(labelsToTags) == 0 {
+		return tags, nil
 	}
 
-	return tags
+	var nodeLabels map[string]string
+	nodeLabels, err = nodeInfo.GetNodeLabels(ctx)
+	if err != nil {
+		log.Errorf("Unable to auto discover node labels: %s", err)
+		return nil, err
+	}
+	if len(nodeLabels) > 0 {
+		tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
+	}
+
+	return tags, nil
 }
 
 func getDefaultLabelsToTags() map[string]string {
