@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
@@ -20,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gosnmp/gosnmp"
@@ -218,8 +219,8 @@ var (
 var testOptions = fx.Options(
 	logimpl.MockModule(),
 	senderhelper.Opts,
-	oidresolverimpl.MockModule,
-	Module,
+	oidresolverimpl.MockModule(),
+	Module(),
 )
 
 func TestFormatPacketV1Generic(t *testing.T) {

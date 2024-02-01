@@ -18,12 +18,16 @@ const (
 	http2PathBuckets = C.HTTP2_TELEMETRY_PATH_BUCKETS
 	// The kernel limit per page in the per-cpu array of the http2 terminated connections map.
 	HTTP2TerminatedBatchSize = C.HTTP2_TERMINATED_BATCH_SIZE
+	// The upper limit for the size of the raw status code.
+	// If the status code is huffman encoded, the size is 2 characters, while if it is not encoded, the size is 3 characters.
+	http2RawStatusCodeMaxLength = C.HTTP2_STATUS_CODE_MAX_LEN
 )
 
 type connTuple = C.conn_tuple_t
 type HTTP2DynamicTableIndex C.dynamic_table_index_t
 type HTTP2DynamicTableEntry C.dynamic_table_entry_t
 type http2StreamKey C.http2_stream_key_t
+type http2StatusCode C.status_code_t
 type http2Stream C.http2_stream_t
 type EbpfTx C.http2_event_t
 type HTTP2Telemetry C.http2_telemetry_t

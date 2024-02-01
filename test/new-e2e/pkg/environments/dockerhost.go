@@ -8,6 +8,8 @@ package environments
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
@@ -26,8 +28,12 @@ var _ e2e.Initializable = &DockerHost{}
 
 // Init initializes the environment
 func (e *DockerHost) Init(ctx e2e.Context) error {
-	var err error
-	e.Docker, err = client.NewDocker(ctx.T(), e.Host.HostOutput)
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+	if err != nil {
+		return err
+	}
+
+	e.Docker, err = client.NewDocker(ctx.T(), e.Host.HostOutput, privateKeyPath)
 	if err != nil {
 		return err
 	}
