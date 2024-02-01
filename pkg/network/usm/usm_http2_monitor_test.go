@@ -1100,7 +1100,14 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int) bool {
 	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
-			count := stat.Data[200].Count
+			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
+			// statusCode 0 represents and error returned from the function, which means the URL is not in the special
+			// form which contains the expected status code (form - `/status/{statusCode}`). So by default we use
+			// 200 as the status code.
+			if statusCode == 0 {
+				statusCode = 200
+			}
+			count := stat.Data[statusCode].Count
 			newKey := usmhttp.Key{
 				Path:   usmhttp.Path{Content: key.Path.Content},
 				Method: key.Method,
