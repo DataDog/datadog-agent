@@ -1,4 +1,4 @@
 fixes:
   - |
-    Fix an issue where the admission controller would remove the field `restartPolicy` from initContainers,
-    preventing pod creation on Kubernetes 1.29 and older.
+    Fix an issue where the admission controller would remove the field `restartPolicy`
+    from native sidecar containers, preventing pod creation on Kubernetes 1.29+.
