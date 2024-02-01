@@ -30,12 +30,12 @@ func setupTest(t *testing.T) (*config.MockConfig, context.Context) {
 	return mockConfig, context.Background()
 }
 
-func TestGetHostTags(t *testing.T) {
+func TestGet(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag3"})
 	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag3"})
 
-	hostTags := GetHostTags(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
@@ -43,39 +43,39 @@ func TestGetHostTags(t *testing.T) {
 func TestGetEmptyHostTags(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 
-	// getHostTags should never return a nil value under System even when there are no host tags
-	hostTags := GetHostTags(ctx, false, mockConfig)
+	// Get should never return a nil value under System even when there are no host tags
+	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{}, hostTags.System)
 }
 
-func TestGetHostTagsWithSplits(t *testing.T) {
+func TestGetWithSplits(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 	mockConfig.SetWithoutSource("tag_value_split_separator", map[string]string{"kafka_partition": ","})
 	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 
-	hostTags := GetHostTags(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"kafka_partition:0", "kafka_partition:1", "kafka_partition:2", "tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
 
-func TestGetHostTagsWithoutSplits(t *testing.T) {
+func TestGetWithoutSplits(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 
 	mockConfig.SetWithoutSource("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
 	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 
-	hostTags := GetHostTags(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"kafka_partition:0,1,2", "tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
 
-func TestGetHostTagsWithEnv(t *testing.T) {
+func TestGetWithEnv(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag3", "env:prod"})
 	mockConfig.SetWithoutSource("env", "preprod")
 
-	hostTags := GetHostTags(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"env:preprod", "env:prod", "tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
@@ -96,7 +96,7 @@ func TestCombineExtraTags(t *testing.T) {
 	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag4"})
 	mockConfig.SetWithoutSource("extra_tags", []string{"tag1:value2", "tag3", "tag4"})
 
-	hostTags := GetHostTags(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"tag1:value1", "tag1:value2", "tag2", "tag3", "tag4"}, hostTags.System)
 }
@@ -122,7 +122,7 @@ func TestHostTagsCache(t *testing.T) {
 	}
 
 	// First run, all good
-	hostTags := GetHostTags(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"foo1:value1"}, hostTags.System)
 	assert.Equal(t, 1, nbCall)
@@ -131,7 +131,7 @@ func TestHostTagsCache(t *testing.T) {
 	fooErr = errors.New("fooerr")
 	nbCall = 0
 
-	hostTags = GetHostTags(ctx, false, mockConfig)
+	hostTags = Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"foo1:value1"}, hostTags.System)
 	assert.Equal(t, 2, nbCall)
