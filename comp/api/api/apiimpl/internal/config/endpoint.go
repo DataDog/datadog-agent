@@ -29,7 +29,7 @@ var authorizedConfigPathsCore = buildAuthorizedSet(
 )
 
 func buildAuthorizedSet(paths ...string) authorizedSet {
-	authorizedPaths := make(authorizedSet)
+	authorizedPaths := make(authorizedSet, len(paths))
 	for _, path := range paths {
 		authorizedPaths[path] = struct{}{}
 	}
