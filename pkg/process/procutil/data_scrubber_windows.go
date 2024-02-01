@@ -51,6 +51,7 @@ func (ds *DataScrubber) stripArguments(cmdline []string)[]string {
 		return cmdline
 	}	
 	
+	// remove any extra space at the end cmdline before been returned to Scrubber 
 	func cleanUp(strippedCmdline string)[]string{
 		cmdline := []string{strings.TrimSuffix(strippedCmdline," ")}
 		return cmdline
@@ -68,10 +69,9 @@ func (ds *DataScrubber) stripArguments(cmdline []string)[]string {
 			if i = strings.Index(cmdline, c+" " ); i != -1 {
 				processedCmdline = cmdline[:i+len(c)]
 				return processedCmdline
-				} else{
-					processedCmdline = strings.Split(cmdline, c)[0]
-				}
 			}
+			processedCmdline = strings.Split(cmdline, c)[0]
+		}
 		return processedCmdline
 	}
 	
