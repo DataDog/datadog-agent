@@ -463,6 +463,7 @@
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/ebpf-platform
+/tasks/ebpf.py                          @DataDog/ebpf-platform
 /tasks/kmt.py                           @DataDog/ebpf-platform
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
