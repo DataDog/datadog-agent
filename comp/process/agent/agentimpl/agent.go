@@ -80,8 +80,8 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 	}
 
 	p.Lc.Append(fx.Hook{
-		OnStart: processAgentComponent.Start,
-		OnStop:  processAgentComponent.Stop,
+		OnStart: processAgentComponent.start,
+		OnStop:  processAgentComponent.stop,
 	})
 
 	return optional.NewOption[agent.Component](processAgentComponent)
@@ -96,7 +96,7 @@ func checksEnabled(checks []types.CheckComponent) bool {
 	return false
 }
 
-func (p processAgent) Start(ctx context.Context) error {
+func (p processAgent) start(ctx context.Context) error {
 	p.Log.Info("process-agent starting")
 
 	chks := make([]string, 0, len(p.Checks))
@@ -108,7 +108,7 @@ func (p processAgent) Start(ctx context.Context) error {
 	return p.Runner.Run(ctx)
 }
 
-func (p processAgent) Stop(_ context.Context) error {
+func (p processAgent) stop(_ context.Context) error {
 	p.Log.Info("process-agent stopping")
 
 	return nil

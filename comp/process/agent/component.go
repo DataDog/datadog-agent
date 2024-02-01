@@ -6,16 +6,10 @@
 // Package agent contains a process-agent component
 package agent
 
-import (
-	"context"
-)
-
 // team: processes
 
 // Component represents the no-op Component interface.
 //
 //nolint:revive // TODO(PROC) Fix revive linter
 type Component interface {
-	Start(context.Context) error
-	Stop(context.Context) error
 }
