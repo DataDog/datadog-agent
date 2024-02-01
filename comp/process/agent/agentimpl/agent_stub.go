@@ -12,7 +12,7 @@ import (
 )
 
 // agentEnabled determines whether the process agent is enabled based on the configuration
-// The process-agent is enabled when the flavor is set to ProcessAgent in all non-linux platforms
+// The process-agent always runs as a stand alone agent in all non-linux platforms
 func agentEnabled(_ processAgentParams) bool {
 	return flavor.GetFlavor() == flavor.ProcessAgent
 }
