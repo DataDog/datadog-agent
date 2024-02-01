@@ -146,27 +146,55 @@ func (tx *EbpfTx) Method() http.Method {
 	}
 }
 
-// StatusCode returns the HTTP status code of the transaction.
+// StatusCode returns the status code of the transaction.
+// If the status code is indexed, then we return the corresponding value.
+// Otherwise, f the status code is huffman encoded, then we decode it and convert it from string to int.
+// Otherwise, we convert the status code from byte array to int.
 func (tx *EbpfTx) StatusCode() uint16 {
-	switch tx.Stream.Response_status_code {
-	case uint16(K200Value):
-		return 200
-	case uint16(K204Value):
-		return 204
-	case uint16(K206Value):
-		return 206
-	case uint16(K400Value):
-		return 400
-	case uint16(K500Value):
-		return 500
-	default:
+	if tx.Stream.Status_code.Indexed_value != 0 {
+		switch tx.Stream.Status_code.Indexed_value {
+		case K200Value:
+			return 200
+		case K204Value:
+			return 204
+		case K206Value:
+			return 206
+		case K400Value:
+			return 400
+		case K500Value:
+			return 500
+		default:
+			return 0
+		}
+	}
+
+	if tx.Stream.Status_code.Is_huffman_encoded {
+		// The final form of the status code is 3 characters.
+		statusCode, err := hpack.HuffmanDecodeToString(tx.Stream.Status_code.Raw_buffer[:2])
+		if err != nil {
+			return 0
+		}
+		code, err := strconv.Atoi(statusCode)
+		if err != nil {
+			return 0
+		}
+		return uint16(code)
+	}
+
+	code, err := strconv.Atoi(string(tx.Stream.Status_code.Raw_buffer[:]))
+	if err != nil {
 		return 0
 	}
+	return uint16(code)
 }
 
 // SetStatusCode sets the HTTP status code of the transaction.
 func (tx *EbpfTx) SetStatusCode(code uint16) {
-	tx.Stream.Response_status_code = code
+	val := strconv.Itoa(int(code))
+	if len(val) > http2RawStatusCodeMaxLength {
+		return
+	}
+	copy(tx.Stream.Status_code.Raw_buffer[:], val)
 }
 
 // ResponseLastSeen returns the last seen response.
