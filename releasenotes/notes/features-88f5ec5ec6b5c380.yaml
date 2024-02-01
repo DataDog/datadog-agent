@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Enabling the option to strip the arguments of the commands collected by the process Agent on Windows.
+    Enabling the option to strip the arguments of the commands collected by the process agent on Windows.
