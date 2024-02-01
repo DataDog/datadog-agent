@@ -93,17 +93,7 @@ func (is *agentMSISuite) TestInstall() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
-	t, err := NewTester(is.T(), vm,
-		WithAgentPackage(is.agentPackage),
-	)
-	is.Require().NoError(err, "should create tester")
-
-	if !is.Run(fmt.Sprintf("install %s", t.agentPackage.AgentVersion()), func() {
-		err = t.InstallAgent(is.T(), "", filepath.Join(outputDir, "install.log"))
-		is.Require().NoError(err, "should install agent %s", t.agentPackage.AgentVersion())
-	}) {
-		is.T().FailNow()
-	}
+	t := is.installAgent(vm, "", filepath.Join(outputDir, "install.log"))
 
 	if !t.TestExpectations(is.T()) {
 		is.T().FailNow()
@@ -134,13 +124,6 @@ func (is *agentMSISuite) TestUpgrade() {
 		is.T().FailNow()
 	}
 
-	if !is.Run(fmt.Sprintf("upgrade to %s", t.agentPackage.AgentVersion()), func() {
-		err = t.InstallAgent(is.T(), "", filepath.Join(outputDir, "upgrade.log"))
-		is.Require().NoError(err, "should install agent %s", t.agentPackage.AgentVersion())
-	}) {
-		is.T().FailNow()
-	}
-
 	if !t.TestExpectations(is.T()) {
 		is.T().FailNow()
 	}
@@ -148,6 +131,7 @@ func (is *agentMSISuite) TestUpgrade() {
 	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
 }
 
+// TC-INS-002
 func (is *agentMSISuite) TestUpgradeRollback() {
 	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), is.T())
 	is.Require().NoError(err, "should get output dir")
@@ -182,7 +166,8 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 	previousTester.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
 }
 
-func (is *agentMSISuite) TestUninstall() {
+// TC-INS-001
+func (is *agentMSISuite) TestRepair() {
 	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), is.T())
 	is.Require().NoError(err, "should get output dir")
 	is.T().Logf("Output dir: %s", outputDir)
@@ -190,12 +175,51 @@ func (is *agentMSISuite) TestUninstall() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
-	err = windowsAgent.UninstallAgent(vm, filepath.Join(outputDir, "uninstall.log"))
-	is.Require().NoError(err, "should uninstall the agent")
+	t := is.installAgent(vm, "", filepath.Join(outputDir, "install.log"))
+
+	err = windows.StopService(t.host, "DatadogAgent")
+	is.Require().NoError(err)
+
+	// Corrupt the install
+	err = t.host.Remove("C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe")
+	is.Require().NoError(err)
+	err = t.host.RemoveAll("C:\\Program Files\\Datadog\\Datadog Agent\\embedded3")
+	is.Require().NoError(err)
+
+	if !is.Run("repair install", func() {
+		err = windowsAgent.RepairAllAgent(t.host, "", filepath.Join(outputDir, "repair.log"))
+		is.Require().NoError(err)
+	}) {
+		is.T().FailNow()
+	}
+
+	if !t.TestExpectations(is.T()) {
+		is.T().FailNow()
+	}
+
+	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
 }
 
-// This is separate from TestInstallAgentPackage because previous versions of the agent
-// may not conform to the latest test expectations.
+// installAgent installs the agent package on the VM and returns the Tester
+func (is *agentMSISuite) installAgent(vm *components.RemoteHost, args string, logfile string, testerOpts ...TesterOption) *Tester {
+	opts := []TesterOption{
+		WithAgentPackage(is.agentPackage),
+	}
+	opts = append(opts, testerOpts...)
+	t, err := NewTester(is.T(), vm, opts...)
+	is.Require().NoError(err, "should create tester")
+
+	if !is.Run(fmt.Sprintf("install %s", t.agentPackage.AgentVersion()), func() {
+		err = t.InstallAgent(is.T(), args, logfile)
+		is.Require().NoError(err, "should install agent %s", t.agentPackage.AgentVersion())
+	}) {
+		is.T().FailNow()
+	}
+
+	return t
+}
+
+// installLastStable installs the last stable agent package on the VM, runs tests, and returns the Tester
 func (is *agentMSISuite) installLastStable(vm *components.RemoteHost, args string, logfile string) *Tester {
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
 	is.Require().NoError(err, "should get last stable agent package from env")

@@ -28,7 +28,6 @@ type Tester struct {
 	InstallTestClient *common.TestClient
 
 	agentPackage      *windowsAgent.Package
-	expectMSIFailure  bool
 	isPreviousVersion bool
 
 	// Path to the MSI on the remote host, only available after install is run
@@ -79,7 +78,11 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 	}
 
 	// Ensure the expected version is well formed
-	if !windowsAgent.TestAgentVersion(tt, t.expectedAgentVersion, t.expectedAgentVersion) {
+	if !tt.Run("validate input params", func(tt *testing.T) {
+		if !windowsAgent.TestAgentVersion(tt, t.expectedAgentVersion, t.expectedAgentVersion) {
+			tt.FailNow()
+		}
+	}) {
 		tt.FailNow()
 	}
 
