@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix dogstatsd-capture. Message pid was not set after 7.50 release
+    Fix dogstatsd-capture. Message PID was not set after the 7.50 release.
