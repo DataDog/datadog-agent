@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime/debug"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -23,6 +24,8 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+const defaultGCPercent = 50
 
 var agents = map[string]func() *cobra.Command{}
 
@@ -70,6 +73,10 @@ func main() {
 	_, err := agentrt.SetGoMemLimit(coreconfig.IsContainerized())
 	if err != nil {
 		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
+	}
+
+	if os.Getenv("GOGC") == "" {
+		debug.SetGCPercent(defaultGCPercent)
 	}
 
 	rootCmd := agentCmdBuilder()
