@@ -906,6 +906,57 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}: 5,
 			},
 		},
+		{
+			name: "Interesting frame header sent separately from frame payload",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				payload := []byte("test")
+				headerFields := removeHeaderFieldByKey(testHeaders(), "content-length")
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				dataFrame := newFramer().writeData(t, 1, true, payload).bytes()
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headerFields}).bytes()
+				secondMessageDataFrame := newFramer().writeData(t, 3, true, payload).bytes()
+
+				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
+				secondMessage := append(dataFrame[9:], secondMessageHeadersFrame...)
+				secondMessage = append(secondMessage, secondMessageDataFrame...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 2,
+			},
+		},
+		{
+			name: "Data frame header sent separately from frame payload with PING between them",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload.,
+			// including a PING frame in the second message between the data frame.
+			messageBuilder: func() [][]byte {
+				payload := []byte("test")
+				headerFields := removeHeaderFieldByKey(testHeaders(), "content-length")
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: headerFields}).bytes()
+				dataFrame := newFramer().writeData(t, 1, true, payload).bytes()
+				pingFrame := newFramer().writePing(t).bytes()
+
+				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
+				secondMessage := append(pingFrame, dataFrame[9:]...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
