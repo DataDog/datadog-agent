@@ -223,11 +223,15 @@ func (bs *BaseSuite[Env]) IsDevMode() bool {
 }
 
 func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
+	if _, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.DevMode, false); err == nil {
+		options = append(options, WithDevMode())
+	}
+
 	for _, o := range options {
 		o(&bs.params)
 	}
 
-	if bs.params.devMode && !runner.GetProfile().AllowDevMode() {
+	if !runner.GetProfile().AllowDevMode() {
 		bs.params.devMode = false
 	}
 
@@ -517,7 +521,6 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 // Unfortunately, we cannot use `s Suite[Env]` as Go is not able to match it with a struct
 // However it's able to verify the same constraint on T
 func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
-	options = append(options, WithDevMode())
 	s.init(options, s)
 	suite.Run(t, s)
 }
