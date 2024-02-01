@@ -9,43 +9,107 @@ package procutil
 
 import (
 	"testing"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStripArguments(t *testing.T) {
 
 	cases := []struct {
-		cmdline       []string
-		noArgsCmdline []string
+		cmdline  []string
+		expected []string
 	}{
-	// Main cases samples 
-		{[]string{"agent", "-password", "1234"}, []string{"agent"}},
-		{[]string{"C:\\Program Files\\Datadog\\agent.com"}, []string{"C:\\Program Files\\Datadog\\agent.com"}},
-		{[]string{"C:\\Program Files\\Datadog\\agent.exe check process"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},
-		{[]string{"C:\\Program Files\\Datadog\\agent.bat", "check", "process"}, []string{"C:\\Program Files\\Datadog\\agent.bat"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.cmd\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.cmd"}},
-	
-	// String matching extension structure
-			{[]string{"C:\\Program File\\Datexedog\\agent.exe check process"}, []string{"C:\\Program File\\Datexedog\\agent.exe"}},
+		// Main cases samples
+		{
+			cmdline: []string{"python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 &"},
 
-	// Mixed Variables	
-		{[]string{"C:\\Program Files\\agent.vbs check process"}, []string{"C:\\Program Files\\agent.vbs"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.vbe\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.vbe"}},
-		{[]string{"C:\\Program Files\\Datadog\\agent.js", "check", "process"}, []string{"C:\\Program Files\\Datadog\\agent.js"}},
-		{[]string{"C:\\Program Files\\Datadog\\agent.jse check process"}, []string{"C:\\Program Files\\Datadog\\agent.jse"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.wsf\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.wsf"}},
-		{[]string{"C:\\Program Files\\Datadog\\agent.wsh check process"}, []string{"C:\\Program Files\\Datadog\\agent.wsh"}},
-		{[]string{"\"C:\\Program Files\\Datadog\\agent.psc1\" check process"}, []string{"C:\\Program Files\\Datadog\\agent.psc1"}},
-		{[]string{"\"C:\\Program Files\\agent\" check process"}, []string{"C:\\Program Files\\agent"}},
-		
+			expected: []string{"python"},
+		},
+		{
+			cmdline: []string{"java -password      1234"},
+
+			expected: []string{"java"},
+		},
+		{
+			cmdline: []string{"agent password:1234"},
+
+			expected: []string{"agent"},
+		},
+		{
+			cmdline: []string{"agent", "-password", "1234"},
+
+			expected: []string{"agent"},
+		},
+		{
+			cmdline: []string{"C:\\Program Files\\Datadog\\agent.com"},
+
+			expected: []string{"C:\\Program Files\\Datadog\\agent.com"},
+		},
+		{
+			cmdline: []string{"C:\\Program Files\\Datadog\\agent.exe check process"},
+
+			expected: []string{"C:\\Program Files\\Datadog\\agent.exe"},
+		},
+		{
+			cmdline: []string{"C:\\Program Files\\Datadog\\agent.bat", "check", "process"},
+
+			expected: []string{"C:\\Program Files\\Datadog\\agent.bat"},
+		},
+		{
+			cmdline: []string{"\"C:\\Program Files\\Datadog\\agent.cmd\" check process"},
+
+			expected: []string{"C:\\Program Files\\Datadog\\agent.cmd"},
+		},
+		// String matching extension structure
+		{
+			cmdline: []string{"C:\\Program File\\Datexedog\\agent.exe check process"},
+
+			expected: []string{"C:\\Program File\\Datexedog\\agent.exe"},
+		},
+		// Mixed Variables
+		{
+			cmdline: []string{"C:\\Program Files\\agent.vbs check process"},
+
+			expected: []string{"C:\\Program Files\\agent.vbs"},
+		},
+		{
+			cmdline: []string{"C:\\Program Files\\Datadog\\agent.js", "check", "process"},
+
+			expected: []string{"C:\\Program Files\\Datadog\\agent.js"},
+		},
+		{
+			cmdline: []string{"C:\\Program Files\\Datadog\\agent.jse check process"},
+
+			expected: []string{"C:\\Program Files\\Datadog\\agent.jse"},
+		},
+		{
+			cmdline: []string{"\"C:\\Program Files\\Datadog\\agent.wsf\" check process"},
+
+			expected: []string{"C:\\Program Files\\Datadog\\agent.wsf"},
+		},
+		{
+			cmdline: []string{"C:\\Program Files\\Datadog\\agent.wsh check process"},
+
+			expected: []string{"C:\\Program Files\\Datadog\\agent.wsh"},
+		},
+		{
+			cmdline: []string{"\"C:\\Program Files\\Datadog\\agent.psc1\" check process"},
+
+			expected: []string{"C:\\Program Files\\Datadog\\agent.psc1"},
+		},
+		{
+			cmdline: []string{"\"C:\\Program Files\\agent\" check process"},
+
+			expected: []string{"C:\\Program Files\\agent"},
+		},
 	}
-	
+
 	scrubber := setupDataScrubber(t)
 	scrubber.StripAllArguments = true
 
 	for i := range cases {
 		cmdline := cases[i].cmdline
 		cases[i].cmdline = scrubber.stripArguments(cmdline)
-		assert.Equal(t, cases[i].noArgsCmdline, cases[i].cmdline)
+		assert.Equal(t, cases[i].expected, cases[i].cmdline)
 	}
 }

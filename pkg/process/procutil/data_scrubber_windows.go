@@ -11,75 +11,78 @@ import (
 	"strings"
 )
 
-// Extensions in which windows defaults the exec commands. Additional extensions can be included. 
-var (
-	winDotExec= []string{
-		".com",".exe",".bat",".cmd",".vbs", ".vbe",".js",".jse",".wsf",".wsh",".psc1", ".ps1"} 
-)
+var winDotExec = []string{".com", ".exe", ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".psc1", ".ps1"}
 
-// stripWindowsArgs removes the arguments of the commands if they identify any of the file extensions that windows defaults to.
 // If the command doesn't identify the extension and cannot split the exec command from the args, it will return the existing characters until the first empty space occurrence.
 
-func (ds *DataScrubber) stripArguments(cmdline []string)[]string {
-	
+func (ds *DataScrubber) stripArguments(cmdline []string) []string {
+
 	argLength := len(cmdline)
-	
-		strCmdline := (cmdline[0] + " ")
-	
-	// case 1: Uses extensionParser() to format and search the command. 
-		if argLength == 1 && !strings.HasPrefix(strCmdline, "\"") {
-			strippedCmdline := extensionParser(strCmdline, winDotExec)
-			cmdline = cleanUp(strippedCmdline)
-			return cmdline
-		
-		}
-	// case 2: Uses quotesFinder() to search for any existing pair of double quotes ("") existing in the string as characters and return the content between them. 
-		if argLength == 1 && strings.HasPrefix(strCmdline, "\""){
-			strippedCmdline := quotesFinder(strCmdline)
-			cmdline = cleanUp(strippedCmdline)
-			return cmdline
-	
-		}
-	// case 3: Process a cmdline with multiple strings and use extensionParser() to format and search the command. 
-		if 	argLength > 1 && !strings.HasPrefix(strCmdline, "\""){
-			strippedCmdline := extensionParser(strCmdline, winDotExec)
-			cmdline = cleanUp(strippedCmdline)
-			return cmdline
-					
-		}
-	
+
+	strCmdline := (cmdline[0] + " ")
+
+	// case 1: Uses extensionParser() to format and search the command.
+	if argLength == 1 && !strings.HasPrefix(strCmdline, "\"") {
+		strippedCmdline := extensionParser(strCmdline, winDotExec)
+		cmdline = cleanUp(strippedCmdline)
 		return cmdline
-	}	
-	
-	// remove any extra space at the end cmdline before been returned to Scrubber 
-	func cleanUp(strippedCmdline string)[]string{
-		cmdline := []string{strings.TrimSuffix(strippedCmdline," ")}
+
+	}
+	// case 2: Uses quotesFinder() to search for any existing pair of double quotes ("") existing in the string as characters and return the content between them.
+	if argLength == 1 && strings.HasPrefix(strCmdline, "\"") {
+		strippedCmdline := findEmbeddedQuotes(strCmdline)
+		cmdline = cleanUp(strippedCmdline)
 		return cmdline
+
+	}
+	// case 3: Process a cmdline with multiple strings and use extensionParser() to format and search the command.
+	if argLength > 1 && !strings.HasPrefix(strCmdline, "\"") {
+		strippedCmdline := extensionParser(strCmdline, winDotExec)
+		cmdline = cleanUp(strippedCmdline)
+		return cmdline
+
 	}
 
-	// Iterate through the cmdline to identify any match with any item of winDotExec[n] and remove the characters after any occurrence.
-	
-	func extensionParser (cmdline string, winDotExec []string) string{
+	return cmdline
+}
 
-		var i int
-	
-		var processedCmdline string
-	
-		for _, c := range winDotExec {
-			if i = strings.Index(cmdline, c+" " ); i != -1 {
-				processedCmdline = cmdline[:i+len(c)]
-				return processedCmdline
-			}
-			processedCmdline = strings.Split(cmdline, c)[0]
+// remove any extra space at the end cmdline before been returned to Scrubber
+func cleanUp(strippedCmdline string) []string {
+	cmdline := []string{strings.TrimSuffix(strippedCmdline, " ")}
+	return cmdline
+}
+
+// Iterate through the cmdline to identify any match with any item of winDotExec[n] and remove the characters after any occurrence.
+
+func extensionParser(cmdline string, winDotExec []string) string {
+
+	var i int
+
+	var processedCmdline string
+
+	for _, c := range winDotExec {
+		if i = strings.Index(cmdline, c+" "); i != -1 {
+			processedCmdline = cmdline[:i+len(c)]
+			return processedCmdline
 		}
-		return processedCmdline
+		processedCmdline = strings.Split(cmdline, c)[0]
 	}
-	
-	func quotesFinder(cmdline string)string{
-		
-		firstQuoteRemoved := cmdline[1:]
-	
-		strippedCmdline	:= strings.Split(firstQuoteRemoved, "\"")[0]
-	
-		return strippedCmdline
+	return processedCmdline
+}
+
+// This function looks for the first pair of "" embedded in the string as a character and retrieves the content on it. Example: Input="\"C:\\Program Files\\Datadog\\agent.vbe\" check process" check process" Output="C:\\Program Files\\Datadog\\agent.vbe"
+
+func findEmbeddedQuotes(cmdline string) string {
+
+	var strippedCmdline string
+
+	firstQuoteRemoved := cmdline[1:]
+
+	splittedCmdline := strings.Split(firstQuoteRemoved, "\"")
+
+	if len(splittedCmdline) >= 1 {
+		strippedCmdline = splittedCmdline[0]
 	}
+
+	return strippedCmdline
+}
