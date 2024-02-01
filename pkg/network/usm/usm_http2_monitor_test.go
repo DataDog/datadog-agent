@@ -1110,7 +1110,7 @@ func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]i
 	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
 			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
-			// statusCode 0 represents and error returned from the function, which means the URL is not in the special
+			// statusCode 0 represents an error returned from the function, which means the URL is not in the special
 			// form which contains the expected status code (form - `/status/{statusCode}`). So by default we use
 			// 200 as the status code.
 			if statusCode == 0 {
