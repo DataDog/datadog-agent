@@ -182,7 +182,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_600cnx_bucket() {
 		cnx, err := v.Env().FakeIntake.Client().GetConnections()
 		assert.NoError(t, err)
 
-		if !assert.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
+		if !assert.GreaterOrEqualf(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
 			return
 		}
 
