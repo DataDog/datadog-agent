@@ -18,23 +18,25 @@ import (
 )
 
 // GetTags gets the tags from the kubernetes apiserver and the kubelet
-func GetTags(ctx context.Context) (tags []string, err error) {
-	tags, e := appendNodeInfoTags(ctx, tags)
-	if e != nil {
-		err = e
+func GetTags(ctx context.Context) ([]string, error) {
+	var tags []string
+	tags, err := appendNodeInfoTags(ctx, tags)
+	if err != nil {
+		return nil, err
 	}
 
 	annotationsToTags := getAnnotationsToTags()
-	if len(annotationsToTags) > 0 {
-		nodeAnnotations, e := GetNodeAnnotations(ctx)
-		if e != nil {
-			err = e
-		} else {
-			tags = append(tags, extractTags(nodeAnnotations, annotationsToTags)...)
-		}
+	if len(annotationsToTags) == 0 {
+		return tags, nil
 	}
 
-	return
+	nodeAnnotations, err := GetNodeAnnotations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tags = append(tags, extractTags(nodeAnnotations, annotationsToTags)...)
+
+	return tags, nil
 }
 
 func appendNodeInfoTags(ctx context.Context, tags []string) ([]string, error) {
