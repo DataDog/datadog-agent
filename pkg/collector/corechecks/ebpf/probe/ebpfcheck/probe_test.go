@@ -256,8 +256,7 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 
 	for _, maxEntries := range entriesToTest {
 		t.Run(fmt.Sprintf("%dMaxEntries", maxEntries), func(t *testing.T) {
-			maxEntries := uint32(1000)
-			filledEntries := uint32(500)
+			filledEntries := maxEntries / 2
 			buffers := entryCountBuffers{
 				keysBufferSizeLimit:   0, // No limit
 				valuesBufferSizeLimit: 0, // No limit
@@ -294,8 +293,8 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 
 				t.Run("MultipleBatch", func(t *testing.T) {
 					limitedBuffers := entryCountBuffers{
-						keysBufferSizeLimit:   4 * 100,
-						valuesBufferSizeLimit: 4 * 100,
+						keysBufferSizeLimit:   m.KeySize() * filledEntries / 4,
+						valuesBufferSizeLimit: m.ValueSize() * filledEntries / 4,
 					}
 					limitedBuffers.tryEnsureSizeForFullBatch(m)
 					limitedBuffers.prepareFirstBatchKeys(m)
@@ -303,7 +302,7 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 					allocs := testing.AllocsPerRun(10, func() {
 						hashMapNumberOfEntriesWithBatch(m, &limitedBuffers, 1)
 					})
-					require.LessOrEqual(t, allocs, 0.0)
+					require.LessOrEqual(t, allocs, 6.0) // Multiple batches mean we need to use a map to keep track of the keys, that causes allocations for the values
 				})
 			}
 
