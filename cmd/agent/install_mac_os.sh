@@ -12,6 +12,7 @@ etc_dir=/opt/datadog-agent/etc
 log_dir=/opt/datadog-agent/logs
 run_dir=/opt/datadog-agent/run
 service_name="com.datadoghq.agent"
+gui_service_name="com.datadoghq.gui"
 systemwide_servicefile_name="/Library/LaunchDaemons/${service_name}.plist"
 
 if [ -n "$DD_REPO_URL" ]; then
@@ -289,6 +290,7 @@ install_user_home=$($cmd_real_user bash -c 'echo "$HOME"')
 # shellcheck disable=SC2016
 user_uid=$($cmd_real_user bash -c 'echo "$UID"')
 user_plist_file=${install_user_home}/Library/LaunchAgents/${service_name}.plist
+gui_plist_file=${install_user_home}/Library/LaunchAgents/${gui_service_name}.plist
 
 # In order to install with the right user
 rm -f /tmp/datadog-install-user
