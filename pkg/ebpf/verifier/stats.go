@@ -142,10 +142,8 @@ func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoa
 
 		opts := ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
-				LogLevel: ebpf.LogLevelBranch | ebpf.LogLevelStats,
-				// maximum log size accepted by the kernel:
-				// https://github.com/cilium/ebpf/blob/main/prog.go#L42
-				LogSize:     1073741823,
+				LogLevel:    ebpf.LogLevelStats,
+				LogSize:     10 * 1024 * 1024,
 				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
 			},
 		}
