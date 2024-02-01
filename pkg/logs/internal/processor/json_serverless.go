@@ -43,7 +43,7 @@ type jsonServerlessLambda struct {
 }
 
 // Encode encodes a message into a JSON byte array.
-func (j *jsonServerlessEncoder) Encode(msg *message.Message) error {
+func (j *jsonServerlessEncoder) Encode(msg *message.Message, hostname string) error {
 	if msg.State != message.StateRendered {
 		return fmt.Errorf("message passed to encoder isn't rendered")
 	}
@@ -69,7 +69,7 @@ func (j *jsonServerlessEncoder) Encode(msg *message.Message) error {
 		},
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
-		Hostname:  msg.GetHostname(),
+		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
 		Tags:      msg.Origin.TagsToString(),
