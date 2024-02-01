@@ -907,7 +907,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
-			name: "Interesting frame header sent separately from frame payload",
+			name: "Data frame header sent separately from frame payload",
 			// Testing the scenario in which the data frame header is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
 				payload := []byte("test")
@@ -955,6 +955,33 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
+			},
+		},
+		{
+			name: "Payload data frame header sent separately",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				payload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
+				headerFields := removeHeaderFieldByKey(testHeaders(), "content-length")
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: headerFields}).bytes()
+				dataFrame := newFramer().writeData(t, 1, true, payload).bytes()
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				secondMessageDataFrame := newFramer().writeData(t, 3, true, emptyBody).bytes()
+
+				// we are cutting in the middle of the payload
+				firstMessage := append(headersFrame, dataFrame[:9+3]...)
+				secondMessage := append(dataFrame[9+3:], secondMessageHeadersFrame...)
+				secondMessage = append(secondMessage, secondMessageDataFrame...)
+				return [][]byte{
+					firstMessage,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 2,
 			},
 		},
 	}
