@@ -118,10 +118,11 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
     // with an indexed name, literal value, reusing the index 4 and 5 in the
     // static table. A different index means that the header is not a path, so
     // we skip it.
-    if (!is_path_index(index)) {
+    if (is_path_index(index)) {
+        update_path_size_telemetry(http2_tel, str_len);
+    } else if (!is_status_index(index)) {
         goto end;
     }
-    update_path_size_telemetry(http2_tel, str_len);
 
     // We skip if:
     // - The string is too big
@@ -316,7 +317,8 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
                 current_stream->request_method = current_header->index;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (is_status_index(current_header->index)) {
-                current_stream->response_status_code = current_header->index;
+                current_stream->status_code.indexed_value = current_header->index;
+                current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
                 current_stream->path_size = HTTP2_ROOT_PATH_LEN;
@@ -338,6 +340,10 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
                 current_stream->path_size = dynamic_value->string_len;
                 current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+            } else if (is_status_index(dynamic_value->original_index)) {
+                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
+                current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->status_code.finalized = true;
             }
         } else {
             // We're in new dynamic header or new dynamic header not indexed states.
@@ -353,6 +359,10 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
                 current_stream->path_size = current_header->new_dynamic_value_size;
                 current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
                 bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+            } else if (is_status_index(current_header->original_index)) {
+                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
+                current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->status_code.finalized = true;
             }
         }
     }
@@ -886,7 +896,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         // When we accept an RST, it means that the current stream is terminated.
         // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
         // If rst, and stream is empty (no status code, or no response) then delete from inflight
-        if (is_rst && (current_stream->response_status_code == 0 || current_stream->request_started == 0)) {
+        if (is_rst && (!current_stream->status_code.finalized || current_stream->request_started == 0)) {
             bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
             continue;
         }
