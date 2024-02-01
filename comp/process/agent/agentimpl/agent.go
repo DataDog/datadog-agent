@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	agent6DisabledMessage = `process-agent not enabled.
+	agentDisabledMessage = `process-agent not enabled.
 Set env var DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED=true or add
 process_config:
   process_collection:
@@ -61,7 +61,7 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !checksEnabled(p.Checks) {
-		p.Log.Info(agent6DisabledMessage)
+		p.Log.Info(agentDisabledMessage)
 		return optional.NewNoneOption[agent.Component]()
 	}
 
