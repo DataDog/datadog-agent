@@ -90,6 +90,8 @@ e2e_pre_test_junit_upload:
     - !reference [.on_e2e_changes_or_manual]
   when: always
   stage: e2e_pre_test_junit_upload
+  needs:
+    - e2e_pre_test
   dependencies:
     # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
     # to avoid downloading all the artifacts of all the jobs of all the previous stages.
