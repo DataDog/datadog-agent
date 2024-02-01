@@ -6,7 +6,6 @@
 package flare
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -51,7 +50,7 @@ func TestNonexistantFile(t *testing.T) {
 
 	fi, err := os.Stat(name)
 	if fi != nil {
-		fmt.Println("stop")
+		t.Fail()
 	}
 
 	f.AssertFileExists("logs_file_permissions.log")
