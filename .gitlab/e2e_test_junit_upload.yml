@@ -92,10 +92,6 @@ e2e_pre_test_junit_upload:
   stage: e2e_pre_test_junit_upload
   needs:
     - e2e_pre_test
-  dependencies:
-    # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
-    # to avoid downloading all the artifacts of all the jobs of all the previous stages.
-    - e2e_pre_test
 
 e2e_container_test_junit_upload:
   extends: .e2e_test_junit_template
