@@ -21,11 +21,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// InstallRun is a run of the agent installer
+type InstallRun struct {
+	AgentPackage     *windowsAgent.Package
+	Args             string
+	LogFile          string
+	ExpectMSIFailure bool
+	// PreviousVersion is true if the agent is a previous version
+	// and should only have basic checks run
+	PreviousVersion bool
+	// SkipInstall can be set to true to skip actually running the installer
+	// handy for test/dev cycles.
+	SkipInstall bool
+}
+
 // Tester is a test helper for testing agent installations
 type Tester struct {
 	hostInfo          *windows.HostInfo
 	host              *components.RemoteHost
 	InstallTestClient *common.TestClient
+
+	agentInstallRuns []*InstallRun
+
+	uninstallAtEnd bool
 
 	expectedAgentVersion      string
 	expectedAgentMajorVersion string
@@ -62,6 +80,19 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 	}
 
 	return t, nil
+}
+
+func WithInstallRun(run *InstallRun) TesterOption {
+	return func(t *Tester) {
+		t.agentInstallRuns = append(t.agentInstallRuns, run)
+	}
+}
+
+// WithUninstallAtEnd sets the Tester to uninstall the agent at the end of the test
+func WithUninstallAtEnd() TesterOption {
+	return func(t *Tester) {
+		t.uninstallAtEnd = true
+	}
 }
 
 // WithExpectedAgentVersion sets the expected agent version to be installed
@@ -268,10 +299,7 @@ func (t *Tester) TestInstallAgentPackage(tt *testing.T, agentPackage *windowsAge
 			tt.Fatal("install failed")
 		}
 
-		installedVersion, err := t.InstallTestClient.GetAgentVersion()
-		require.NoError(tt, err, "should get agent version")
-		windowsAgent.TestAgentVersion(tt, t.expectedAgentVersion, installedVersion)
-
+		t.TestRunningExpectedAgentVersion(tt)
 		windowsAgent.TestValidDatadogCodeSignatures(tt, t.host, []string{remoteMSIPath})
 		common.CheckInstallation(tt, t.InstallTestClient)
 		t.testAgentCodeSignature(tt)
@@ -298,5 +326,85 @@ func (t *Tester) TestUninstall(tt *testing.T, logfile string) bool {
 		}
 
 		t.testDoesNotChangeSystemFiles(tt)
+	})
+}
+
+func (t *Tester) TestRunningPackageVersion(tt *testing.T, agentPackage *windowsAgent.Package) bool {
+	return tt.Run("running package version", func(tt *testing.T) {
+		installedVersion, err := t.InstallTestClient.GetAgentVersion()
+		require.NoError(tt, err, "should get agent version")
+		windowsAgent.TestAgentVersion(tt, agentPackage.AgentVersion(), installedVersion)
+	})
+}
+
+// TestRunningAgentVersion tests the running agent version matches the expected version
+func (t *Tester) TestRunningExpectedAgentVersion(tt *testing.T) bool {
+	return tt.Run("running expected agent version", func(tt *testing.T) {
+		installedVersion, err := t.InstallTestClient.GetAgentVersion()
+		require.NoError(tt, err, "should get agent version")
+		windowsAgent.TestAgentVersion(tt, t.expectedAgentVersion, installedVersion)
+	})
+}
+
+func (t *Tester) runInstallRun(tt *testing.T, run *InstallRun) bool {
+	return tt.Run(fmt.Sprintf("install agent %s", run.AgentPackage.AgentVersion()), func(tt *testing.T) {
+		var err error
+		if run.SkipInstall {
+			if run.ExpectMSIFailure {
+				err = fmt.Errorf("fake error, run %s was skipped", run.AgentPackage.AgentVersion())
+			}
+		} else {
+			_, err = t.InstallAgentPackage(tt, run.AgentPackage, run.Args, run.LogFile)
+		}
+		if run.ExpectMSIFailure {
+			require.Error(tt, err, "should fail to install agent %s", run.AgentPackage.AgentVersion())
+		} else {
+			require.NoError(tt, err, "should install agent %s", run.AgentPackage.AgentVersion())
+			t.testInstallRun(tt, run)
+		}
+	})
+}
+
+func (t *Tester) testInstallRun(tt *testing.T, run *InstallRun) bool {
+	return tt.Run(fmt.Sprintf("test agent %s", run.AgentPackage.AgentVersion()), func(tt *testing.T) {
+		if !t.TestRunningPackageVersion(tt, run.AgentPackage) {
+			tt.FailNow()
+		}
+		if run.PreviousVersion {
+			// Only do some basic checks on the agent since it's a previous version
+			common.CheckAgentBehaviour(tt, t.InstallTestClient)
+		} else {
+			// More in depth checks on current version
+			common.CheckInstallation(tt, t.InstallTestClient)
+			t.TestRuntimeExpectations(tt)
+		}
+	})
+}
+
+// Run runs the test
+func (t *Tester) Run(tt *testing.T) bool {
+	return tt.Run("test agent installation", func(tt *testing.T) {
+		var lastSuccessfulRun *InstallRun
+		for _, run := range t.agentInstallRuns {
+			if !t.runInstallRun(tt, run) {
+				tt.FailNow()
+			}
+			if run.ExpectMSIFailure {
+				if lastSuccessfulRun != nil {
+					// TODO:
+					err := windows.StartService(t.host, "DatadogAgent")
+					require.NoError(tt, err, "agent service should start after rollback")
+					// Test that previous version is working correctly
+					if !t.testInstallRun(tt, lastSuccessfulRun) {
+						tt.FailNow()
+					}
+				}
+			} else {
+				lastSuccessfulRun = run
+			}
+		}
+		// if t.uninstallAtEnd {
+		// 	t.TestUninstall(tt, "uninstall.log")
+		// }
 	})
 }

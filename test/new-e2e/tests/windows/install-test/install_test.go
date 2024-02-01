@@ -125,6 +125,51 @@ func (is *agentMSISuite) TestUpgrade() {
 	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
 }
 
+func (is *agentMSISuite) TestUpgradeRollback() {
+	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), is.T())
+	is.Require().NoError(err, "should get output dir")
+	is.T().Logf("Output dir: %s", outputDir)
+
+	vm := is.Env().RemoteHost
+	is.prepareHost()
+
+	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
+	is.Require().NoError(err, "should get last stable agent package from env")
+
+	t, err := NewTester(is.T(), vm,
+		WithInstallRun(&InstallRun{
+			AgentPackage:    previousAgentPackage,
+			Args:            "",
+			LogFile:         filepath.Join(outputDir, "install.log"),
+			PreviousVersion: true,
+		}),
+		WithInstallRun(&InstallRun{
+			AgentPackage:     is.agentPackage,
+			Args:             "WIXFAILWHENDEFERRED=1",
+			LogFile:          filepath.Join(outputDir, "install.log"),
+			ExpectMSIFailure: true,
+		}),
+		WithUninstallAtEnd(),
+		WithExpectedAgentVersion(previousAgentPackage.AgentVersion()))
+	is.Require().NoError(err, "should create tester")
+
+	if !t.Run(is.T()) {
+		is.T().FailNow()
+	}
+}
+
+func (is *agentMSISuite) TestUninstall() {
+	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), is.T())
+	is.Require().NoError(err, "should get output dir")
+	is.T().Logf("Output dir: %s", outputDir)
+
+	vm := is.Env().RemoteHost
+	is.prepareHost()
+
+	err = windowsAgent.UninstallAgent(vm, filepath.Join(outputDir, "uninstall.log"))
+	is.Require().NoError(err, "should uninstall the agent")
+}
+
 // This is separate from TestInstallAgentPackage because previous versions of the agent
 // may not conform to the latest test expectations.
 func (is *agentMSISuite) installLastStable(t *Tester, logfile string) *windowsAgent.Package {
@@ -136,11 +181,12 @@ func (is *agentMSISuite) installLastStable(t *Tester, logfile string) *windowsAg
 		agentPackage, err = windowsAgent.GetLastStablePackageFromEnv()
 		is.Require().NoError(err, "should get last stable agent package from env")
 
-		t.InstallAgentPackage(is.T(), agentPackage, "", logfile)
+		// _, err = t.InstallAgentPackage(is.T(), agentPackage, "", logfile)
+		// is.Require().NoError(err, "should install last stable agent")
+		err = windows.StartService(t.host, "DatadogAgent")
+		is.Require().NoError(err, "should start agent service")
 
-		agentVersion, err := t.InstallTestClient.GetAgentVersion()
-		is.Require().NoError(err, "should get agent version")
-		windowsAgent.TestAgentVersion(is.T(), agentPackage.AgentVersion(), agentVersion)
+		t.TestRunningPackageVersion(is.T(), agentPackage)
 	}) {
 		is.T().Fatal("failed to install last stable agent")
 	}
