@@ -64,11 +64,14 @@ type WindowsProbe struct {
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
 
-	pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError)
-	if err != nil {
-		return err
+	if (!p.opts.disableProcmon) {
+		pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError)
+		if err != nil {
+			return err
+		}
+		p.pm = pm
 	}
-	p.pm = pm
+
 
 	etwSessionName := "SystemProbeFIM_ETW"
 	etwcomp, err := etwimpl.NewEtw()
