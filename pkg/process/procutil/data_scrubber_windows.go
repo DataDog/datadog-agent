@@ -9,82 +9,72 @@ package procutil
 
 import (
 	"strings"
-	"unicode"
 )
 
-// Extensions in which windows defaults the exec commands
+// Extensions in which windows defaults the exec commands. Additional extensions can be included. 
 var (
 	winDotExec= []string{
 		".com ",".exe ",".bat ",".cmd ",".vbs ", ".vbe ",".js ",".jse ",".wsf ",".wsh ",".psc1 "}
 )
 
+// stripWindowsArgs removes the arguments of the commands if they identify any of the file extensions that windows defaults to.
+// If the command doesn't identify the extension and cannot split the exec command from the args, it will return the existing characters until the first empty space occurrence.
 
-// stripWindowsArgs removes the arguments of the commands if identifies on them any of the files extensions that windows defaults for exec.
-// If the commands doesn't identify the extension will return those strings existing before the first space. 
+func (ds *DataScrubber) stripArguments(cmdline []string)[]string {
+	
+	argLength := len(cmdline)
 
-func stripWindowsArgs(cmdline []string, winDotExec []string)[]string {
+	winDotExec := []string{".com",".exe",".bat",".cmd",".vbs", ".vbe",".js",".jse",".wsf",".wsh",".psc1", ".ps1"} 
 	
-		cmdlineLength := len(cmdline)
+		strCmdline := (cmdline[0] + " ")
 	
-		switch{
-		case cmdlineLength == 1: 
+	// case 1: Uses extensionParser() to format and search the command. 
+		if argLength == 1 && !strings.HasPrefix(strCmdline, "\"") {
+			cmdline := extensionParser(strCmdline, winDotExec)
 	
-			strCmdline := cmdline[0]
-	
-			validCmdLine := validWindowsCommand(strCmdline)
-	
-			cmdline = extensionParser(validCmdLine, winDotExec)
+			return cmdline
+		}
+	// case 2: Uses quotesFinder() to search for any existing pair of double quotes ("") existing in the string as characters and return the content between them. 
+		if argLength == 1 && strings.HasPrefix(strCmdline, "\""){
+			cmdline := []string{quotesFinder(strCmdline)}
 	
 			return cmdline
 	
-		case cmdlineLength > 1:
-			
-			pathExec := cmdline [0]
-	
-			cmdline = []string {pathExec}
+		}
+	// case 3: Process a cmdline with multiple strings and use extensionParser() to format and search the command. 
+		if 	argLength > 1 && !strings.HasPrefix(strCmdline, "\""){
+			cmdline := extensionParser(strCmdline, winDotExec)
 	
 			return cmdline
-	
-			}
-	
+					
+		}
 		return cmdline
-	}
+	}	
+
+	// Iterate through the cmdline to identify any match with any item of winDotExec[n] and remove the characters after any occurrence.
 	
-	func extensionParser (validCmdline string, winDotExec []string) []string{
+	func extensionParser (cmdline string, winDotExec []string) []string{
 	
 		var i int
 	
-		cmdline := validCmdline
 		strippedcmdline := []string{}
 	
 		for _, c := range winDotExec {
-	
-			if i = strings.Index(validCmdline, c); i != -1 {
+			if i = strings.Index(cmdline, c+" " ); i != -1 {
 				strippedcmdline = []string{cmdline[:i+len(c)]}
 				return strippedcmdline
 				} else{
-				strippedcmdline = []string{strings.Split(validCmdline, " ")[0]}
+				strippedcmdline = []string{strings.Split(cmdline, c)[0]}
 				}
 			}
 		return strippedcmdline
 	}
 	
-// Remove any quotation mark taken in the strings as a character.
-// Example: For ""C:\Program Files\Datadog\agent.wsf" check process" output =>> "C:\Program Files\Datadog\agent.wsf check process"
-
-	func validWindowsCommand(cmdline string, ) string {
+	func quotesFinder(cmdline string)string{
+		
+		firstQuoteRemoved := cmdline[1:]
 	
-		for _, c := range cmdline {
-			if unicode.IsLetter(c) {
-				break
-			} else {
+		strippedCmdline	:= strings.Split(firstQuoteRemoved, "\"")[0]
 	
-				validCmdline := regexp.MustCompile(`["]+`).ReplaceAllString(cmdline, "")
-	
-				return validCmdline
-			}
-		}
-	
-		return cmdline
-	
-	}	
+		return strippedCmdline
+	}
