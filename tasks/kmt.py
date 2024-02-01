@@ -62,6 +62,7 @@ def gen_config(
     output_file="vmconfig.json",
     from_ci_pipeline=None,
     use_local_if_possible=False,
+    host_cpus=None,
 ):
     """
     Generate a vmconfig.json file with the given VMs.
@@ -83,7 +84,7 @@ def gen_config(
     else:
         vcpu = DEFAULT_VCPU if vcpu is None else vcpu
         memory = DEFAULT_MEMORY if memory is None else memory
-        vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
+        vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, host_cpus)
 
 
 def gen_config_from_ci_pipeline(
@@ -141,6 +142,7 @@ def gen_config_from_ci_pipeline(
                 if vcpu is None and len(vcpu_list) > 0:
                     vcpu = str(vcpu_list[0])
                     info(f"[+] setting vcpu to {vcpu}")
+
         elif name.startswith("kernel_matrix_testing_run") and job["status"] == "failed":
             arch = "x86" if "x64" in name else "arm64"
             match = re.search(r"\[(.*)\]", name)
@@ -459,7 +461,7 @@ def ssh_config(_, stacks=None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version
         ):
             continue
 
-        for _, instance in build_infrastructure(stack, remote_ssh_key=""):
+        for _, instance in build_infrastructure(stack, remote_ssh_key="").items():
             print(f"Host kmt-{stack_name}-{instance.arch}")
             print(f"    HostName {instance.ip}")
             print("    User ubuntu")

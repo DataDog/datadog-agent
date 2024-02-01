@@ -15,28 +15,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 )
 
-const pgaQuery12 = `SELECT 
-	c.name as pdb_name, 
+const pgaQuery12 = `SELECT
+	c.name as pdb_name,
 	p.pid as pid, p.program as server_process,
 	s.sid as sid, s.username as username, s.program as program, s.machine as machine, s.osuser as osuser,
 	s.status as status, last_call_et,
 	module, client_info,
-	nvl(pga_used_mem,0) pga_used_mem, 
-	nvl(pga_alloc_mem,0) pga_alloc_mem, 
-	nvl(pga_freeable_mem,0) pga_freeable_mem, 
+	nvl(pga_used_mem,0) pga_used_mem,
+	nvl(pga_alloc_mem,0) pga_alloc_mem,
+	nvl(pga_freeable_mem,0) pga_freeable_mem,
 	nvl(pga_max_mem,0) pga_max_mem
 FROM v$process p, v$containers c, v$session s
 WHERE
   c.con_id(+) = p.con_id
 	AND s.paddr(+) = p.addr`
 
-const pgaQuery11 = `SELECT  
+const pgaQuery11 = `SELECT
 	p.pid as pid, p.program as server_process,
 	s.sid as sid, s.username as username, s.program as program, s.machine as machine, s.osuser as osuser,
 	s.status as status, last_call_et,
-	nvl(pga_used_mem,0) pga_used_mem, 
-	nvl(pga_alloc_mem,0) pga_alloc_mem, 
-	nvl(pga_freeable_mem,0) pga_freeable_mem, 
+	nvl(pga_used_mem,0) pga_used_mem,
+	nvl(pga_alloc_mem,0) pga_alloc_mem,
+	nvl(pga_freeable_mem,0) pga_freeable_mem,
 	nvl(pga_max_mem,0) pga_max_mem
 FROM v$process p, v$session s
 WHERE s.paddr(+) = p.addr`
@@ -105,10 +105,10 @@ func (c *Check) ProcessMemory() error {
 			tags = append(tags, "osuser:"+r.OsUser.String)
 		}
 		if c.config.ProcessMemory.Enabled {
-			sender.Gauge(fmt.Sprintf("%s.process.pga_used_memory", common.IntegrationName), r.PGAUsedMem, "", tags)
-			sender.Gauge(fmt.Sprintf("%s.process.pga_allocated_memory", common.IntegrationName), r.PGAAllocMem, "", tags)
-			sender.Gauge(fmt.Sprintf("%s.process.pga_freeable_memory", common.IntegrationName), r.PGAFreeableMem, "", tags)
-			sender.Gauge(fmt.Sprintf("%s.process.pga_max_memory", common.IntegrationName), r.PGAMaxMem, "", tags)
+			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_used_memory", common.IntegrationName), r.PGAUsedMem, tags)
+			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_allocated_memory", common.IntegrationName), r.PGAAllocMem, tags)
+			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_freeable_memory", common.IntegrationName), r.PGAFreeableMem, tags)
+			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_max_memory", common.IntegrationName), r.PGAMaxMem, tags)
 		}
 
 		if c.config.InactiveSessions.Enabled && r.Status.Valid && r.Status.String == "INACTIVE" && r.LastCallEt.Valid {
@@ -118,7 +118,7 @@ func (c *Check) ProcessMemory() error {
 			if r.ClientInfo.Valid {
 				tags = append(tags, "client_info:"+r.ClientInfo.String)
 			}
-			sender.Gauge(fmt.Sprintf("%s.session.inactive_seconds", common.IntegrationName), float64(r.LastCallEt.Int64), "", tags)
+			sendMetric(c, gauge, fmt.Sprintf("%s.session.inactive_seconds", common.IntegrationName), float64(r.LastCallEt.Int64), tags)
 		}
 	}
 	sender.Commit()

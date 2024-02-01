@@ -63,6 +63,32 @@ static __always_inline bool tls_read_hpack_int(tls_dispatcher_arguments_t *info,
     return tls_read_hpack_int_with_given_current_char(info, current_char_as_number, max_number_for_bits, out);
 }
 
+// Handles the case in which a header is not a pseudo header. We don't need to save it as interesting or modify our telemetry.
+// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.3
+// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.4
+static __always_inline bool tls_handle_non_pseudo_headers(tls_dispatcher_arguments_t *info, __u64 index) {
+    __u64 str_len = 0;
+    bool is_huffman_encoded = false;
+    // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
+    if (!tls_read_hpack_int(info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+        return false;
+    }
+
+    // The header name is new and inserted in the dynamic table - we skip the new value.
+    if (index == 0) {
+        info->data_off += str_len;
+        str_len = 0;
+        // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
+        // At this point the huffman code is not interesting due to the fact that we already read the string length,
+        // We are reading the current size in order to skip it.
+        if (!tls_read_hpack_int(info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+            return false;
+        }
+    }
+    info->data_off += str_len;
+    return true;
+}
+
 // tls_parse_field_literal parses a header with a literal value.
 //
 // We are only interested in path headers, that we will store in our internal
@@ -92,10 +118,11 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
     // with an indexed name, literal value, reusing the index 4 and 5 in the
     // static table. A different index means that the header is not a path, so
     // we skip it.
-    if (index != kIndexPath && index != kEmptyPath) {
+    if (is_path_index(index)) {
+        update_path_size_telemetry(http2_tel, str_len);
+    } else if (!is_status_index(index)) {
         goto end;
     }
-    update_path_size_telemetry(http2_tel, str_len);
 
     // We skip if:
     // - The string is too big
@@ -116,6 +143,7 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
     } else {
         headers_to_process->type = kNewDynamicHeaderNotIndexed;
     }
+    headers_to_process->original_index = index;
     headers_to_process->new_dynamic_value_offset = info->data_off;
     headers_to_process->new_dynamic_value_size = str_len;
     headers_to_process->is_huffman_encoded = is_huffman_encoded;
@@ -126,6 +154,29 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
 end:
     info->data_off += str_len;
     return true;
+}
+
+// tls_handle_dynamic_table_update handles the dynamic table size update.
+static __always_inline void tls_handle_dynamic_table_update(tls_dispatcher_arguments_t *info){
+    // To determine the size of the dynamic table update, we read an integer representation byte by byte.
+    // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set,
+    // indicating that we've consumed the complete integer. While in the context of the dynamic table
+    // update, we set the state as true if the MSB is set, and false otherwise. Then, we proceed to the next byte.
+    // More on the feature - https://httpwg.org/specs/rfc7541.html#rfc.section.6.3.
+    __u8 current_ch;
+    bpf_probe_read_user(&current_ch, sizeof(current_ch), info->buffer_ptr + info->data_off);
+    // If the top 3 bits are 001, then we have a dynamic table size update.
+    if ((current_ch & 224) == 32) {
+        info->data_off++;
+    #pragma unroll(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS)
+        for (__u8 iter = 0; iter < HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS; ++iter) {
+            bpf_probe_read_user(&current_ch, sizeof(current_ch), info->buffer_ptr + info->data_off);
+            info->data_off++;
+            if ((current_ch & 128) == 0) {
+                return;
+            }
+        }
+    }
 }
 
 // tls_filter_relevant_headers parses the http2 headers frame, and filters headers
@@ -140,7 +191,6 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
     const __u32 end = frame_end < info->data_end + 1 ? frame_end : info->data_end + 1;
     bool is_indexed = false;
     bool is_literal = false;
-    bool is_dynamic_table_update = false;
     __u64 max_bits = 0;
     __u64 index = 0;
 
@@ -149,29 +199,15 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
         return 0;
     }
 
-#pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
-    for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
+    tls_handle_dynamic_table_update(info);
+
+#pragma unroll(HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING)
+    for (__u8 headers_index = 0; headers_index < HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
         if (info->data_off >= end) {
             break;
         }
         bpf_probe_read_user(&current_ch, sizeof(current_ch), info->buffer_ptr + info->data_off);
         info->data_off++;
-
-        // To determine the size of the dynamic table update, we read an integer representation byte by byte.
-        // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set,
-        // indicating that we've consumed the complete integer. While in the context of the dynamic table
-        // update, we set the state as true if the MSB is set, and false otherwise. Then, we proceed to the next byte.
-        // More on the feature - https://httpwg.org/specs/rfc7541.html#rfc.section.6.3.
-        if (is_dynamic_table_update) {
-            is_dynamic_table_update = (current_ch & 128) != 0;
-            continue;
-        }
-        // 32 is represented as 0b00100000, which is the scenario of dynamic table size update.
-        // If the top 3 bits are 001, then we have a dynamic table size update.
-        is_dynamic_table_update = (current_ch & 224) == 32;
-        if (is_dynamic_table_update) {
-            continue;
-        }
 
         is_indexed = (current_ch & 128) != 0;
         is_literal = (current_ch & 192) == 64;
@@ -214,6 +250,49 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
         }
     }
 
+#pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
+    for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
+        if (info->data_off >= end) {
+            break;
+        }
+        bpf_probe_read_user(&current_ch, sizeof(current_ch), info->buffer_ptr + info->data_off);
+        info->data_off++;
+
+        is_indexed = (current_ch & 128) != 0;
+        is_literal = (current_ch & 192) == 64;
+        // If all (is_indexed, is_literal, is_dynamic_table_update) are false, then we
+        // have a literal header field without indexing (prefix 0000) or literal header field never indexed (prefix 0001).
+
+        max_bits = MAX_4_BITS;
+        // If we're in an indexed header - the max bits are 7.
+        max_bits = is_indexed ? MAX_7_BITS : max_bits;
+        // else, if we're in a literal header - the max bits are 6.
+        max_bits = is_literal ? MAX_6_BITS : max_bits;
+        // otherwise, we're in literal header without indexing or literal header never indexed - and for both, the
+        // max bits are 4.
+        // See RFC7541 - https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.2
+
+        index = 0;
+        if (!tls_read_hpack_int_with_given_current_char(info, current_ch, max_bits, &index)) {
+            break;
+        }
+
+        if (is_indexed) {
+            // Indexed representation.
+            // MSB bit set.
+            // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
+            continue;
+        }
+        // Increment the global dynamic counter for each literal header field.
+        // We're not increasing the counter for literal without indexing or literal never indexed.
+        __sync_fetch_and_add(global_dynamic_counter, is_literal);
+
+        // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
+        if (!tls_handle_non_pseudo_headers(info, index)) {
+            break;
+        }
+    }
+
     return interesting_headers;
 }
 
@@ -232,13 +311,14 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
         current_header = &headers_to_process[iteration];
 
         if (current_header->type == kStaticHeader) {
-            if (current_header->index == kPOST || current_header->index == kGET) {
+            if (is_method_index(current_header->index)) {
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method = current_header->index;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
-            } else if (current_header->index >= k200 && current_header->index <= k500) {
-                current_stream->response_status_code = current_header->index;
+            } else if (is_status_index(current_header->index)) {
+                current_stream->status_code.indexed_value = current_header->index;
+                current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
                 current_stream->path_size = HTTP2_ROOT_PATH_LEN;
@@ -256,9 +336,15 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
             if (dynamic_value == NULL) {
                 break;
             }
-            current_stream->path_size = dynamic_value->string_len;
-            current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
-            bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+            if (is_path_index(dynamic_value->original_index)) {
+                current_stream->path_size = dynamic_value->string_len;
+                current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+            } else if (is_status_index(dynamic_value->original_index)) {
+                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
+                current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->status_code.finalized = true;
+            }
         } else {
             // We're in new dynamic header or new dynamic header not indexed states.
             read_into_user_buffer_http2_path(dynamic_value.buffer, info->buffer_ptr + current_header->new_dynamic_value_offset);
@@ -266,11 +352,18 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
             if (current_header->type == kNewDynamicHeader) {
                 dynamic_value.string_len = current_header->new_dynamic_value_size;
                 dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
+                dynamic_value.original_index = current_header->original_index;
                 bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             }
-            current_stream->path_size = current_header->new_dynamic_value_size;
-            current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
-            bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+            if (is_path_index(current_header->original_index)) {
+                current_stream->path_size = current_header->new_dynamic_value_size;
+                current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
+                bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+            } else if (is_status_index(current_header->original_index)) {
+                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
+                current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->status_code.finalized = true;
+            }
         }
     }
 }
@@ -511,7 +604,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
 
     frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
     if (http2_tel == NULL) {
         return 0;
     }
@@ -600,7 +693,7 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
         return 0;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
     if (http2_tel == NULL) {
         return 0;
     }
@@ -672,7 +765,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
         goto delete_iteration;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
     if (http2_tel == NULL) {
         goto delete_iteration;
     }
@@ -756,7 +849,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         return 0;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
     if (http2_tel == NULL) {
         goto delete_iteration;
     }
@@ -803,7 +896,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         // When we accept an RST, it means that the current stream is terminated.
         // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
         // If rst, and stream is empty (no status code, or no response) then delete from inflight
-        if (is_rst && (current_stream->response_status_code == 0 || current_stream->request_started == 0)) {
+        if (is_rst && (!current_stream->status_code.finalized || current_stream->request_started == 0)) {
             bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
             continue;
         }

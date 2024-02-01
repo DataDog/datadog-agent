@@ -189,7 +189,6 @@ func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 
 func TestProcessMessageValid(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	message := LambdaLogAPIMessage{
 		logType: logTypePlatformReport,
@@ -236,7 +235,6 @@ func TestProcessMessageValid(t *testing.T) {
 
 func TestProcessMessageStartValid(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	message := &LambdaLogAPIMessage{
 		logType: logTypePlatformStart,
@@ -270,7 +268,7 @@ func TestProcessMessageStartValid(t *testing.T) {
 func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	demux := createDemultiplexer(t)
 	messageTime := time.Now()
-	defer demux.Stop(false)
+
 	message := LambdaLogAPIMessage{
 		logType: logTypePlatformRuntimeDone,
 		time:    messageTime,
@@ -303,7 +301,6 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 
 func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	previousRequestID := "9397b299-cb43-5586-9188-641de46d10b0"
 	currentRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
@@ -338,7 +335,7 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 
 func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
+
 	message := &LambdaLogAPIMessage{
 		logType: logTypePlatformReport,
 		time:    time.Now(),
@@ -372,7 +369,7 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 
 func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
+
 	message := &LambdaLogAPIMessage{
 		logType:      logTypePlatformLogsDropped,
 		time:         time.Now(),
@@ -400,7 +397,7 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 
 func TestProcessMessageShouldProcessLogTypeFunctionOutOfMemory(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
+
 	message := &LambdaLogAPIMessage{
 		logType:      logTypeFunction,
 		time:         time.Now(),
@@ -432,7 +429,7 @@ func TestProcessMessageShouldProcessLogTypeFunctionOutOfMemory(t *testing.T) {
 
 func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
+
 	message := &LambdaLogAPIMessage{
 		logType: logTypePlatformReport,
 		time:    time.Now(),
@@ -670,7 +667,6 @@ func TestProcessLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 
 			logChannel := make(chan *config.ChannelMessage)
 			demux := createDemultiplexer(t)
-			defer demux.Stop(false)
 
 			mockExecutionContext := &executioncontext.ExecutionContext{}
 			lc := &LambdaLogsCollector{
@@ -734,7 +730,6 @@ func TestProcessLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	lc := &LambdaLogsCollector{
@@ -829,7 +824,6 @@ func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 func TestProcessLogMessagesOutOfMemoryError(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	lc := &LambdaLogsCollector{
@@ -1140,7 +1134,6 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 	// The test ensures that the values listed in the report log statement
 	// matches the values of the metrics being reported.
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	runtimeDurationMs := 10.0
 	postRuntimeDurationMs := 90.0
@@ -1227,7 +1220,6 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	// The test ensures that the values listed in the report log statement
 	// matches the values of the metrics being reported.
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	runtimeDurationMs := 10.0
 	postRuntimeDurationMs := 90.0
@@ -1312,7 +1304,6 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 
 func TestMultipleStartLogCollection(t *testing.T) {
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
