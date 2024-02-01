@@ -41,7 +41,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestBuildVerifierStats(t *testing.T) {
-	t.Skip("Skipping because test currently consumes too much memory causing SIGKILL")
 
 	kversion, err := kernel.HostVersion()
 	require.NoError(t, err)
