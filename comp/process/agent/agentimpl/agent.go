@@ -55,7 +55,7 @@ type processAgent struct {
 }
 
 func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
-	if !agentEnabled(p.Config) {
+	if !agentEnabled(p) {
 		return optional.NewNoneOption[agent.Component]()
 	}
 

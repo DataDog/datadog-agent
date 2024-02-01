@@ -8,12 +8,11 @@
 package agentimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // agentEnabled determines whether the process agent is enabled based on the configuration
 // The process-agent is enabled when the flavor is set to ProcessAgent in all non-linux platforms
-func agentEnabled(_ config.Component) bool {
+func agentEnabled(_ processAgentParams) bool {
 	return flavor.GetFlavor() == flavor.ProcessAgent
 }

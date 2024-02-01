@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
@@ -20,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -30,13 +33,15 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 		name                 string
 		agentFlavor          string
 		checksEnabled        bool
+		checkName            string
 		runInCoreAgentConfig bool
 		expected             bool
 	}{
 		{
-			name:                 "process-agent with checks enabled and run in core-agent mode disabled",
+			name:                 "process-agent with process check enabled and run in core-agent mode disabled",
 			agentFlavor:          flavor.ProcessAgent,
 			checksEnabled:        true,
+			checkName:            checks.ProcessCheckName,
 			runInCoreAgentConfig: false,
 			expected:             true,
 		},
@@ -48,31 +53,42 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			expected:             false,
 		},
 		{
-			name:                 "process-agent with checks enabled and run in core-agent mode enabled",
+			name:                 "process-agent with process check enabled and run in core-agent mode enabled",
 			agentFlavor:          flavor.ProcessAgent,
 			checksEnabled:        true,
+			checkName:            checks.ProcessCheckName,
 			runInCoreAgentConfig: true,
 			expected:             false,
 		},
 		{
-			name:                 "default agent with checks enabled and run in core-agent mode enabled",
+			name:                 "core agent with process check enabled and run in core-agent mode enabled",
 			agentFlavor:          flavor.DefaultAgent,
 			checksEnabled:        true,
+			checkName:            checks.ProcessCheckName,
 			runInCoreAgentConfig: true,
 			expected:             true,
 		},
 		{
-			name:                 "default agent with checks disabled and run in core-agent mode enabled",
+			name:                 "core agent with checks disabled and run in core-agent mode enabled",
 			agentFlavor:          flavor.DefaultAgent,
 			checksEnabled:        false,
 			runInCoreAgentConfig: true,
 			expected:             false,
 		},
 		{
-			name:                 "default agent with checks enabled and run in core-agent mode disabled",
+			name:                 "core agent with process check enabled and run in core-agent mode disabled",
 			agentFlavor:          flavor.DefaultAgent,
 			checksEnabled:        true,
+			checkName:            checks.ProcessCheckName,
 			runInCoreAgentConfig: false,
+			expected:             false,
+		},
+		{
+			name:                 "core agent with connections enabled and run in core-agent mode enabled",
+			agentFlavor:          flavor.DefaultAgent,
+			checksEnabled:        true,
+			checkName:            checks.ConnectionsCheckName,
+			runInCoreAgentConfig: true,
 			expected:             false,
 		},
 	}
@@ -95,6 +111,18 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 
 			if tc.checksEnabled {
 				opts = append(opts, processcheckimpl.MockModule())
+				opts = append(opts, fx.Provide(func() func(c *checkMocks.Check) {
+					return func(c *checkMocks.Check) {
+						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
+						c.On("Name").Return(tc.checkName).Maybe()
+						c.On("SupportsRunOptions").Return(false).Maybe()
+						c.On("Realtime").Return(false).Maybe()
+						c.On("Cleanup").Maybe()
+						c.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil).Maybe()
+						c.On("ShouldSaveLastRun").Return(false).Maybe()
+						c.On("IsEnabled").Return(true).Maybe()
+					}
+				}))
 			}
 
 			agt := fxutil.Test[optional.Option[agent.Component]](t, fx.Options(opts...))
