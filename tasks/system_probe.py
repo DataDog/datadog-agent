@@ -681,7 +681,7 @@ def test(
     # we iterate over the packages here to get the nice streaming test output
     for pdir in package_dirs:
 
-        # generate programs.go file
+        # generate programs.go file for TestBuildVerifierStats
         if pdir.endswith(os.path.join("pkg", "ebpf", "verifier")):
             ctx.run(f"{args['sudo']}{args['go']} generate {os.path.join(pdir, 'stats.go')}", env=env)
 
