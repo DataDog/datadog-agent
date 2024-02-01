@@ -1282,7 +1282,6 @@ type headersGenerationOptions struct {
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
 func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderField {
 	method := defaultMethod
-	contentLength := defaultContentLength
 	if options.overrideMethod != "" {
 		method = options.overrideMethod
 	}
@@ -1305,6 +1304,7 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 		pathHeaderField.Value = options.overrideEndpoint
 	}
 
+	contentLength := defaultContentLength
 	if options.overrideContentLength != 0 {
 		contentLength = options.overrideContentLength
 	}
