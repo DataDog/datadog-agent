@@ -10,7 +10,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"net"
 	"net/http"
 	"time"
@@ -43,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -56,7 +56,7 @@ func startCMDServer(
 	cmdAddr string,
 	tlsConfig *tls.Config,
 	tlsCertPool *x509.CertPool,
-	configService optional.Option[rcservice.Component],
+	configService *remoteconfig.Service,
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,

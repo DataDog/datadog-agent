@@ -8,6 +8,7 @@ package providers
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -16,12 +17,19 @@ import (
 var ProviderCatalog = make(map[string]ConfigProviderFactory)
 
 // RegisterProvider adds a loader to the providers catalog
-func RegisterProvider(name string, factory ConfigProviderFactory) {
+func RegisterProvider(name string, factory func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)) {
+	RegisterProviderWithComponents(name, func(providerConfig *config.ConfigurationProviders, wmeta workloadmeta.Component) (ConfigProvider, error) {
+		return factory(providerConfig)
+	})
+}
+
+// RegisterProviderWithComponents adds a loader to the providers catalog
+func RegisterProviderWithComponents(name string, factory ConfigProviderFactory) {
 	ProviderCatalog[name] = factory
 }
 
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
-type ConfigProviderFactory func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)
+type ConfigProviderFactory func(providerConfig *config.ConfigurationProviders, wmeta workloadmeta.Component) (ConfigProvider, error)
 
 // ConfigProvider represents a source of `integration.Config` values
 // that can either be applied immediately or resolved for a service and
