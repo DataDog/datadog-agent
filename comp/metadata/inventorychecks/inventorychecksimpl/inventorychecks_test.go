@@ -13,13 +13,14 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/pkg/collector"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -28,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collector], logAgent optional.Option[logagent.Component], overrides map[string]any) *inventorychecksImpl {
+func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Component], logAgent optional.Option[logagent.Component], overrides map[string]any) *inventorychecksImpl {
 	p := newInventoryChecksProvider(
 		fxutil.Test[dependencies](
 			t,
@@ -36,7 +37,7 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collect
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
-			fx.Provide(func() optional.Option[collector.Collector] {
+			fx.Provide(func() optional.Option[collector.Component] {
 				return coll
 			}),
 			fx.Provide(func() optional.Option[logagent.Component] {
@@ -49,7 +50,7 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collect
 
 func TestSet(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("instance_1", "key", "value")
@@ -68,7 +69,7 @@ func TestSet(t *testing.T) {
 
 func TestSetEmptyInstance(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("", "key", "value")
@@ -78,7 +79,7 @@ func TestSetEmptyInstance(t *testing.T) {
 
 func TestGetInstanceMetadata(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("instance_1", "key1", "value1")
@@ -122,7 +123,7 @@ func TestGetPayload(t *testing.T) {
 			},
 		}
 
-		mockColl := collector.NewMock(cInfo)
+		mockColl := pkgcollector.NewMock(cInfo)
 		mockColl.On("AddEventReceiver", mock.AnythingOfType("EventReceiver")).Return()
 		mockColl.On("MapOverChecks", mock.AnythingOfType("func([]check.Info)")).Return()
 
@@ -153,7 +154,7 @@ func TestGetPayload(t *testing.T) {
 			}
 
 			ic := getTestInventoryChecks(t,
-				optional.NewOption[collector.Collector](mockColl),
+				optional.NewOption[collector.Component](mockColl),
 				optional.NewOption[logagent.Component](logsAgent),
 				overrides,
 			)
@@ -235,7 +236,7 @@ func TestGetPayload(t *testing.T) {
 
 func TestFlareProviderFilename(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
 	)
 	assert.Equal(t, "checks.json", ic.FlareFileName)
 }
