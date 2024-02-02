@@ -8,6 +8,7 @@
 package types
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -20,6 +21,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/docker/distribution/reference"
 )
@@ -163,6 +165,72 @@ type ScanTask struct {
 	AttachedVolumeCreatedAt *time.Time            `json:"AttachedVolumeCreatedAt"`
 }
 
+// MakeScanTaskID builds a unique task ID.
+func MakeScanTaskID(s *ScanTask) string {
+	h := sha256.New()
+	createdAt, _ := s.CreatedAt.MarshalBinary()
+	h.Write(createdAt)
+	h.Write([]byte(s.Type))
+	h.Write([]byte(s.ARN.String()))
+	h.Write([]byte(s.TargetHostname))
+	h.Write([]byte(s.ScannerHostname))
+	h.Write([]byte(s.DiskMode))
+	for _, action := range s.Actions {
+		h.Write([]byte(action))
+	}
+	return string(s.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
+}
+
+// Path returns the path to the scan task. It takes a list of names to join.
+func (s *ScanTask) Path(names ...string) string {
+	root := filepath.Join(ScansRootDir, s.ID)
+	for _, name := range names {
+		name = strings.ToLower(name)
+		name = regexp.MustCompile("[^a-z0-9_.-]").ReplaceAllString(name, "")
+		root = filepath.Join(root, name)
+	}
+	return root
+}
+
+func (s *ScanTask) String() string {
+	if s == nil {
+		return "nilscan"
+	}
+	return s.ID
+}
+
+// Tags returns the tags for the scan task.
+func (s *ScanTask) Tags(rest ...string) []string {
+	return append([]string{
+		fmt.Sprintf("agent_version:%s", version.AgentVersion),
+		fmt.Sprintf("region:%s", s.ARN.Region),
+		fmt.Sprintf("type:%s", s.Type),
+	}, rest...)
+}
+
+// TagsNoResult returns the tags for a scan task with no result.
+func (s *ScanTask) TagsNoResult() []string {
+	return s.Tags("status:noresult")
+}
+
+// TagsNotFound returns the tags for a scan task with not found resource.
+func (s *ScanTask) TagsNotFound() []string {
+	return s.Tags("status:notfound")
+}
+
+// TagsFailure returns the tags for a scan task that failed.
+func (s *ScanTask) TagsFailure(err error) []string {
+	if errors.Is(err, context.Canceled) {
+		return s.Tags("status:canceled")
+	}
+	return s.Tags("status:failure")
+}
+
+// TagsSuccess returns the tags for a scan task that succeeded.
+func (s *ScanTask) TagsSuccess() []string {
+	return s.Tags("status:success")
+}
+
 // ScanJSONError is a wrapper for errors that can be marshaled and unmarshaled.
 type ScanJSONError struct {
 	err error
@@ -271,40 +339,6 @@ type ScanFinding struct {
 	ResourceID   string      `json:"resource_id,omitempty"`
 	Tags         []string    `json:"tags"`
 	Data         interface{} `json:"data"`
-}
-
-// MakeScanTaskID builds a unique task ID.
-func MakeScanTaskID(s *ScanTask) string {
-	h := sha256.New()
-	createdAt, _ := s.CreatedAt.MarshalBinary()
-	h.Write(createdAt)
-	h.Write([]byte(s.Type))
-	h.Write([]byte(s.ARN.String()))
-	h.Write([]byte(s.TargetHostname))
-	h.Write([]byte(s.ScannerHostname))
-	h.Write([]byte(s.DiskMode))
-	for _, action := range s.Actions {
-		h.Write([]byte(action))
-	}
-	return string(s.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
-}
-
-// Path returns the path to the scan task. It takes a list of names to join.
-func (s *ScanTask) Path(names ...string) string {
-	root := filepath.Join(ScansRootDir, s.ID)
-	for _, name := range names {
-		name = strings.ToLower(name)
-		name = regexp.MustCompile("[^a-z0-9_.-]").ReplaceAllString(name, "")
-		root = filepath.Join(root, name)
-	}
-	return root
-}
-
-func (s *ScanTask) String() string {
-	if s == nil {
-		return "nilscan"
-	}
-	return s.ID
 }
 
 // Container is the representation of a container.
