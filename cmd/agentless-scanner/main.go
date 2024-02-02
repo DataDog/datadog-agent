@@ -34,6 +34,7 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/nbd"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/scanners"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
@@ -266,8 +267,9 @@ func snapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			var waiter awsutils.SnapshotWaiter
 			ec2client := ec2.NewFromConfig(cfg)
-			snapshotARN, err := createSnapshot(ctx, scan, &awsWaiter{}, ec2client, scan.ARN)
+			snapshotARN, err := createSnapshot(ctx, scan, &waiter, ec2client, scan.ARN)
 			if err != nil {
 				return err
 			}
@@ -763,48 +765,6 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	return nil
 }
 
-func (s *sideScanner) cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *arn.ARN) error {
-	cfg, err := newAWSConfig(ctx, region, assumedRole)
-	if err != nil {
-		return err
-	}
-
-	ec2client := ec2.NewFromConfig(cfg)
-	toBeDeleted := listResourcesForCleanup(ctx, ec2client, maxTTL)
-	cloudResourcesCleanup(ctx, ec2client, toBeDeleted)
-	return nil
-}
-
-func (s *sideScanner) cleanupProcess(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-		case <-ctx.Done():
-			return
-		}
-
-		log.Infof("starting cleanup process")
-		s.regionsCleanupMu.Lock()
-		regionsCleanup := make(map[string]*arn.ARN, len(s.regionsCleanup))
-		for region, role := range s.regionsCleanup {
-			regionsCleanup[region] = role
-		}
-		s.regionsCleanup = nil
-		s.regionsCleanupMu.Unlock()
-
-		if len(regionsCleanup) > 0 {
-			for region, role := range regionsCleanup {
-				if err := s.cleanup(ctx, defaultSnapshotsMaxTTL, region, role); err != nil {
-					log.Warnf("cleanupProcess failed on region %q with role %q: %v", region, role, err)
-				}
-			}
-		}
-	}
-}
-
 func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool) error {
 	ctx := ctxTerminated()
 
@@ -831,14 +791,14 @@ func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool) error {
 	}
 	defer cleanupScan(scan)
 
-	waiter := &awsWaiter{}
+	var waiter awsutils.SnapshotWaiter
 
 	resourceType, _, _ := types.GetARNResource(resourceARN)
 	var snapshotARN arn.ARN
 	switch resourceType {
 	case types.ResourceTypeVolume:
 		ec2client := ec2.NewFromConfig(cfg)
-		snapshotARN, err = createSnapshot(ctx, scan, waiter, ec2client, resourceARN)
+		snapshotARN, err = createSnapshot(ctx, scan, &waiter, ec2client, resourceARN)
 		if err != nil {
 			return err
 		}
@@ -850,7 +810,7 @@ func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool) error {
 
 	switch mode {
 	case types.VolumeAttach:
-		if err := attachSnapshotWithVolume(ctx, scan, waiter, snapshotARN); err != nil {
+		if err := attachSnapshotWithVolume(ctx, scan, &waiter, snapshotARN); err != nil {
 			return err
 		}
 	case types.NBDAttach:
@@ -893,7 +853,7 @@ type sideScanner struct {
 	eventForwarder   epforwarder.EventPlatformForwarder
 	findingsReporter *LogReporter
 	rcClient         *remote.Client
-	waiter           *awsWaiter
+	waiter           awsutils.SnapshotWaiter
 	printResults     bool
 
 	regionsCleanupMu sync.Mutex
@@ -924,7 +884,6 @@ func newSideScanner(hostname string, workers, scannersMax int) (*sideScanner, er
 		eventForwarder:   eventForwarder,
 		findingsReporter: findingsReporter,
 		rcClient:         rcClient,
-		waiter:           &awsWaiter{},
 
 		scansInProgress: make(map[arn.ARN]struct{}),
 
@@ -932,6 +891,48 @@ func newSideScanner(hostname string, workers, scannersMax int) (*sideScanner, er
 		scansCh:   make(chan *types.ScanTask),
 		resultsCh: make(chan types.ScanResult),
 	}, nil
+}
+
+func (s *sideScanner) cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *arn.ARN) error {
+	cfg, err := newAWSConfig(ctx, region, assumedRole)
+	if err != nil {
+		return err
+	}
+
+	ec2client := ec2.NewFromConfig(cfg)
+	toBeDeleted := listResourcesForCleanup(ctx, ec2client, maxTTL)
+	cloudResourcesCleanup(ctx, ec2client, toBeDeleted)
+	return nil
+}
+
+func (s *sideScanner) cleanupProcess(ctx context.Context) {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return
+		}
+
+		log.Infof("starting cleanup process")
+		s.regionsCleanupMu.Lock()
+		regionsCleanup := make(map[string]*arn.ARN, len(s.regionsCleanup))
+		for region, role := range s.regionsCleanup {
+			regionsCleanup[region] = role
+		}
+		s.regionsCleanup = nil
+		s.regionsCleanupMu.Unlock()
+
+		if len(regionsCleanup) > 0 {
+			for region, role := range regionsCleanup {
+				if err := s.cleanup(ctx, defaultSnapshotsMaxTTL, region, role); err != nil {
+					log.Warnf("cleanupProcess failed on region %q with role %q: %v", region, role, err)
+				}
+			}
+		}
+	}
 }
 
 func (s *sideScanner) subscribeRemoteConfig(ctx context.Context) error {
@@ -1286,7 +1287,7 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *types.ScanTask) (err
 	case types.HostScanType:
 		return scanRootFilesystems(ctx, scan, []string{scan.ARN.Resource}, pool, s.resultsCh)
 	case types.EBSScanType:
-		return scanEBS(ctx, scan, s.waiter, pool, s.resultsCh)
+		return scanEBS(ctx, scan, &s.waiter, pool, s.resultsCh)
 	case types.LambdaScanType:
 		return scanLambda(ctx, scan, pool, s.resultsCh)
 	default:
@@ -1451,7 +1452,7 @@ func statsResourceTTL(resourceType types.ResourceType, scan *types.ScanTask, cre
 	}
 }
 
-func createSnapshot(ctx context.Context, scan *types.ScanTask, waiter *awsWaiter, ec2client *ec2.Client, volumeARN arn.ARN) (arn.ARN, error) {
+func createSnapshot(ctx context.Context, scan *types.ScanTask, waiter *awsutils.SnapshotWaiter, ec2client *ec2.Client, volumeARN arn.ARN) (arn.ARN, error) {
 	snapshotCreatedAt := time.Now()
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
@@ -1518,7 +1519,7 @@ retry:
 	snapshotARN := ec2ARN(volumeARN.Region, volumeARN.AccountID, types.ResourceTypeSnapshot, snapshotID)
 	scan.CreatedSnapshots[snapshotARN.String()] = &snapshotCreatedAt
 
-	err = <-waiter.wait(ctx, snapshotARN, ec2client)
+	err = <-waiter.Wait(ctx, snapshotARN, ec2client)
 	if err == nil {
 		snapshotDuration := time.Since(snapshotCreatedAt)
 		log.Debugf("%s: volume snapshotting of %q finished successfully %q (took %s)", scan, volumeARN, snapshotID, snapshotDuration)
@@ -1822,7 +1823,7 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
 }
 
-func scanEBS(ctx context.Context, scan *types.ScanTask, waiter *awsWaiter, pool *scannersPool, resultsCh chan types.ScanResult) error {
+func scanEBS(ctx context.Context, scan *types.ScanTask, waiter *awsutils.SnapshotWaiter, pool *scannersPool, resultsCh chan types.ScanResult) error {
 	resourceType, _, err := types.GetARNResource(scan.ARN)
 	if err != nil {
 		return err
@@ -2540,7 +2541,7 @@ func extractLambdaZip(ctx context.Context, zipPath, destinationPath string) (uin
 	return uncompressed, nil
 }
 
-func attachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *awsWaiter, snapshotARN arn.ARN) error {
+func attachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *awsutils.SnapshotWaiter, snapshotARN arn.ARN) error {
 	resourceType, snapshotID, err := types.GetARNResource(snapshotARN)
 	if err != nil {
 		return err
@@ -2576,7 +2577,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		}
 		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
 		log.Debugf("%s: waiting for copy of snapshot %q into %q as %q", scan, snapshotARN, self.Region, *copySnapshot.SnapshotId)
-		err = <-waiter.wait(ctx, localSnapshotARN, remoteEC2Client)
+		err = <-waiter.Wait(ctx, localSnapshotARN, remoteEC2Client)
 		if err != nil {
 			return fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotARN, self.Region, *copySnapshot.SnapshotId, err)
 		}
@@ -3154,127 +3155,6 @@ func getAWSLimitsOptions() awsLimitsOptions {
 		EBSListBlockRate: rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate")),
 		EBSGetBlockRate:  rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate")),
 		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
-	}
-}
-
-type awsWaiter struct {
-	sync.Mutex
-	subs map[string]map[string][]chan error
-}
-
-func (w *awsWaiter) wait(ctx context.Context, snapshotARN arn.ARN, ec2client *ec2.Client) <-chan error {
-	w.Lock()
-	defer w.Unlock()
-	region := snapshotARN.Region
-	if w.subs == nil {
-		w.subs = make(map[string]map[string][]chan error)
-	}
-	if w.subs[region] == nil {
-		w.subs[region] = make(map[string][]chan error)
-	}
-	_, resourceID, _ := types.GetARNResource(snapshotARN)
-	ch := make(chan error, 1)
-	subs := w.subs[region]
-	subs[resourceID] = append(subs[resourceID], ch)
-	if len(subs) == 1 {
-		go w.loop(ctx, region, ec2client)
-	}
-	return ch
-}
-
-func (w *awsWaiter) abort(region string, err error) {
-	w.Lock()
-	defer w.Unlock()
-	for _, chs := range w.subs[region] {
-		for _, ch := range chs {
-			ch <- err
-		}
-	}
-	w.subs[region] = nil
-}
-
-func (w *awsWaiter) loop(ctx context.Context, region string, ec2client *ec2.Client) {
-	const (
-		tickerInterval  = 5 * time.Second
-		snapshotTimeout = 15 * time.Minute
-	)
-
-	ticker := time.NewTicker(tickerInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-		case <-ctx.Done():
-			w.abort(region, ctx.Err())
-			return
-		}
-
-		w.Lock()
-		snapshotIDs := make([]string, 0, len(w.subs[region]))
-		for snapshotID := range w.subs[region] {
-			snapshotIDs = append(snapshotIDs, snapshotID)
-		}
-		w.Unlock()
-
-		if len(snapshotIDs) == 0 {
-			return
-		}
-
-		// TODO: could we rely on ListSnapshotBlocks instead of
-		// DescribeSnapshots as a "fast path" to not consume precious quotas ?
-		output, err := ec2client.DescribeSnapshots(context.TODO(), &ec2.DescribeSnapshotsInput{
-			SnapshotIds: snapshotIDs,
-		})
-		if err != nil {
-			w.abort(region, err)
-			return
-		}
-
-		snapshots := make(map[string]ec2types.Snapshot, len(output.Snapshots))
-		for _, snap := range output.Snapshots {
-			snapshots[*snap.SnapshotId] = snap
-		}
-
-		w.Lock()
-		subs := w.subs[region]
-		noError := errors.New("")
-		for _, snapshotID := range snapshotIDs {
-			var errp error
-			snap, ok := snapshots[snapshotID]
-			if !ok {
-				errp = fmt.Errorf("snapshot %q does not exist", *snap.SnapshotId)
-			} else {
-				switch snap.State {
-				case ec2types.SnapshotStatePending:
-					if elapsed := time.Since(*snap.StartTime); elapsed > snapshotTimeout {
-						errp = fmt.Errorf("snapshot %q creation timed out (started at %s)", *snap.SnapshotId, *snap.StartTime)
-					}
-				case ec2types.SnapshotStateRecoverable:
-					errp = fmt.Errorf("snapshot %q in recoverable state", *snap.SnapshotId)
-				case ec2types.SnapshotStateRecovering:
-					errp = fmt.Errorf("snapshot %q in recovering state", *snap.SnapshotId)
-				case ec2types.SnapshotStateError:
-					msg := fmt.Sprintf("snapshot %q failed", *snap.SnapshotId)
-					if snap.StateMessage != nil {
-						msg += ": " + *snap.StateMessage
-					}
-					errp = fmt.Errorf(msg)
-				case ec2types.SnapshotStateCompleted:
-					errp = noError
-				}
-			}
-			if errp != nil {
-				for _, ch := range subs[*snap.SnapshotId] {
-					if errp == noError {
-						ch <- nil
-					} else {
-						ch <- errp
-					}
-				}
-				delete(subs, *snap.SnapshotId)
-			}
-		}
-		w.Unlock()
 	}
 }
 
