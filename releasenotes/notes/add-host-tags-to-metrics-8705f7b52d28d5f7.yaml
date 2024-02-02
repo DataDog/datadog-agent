@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Attach host tags to metrics when ``expected_tags_duration`` is configured to 
-    a time interval greater than 0.
+    Attach host tags to metrics for ``expected_tags_duration`` amount of time.
+    Min duration is 1m.
