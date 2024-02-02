@@ -49,6 +49,12 @@ type metricsConfig struct {
 
 	// SummaryConfig defines the export for OTLP Summaries.
 	SummaryConfig summaryConfig `mapstructure:"summaries"`
+
+	// APMStatsReceiverAddr is the address to send APM stats to.
+	APMStatsReceiverAddr string `mapstructure:"apm_stats_receiver_addr"`
+
+	// Tags is a comma-separated list of tags to add to all metrics.
+	Tags string `mapstructure:"tags"`
 }
 
 // histogramConfig customizes export of OTLP Histograms.

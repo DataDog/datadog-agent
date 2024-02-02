@@ -91,6 +91,7 @@ func setupOTLPEnvironmentVariables(config pkgconfigmodel.Config) {
 	config.BindEnv(OTLPSection + ".metrics.histograms.send_aggregation_metrics")
 	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
+	config.BindEnv(OTLPSection + ".metrics.tags")
 
 	// Debug settings
 	config.BindEnv(OTLPSection + ".debug.loglevel") // Deprecated

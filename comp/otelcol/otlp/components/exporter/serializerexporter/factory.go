@@ -26,11 +26,9 @@ const (
 )
 
 type factory struct {
-	s               serializer.MetricSerializer
-	enricher        tagenricher
-	apmReceiverAddr string
-	extraTags       []string
-	hostName        string
+	s          serializer.MetricSerializer
+	enricher   tagenricher
+	hostGetter sourceProviderFunc
 }
 
 type tagenricher interface {
@@ -39,13 +37,11 @@ type tagenricher interface {
 }
 
 // NewFactory creates a new serializer exporter factory.
-func NewFactory(s serializer.MetricSerializer, enricher tagenricher, apmReceiverAddr string, extraTags []string, hostname string) exp.Factory {
+func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter func(context.Context) (string, error)) exp.Factory {
 	f := &factory{
-		s:               s,
-		enricher:        enricher,
-		apmReceiverAddr: apmReceiverAddr,
-		extraTags:       extraTags,
-		hostName:        hostname,
+		s:          s,
+		enricher:   enricher,
+		hostGetter: hostGetter,
 	}
 
 	return exp.NewFactory(
@@ -66,7 +62,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSet
 		return nil, err
 	}
 
-	newExp, err := newExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.apmReceiverAddr, f.extraTags, f.hostName)
+	newExp, err := newExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter)
 	if err != nil {
 		return nil, err
 	}

@@ -13,9 +13,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component/componenttest"
+	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 )
 
@@ -24,6 +24,7 @@ type MockTagEnricher struct{}
 func (m *MockTagEnricher) SetCardinality(_ string) error {
 	return nil
 }
+
 func (m *MockTagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
 	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, extraTags...)
@@ -32,8 +33,14 @@ func (m *MockTagEnricher) Enrich(_ context.Context, extraTags []string, dimensio
 	return enrichedTags
 }
 
+func newFactory() exp.Factory {
+	return NewFactory(&MockSerializer{}, &MockTagEnricher{}, func(context.Context) (string, error) {
+		return "", nil
+	})
+}
+
 func TestNewFactory(t *testing.T) {
-	factory := NewFactory(&serializer.MockSerializer{}, &MockTagEnricher{}, "", []string{}, "")
+	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
 	_, ok := factory.CreateDefaultConfig().(*exporterConfig)
@@ -41,7 +48,7 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestNewMetricsExporter(t *testing.T) {
-	factory := NewFactory(&serializer.MockSerializer{}, &MockTagEnricher{}, "", []string{}, "")
+	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 	set := exportertest.NewNopCreateSettings()
 	exp, err := factory.CreateMetricsExporter(context.Background(), set, cfg)
@@ -50,7 +57,7 @@ func TestNewMetricsExporter(t *testing.T) {
 }
 
 func TestNewMetricsExporterInvalid(t *testing.T) {
-	factory := NewFactory(&serializer.MockSerializer{}, &MockTagEnricher{}, "", []string{}, "")
+	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 
 	expCfg := cfg.(*exporterConfig)
@@ -62,7 +69,7 @@ func TestNewMetricsExporterInvalid(t *testing.T) {
 }
 
 func TestNewTracesExporter(t *testing.T) {
-	factory := NewFactory(&serializer.MockSerializer{}, &MockTagEnricher{}, "", []string{}, "")
+	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopCreateSettings()
@@ -71,7 +78,7 @@ func TestNewTracesExporter(t *testing.T) {
 }
 
 func TestNewLogsExporter(t *testing.T) {
-	factory := NewFactory(&serializer.MockSerializer{}, &MockTagEnricher{}, "", []string{}, "")
+	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopCreateSettings()

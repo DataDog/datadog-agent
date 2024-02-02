@@ -60,8 +60,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -81,8 +82,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -102,8 +104,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -138,8 +141,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -154,8 +158,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    true,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -170,8 +175,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -218,8 +224,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -247,8 +254,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -282,7 +290,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"enabled":                                true,
 					"instrumentation_scope_metadata_as_tags": "true",
 					"tag_cardinality":                        "low",
-					"delta_ttl":                              "2400",
+					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
+
+					"delta_ttl": "2400",
 					"histograms": map[string]interface{}{
 						"mode": "counters",
 					},
@@ -310,8 +320,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{
 					"loglevel": "disabled",
@@ -338,8 +349,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{
 					"verbosity": "normal",
@@ -367,8 +379,37 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
+		{
+			name: "metrics tags",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
+				"DD_OTLP_CONFIG_METRICS_TAGS":                     "tag1:value1,tag2:value2",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "0.0.0.0:9999",
+						},
+					},
+				},
+
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"tags":                    "tag1:value1,tag2:value2",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -386,8 +427,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    true,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -405,8 +447,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -451,11 +494,13 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 					"instrumentation_library_metadata_as_tags": true,
 					"instrumentation_scope_metadata_as_tags":   true,
 					"tag_cardinality":                          "orchestrator",
+					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 					"histograms": map[string]interface{}{
 						"mode":                     "counters",
 						"send_count_sum_metrics":   true,
 						"send_aggregation_metrics": true,
 					},
+					"tags": "tag1:value1,tag2:value2",
 				},
 				Debug: map[string]interface{}{
 					"loglevel": "debug",
@@ -490,13 +535,16 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			shouldSet: true,
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
-
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
-				Debug:          map[string]interface{}{},
-				Metrics:        map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+				LogsEnabled:        false,
+				Debug:              map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+				},
 			},
 		},
 		{
@@ -510,7 +558,11 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				Debug:          map[string]interface{}{"loglevel": "debug"},
-				Metrics:        map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+				Metrics: map[string]interface{}{
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+				},
 			},
 		},
 		{
@@ -524,7 +576,11 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				Debug:          map[string]interface{}{"loglevel": "disabled"},
-				Metrics:        map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+				Metrics: map[string]interface{}{
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+				},
 			},
 		},
 		{
@@ -538,7 +594,11 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				Debug:          map[string]interface{}{"verbosity": "normal"},
-				Metrics:        map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+				Metrics: map[string]interface{}{
+					"enabled":                 true,
+					"tag_cardinality":         "low",
+					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+				},
 			},
 		},
 	}

@@ -10,15 +10,15 @@ package serializerexporter
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 var _ component.Config = (*exporterConfig)(nil)
@@ -49,6 +49,8 @@ func newDefaultConfig() component.Config {
 			SummaryConfig: summaryConfig{
 				Mode: SummaryModeGauges,
 			},
+			APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
+			Tags:                 "",
 		},
 	}
 }
@@ -73,13 +75,13 @@ func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 type exporter struct {
 	tr              *metrics.Translator
 	s               serializer.MetricSerializer
-	hostname        string
+	hostGetter      sourceProviderFunc
 	extraTags       []string
 	enricher        tagenricher
 	apmReceiverAddr string
 }
 
-func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *exporterConfig, hostname string) (*metrics.Translator, error) {
+func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *exporterConfig, hostGetter sourceProviderFunc) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -89,9 +91,7 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 	}
 
 	options := []metrics.TranslatorOption{
-		metrics.WithFallbackSourceProvider(sourceProviderFunc(func(_ context.Context) (string, error) {
-			return hostname, nil
-		})),
+		metrics.WithFallbackSourceProvider(hostGetter),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}
@@ -131,13 +131,13 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 	return metrics.NewTranslator(set, attributesTranslator, options...)
 }
 
-func newExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *exporterConfig, enricher tagenricher, apmReceiverAddr string, extraTags []string, hostname string) (*exporter, error) {
+func newExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *exporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*exporter, error) {
 	// Log any warnings from unmarshaling.
 	for _, warning := range cfg.warnings {
 		set.Logger.Warn(warning)
 	}
 
-	tr, err := translatorFromConfig(set, attributesTranslator, cfg, hostname)
+	tr, err := translatorFromConfig(set, attributesTranslator, cfg, hostGetter)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
@@ -146,13 +146,16 @@ func newExporter(set component.TelemetrySettings, attributesTranslator *attribut
 	if err != nil {
 		return nil, err
 	}
-
+	var extraTags []string
+	if cfg.Metrics.Tags != "" {
+		extraTags = strings.Split(cfg.Metrics.Tags, ",")
+	}
 	return &exporter{
 		tr:              tr,
 		s:               s,
-		hostname:        hostname,
+		hostGetter:      hostGetter,
 		enricher:        enricher,
-		apmReceiverAddr: apmReceiverAddr,
+		apmReceiverAddr: cfg.Metrics.APMStatsReceiverAddr,
 		extraTags:       extraTags,
 	}, nil
 }
@@ -163,9 +166,13 @@ func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 	if err != nil {
 		return err
 	}
+	hostname, err := e.hostGetter(ctx)
+	if err != nil {
+		return err
+	}
 
-	consumer.addTelemetryMetric(e.hostname)
-	consumer.addRuntimeTelemetryMetric(e.hostname, rmt.Languages)
+	consumer.addTelemetryMetric(hostname)
+	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
 	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}

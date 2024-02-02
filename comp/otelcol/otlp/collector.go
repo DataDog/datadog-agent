@@ -31,10 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,16 +41,13 @@ import (
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 )
 
-var (
-	pipelineError = atomic.NewError(nil)
-)
+var pipelineError = atomic.NewError(nil)
 
 type tagEnricher struct {
 	cardinality collectors.TagCardinality
 }
 
 func (t *tagEnricher) SetCardinality(cardinality string) (err error) {
-
 	t.cardinality, err = collectors.StringToTagCardinality(cardinality)
 	if err != nil {
 		return err
@@ -64,7 +59,6 @@ func (t *tagEnricher) SetCardinality(cardinality string) (err error) {
 // In the OTLP pipeline, 'contexts' are kept within the translator and function differently than DogStatsD/check metrics.
 // TODO: we need to move this to TagEnricher processor
 func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
-
 	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
@@ -84,7 +78,6 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	}
 
 	return enrichedTags
-
 }
 
 func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (
@@ -104,23 +97,10 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 	if err != nil {
 		errs = append(errs, err)
 	}
-	addr := fmt.Sprintf("http://localhost:%s/v0.6/stats", pkgconfigsetup.Datadog.GetString("apm_config.receiver_port"))
 
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	var extraTags []string
-
-	// if the server is running in a context where static tags are required, add those
-	// to extraTags.
-	if tags := util.GetStaticTagsSlice(context.TODO()); tags != nil {
-		extraTags = append(extraTags, tags...)
-	}
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactory(s, &tagEnricher{cardinality: collectors.LowCardinality}, addr, extraTags, hname),
+		serializerexporter.NewFactory(s, &tagEnricher{cardinality: collectors.LowCardinality}, hostname.Get),
 		loggingexporter.NewFactory(),
 	}
 
@@ -221,9 +201,10 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 	}
 
 	// Replace default core to use Agent logger
-	options := []zap.Option{zap.WrapCore(func(zapcore.Core) zapcore.Core {
-		return zapAgent.NewZapCore()
-	}),
+	options := []zap.Option{
+		zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapAgent.NewZapCore()
+		}),
 	}
 
 	configProvider, err := newMapProvider(cfg)
@@ -242,7 +223,6 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 		// see https://github.com/DataDog/datadog-agent/commit/3f4a78e5f2e276c8cdd90fa7e60455a2374d41d0
 		SkipSettingGRPCLogger: true,
 	})
-
 	if err != nil {
 		return nil, err
 	}

@@ -7,6 +7,7 @@ package serializerexporter
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,7 +53,6 @@ func (r *metricRecorder) SendIterableSeries(s metrics.SerieSource) error {
 }
 
 func Test_ConsumeMetrics_Tags(t *testing.T) {
-
 	const (
 		histogramMetricName        = "test.histogram"
 		numberMetricName           = "test.gauge"
@@ -174,11 +174,15 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := &metricRecorder{}
 			ctx := context.Background()
-			f := NewFactory(rec, &MockTagEnricher{}, "", tt.extraTags, "otlp-testhostname")
+			f := NewFactory(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+				return "", nil
+			})
+			cfg := f.CreateDefaultConfig().(*exporterConfig)
+			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
 			exp, err := f.CreateMetricsExporter(
 				ctx,
 				exportertest.NewNopCreateSettings(),
-				f.CreateDefaultConfig(),
+				cfg,
 			)
 			require.NoError(t, err)
 			require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
