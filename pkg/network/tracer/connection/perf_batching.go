@@ -169,7 +169,7 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 	}
 }
 
-func newConnBatchManager(mgr *manager.Manager, ringbufferEnabled bool) (*perfBatchManager, error) {
+func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
 	connCloseMap, err := maps.GetMap[uint32, netebpf.Batch](mgr, probes.ConnCloseBatchMap)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get map %s: %s", probes.ConnCloseBatchMap, err)

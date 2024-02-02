@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -45,7 +44,6 @@ func ComputeDefaultEventsRingBufferSize() uint32 {
 	}
 
 	if numCPU <= 16 {
-		log.Debugf("adamk Using a smaller ring buffer size for %d CPUs and pagesize %v", numCPU, os.Getpagesize())
 		return uint32(8 * 256 * os.Getpagesize())
 	}
 

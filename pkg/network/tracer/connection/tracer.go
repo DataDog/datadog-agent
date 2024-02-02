@@ -245,7 +245,7 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 	m.DumpHandler = dumpMapsHandler
 	ebpfcheck.AddNameMappings(m, "npm_tracer")
 
-	batchMgr, err := newConnBatchManager(m, RingbuffersEnabled(config))
+	batchMgr, err := newConnBatchManager(m)
 	if err != nil {
 		return nil, fmt.Errorf("could not create connection batch manager: %w", err)
 	}
