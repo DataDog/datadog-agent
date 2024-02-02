@@ -12,6 +12,21 @@
 #include "protocols/http2/maps-defs.h"
 #include "protocols/classification/defs.h"
 
+// Returns true if the given index represents a path index.
+static __always_inline bool is_path_index(const __u64 index) {
+    return index == kEmptyPath || index == kIndexPath;
+}
+
+// Returns true is the given index represents a method index.
+static __always_inline bool is_method_index(const __u64 index) {
+    return index == kGET || index == kPOST;
+}
+
+// Returns true if the given index represents a status index.
+static __always_inline bool is_status_index(const __u64 index) {
+    return k200 <= index && index <= k500;
+}
+
 // returns true if the given index is one of the relevant headers we care for in the static table.
 // The full table can be found in the user mode code `createStaticTable`.
 static __always_inline bool is_interesting_static_entry(const __u64 index) {

@@ -7,9 +7,7 @@ package testinfradefinition
 
 import (
 	"fmt"
-	"os"
 	"regexp"
-	"strconv"
 	"testing"
 	"time"
 
@@ -25,10 +23,6 @@ type dockerSuite struct {
 }
 
 func TestDocker(t *testing.T) {
-	isCI, _ := strconv.ParseBool(os.Getenv("CI"))
-	if isCI {
-		t.Skipf("blocked by APL-2786")
-	}
 	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()))
 }
 

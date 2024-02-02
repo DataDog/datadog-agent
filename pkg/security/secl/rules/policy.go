@@ -121,7 +121,7 @@ RULES:
 			continue
 		}
 
-		if ruleDef.Expression == "" && !ruleDef.Disabled {
+		if ruleDef.Expression == "" && !ruleDef.Disabled && ruleDef.Combine == "" {
 			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutExpression})
 			continue
 		}

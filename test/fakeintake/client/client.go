@@ -506,6 +506,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 		return err
 	}
 	c.checkRunAggregator.Reset()
+	c.connectionAggregator.Reset()
 	c.metricAggregator.Reset()
 	c.logAggregator.Reset()
 	return nil

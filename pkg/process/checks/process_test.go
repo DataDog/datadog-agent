@@ -419,7 +419,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 
 	var disallowList []*regexp.Regexp
 
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
@@ -445,4 +445,99 @@ func BenchmarkProcessCheck(b *testing.B) {
 		_, err := processCheck.run(0, false)
 		require.NoError(b, err)
 	}
+}
+
+func TestProcessCheckZombieToggleFalse(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+	cfg := ddconfig.Mock(t)
+	processCheck.config = cfg
+	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "foo -bar -bim", now+1)
+	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	proc2.Stats.Status = "Z"
+	proc3.Stats.Status = "Z"
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
+
+	expectedModel2 := makeProcessModel(t, proc2)
+	expectedModel2.State = 7
+	expectedModel3 := makeProcessModel(t, proc3)
+	expectedModel3.State = 7
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{expectedModel2},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{expectedModel3},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+	}
+	actual, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Payloads())
+}
+
+func TestProcessCheckZombieToggleTrue(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+	cfg := ddconfig.Mock(t)
+	processCheck.config = cfg
+	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "foo -bar -bim", now+1)
+	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	proc2.Stats.Status = "Z"
+	proc3.Stats.Status = "Z"
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
+
+	expectedModel2 := makeProcessModel(t, proc2)
+	expectedModel2.State = 7
+	expectedModel3 := makeProcessModel(t, proc3)
+	expectedModel3.State = 7
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	cfg.SetWithoutSource("process_config.ignore_zombie_processes", "true")
+	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(1),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+	}
+
+	actual, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
 }

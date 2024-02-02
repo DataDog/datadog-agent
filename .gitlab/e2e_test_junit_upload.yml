@@ -9,7 +9,7 @@
     - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     - set -x
     - set +e
-    - for f in junit*-e2e-*.tgz; do inv -e junit-upload --tgz-path "$f"; done
+    - for f in junit*-e2e*.tgz; do inv -e junit-upload --tgz-path "$f"; done
 
 e2e_installer_test_junit_upload:
   extends: .e2e_test_junit_template
@@ -90,9 +90,7 @@ e2e_pre_test_junit_upload:
     - !reference [.on_e2e_changes_or_manual]
   when: always
   stage: e2e_pre_test_junit_upload
-  dependencies:
-    # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
-    # to avoid downloading all the artifacts of all the jobs of all the previous stages.
+  needs:
     - e2e_pre_test
 
 e2e_container_test_junit_upload:
