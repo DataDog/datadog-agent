@@ -78,6 +78,10 @@ package :deb do
   end
 end
 
+package :ociru do
+  skip_packager true
+end
+
 # ------------------------------------
 # Dependencies
 # ------------------------------------
