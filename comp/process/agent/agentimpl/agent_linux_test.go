@@ -61,6 +61,14 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			expected:             false,
 		},
 		{
+			name:                 "process-agent with connections check enabled and run in core-agent mode enabled",
+			agentFlavor:          flavor.ProcessAgent,
+			checksEnabled:        true,
+			checkName:            checks.ConnectionsCheckName,
+			runInCoreAgentConfig: true,
+			expected:             true,
+		},
+		{
 			name:                 "core agent with process check enabled and run in core-agent mode enabled",
 			agentFlavor:          flavor.DefaultAgent,
 			checksEnabled:        true,

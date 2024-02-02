@@ -22,15 +22,32 @@ import (
 func agentEnabled(p processAgentParams) bool {
 	runInCoreAgent := p.Config.GetBool("process_config.run_in_core_agent.enabled")
 
+	var npmEnabled bool
+	for _, check := range p.Checks {
+		if check.Object().Name() == checks.ConnectionsCheckName && check.Object().IsEnabled() {
+			npmEnabled = true
+			break
+		}
+	}
+
 	switch flavor.GetFlavor() {
 	case flavor.ProcessAgent:
+		if npmEnabled {
+			if runInCoreAgent {
+				p.Log.Warn("Network Performance Monitoring is not supported in the core agent. " +
+					"The process-agent will be enabled as a standalone agent")
+			}
+			return true
+		}
 		return !runInCoreAgent
 	case flavor.DefaultAgent:
-		for _, check := range p.Checks {
-			// the connections check is not supported in the core agent
-			if check.Object().Name() == checks.ConnectionsCheckName && check.Object().IsEnabled() {
-				return false
+		if npmEnabled {
+			if runInCoreAgent {
+				p.Log.Error("Network Performance Monitoring is not supported in the core agent. " +
+					"Please ensure the process-agent is enabled as a standalone agent to collect " +
+					"process, container and network performance metrics.")
 			}
+			return false
 		}
 		return runInCoreAgent
 	default:
