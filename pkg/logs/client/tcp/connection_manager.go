@@ -36,11 +36,11 @@ type ConnectionManager struct {
 	endpoint  config.Endpoint
 	mutex     sync.Mutex
 	firstConn sync.Once
-	status    statusinterface.Component
+	status    statusinterface.Status
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(endpoint config.Endpoint, status statusinterface.Component) *ConnectionManager {
+func NewConnectionManager(endpoint config.Endpoint, status statusinterface.Status) *ConnectionManager {
 	return &ConnectionManager{
 		endpoint: endpoint,
 		status:   status,

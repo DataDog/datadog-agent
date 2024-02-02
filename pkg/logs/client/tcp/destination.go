@@ -33,7 +33,7 @@ type Destination struct {
 }
 
 // NewDestination returns a new destination.
-func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext, shouldRetry bool, status statusinterface.Component) *Destination {
+func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext, shouldRetry bool, status statusinterface.Status) *Destination {
 	prefix := endpoint.APIKey + string(' ')
 	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 	return &Destination{

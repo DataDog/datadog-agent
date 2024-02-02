@@ -46,7 +46,7 @@ func TestSender(t *testing.T) {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
-	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx, statusinterface.NewStatusMock())
+	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx, statusinterface.NewStatusProviderMock())
 	destinations := client.NewDestinations([]client.Destination{destination}, nil)
 
 	sender := NewSender(input, output, destinations, 0)

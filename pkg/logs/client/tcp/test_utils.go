@@ -32,6 +32,6 @@ func AddrToEndPoint(addr net.Addr) config.Endpoint {
 }
 
 // AddrToDestination creates a Destination from an Addr
-func AddrToDestination(addr net.Addr, ctx *client.DestinationsContext, status statusinterface.Component) *Destination {
+func AddrToDestination(addr net.Addr, ctx *client.DestinationsContext, status statusinterface.Status) *Destination {
 	return NewDestination(AddrToEndPoint(addr), true, ctx, true, status)
 }
