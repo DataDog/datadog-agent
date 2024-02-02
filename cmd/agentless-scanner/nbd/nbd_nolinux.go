@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-package main
+package nbd
 
 import (
 	"context"
@@ -15,9 +15,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
 
-func startEBSBlockDevice(_ string, _ *ebs.Client, _ string, _ arn.ARN) error {
+// StartNBDBlockDevice starts the NBD server and client for the given device
+// name with the provided backend.
+func StartNBDBlockDevice(_ string, _ *ebs.Client, _ string, _ arn.ARN) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
 
-func stopEBSBlockDevice(_ context.Context, _ string) {
+// StopNBDBlockDevice stops the NBD server and client for the given device name.
+func StopNBDBlockDevice(_ context.Context, _ string) {
 }
