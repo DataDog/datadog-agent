@@ -8,12 +8,53 @@
 package webhook
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// buildAgentSidecarObjectSelectors returns the mutating webhooks object selector based on the configuration
+func buildAgentSidecarObjectSelectors() (namespaceSelector, objectSelector *metav1.LabelSelector) {
+
+	// Read and parse label selectors
+	labelSelectorsJSON := config.Datadog.GetString("admission_controller.agent_sidecar.label_selectors")
+
+	var labelSelectors []map[string]string
+
+	err := json.Unmarshal([]byte(labelSelectorsJSON), &labelSelectors)
+	if err != nil {
+		fmt.Printf("failed to parse label selectors for admission controller agent sidecar injection webhook: %s", err)
+		return nil, nil
+	}
+
+	// Read and parse namespace selectors
+	nsSelectorsJSON := config.Datadog.GetString("admission_controller.agent_sidecar.namespace_selectors")
+	var nsSelectors []map[string]string
+
+	err = json.Unmarshal([]byte(nsSelectorsJSON), &nsSelectors)
+	if err != nil {
+		fmt.Printf("failed to parse namespace selectors for admission controller agent sidecar injection webhook: %s", err)
+		return nil, nil
+	}
+
+	if len(labelSelectors) > 0 {
+		objectSelector = &metav1.LabelSelector{
+			MatchLabels: labelSelectors[0],
+		}
+	}
+
+	if len(nsSelectors) > 0 {
+		namespaceSelector = &metav1.LabelSelector{
+			MatchLabels: nsSelectors[0],
+		}
+	}
+
+	return namespaceSelector, objectSelector
+}
 
 // buildCWSInstrumentationLabelSelectors returns the mutating webhook object selector based on the configuration
 func buildCWSInstrumentationLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
