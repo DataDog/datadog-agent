@@ -215,8 +215,6 @@ func CleanupScan(scan *types.ScanTask) {
 		if diskDeviceName := scan.AttachedDeviceName; diskDeviceName != nil {
 			nbd.StopNBDBlockDevice(ctx, *diskDeviceName)
 		}
-	case types.NoAttach:
-		// do nothing
 	default:
 		panic("unreachable")
 	}
@@ -314,7 +312,13 @@ func statsResourceTTL(resourceType types.ResourceType, scan *types.ScanTask, cre
 
 // ListResourcesForCleanup lists all AWS resources that are created by our
 // scanner.
-func ListResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL time.Duration) map[types.ResourceType][]string {
+func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *arn.ARN) map[types.ResourceType][]string {
+	cfg, err := GetConfig(ctx, region, assumedRole)
+	if err != nil {
+		return nil
+	}
+
+	ec2client := ec2.NewFromConfig(cfg)
 	toBeDeleted := make(map[types.ResourceType][]string)
 	var nextToken *string
 
@@ -368,7 +372,13 @@ func ListResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL 
 }
 
 // ResourcesCleanup removes all resources provided in the map.
-func ResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDeleted map[types.ResourceType][]string) {
+func ResourcesCleanup(ctx context.Context, toBeDeleted map[types.ResourceType][]string, region string, assumedRole *arn.ARN) {
+	cfg, err := GetConfig(ctx, region, assumedRole)
+	if err != nil {
+		return
+	}
+
+	ec2client := ec2.NewFromConfig(cfg)
 	for resourceType, resources := range toBeDeleted {
 		for _, resourceID := range resources {
 			if err := ctx.Err(); err != nil {
