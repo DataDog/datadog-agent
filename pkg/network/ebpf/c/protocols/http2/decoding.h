@@ -295,7 +295,8 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
 
 // process_headers processes the headers that were filtered in filter_relevant_headers,
 // looking for requests path, status code, and method.
-static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel) {
+static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_index_t *dynamic_index, dynamic_table_value_t *dynamic_table_value, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel) {
+    u32 cpu = bpf_get_smp_processor_id();
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
 
@@ -373,11 +374,19 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 current_stream->request_method.length = current_header->new_dynamic_value_size;
                 current_stream->request_method.finalized = true;
             }
+
+            // Send dynamic value over a per-event to the user mode.
+            dynamic_table_value->key.index = current_header->index;
+            dynamic_table_value->string_len = current_header->new_dynamic_value_size;
+            dynamic_table_value->is_huffman_encoded = current_header->is_huffman_encoded;
+            dynamic_table_value->temporary = current_header->type != kNewDynamicHeader;
+            bpf_memcpy(dynamic_table_value->buf, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+            bpf_perf_event_output(skb, &http2_dynamic_table_perf_buffer, cpu, dynamic_table_value, sizeof(dynamic_table_value_t));
         }
     }
 }
 
-static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
+static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, dynamic_table_value_t *dynamic_table_value, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
     const __u32 zero = 0;
 
     // Allocating an array of headers, to hold all interesting headers from the frame.
@@ -388,7 +397,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
     __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length, http2_tel);
-    process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
+    process_headers(skb, dynamic_index, dynamic_table_value, current_stream, headers_to_process, interesting_headers, http2_tel);
 }
 
 // skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
@@ -800,6 +809,12 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
         goto delete_iteration;
     }
 
+    dynamic_table_value_t *dynamic_table_value = bpf_map_lookup_elem(&http2_dynamic_table_heap, &zero);
+    if (dynamic_table_value == NULL) {
+        goto delete_iteration;
+    }
+    dynamic_table_value->key.tup = dispatcher_args_copy.tup;
+
     http2_frame_with_offset *frames_array = tail_call_state->frames_array;
     http2_frame_with_offset current_frame;
 
@@ -833,7 +848,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
             continue;
         }
         dispatcher_args_copy.skb_info.data_off = current_frame.offset;
-        process_headers_frame(skb, current_stream, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
+        process_headers_frame(skb, current_stream, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, &http2_ctx->dynamic_index, dynamic_table_value, &current_frame.frame, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
