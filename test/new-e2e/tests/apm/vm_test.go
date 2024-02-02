@@ -55,6 +55,7 @@ apm_config.receiver_socket: /var/run/datadog/apm.socket
 		// Enable the UDS receiver in the trace-agent
 		agentparams.WithAgentConfig(cfg),
 	))
+	options = append(options, e2e.WithStackName(fmt.Sprintf("apm-vm-suite-uds-%v", os.Getenv("CI_PIPELINE_ID"))))
 	e2e.Run(t, &VMFakeintakeSuite{transport: UDS}, options...)
 }
 
@@ -71,6 +72,7 @@ apm_config.enabled: true
 		),
 		awshost.WithEC2InstanceOptions(),
 	)
+	options = append(options, e2e.WithStackName(fmt.Sprintf("apm-vm-suite-tcp-%v", os.Getenv("CI_PIPELINE_ID"))))
 	e2e.Run(t, &VMFakeintakeSuite{transport: TCP}, options...)
 }
 

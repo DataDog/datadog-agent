@@ -78,12 +78,15 @@ func TestDockerFakeintakeSuiteUDS(t *testing.T) {
 			"STATSD_URL",
 			pulumi.String("unix:///var/run/datadog/dsd.socket")),
 	))
+	options = append(options, e2e.WithStackName(fmt.Sprintf("apm-docker-suite-uds-%v", os.Getenv("CI_PIPELINE_ID"))))
 	e2e.Run(t, &DockerFakeintakeSuite{transport: UDS}, options...)
 }
 
 // TestDockerFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestDockerFakeintakeSuiteTCP(t *testing.T) {
-	e2e.Run(t, &DockerFakeintakeSuite{transport: TCP}, suiteOpts(t)...)
+	options := suiteOpts(t)
+	options = append(options, e2e.WithStackName(fmt.Sprintf("apm-docker-suite-tcp-%v", os.Getenv("CI_PIPELINE_ID"))))
+	e2e.Run(t, &DockerFakeintakeSuite{transport: TCP}, options...)
 }
 
 func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
