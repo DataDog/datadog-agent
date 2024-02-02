@@ -54,9 +54,9 @@ func (fc *FlareController) FillFlare(fb flaretypes.FlareBuilder) error {
 			default:
 				fi, err := os.Stat(file)
 				if err != nil {
-					fileInfo = fmt.Sprintf("%s %s\n", fi.Name(), err.Error())
+					fileInfo = fmt.Sprintf("%s\n", err.Error())
 				} else {
-					fileInfo = fmt.Sprintf("%s %s\n", fi.Name(), fi.Mode().String())
+					fileInfo = fmt.Sprintf("%s %s\n", file, fi.Mode().String())
 				}
 				writer = append(writer, []byte(fileInfo)...)
 			}
