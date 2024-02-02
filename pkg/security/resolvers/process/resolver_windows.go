@@ -103,7 +103,7 @@ func (p *Resolver) DequeueExited() {
 		// p.flushedEntries.Inc()
 	}
 
-	var toKeep []int
+	var toKeep []uint32
 	now := time.Now()
 	for _, pid := range p.exitedQueue {
 		entry := p.processes[pid]
