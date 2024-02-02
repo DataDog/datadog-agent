@@ -307,7 +307,7 @@ upload_minimized_btfs_arm64:
   after_script:
     - export AWS_PROFILE=agent-qa-ci
     - !reference [.shared_filters_and_queries]
-    - mkdir -p $CI_PROJECT_DIR/libvirt/vm-log/$ARCH $CI_PROJECT_DIR/libvirt/xml/$ARCH $CI_PROJECT_DIR/libvirt/qemu/$ARCH
+    - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml/$ARCH $CI_PROJECT_DIR/libvirt/qemu/$ARCH
     - !reference [.get_instance_ip_by_type]
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "sudo virsh list --name | grep -v -E '^$' | xargs -I '{}' sh -c \"sudo virsh dumpxml '{}' > /tmp/ddvm-xml-'{}'.txt\""
       ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "sudo virsh list --name | tr -d '\n' | xargs -I '{}' sh -c \"sudo cat /var/log/libvirt/qemu/'{}'.log > /tmp/ddvm-qemu-'{}'.log\""
