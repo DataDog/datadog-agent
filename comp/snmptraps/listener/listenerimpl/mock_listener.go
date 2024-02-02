@@ -6,16 +6,19 @@
 package listenerimpl
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockModule provides a MockComponent as the Component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock),
+	)
+}
 
 type mockListener struct {
 	packets packet.PacketsChannel

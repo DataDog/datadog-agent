@@ -12,18 +12,20 @@ import (
 	"expvar"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	trapsStatus "github.com/DataDog/datadog-agent/comp/snmptraps/status"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(New),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(New),
+	)
+}
 
 var (
 	trapsExpvars                       = expvar.NewMap("snmp_traps")
@@ -75,15 +77,6 @@ var templatesFS embed.FS
 
 // Provider provides the functionality to populate the status output
 type Provider struct{}
-
-// GetProvider if snamp traps is enabled returns status.Provider otherwise returns NoopProvider
-func GetProvider(conf config.Component) status.Provider {
-	if conf.GetBool("network_devices.snmp_traps.enabled") {
-		return Provider{}
-	}
-
-	return status.NoopProvider{}
-}
 
 // Name returns the name
 func (Provider) Name() string {
@@ -143,7 +136,7 @@ func GetStatus() map[string]interface{} {
 
 	status := make(map[string]interface{})
 
-	metricsJSON := []byte(expvar.Get("snmp_traps").String())
+	metricsJSON := []byte(trapsExpvars.String())
 	metrics := make(map[string]interface{})
 	json.Unmarshal(metricsJSON, &metrics) //nolint:errcheck
 	if dropped := getDroppedPackets(); dropped > 0 {
