@@ -584,7 +584,6 @@ func startAgent(
 
 	// start dogstatsd
 	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
-		// global.DSD = server
 		err := server.Start(demultiplexer)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)

@@ -47,7 +47,6 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	))
 
 	demux := deps.Demultiplexer
-	// global.DSD = deps.Server
 	deps.Server.Start(demux)
 
 	require.Nil(t, err)
