@@ -91,6 +91,7 @@ new-e2e-npm*                      @DataDog/Networks
 new-e2e-cws*                      @DataDog/agent-security
 new-e2e-windows-agent*            @DataDog/windows-agent
 new-e2e-orchestrator*             @DataDog/container-app
+e2e_pre_test*                     @DataDog/agent-platform
 
 # Kernel version testing
 package_dependencies*             @DataDog/ebpf-platform
