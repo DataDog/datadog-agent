@@ -84,12 +84,12 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 		return nil, fmt.Errorf("unable to create remote config service: %w", err)
 	}
 
-	deps.Lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
-		configService.Start(ctx)
+	deps.Lc.Append(fx.Hook{OnStart: func(_ context.Context) error {
+		configService.Start()
 		deps.Logger.Info("remote config service started")
 		return nil
 	}})
-	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
+	deps.Lc.Append(fx.Hook{OnStop: func(_ context.Context) error {
 		err = configService.Stop()
 		if err != nil {
 			deps.Logger.Errorf("unable to stop remote config service: %s", err)
