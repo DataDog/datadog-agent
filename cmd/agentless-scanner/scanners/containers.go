@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package main
+package scanners
 
 import (
 	"context"
@@ -20,9 +20,6 @@ import (
 	"strings"
 	"time"
 
-	_ "crypto/sha256"
-	_ "crypto/sha512"
-
 	"github.com/docker/distribution/reference"
 	digest "github.com/opencontainers/go-digest"
 
@@ -32,7 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func launchScannerContainers(_ context.Context, opts types.ScannerOptions) (types.ScanContainerResult, error) {
+// LaunchContainers is the entrypoint for the container scanner.
+func LaunchContainers(_ context.Context, opts types.ScannerOptions) (types.ScanContainerResult, error) {
 	var containers []*types.Container
 
 	containerdRoot := filepath.Join(opts.Root, "/var/lib/containerd")
@@ -64,7 +62,8 @@ func launchScannerContainers(_ context.Context, opts types.ScannerOptions) (type
 	}, nil
 }
 
-func mountContainer(ctx context.Context, scan *types.ScanTask, ctr types.Container) (string, error) {
+// MountContainer mounts the container layers and returns the mount point.
+func MountContainer(ctx context.Context, scan *types.ScanTask, ctr types.Container) (string, error) {
 	if len(ctr.Layers) == 0 {
 		return "", fmt.Errorf("container without any layer")
 	}

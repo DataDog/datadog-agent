@@ -34,9 +34,11 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/scanners"
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+
 	// DataDog agent: config stuffs
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -2032,14 +2034,21 @@ func (p *scannersPool) launchScanner(ctx context.Context, opts types.ScannerOpti
 func launchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
 	switch opts.Scanner {
 	case types.ScannerNameHostVulns:
-		bom, err := launchScannerTrivyHost(ctx, opts)
+		bom, err := scanners.LaunchTrivyHost(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
 		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
 
 	case types.ScannerNameHostVulnsEBS:
-		bom, err := launchScannerTrivyHostVM(ctx, opts)
+		assumedRole := opts.Scan.Roles[opts.Scan.ARN.AccountID]
+		cfg, err := newAWSConfig(ctx, opts.Scan.ARN.Region, assumedRole)
+		if err != nil {
+			return opts.ErrResult(err)
+		}
+
+		ebsclient := ebs.NewFromConfig(cfg)
+		bom, err := scanners.LaunchTrivyHostVM(ctx, opts, ebsclient)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
@@ -2047,7 +2056,7 @@ func launchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) 
 
 	case types.ScannerNameContainerVulns:
 		ctr := *opts.Container
-		mountPoint, err := mountContainer(ctx, opts.Scan, ctr)
+		mountPoint, err := scanners.MountContainer(ctx, opts.Scan, ctr)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
@@ -2055,7 +2064,7 @@ func launchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) 
 		{
 			opts := opts
 			opts.Root = mountPoint
-			bom, err = launchScannerTrivyHost(ctx, opts)
+			bom, err = scanners.LaunchTrivyHost(ctx, opts)
 			if err != nil {
 				return opts.ErrResult(err)
 			}
@@ -2107,21 +2116,21 @@ func launchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) 
 		return types.ScanResult{ScannerOptions: opts, Vulns: vulns}
 
 	case types.ScannerNameAppVulns:
-		bom, err := launchScannerTrivyApp(ctx, opts)
+		bom, err := scanners.LaunchTrivyApp(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
 		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
 
 	case types.ScannerNameContainers:
-		containers, err := launchScannerContainers(ctx, opts)
+		containers, err := scanners.LaunchContainers(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
 		return types.ScanResult{ScannerOptions: opts, Containers: &containers}
 
 	case types.ScannerNameMalware:
-		result, err := launchScannerMalware(ctx, opts)
+		result, err := scanners.LaunchMalware(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
