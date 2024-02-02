@@ -16,13 +16,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 var (
+	statsd *ddogstatsd.Client
+
 	globalConfigs        = make(map[confKey]*aws.Config)
 	globalConfigsMu      sync.Mutex
-	globalStatsdClient   *ddogstatsd.Client
 	globalStatsTags      []string
 	globalLimiterOptions LimiterOptions
 )
@@ -35,7 +37,7 @@ type confKey struct {
 // InitConfig initializes the global AWS parameters for subsequent configs
 // with the given statsd client and tags.
 func InitConfig(client *ddogstatsd.Client, limiterOptions LimiterOptions, tags []string) {
-	globalStatsdClient = client
+	statsd = client
 	globalStatsTags = tags
 	globalLimiterOptions = limiterOptions
 }
@@ -56,7 +58,7 @@ func GetConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Co
 	}
 
 	limiter := NewLimiter(globalLimiterOptions)
-	httpClient := newHTTPClientWithStats(region, assumedRole, globalStatsdClient, limiter, globalStatsTags)
+	httpClient := newHTTPClientWithStats(region, assumedRole, statsd, limiter, globalStatsTags)
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),
 		config.WithHTTPClient(httpClient),
@@ -81,9 +83,20 @@ func GetConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Co
 		if err != nil {
 			return aws.Config{}, fmt.Errorf("awsconfig: could not parse caller identity arn: %w", err)
 		}
-		cfg.HTTPClient = newHTTPClientWithStats(region, &roleARN, globalStatsdClient, limiter, globalStatsTags)
+		cfg.HTTPClient = newHTTPClientWithStats(region, &roleARN, statsd, limiter, globalStatsTags)
 	}
 
 	globalConfigs[key] = &cfg
 	return cfg, nil
+}
+
+// GetSelfEC2InstanceIndentity returns the identity of the current EC2 instance.
+func GetSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentityDocumentOutput, error) {
+	// TODO: we could cache this information instead of polling imds every time
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	imdsclient := imds.NewFromConfig(cfg)
+	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
 }
