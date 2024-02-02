@@ -59,18 +59,18 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 		return optional.NewNoneOption[agent.Component]()
 	}
 
-	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
-	if !checksEnabled(p.Checks) {
-		p.Log.Info(agentDisabledMessage)
-		return optional.NewNoneOption[agent.Component]()
-	}
-
 	enabledChecks := make([]checks.Check, 0, len(p.Checks))
 	for _, c := range p.Checks {
 		check := c.Object()
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check)
 		}
+	}
+
+	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
+	if len(enabledChecks) == 0 {
+		p.Log.Info(agentDisabledMessage)
+		return optional.NewNoneOption[agent.Component]()
 	}
 
 	processAgentComponent := processAgent{
@@ -85,15 +85,6 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 	})
 
 	return optional.NewOption[agent.Component](processAgentComponent)
-}
-
-func checksEnabled(checks []types.CheckComponent) bool {
-	for _, check := range checks {
-		if check.Object().IsEnabled() {
-			return true
-		}
-	}
-	return false
 }
 
 func (p processAgent) start(ctx context.Context) error {
