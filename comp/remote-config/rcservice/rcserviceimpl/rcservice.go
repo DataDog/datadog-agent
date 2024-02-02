@@ -68,6 +68,7 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
 	baseRawURL := configUtils.GetMainEndpoint(config.Datadog, "https://config.", "remote_configuration.rc_dd_url")
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(config.Datadog)
+	dbName := "remote-config.db"
 	configuredTags := configUtils.GetConfiguredTags(config.Datadog, false)
 
 	configService, err := remoteconfig.NewService(
@@ -78,6 +79,7 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 		configuredTags,
 		deps.DdRcTelemetryReporter,
 		version.AgentVersion,
+		dbName,
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
 	)
 	if err != nil {

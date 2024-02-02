@@ -155,7 +155,7 @@ func WithTraceAgentEnv(env string) func(s *Service) {
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...func(s *Service)) (*Service, error) {
+func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, dbName string, opts ...func(s *Service)) (*Service, error) {
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 
 	var refreshInterval time.Duration
@@ -215,7 +215,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []st
 		return nil, err
 	}
 
-	dbPath := path.Join(cfg.GetString("run_path"), "remote-config.db")
+	dbPath := path.Join(cfg.GetString("run_path"), dbName)
 	db, err := openCacheDB(dbPath, agentVersion)
 	if err != nil {
 		return nil, err
