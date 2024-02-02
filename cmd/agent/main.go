@@ -14,6 +14,7 @@ import (
 	"path"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
@@ -78,6 +79,13 @@ func main() {
 	if os.Getenv("GOGC") == "" {
 		debug.SetGCPercent(defaultGCPercent)
 	}
+
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		for range ticker.C {
+			debug.FreeOSMemory()
+		}
+	}()
 
 	rootCmd := agentCmdBuilder()
 	os.Exit(runcmd.Run(rootCmd))
