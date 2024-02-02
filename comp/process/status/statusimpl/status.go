@@ -99,8 +99,9 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 	}
 	err = json.Unmarshal(b, &status)
 	if err != nil {
-		status["error"] = fmt.Sprintf("%v", err.Error())
-		return status
+		return map[string]interface{}{
+			"error": fmt.Sprintf("%v", err.Error()),
+		}
 	}
 
 	return status
