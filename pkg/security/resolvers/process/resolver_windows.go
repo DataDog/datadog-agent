@@ -98,26 +98,27 @@ func (p *Resolver) AddToExitedQueue(pid uint32) {
 func (p *Resolver) DequeueExited() {
 	p.Lock()
 	defer p.Unlock()
-
+	var toKeep []int{}
 	delEntry := func(pid uint32, exitTime time.Time) {
 		p.deleteEntry(pid, exitTime)
 		// p.flushedEntries.Inc()
 	}
 
 	now := time.Now()
-	for index, pid := range p.exitedQueue {
+	for _, pid := range p.exitedQueue {
 		entry := p.processes[pid]
 		if entry == nil {
-			p.exitedQueue = append(p.exitedQueue[:index], p.exitedQueue[index+1:]...)
 			continue
 		}
 
 		if tm := entry.ExecTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
 			delEntry(pid, now)
-			p.exitedQueue = append(p.exitedQueue[:index], p.exitedQueue[index+1:]...)
-
+		}else{
+			toKeep = append(toKeep, pid)
 		}
 	}
+
+	p.exitedQueue = toKeep
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -181,6 +182,7 @@ func (p *Resolver) GetEnvp(pr *model.Process) []string {
 
 // GetProcessCmdLineScrubbed returns the scrubbed cmdline
 func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
+
 	if pr.ScrubbedCmdLineResolved {
 		return pr.CmdLineScrubbed
 	}

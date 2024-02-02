@@ -35,12 +35,28 @@ type Event struct {
 	// FIM
 	CreateNewFile CreateNewFileEvent `field:"create_file" event:"create_file"` // [7.52] [File] A file was created
 	Open          OpenEvent          `field:"open" event:"open"`               // [7.52] [File] A file was opened
+
+	// Registries
+	CreateRegistryKey   CreateRegistryKeyEvent   `field:"create_registry_key"`    // [7.52] [Registry] A registry key was created
+	OpenRegistryKey     OpenRegistryKeyEvent     `field:"open_registry_key"`      // [7.52] [Registry] A registry key was opened
+	SetRegistryKeyValue SetRegistryKeyValueEvent `field:"set_registry_key_value"` // [7.52] [Registry] A registry key value was set
+	DeleteRegistryKey   DeleteRegistryKeyEvent   `field:"delete_registry_key"`    // [7.52] [Registry] A registry key was deleted
 }
 
 // FileEvent is the common file event type
 type FileEvent struct {
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"eval.CaseInsensitiveCmp"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
+}
+
+// RegistryEvent is the common registry event type
+type RegistryEvent struct {
+	KeyName      string `field:"key_name,opts:length"`      // SECLDoc[key_name] Definition:`Registry's name`
+	KeyPath      string `field:"key_path,opts:length"`      // SECLDoc[key_path] Definition:`Registry's path`
+	RelativeName string `field:"relative_name,opts:length"` // SECLDoc[key_relative_path] Definition:`Registry's relative name`
+	ValueName    string `field:"value_name,opts:length"`    // SECLDoc[key_value_namepath] Definition:`Registry's value name`
+	// disposition      uint32 can be (REG_CREATED_NEW_KEY | REG_OPENED_EXISTING_KEY)
+
 }
 
 // Process represents a process
@@ -100,4 +116,21 @@ type CreateNewFileEvent struct {
 
 type OpenEvent struct {
 	File FileEvent `field:"file"`
+}
+
+// Registries
+type CreateRegistryKeyEvent struct {
+	Registry RegistryEvent `field:"registry"`
+}
+
+type OpenRegistryKeyEvent struct {
+	Registry RegistryEvent `field:"registry"`
+}
+
+type SetRegistryKeyValueEvent struct {
+	Registry RegistryEvent `field:"registry"`
+}
+
+type DeleteRegistryKeyEvent struct {
+	Registry RegistryEvent `field:"registry"`
 }

@@ -125,8 +125,14 @@ const (
 	CustomSelfTestEventType
 	// CreateNewFileEventType
 	CreateNewFileEventType
-	// OpenEventType
-	OpenEventType
+	// CreateRegistryKeyEventType
+	CreateRegistryKeyEventType
+	// OpenRegistryKeyEventType
+	OpenRegistryKeyEventType
+	// SetRegistryKeyValueEventType
+	SetRegistryKeyValueEventType
+	// DeleteRegistryKeyEventType
+	DeleteRegistryKeyEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -228,8 +234,14 @@ func (t EventType) String() string {
 		return "self_test"
 	case CreateNewFileEventType:
 		return "create_file"
-	case OpenEventType:
-		return "open"
+	case CreateRegistryKeyEventType:
+		return "create_registry_key"
+	case OpenRegistryKeyEventType:
+		return "open_registry_key"
+	case SetRegistryKeyValueEventType:
+		return "set_registry_key_value"
+	case DeleteRegistryKeyEventType:
+		return "delete_registry_key"
 	default:
 		return "unknown"
 	}
