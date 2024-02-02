@@ -112,6 +112,7 @@ func (ca *createArgs) string() string {
 
 	output.WriteString("  Create TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
 	output.WriteString("         Name: " + ca.fileName + "\n")
+	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Attrs: " + strconv.FormatUint(uint64(ca.createAttributes), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
 	return output.String()
 }
 
