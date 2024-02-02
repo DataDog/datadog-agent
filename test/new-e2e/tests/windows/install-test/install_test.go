@@ -9,6 +9,7 @@ package installtest
 import (
 	"flag"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -21,7 +22,7 @@ import (
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"testing"
@@ -38,7 +39,7 @@ type agentMSISuite struct {
 
 func TestMSI(t *testing.T) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(componentos.WindowsDefault)),
 	))}
 	if *devMode {
 		opts = append(opts, e2e.WithDevMode())
@@ -59,7 +60,12 @@ func TestMSI(t *testing.T) {
 	if agentPackage.PipelineID == "" && agentPackage.Channel != "" {
 		stackNameChannelPart = fmt.Sprintf("-%s", agentPackage.Channel)
 	}
-	opts = append(opts, e2e.WithStackName(fmt.Sprintf("windows-msi-test-v%s-%s%s", majorVersion, agentPackage.Arch, stackNameChannelPart)))
+	stackNameCIJobPart := ""
+	ciJobID := os.Getenv("CI_JOB_ID")
+	if ciJobID != "" {
+		stackNameCIJobPart = fmt.Sprintf("-%s", os.Getenv("CI_JOB_ID"))
+	}
+	opts = append(opts, e2e.WithStackName(fmt.Sprintf("windows-msi-test-v%s-%s%s%s", majorVersion, agentPackage.Arch, stackNameChannelPart, stackNameCIJobPart)))
 
 	s := &agentMSISuite{
 		agentPackage: agentPackage,

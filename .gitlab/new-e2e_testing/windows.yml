@@ -4,7 +4,7 @@
   variables:
     TARGETS: ./tests/windows/install-test
     TEAM: windows-agent
-    EXTRA_PARAMS: --run 'excludeall'
+    EXTRA_PARAMS: --run "TestMSI/Agent/$E2E_MSI_TEST$"
   extends:
     - .new_e2e_template
   before_script:
@@ -20,10 +20,10 @@
 .new-e2e_windows_installer_tests:
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run 'TestMSI/Agent*/TestInstall$'
-      - EXTRA_PARAMS: --run 'TestMSI/Agent*/TestRepair$'
-      - EXTRA_PARAMS: --run 'TestMSI/Agent*/TestUpgrade$'
-      - EXTRA_PARAMS: --run 'TestMSI/Agent*/TestUpgradeRollback$'
+      - E2E_MSI_TEST: TestInstall
+      - E2E_MSI_TEST: TestRepair
+      - E2E_MSI_TEST: TestUpgrade
+      - E2E_MSI_TEST: TestUpgradeRollback
 
 # Agent 6
 .new-e2e_windows_a6_x86_64:
@@ -77,4 +77,4 @@ new-e2e-windows-agent-msi-upgrade-windows-server-a7-x86_64:
     # must be last since it ends with when: on_success
     - !reference [.except_deploy]
   variables:
-    EXTRA_PARAMS: --run 'TestMSI/Agent*/TestUpgrade$'
+    E2E_MSI_TEST: TestUpgradeRollback
