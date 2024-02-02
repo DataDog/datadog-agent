@@ -56,9 +56,6 @@ var maxStates = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
 var totalStates = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
 var peakStates = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
 
-//go:generate go run functions.go
-//go:generate go fmt programs.go
-
 func isCOREAsset(path string) bool {
 	return filepath.Base(filepath.Dir(path)) == "co-re"
 }
@@ -152,33 +149,35 @@ func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoa
 			strings.Split(filepath.Base(file), ".")[0], "-", "_",
 		)
 		for _, progSpec := range collectionSpec.Programs {
-			prog, ok := interfaceMap[fmt.Sprintf("%s_%s", progSpec.Name, objectFileName)]
-			if !ok {
-				return fmt.Errorf("no interface entry for program_file %s_%s", progSpec.Name, objectFileName)
-			}
-			err = collectionSpec.LoadAndAssign(prog, &opts)
+			prog := reflect.New(
+				reflect.StructOf([]reflect.StructField{
+					{
+						Name: fmt.Sprintf("Func_%s", progSpec.Name),
+						Type: reflect.TypeOf(&ebpf.Program{}),
+						Tag:  reflect.StructTag(fmt.Sprintf(`ebpf:"%s"`, progSpec.Name)),
+					},
+				}),
+			)
+			err = collectionSpec.LoadAndAssign(prog.Elem().Addr().Interface(), &opts)
 			if err != nil {
 				log.Printf("failed to load and assign ebpf.Program in file %s: %v", objectFileName, err)
-				failedToLoad[programKey(progSpec.Name, objectFileName)] = struct{}{}
+				failedToLoad[fmt.Sprintf("%s/%s", objectFileName, progSpec.Name)] = struct{}{}
 				continue
 			}
 
-			progPtr := reflect.ValueOf(prog)
-			if progPtr.Type().Kind() != reflect.Ptr {
+			if prog.Type().Kind() != reflect.Ptr {
 				return fmt.Errorf("%T is not a pointer to struct", prog)
 			}
 
-			if progPtr.IsNil() {
-				return fmt.Errorf("nil pointer to %T", progPtr)
+			if prog.IsNil() {
+				return fmt.Errorf("nil pointer to %T", prog)
 			}
 
-			progElem := progPtr.Elem()
+			progElem := prog.Elem()
 			if progElem.Kind() != reflect.Struct {
 				return fmt.Errorf("%s is not a struct", progElem)
 			}
 			for i := 0; i < progElem.NumField(); i++ {
-				programName := progElem.Type().Field(i).Name
-
 				field := progElem.Field(i)
 				switch field.Type() {
 				case reflect.TypeOf((*ebpf.Program)(nil)):
@@ -188,9 +187,9 @@ func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoa
 					defer p.Close()
 					stat, err := unmarshalStatistics(p.VerifierLog, kversion)
 					if err != nil {
-						return fmt.Errorf("failed to unmarshal verifier log for program %s: %w", programName, err)
+						return fmt.Errorf("failed to unmarshal verifier log for program %s: %w", progSpec.Name, err)
 					}
-					stats[fmt.Sprintf("%s/%s", objectFileName, programName)] = stat
+					stats[fmt.Sprintf("%s/%s", objectFileName, progSpec.Name)] = stat
 				default:
 					return fmt.Errorf("Unexpected type %T", field)
 				}

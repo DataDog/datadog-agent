@@ -8,6 +8,7 @@
 package verifier
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -107,7 +108,7 @@ func TestBuildVerifierStats(t *testing.T) {
 
 		for _, progSpec := range collectionSpec.Programs {
 			// ensure all programs were attempted
-			key := programKey(progSpec.Name, objectFileName)
+			key := fmt.Sprintf("%s/%s", objectFileName, progSpec.Name)
 			_, loaded := stats[key]
 			_, notLoaded := failedToLoad[key]
 			if !(loaded || notLoaded) {
