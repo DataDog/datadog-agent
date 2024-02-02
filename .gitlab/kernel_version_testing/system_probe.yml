@@ -307,11 +307,13 @@ upload_minimized_btfs_arm64:
   after_script:
     - export AWS_PROFILE=agent-qa-ci
     - !reference [.shared_filters_and_queries]
-    - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml/$ARCH
+    - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml/$ARCH $CI_PROJECT_DIR/libvirt/qemu/$ARCH
     - !reference [.get_instance_ip_by_type]
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "sudo virsh list --name | grep -v -E '^$' | xargs -I '{}' sh -c \"sudo virsh dumpxml '{}' > /tmp/ddvm-xml-'{}'.txt\""
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "sudo virsh list --name | xargs -I '{}' sh -c \"sudo cp /var/log/libvirt/qemu/'{}'.log /tmp/ddvm-qemu-'{}'.log && sudo chown 1000:1000 /tmp/ddvm-qemu-*\""
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/$ARCH
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml/$ARCH
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-qemu-*" $CI_PROJECT_DIR/libvirt/qemu/$ARCH
   artifacts:
     when: always
     paths:
