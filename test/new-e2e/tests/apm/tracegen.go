@@ -9,15 +9,36 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
+type transport int
+
+const (
+	undefined transport = iota
+	uds
+	tcp
+)
+
+func (t transport) String() string {
+	switch t {
+	case uds:
+		return "uds"
+	case tcp:
+		return "tcp"
+	case undefined:
+		fallthrough
+	default:
+		return "undefined"
+	}
+}
+
 type tracegenCfg struct {
 	transport transport
 }
 
 func runTracegenDocker(h *components.RemoteHost, service string, cfg tracegenCfg) (shutdown func()) {
 	var run, rm string
-	if cfg.transport == UDS {
+	if cfg.transport == uds {
 		run, rm = tracegenUDSCommands(service)
-	} else if cfg.transport == TCP {
+	} else if cfg.transport == tcp {
 		run, rm = tracegenTCPCommands(service)
 	}
 	h.MustExecute(rm) // kill any existing leftover container

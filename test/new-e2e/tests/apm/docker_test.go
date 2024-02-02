@@ -30,34 +30,14 @@ type DockerFakeintakeSuite struct {
 	transport transport
 }
 
-type transport int
-
-const (
-	UNDEFINED transport = iota
-	UDS
-	TCP
-)
-
-func (t transport) String() string {
-	switch t {
-	case UDS:
-		return "uds"
-	case TCP:
-		return "tcp"
-	case UNDEFINED:
-		fallthrough
-	default:
-		return "undefined"
-	}
-}
-
-func suiteOpts(t *testing.T, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
+func dockerSuiteOpts(t *testing.T, tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
 	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsdocker.Provisioner(opts...)),
+		e2e.WithStackName(fmt.Sprintf("apm-docker-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
 	}
 	if devModeE, err := strconv.ParseBool(devModeEnv); (err == nil && devModeE) || *devMode {
 		t.Log("Running in Dev Mode.")
@@ -68,7 +48,7 @@ func suiteOpts(t *testing.T, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOpt
 
 // TestDockerFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
 func TestDockerFakeintakeSuiteUDS(t *testing.T) {
-	options := suiteOpts(t, awsdocker.WithAgentOptions(
+	options := dockerSuiteOpts(t, uds, awsdocker.WithAgentOptions(
 		// Enable the UDS receiver in the trace-agent
 		dockeragentparams.WithAgentServiceEnvVariable(
 			"DD_APM_RECEIVER_SOCKET",
@@ -78,15 +58,12 @@ func TestDockerFakeintakeSuiteUDS(t *testing.T) {
 			"STATSD_URL",
 			pulumi.String("unix:///var/run/datadog/dsd.socket")),
 	))
-	options = append(options, e2e.WithStackName(fmt.Sprintf("apm-docker-suite-uds-%v", os.Getenv("CI_PIPELINE_ID"))))
-	e2e.Run(t, &DockerFakeintakeSuite{transport: UDS}, options...)
+	e2e.Run(t, &DockerFakeintakeSuite{transport: uds}, options...)
 }
 
 // TestDockerFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestDockerFakeintakeSuiteTCP(t *testing.T) {
-	options := suiteOpts(t)
-	options = append(options, e2e.WithStackName(fmt.Sprintf("apm-docker-suite-tcp-%v", os.Getenv("CI_PIPELINE_ID"))))
-	e2e.Run(t, &DockerFakeintakeSuite{transport: TCP}, options...)
+	e2e.Run(t, &DockerFakeintakeSuite{transport: tcp}, dockerSuiteOpts(t, tcp)...)
 }
 
 func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
@@ -98,7 +75,7 @@ func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
 }
 
 func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
-	if s.transport != UDS {
+	if s.transport != uds {
 		// TODO: Container tagging with cgroup v2 currently only works over UDS
 		// We should update this to run over TCP as well once that is implemented.
 		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")

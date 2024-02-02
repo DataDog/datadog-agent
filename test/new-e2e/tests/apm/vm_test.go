@@ -26,7 +26,7 @@ type VMFakeintakeSuite struct {
 	transport transport
 }
 
-func vmSuiteOpts(t *testing.T, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
+func vmSuiteOpts(t *testing.T, tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -36,6 +36,7 @@ func vmSuiteOpts(t *testing.T, opts ...awshost.ProvisionerOption) []e2e.SuiteOpt
 
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
+		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
 	}
 	if devModeE, err := strconv.ParseBool(devModeEnv); (err == nil && devModeE) || *devMode {
 		t.Log("Running in Dev Mode.")
@@ -44,36 +45,34 @@ func vmSuiteOpts(t *testing.T, opts ...awshost.ProvisionerOption) []e2e.SuiteOpt
 	return options
 }
 
-// TestDockerFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
+// TestVMFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
 func TestVMFakeintakeSuiteUDS(t *testing.T) {
 	cfg := `
 apm_config.enabled: true
 apm_config.receiver_socket: /var/run/datadog/apm.socket
 `
 
-	options := vmSuiteOpts(t, awshost.WithAgentOptions(
+	options := vmSuiteOpts(t, uds, awshost.WithAgentOptions(
 		// Enable the UDS receiver in the trace-agent
 		agentparams.WithAgentConfig(cfg),
 	))
-	options = append(options, e2e.WithStackName(fmt.Sprintf("apm-vm-suite-uds-%v", os.Getenv("CI_PIPELINE_ID"))))
-	e2e.Run(t, &VMFakeintakeSuite{transport: UDS}, options...)
+	e2e.Run(t, &VMFakeintakeSuite{transport: uds}, options...)
 }
 
-// TestDockerFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
+// TestVMFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestVMFakeintakeSuiteTCP(t *testing.T) {
 	cfg := `
 apm_config.enabled: true
 `
 
-	options := vmSuiteOpts(t,
+	options := vmSuiteOpts(t, tcp,
 		awshost.WithAgentOptions(
 			// Enable the UDS receiver in the trace-agent
 			agentparams.WithAgentConfig(cfg),
 		),
 		awshost.WithEC2InstanceOptions(),
 	)
-	options = append(options, e2e.WithStackName(fmt.Sprintf("apm-vm-suite-tcp-%v", os.Getenv("CI_PIPELINE_ID"))))
-	e2e.Run(t, &VMFakeintakeSuite{transport: TCP}, options...)
+	e2e.Run(t, &VMFakeintakeSuite{transport: tcp}, options...)
 }
 
 func (s *VMFakeintakeSuite) SetupSuite() {
@@ -107,7 +106,7 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 }
 
 func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
-	if s.transport != UDS {
+	if s.transport != uds {
 		// TODO: Container tagging with cgroup v2 currently only works over UDS
 		// We should update this to run over TCP as well once that is implemented.
 		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")
