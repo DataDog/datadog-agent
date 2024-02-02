@@ -55,11 +55,6 @@ func suiteOpts(t *testing.T, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOpt
 	if !flag.Parsed() {
 		flag.Parse()
 	}
-
-	isCI, _ := strconv.ParseBool(os.Getenv("CI"))
-	if isCI {
-		t.Skipf("blocked by APL-2786")
-	}
 	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsdocker.Provisioner(opts...)),

@@ -30,11 +30,6 @@ func vmSuiteOpts(t *testing.T, opts ...awshost.ProvisionerOption) []e2e.SuiteOpt
 	if !flag.Parsed() {
 		flag.Parse()
 	}
-
-	isCI, _ := strconv.ParseBool(os.Getenv("CI"))
-	if isCI {
-		t.Skipf("blocked by APL-2786")
-	}
 	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 
 	opts = append(opts, awshost.WithDocker())
