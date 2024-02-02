@@ -294,8 +294,7 @@ func (p *WindowsProbe) setupEtw() error {
 					ev.Type = uint32(model.DeleteRegistryKeyEventType)
 					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
 						Registry: model.RegistryEvent{
-							KeyName:      dka.keyName,
-							RelativeName: dka.relativeName,
+							KeyName: dka.keyName,
 						},
 					}
 				}
