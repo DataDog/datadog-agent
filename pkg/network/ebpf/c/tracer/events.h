@@ -42,6 +42,12 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
 }
 
 static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
+    bool ringbuffers = ringbuffers_enabled();
+    if (ringbuffers) {
+        log_debug("adamk - cleanup_conn - ringbuffers_enabled: %d", ringbuffers);
+    } else {
+        log_debug("adamk - cleanup_conn - ringbuffers_disabled: %d", ringbuffers);
+    }
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
@@ -85,7 +91,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         // make sure direction is set correctly
         determine_connection_direction(&conn.tup, &conn.conn_stats);
     }
-
+ 
     conn.conn_stats.timestamp = bpf_ktime_get_ns();
 
     // Batch TCP closed connections before generating a perf event
@@ -95,22 +101,25 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 
     // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
-    batch_ptr->cpu = cpu;
     switch (batch_ptr->len) {
     case 0:
         batch_ptr->c0 = conn;
         batch_ptr->len++;
+        batch_ptr->cpu = cpu;
         return;
     case 1:
         batch_ptr->c1 = conn;
         batch_ptr->len++;
+        batch_ptr->cpu = cpu;
         return;
     case 2:
         batch_ptr->c2 = conn;
+        batch_ptr->cpu = cpu;
         batch_ptr->len++;
         return;
     case 3:
         batch_ptr->c3 = conn;
+        batch_ptr->cpu = cpu;
         batch_ptr->len++;
         // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
         // in order to cope with the eBPF stack limitation of 512 bytes.
@@ -121,9 +130,11 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // We send the connection outside of a batch anyway. This is likely not as
     // frequent of a case to cause performance issues and avoid cases where
     // we drop whole connections, which impacts things USM connection matching.
-    if (ringbuffers_enabled()) {
+    if (ringbuffers) {
+        log_debug("adamk - ringbuffers_enabled - submitting single connection to ringbuffer");
         bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn), 0);
     } else {
+        log_debug("adamk - ringbuffers_disabled - submitting single connection to perf buffer");
         bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(conn));
     }
 
@@ -154,6 +165,7 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
 
         // we cannot use the telemetry macro here because of stack size constraints
         if (ringbuffers_enabled()) {
+            // log_debug("adamk - ringbuffers_enabled - submitting batch to ringbuffer");
             bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
         } else {
             bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));

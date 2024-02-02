@@ -13,6 +13,8 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 
 	manager "github.com/DataDog/ebpf-manager"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var ringPool = sync.Pool{
@@ -35,6 +37,7 @@ type RingBufferHandler struct {
 
 // NewRingBufferHandler creates a RingBufferHandler
 func NewRingBufferHandler(dataChannelSize int) *RingBufferHandler {
+	log.Debugf("adamk Creating new ring buffer handler with data channel size %d", dataChannelSize)
 	return &RingBufferHandler{
 		RecordGetter: func() *ringbuf.Record {
 			return ringPool.Get().(*ringbuf.Record)
@@ -47,12 +50,13 @@ func NewRingBufferHandler(dataChannelSize int) *RingBufferHandler {
 	}
 }
 
-// RecordHandler is the callback intended to be used when configuring PerfMapOptions
+// RecordHandler is the callback intended to be used when configuring RingBufferOptions
 func (c *RingBufferHandler) RecordHandler(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
 	if c.closed {
 		return
 	}
 
+	log.Debugf("adamk Received record from ring buffer")
 	c.dataChannel <- &DataEvent{Data: record.RawSample, rr: record}
 }
 

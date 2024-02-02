@@ -197,10 +197,19 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	}
 
 	if ringbufferEnabled {
+		log.Debugf("adamk Modifying closed conn map to ringbuff for connection close events of size %d", secEbpf.ComputeDefaultEventsRingBufferSize())
+		//mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
+		//	MaxEntries: secEbpf.ComputeDefaultEventsRingBufferSize(),
+		//	Type:       ebpf.RingBuf,
+		//	EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
+		//}
+
 		mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
-			MaxEntries: secEbpf.ComputeDefaultEventsRingBufferSize(),
 			Type:       ebpf.RingBuf,
-			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
+			MaxEntries: secEbpf.ComputeDefaultEventsRingBufferSize(),
+			KeySize:    0,
+			ValueSize:  0,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 		}
 	}
 

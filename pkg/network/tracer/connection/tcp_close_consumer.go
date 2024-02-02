@@ -117,6 +117,10 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				return
 			case <-health.C:
 			case batchData, ok := <-dataChannel:
+				log.Debugf("adamk dataChannel length: %d", len(dataChannel))
+				log.Debugf("adamk dataChannel capacity: %d", cap(dataChannel))
+				log.Debugf("adamk received data from perf/ring buffer")
+				log.Debugf("adamk ok? %v", ok)
 				if !ok {
 					return
 				}
@@ -124,9 +128,11 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				l := len(batchData.Data)
 				switch {
 				case l >= netebpf.SizeofBatch:
+					log.Debugf("adamk received batch data from perf/ring buffer")
 					batch := netebpf.ToBatch(batchData.Data)
 					c.batchManager.ExtractBatchInto(c.buffer, batch)
 				case l >= netebpf.SizeofConn:
+					log.Debugf("adamk received conn data from perf/ring buffer")
 					c.extractConn(batchData.Data)
 				default:
 					log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d or %d", len(batchData.Data), netebpf.SizeofConn, netebpf.SizeofBatch)

@@ -1887,7 +1887,7 @@ func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 		t.Log(conns) // for debugging failures
 		conn, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
 		return conn != nil
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 3*time.Second, 100*time.Millisecond, "could not find closed connection")
 
 	m := conn.Monotonic
 	assert.Zero(t, m.SentBytes, "sent bytes should be 0")

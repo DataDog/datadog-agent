@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -168,15 +169,16 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 	}
 }
 
-func newConnBatchManager(mgr *manager.Manager, ringbufferSupported bool) (*perfBatchManager, error) {
+func newConnBatchManager(mgr *manager.Manager, ringbufferEnabled bool) (*perfBatchManager, error) {
 	connCloseMap, err := maps.GetMap[uint32, netebpf.Batch](mgr, probes.ConnCloseBatchMap)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get map %s: %s", probes.ConnCloseBatchMap, err)
 	}
-	numCPUs := 1
-	if !ringbufferSupported {
-		numCPUs, err = ebpf.PossibleCPU()
+	numCPUs, err := ebpf.PossibleCPU()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get number of CPUs: %s", err)
 	}
+	log.Debugf("adamk Using %d CPUs for connection batch manager", numCPUs)
 	if err != nil {
 		return nil, err
 	}

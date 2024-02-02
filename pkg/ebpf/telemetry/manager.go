@@ -11,8 +11,6 @@ import (
 	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Manager wraps ebpf-manager.Manager to transparently handle eBPF telemetry
@@ -35,8 +33,6 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) er
 		return err
 	}
 
-	log.Debugf("adamk Initializing eBPF manager with manager properties: %+v", m.RingBuffers)
-	log.Debugf("adamk Initializing eBPF manager with options: %+v", opts)
 	if err := m.Manager.InitWithOptions(bytecode, opts); err != nil {
 		return err
 	}
