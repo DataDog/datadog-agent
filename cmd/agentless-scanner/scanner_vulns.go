@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/exp/slices"
 
@@ -30,7 +31,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
 	"github.com/aquasecurity/trivy/pkg/scanner/local"
 	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
-	"github.com/aquasecurity/trivy/pkg/types"
+	trivytypes "github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
@@ -59,7 +60,7 @@ func getTrivyDisabledAnalyzers(allowedAnalyzers []analyzer.Type) []analyzer.Type
 	return disabledAnalyzers
 }
 
-func launchScannerTrivyHost(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
+func launchScannerTrivyHost(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
 	trivyCache := newMemoryCache()
 	trivyArtifact, err := trivyartifactlocal.NewArtifact(opts.Root, trivyCache, artifact.Option{
 		Offline:           true,
@@ -84,7 +85,7 @@ func launchScannerTrivyHost(ctx context.Context, opts scannerOptions) (*cdx.BOM,
 	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
 }
 
-func launchScannerTrivyHostVM(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
+func launchScannerTrivyHostVM(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
 	assumedRole := opts.Scan.Roles[opts.Scan.ARN.AccountID]
 	cfg, err := newAWSConfig(ctx, opts.Scan.ARN.Region, assumedRole)
 	if err != nil {
@@ -121,7 +122,7 @@ func launchScannerTrivyHostVM(ctx context.Context, opts scannerOptions) (*cdx.BO
 	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
 }
 
-func launchScannerTrivyApp(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
+func launchScannerTrivyApp(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
 	var allowedAnalyzers []analyzer.Type
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLanguages...)
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLockfiles...)
@@ -142,7 +143,7 @@ func launchScannerTrivyApp(ctx context.Context, opts scannerOptions) (*cdx.BOM, 
 	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
 }
 
-func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Artifact, trivyCache cache.LocalArtifactCache) (*cdx.BOM, error) {
+func doTrivyScan(ctx context.Context, scan *types.ScanTask, trivyArtifact artifact.Artifact, trivyCache cache.LocalArtifactCache) (*cdx.BOM, error) {
 	trivyOSScanner := ospkg.NewScanner()
 	trivyLangScanner := langpkg.NewScanner()
 	trivyVulnClient := vulnerability.NewClient(db.Config{})
@@ -151,9 +152,9 @@ func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Art
 	trivyScanner := trivyscanner.NewScanner(trivyLocalScanner, trivyArtifact)
 
 	log.Debugf("%s: trivy: starting scan", scan)
-	trivyReport, err := trivyScanner.ScanArtifact(ctx, types.ScanOptions{
+	trivyReport, err := trivyScanner.ScanArtifact(ctx, trivytypes.ScanOptions{
 		VulnType:            []string{},
-		Scanners:            types.Scanners{types.VulnerabilityScanner},
+		Scanners:            trivytypes.Scanners{trivytypes.VulnerabilityScanner},
 		ScanRemovedPackages: false,
 		ListAllPackages:     true,
 	})
