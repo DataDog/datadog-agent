@@ -310,7 +310,7 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
-	t.closeConsumer.Start(callback, RingbuffersEnabled(t.config))
+	t.closeConsumer.Start(callback)
 	return nil
 }
 

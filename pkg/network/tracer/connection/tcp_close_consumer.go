@@ -88,7 +88,7 @@ func (c *tcpCloseConsumer) extractConn(data []byte) {
 	updateTCPStats(conn, &ct.Tcp_stats, ct.Tcp_retransmits)
 }
 
-func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats), ringbufferEnabled bool) {
+func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 	if c == nil {
 		return
 	}
