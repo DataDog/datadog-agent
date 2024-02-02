@@ -206,10 +206,9 @@ func (is *agentMSISuite) TestRepair() {
 	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
 }
 
-// installAgent installs the agent package on the VM and returns the Tester
-func (is *agentMSISuite) installAgent(vm *components.RemoteHost, args string, logfile string, testerOpts ...TesterOption) *Tester {
+func (is *agentMSISuite) installAgentPackage(vm *components.RemoteHost, agentPackage *windowsAgent.Package, args string, logfile string, testerOpts ...TesterOption) *Tester {
 	opts := []TesterOption{
-		WithAgentPackage(is.agentPackage),
+		WithAgentPackage(agentPackage),
 	}
 	opts = append(opts, testerOpts...)
 	t, err := NewTester(is.T(), vm, opts...)
@@ -225,24 +224,20 @@ func (is *agentMSISuite) installAgent(vm *components.RemoteHost, args string, lo
 	return t
 }
 
+// installAgent installs the agent package on the VM and returns the Tester
+func (is *agentMSISuite) installAgent(vm *components.RemoteHost, args string, logfile string, testerOpts ...TesterOption) *Tester {
+	return is.installAgentPackage(vm, is.agentPackage, args, logfile, testerOpts...)
+}
+
 // installLastStable installs the last stable agent package on the VM, runs tests, and returns the Tester
 func (is *agentMSISuite) installLastStable(vm *components.RemoteHost, args string, logfile string) *Tester {
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
 	is.Require().NoError(err, "should get last stable agent package from env")
-
-	t, err := NewTester(is.T(), vm,
-		WithAgentPackage(previousAgentPackage),
+	t := is.installAgentPackage(vm, previousAgentPackage, args, logfile,
 		WithPreviousVersion(),
 	)
-	is.Require().NoError(err, "should create tester")
 
-	if !is.Run(fmt.Sprintf("install %s", previousAgentPackage.AgentVersion()), func() {
-		err = t.InstallAgent(is.T(), args, logfile)
-		is.Require().NoError(err, "should install agent %s", previousAgentPackage.AgentVersion())
-	}) {
-		is.T().FailNow()
-	}
-
+	// Ensure the agent is functioning properly to provide a proper foundation for the test
 	if !t.TestExpectations(is.T()) {
 		is.T().FailNow()
 	}
