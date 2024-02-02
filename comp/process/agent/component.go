@@ -8,6 +8,6 @@ package agent
 
 // team: processes
 
-// Component represents the no-op Component interface.
+// Component is the process agent component type
 type Component interface {
 }
