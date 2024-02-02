@@ -11,7 +11,6 @@ package start
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"net/http"
 	"os"
 	"os/signal"
@@ -40,9 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
@@ -54,6 +50,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	rcservice "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -132,8 +129,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmeta.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
-				rcserviceimpl.Module(),
-				rctelemetryreporterimpl.Module(),
 			)
 		},
 	}
@@ -141,7 +136,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, rcServiceOptional optional.Option[rccomp.Component]) error {
+func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -197,15 +192,17 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 
 	// Initialize remote configuration
 	var rcClient *rcclient.Client
-	rcService, isSet := rcServiceOptional.Get()
-	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) && isSet {
+	var rcService *rcservice.Service
+	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
 		var err error
-		rcClient, err = initializeRemoteConfigClient(mainCtx, rcService)
+		rcClient, rcService, err = initializeRemoteConfig(mainCtx)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
+			rcService.Start(mainCtx)
 			rcClient.Start()
 			defer func() {
+				_ = rcService.Stop()
 				rcClient.Close()
 			}()
 		}
@@ -475,18 +472,23 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	return handler, nil
 }
 
-func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Component) (*rcclient.Client, error) {
+func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.Service, error) {
 	clusterName := ""
 	hname, err := hostname.Get(ctx)
 	if err != nil {
-		pkglog.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config client")
+		pkglog.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
 	} else {
 		clusterName = clustername.GetClusterName(context.TODO(), hname)
 	}
 
 	clusterID, err := clustername.GetClusterID()
 	if err != nil {
-		pkglog.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config client")
+		pkglog.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
+	}
+
+	rcService, err := common.NewRemoteConfigService(hname)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	rcClient, err := rcclient.NewClient(rcService,
@@ -497,10 +499,10 @@ func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Componen
 		rcclient.WithDirectorRootOverride(pkgconfig.Datadog.GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
+		return nil, nil, fmt.Errorf("unable to create local remote-config client: %w", err)
 	}
 
-	return rcClient, nil
+	return rcClient, rcService, nil
 }
 
 func registerChecks() {
