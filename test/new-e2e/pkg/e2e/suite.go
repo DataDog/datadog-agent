@@ -519,7 +519,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 	devMode, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.DevMode, false)
 	if err != nil {
-		t.Logf("dev_mode parameter error : %s", err)
+		t.Logf("Unable to get DevMode value, DevMode will be disabled, error: %v", err)
 	} else if devMode {
 		options = append(options, WithDevMode())
 	}
