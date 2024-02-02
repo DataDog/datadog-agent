@@ -34,6 +34,7 @@ type Event struct {
 
 	// FIM
 	CreateNewFile CreateNewFileEvent `field:"create_file" event:"create_file"` // [7.52] [File] A file was created
+	Open          OpenEvent          `field:"open" event:"open"`               // [7.52] [File] A file was opened
 }
 
 // FileEvent is the common file event type
@@ -94,5 +95,9 @@ type ExtraFieldHandlers interface {
 
 // FIM
 type CreateNewFileEvent struct {
+	File FileEvent `field:"file"`
+}
+
+type OpenEvent struct {
 	File FileEvent `field:"file"`
 }

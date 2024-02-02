@@ -22,6 +22,7 @@ func NewWindowsModel(_ *WindowsProbe) *model.Model {
 			if !strings.HasPrefix(field, "exec.") &&
 				!strings.HasPrefix(field, "exit.") &&
 				!strings.HasPrefix(field, "create_file.") &&
+				!strings.HasPrefix(field, "open.") &&
 				!strings.HasPrefix(field, "process.") {
 				return fmt.Errorf("%s is not available with the Windows version", field)
 			}

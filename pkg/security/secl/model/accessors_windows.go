@@ -25,6 +25,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("create_file"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
+		eval.EventType("open"),
 	}
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
@@ -362,6 +363,42 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "open.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "open.file.name.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Open.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "open.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "open.file.path.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Open.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exit.user":
 		return &eval.StringEvaluator{
@@ -973,6 +1010,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.file.path.length",
 		"exit.pid",
 		"exit.ppid",
+		"open.file.name",
+		"open.file.name.length",
+		"open.file.path",
+		"open.file.path.length",
 		"exit.user",
 		"exit.user_sid",
 		"process.ancestors.cmdline",
@@ -1090,6 +1131,14 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exit.Process.PIDContext.Pid), nil
 	case "exit.ppid":
 		return int(ev.Exit.Process.PPid), nil
+	case "open.file.name":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Open.File), nil
+	case "open.file.name.length":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Open.File), nil
+	case "open.file.path":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.Open.File), nil
+	case "open.file.path.length":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.Open.File), nil
 	case "exit.user":
 		return ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process), nil
 	case "exit.user_sid":
@@ -1414,6 +1463,14 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.user_sid":
 		return "exit", nil
+	case "open.file.name":
+		return "open", nil
+	case "open.file.name.length":
+		return "open", nil
+	case "open.file.path":
+		return "open", nil
+	case "open.file.path.length":
+		return "open", nil
 	case "process.ancestors.cmdline":
 		return "*", nil
 	case "process.ancestors.container.id":
@@ -1568,6 +1625,14 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exit.pid":
 		return reflect.Int, nil
 	case "exit.ppid":
+		return reflect.Int, nil
+	case "open.file.name":
+		return reflect.String, nil
+	case "open.file.name.length":
+		return reflect.Int, nil
+	case "open.file.path":
+		return reflect.String, nil
+	case "open.file.path.length":
 		return reflect.Int, nil
 	case "exit.user":
 		return reflect.String, nil
@@ -1974,6 +2039,24 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exit.Process.PPid = uint32(rv)
 		return nil
+	case "open.file.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.BasenameStr"}
+		}
+		ev.Open.File.BasenameStr = rv
+		return nil
+	case "open.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "open.file.name.length"}
+	case "open.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.PathnameStr"}
+		}
+		ev.Open.File.PathnameStr = rv
+		return nil
+	case "open.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "open.file.path.length"}
 	case "exit.user":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}

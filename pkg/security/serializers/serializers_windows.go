@@ -151,6 +151,11 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.CreateNewFile.File, event),
 		}
+	case model.OpenEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.Open.File, event),
+		}
 	}
+
 	return s
 }

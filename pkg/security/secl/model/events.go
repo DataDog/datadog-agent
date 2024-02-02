@@ -125,6 +125,8 @@ const (
 	CustomSelfTestEventType
 	// CreateNewFileEventType
 	CreateNewFileEventType
+	// OpenEventType
+	OpenEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -226,6 +228,8 @@ func (t EventType) String() string {
 		return "self_test"
 	case CreateNewFileEventType:
 		return "create_file"
+	case OpenEventType:
+		return "open"
 	default:
 		return "unknown"
 	}

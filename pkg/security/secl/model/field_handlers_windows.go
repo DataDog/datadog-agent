@@ -81,6 +81,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
+	case "open":
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Open.File)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Open.File)
 	}
 }
 

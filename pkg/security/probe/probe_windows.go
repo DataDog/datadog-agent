@@ -209,7 +209,18 @@ func (p *WindowsProbe) setupEtw() error {
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
-			case idCreate:
+			case idCreate: // a file was opened
+				if ca, err := parseCreateArgs(e); err == nil {
+					log.Infof("Got create/open new file on file %s", ca.string())
+					ev.Type = uint32(model.OpenEventType)
+					ev.Open = model.OpenEvent{
+						File: model.FileEvent{
+							PathnameStr: ca.fileName,
+							BasenameStr: filepath.Base(ca.fileName),
+						},
+					}
+
+				}
 			case idCreateNewFile:
 				if ca, err := parseCreateArgs(e); err == nil {
 					log.Infof("Got create/create new file on file %s", ca.string())
@@ -220,7 +231,6 @@ func (p *WindowsProbe) setupEtw() error {
 							BasenameStr: filepath.Base(ca.fileName),
 						},
 					}
-					log.Infof("event -----------:", ev)
 
 				}
 			case idCleanup:
@@ -435,10 +445,10 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 // DispatchEvent sends an event to the probe event handler
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
 
-	if event.Type == model.CreateNewFileEventType {
+	if event.Type == model.OpenEventType {
 		log.Debugf("event in dispatch -----event.Type:%v", event.Type)
-		log.Debugf("event in dispatch -----event.CreateNewFile.File.Path:%v", event.CreateNewFile.File.PathnameStr)
-		log.Debugf("event in dispatch -----event.CreateNewFile.File.Name:%v", event.CreateNewFile.File.BasenameStr)
+		log.Debugf("event in dispatch -----event.CreateNewFile.File.Path:%v", event.Open.File.PathnameStr)
+		log.Debugf("event in dispatch -----event.CreateNewFile.File.Name:%v", event.Open.File.BasenameStr)
 		log.Debugf("event in dispatch -----event.ProcessContext.Process.PIDContext.Pid:%v", event.ProcessContext.Process.PIDContext.Pid)
 
 	}
