@@ -32,6 +32,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/nbd"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/scanners"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
@@ -822,15 +823,15 @@ func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool) error {
 		panic("unreachable")
 	}
 
-	partitions, err := listDevicePartitions(ctx, scan)
+	partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
 	if err != nil {
 		log.Errorf("could not list partitions (device is still available on %q): %v", *scan.AttachedDeviceName, err)
 	} else {
 		for _, part := range partitions {
-			fmt.Println(part.devicePath, part.fsType)
+			fmt.Println(part.DevicePath, part.FSType)
 		}
 		if mount {
-			mountPoints, err := mountDevice(ctx, scan, partitions)
+			mountPoints, err := devices.Mount(ctx, scan, partitions)
 			if err != nil {
 				log.Errorf("could not mount (device is still available on %q): %v", *scan.AttachedDeviceName, err)
 			} else {
@@ -1046,12 +1047,12 @@ func (s *sideScanner) cleanSlate() error {
 
 	for _, mountPoint := range ctrMountPoints {
 		log.Warnf("clean slate: unmounting %q", mountPoint)
-		cleanupScanUmount(ctx, nil, mountPoint)
+		devices.Umount(ctx, nil, mountPoint)
 	}
 	// unmount "ebs-*" entrypoint last as the other mountpoint may depend on it
 	for _, mountPoint := range ebsMountPoints {
 		log.Warnf("clean slate: unmounting %q", mountPoint)
-		cleanupScanUmount(ctx, nil, mountPoint)
+		devices.Umount(ctx, nil, mountPoint)
 	}
 
 	for _, scanDir := range scanDirs {
@@ -1063,10 +1064,10 @@ func (s *sideScanner) cleanSlate() error {
 	}
 
 	var attachedVolumes []string
-	if blockDevices, err := listBlockDevices(ctx); err == nil {
+	if blockDevices, err := devices.List(ctx); err == nil {
 		for _, bd := range blockDevices {
 			if strings.HasPrefix(bd.Name, "nbd") || strings.HasPrefix(bd.Serial, "vol") {
-				for _, child := range bd.getChildrenType("lvm") {
+				for _, child := range bd.GetChildrenType("lvm") {
 					log.Warnf("clean slate: detaching volume group %q for block device %q", child.Path, bd.Name)
 					if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
 						log.Errorf("clean slate: could not detach virtual group %q on block device %q from dev mapper: %v", child.Path, bd.Name, err)
@@ -1658,12 +1659,12 @@ func scanEBS(ctx context.Context, scan *types.ScanTask, waiter *awsutils.Snapsho
 		panic("unreachable")
 	}
 
-	partitions, err := listDevicePartitions(ctx, scan)
+	partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
 	if err != nil {
 		return err
 	}
 
-	mountPoints, err := mountDevice(ctx, scan, partitions)
+	mountPoints, err := devices.Mount(ctx, scan, partitions)
 	if err != nil {
 		return err
 	}
@@ -1830,7 +1831,7 @@ func launchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) 
 		// on the parent ctx as we still want to clean these mounts even for a
 		// canceled/timeouted context.
 		cleanupctx, abort := context.WithTimeout(context.Background(), 5*time.Second)
-		cleanupScanUmount(cleanupctx, opts.Scan, mountPoint)
+		devices.Umount(cleanupctx, opts.Scan, mountPoint)
 		abort()
 
 		refTag := ctr.ImageRefTagged.Reference().(reference.NamedTagged)
@@ -2023,8 +2024,8 @@ func (w *truncatedWriter) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
-func attachSnapshotWithNBD(_ context.Context, scan *types.ScanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) error {
-	device, ok := nextNBDDevice()
+func attachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) error {
+	device, ok := devices.NextNBD()
 	if !ok {
 		return fmt.Errorf("could not find non busy NBD block device")
 	}
@@ -2035,73 +2036,12 @@ func attachSnapshotWithNBD(_ context.Context, scan *types.ScanTask, snapshotARN 
 	if err := nbd.StartNBDBlockDevice(scan.ID, device, backend); err != nil {
 		return err
 	}
+	_, err = devices.Poll(ctx, scan, device, nil)
+	if err != nil {
+		return err
+	}
 	scan.AttachedDeviceName = &device
 	return nil
-}
-
-// reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
-var xenDeviceName struct {
-	sync.Mutex
-	count int
-}
-
-var nbdDeviceName struct {
-	sync.Mutex
-	count   int
-	nbdsMax *int
-}
-
-func nextXenDevice() (string, bool) {
-	xenDeviceName.Lock()
-	defer xenDeviceName.Unlock()
-
-	// loops from "xvdaa" to "xvddx"
-	// we found out that xvddy and xvddz are problematic for some undocumented reason
-	const xenMax = ('d'-'a'+1)*26 - 2
-	count := xenDeviceName.count % xenMax
-	dev := 'a' + uint8(count/26)
-	rst := 'a' + uint8(count%26)
-	bdPath := fmt.Sprintf("/dev/xvd%c%c", dev, rst)
-	// TODO: just like for NBD devices, we should ensure that the
-	// associated device is not already busy. However on ubuntu AMIs there
-	// is no udev rule making the proper symlink from /dev/xvdxx device to
-	// the /dev/nvmex created block device on volume attach.
-	xenDeviceName.count = (count + 1) % xenMax
-	return bdPath, true
-}
-
-func nextNBDDevice() (string, bool) {
-	nbdDeviceName.Lock()
-	defer nbdDeviceName.Unlock()
-
-	// Init phase: counting the number of nbd devices created.
-	if nbdDeviceName.nbdsMax == nil {
-		bds, _ := filepath.Glob("/dev/nbd*")
-		bdsCount := len(bds)
-		nbdDeviceName.nbdsMax = &bdsCount
-	}
-
-	nbdsMax := *nbdDeviceName.nbdsMax
-	if nbdsMax == 0 {
-		log.Error("could not locate any NBD block device in /dev")
-		return "", false
-	}
-
-	for i := 0; i < nbdsMax; i++ {
-		count := (nbdDeviceName.count + i) % nbdsMax
-		// From man 2 open: O_EXCL: ... on Linux 2.6 and later, O_EXCL can be
-		// used without  O_CREAT  if pathname refers to  a block device.  If
-		// the block device is in use by the system (e.g., mounted), open()
-		// fails with the error EBUSY.
-		bdPath := fmt.Sprintf("/dev/nbd%d", count)
-		f, err := os.OpenFile(bdPath, os.O_RDONLY|os.O_EXCL, 0600)
-		if err == nil {
-			f.Close()
-			nbdDeviceName.count = (count + 1) % nbdsMax
-			return bdPath, true
-		}
-	}
-	return "", false
 }
 
 func scanLambda(ctx context.Context, scan *types.ScanTask, pool *scannersPool, resultsCh chan types.ScanResult) error {
@@ -2375,7 +2315,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 	scan.AttachedVolumeARN = &volumeARN
 	scan.AttachedVolumeCreatedAt = volume.CreateTime
 
-	device, ok := nextXenDevice()
+	device, ok := devices.NextXen()
 	if !ok {
 		return fmt.Errorf("could not find non busy XEN block device")
 	}
@@ -2410,229 +2350,21 @@ func attachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		return fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, errAttach)
 	}
 
-	return nil
-}
-
-type devicePartition struct {
-	devicePath string
-	fsType     string
-}
-
-type blockDevice struct {
-	Name        string         `json:"name"`
-	Serial      string         `json:"serial"`
-	Path        string         `json:"path"`
-	Type        string         `json:"type"`
-	FsType      string         `json:"fstype"`
-	Mountpoints []string       `json:"mountpoints"`
-	Children    []*blockDevice `json:"children"`
-}
-
-func (bd blockDevice) getChildrenType(t string) []blockDevice {
-	var bds []blockDevice
-	bd.recurse(func(child blockDevice) {
-		if child.Type == t {
-			for _, b := range bds {
-				if b.Path == child.Path {
-					return
-				}
-			}
-			bds = append(bds, child)
-		}
-	})
-	return bds
-}
-
-func (bd blockDevice) recurse(cb func(blockDevice)) {
-	for _, child := range bd.Children {
-		child.recurse(cb)
-	}
-	cb(bd)
-}
-
-func listBlockDevices(ctx context.Context, deviceName ...string) ([]blockDevice, error) {
-	var blockDevices struct {
-		BlockDevices []blockDevice `json:"blockdevices"`
-	}
-	_, _ = exec.Command("udevadm", "settle", "--timeout=1").CombinedOutput()
-	lsblkArgs := []string{"--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE,MOUNTPOINTS"}
-	lsblkArgs = append(lsblkArgs, deviceName...)
-	lsblkJSON, err := exec.CommandContext(ctx, "lsblk", lsblkArgs...).Output()
-	if err != nil {
-		var errx *exec.ExitError
-		if errors.As(err, &errx) && errx.ExitCode() == 32 { // none of specified devices found
-			return nil, nil
-		}
-		if !errors.Is(err, context.Canceled) {
-			log.Warnf("lsblk exited with error: %v", err)
-		}
-		return nil, fmt.Errorf("lsblk exited with error: %w", err)
-	}
-	if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
-		return nil, fmt.Errorf("lsblk output parsing error: %w", err)
-	}
-	// lsblk can return [null] as mountpoints list. We need to clean this up.
-	for _, bd := range blockDevices.BlockDevices {
-		for _, child := range bd.Children {
-			mountpoints := child.Mountpoints
-			child.Mountpoints = make([]string, 0, len(mountpoints))
-			for _, mp := range mountpoints {
-				if mp != "" {
-					child.Mountpoints = append(child.Mountpoints, mp)
-				}
-			}
-		}
-	}
-	return blockDevices.BlockDevices, nil
-}
-
-func listDevicePartitions(ctx context.Context, scan *types.ScanTask) ([]devicePartition, error) {
-	device, volumeARN := *scan.AttachedDeviceName, scan.AttachedVolumeARN
-	log.Debugf("%s: listing partitions from device %q (volume = %q)", scan, device, volumeARN)
-
 	// NOTE(jinroh): we identified that on some Linux kernel the device path
 	// may not be the expected one (passed to AttachVolume). The kernel may
 	// map the block device to another path. However, the serial number
 	// associated with the volume is always of the form volXXX (not vol-XXX).
 	// So we use both the expected device path AND the serial number to find
 	// the actual block device path.
-	var serialNumber *string
-	if volumeARN != nil {
-		_, volumeID, _ := types.GetARNResource(*volumeARN)
-		sn := "vol" + strings.TrimPrefix(volumeID, "vol-") // vol-XXX => volXXX
-		serialNumber = &sn
+	serialNumber := "vol" + strings.TrimPrefix(*volume.VolumeId, "vol-") // vol-XXX => volXXX
+	foundBlockDevice, err := devices.Poll(ctx, scan, device, &serialNumber)
+	if err != nil {
+		return err
 	}
-
-	var foundBlockDevice *blockDevice
-	for i := 0; i < 120; i++ {
-		if !sleepCtx(ctx, 500*time.Millisecond) {
-			return nil, ctx.Err()
-		}
-		blockDevices, err := listBlockDevices(ctx)
-		if err != nil {
-			continue
-		}
-		for _, bd := range blockDevices {
-			if serialNumber != nil && bd.Serial != "" {
-				if bd.Serial == *serialNumber {
-					foundBlockDevice = &bd
-					break
-				}
-			} else if bd.Path == device {
-				foundBlockDevice = &bd
-				break
-			}
-		}
-
-		if foundBlockDevice != nil {
-			break
-		}
-	}
-	if foundBlockDevice == nil {
-		return nil, fmt.Errorf("could not find the block device %s for (volume=%q)", device, volumeARN)
-	}
-
-	// The attached device name may not be the one we expect. We update it.
-	if scan.AttachedDeviceName == nil || foundBlockDevice.Path != *scan.AttachedDeviceName {
+	if foundBlockDevice.Path != *scan.AttachedDeviceName {
 		scan.AttachedDeviceName = &foundBlockDevice.Path
 	}
-
-	var partitions []devicePartition
-	for i := 0; i < 5; i++ {
-		blockDevices, err := listBlockDevices(ctx, foundBlockDevice.Path)
-		if err != nil {
-			continue
-		}
-		if len(blockDevices) != 1 {
-			continue
-		}
-		for _, part := range blockDevices[0].Children {
-			if part.FsType == "btrfs" || part.FsType == "ext2" || part.FsType == "ext3" || part.FsType == "ext4" || part.FsType == "xfs" {
-				partitions = append(partitions, devicePartition{
-					devicePath: part.Path,
-					fsType:     part.FsType,
-				})
-			}
-		}
-		if len(partitions) > 0 {
-			break
-		}
-		if !sleepCtx(ctx, 100*time.Millisecond) {
-			return nil, ctx.Err()
-		}
-	}
-	if len(partitions) == 0 {
-		return nil, fmt.Errorf("could not find any btrfs, ext2, ext3, ext4 or xfs partition in %s (volume = %q)", device, volumeARN)
-	}
-
-	log.Debugf("%s: found %d compatible partitions for device %q", scan, len(partitions), device)
-	return partitions, nil
-}
-
-func mountDevice(ctx context.Context, scan *types.ScanTask, partitions []devicePartition) ([]string, error) {
-	var mountPoints []string
-	for _, mp := range partitions {
-		mountPoint := scan.Path(types.EBSMountPrefix + path.Base(mp.devicePath))
-		if err := os.MkdirAll(mountPoint, 0700); err != nil {
-			return nil, fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
-		}
-
-		fsOptions := "ro,noauto,nodev,noexec,nosuid," // these are generic options supported for all filesystems
-		switch mp.fsType {
-		case "btrfs":
-			// TODO: we could implement support for multiple BTRFS subvolumes in the future.
-			fsOptions += "subvol=/root"
-		case "ext2":
-			// nothing
-		case "ext3", "ext4":
-			// noload means we do not try to load the journal
-			fsOptions += "noload"
-		case "xfs":
-			// norecovery means we do not try to recover the FS
-			fsOptions += "norecovery,nouuid"
-		default:
-			panic(fmt.Errorf("unsupported filesystem type %s", mp.fsType))
-		}
-
-		if mp.fsType == "btrfs" {
-			// Replace fsid of btrfs partition with randomly generated UUID.
-			log.Debugf("%s: execing btrfstune -f -u %s", scan, mp.devicePath)
-			_, err := exec.CommandContext(ctx, "btrfstune", "-f", "-u", mp.devicePath).CombinedOutput()
-			if err != nil {
-				return nil, err
-			}
-
-			// Clear the tree log, to prevent "failed to read log tree" warning, which leads to "open_ctree failed" error.
-			log.Debugf("%s: execing btrfs rescue zero-log %s", scan, mp.devicePath)
-			_, err = exec.CommandContext(ctx, "btrfs", "rescue", "zero-log", mp.devicePath).CombinedOutput()
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		mountCmd := []string{"-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountPoint}
-		log.Debugf("%s: execing mount %s", scan, mountCmd)
-
-		var mountOutput []byte
-		var errm error
-		for i := 0; i < 50; i++ {
-			// using context.Background() here as we do not want to sigkill
-			// the "mount" command during work.
-			mountOutput, errm = exec.CommandContext(context.Background(), "mount", mountCmd...).CombinedOutput()
-			if errm == nil {
-				break
-			}
-			if !sleepCtx(ctx, 200*time.Millisecond) {
-				errm = ctx.Err()
-				break
-			}
-		}
-		if errm != nil {
-			return nil, fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountPoint, mp.devicePath, string(mountOutput), errm)
-		}
-		mountPoints = append(mountPoints, mountPoint)
-	}
-	return mountPoints, nil
+	return nil
 }
 
 func cleanupScanDetach(ctx context.Context, maybeScan *types.ScanTask, volumeARN arn.ARN, roles types.RolesMapping) error {
@@ -2680,7 +2412,7 @@ func cleanupScanDetach(ctx context.Context, maybeScan *types.ScanTask, volumeARN
 			if !sleepCtx(ctx, 1*time.Second) {
 				return ctx.Err()
 			}
-			devices, err := listBlockDevices(ctx, *maybeScan.AttachedDeviceName)
+			devices, err := devices.List(ctx, *maybeScan.AttachedDeviceName)
 			if err != nil || len(devices) == 0 {
 				break
 			}
@@ -2714,35 +2446,6 @@ func cleanupScanDetach(ctx context.Context, maybeScan *types.ScanTask, volumeARN
 		return fmt.Errorf("could not delete volume %q: %w", volumeID, errd)
 	}
 	return nil
-}
-
-func cleanupScanUmount(ctx context.Context, maybeScan *types.ScanTask, mountPoint string) {
-	log.Debugf("%s: un-mounting %q", maybeScan, mountPoint)
-	var umountOutput []byte
-	var erru error
-	for i := 0; i < 10; i++ {
-		if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
-			return
-		}
-		umountCmd := exec.CommandContext(ctx, "umount", mountPoint)
-		if umountOutput, erru = umountCmd.CombinedOutput(); erru != nil {
-			// Check for "not mounted" errors that we ignore
-			const MntExFail = 32 // MNT_EX_FAIL
-			if exiterr, ok := erru.(*exec.ExitError); ok && exiterr.ExitCode() == MntExFail && bytes.Contains(umountOutput, []byte("not mounted")) {
-				return
-			}
-			log.Warnf("%s: could not umount %s: %s: %s", maybeScan, mountPoint, erru, string(umountOutput))
-			if !sleepCtx(ctx, 3*time.Second) {
-				return
-			}
-			continue
-		}
-		if err := os.Remove(mountPoint); err != nil {
-			log.Warnf("could not remove mount point %q: %v", mountPoint, err)
-		}
-		return
-	}
-	log.Errorf("could not umount %s: %s: %s", mountPoint, erru, string(umountOutput))
 }
 
 func cleanupScan(scan *types.ScanTask) {
@@ -2782,7 +2485,7 @@ func cleanupScan(scan *types.ScanTask) {
 
 		umount := func(mountPoint string) {
 			defer wg.Done()
-			cleanupScanUmount(ctx, scan, mountPoint)
+			devices.Umount(ctx, scan, mountPoint)
 		}
 
 		var ebsMountPoints []fs.DirEntry
@@ -2840,9 +2543,9 @@ func cleanupScan(scan *types.ScanTask) {
 	}
 
 	if scan.AttachedDeviceName != nil {
-		blockDevices, err := listBlockDevices(ctx, *scan.AttachedDeviceName)
+		blockDevices, err := devices.List(ctx, *scan.AttachedDeviceName)
 		if err == nil && len(blockDevices) == 1 {
-			for _, child := range blockDevices[0].getChildrenType("lvm") {
+			for _, child := range blockDevices[0].GetChildrenType("lvm") {
 				if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
 					log.Errorf("%s: could not remove logical device %q from block device %q: %v", scan, child.Path, child.Name, err)
 				}
