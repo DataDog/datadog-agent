@@ -153,7 +153,7 @@ func newTaggerClient(deps dependencies) Component {
 		err = taggerClient.Start(mainCtx)
 		if err != nil && deps.Params.fallBackToLocalIfRemoteTaggerFails {
 			deps.Log.Warnf("Starting remote tagger failed. Falling back to local tagger: %s", err)
-			taggerClient.defaultTagger = local.NewTagger(deps.Wmeta)
+			taggerClient.defaultTagger = local.NewTagger(deps.Wmeta, tagstore.NewTagStore())
 			// Retry to start the local tagger
 			return taggerClient.Start(mainCtx)
 		}
