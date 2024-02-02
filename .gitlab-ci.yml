@@ -1113,3 +1113,20 @@ workflow:
       paths:
         - .go-version
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.fast_on_dev_branch:
+  - <<: *if_main_branch
+    variables:
+     FAST_TESTS: "false"
+  - <<: *if_release_branch
+    variables:
+     FAST_TESTS: "false"
+  - <<: *if_triggered_pipeline
+    variables:
+     FAST_TESTS: "false"
+  - if: $RUN_ALL_UNIT_TESTS == "true"
+    variables:
+     FAST_TESTS: "false"
+  - variables:
+     FAST_TESTS: "true"
+  
