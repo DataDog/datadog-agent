@@ -3,29 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agentsubcommands
+package diagnose
 
 import (
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
-
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type agentDiagnoseSuite struct {
+type baseDiagnoseSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
@@ -34,10 +29,6 @@ var allSuites = []string{
 	"connectivity-datadog-autodiscovery",
 	"connectivity-datadog-core-endpoints",
 	"connectivity-datadog-event-platform",
-}
-
-func TestAgentDiagnoseEC2Suite(t *testing.T) {
-	e2e.Run(t, &agentDiagnoseSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 // type summary represents the number of success, fail, warnings and errors of a diagnose command
@@ -49,7 +40,7 @@ type summary struct {
 	errors   int
 }
 
-func getDiagnoseOutput(v *agentDiagnoseSuite, commandArgs ...agentclient.AgentArgsOption) string {
+func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArgsOption) string {
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		assert.NoError(c, v.Env().FakeIntake.Client().GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
@@ -57,43 +48,24 @@ func getDiagnoseOutput(v *agentDiagnoseSuite, commandArgs ...agentclient.AgentAr
 	return v.Env().Agent.Client.Diagnose(commandArgs...)
 }
 
-func (v *agentDiagnoseSuite) TestDiagnoseDefaultConfig() {
+func (v *baseDiagnoseSuite) TestDiagnoseDefaultConfig() {
 	diagnose := getDiagnoseOutput(v)
 	assert.NotContains(v.T(), diagnose, "FAIL")
 }
 
-func (v *agentDiagnoseSuite) TestDiagnoseLocal() {
+func (v *baseDiagnoseSuite) TestDiagnoseLocal() {
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--local"}))
 	assert.NotContains(v.T(), diagnose, "FAIL")
 }
 
-func (v *agentDiagnoseSuite) TestDiagnoseLocalFallback() {
-	svcManager := svcmanager.NewSystemctlSvcManager(v.Env().RemoteHost)
-	svcManager.Stop("datadog-agent")
-
-	diagnose := getDiagnoseOutput(v)
-	assert.Contains(v.T(), diagnose, "Running diagnose command locally", "Expected diagnose command to fallback to local diagnosis when the Agent is stopped, but it did not.")
-	assert.NotContains(v.T(), diagnose, "FAIL")
-
-	svcManager.Start("datadog-agent")
-}
-
-func (v *agentDiagnoseSuite) TestDiagnoseOtherCmdPort() {
-	params := agentparams.WithAgentConfig("cmd_port: 4567")
-	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(params)))
-
-	diagnose := getDiagnoseOutput(v)
-	assert.NotContains(v.T(), diagnose, "FAIL")
-}
-
-func (v *agentDiagnoseSuite) TestDiagnoseList() {
+func (v *baseDiagnoseSuite) TestDiagnoseList() {
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--list"}))
 	for _, suite := range allSuites {
 		assert.Contains(v.T(), diagnose, suite)
 	}
 }
 
-func (v *agentDiagnoseSuite) TestDiagnoseInclude() {
+func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
 	diagnose := getDiagnoseOutput(v)
 	diagnoseSummary := getDiagnoseSummary(diagnose)
 
@@ -115,7 +87,7 @@ func (v *agentDiagnoseSuite) TestDiagnoseInclude() {
 	assert.Equal(v.T(), diagnoseIncludeEverySuiteSummary, diagnoseSummary)
 }
 
-func (v *agentDiagnoseSuite) TestDiagnoseExclude() {
+func (v *baseDiagnoseSuite) TestDiagnoseExclude() {
 	for _, suite := range allSuites {
 		diagnoseExclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--exclude", suite}))
 		resultExclude := getDiagnoseSummary(diagnoseExclude)
@@ -133,7 +105,7 @@ func (v *agentDiagnoseSuite) TestDiagnoseExclude() {
 	assert.Equal(v.T(), summary.total, 0)
 }
 
-func (v *agentDiagnoseSuite) TestDiagnoseVerbose() {
+func (v *baseDiagnoseSuite) TestDiagnoseVerbose() {
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"-v"}))
 	summary := getDiagnoseSummary(diagnose)
 
