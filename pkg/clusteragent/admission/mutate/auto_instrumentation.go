@@ -216,52 +216,21 @@ func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string)
 	}
 
 	// Try getting the languages from process languages auto-detection. The langages information are available in workloadmeta-store and attached on the pod's owner.
-	if config.Datadog.GetBool("admission_controller.inject_auto_detected_libraries") {
-		libsToInject = extractLibrariesFromOwnerAnnotations(pod, registry)
-		if len(libsToInject) > 0 {
-			autoDetected = true
-			return libsToInject, autoDetected
+	if config.Datadog.GetBool("admission_controller.run_language_detection") {
+		libsToInject = getAutoDetectedLibraries(pod, registry)
+		if config.Datadog.GetBool("admission_controller.inject_auto_detected_libraries") {
+			if len(libsToInject) > 0 {
+				autoDetected = true
+				return libsToInject, autoDetected
+			}
 		}
 	}
-
 	// If language auto-detection didn't return any language libraries, inject "latest" version of all tracing libraries
 	for _, lang := range supportedLanguages {
 		libsToInject = append(libsToInject, libInfo{lang: language(lang), image: libImageName(registry, lang, "latest")})
 	}
 
 	return libsToInject, autoDetected
-}
-
-func getAllLibsToInject(registry string) map[string]libInfo {
-	libsToInject := map[string]libInfo{}
-	var libVersion string
-	singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
-
-	for _, lang := range supportedLanguages {
-		libVersion = "latest"
-
-		if version, ok := singleStepLibraryVersions[string(lang)]; ok {
-			log.Warnf("Library version %s is specified for language %s", version, string(lang))
-			libVersion = version
-		}
-
-		libsToInject[string(lang)] = libInfo{
-			lang:  lang,
-			image: libImageName(registry, lang, libVersion),
-		}
-	}
-	if len(libsToInject) > 0 {
-		return libsToInject
-	}
-
-	for _, lang := range supportedLanguages {
-		libsToInject[string(lang)] = libInfo{
-			lang:  lang,
-			image: libImageName(registry, lang, "latest"),
-		}
-	}
-
-	return libsToInject
 }
 
 type libInfo struct {
@@ -292,9 +261,9 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool)
 	return libInfoList, autoDetected
 }
 
-// extractLibrariesFromOwnerAnnotations constructs the libraries to be injected if the languages
+// getAutoDetectedLibraries constructs the libraries to be injected if the languages
 // were stored in workloadmeta store based on owner annotations (for example: Deployment, Daemonset, Statefulset).
-func extractLibrariesFromOwnerAnnotations(pod *corev1.Pod, registry string) []libInfo {
+func getAutoDetectedLibraries(pod *corev1.Pod, registry string) []libInfo {
 	libList := []libInfo{}
 
 	ownerName, ownerKind, found := getOwnerNameAndKind(pod)

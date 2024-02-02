@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -409,79 +410,6 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:              "all",
-			pod:               fakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
-			containerRegistry: "registry",
-			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:latest",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
-				},
-			},
-		},
-		{
-			name: "java + all",
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"admission.datadoghq.com/all-lib.version":  "latest",
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
-				},
-			},
-			containerRegistry: "registry",
-			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
-				},
-			},
-		},
-		{
-			name:              "all with unsupported version",
-			pod:               fakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "unsupported"),
-			containerRegistry: "registry",
-			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:latest",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
-				},
-			},
-			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
-		},
-		{
 			name:              "single step instrumentation with no pinned versions",
 			pod:               fakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
@@ -518,22 +446,6 @@ func TestExtractLibInfo(t *testing.T) {
 					lang:  "java",
 					image: "registry/dd-lib-java-init:v1.20.0",
 				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
-				},
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -550,20 +462,8 @@ func TestExtractLibInfo(t *testing.T) {
 					image: "registry/dd-lib-java-init:v1.20.0",
 				},
 				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
 					lang:  "python",
 					image: "registry/dd-lib-python-init:v1.19.0",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
 				},
 			},
 			setupConfig: func() {
@@ -579,22 +479,6 @@ func TestExtractLibInfo(t *testing.T) {
 				{
 					lang:  "java",
 					image: "registry/dd-lib-java-init:v1",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
 				},
 			},
 			setupConfig: func() {
@@ -801,18 +685,6 @@ func expBasicConfig() []corev1.EnvVar {
 	}
 }
 
-func TestInjectAll(t *testing.T) {
-	wantAll := map[string]libInfo{
-		"java":   {lang: java, image: "gcr.io/datadoghq/dd-lib-java-init:latest"},
-		"js":     {lang: js, image: "gcr.io/datadoghq/dd-lib-js-init:latest"},
-		"python": {lang: python, image: "gcr.io/datadoghq/dd-lib-python-init:latest"},
-		"dotnet": {lang: dotnet, image: "gcr.io/datadoghq/dd-lib-dotnet-init:latest"},
-		"ruby":   {lang: ruby, image: "gcr.io/datadoghq/dd-lib-ruby-init:latest"},
-	}
-
-	require.EqualValues(t, wantAll, getAllLibsToInject("gcr.io/datadoghq"))
-}
-
 func injectAllEnvs() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
@@ -869,6 +741,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		pod                       *corev1.Pod
 		expectedEnvs              []corev1.EnvVar
 		expectedInjectedLibraries map[string]string
+		langDetectionDeployments  []mockDeployment
 		wantErr                   bool
 		setupConfig               func()
 	}{
@@ -1452,65 +1325,228 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.28.0", "python": "v2.5.1"})
 			},
 		},
-		// {
-		// 	name: "Single Step Instrumentation enabled and language detection",
-		// 	pod: fakePodWithParent(
-		// 		"ns",
-		// 		map[string]string{},
-		// 		map[string]string{},
-		// 		[]corev1.EnvVar{},
-		// 		"replicaset",
-		// 		"test-app-689695b6cc",
-		// 	),
-		// 	expectedEnvs: []corev1.EnvVar{
-		// 		{
-		// 			Name:  "DD_RUNTIME_METRICS_ENABLED",
-		// 			Value: "true",
-		// 		},
-		// 		{
-		// 			Name:  "DD_TRACE_RATE_LIMIT",
-		// 			Value: "100",
-		// 		},
-		// 		{
-		// 			Name:  "DD_TRACE_SAMPLE_RATE",
-		// 			Value: "1.00",
-		// 		},
-		// 		{
-		// 			Name:  "DD_TRACE_HEALTH_METRICS_ENABLED",
-		// 			Value: "true",
-		// 		},
-		// 		{
-		// 			Name:  "DD_LOGS_INJECTION",
-		// 			Value: "true",
-		// 		},
-		// 		{
-		// 			Name:  "DD_TRACE_ENABLED",
-		// 			Value: "true",
-		// 		},
-		// 		{
-		// 			Name:  "NODE_OPTIONS",
-		// 			Value: " --require=/datadog-lib/node_modules/dd-trace/init",
-		// 		},
-		// 		{
-		// 			Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
-		// 			Value: "k8s_single_step",
-		// 		},
-		// 		{
-		// 			Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-		// 			Value: installTime,
-		// 		},
-		// 		{
-		// 			Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-		// 			Value: uuid,
-		// 		},
-		// 	},
-		// 	expectedInjectedLibraries: map[string]string{"js": "v1.10"},
-		// 	wantErr:                   false,
-		// 	setupConfig: func() {
-		// 		mockConfig.SetWithoutSource("admission_controller.inject_auto_detected_libraries", true)
-		// 		mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-		// 	},
-		// },
+		{
+			name: "Single Step Instrumentation enabled and language detection",
+			pod: fakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset",
+				"test-app-689695b6cc",
+			),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "100",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "1.00",
+				},
+				{
+					Name:  "DD_TRACE_HEALTH_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_LOGS_INJECTION",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+				},
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+			},
+			expectedInjectedLibraries: map[string]string{"python": "latest", "java": "latest"},
+			langDetectionDeployments: []mockDeployment{
+				mockDeployment{
+					containerName:  "pod",
+					deploymentName: "test-app",
+					namespace:      "ns",
+					languages:      []languagemodels.LanguageName{languagemodels.Python, languagemodels.Java},
+				},
+			},
+			wantErr: false,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.run_language_detection", true)
+				mockConfig.SetWithoutSource("admission_controller.inject_auto_detected_libraries", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+			},
+		},
+		{
+			name: "Single Step Instrumentation with library pinned and language detection",
+			pod: fakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset",
+				"test-app-689695b6cc",
+			),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "100",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "1.00",
+				},
+				{
+					Name:  "DD_TRACE_HEALTH_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_LOGS_INJECTION",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "RUBYOPT",
+					Value: " -r/datadog-lib/auto_inject",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+			},
+			expectedInjectedLibraries: map[string]string{"ruby": "v1.2.3"},
+			langDetectionDeployments: []mockDeployment{
+				mockDeployment{
+					containerName:  "pod",
+					deploymentName: "test-app",
+					namespace:      "ns",
+					languages:      []languagemodels.LanguageName{languagemodels.Python, languagemodels.Java},
+				},
+			},
+			wantErr: false,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.run_language_detection", true)
+				mockConfig.SetWithoutSource("admission_controller.inject_auto_detected_libraries", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"ruby": "v1.2.3"})
+			},
+		},
+		{
+			name: "Library annotation, Single Step Instrumentation with library pinned and language detection",
+			pod: fakePodWithParent(
+				"ns",
+				map[string]string{"admission.datadoghq.com/js-lib.version": "v1.10"},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset",
+				"test-app-689695b6cc",
+			),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "100",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "1.00",
+				},
+				{
+					Name:  "DD_TRACE_HEALTH_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_LOGS_INJECTION",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+			},
+			expectedInjectedLibraries: map[string]string{"js": "v1.10"},
+			langDetectionDeployments: []mockDeployment{
+				mockDeployment{
+					containerName:  "pod",
+					deploymentName: "test-app",
+					namespace:      "ns",
+					languages:      []languagemodels.LanguageName{languagemodels.Python, languagemodels.Java},
+				},
+			},
+			wantErr: false,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.run_language_detection", true)
+				mockConfig.SetWithoutSource("admission_controller.inject_auto_detected_libraries", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"ruby": "v1.2.3"})
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1518,6 +1554,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}
+
+			fakeStoreWithDeployment(t, tt.langDetectionDeployments)
+
 			err := injectAutoInstrumentation(tt.pod, "", fake.NewSimpleDynamicClient(scheme))
 			require.False(t, (err != nil) != tt.wantErr)
 
