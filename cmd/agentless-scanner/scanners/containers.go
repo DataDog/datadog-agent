@@ -20,6 +20,10 @@ import (
 	"strings"
 	"time"
 
+	// used by "github.com/docker/distribution/reference"
+	_ "crypto/sha256"
+	_ "crypto/sha512"
+
 	"github.com/docker/distribution/reference"
 	digest "github.com/opencontainers/go-digest"
 
