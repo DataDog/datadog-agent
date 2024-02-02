@@ -295,7 +295,7 @@ func (p *WindowsProbe) setupEtw() error {
 					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
 						Registry: model.RegistryEvent{
 							KeyName:      dka.keyName,
-							RelativeName: cka.relativeName,
+							RelativeName: dka.relativeName,
 						},
 					}
 				}
@@ -321,8 +321,8 @@ func (p *WindowsProbe) setupEtw() error {
 					log.Infof("Got idRegSetValueKey %s", svk.string())
 					ev.Type = uint32(model.SetRegistryKeyValueEventType)
 					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
-						Registry: svk.RegistryEvent{
-							KeyName:   svk.baseName,
+						Registry: model.RegistryEvent{
+							KeyName:   svk.keyName,
 							KeyPath:   svk.computedFullPath,
 							ValueName: svk.valueName,
 						},
