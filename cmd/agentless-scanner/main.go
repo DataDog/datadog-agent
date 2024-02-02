@@ -12,20 +12,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,7 +52,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -80,7 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	// DataDog agent: metrics Statsd
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	// sqlite driver, used by github.com/knqyf263/go-rpmdb
 	_ "modernc.org/sqlite"
@@ -103,7 +99,7 @@ const (
 	defaultSnapshotsMaxTTL = 24 * time.Hour
 )
 
-var statsd *ddgostatsd.Client
+var statsd *ddogstatsd.Client
 
 var (
 	globalParams struct {
@@ -114,9 +110,6 @@ var (
 	}
 
 	cleanupMaxDuration = 2 * time.Minute
-
-	awsConfigs   = make(map[awsConfigKey]*aws.Config)
-	awsConfigsMu sync.Mutex
 )
 
 func main() {
@@ -147,16 +140,23 @@ func rootCommand() *cobra.Command {
 		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			mode, err := types.ParseDiskMode(diskModeStr)
+			var err error
+
+			initStatsdClient()
+
+			globalParams.diskMode, err = types.ParseDiskMode(diskModeStr)
 			if err != nil {
 				return err
 			}
+
 			globalParams.defaultActions, err = types.ParseScanActions(defaultActionsStr)
 			if err != nil {
 				return err
 			}
-			globalParams.diskMode = mode
-			initStatsdClient()
+
+			awsutils.InitConfig(statsd, getAWSLimitsOptions(), []string{
+				fmt.Sprintf("agent_version:%s", version.AgentVersion),
+			})
 			return nil
 		},
 	}
@@ -263,7 +263,7 @@ func snapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cfg, err := newAWSConfig(ctx, scan.ARN.Region, nil)
+			cfg, err := awsutils.GetConfig(ctx, scan.ARN.Region, nil)
 			if err != nil {
 				return err
 			}
@@ -380,7 +380,7 @@ func initStatsdClient() {
 	statsdPort := pkgconfig.Datadog.GetInt("dogstatsd_port")
 	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
 	var err error
-	statsd, err = ddgostatsd.New(statsdAddr)
+	statsd, err = ddogstatsd.New(statsdAddr)
 	if err != nil {
 		log.Warnf("could not init dogstatsd client: %s", err)
 	}
@@ -524,7 +524,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 
 	var identity *sts.GetCallerIdentityOutput
 	{
-		cfg, err := newAWSConfig(ctx, selfRegion, nil)
+		cfg, err := awsutils.GetConfig(ctx, selfRegion, nil)
 		if err != nil {
 			return err
 		}
@@ -537,7 +537,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 
 	roles := getDefaultRolesMapping()
 
-	cfg, err := newAWSConfig(ctx, selfRegion, roles[*identity.Account])
+	cfg, err := awsutils.GetConfig(ctx, selfRegion, roles[*identity.Account])
 	if err != nil {
 		return err
 	}
@@ -582,7 +582,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 			if regionName == "auto" {
 				regionName = selfRegion
 			}
-			cfg, err := newAWSConfig(ctx, regionName, roles[*identity.Account])
+			cfg, err := awsutils.GetConfig(ctx, regionName, roles[*identity.Account])
 			if err != nil {
 				if err != nil {
 					return err
@@ -672,7 +672,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 			if regionName == "auto" {
 				regionName = selfRegion
 			}
-			cfg, err := newAWSConfig(ctx, regionName, roles[*identity.Account])
+			cfg, err := awsutils.GetConfig(ctx, regionName, roles[*identity.Account])
 			if err != nil {
 				return fmt.Errorf("could not scan region %q for EBS volumes: %w", regionName, err)
 			}
@@ -742,7 +742,7 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	}
 
 	roles := getDefaultRolesMapping()
-	cfg, err := newAWSConfig(ctx, region, roles[*identity.Account])
+	cfg, err := awsutils.GetConfig(ctx, region, roles[*identity.Account])
 	if err != nil {
 		return err
 	}
@@ -768,7 +768,7 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool) error {
 	ctx := ctxTerminated()
 
-	cfg, err := newAWSConfig(ctx, resourceARN.Region, nil)
+	cfg, err := awsutils.GetConfig(ctx, resourceARN.Region, nil)
 	if err != nil {
 		return err
 	}
@@ -894,7 +894,7 @@ func newSideScanner(hostname string, workers, scannersMax int) (*sideScanner, er
 }
 
 func (s *sideScanner) cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *arn.ARN) error {
-	cfg, err := newAWSConfig(ctx, region, assumedRole)
+	cfg, err := awsutils.GetConfig(ctx, region, assumedRole)
 	if err != nil {
 		return err
 	}
@@ -1567,253 +1567,6 @@ func tagSuccess(scan *types.ScanTask) []string {
 	return append(tagScan(scan), "status:success")
 }
 
-type awsRoundtripStats struct {
-	transport *http.Transport
-	region    string
-	limits    *awsLimits
-	role      arn.ARN
-}
-
-func newHTTPClientWithAWSStats(region string, assumedRole *arn.ARN, limits *awsLimits) *http.Client {
-	rt := &awsRoundtripStats{
-		region: region,
-		limits: limits,
-		transport: &http.Transport{
-			DisableKeepAlives:   false,
-			IdleConnTimeout:     10 * time.Second,
-			MaxIdleConns:        500,
-			MaxConnsPerHost:     500,
-			MaxIdleConnsPerHost: 500,
-			TLSHandshakeTimeout: 5 * time.Second,
-		},
-	}
-	if assumedRole != nil {
-		rt.role = *assumedRole
-	}
-	return &http.Client{
-		Timeout:   10 * time.Minute,
-		Transport: rt,
-	}
-}
-
-var (
-	ebsGetBlockReg      = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/blocks/([0-9]+)$")
-	ebsListBlocksReg    = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/blocks$")
-	ebsChangedBlocksReg = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/changedblocks$")
-)
-
-func (rt *awsRoundtripStats) getAction(req *http.Request) (service, action string, error error) {
-	host := req.URL.Host
-	if strings.HasSuffix(host, ".amazonaws.com") {
-		switch {
-		// STS (sts.(region.)?amazonaws.com)
-		case strings.HasPrefix(host, "sts."):
-			return "sts", "getcalleridentity", nil
-
-		// Lambda (lambda.(region.)?amazonaws.com)
-		case strings.HasPrefix(host, "lambda."):
-			return "lambda", "getfunction", nil
-
-		case strings.HasPrefix(host, "ebs."):
-			if req.Method == http.MethodGet && ebsGetBlockReg.MatchString(req.URL.Path) {
-				return "ebs", "getblock", nil
-			}
-			if req.Method == http.MethodGet && ebsListBlocksReg.MatchString(req.URL.Path) {
-				return "ebs", "listblocks", nil
-			}
-			if req.Method == http.MethodGet && ebsChangedBlocksReg.MatchString(req.URL.Path) {
-				return "ebs", "changedblocks", nil
-			}
-			return "ebs", "unknown", nil
-
-		// EC2 (ec2.(region.)?amazonaws.com): https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Using_Endpoints.html
-		case strings.HasPrefix(host, "ec2."):
-			if req.Method == http.MethodPost && req.Body != nil {
-				defer req.Body.Close()
-				body, err := io.ReadAll(req.Body)
-				if err != nil {
-					return
-				}
-				req.Body = io.NopCloser(bytes.NewReader(body))
-				form, err := url.ParseQuery(string(body))
-				if err == nil {
-					if action := form.Get("Action"); action != "" {
-						return "ec2", strings.ToLower(action), nil
-					}
-					return "ec2", "unknown", nil
-				}
-			} else {
-				form := req.URL.Query()
-				if action := form.Get("Action"); action != "" {
-					return "ec2", strings.ToLower(action), nil
-				}
-				return "ec2", "unknown", nil
-			}
-		case strings.Contains(host, ".s3.") || strings.Contains(host, ".s3-"):
-			return "s3", "unknown", nil
-		}
-	} else if host == "169.254.169.254" {
-		return "imds", "unknown", nil
-	}
-	return "unknown", "unknown", nil
-}
-
-func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error) {
-	startTime := time.Now()
-	service, action, err := rt.getAction(req)
-	if err != nil {
-		return nil, err
-	}
-	limiter := rt.limits.getLimiter(rt.role.AccountID, rt.region, service, action)
-	throttled100 := false
-	throttled1000 := false
-	throttled5000 := false
-	if limiter != nil {
-		r := limiter.Reserve()
-		if !r.OK() {
-			panic("unexpected limiter with a zero burst")
-		}
-		if delay := r.Delay(); delay > 0 {
-			throttled100 = delay > 100*time.Millisecond
-			throttled1000 = delay > 1000*time.Millisecond
-			throttled5000 = delay > 5000*time.Millisecond
-			if !sleepCtx(req.Context(), delay) {
-				return nil, req.Context().Err()
-			}
-		}
-	}
-	tags := []string{
-		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("aws_region:%s", rt.region),
-		fmt.Sprintf("aws_assumed_role:%s", rt.role.Resource),
-		fmt.Sprintf("aws_account_id:%s", rt.role.AccountID),
-		fmt.Sprintf("aws_service:%s", service),
-		fmt.Sprintf("aws_action:%s_%s", service, action),
-		fmt.Sprintf("aws_throttled_100:%t", throttled100),
-		fmt.Sprintf("aws_throttled_1000:%t", throttled1000),
-		fmt.Sprintf("aws_throttled_5000:%t", throttled5000),
-	}
-	if err := statsd.Incr("datadog.agentless_scanner.aws.requests", tags, 1.0); err != nil {
-		log.Warnf("failed to send metric: %v", err)
-	}
-	resp, err := rt.transport.RoundTrip(req)
-	duration := float64(time.Since(startTime).Milliseconds())
-	defer func() {
-		if err := statsd.Histogram("datadog.agentless_scanner.aws.responses", duration, tags, 0.2); err != nil {
-			log.Warnf("failed to send metric: %v", err)
-		}
-	}()
-	if err != nil {
-		if err == context.Canceled {
-			tags = append(tags, "aws_statuscode:ctx_canceled")
-		} else if err == context.DeadlineExceeded {
-			tags = append(tags, "aws_statuscode:ctx_deadline_exceeded")
-		} else {
-			tags = append(tags, "aws_statuscode:unknown_error")
-		}
-		return nil, err
-	}
-
-	tags = append(tags, fmt.Sprintf("aws_statuscode:%d", resp.StatusCode))
-	if resp.StatusCode >= 400 {
-		switch {
-		case service == "ec2" && resp.Header.Get("Content-Type") == "text/xml;charset=UTF-8":
-			defer resp.Body.Close()
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return resp, err
-			}
-			resp.Body = io.NopCloser(bytes.NewReader(body))
-			var ec2Error struct {
-				XMLName   xml.Name `xml:"Response"`
-				RequestID string   `xml:"RequestID"`
-				Errors    []struct {
-					Code    string `xml:"Code"`
-					Message string `xml:"Message"`
-				} `xml:"Errors>Error"`
-			}
-			if errx := xml.Unmarshal(body, &ec2Error); errx == nil {
-				for _, errv := range ec2Error.Errors {
-					tags = append(tags, fmt.Sprintf("aws_ec2_errorcode:%s", strings.ToLower(errv.Code)))
-				}
-			}
-		case service == "ebs" && resp.Header.Get("Content-Type") == "application/json":
-			defer resp.Body.Close()
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return resp, err
-			}
-			resp.Body = io.NopCloser(bytes.NewReader(body))
-			// {"Message":"The snapshot 'snap-00000' does not exist.","Reason":"SNAPSHOT_NOT_FOUND"}
-			var ebsError struct {
-				Reason string `json:"Reason"`
-			}
-			if errx := json.Unmarshal(body, &ebsError); errx == nil {
-				tags = append(tags, fmt.Sprintf("aws_ebs_errorcode:%s", strings.ToLower(ebsError.Reason)))
-			}
-		}
-	}
-	if contentLength, err := strconv.Atoi(resp.Header.Get("Content-Length")); err == nil {
-		if err := statsd.Histogram("datadog.agentless_scanner.responses.size", float64(contentLength), tags, 0.2); err != nil {
-			log.Warnf("failed to send metric: %v", err)
-		}
-	}
-	return resp, nil
-}
-
-type awsConfigKey struct {
-	role   arn.ARN
-	region string
-}
-
-func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Config, error) {
-	awsConfigsMu.Lock()
-	defer awsConfigsMu.Unlock()
-
-	key := awsConfigKey{
-		region: region,
-	}
-	if assumedRole != nil {
-		key.role = *assumedRole
-	}
-	if cfg, ok := awsConfigs[key]; ok {
-		return *cfg, nil
-	}
-
-	limits := newAWSLimits(getAWSLimitsOptions())
-	httpClient := newHTTPClientWithAWSStats(region, assumedRole, limits)
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(region),
-		config.WithHTTPClient(httpClient),
-	)
-	if err != nil {
-		return aws.Config{}, fmt.Errorf("awsconfig: could not load default config: %w", err)
-	}
-
-	stsclient := sts.NewFromConfig(cfg)
-	if assumedRole != nil {
-		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.String())
-		cfg.Credentials = aws.NewCredentialsCache(stsassume)
-	}
-
-	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-	if err != nil {
-		return aws.Config{}, fmt.Errorf("awsconfig: could not assumerole %q: %w", assumedRole, err)
-	}
-	log.Tracef("aws config: assuming role with arn=%q", *identity.Arn)
-
-	if assumedRole == nil {
-		roleARN, err := arn.Parse(*identity.Arn)
-		if err != nil {
-			return aws.Config{}, fmt.Errorf("awsconfig: could not parse caller identity arn: %w", err)
-		}
-		cfg.HTTPClient = newHTTPClientWithAWSStats(region, &roleARN, limits)
-	}
-
-	awsConfigs[key] = &cfg
-	return cfg, nil
-}
-
 func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentityDocumentOutput, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -1835,7 +1588,7 @@ func scanEBS(ctx context.Context, scan *types.ScanTask, waiter *awsutils.Snapsho
 	defer statsd.Flush()
 
 	assumedRole := scan.Roles[scan.ARN.AccountID]
-	cfg, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
+	cfg, err := awsutils.GetConfig(ctx, scan.ARN.Region, assumedRole)
 	if err != nil {
 		return err
 	}
@@ -2044,7 +1797,7 @@ func launchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) 
 
 	case types.ScannerNameHostVulnsEBS:
 		assumedRole := opts.Scan.Roles[opts.Scan.ARN.AccountID]
-		cfg, err := newAWSConfig(ctx, opts.Scan.ARN.Region, assumedRole)
+		cfg, err := awsutils.GetConfig(ctx, opts.Scan.ARN.Region, assumedRole)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
@@ -2414,7 +2167,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *types.ScanTask, lambdaDir
 	}()
 
 	assumedRole := scan.Roles[scan.ARN.AccountID]
-	cfg, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
+	cfg, err := awsutils.GetConfig(ctx, scan.ARN.Region, assumedRole)
 	if err != nil {
 		return "", err
 	}
@@ -2556,7 +2309,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 	}
 
 	remoteAssumedRole := scan.Roles[snapshotARN.AccountID]
-	remoteAWSCfg, err := newAWSConfig(ctx, snapshotARN.Region, remoteAssumedRole)
+	remoteAWSCfg, err := awsutils.GetConfig(ctx, snapshotARN.Region, remoteAssumedRole)
 	if err != nil {
 		return err
 	}
@@ -2600,7 +2353,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 	}
 
 	localAssumedRole := scan.Roles[self.AccountID]
-	localAWSCfg, err := newAWSConfig(ctx, self.Region, localAssumedRole)
+	localAWSCfg, err := awsutils.GetConfig(ctx, self.Region, localAssumedRole)
 	if err != nil {
 		return err
 	}
@@ -2884,7 +2637,7 @@ func mountDevice(ctx context.Context, scan *types.ScanTask, partitions []deviceP
 
 func cleanupScanDetach(ctx context.Context, maybeScan *types.ScanTask, volumeARN arn.ARN, roles types.RolesMapping) error {
 	_, volumeID, _ := types.GetARNResource(volumeARN)
-	cfg, err := newAWSConfig(ctx, volumeARN.Region, roles[volumeARN.AccountID])
+	cfg, err := awsutils.GetConfig(ctx, volumeARN.Region, roles[volumeARN.AccountID])
 	if err != nil {
 		return err
 	}
@@ -3006,7 +2759,7 @@ func cleanupScan(scan *types.ScanTask) {
 			continue
 		}
 		_, snapshotID, _ := types.GetARNResource(snapshotARN)
-		cfg, err := newAWSConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
+		cfg, err := awsutils.GetConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
 		if err != nil {
 			log.Errorf("%s: %v", scan, err)
 		} else {
@@ -3142,70 +2895,13 @@ func hasResults(bom *cdx.BOM) bool {
 	return bom.Components != nil && len(*bom.Components) > 0
 }
 
-type awsLimitsOptions struct {
-	EC2Rate          rate.Limit
-	EBSListBlockRate rate.Limit
-	EBSGetBlockRate  rate.Limit
-	DefaultRate      rate.Limit
-}
-
-func getAWSLimitsOptions() awsLimitsOptions {
-	return awsLimitsOptions{
+func getAWSLimitsOptions() awsutils.LimiterOptions {
+	return awsutils.LimiterOptions{
 		EC2Rate:          rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ec2_rate")),
 		EBSListBlockRate: rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate")),
 		EBSGetBlockRate:  rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate")),
 		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
 	}
-}
-
-type awsLimits struct {
-	limitersMu sync.Mutex
-	limiters   map[string]*rate.Limiter
-	opts       awsLimitsOptions
-}
-
-func newAWSLimits(opts awsLimitsOptions) *awsLimits {
-	return &awsLimits{
-		limiters: make(map[string]*rate.Limiter),
-		opts:     opts,
-	}
-}
-
-func (l *awsLimits) getLimiter(accountID, region, service, action string) *rate.Limiter {
-	var limit rate.Limit
-	switch service {
-	case "ec2":
-		switch {
-		// reference: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/throttling.html#throttling-limits
-		case strings.HasPrefix(action, "Describe"), strings.HasPrefix(action, "Get"):
-			limit = l.opts.EC2Rate
-		default:
-			limit = l.opts.EC2Rate / 4.0
-		}
-	case "ebs":
-		switch action {
-		case "getblock":
-			limit = l.opts.EBSGetBlockRate
-		case "listblocks", "changedblocks":
-			limit = l.opts.EBSListBlockRate
-		}
-	case "s3", "imds":
-		limit = 0.0 // no rate limiting
-	default:
-		limit = l.opts.DefaultRate
-	}
-	if limit == 0.0 {
-		return nil // no rate limiting
-	}
-	key := accountID + region + service + action
-	l.limitersMu.Lock()
-	ll, ok := l.limiters[key]
-	if !ok {
-		ll = rate.NewLimiter(limit, 1)
-		l.limiters[key] = ll
-	}
-	l.limitersMu.Unlock()
-	return ll
 }
 
 func humanParseARN(s string, expectedTypes ...types.ResourceType) (arn.ARN, error) {
