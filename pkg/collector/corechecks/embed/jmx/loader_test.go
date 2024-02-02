@@ -32,7 +32,7 @@ func getFile() (string, error) {
 func TestLoadCheckConfig(t *testing.T) {
 	ctx := context.Background()
 
-	jl, err := NewJMXCheckLoader()
+	jl, err := NewJMXCheckLoader(nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, jl)
 
