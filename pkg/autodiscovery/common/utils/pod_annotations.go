@@ -41,22 +41,24 @@ func ExtractCheckNamesFromPodAnnotations(annotations map[string]string, adIdenti
 	return extractCheckNamesFromMap(annotations, prefix, legacyPrefix)
 }
 
-// ExtractTemplatesFromPodAnnotations looks for autodiscovery configurations in
+// ExtractTemplatesFromAnnotations looks for autodiscovery configurations in
 // a map of annotations and returns them if found. In order of priority, it
 // prefers annotations v2, v1, and legacy.
-func ExtractTemplatesFromPodAnnotations(entityName string, annotations map[string]string, adIdentifier string) ([]integration.Config, []error) {
+func ExtractTemplatesFromAnnotations(entityName string, annotations map[string]string, adIdentifier string) ([]integration.Config, []error) {
 	prefix := fmt.Sprintf(podAnnotationFormat, adIdentifier)
 	legacyPrefix := fmt.Sprintf(legacyPodAnnotationFormat, adIdentifier)
-	return extractTemplatesFromMapWithV2(entityName, annotations, prefix, legacyPrefix)
+	res, err := extractTemplatesFromMapWithV2(entityName, annotations, prefix, legacyPrefix)
+	return res, err
 }
 
 // parseChecksJSON parses an AD annotation v2
 // (ad.datadoghq.com/redis.checks) JSON string into []integration.Config.
 func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Config, error) {
 	var namedChecks map[string]struct {
-		Name       string          `json:"name"`
-		InitConfig json.RawMessage `json:"init_config"`
-		Instances  []interface{}   `json:"instances"`
+		Name                    string          `json:"name"`
+		InitConfig              json.RawMessage `json:"init_config"`
+		Instances               []interface{}   `json:"instances"`
+		IgnoreAutodiscoveryTags bool            `json:"ignore_autodiscovery_tags"`
 	}
 
 	err := json.Unmarshal([]byte(checksJSON), &namedChecks)
@@ -75,9 +77,10 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 		}
 
 		c := integration.Config{
-			Name:          name,
-			InitConfig:    integration.Data(config.InitConfig),
-			ADIdentifiers: []string{adIdentifier},
+			Name:                    name,
+			InitConfig:              integration.Data(config.InitConfig),
+			ADIdentifiers:           []string{adIdentifier},
+			IgnoreAutodiscoveryTags: config.IgnoreAutodiscoveryTags,
 		}
 
 		for _, i := range config.Instances {

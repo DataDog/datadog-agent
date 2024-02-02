@@ -197,7 +197,7 @@ func (z *ZookeeperConfigProvider) getTemplates(key string) []integration.Config 
 		return nil
 	}
 
-	return utils.BuildTemplates(key, checkNames, initConfigs, instances)
+	return utils.BuildTemplates(key, checkNames, initConfigs, instances, false)
 }
 
 func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {

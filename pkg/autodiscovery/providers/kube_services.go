@@ -166,7 +166,7 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 
 		serviceID := apiserver.EntityForService(svc)
 		setServiceIDs[serviceID] = struct{}{}
-		svcConf, errors := utils.ExtractTemplatesFromPodAnnotations(serviceID, svc.Annotations, kubeServiceID)
+		svcConf, errors := utils.ExtractTemplatesFromAnnotations(serviceID, svc.Annotations, kubeServiceID)
 		if len(errors) > 0 {
 			errMsgSet := make(ErrorMsgSet)
 			for _, err := range errors {
@@ -178,13 +178,10 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 			delete(k.configErrors, serviceID)
 		}
 
-		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
-
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
 			svcConf[i].Source = "kube_services:" + serviceID
-			svcConf[i].IgnoreAutodiscoveryTags = ignoreADTags
 		}
 
 		configs = append(configs, svcConf...)

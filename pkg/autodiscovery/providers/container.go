@@ -207,7 +207,7 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 			}
 
 			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
-			c, errors = utils.ExtractTemplatesFromPodAnnotations(
+			c, errors = utils.ExtractTemplatesFromAnnotations(
 				containerEntity,
 				entity.Annotations,
 				adIdentifier,

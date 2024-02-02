@@ -98,6 +98,41 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			},
 		},
 		{
+			name: "valid service annotations v2 only + ignore adv2 tags",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID("test"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.checks": `{
+							"http_check": {
+								"instances": [
+									{
+										"name": "My service",
+										"url": "http://%%host%%",
+										"timeout": 1
+									}
+								],
+								"ignore_autodiscovery_tags": true
+							}
+						}`,
+					},
+					Name:      "svc",
+					Namespace: "ns",
+				},
+			},
+			expectedOut: []integration.Config{
+				{
+					Name:                    "http_check",
+					ADIdentifiers:           []string{"kube_service://ns/svc"},
+					InitConfig:              integration.Data("{}"),
+					Instances:               []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:            true,
+					Source:                  "kube_services:kube_service://ns/svc",
+					IgnoreAutodiscoveryTags: true,
+				},
+			},
+		},
+		{
 			name: "ignore AD tags",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{

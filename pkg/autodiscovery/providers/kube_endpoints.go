@@ -239,7 +239,7 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 		endpointsID := apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
 		setEndpointIDs[endpointsID] = struct{}{}
 
-		endptConf, errors := utils.ExtractTemplatesFromPodAnnotations(endpointsID, svc.Annotations, kubeEndpointID)
+		endptConf, errors := utils.ExtractTemplatesFromAnnotations(endpointsID, svc.GetAnnotations(), kubeEndpointID)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
@@ -255,8 +255,6 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 			delete(k.configErrors, endpointsID)
 		}
 
-		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeEndpointAnnotationPrefix)
-
 		var resolveMode endpointResolveMode
 		if value, found := svc.Annotations[kubeEndpointAnnotationPrefix+kubeEndpointResolvePath]; found {
 			resolveMode = endpointResolveMode(value)
@@ -264,7 +262,6 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 
 		for i := range endptConf {
 			endptConf[i].Source = "kube_endpoints:" + endpointsID
-			endptConf[i].IgnoreAutodiscoveryTags = ignoreADTags
 			configsInfo = append(configsInfo, configInfo{
 				tpl:         endptConf[i],
 				namespace:   svc.Namespace,

@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
-func TestExtractCheckNamesFromPodAnnotations(t *testing.T) {
+func TestExtractCheckNamesFromAnnotations(t *testing.T) {
 	tests := []struct {
 		name         string
 		annotations  map[string]string
@@ -78,7 +78,7 @@ func TestExtractCheckNamesFromPodAnnotations(t *testing.T) {
 	}
 }
 
-func TestExtractTemplatesFromPodAnnotations(t *testing.T) {
+func TestExtractTemplatesFromAnnotations(t *testing.T) {
 	const adID = "docker://foobar"
 
 	tests := []struct {
@@ -108,6 +108,32 @@ func TestExtractTemplatesFromPodAnnotations(t *testing.T) {
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					InitConfig:    integration.Data("{}"),
 					ADIdentifiers: []string{adID},
+				},
+			},
+		},
+		{
+			name: "Nominal case with two templates and ignore autodiscovery tags",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.check_names":               "[\"apache\",\"http_check\"]",
+				"ad.datadoghq.com/foobar.init_configs":              "[{},{}]",
+				"ad.datadoghq.com/foobar.instances":                 "[{\"apache_status_url\":\"http://%%host%%/server-status?auto\"},{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}]",
+				"ad.datadoghq.com/foobar.ignore_autodiscovery_tags": "true",
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:                    "apache",
+					Instances:               []integration.Data{integration.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
+					InitConfig:              integration.Data("{}"),
+					ADIdentifiers:           []string{adID},
+					IgnoreAutodiscoveryTags: true,
+				},
+				{
+					Name:                    "http_check",
+					Instances:               []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					InitConfig:              integration.Data("{}"),
+					ADIdentifiers:           []string{adID},
+					IgnoreAutodiscoveryTags: true,
 				},
 			},
 		},
@@ -305,6 +331,56 @@ func TestExtractTemplatesFromPodAnnotations(t *testing.T) {
 			},
 		},
 		{
+			name: "v2 annotations with ignore_ad_tags",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.checks": `{
+					"apache": {
+						"instances": [
+							{"apache_status_url":"http://%%host%%/server-status?auto2"}
+						],
+						"ignore_autodiscovery_tags": true
+					}
+				}`,
+				"service-discovery.datadoghq.com/foobar.check_names": `["foo"]`,
+				"ad.datadoghq.com/foobar.check_names":                `["bar"]`,
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:                    "apache",
+					Instances:               []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto2"}`)},
+					InitConfig:              integration.Data("{}"),
+					ADIdentifiers:           []string{adID},
+					IgnoreAutodiscoveryTags: true,
+				},
+			},
+		},
+		{
+			name: "v2 annotations with adv1 ignore_ad_tags",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.checks": `{
+					"apache": {
+						"instances": [
+							{"apache_status_url":"http://%%host%%/server-status?auto2"}
+						]
+					}
+				}`,
+				"ad.datadoghq.com/foobar.ignore_autodiscovery_tags":  "true",
+				"service-discovery.datadoghq.com/foobar.check_names": `["foo"]`,
+				"ad.datadoghq.com/foobar.check_names":                `["bar"]`,
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:                    "apache",
+					Instances:               []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto2"}`)},
+					InitConfig:              integration.Data("{}"),
+					ADIdentifiers:           []string{adID},
+					IgnoreAutodiscoveryTags: false,
+				},
+			},
+		},
+		{
 			name: "v2 annotations with init_config",
 			annotations: map[string]string{
 				"ad.datadoghq.com/foobar.checks": `{
@@ -354,7 +430,7 @@ func TestExtractTemplatesFromPodAnnotations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configs, errs := ExtractTemplatesFromPodAnnotations(adID, tt.annotations, tt.adIdentifier)
+			configs, errs := ExtractTemplatesFromAnnotations(adID, tt.annotations, tt.adIdentifier)
 			assert.ElementsMatch(t, tt.output, configs)
 			assert.ElementsMatch(t, tt.errs, errs)
 		})
