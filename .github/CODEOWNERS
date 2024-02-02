@@ -502,6 +502,7 @@
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing
 /test/new-e2e/                                @DataDog/agent-e2e-testing
+/test/new-e2e/test-infra-definition           @DataDog/agent-platform
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
