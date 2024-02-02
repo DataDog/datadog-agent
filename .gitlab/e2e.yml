@@ -172,7 +172,8 @@ new-e2e-agent-shared-components-main:
       - EXTRA_PARAMS: --run TestAgentConfigSuite
       - EXTRA_PARAMS: --run TestAgentHostnameEC2Suite
       - EXTRA_PARAMS: --run TestAgentDiagnoseEC2Suite
-      - EXTRA_PARAMS: --run TestAgentConfigCheckSuite
+      - EXTRA_PARAMS: --run TestLinuxConfigCheckSuite
+      - EXTRA_PARAMS: --run TestWindowsConfigCheckSuite
       - EXTRA_PARAMS: --run TestLinuxFlareSuite
       - EXTRA_PARAMS: --run TestWindowsFlareSuite
       - EXTRA_PARAMS: --run TestLinuxSecretSuite
