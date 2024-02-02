@@ -56,7 +56,7 @@ func NewRCPolicyProvider() (*RCPolicyProvider, error) {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(config.Datadog) },
 		client.WithAgent(agentName, agentVersion.String()),
 		client.WithProducts([]data.Product{data.ProductCWSDD, data.ProductCWSCustom}),
 		client.WithPollInterval(securityAgentRCPollInterval),

@@ -248,7 +248,7 @@ func cmdDiagnose(cliParams *cliParams,
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
 func printPayload(name payloadName, _ log.Component, config config.Component) error {
-	if err := util.SetAuthToken(); err != nil {
+	if err := util.SetAuthToken(config); err != nil {
 		fmt.Println(err)
 		return nil
 	}

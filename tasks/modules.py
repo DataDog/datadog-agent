@@ -176,6 +176,7 @@ DEFAULT_MODULES = {
     ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
+    "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True),
     "pkg/config/setup": GoModule("pkg/config/setup", independent=True),

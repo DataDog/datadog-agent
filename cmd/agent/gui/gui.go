@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -102,7 +103,7 @@ func StartGUIServer(port string, flare flare.Component, statusComponent status.C
 	}
 
 	// Fetch the authentication token (persists across sessions)
-	authToken, e = security.FetchAuthToken()
+	authToken, e = security.FetchAuthToken(pkgconfig.Datadog)
 	if e != nil {
 		listener.Close()
 		listener = nil

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -176,5 +177,5 @@ func newConfigFetcher() (rc.ConfigUpdater, error) {
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, coreconfig.GetIPCPort(), security.FetchAuthToken)
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, coreconfig.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(pkgconfig.Datadog) })
 }

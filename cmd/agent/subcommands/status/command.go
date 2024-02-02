@@ -228,7 +228,7 @@ func makeRequest(url string) ([]byte, error) {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(pkgconfig.Datadog)
 	if e != nil {
 		return nil, e
 	}

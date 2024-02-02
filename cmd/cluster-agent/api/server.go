@@ -73,10 +73,10 @@ func StartServer(w workloadmeta.Component, taggerComp tagger.Component, senderMa
 		return fmt.Errorf("unable to create the api server: %v", err)
 	}
 	// Internal token
-	util.CreateAndSetAuthToken() //nolint:errcheck
+	util.CreateAndSetAuthToken(config.Datadog) //nolint:errcheck
 
 	// DCA client token
-	util.InitDCAAuthToken() //nolint:errcheck
+	util.InitDCAAuthToken(config.Datadog) //nolint:errcheck
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}

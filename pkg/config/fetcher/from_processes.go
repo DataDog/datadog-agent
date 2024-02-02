@@ -16,7 +16,7 @@ import (
 
 // FetchSecurityAgentConfig fetch the configuration from the security-agent process by querying its HTTPS API
 func FetchSecurityAgentConfig(config config.Reader) (string, error) {
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
 	}

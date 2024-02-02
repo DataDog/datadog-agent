@@ -469,7 +469,7 @@ func startAgent(
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 	healthPort := pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, healthPort)
+		err := healthprobe.Serve(ctx, pkgconfig.Datadog, healthPort)
 		if err != nil {
 			return log.Errorf("Error starting health port, exiting: %v", err)
 		}

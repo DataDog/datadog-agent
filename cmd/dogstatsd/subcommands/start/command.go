@@ -258,7 +258,7 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	// Setup healthcheck port
 	var healthPort = config.GetInt("health_port")
 	if healthPort > 0 {
-		err = healthprobe.Serve(ctx, healthPort)
+		err = healthprobe.Serve(ctx, pkgconfig.Datadog, healthPort)
 		if err != nil {
 			err = log.Errorf("Error starting health port, exiting: %v", err)
 			return
