@@ -445,14 +445,13 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dic
 
 
 @task(iterable=['variable'])
-def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True, variable=None):
+def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True):
     """
     Trigger a child pipeline on a target repository and git ref.
     Used in CI jobs only (requires CI_JOB_TOKEN).
 
-    Use --variables to specify the environment variables that should be passed to the child pipeline
-    Alternatively you can use multiple --variable (singular) to pass multiple variables.
-    Both ways can be used together.
+    Use --variable to specify the environment variables that should be passed to the child pipeline.
+    You can pass the argument multiple times for each new variable you wish to forward
 
     Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
 
@@ -478,25 +477,20 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True, 
     data = {"token": os.environ['CI_JOB_TOKEN'], "ref": git_ref, "variables": {}}
 
     # Fill the environment variables to pass to the child pipeline.
-    def handle_variable(v):
-        # An empty string or a terminal ',' will yield an empty string which
-        # we don't need to bother with
-        if not v:
-            return
-        if v not in os.environ:
-            print(
-                color_message(
-                    f"WARNING: attempting to pass undefined variable \"{v}\" to downstream pipeline", "orange"
-                )
-            )
-            return
-        data['variables'][v] = os.environ[v]
-
-    for v in variables.split(','):
-        handle_variable(v)
     if variable:
         for v in variable:
-            handle_variable(v)
+            # An empty string or a terminal ',' will yield an empty string which
+            # we don't need to bother with
+            if not v:
+                continue
+            if v not in os.environ:
+                print(
+                    color_message(
+                        f"WARNING: attempting to pass undefined variable \"{v}\" to downstream pipeline", "orange"
+                    )
+                )
+                continue
+            data['variables'][v] = os.environ[v]
 
     print(
         f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}",
