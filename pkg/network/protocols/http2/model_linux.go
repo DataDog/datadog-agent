@@ -13,6 +13,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/http2/hpack"
 
@@ -23,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
 
 // validatePath validates the given path.
 func validatePath(str string) error {
@@ -77,18 +80,24 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 	if tx.Stream.Is_huffman_encoded {
 		res, err = decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
 		if err != nil {
-			log.Errorf("unable to decode HTTP2 path due to: %s", err)
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
+			}
 			return nil, false
 		}
 	} else {
 		if err = validatePathSize(tx.Stream.Path_size); err != nil {
-			log.Errorf("path size is invalid due to: %s", err)
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
+			}
 			return nil, false
 		}
 
 		res = tx.Stream.Request_path[:tx.Stream.Path_size]
 		if err = validatePath(string(res)); err != nil {
-			log.Errorf("path is invalid due to: %s", err)
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("path %s is invalid due to: %s", string(res), err)
+			}
 			return nil, false
 		}
 
@@ -137,27 +146,55 @@ func (tx *EbpfTx) Method() http.Method {
 	}
 }
 
-// StatusCode returns the HTTP status code of the transaction.
+// StatusCode returns the status code of the transaction.
+// If the status code is indexed, then we return the corresponding value.
+// Otherwise, f the status code is huffman encoded, then we decode it and convert it from string to int.
+// Otherwise, we convert the status code from byte array to int.
 func (tx *EbpfTx) StatusCode() uint16 {
-	switch tx.Stream.Response_status_code {
-	case uint16(K200Value):
-		return 200
-	case uint16(K204Value):
-		return 204
-	case uint16(K206Value):
-		return 206
-	case uint16(K400Value):
-		return 400
-	case uint16(K500Value):
-		return 500
-	default:
+	if tx.Stream.Status_code.Indexed_value != 0 {
+		switch tx.Stream.Status_code.Indexed_value {
+		case K200Value:
+			return 200
+		case K204Value:
+			return 204
+		case K206Value:
+			return 206
+		case K400Value:
+			return 400
+		case K500Value:
+			return 500
+		default:
+			return 0
+		}
+	}
+
+	if tx.Stream.Status_code.Is_huffman_encoded {
+		// The final form of the status code is 3 characters.
+		statusCode, err := hpack.HuffmanDecodeToString(tx.Stream.Status_code.Raw_buffer[:2])
+		if err != nil {
+			return 0
+		}
+		code, err := strconv.Atoi(statusCode)
+		if err != nil {
+			return 0
+		}
+		return uint16(code)
+	}
+
+	code, err := strconv.Atoi(string(tx.Stream.Status_code.Raw_buffer[:]))
+	if err != nil {
 		return 0
 	}
+	return uint16(code)
 }
 
 // SetStatusCode sets the HTTP status code of the transaction.
 func (tx *EbpfTx) SetStatusCode(code uint16) {
-	tx.Stream.Response_status_code = code
+	val := strconv.Itoa(int(code))
+	if len(val) > http2RawStatusCodeMaxLength {
+		return
+	}
+	copy(tx.Stream.Status_code.Raw_buffer[:], val)
 }
 
 // ResponseLastSeen returns the last seen response.
@@ -282,7 +319,7 @@ func (t http2StreamKey) String() string {
 }
 
 // String returns a string representation of the http2 dynamic table.
-func (t http2DynamicTableEntry) String() string {
+func (t HTTP2DynamicTableEntry) String() string {
 	if t.String_len == 0 {
 		return ""
 	}

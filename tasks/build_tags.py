@@ -10,7 +10,7 @@ from typing import List
 
 from invoke import task
 
-from .flavor import AgentFlavor
+from tasks.flavor import AgentFlavor
 
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.

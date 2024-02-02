@@ -47,7 +47,7 @@ func (c *Check) dataGuard() error {
 		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
 	var stats []dataguardStats
-	err = selectWrapper(c, &stats, `SELECT name, EXTRACT(DAY from TO_DSINTERVAL(value)*86400) value 
+	err = selectWrapper(c, &stats, `SELECT name, EXTRACT(DAY from TO_DSINTERVAL(value)*86400) value
 	FROM v$dataguard_stats WHERE name IN ('apply lag','transport lag')`)
 	if err != nil {
 		return fmt.Errorf("failed to query data guard statistics %w", err)
@@ -59,7 +59,7 @@ func (c *Check) dataGuard() error {
 		} else {
 			v = invalidLagValue
 		}
-		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, strings.ReplaceAll(string(s.Name), " ", "_")), v, "", c.tags)
+		sendMetricWithDefaultTags(c, gauge, fmt.Sprintf("%s.data_guard.%s", common.IntegrationName, strings.ReplaceAll(string(s.Name), " ", "_")), v)
 	}
 	sender.Commit()
 	return nil

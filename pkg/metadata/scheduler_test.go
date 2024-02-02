@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -27,8 +26,7 @@ type MockCollector struct {
 	SendCalledC chan bool
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func (c MockCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
+func (c MockCollector) Send(_ context.Context, _ serializer.MetricSerializer) error {
 	c.SendCalledC <- true
 	return nil
 }
@@ -37,8 +35,7 @@ type MockCollectorWithInit struct {
 	InitCalledC chan bool
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func (c MockCollectorWithInit) Send(ctx context.Context, s serializer.MetricSerializer) error {
+func (c MockCollectorWithInit) Send(_ context.Context, _ serializer.MetricSerializer) error {
 	return nil
 }
 
@@ -51,8 +48,7 @@ type mockCollectorWithFirstRun struct {
 	sendCalledC chan bool
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func (c mockCollectorWithFirstRun) Send(ctx context.Context, s serializer.MetricSerializer) error {
+func (c mockCollectorWithFirstRun) Send(_ context.Context, _ serializer.MetricSerializer) error {
 	c.sendCalledC <- true
 	return nil
 }
@@ -61,8 +57,7 @@ func (c mockCollectorWithFirstRun) FirstRunInterval() time.Duration {
 	return 2 * time.Second
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func mockNewTimer(d time.Duration) *time.Timer {
+func mockNewTimer(_ time.Duration) *time.Timer {
 	c := make(chan time.Time, 1)
 	timer := time.NewTimer(10 * time.Hour)
 	timer.C = c
@@ -70,8 +65,7 @@ func mockNewTimer(d time.Duration) *time.Timer {
 	return timer
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func mockNewTimerNoTick(d time.Duration) *time.Timer {
+func mockNewTimerNoTick(_ time.Duration) *time.Timer {
 	return time.NewTimer(10 * time.Hour)
 }
 
@@ -229,11 +223,9 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 
 type deps struct {
 	fx.In
-	Demultiplexer demultiplexer.Component
+	Demultiplexer demultiplexer.Mock
 }
 
 func buildDeps(t *testing.T) deps {
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.DontStartForwarders = true
 	return fxutil.Test[deps](t, defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule(), demultiplexerimpl.MockModule())
 }

@@ -26,6 +26,7 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 func makeLeaderLease(name, namespace, leaderIdentity string, leaseDuration int) *coordinationv1.Lease {
@@ -327,7 +328,8 @@ func TestGetLeaderIPFollower_ConfigMap(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "1.1.1.2", ip)
 
-	// Remove bar from endpoints
+	// Remove bar from endpoints and clear cache
+	cache.Cache.Delete("ip://bar")
 	storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
 	_, err = client.CoreV1().Endpoints("default").Update(context.TODO(), storedEndpoints, metav1.UpdateOptions{})
 	require.NoError(t, err)
@@ -410,7 +412,8 @@ func TestGetLeaderIPFollower_Lease(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "1.1.1.2", ip)
 
-	// Remove bar from endpoints
+	// Remove bar from endpoints and clear the cache
+	cache.Cache.Delete("ip://bar")
 	storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
 	_, err = client.CoreV1().Endpoints("default").Update(context.TODO(), storedEndpoints, metav1.UpdateOptions{})
 	require.NoError(t, err)
@@ -423,26 +426,27 @@ func TestGetLeaderIPFollower_Lease(t *testing.T) {
 
 type dummyGauge struct{}
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (g *dummyGauge) Set(value float64, tagsValue ...string) {}
+// Set does nothing
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (g *dummyGauge) Inc(tagsValue ...string) {}
+func (g *dummyGauge) Set(_ float64, _ ...string) {}
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (g *dummyGauge) Dec(tagsValue ...string) {}
+// Inc does nothing
+func (g *dummyGauge) Inc(_ ...string) {}
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (g *dummyGauge) Add(value float64, tagsValue ...string) {}
+// Dec does nothing
+func (g *dummyGauge) Dec(_ ...string) {}
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (g *dummyGauge) Sub(value float64, tagsValue ...string) {}
+// Add does nothing
+func (g *dummyGauge) Add(_ float64, _ ...string) {}
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (g *dummyGauge) Delete(tagsValue ...string) {}
+// Sub does nothing
+func (g *dummyGauge) Sub(_ float64, _ ...string) {}
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (g *dummyGauge) WithValues(tagsValue ...string) telemetryComponent.SimpleGauge { return nil }
+// Delete does nothing
+func (g *dummyGauge) Delete(_ ...string) {}
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (g *dummyGauge) WithTags(tags map[string]string) telemetryComponent.SimpleGauge { return nil }
+// WithValues does nothing
+func (g *dummyGauge) WithValues(_ ...string) telemetryComponent.SimpleGauge { return nil }
+
+// WithTags does nothing
+func (g *dummyGauge) WithTags(_ map[string]string) telemetryComponent.SimpleGauge { return nil }

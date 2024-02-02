@@ -59,6 +59,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -96,7 +98,7 @@ type InventoryPayload struct {
 	LastCollect   time.Time
 	MinInterval   time.Duration
 	MaxInterval   time.Duration
-	ForceRefresh  bool
+	forceRefresh  atomic.Bool
 	FlareFileName string
 }
 
@@ -147,11 +149,11 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 
 	// Collect will be called every MinInterval second. We send a new payload if a refresh was trigger or if it's
 	// been at least MaxInterval seconds since the last payload.
-	if !i.ForceRefresh && i.MaxInterval-timeSince(i.LastCollect) > 0 {
+	if !i.forceRefresh.Load() && i.MaxInterval-timeSince(i.LastCollect) > 0 {
 		return i.MinInterval
 	}
 
-	i.ForceRefresh = false
+	i.forceRefresh.Store(false)
 	i.LastCollect = time.Now()
 
 	p := i.getPayload()
@@ -167,13 +169,18 @@ func (i *InventoryPayload) Refresh() {
 		return
 	}
 
-	i.m.Lock()
-	defer i.m.Unlock()
-
 	// For a refresh we want to resend a new payload as soon as possible but still respect MinInterval second
-	// since the last update. The Refresh method set ForceRefresh to true which will trigger a new payload when
+	// since the last update. The Refresh method set forceRefresh to true which will trigger a new payload when
 	// Collect is called every MinInterval.
-	i.ForceRefresh = true
+	i.forceRefresh.Store(true)
+}
+
+// RefreshTriggered returns true if a refresh was trigger but not yet done.
+func (i *InventoryPayload) RefreshTriggered() bool {
+	if !i.Enabled {
+		return false
+	}
+	return i.forceRefresh.Load()
 }
 
 // GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.

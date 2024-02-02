@@ -7,6 +7,8 @@ on:
       - 'pkg/serverless/**'
       - 'test/integration/serverless/**'
       - '.github/workflows/serverless-integration.yml'
+  schedule:
+    - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
 
 jobs:
   test:
@@ -19,7 +21,7 @@ jobs:
     name: ${{ matrix.suite }} on ${{ matrix.architecture }}
     steps:
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: go/src/github.com/DataDog/datadog-agent
 
@@ -32,7 +34,7 @@ jobs:
         run: sudo yarn global add serverless@^3.36.0 --prefix /usr/local
 
       - name: Checkout the datadog-lambda-extension repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: DataDog/datadog-lambda-extension
           path: go/src/github.com/DataDog/datadog-lambda-extension

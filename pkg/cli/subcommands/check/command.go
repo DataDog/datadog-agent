@@ -35,8 +35,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -49,19 +54,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -143,11 +149,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:            logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 
+				// workloadmeta setup
+				collectors.GetCatalog(),
+				fx.Provide(defaults.DefaultParams),
 				workloadmeta.Module(),
 				apiimpl.Module(),
-				fx.Supply(workloadmeta.NewParams()),
 				fx.Supply(context.Background()),
-
+				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
+				tagger.Module(),
 				forwarder.Bundle(),
 				inventorychecksimpl.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
@@ -166,11 +175,19 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-					opts := aggregator.DefaultAgentDemultiplexerOptions()
-					opts.FlushInterval = 0
-					opts.UseNoopEventPlatformForwarder = true
-					return demultiplexerimpl.Params{Options: opts}
+					params := demultiplexerimpl.NewDefaultParams()
+					params.FlushInterval = 0
+					params.UseNoopEventPlatformForwarder = true
+					return params
 				}),
+
+				fx.Supply(
+					status.Params{
+						PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+					},
+					status.NewInformationProvider(statuscollector.Provider{}),
+				),
+				statusimpl.Module(),
 
 				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
@@ -182,6 +199,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() host.Component { return nil }),
 				fx.Provide(func() inventoryagent.Component { return nil }),
 				fx.Provide(func() inventoryhost.Component { return nil }),
+				fx.Provide(func() packagesigning.Component { return nil }),
 			)
 		},
 	}
@@ -227,9 +245,11 @@ func run(
 	cliParams *cliParams,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
+	statusComponent status.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -254,8 +274,9 @@ func run(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
+	commonchecks.RegisterChecks(wmeta)
 
-	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(demultiplexer, secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
@@ -284,11 +305,11 @@ func run(
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer, agentAPI); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, demultiplexer, agentAPI); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer, agentAPI); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, demultiplexer, agentAPI); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}
@@ -424,12 +445,35 @@ func run(
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
 	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
-	collectorData := statuscollector.GetStatusInfo()
+	data, err := statusComponent.GetStatusBySection(status.CollectorSection, "json", false)
+
+	if err != nil {
+		return err
+	}
+
+	collectorData := map[string]interface{}{}
+	err = json.Unmarshal(data, &collectorData)
+
+	if err != nil {
+		return err
+	}
+
 	checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
-		checkMap := make(map[checkid.ID]*stats.Stats)
-		checkMap[c.ID()] = s
+		resultBytes, err := json.Marshal(s)
+		if err != nil {
+			return err
+		}
+
+		var checkResult map[string]interface{}
+		err = json.Unmarshal(resultBytes, &checkResult)
+		if err != nil {
+			return err
+		}
+
+		checkMap := make(map[string]interface{})
+		checkMap[string(c.ID())] = checkResult
 		checkRuns[c.String()] = checkMap
 
 		// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
@@ -506,9 +550,16 @@ func run(
 				checkFileOutput.WriteString(data + "\n")
 			}
 
-			statusJSON, _ := json.Marshal(collectorData)
-			checkStatus, _ := render.FormatCheckStats(statusJSON)
-			p(checkStatus)
+			// workaround for this one use case of the status component
+			// we want to render the collector text format with custom data
+			collectorProvider := statuscollector.Provider{}
+			buffer := new(bytes.Buffer)
+			err := collectorProvider.TextWithData(buffer, collectorData)
+			if err != nil {
+				return err
+			}
+
+			p(buffer.String())
 
 			p("  Metadata\n  ========")
 
@@ -558,8 +609,7 @@ func run(
 	return nil
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *stats.Stats {
+func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *stats.Stats {
 	s := stats.NewStats(c)
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause

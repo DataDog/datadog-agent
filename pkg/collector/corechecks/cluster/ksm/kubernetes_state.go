@@ -21,6 +21,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	//nolint:revive // TODO(CINT) Fix revive linter
@@ -33,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"golang.org/x/exp/maps"
 
 	"gopkg.in/yaml.v2"
@@ -45,8 +47,9 @@ import (
 )
 
 const (
-	kubeStateMetricsCheckName = "kubernetes_state_core"
-	maximumWaitForAPIServer   = 10 * time.Second
+	// CheckName is the name of the check
+	CheckName               = "kubernetes_state_core"
+	maximumWaitForAPIServer = 10 * time.Second
 
 	// createdByKindKey represents the KSM label key created_by_kind
 	createdByKindKey = "created_by_kind"
@@ -194,10 +197,6 @@ var labelRegexp *regexp.Regexp
 
 func init() {
 	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
-}
-
-func init() {
-	core.RegisterCheck(kubeStateMetricsCheckName, KubeStateMetricsFactory)
 }
 
 // Configure prepares the configuration of the KSM check instance
@@ -703,6 +702,12 @@ func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
 	if k.instance.AnnotationsAsTags == nil {
 		k.instance.AnnotationsAsTags = make(map[string]map[string]string)
 	}
+	// In the case of a misconfiguration issue, the value could be explicitly set to nil
+	for resource, mapping := range k.instance.AnnotationsAsTags {
+		if mapping == nil {
+			delete(k.instance.AnnotationsAsTags, resource)
+		}
+	}
 	for resource, mapping := range extra {
 		_, found := k.instance.AnnotationsAsTags[resource]
 		if !found {
@@ -831,10 +836,14 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	}
 }
 
-// KubeStateMetricsFactory returns a new KSMCheck
-func KubeStateMetricsFactory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return newKSMCheck(
-		core.NewCheckBase(kubeStateMetricsCheckName),
+		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: make(map[string]string),
 			LabelJoins:   make(map[string]*JoinsConfigWithoutLabelsMapping),
@@ -845,7 +854,7 @@ func KubeStateMetricsFactory() check.Check {
 // KubeStateMetricsFactoryWithParam is used only by test/benchmarks/kubernetes_state
 func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins map[string]*JoinsConfigWithoutLabelsMapping, allStores [][]cache.Store) *KSMCheck {
 	check := newKSMCheck(
-		core.NewCheckBase(kubeStateMetricsCheckName),
+		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: labelsMapper,
 			LabelJoins:   labelJoins,

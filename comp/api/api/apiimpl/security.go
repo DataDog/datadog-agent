@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -22,6 +24,7 @@ import (
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := util.Validate(w, r); err != nil {
+			log.Warnf("invalid auth token for %s request to %s: %s", r.Method, r.RequestURI, err)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -59,7 +62,10 @@ func buildSelfSignedKeyPair(additionalHostIdentities ...string) ([]byte, []byte)
 }
 
 func initializeTLS(additionalHostIdentities ...string) (*tls.Certificate, *x509.CertPool, error) {
-	log.Info("Initializing TLS certificates")
+	// print the caller to identify what is calling this function
+	if _, file, line, ok := runtime.Caller(1); ok {
+		log.Infof("[%s:%d] Initializing TLS certificates for hosts %v", file, line, strings.Join(additionalHostIdentities, ", "))
+	}
 
 	cert, key := buildSelfSignedKeyPair(additionalHostIdentities...)
 	if cert == nil {

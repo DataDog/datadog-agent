@@ -1,0 +1,118 @@
+{{- with .pythonInit -}}
+  {{- if .Errors }}
+  Error initializing Python
+  =========================
+    {{ range $err := .Errors -}}
+    - {{ $err }}
+    {{ end }}
+  {{- end -}}
+{{- end }}
+
+  Running Checks
+  ==============
+{{- with .runnerStats }}
+  {{- if and (not .Runs) (not .Checks)}}
+    No checks have run yet
+  {{end -}}
+
+  {{- range $CheckName, $CheckInstances := .Checks}}
+    {{ $version := version $CheckInstances }}
+    {{$CheckName}}{{ if $version }} ({{$version}}){{ end }}
+    {{printDashes $CheckName "-"}}{{- if $version }}{{printDashes $version "-"}}---{{ end }}
+    {{- range $instance := $CheckInstances }}
+      Instance ID: {{.CheckID}} {{status .}}
+      Configuration Source: {{.CheckConfigSource}}
+      Total Runs: {{humanize .TotalRuns}}
+      Metric Samples: Last Run: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
+      Events: Last Run: {{humanize .Events}}, Total: {{humanize .TotalEvents}}
+      {{- range $k, $v := .TotalEventPlatformEvents }}
+      {{ $k }}: Last Run: {{humanize (index $instance.EventPlatformEvents $k) }}, Total: {{humanize $v}}
+      {{- end }}
+      Service Checks: Last Run: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
+      {{- if .TotalHistogramBuckets}}
+      Histogram Buckets: Last Run: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}
+      {{- end }}
+      Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
+      Last Execution Date : {{formatUnixTime .UpdateTimestamp}}
+      Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
+      {{- if $.inventories }}
+      {{- if index $.inventories .CheckID }}
+      metadata:
+      {{- range $k, $v := index $.inventories .CheckID }}
+        {{ $k }}: {{ $v }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{if .LastError -}}
+      Error: {{lastErrorMessage .LastError}}
+      {{lastErrorTraceback .LastError -}}
+      {{- end }}
+      {{- if .LastWarnings -}}
+        {{- range .LastWarnings }}
+      Warning: {{.}}
+        {{ end -}}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- with .pyLoaderStats }}
+  {{- if .Py3Warnings }}
+  Python 3 Linter Warnings
+  =======================
+    {{- range $CheckName, $warnings :=  .Py3Warnings }}
+      {{ $CheckName }}
+      {{printDashes $CheckName "-"}}
+      {{- range $idx, $warning := $warnings}}
+        {{$warning}}
+      {{- end }}
+    {{end}}
+  {{- end }}
+  {{- if .ConfigureErrors }}
+  Check Initialization Errors
+  ===========================
+
+    {{ range $CheckName, $errors :=  .ConfigureErrors }}
+      {{ $CheckName }}
+      {{printDashes $CheckName "-"}}
+      {{- range $idx, $err := $errors}}
+
+      instance {{$idx}}:
+
+        {{$err}}
+      {{- end }}
+    {{- end}}
+  {{- end }}
+{{- end }}
+
+{{- with .autoConfigStats }}
+  {{- if .ConfigErrors}}
+  Config Errors
+  ==============
+    {{- range $checkname, $error := .ConfigErrors }}
+    {{$checkname}}
+    {{printDashes $checkname "-"}}
+      {{$error}}
+    {{- end }}
+  {{- end}}
+{{- end }}
+
+{{- with .checkSchedulerStats }}
+  {{- if .LoaderErrors}}
+  Loading Errors
+  ==============
+    {{- range $checkname, $errors := .LoaderErrors }}
+    {{$checkname}}
+    {{printDashes $checkname "-"}}
+      {{- range $kind, $err := $errors -}}
+        {{- if eq $kind "Python Check Loader" }}
+      {{$kind}}:
+        {{$err}}
+        {{ else }}
+      {{$kind}}:
+        {{$err}}
+        {{ end }}
+      {{- end }}
+    {{- end }}
+  {{- end}}
+{{- end }}

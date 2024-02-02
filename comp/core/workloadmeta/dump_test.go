@@ -25,7 +25,7 @@ func TestDump(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 
 	container := &Container{
 		EntityID: EntityID{
@@ -38,7 +38,8 @@ func TestDump(t *testing.T) {
 		Image: ContainerImage{
 			Name: "ctr-image",
 		},
-		Runtime: ContainerRuntimeDocker,
+		Runtime:       ContainerRuntimeDocker,
+		RuntimeFlavor: ContainerRuntimeFlavorKata,
 		EnvVars: map[string]string{
 			"DD_SERVICE":  "my-svc",
 			"DD_ENV":      "prod",
@@ -89,6 +90,7 @@ Name: ctr-image
 Tag: latest
 ----------- Container Info -----------
 Runtime: docker
+RuntimeFlavor: kata
 Running: false
 ----------- Resources -----------
 `,
@@ -119,6 +121,7 @@ Raw Name:
 Short Name: 
 ----------- Container Info -----------
 Runtime: docker
+RuntimeFlavor: kata
 Running: false
 Status: 
 Health: 
@@ -146,6 +149,7 @@ Raw Name:
 Short Name: 
 ----------- Container Info -----------
 Runtime: 
+RuntimeFlavor: 
 Running: false
 Status: 
 Health: 
@@ -173,6 +177,7 @@ Raw Name:
 Short Name: 
 ----------- Container Info -----------
 Runtime: docker
+RuntimeFlavor: kata
 Running: false
 Status: 
 Health: 

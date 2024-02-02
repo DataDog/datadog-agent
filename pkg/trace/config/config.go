@@ -15,6 +15,8 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -72,6 +74,9 @@ type OTLP struct {
 	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
 	// decision is followed.
 	ProbabilisticSampling float64
+
+	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
+	AttributesTranslator *attributes.Translator `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -433,6 +438,9 @@ type AgentConfig struct {
 
 	// Install Signature
 	InstallSignature InstallSignatureConfig
+
+	// Lambda function name
+	LambdaFunctionName string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -493,7 +501,8 @@ func New() *AgentConfig {
 		StatsdPort:    8125,
 		StatsdEnabled: true,
 
-		LogThrottling: true,
+		LogThrottling:      true,
+		LambdaFunctionName: os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%

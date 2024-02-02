@@ -19,8 +19,8 @@ func newBundledPolicyRules(cfg *config.RuntimeSecurityConfig) []*rules.RuleDefin
 	return []*rules.RuleDefinition{{
 		ID:         events.RefreshUserCacheRuleID,
 		Expression: `rename.file.destination.path in [ "/etc/passwd", "/etc/group" ]`,
-		Actions: []rules.ActionDefinition{{
-			InternalCallbackDefinition: &rules.InternalCallbackDefinition{},
+		Actions: []*rules.ActionDefinition{{
+			InternalCallback: &rules.InternalCallbackDefinition{},
 		}},
 		Silent: true,
 	}}

@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -24,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -47,6 +50,8 @@ type apiServer struct {
 	invHost         inventoryhost.Component
 	secretResolver  secrets.Component
 	invChecks       inventorychecks.Component
+	pkgSigning      packagesigning.Component
+	statusComponent status.Component
 }
 
 type dependencies struct {
@@ -62,6 +67,8 @@ type dependencies struct {
 	InvHost         inventoryhost.Component
 	SecretResolver  secrets.Component
 	InvChecks       inventorychecks.Component
+	PkgSigning      packagesigning.Component
+	StatusComponent status.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -78,6 +85,8 @@ func newAPIServer(deps dependencies) api.Component {
 		invHost:         deps.InvHost,
 		secretResolver:  deps.SecretResolver,
 		invChecks:       deps.InvChecks,
+		pkgSigning:      deps.PkgSigning,
+		statusComponent: deps.StatusComponent,
 	}
 }
 
@@ -85,6 +94,7 @@ func newAPIServer(deps dependencies) api.Component {
 func (server *apiServer) StartServer(
 	configService *remoteconfig.Service,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 ) error {
@@ -94,6 +104,7 @@ func (server *apiServer) StartServer(
 		server.capture,
 		server.serverDebug,
 		wmeta,
+		taggerComp,
 		logsAgent,
 		senderManager,
 		server.hostMetadata,
@@ -102,6 +113,8 @@ func (server *apiServer) StartServer(
 		server.invHost,
 		server.secretResolver,
 		server.invChecks,
+		server.pkgSigning,
+		server.statusComponent,
 	)
 }
 

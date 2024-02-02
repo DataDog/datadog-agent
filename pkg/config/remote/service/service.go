@@ -94,6 +94,7 @@ type Service struct {
 
 	clock         clock.Clock
 	hostname      string
+	tags          []string
 	traceAgentEnv string
 	db            *bbolt.DB
 	uptane        uptaneClient
@@ -115,6 +116,8 @@ type Service struct {
 
 	// Previous /status response
 	previousOrgStatus *pbgo.OrgStatusResponse
+
+	agentVersion string
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -152,7 +155,7 @@ func WithTraceAgentEnv(env string) func(s *Service) {
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetryReporter RcTelemetryReporter, opts ...func(s *Service)) (*Service, error) {
+func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...func(s *Service)) (*Service, error) {
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 
 	var refreshInterval time.Duration
@@ -213,7 +216,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetry
 	}
 
 	dbPath := path.Join(cfg.GetString("run_path"), "remote-config.db")
-	db, err := openCacheDB(dbPath)
+	db, err := openCacheDB(dbPath, agentVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -265,6 +268,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetry
 		products:                       make(map[rdata.Product]struct{}),
 		newProducts:                    make(map[rdata.Product]struct{}),
 		hostname:                       hostname,
+		tags:                           tags,
 		clock:                          clock,
 		db:                             db,
 		api:                            http,
@@ -282,6 +286,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetry
 			allowance:      clientsCacheBypassLimit,
 		},
 		telemetryReporter: telemetryReporter,
+		agentVersion:      agentVersion,
 	}
 
 	for _, opt := range opts {
@@ -432,7 +437,7 @@ func (s *Service) refresh() error {
 		return err
 	}
 
-	request := buildLatestConfigsRequest(s.hostname, s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tags, s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
 	s.Unlock()
 	ctx := context.Background()
 	response, err := s.api.Fetch(ctx, request)

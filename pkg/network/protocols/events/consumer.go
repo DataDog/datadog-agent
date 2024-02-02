@@ -13,12 +13,12 @@ import (
 	"sync"
 	"unsafe"
 
-	"go.uber.org/atomic"
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -46,10 +46,9 @@ type Consumer[V any] struct {
 	// telemetry
 	metricGroup        *telemetry.MetricGroup
 	eventsCount        *telemetry.Counter
-	missesCount        *telemetry.Counter
+	failedFlushesCount *telemetry.Counter
 	kernelDropsCount   *telemetry.Counter
 	invalidEventsCount *telemetry.Counter
-	batchSize          *atomic.Int64
 }
 
 // NewConsumer instantiates a new event Consumer
@@ -58,9 +57,9 @@ type Consumer[V any] struct {
 // 2) be thread-safe, as the callback may be executed concurrently from multiple go-routines;
 func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*Consumer[V], error) {
 	batchMapName := proto + batchMapSuffix
-	batchMap, found, _ := ebpf.GetMap(batchMapName)
-	if !found {
-		return nil, fmt.Errorf("unable to find map %s", batchMapName)
+	batchMap, err := maps.GetMap[batchKey, batch](ebpf, batchMapName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to find map %s: %s", batchMapName, err)
 	}
 
 	eventsMapName := proto + eventsMapSuffix
@@ -88,9 +87,22 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	)
 
 	eventsCount := metricGroup.NewCounter("events_captured")
-	missesCount := metricGroup.NewCounter("events_missed")
 	kernelDropsCount := metricGroup.NewCounter("kernel_dropped_events")
 	invalidEventsCount := metricGroup.NewCounter("invalid_events")
+
+	// failedFlushesCount tracks the number of failed calls to
+	// `bpf_perf_event_output`. This is usually indicative of a slow-consumer
+	// problem, because flushing a perf event will fail when there is no space
+	// available in the perf ring. Having said that, in the context of this
+	// library a failed call to `bpf_perf_event_output` won't necessarily
+	// translate into data drop, because this library will retry flushing a
+	// given batch *until the call to `bpf_perf_event_output` succeeds*.  This
+	// is OK (in terms of no datapoints being dropped) as long as we have enough
+	// event "slots" in other batch pages while the retrying happens.
+	//
+	// The exact number of events dropped can be obtained using the metric
+	// `kernel_dropped_events`.
+	failedFlushesCount := metricGroup.NewCounter("failed_flushes")
 
 	return &Consumer[V]{
 		proto:       proto,
@@ -103,10 +115,9 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 		// telemetry
 		metricGroup:        metricGroup,
 		eventsCount:        eventsCount,
-		missesCount:        missesCount,
+		failedFlushesCount: failedFlushesCount,
 		kernelDropsCount:   kernelDropsCount,
 		invalidEventsCount: invalidEventsCount,
-		batchSize:          atomic.NewInt64(0),
 	}, nil
 }
 
@@ -123,19 +134,24 @@ func (c *Consumer[V]) Start() {
 				}
 
 				b, err := batchFromEventData(dataEvent.Data)
-				if err == nil {
-					c.process(dataEvent.CPU, b, false)
-				} else {
+
+				if err != nil {
 					c.invalidEventsCount.Add(1)
+					dataEvent.Done()
+					break
 				}
+
+				c.failedFlushesCount.Add(int64(b.Failed_flushes))
+				c.kernelDropsCount.Add(int64(b.Dropped_events))
+				c.process(dataEvent.CPU, b, false)
 				dataEvent.Done()
 			case _, ok := <-c.handler.LostChannel:
 				if !ok {
 					return
 				}
 
-				missedEvents := c.batchSize.Load()
-				c.missesCount.Add(missedEvents)
+				// we have our own telemetry to track failed flushes so we don't
+				// do anything here other than draining this channel
 			case done, ok := <-c.syncRequest:
 				if !ok {
 					return
@@ -206,10 +222,7 @@ func (c *Consumer[V]) process(cpu int, b *batch, syncing bool) {
 		return
 	}
 
-	// telemetry stuff
-	c.batchSize.Store(int64(b.Cap))
 	c.eventsCount.Add(int64(end - begin))
-	c.kernelDropsCount.Add(int64(b.Dropped_events))
 
 	// generate a slice of type []V from the batch
 	ptr := pointerToElement[V](b, begin)

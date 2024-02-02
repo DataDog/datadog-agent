@@ -4,7 +4,7 @@ Exposes a catch-all API for Datadog Agent POST requests.
 
 ## Requirements
 
-- [Golang 1.20](https://go.dev/dl/)
+- [Golang 1.21](https://go.dev/dl/)
 
 ## How to run
 
@@ -181,13 +181,13 @@ Example:
 #### curl
 
 ```bash
-curl ${SERVICE_IP}/fakeintake/payloads/?endpoint={post_endpoint_path}
+curl ${SERVICE_IP}/fakeintake/payloads?endpoint={post_endpoint_path}
 ```
 
 Example:
 
 ```bash
-curl ${SERVICE_IP}/fakeintake/payloads/?endpoint=/api/V2/series
+curl ${SERVICE_IP}/fakeintake/payloads?endpoint=/api/V2/series
 ```
 
 #### Jupyter Notebook

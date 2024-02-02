@@ -23,18 +23,12 @@ const (
 	spNS                         = "system_probe_config"
 	netNS                        = "network_config"
 	smNS                         = "service_monitoring_config"
-	dsNS                         = "data_streams_config"
 	evNS                         = "event_monitoring_config"
 	smjtNS                       = smNS + ".tls.java"
 	diNS                         = "dynamic_instrumentation"
 	wcdNS                        = "windows_crash_detection"
+	pngNS                        = "ping"
 	defaultConnsMessageBatchSize = 600
-
-	// defaultSystemProbeBPFDir is the default path for eBPF programs
-	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/share/system-probe/ebpf"
-
-	// defaultSystemProbeJavaDir is the default path for java agent program
-	defaultSystemProbeJavaDir = "/opt/datadog-agent/embedded/share/system-probe/java"
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
 	defaultServiceMonitoringJavaAgentArgs = "dd.appsec.enabled=false,dd.trace.enabled=false,dd.usm.enabled=true"
@@ -55,6 +49,14 @@ const (
 	defaultZypperReposDirSuffix = "/zypp/repos.d"
 
 	defaultOffsetThreshold = 400
+)
+
+var (
+	// defaultSystemProbeBPFDir is the default path for eBPF programs
+	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
+
+	// defaultSystemProbeJavaDir is the default path for java agent program
+	defaultSystemProbeJavaDir = filepath.Join(InstallPath, "embedded/share/system-probe/java")
 )
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
@@ -218,8 +220,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// For backward compatibility
 	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
 	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "exclude_self"), true)
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
@@ -235,6 +239,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
+	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
@@ -282,6 +287,17 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "kernel_bpf_stats"), false)
 
+	// settings for the entry count of the ebpfcheck
+	// control the size of the buffers used for the batch lookups of the ebpf maps
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "max_keys_buffer_size_bytes"), 512*1024)
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "max_values_buffer_size_bytes"), 1024*1024)
+	// How many times we can restart the entry count of a map before we give up if we get an iteration restart
+	// due to the map changing while we look it up
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "max_restarts"), 3)
+	// How many entries we should keep track of in the entry count map to detect restarts in the
+	// single-item iteration
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "entries_for_iteration_restart_detection"), 100)
+
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 
@@ -294,9 +310,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// Default value (30) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(spNS, "http_idle_connection_ttl_in_s"))
 	cfg.BindEnv(join(smNS, "http_idle_connection_ttl_in_s"))
-
-	// data streams
-	cfg.BindEnvAndSetDefault(join(dsNS, "enabled"), false, "DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED")
 
 	// event monitoring
 	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
@@ -325,7 +338,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
-	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
+	cfg.BindEnvAndSetDefault(join(evNS, "socket"), filepath.Join(InstallPath, "run/event-monitor.sock"))
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 
 	// process event monitoring data limits for network tracer
@@ -336,6 +349,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Windows crash detection
 	cfg.BindEnvAndSetDefault(join(wcdNS, "enabled"), false)
+
+	// Ping
+	cfg.BindEnvAndSetDefault(join(pngNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

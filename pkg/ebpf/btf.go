@@ -23,19 +23,10 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-// BTFResult enumerates BTF loading success & failure modes
-type BTFResult int
-
-const (
-	successCustomBTF   BTFResult = 0
-	successEmbeddedBTF BTFResult = 1
-	successDefaultBTF  BTFResult = 2
-	btfNotFound        BTFResult = 3
 )
 
 const btfFlushDelay = 1 * time.Minute
@@ -57,7 +48,7 @@ type orderedBTFLoader struct {
 	userBTFPath string
 	embeddedDir string
 
-	result         BTFResult
+	result         ebpftelemetry.BTFResult
 	loadFunc       funcs.CachedFunc[btf.Spec]
 	delayedFlusher *time.Timer
 }
@@ -66,7 +57,7 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 	btfLoader := &orderedBTFLoader{
 		userBTFPath: cfg.BTFPath,
 		embeddedDir: filepath.Join(cfg.BPFDir, "co-re", "btf"),
-		result:      btfNotFound,
+		result:      ebpftelemetry.BtfNotFound,
 	}
 	btfLoader.loadFunc = funcs.CacheWithCallback[btf.Spec](btfLoader.get, loadKernelSpec.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
@@ -76,12 +67,12 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 type btfLoaderFunc func() (*btf.Spec, error)
 
 // Get returns BTF for the running kernel
-func (b *orderedBTFLoader) Get() (*btf.Spec, COREResult, error) {
+func (b *orderedBTFLoader) Get() (*btf.Spec, ebpftelemetry.COREResult, error) {
 	spec, err := b.loadFunc.Do()
 	if spec != nil {
 		b.delayedFlusher.Reset(btfFlushDelay)
 	}
-	return spec, COREResult(b.result), err
+	return spec, ebpftelemetry.COREResult(b.result), err
 }
 
 // Flush deletes any cached BTF
@@ -92,13 +83,13 @@ func (b *orderedBTFLoader) Flush() {
 
 func (b *orderedBTFLoader) get() (*btf.Spec, error) {
 	loaders := []struct {
-		result BTFResult
+		result ebpftelemetry.BTFResult
 		loader btfLoaderFunc
 		desc   string
 	}{
-		{successCustomBTF, b.loadUser, "configured BTF file"},
-		{successDefaultBTF, b.loadKernel, "kernel"},
-		{successEmbeddedBTF, b.loadEmbedded, "embedded collection"},
+		{ebpftelemetry.SuccessCustomBTF, b.loadUser, "configured BTF file"},
+		{ebpftelemetry.SuccessDefaultBTF, b.loadKernel, "kernel"},
+		{ebpftelemetry.SuccessEmbeddedBTF, b.loadEmbedded, "embedded collection"},
 	}
 	var err error
 	var spec *btf.Spec
@@ -288,7 +279,7 @@ func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 	return matchingPaths
 }
 
-func getBTFPlatform() (string, error) {
+var getBTFPlatform = funcs.Memoize(func() (string, error) {
 	platform, err := kernel.Platform()
 	if err != nil {
 		return "", fmt.Errorf("kernel platform: %s", err)
@@ -309,7 +300,7 @@ func getBTFPlatform() (string, error) {
 	default:
 		return "", fmt.Errorf("%s unsupported", platform)
 	}
-}
+})
 
 func loadBTFFrom(path string) (*btf.Spec, error) {
 	data, err := os.Open(path)

@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -130,8 +129,7 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func statusCmd(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
+func statusCmd(_ log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
 	return redactError(requestStatus(config, cliParams))
 }
 
@@ -149,6 +147,12 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	v := url.Values{}
 	if cliParams.verbose {
 		v.Set("verbose", "true")
+	}
+
+	if cliParams.prettyPrintJSON || cliParams.jsonStatus {
+		v.Set("format", "json")
+	} else {
+		v.Set("format", "text")
 	}
 
 	url := url.URL{
@@ -171,11 +175,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	} else if cliParams.jsonStatus {
 		s = string(r)
 	} else {
-		formattedStatus, err := render.FormatStatus(r)
-		if err != nil {
-			return err
-		}
-		s = scrubMessage(formattedStatus)
+		s = scrubMessage(string(r))
 	}
 
 	if cliParams.statusFilePath != "" {
@@ -187,8 +187,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	return nil
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func componentStatusCmd(log log.Component, config config.Component, cliParams *cliParams) error {
+func componentStatusCmd(_ log.Component, config config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 1 {
 		return fmt.Errorf("a component name must be specified")
 	}

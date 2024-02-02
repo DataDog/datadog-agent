@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package hostnameimpl implements the component hostname
 package hostnameimpl
 
 import (
@@ -17,7 +18,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newHostnameService))
+		fx.Provide(NewHostnameService))
 }
 
 type service struct{}
@@ -43,7 +44,7 @@ func (hs *service) GetWithProvider(ctx context.Context) (pkghostname.Data, error
 	return pkghostname.GetWithProvider(ctx)
 }
 
-// newHostnameService fetches the hostname and returns a service wrapping it
-func newHostnameService() hostname.Component {
+// NewHostnameService creates a new instance of the component hostname
+func NewHostnameService() hostname.Component {
 	return &service{}
 }

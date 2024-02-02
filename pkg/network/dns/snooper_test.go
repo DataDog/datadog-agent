@@ -9,6 +9,7 @@ package dns
 
 import (
 	"net"
+	"os"
 	"strconv"
 	"syscall"
 	"testing"
@@ -333,7 +334,9 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 
 	invalidServerIP := "8.8.8.90"
 	domainQueried := "agafsdfsdasdfsd"
-	queryIP, queryPort, reps := testdns.SendDNSQueriesAndCheckError(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
+	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "error should be i/o timeout")
+	require.Len(t, reps, 1)
 	require.Nil(t, reps[0])
 
 	var allStats StatsByKeyByNameByType
@@ -355,7 +358,9 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 
 	invalidServerIP := "8.8.8.90"
 	domainQueried := "agafsdfsdasdfsd"
-	queryIP, queryPort, reps := testdns.SendDNSQueriesAndCheckError(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
+	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "error should be i/o timeout")
+	require.Len(t, reps, 1)
 	require.Nil(t, reps[0])
 
 	key := getKey(queryIP, queryPort, invalidServerIP, syscall.IPPROTO_UDP)

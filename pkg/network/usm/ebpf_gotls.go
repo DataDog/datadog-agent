@@ -205,15 +205,16 @@ func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Opt
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	if options.MapEditors == nil {
-		options.MapEditors = make(map[string]*ebpf.Map)
-	}
-
 	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	options.MapEditors[probes.SockByPidFDMap] = p.sockFDMap
+	if p.sockFDMap != nil {
+		if options.MapEditors == nil {
+			options.MapEditors = make(map[string]*ebpf.Map)
+		}
+		options.MapEditors[probes.SockByPidFDMap] = p.sockFDMap
+	}
 }
 
 // Start launches the goTLS main goroutine to handle events.
@@ -320,6 +321,10 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 }
 
 func (p *goTLSProgram) handleProcessStart(pid pid) {
+	if p.cfg.GoTLSExcludeSelf && pid == uint32(os.Getpid()) {
+		return
+	}
+
 	pidAsStr := strconv.FormatUint(uint64(pid), 10)
 	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
 

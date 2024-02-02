@@ -133,7 +133,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 		name   string
 		event  events.SQSMessage
 		expMap map[string]string
-		expErr error
+		expErr string
 	}{
 		{
 			name: "empty-string-body",
@@ -141,7 +141,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 				Body: "",
 			},
 			expMap: nil,
-			expErr: errors.New("Error unmarshaling message body: unexpected end of JSON input"),
+			expErr: "Error unmarshaling message body:",
 		},
 		{
 			name: "empty-map-body",
@@ -149,7 +149,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 				Body: "{}",
 			},
 			expMap: nil,
-			expErr: errors.New("No Datadog trace context found"),
+			expErr: "No Datadog trace context found",
 		},
 		{
 			name: "no-msg-attrs",
@@ -159,7 +159,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 				}`,
 			},
 			expMap: nil,
-			expErr: errors.New("No Datadog trace context found"),
+			expErr: "No Datadog trace context found",
 		},
 		{
 			name: "wrong-type-msg-attrs",
@@ -169,7 +169,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 				}`,
 			},
 			expMap: nil,
-			expErr: errors.New("Error unmarshaling message body: json: cannot unmarshal string into Go struct field snsBody.MessageAttributes of type map[string]interface {}"),
+			expErr: "Error unmarshaling message body:",
 		},
 		{
 			name: "non-binary-type",
@@ -184,7 +184,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 				}`,
 			},
 			expMap: nil,
-			expErr: errors.New("Unsupported Type in _datadog payload"),
+			expErr: "Unsupported Type in _datadog payload",
 		},
 		{
 			name: "cannot-decode",
@@ -199,7 +199,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 				}`,
 			},
 			expMap: nil,
-			expErr: errors.New("Error decoding binary: illegal base64 data at input byte 4"),
+			expErr: "Error decoding binary:",
 		},
 		{
 			name: "empty-string-encoded",
@@ -214,19 +214,19 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 				}`,
 			},
 			expMap: nil,
-			expErr: errors.New("Error unmarshaling the decoded binary: unexpected end of JSON input"),
+			expErr: "Error unmarshaling the decoded binary:",
 		},
 		{
 			name:   "empty-map-encoded",
 			event:  eventSqsMessage(headersNone, headersEmpty, headersNone),
 			expMap: headersMapEmpty,
-			expErr: nil,
+			expErr: "",
 		},
 		{
 			name:   "datadog-map",
 			event:  eventSqsMessage(headersNone, headersAll, headersNone),
 			expMap: headersMapAll,
-			expErr: nil,
+			expErr: "",
 		},
 	}
 
@@ -234,9 +234,9 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tm, err := snsSqsMessageCarrier(tc.event)
 			t.Logf("snsSqsMessageCarrier returned TextMapReader=%#v error=%#v", tm, err)
-			assert.Equal(t, tc.expErr != nil, err != nil)
-			if tc.expErr != nil && err != nil {
-				assert.Equal(t, tc.expErr.Error(), err.Error())
+			assert.Equal(t, tc.expErr != "", err != nil)
+			if tc.expErr != "" {
+				assert.ErrorContains(t, err, tc.expErr)
 			}
 			assert.Equal(t, tc.expMap, getMapFromCarrier(tm))
 		})
@@ -248,13 +248,13 @@ func TestSnsEntityCarrier(t *testing.T) {
 		name   string
 		event  events.SNSEntity
 		expMap map[string]string
-		expErr error
+		expErr string
 	}{
 		{
 			name:   "no-msg-attrs",
 			event:  events.SNSEntity{},
 			expMap: nil,
-			expErr: errors.New("No Datadog trace context found"),
+			expErr: "No Datadog trace context found",
 		},
 		{
 			name: "wrong-type-msg-attrs",
@@ -264,7 +264,7 @@ func TestSnsEntityCarrier(t *testing.T) {
 				},
 			},
 			expMap: nil,
-			expErr: errors.New("Unsupported type for _datadog payload"),
+			expErr: "Unsupported type for _datadog payload",
 		},
 		{
 			name: "wrong-type-type",
@@ -277,7 +277,7 @@ func TestSnsEntityCarrier(t *testing.T) {
 				},
 			},
 			expMap: nil,
-			expErr: errors.New("Unsupported type in _datadog payload"),
+			expErr: "Unsupported type in _datadog payload",
 		},
 		{
 			name: "wrong-value-type",
@@ -290,7 +290,7 @@ func TestSnsEntityCarrier(t *testing.T) {
 				},
 			},
 			expMap: nil,
-			expErr: errors.New("Unsupported value type in _datadog payload"),
+			expErr: "Unsupported value type in _datadog payload",
 		},
 		{
 			name: "cannot-decode",
@@ -303,7 +303,7 @@ func TestSnsEntityCarrier(t *testing.T) {
 				},
 			},
 			expMap: nil,
-			expErr: errors.New("Error decoding binary: illegal base64 data at input byte 4"),
+			expErr: "Error decoding binary: illegal base64 data at input byte 4",
 		},
 		{
 			name: "unknown-type",
@@ -316,7 +316,7 @@ func TestSnsEntityCarrier(t *testing.T) {
 				},
 			},
 			expMap: nil,
-			expErr: errors.New("Unsupported Type in _datadog payload"),
+			expErr: "Unsupported Type in _datadog payload",
 		},
 		{
 			name: "empty-string-encoded",
@@ -329,7 +329,7 @@ func TestSnsEntityCarrier(t *testing.T) {
 				},
 			},
 			expMap: nil,
-			expErr: errors.New("Error unmarshaling the decoded binary: unexpected end of JSON input"),
+			expErr: "Error unmarshaling the decoded binary:",
 		},
 		{
 			name: "binary-type",
@@ -342,7 +342,7 @@ func TestSnsEntityCarrier(t *testing.T) {
 				},
 			},
 			expMap: headersMapAll,
-			expErr: nil,
+			expErr: "",
 		},
 		{
 			name: "string-type",
@@ -355,7 +355,7 @@ func TestSnsEntityCarrier(t *testing.T) {
 				},
 			},
 			expMap: headersMapAll,
-			expErr: nil,
+			expErr: "",
 		},
 	}
 
@@ -363,9 +363,9 @@ func TestSnsEntityCarrier(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tm, err := snsEntityCarrier(tc.event)
 			t.Logf("snsEntityCarrier returned TextMapReader=%#v error=%#v", tm, err)
-			assert.Equal(t, tc.expErr != nil, err != nil)
-			if tc.expErr != nil && err != nil {
-				assert.Equal(t, tc.expErr.Error(), err.Error())
+			assert.Equal(t, tc.expErr != "", err != nil)
+			if tc.expErr != "" {
+				assert.ErrorContains(t, err, tc.expErr)
 			}
 			assert.Equal(t, tc.expMap, getMapFromCarrier(tm))
 		})

@@ -251,6 +251,10 @@ func (lc *LambdaLogsCollector) processMessage(
 		lc.executionContext.UpdateStartTime(lc.invocationStartTime)
 	}
 
+	if message.logType == logTypePlatformReport {
+		message.stringRecord = createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, message)
+	}
+
 	if lc.enhancedMetricsEnabled {
 		proactiveInit := false
 		coldStart := false
@@ -292,7 +296,6 @@ func (lc *LambdaLogsCollector) processMessage(
 				outOfMemoryRequestId = message.objectRecord.requestID
 			}
 			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(args)
-			message.stringRecord = createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, message)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
 			serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLog(

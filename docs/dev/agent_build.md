@@ -53,13 +53,45 @@ We use `pkg-config` to make compilers and linkers aware of Python. If you need
 to adjust the build for your specific configuration, add or edit the files within
 the `pkg-config` folder.
 
-The Agent is comprised of several binaries, each with its own invoke task to build it:
+By default, the Agent combines multiple functionalities into a single binary to reduce
+the space used on disk. The `DD_BUNDLED_AGENT` environment variable is used to select
+which functionality to enable. For instance, if set to `process-agent`, it will act as the process Agent.
+If the environment variable is not defined, the process name is used as a fallback.
+As the last resort meaning, the executable will behave as the 'main' Agent.
+
+Different combinations can be obtained through the usage of build tags. As an example,
+building the Agent with the `bundle_process_agent` and `bundle_security_agent` will produce
+a binary that has the process Agent and security Agent capabilities.
+
+The `--bundle` argument can be used to override the default set of functionalities bundled
+into the Agent binary. For instance, to override the defaults and bundle only the process and
+and the security Agents:
+
+```
+invoke agent.build --bundle process-agent --bundle security-agent
+```
+
+To disable bundling entirely:
+
+```
+invoke agent.build --bundle
+```
+
+One binary per Agent can still be built by using its own invoke task and passing the
+`--no-bundle` argument:
 - The 'main' Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/agent.py
 - The process Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/process_agent.py
 - The trace Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/trace_agent.py
 - The cluster Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/cluster_agent.py
 - The security Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/security_agent.py
 - The system probe: https://github.com/DataDog/datadog-agent/blob/main/tasks/system_probe.py
+
+So to build the process Agent as a standalone self contained executable:
+
+```
+invoke process-agent.build --no-bundle
+```
+
 
 ## Testing Agent changes in containerized environments
 

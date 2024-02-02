@@ -13,18 +13,23 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/cihub/seelog"
 	"github.com/fatih/color"
@@ -81,6 +86,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
 				core.Bundle(),
+				// workloadmeta setup
+				collectors.GetCatalog(),
+				fx.Provide(func() workloadmeta.Params {
+					return workloadmeta.Params{
+						AgentType:  workloadmeta.NodeAgent,
+						InitHelper: common.GetWorkloadmetaInit(),
+						NoInstance: !cliParams.runLocal,
+					}
+				}),
+				workloadmeta.OptionalModule(),
+				tagger.OptionalModule(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},
@@ -184,17 +200,35 @@ This command print the inventory-checks metadata payload. This payload is used b
 		},
 	}
 
+	payloadInventoriesPkgSigningCmd := &cobra.Command{
+		Use:   "package-signing",
+		Short: "Print the Inventory package signing payload.",
+		Long: `
+This command print the package-signing metadata payload. This payload is used by the 'fleet automation' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("package-signing")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Component) error {
+func cmdDiagnose(cliParams *cliParams,
+	senderManager diagnosesendermanager.Component,
+	_ optional.Option[workloadmeta.Component],
+	_ optional.Option[tagger.Component]) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
@@ -213,8 +247,6 @@ func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Compo
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
-//
-//nolint:revive // TODO(ASC) Fix revive linter
 func printPayload(name payloadName, _ log.Component, config config.Component) error {
 	if err := util.SetAuthToken(); err != nil {
 		fmt.Println(err)
