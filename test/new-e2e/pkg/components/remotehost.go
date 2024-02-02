@@ -6,6 +6,7 @@
 package components
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"net"
@@ -150,8 +151,8 @@ func (h *RemoteHost) RemoveAll(path string) error {
 }
 
 // DialRemotePort creates a connection to port on the remote host.
-func (h *RemoteHost) DialRemotePort(port uint16) (net.Conn, error) {
-	return h.client.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+func (h *RemoteHost) DialRemotePort(ctx context.Context, port uint16) (net.Conn, error) {
+	return h.client.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 }
 
 // reconnectSSH recreate the SSH connection to the VM. Should be used only after VM reboot to restore the SSH connection.

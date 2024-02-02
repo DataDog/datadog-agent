@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -21,10 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	devMode = flag.Bool("devmode", false, "enable dev mode")
-)
-
 type DockerFakeintakeSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
 	transport transport
@@ -34,14 +29,9 @@ func dockerSuiteOpts(t *testing.T, tr transport, opts ...awsdocker.ProvisionerOp
 	if !flag.Parsed() {
 		flag.Parse()
 	}
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsdocker.Provisioner(opts...)),
 		e2e.WithStackName(fmt.Sprintf("apm-docker-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
-	}
-	if devModeE, err := strconv.ParseBool(devModeEnv); (err == nil && devModeE) || *devMode {
-		t.Log("Running in Dev Mode.")
-		options = append(options, e2e.WithDevMode())
 	}
 	return options
 }

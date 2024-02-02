@@ -6,11 +6,11 @@
 package apm
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -30,17 +30,10 @@ func vmSuiteOpts(t *testing.T, tr transport, opts ...awshost.ProvisionerOption) 
 	if !flag.Parsed() {
 		flag.Parse()
 	}
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-
 	opts = append(opts, awshost.WithDocker())
-
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
 		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
-	}
-	if devModeE, err := strconv.ParseBool(devModeEnv); (err == nil && devModeE) || *devMode {
-		t.Log("Running in Dev Mode.")
-		options = append(options, e2e.WithDevMode())
 	}
 	return options
 }
@@ -177,17 +170,17 @@ func waitRemotePort(v *VMFakeintakeSuite, port uint16) error {
 		c   net.Conn
 		err error
 	)
-	for i := 0; i < 60; i++ {
+	v.Eventually(func() bool {
 		v.T().Logf("Waiting for remote:%v", port)
-		c, err = v.Env().RemoteHost.DialRemotePort(port)
+		// TODO: Use the e2e context
+		c, err = v.Env().RemoteHost.DialRemotePort(context.Background(), port)
 		if err != nil {
 			v.T().Logf("Failed to dial remote:%v: %s\n", port, err)
-			time.Sleep(1 * time.Second)
-		} else {
-			v.T().Logf("Connected to remote:%v\n", port)
-			defer c.Close()
-			break
+			return false
 		}
-	}
+		v.T().Logf("Connected to remote:%v\n", port)
+		defer c.Close()
+		return true
+	}, 60*time.Second, 1*time.Second, "Failed to dial remote:%v: %s\n", port, err)
 	return err
 }
