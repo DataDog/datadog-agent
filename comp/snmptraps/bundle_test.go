@@ -19,7 +19,7 @@ import (
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle,
+	fxutil.TestBundle(t, Bundle(),
 		config.MockModule(),
 		hostnameimpl.MockModule(),
 		logimpl.MockModule(),

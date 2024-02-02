@@ -73,12 +73,12 @@ var templatesFS embed.FS
 
 // Name returns the name
 func (s statusProvider) Name() string {
-	return "APM Status"
+	return "APM Agent"
 }
 
 // Section return the section
 func (s statusProvider) Section() string {
-	return "APM Status"
+	return "APM Agent"
 }
 
 func (s statusProvider) getStatusInfo() map[string]interface{} {

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -22,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -47,10 +48,10 @@ func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 	s := fxutil.Test[services](t,
 		hostnameimpl.MockModule(),
 		logimpl.MockModule(),
-		configimpl.MockModule,
-		statusimpl.MockModule,
+		configimpl.MockModule(),
+		statusimpl.MockModule(),
 		senderhelper.Opts,
-		Module,
+		Module(),
 		fx.Replace(conf),
 	)
 	return &s

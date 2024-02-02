@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// hostnameimpl implements the component hostname
-package hostnameimpl
+package hostnameinterface
 
 import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,14 +16,14 @@ import (
 )
 
 func TestMockGet(t *testing.T) {
-	s := fxutil.Test[hostname.Mock](t, MockModule())
+	s := fxutil.Test[Mock](t, MockModule())
 	name, err := s.Get(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "my-hostname", name)
 }
 
 func TestMockGetWithProvider(t *testing.T) {
-	s := fxutil.Test[hostname.Mock](t, MockModule())
+	s := fxutil.Test[Mock](t, MockModule())
 	data, err := s.GetWithProvider(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "my-hostname", data.Hostname)
@@ -33,7 +31,7 @@ func TestMockGetWithProvider(t *testing.T) {
 }
 
 func TestMockProvide(t *testing.T) {
-	s := fxutil.Test[hostname.Mock](t,
+	s := fxutil.Test[Mock](t,
 		MockModule(),
 		fx.Replace(MockHostname("foo")),
 	)

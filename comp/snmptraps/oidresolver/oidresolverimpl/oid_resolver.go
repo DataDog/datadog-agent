@@ -27,9 +27,11 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newResolver),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newResolver),
+	)
+}
 
 const ddTrapDBFileNamePrefix string = "dd_traps_db"
 
