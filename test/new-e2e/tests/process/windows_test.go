@@ -44,7 +44,6 @@ func (s *windowsTestSuite) SetupSuite() {
 
 func (s *windowsTestSuite) TestProcessCheck() {
 	t := s.T()
-	t.Skip("PROCS-3644: consistent failures on process tests")
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
@@ -66,7 +65,6 @@ func (s *windowsTestSuite) TestProcessCheck() {
 
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
-	t.Skip("PROCS-3644: consistent failures on process tests")
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
@@ -90,7 +88,6 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 
 func (s *windowsTestSuite) TestProcessCheckIO() {
 	t := s.T()
-	t.Skip("PROCS-3644: consistent failures on process tests")
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
