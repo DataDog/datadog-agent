@@ -93,7 +93,7 @@ func launchScannerTrivyHostVM(ctx context.Context, opts types.ScannerOptions) (*
 	}
 
 	ebsclient := ebs.NewFromConfig(cfg)
-	_, snapshotID, _ := getARNResource(*opts.SnapshotARN)
+	_, snapshotID, _ := types.GetARNResource(*opts.SnapshotARN)
 	trivyCache := newMemoryCache()
 	onlyDirs := []string{
 		"/etc/*",
