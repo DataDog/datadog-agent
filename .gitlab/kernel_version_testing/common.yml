@@ -77,37 +77,6 @@
   - tar czvf ../$ARCHIVE_NAME dependencies
   - popd
 
-# --- Docker test images
-
-.pull_test_dockers:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  needs: []
-  tags: ["arch:amd64"]
-  rules: !reference [.on_any_kmt_test_component_or_manual]
-  stage: kernel_matrix_testing_prepare
-  script:
-    # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | crane auth login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    # Pull base images
-    - mkdir $KMT_DOCKERS
-    - inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
-  artifacts:
-    expire_in: 1 day
-    paths:
-      - $KMT_DOCKERS
-  variables:
-    KMT_DOCKERS: $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH
-
-pull_test_dockers_x64:
-  extends: .pull_test_dockers
-  variables:
-    ARCH: amd64
-
-pull_test_dockers_arm64:
-  extends: .pull_test_dockers
-  variables:
-    ARCH: arm64
 
 # -- Test dependencies
 
