@@ -32,7 +32,7 @@ func doConfigure(s *systrayImpl) error {
 	}
 
 	// Read the authentication token: can only be done if user can read from datadog.yaml
-	authToken, err := security.FetchAuthToken()
+	authToken, err := security.FetchAuthToken(pkgconfig.Datadog)
 	if err != nil {
 		return err
 	}
