@@ -92,8 +92,14 @@ $HashArguments = @{
     Name = '%s'
     AccountPassword = (Read-Host -AsSecureString '%s')
     Enabled = $true
+}; New-ADUser @HashArguments`, username, passwd))
+	return ps
 }
-; New-ADUser @HashArguments`, username, passwd))
+
+func (ps *powerShellCommandBuilder) GetMachineType() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, fmt.Sprintf(`
+(Get-CimInstance -ClassName Win32_OperatingSystem).ProductType
+`))
 	return ps
 }
 

@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -69,28 +68,47 @@ func installAgentPackage(host *components.RemoteHost, agentPackage *windowsAgent
 	return remoteMSIPath, windows.InstallMSI(host, remoteMSIPath, args, logfile)
 }
 
-func waitForHostToReboot(host *components.RemoteHost, bootTime string) error {
+// waitForHostToReboot
+func waitForHostToReboot(host *components.RemoteHost, bootTime string, logf func(format string, args ...any)) error {
+	waitCount := 0
 	for {
 		newBootTime, err := PsHost().GetLastBootTime().Execute(host)
-		if err != nil {
-			continue
-		}
-		if newBootTime != bootTime {
+		if err == nil && newBootTime == bootTime {
+			logf("host has rebooted")
 			return nil
+		}
+
+		logf("host is not ready, waiting: %v", err)
+		time.Sleep(10 * time.Second)
+		waitCount++
+		// 18 * 10 = 180s or 3 minutes
+		if waitCount > 18 {
+			logf("wait time exhausted, bailing out")
+			return err
 		}
 	}
 }
 
-func setupForest(host *components.RemoteHost, domainName, domainPassword string) error {
-	_, err := PsHost().
+// setupForest
+func setupForest(host *components.RemoteHost, domainName, domainPassword string, logf func(format string, args ...any)) error {
+	machineType, err := PsHost().GetMachineType().Execute(host)
+	logf("machine type: %s", machineType)
+	if err == nil && machineType == "3" {
+		// Already a domain controller, skip
+		logf("machine is already a DC, skipping")
+		return nil
+	}
+	_, err = PsHost().
 		AddActiveDirectoryDomainServicesWindowsFeature().
 		ImportActiveDirectoryDomainServicesModule().
 		InstallADDSForest(domainName, domainPassword).
 		Execute(host)
 	if err != nil {
+		logf("error occurred while trying to create the forest")
 		return err
 	}
 	// Still send a reboot, just in case
+	logf("fun reboot")
 	_, _ = PsHost().Reboot().Execute(host)
 	return nil
 }
@@ -105,13 +123,21 @@ func (suite *testSuite) prepareHostAndExec(test func(host *components.RemoteHost
 	bootTime, err := PsHost().GetLastBootTime().Execute(vm)
 	suite.Require().NoError(err)
 
-	err = setupForest(vm, "datadogqalab.com", "Test1234#")
+	suite.T().Logf("Creating forest")
+
+	err = setupForest(vm, "datadogqalab.com", "TestPassword1234#", suite.T().Logf)
 	suite.Require().NoError(err, "should create forest")
 
-	suite.Require().NoError(waitForHostToReboot(vm, bootTime))
+	suite.T().Logf("Waiting for host to reboot")
+
+	suite.Require().NoError(waitForHostToReboot(vm, bootTime, suite.T().Logf))
+
+	suite.T().Logf("Adding test user in domain")
 
 	_, err = PsHost().AddActiveDirectoryUser("DatadogTestUser", "TestPassword1234#").Execute(vm)
 	suite.Require().NoError(err)
+
+	suite.T().Logf("Host is ready, running tests")
 
 	test(vm, outputDir)
 }
@@ -139,20 +165,8 @@ func (suite *testSuite) TestInvalidInstall() {
 			_, err := installAgentPackage(host, suite.agentPackage, "DDAGENTUSER_NAME=datadogqalab.com\\DatadogTestUser DDAGENTUSER_PASSWORD='Incorrect'", filepath.Join(outputDir, "tc_ins_dc_005_install.log"))
 			suite.Require().Error(err, "should not succeed to install Agent on a Domain Controller with an incorrect domain account password")
 		}))
+
 	})
-}
-
-type MyAssertions struct {
-	a require.Assertions
-}
-
-func (ass *MyAssertions) UserSDDL() {
-
-}
-func (suite *testSuite) require() *MyAssertions {
-	return &MyAssertions{
-		a: *suite.Require(),
-	}
 }
 
 func (suite *testSuite) TestValidInstall() {
