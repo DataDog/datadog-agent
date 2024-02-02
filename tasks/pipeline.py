@@ -444,13 +444,15 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dic
     return messages_to_send
 
 
-@task
-def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
+@task(iterable=['variable'])
+def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True, variable=None):
     """
     Trigger a child pipeline on a target repository and git ref.
     Used in CI jobs only (requires CI_JOB_TOKEN).
 
-    Use --variables to specify the environment variables that should be passed to the child pipeline, as a comma-separated list.
+    Use --variables to specify the environment variables that should be passed to the child pipeline
+    Alternatively you can use multiple --variable (singular) to pass multiple variables.
+    Both ways can be used together.
 
     Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
 
@@ -476,19 +478,25 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
     data = {"token": os.environ['CI_JOB_TOKEN'], "ref": git_ref, "variables": {}}
 
     # Fill the environment variables to pass to the child pipeline.
-    for v in variables.split(','):
+    def handle_variable(v):
         # An empty string or a terminal ',' will yield an empty string which
         # we don't need to bother with
         if not v:
-            continue
+            return
         if v not in os.environ:
             print(
                 color_message(
                     f"WARNING: attempting to pass undefined variable \"{v}\" to downstream pipeline", "orange"
                 )
             )
-            continue
+            return
         data['variables'][v] = os.environ[v]
+
+    for v in variables.split(','):
+        handle_variable(v)
+    if variable:
+        for v in variable:
+            handle_variable(v)
 
     print(
         f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}",
