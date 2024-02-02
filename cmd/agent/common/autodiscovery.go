@@ -43,9 +43,9 @@ func setupAutoDiscovery(confSearchPaths []string,
 	metaScheduler *scheduler.MetaScheduler,
 	secretResolver secrets.Component,
 	wmeta workloadmeta.Component,
-	ad autodiscovery.Component) {
+	ac autodiscovery.Component) {
 	providers.InitConfigFilesReader(confSearchPaths)
-	ad.AddConfigProvider(
+	ac.AddConfigProvider(
 		providers.NewFileConfigProvider(),
 		config.Datadog.GetBool("autoconf_config_files_poll"),
 		time.Duration(config.Datadog.GetInt("autoconf_config_files_poll_interval"))*time.Second,
@@ -110,7 +110,7 @@ func setupAutoDiscovery(confSearchPaths []string,
 
 	// Adding all found providers
 	for _, cp := range uniqueConfigProviders {
-		factory, found := ad.GetProviderCatalog()[cp.Name]
+		factory, found := ac.GetProviderCatalog()[cp.Name]
 		if found {
 			configProvider, err := factory(&cp, wmeta)
 			if err != nil {
@@ -119,7 +119,7 @@ func setupAutoDiscovery(confSearchPaths []string,
 			}
 
 			pollInterval := providers.GetPollInterval(cp)
-			ad.AddConfigProvider(configProvider, cp.Polling, pollInterval)
+			ac.AddConfigProvider(configProvider, cp.Polling, pollInterval)
 		} else {
 			log.Errorf("Unable to find this provider in the catalog: %v", cp.Name)
 		}
@@ -190,7 +190,7 @@ func setupAutoDiscovery(confSearchPaths []string,
 			listeners[i].SetEnabledProviders(providersSet)
 		}
 
-		ad.AddListeners(listeners)
+		ac.AddListeners(listeners)
 	} else {
 		log.Errorf("Error while reading 'listeners' settings: %v", err)
 	}
@@ -218,14 +218,18 @@ func (sf schedulerFunc) Stop() {
 //
 // If the context is cancelled, then any accumulated, matching changes are
 // returned, even if that is fewer than discoveryMinInstances.
-func WaitForConfigsFromAD(ctx context.Context, checkNames []string, discoveryMinInstances int, instanceFilter string) (configs []integration.Config, lastError error) {
-	return waitForConfigsFromAD(ctx, false, checkNames, discoveryMinInstances, instanceFilter)
+func WaitForConfigsFromAD(ctx context.Context,
+	checkNames []string,
+	discoveryMinInstances int,
+	instanceFilter string,
+	ac autodiscovery.Component) (configs []integration.Config, lastError error) {
+	return waitForConfigsFromAD(ctx, false, checkNames, discoveryMinInstances, instanceFilter, ac)
 }
 
 // WaitForAllConfigsFromAD waits until its context expires, and then returns
 // the full set of checks scheduled by AD.
-func WaitForAllConfigsFromAD(ctx context.Context) (configs []integration.Config, lastError error) {
-	return waitForConfigsFromAD(ctx, true, []string{}, 0, "")
+func WaitForAllConfigsFromAD(ctx context.Context, ac autodiscovery.Component) (configs []integration.Config, lastError error) {
+	return waitForConfigsFromAD(ctx, true, []string{}, 0, "", ac)
 }
 
 // waitForConfigsFromAD waits for configs from the AD scheduler and returns them.
@@ -241,7 +245,12 @@ func WaitForAllConfigsFromAD(ctx context.Context) (configs []integration.Config,
 // If wildcard is true, this gathers all configs scheduled before the context
 // is cancelled, and then returns.  It will not return before the context is
 // cancelled.
-func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []string, discoveryMinInstances int, instanceFilter string) (configs []integration.Config, returnErr error) {
+func waitForConfigsFromAD(ctx context.Context,
+	wildcard bool,
+	checkNames []string,
+	discoveryMinInstances int,
+	instanceFilter string,
+	ac autodiscovery.Component) (configs []integration.Config, returnErr error) {
 	configChan := make(chan integration.Config)
 
 	// signal to the scheduler when we are no longer waiting, so we do not continue
@@ -275,7 +284,7 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 	stopChan := make(chan struct{})
 	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
 	// placing items in configChan
-	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
+	go ac.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
 		var errorList []error
 		for _, cfg := range configs {
 			if instanceFilter != "" {

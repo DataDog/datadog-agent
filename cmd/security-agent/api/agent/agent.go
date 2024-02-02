@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -31,13 +32,15 @@ import (
 type Agent struct {
 	runtimeAgent    *secagent.RuntimeSecurityAgent
 	complianceAgent *compliance.Agent
+	ac              autodiscovery.Component
 }
 
 // NewAgent returns a new Agent
-func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent) *Agent {
+func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent, ac autodiscovery.Component) *Agent {
 	return &Agent{
 		runtimeAgent:    runtimeAgent,
 		complianceAgent: complianceAgent,
+		ac:              ac,
 	}
 }
 
@@ -47,7 +50,9 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/flare", a.makeFlare).Methods("POST")
 	r.HandleFunc("/hostname", a.getHostname).Methods("GET")
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
-	r.HandleFunc("/status", a.getStatus).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		a.getStatus(w, r, a.ac)
+	}).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
 	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
@@ -83,9 +88,9 @@ func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func (a *Agent) getStatus(w http.ResponseWriter, _ *http.Request) {
+func (a *Agent) getStatus(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
 	w.Header().Set("Content-Type", "application/json")
-	s, err := status.GetStatus(false, nil)
+	s, err := status.GetStatus(false, nil, ac)
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})

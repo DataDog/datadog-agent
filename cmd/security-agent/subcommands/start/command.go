@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -123,6 +124,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 					return tagger.NewTaggerParams()
 				}),
+				autodiscovery.Module(),
 			)
 		},
 	}
@@ -137,11 +139,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, demultiplexer demultiplexer.Component, params *cliParams) error {
+func start(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, ac autodiscovery.Component, demultiplexer demultiplexer.Component, params *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
-	err := RunAgent(ctx, log, config, statsd, sysprobeconfig, telemetry, params.pidfilePath, demultiplexer)
+	err := RunAgent(ctx, log, config, statsd, sysprobeconfig, telemetry, params.pidfilePath, demultiplexer, ac)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -192,7 +194,15 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component) (err error) {
+func RunAgent(ctx context.Context,
+	log log.Component,
+	config config.Component,
+	statsd statsd.Component,
+	sysprobeconfig sysprobeconfig.Component,
+	telemetry telemetry.Component,
+	pidfilePath string,
+	demultiplexer demultiplexer.Component,
+	ac autodiscovery.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -278,7 +288,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		return err
 	}
 
-	srv, err = api.NewServer(runtimeAgent, complianceAgent)
+	srv, err = api.NewServer(runtimeAgent, complianceAgent, ac)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

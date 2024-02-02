@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 
+	autodiscoveryComp "github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/status/autodiscovery"
+
 	"github.com/DataDog/datadog-agent/pkg/status/common"
 	"github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
@@ -26,7 +28,7 @@ import (
 )
 
 // GetStatus grabs the status from expvar and puts it into a map
-func GetStatus(verbose bool) (map[string]interface{}, error) {
+func GetStatus(ac autodiscoveryComp.Component, verbose bool) (map[string]interface{}, error) {
 	// inventory is not enabled for the clusteragent/DCA so we pass nil to GetStatus
 	stats, err := common.GetStatus(nil)
 	if err != nil {
@@ -66,7 +68,7 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 		}
 	}
 
-	autodiscovery.PopulateStatus(stats)
+	autodiscovery.PopulateStatus(ac, stats)
 
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		if apiErr != nil {
@@ -89,8 +91,8 @@ func getDCAPartialConfig() map[string]string {
 }
 
 // GetAndFormatStatus gets and formats the status all in one go
-func GetAndFormatStatus() ([]byte, error) {
-	s, err := GetStatus(true)
+func GetAndFormatStatus(ac autodiscoveryComp.Component) ([]byte, error) {
+	s, err := GetStatus(ac, true)
 	if err != nil {
 		log.Infof("Error while getting status %q", err)
 		return nil, err

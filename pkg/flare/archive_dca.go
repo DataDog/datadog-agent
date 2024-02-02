@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -33,7 +34,7 @@ import (
 type ProfileData map[string][]byte
 
 // CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) (string, error) {
+func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) (string, error) {
 	fb, err := flarehelpers.NewFlareBuilder(local)
 	if err != nil {
 		return "", err
@@ -44,18 +45,20 @@ func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileDat
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
-	createDCAArchive(fb, confSearchPaths, logFilePath, pdata, senderManager, collector, secretResolver)
+	createDCAArchive(fb, confSearchPaths, logFilePath, pdata, senderManager, collector, secretResolver, ac)
 	return fb.Save()
 }
 
-func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) {
+func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) {
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", nil)
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		err := fb.AddFileFromFunc("cluster-agent-status.log", clusteragentStatus.GetAndFormatStatus)
+		err := fb.AddFileFromFunc("cluster-agent-status.log", func() ([]byte, error) {
+			return clusteragentStatus.GetAndFormatStatus(ac)
+		})
 		if err != nil {
 			log.Errorf("Error getting the status of the DCA, %q", err)
 			return

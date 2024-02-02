@@ -37,7 +37,7 @@ type Scheduler struct {
 var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
-func New(ac *autodiscovery.AutoConfig) schedulers.Scheduler {
+func New(ac autodiscovery.Component) schedulers.Scheduler {
 	sch := &Scheduler{}
 	sch.listener = adlistener.NewADListener("logs-agent AD scheduler", ac, sch.Schedule, sch.Unschedule)
 	return sch

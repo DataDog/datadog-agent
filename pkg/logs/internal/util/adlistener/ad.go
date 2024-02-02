@@ -23,7 +23,7 @@ type ADListener struct {
 	name string
 
 	// ac is the AutoConfig instance
-	ac *autodiscovery.AutoConfig
+	ac autodiscovery.Component
 
 	// schedule and unschedule are the functions to which Schedule and
 	// Unschedule calls should be proxied.
@@ -34,7 +34,7 @@ var _ scheduler.Scheduler = &ADListener{}
 
 // NewADListener creates a new ADListener, proxying schedule and unschedule calls to
 // the given functions.
-func NewADListener(name string, ac *autodiscovery.AutoConfig, schedule, unschedule func([]integration.Config)) *ADListener {
+func NewADListener(name string, ac autodiscovery.Component, schedule, unschedule func([]integration.Config)) *ADListener {
 	return &ADListener{
 		name:       name,
 		ac:         ac,

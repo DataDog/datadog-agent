@@ -11,6 +11,7 @@ import (
 	"expvar"
 	"strings"
 
+	compAutodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -31,7 +32,7 @@ import (
 )
 
 // GetStatus grabs the status from expvar and puts it into a map
-func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]interface{}, error) {
+func GetStatus(verbose bool, invAgent inventoryagent.Component, ac compAutodiscovery.Component) (map[string]interface{}, error) {
 	stats, err := commonStatus.GetStatus(invAgent)
 	if err != nil {
 		return nil, err
@@ -75,7 +76,7 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 	}
 
 	if config.IsContainerized() {
-		autodiscovery.PopulateStatus(stats)
+		autodiscovery.PopulateStatus(ac, stats)
 	}
 
 	remoteconfiguration.PopulateStatus(stats)
@@ -83,8 +84,8 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 }
 
 // GetAndFormatStatus gets and formats the status all in one go
-func GetAndFormatStatus(invAgent inventoryagent.Component) ([]byte, error) {
-	s, err := GetStatus(true, invAgent)
+func GetAndFormatStatus(invAgent inventoryagent.Component, ac compAutodiscovery.Component) ([]byte, error) {
+	s, err := GetStatus(true, invAgent, ac)
 	if err != nil {
 		return nil, err
 	}
@@ -103,9 +104,9 @@ func GetAndFormatStatus(invAgent inventoryagent.Component) ([]byte, error) {
 }
 
 // GetAndFormatSecurityAgentStatus gets and formats the security agent status
-func GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus map[string]interface{}) ([]byte, error) {
+func GetAndFormatSecurityAgentStatus(runtimeStatus, ac compAutodiscovery.Component, complianceStatus map[string]interface{}) ([]byte, error) {
 	// inventory metadata is not enabled in the security agent, we pass nil to GetStatus
-	s, err := GetStatus(true, nil)
+	s, err := GetStatus(true, nil, ac)
 	if err != nil {
 		return nil, err
 	}
