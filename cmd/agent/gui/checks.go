@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/comp/collector"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"

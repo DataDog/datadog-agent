@@ -15,7 +15,7 @@ import (
 
 	apmetwtracer "github.com/DataDog/datadog-agent/comp/apm/etwtracer"
 	apmetwtracerimpl "github.com/DataDog/datadog-agent/comp/apm/etwtracer/impl"
-	"github.com/DataDog/datadog-agent/comp/collector"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
