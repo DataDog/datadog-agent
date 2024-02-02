@@ -267,8 +267,8 @@ func (p *WindowsProbe) setupEtw() error {
 					ev.Type = uint32(model.CreateRegistryKeyEventType)
 					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
 						Registry: model.RegistryEvent{
-							KeyName: cka.baseName,
-							KeyPath: cka.computedFullPath,
+							KeyName:      cka.baseName,
+							KeyPath:      cka.computedFullPath,
 							RelativeName: cka.relativeName,
 							// Disposition: cka.disposition,
 						},
@@ -280,12 +280,11 @@ func (p *WindowsProbe) setupEtw() error {
 					ev.Type = uint32(model.OpenRegistryKeyEventType)
 					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
 						Registry: model.RegistryEvent{
-							KeyName: cka.baseName,
-							KeyPath: cka.computedFullPath,
+							KeyName:      cka.baseName,
+							KeyPath:      cka.computedFullPath,
 							RelativeName: cka.relativeName,
-						// Disposition: cka.disposition,
+							// Disposition: cka.disposition,
 						},
-						
 					}
 				}
 
@@ -295,7 +294,7 @@ func (p *WindowsProbe) setupEtw() error {
 					ev.Type = uint32(model.DeleteRegistryKeyEventType)
 					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
 						Registry: model.RegistryEvent{
-							KeyName: dka.keyName,
+							KeyName:      dka.keyName,
 							RelativeName: cka.relativeName,
 						},
 					}
@@ -323,12 +322,13 @@ func (p *WindowsProbe) setupEtw() error {
 					ev.Type = uint32(model.SetRegistryKeyValueEventType)
 					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
 						Registry: svk.RegistryEvent{
-							KeyName: svk.baseName,
-							KeyPath: svk.computedFullPath,
+							KeyName:   svk.baseName,
+							KeyPath:   svk.computedFullPath,
 							ValueName: svk.valueName,
 						},
-				}
+					}
 
+				}
 			}
 		}
 
