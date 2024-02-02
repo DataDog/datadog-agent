@@ -217,12 +217,12 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 		{
 			"logs enabled",
 			true,
-			statusProvider{},
+			NewStatusProvider(),
 		},
 		{
 			"logs disabled",
 			false,
-			statusProvider{},
+			NewStatusProvider(),
 		},
 	}
 

@@ -39,7 +39,7 @@ func (a *agent) SetupPipeline(
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, processingRules, a.endpoints, destinationsCtx, statusProvider{}, a.hostname, a.config)
+	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
 
 	// setup the sole launcher for this agent
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
