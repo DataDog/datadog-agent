@@ -221,6 +221,7 @@
 /comp/api @DataDog/agent-shared-components
 /comp/apm/etwtracer @DataDog/windows-agent
 /comp/checks @DataDog/agent-shared-components
+/comp/collector @DataDog/agent-metrics-logs
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/etw @DataDog/windows-agent
