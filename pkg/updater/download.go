@@ -116,7 +116,11 @@ func extractTarGz(archivePath string, destinationPath string) error {
 		if err != nil {
 			return fmt.Errorf("could not read tar header: %w", err)
 		}
-		target := filepath.Join(destinationPath, header.Name)
+		cleanName := filepath.Clean(header.Name)
+		if strings.HasPrefix(cleanName, "..") {
+			return fmt.Errorf("tar entry %s is trying to escape the destination directory", header.Name)
+		}
+		target := filepath.Join(destinationPath, cleanName)
 		switch header.Typeflag {
 		case tar.TypeDir:
 			err = os.MkdirAll(target, 0755)
@@ -139,6 +143,7 @@ func extractTarGz(archivePath string, destinationPath string) error {
 // extractTarGzFile extracts a file from a tar.gz archive.
 // It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
 func extractTarGzFile(targetPath string, reader io.Reader) error {
+	const maxFileSize = 1 << 30 // 1GB, adjust as needed
 	err := os.MkdirAll(filepath.Dir(targetPath), 0755)
 	if err != nil {
 		return fmt.Errorf("could not create directory: %w", err)
@@ -148,7 +153,8 @@ func extractTarGzFile(targetPath string, reader io.Reader) error {
 		return fmt.Errorf("could not create file: %w", err)
 	}
 	defer f.Close()
-	_, err = io.Copy(f, reader)
+	limitedReader := &io.LimitedReader{R: reader, N: maxFileSize}
+	_, err = io.Copy(f, limitedReader)
 	if err != nil {
 		return fmt.Errorf("could not write file: %w", err)
 	}
