@@ -67,7 +67,7 @@ func (a *ActionDefinition) Check() error {
 
 // CompileFilter compiles the filter expression
 func (a *ActionDefinition) CompileFilter(parsingContext *ast.ParsingContext, model eval.Model, evalOpts *eval.Opts) error {
-	if a.Filter == nil {
+	if a.Filter == nil || *a.Filter == "" {
 		return nil
 	}
 
