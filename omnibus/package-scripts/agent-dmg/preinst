@@ -106,11 +106,21 @@ rm -rf $INSTALL_DIR/checks.d || true
 user_uid=$(echo "$UID")
 install_user_home=$(echo "$HOME")
 user_plist_file=${install_user_home}/Library/LaunchAgents/com.datadoghq.agent.plist
+gui_user_plist_file=${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist
 if sudo -u "$INSTALL_USER" launchctl print "gui/$user_uid/com.datadoghq.agent" 1>/dev/null 2>/dev/null; then
   echo "# Disabling the login launch of the app"
-  sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
+  user_agent_version=$(datadog-agent version | grep -Eo '[6-7]\.[0-9]+\.[0-9]+' | head -1)
+  if ! printf '7.52.0\n%s\n' "$user_agent_version" | sort -V -C; then
+    # version is older than 7.52.0
+    sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
+  else
+    # version is at least 7.52.0
+    sudo -u "$INSTALL_USER" launchctl stop "com.datadoghq.gui"
+    sudo -u "$INSTALL_USER" launchctl unload "$gui_user_plist_file"
+  fi
+
   sudo -u "$INSTALL_USER" launchctl stop "com.datadoghq.agent"
-  sudo -u "$INSTALL_USER" launchctl unload "$user_plist_file"
+  sudo -u "$INSTALL_USER" launchctl unload "gui_user_plist_file"
 fi
 # Debriefing time
 echo "# State at the end"

@@ -12,7 +12,6 @@ etc_dir=/opt/datadog-agent/etc
 log_dir=/opt/datadog-agent/logs
 run_dir=/opt/datadog-agent/run
 service_name="com.datadoghq.agent"
-gui_service_name="com.datadoghq.gui"
 systemwide_servicefile_name="/Library/LaunchDaemons/${service_name}.plist"
 
 if [ -n "$DD_REPO_URL" ]; then
@@ -290,7 +289,6 @@ install_user_home=$($cmd_real_user bash -c 'echo "$HOME"')
 # shellcheck disable=SC2016
 user_uid=$($cmd_real_user bash -c 'echo "$UID"')
 user_plist_file=${install_user_home}/Library/LaunchAgents/${service_name}.plist
-gui_plist_file=${install_user_home}/Library/LaunchAgents/${gui_service_name}.plist
 
 # In order to install with the right user
 rm -f /tmp/datadog-install-user
@@ -436,6 +434,7 @@ else
     # if it is running - it's not running if the script was launched when
     # the GUI was not running for the user (e.g. a run of this script via
     # ssh for user not logged in via GUI).
+    # This condition is true only when installing an agent < 7.52.0
     if $cmd_launchctl print "gui/$user_uid/$service_name" 1>/dev/null 2>/dev/null; then
         $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
         $cmd_launchctl stop "$service_name"
