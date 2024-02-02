@@ -98,12 +98,12 @@ func (p *Resolver) AddToExitedQueue(pid uint32) {
 func (p *Resolver) DequeueExited() {
 	p.Lock()
 	defer p.Unlock()
-	var toKeep []int{}
 	delEntry := func(pid uint32, exitTime time.Time) {
 		p.deleteEntry(pid, exitTime)
 		// p.flushedEntries.Inc()
 	}
 
+	var toKeep []int
 	now := time.Now()
 	for _, pid := range p.exitedQueue {
 		entry := p.processes[pid]
@@ -113,7 +113,7 @@ func (p *Resolver) DequeueExited() {
 
 		if tm := entry.ExecTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
 			delEntry(pid, now)
-		}else{
+		} else {
 			toKeep = append(toKeep, pid)
 		}
 	}
