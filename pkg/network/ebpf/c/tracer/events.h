@@ -105,21 +105,17 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     case 0:
         batch_ptr->c0 = conn;
         batch_ptr->len++;
-        batch_ptr->cpu = cpu;
         return;
     case 1:
         batch_ptr->c1 = conn;
         batch_ptr->len++;
-        batch_ptr->cpu = cpu;
         return;
     case 2:
         batch_ptr->c2 = conn;
-        batch_ptr->cpu = cpu;
         batch_ptr->len++;
         return;
     case 3:
         batch_ptr->c3 = conn;
-        batch_ptr->cpu = cpu;
         batch_ptr->len++;
         // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
         // in order to cope with the eBPF stack limitation of 512 bytes.
@@ -161,11 +157,9 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
         bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
         batch_ptr->len = 0;
         batch_ptr->id++;
-        batch_ptr->cpu = 0;
 
         // we cannot use the telemetry macro here because of stack size constraints
         if (ringbuffers_enabled()) {
-            // log_debug("adamk - ringbuffers_enabled - submitting batch to ringbuffer");
             bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
         } else {
             bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));

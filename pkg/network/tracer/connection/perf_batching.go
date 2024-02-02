@@ -53,6 +53,7 @@ func newPerfBatchManager(batchMap *maps.GenericMap[uint32, netebpf.Batch], numCP
 	state := make([]percpuState, numCPUs)
 	for cpu := uint32(0); cpu < numCPUs; cpu++ {
 		b := new(netebpf.Batch)
+		b.Cpu = cpu
 		if err := batchMap.Put(&cpu, b); err != nil {
 			return nil, fmt.Errorf("error initializing perf batch manager maps: %w", err)
 		}
