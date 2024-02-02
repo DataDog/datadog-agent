@@ -9,5 +9,5 @@ package jmx
 
 import dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 
-// RegisterJMXCheckLoader explicitly registers the JMXCheckLoader and injects the dogstatsd server component
-func RegisterJMXCheckLoader(server dogstatsdServer.Component) {}
+// RegisterJMXCheckLoader is a stub for builds that do not include jmx
+func RegisterJMXCheckLoader(_server dogstatsdServer.Component) {}
