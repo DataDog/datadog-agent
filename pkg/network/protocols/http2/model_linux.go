@@ -151,8 +151,8 @@ func (tx *EbpfTx) Method() http.Method {
 // Otherwise, f the status code is huffman encoded, then we decode it and convert it from string to int.
 // Otherwise, we convert the status code from byte array to int.
 func (tx *EbpfTx) StatusCode() uint16 {
-	if tx.Stream.Status_code.Indexed_value != 0 {
-		switch tx.Stream.Status_code.Indexed_value {
+	if tx.Stream.Status_code.Static_table_entry != 0 {
+		switch tx.Stream.Status_code.Static_table_entry {
 		case K200Value:
 			return 200
 		case K204Value:
