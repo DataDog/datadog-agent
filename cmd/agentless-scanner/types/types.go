@@ -80,8 +80,6 @@ const (
 	VolumeAttach DiskMode = "volume-attach"
 	// NBDAttach is the mode to attach the disk as a NBD
 	NBDAttach DiskMode = "nbd-attach"
-	// NoAttach is the mode to not attach the disk
-	NoAttach DiskMode = "no-attach"
 )
 
 // ScannerName is the name of the scanner
@@ -90,8 +88,6 @@ type ScannerName string
 const (
 	// ScannerNameHostVulns is the name of the scanner for host vulnerabilities
 	ScannerNameHostVulns ScannerName = "hostvulns"
-	// ScannerNameHostVulnsEBS is the name of the scanner for EBS host vulnerabilities
-	ScannerNameHostVulnsEBS ScannerName = "hostvulns-ebs"
 	// ScannerNameContainerVulns is the name of the scanner for container vulnerabilities
 	ScannerNameContainerVulns ScannerName = "containervulns"
 	// ScannerNameAppVulns is the name of the scanner for application vulnerabilities
@@ -360,12 +356,10 @@ func ParseDiskMode(diskModeStr string) (DiskMode, error) {
 	switch diskModeStr {
 	case string(VolumeAttach):
 		return VolumeAttach, nil
-	case string(NBDAttach):
+	case string(NBDAttach), "":
 		return NBDAttach, nil
-	case string(NoAttach), "":
-		return NoAttach, nil
 	default:
-		return "", fmt.Errorf("invalid flag \"disk-mode\": expecting either %s, %s or %s", VolumeAttach, NBDAttach, NoAttach)
+		return "", fmt.Errorf("invalid flag \"disk-mode\": expecting either %s or %s", VolumeAttach, NBDAttach)
 	}
 }
 
