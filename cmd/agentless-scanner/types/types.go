@@ -320,3 +320,222 @@ type Container struct {
 func (c Container) String() string {
 	return fmt.Sprintf("%s/%s/%s", c.Runtime, c.ContainerName, c.ImageRefCanonical.Reference())
 }
+
+// ParseDiskMode parses a disk mode from a string.
+func ParseDiskMode(diskModeStr string) (DiskMode, error) {
+	switch diskModeStr {
+	case string(VolumeAttach):
+		return VolumeAttach, nil
+	case string(NBDAttach):
+		return NBDAttach, nil
+	case string(NoAttach), "":
+		return NoAttach, nil
+	default:
+		return "", fmt.Errorf("invalid flag \"disk-mode\": expecting either %s, %s or %s", VolumeAttach, NBDAttach, NoAttach)
+	}
+}
+
+// ParseRolesMapping parses a list of roles into a mapping from account ID  to role ARN.
+func ParseRolesMapping(roles []string) RolesMapping {
+	if len(roles) == 0 {
+		return nil
+	}
+	rolesMap := make(RolesMapping, len(roles))
+	for _, role := range roles {
+		roleARN, err := ParseARN(role, ResourceTypeRole)
+		if err != nil {
+			continue
+		}
+		rolesMap[roleARN.AccountID] = &roleARN
+	}
+	return rolesMap
+}
+
+// ParseARN parses an ARN and checks that it is of the expected type.
+func ParseARN(s string, expectedTypes ...ResourceType) (arn.ARN, error) {
+	a, err := arn.Parse(s)
+	if err != nil {
+		return arn.ARN{}, err
+	}
+	resType, _, err := GetARNResource(a)
+	if err != nil {
+		return arn.ARN{}, err
+	}
+	isExpected := len(expectedTypes) == 0
+	for _, t := range expectedTypes {
+		if t == resType {
+			isExpected = true
+			break
+		}
+	}
+	if !isExpected {
+		return arn.ARN{}, fmt.Errorf("bad arn: expecting one of these resource types %v but got %s", expectedTypes, resType)
+	}
+	return a, nil
+}
+
+var (
+	partitionReg  = regexp.MustCompile("^aws[a-zA-Z-]*$")
+	regionReg     = regexp.MustCompile("^[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-[0-9]{1}$")
+	accountIDReg  = regexp.MustCompile("^[0-9]{12}$")
+	resourceIDReg = regexp.MustCompile("^[a-f0-9]+$")
+	roleNameReg   = regexp.MustCompile("^[a-zA-Z0-9_+=,.@-]{1,64}$")
+	functionReg   = regexp.MustCompile(`^([a-zA-Z0-9-_.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`)
+)
+
+// GetARNResource returns the resource type and ID of an ARN.
+func GetARNResource(arn arn.ARN) (resourceType ResourceType, resourceID string, err error) {
+	if arn.Partition == "localhost" {
+		return ResourceTypeLocalDir, filepath.Join("/", arn.Resource), nil
+	}
+	if !partitionReg.MatchString(arn.Partition) {
+		err = fmt.Errorf("bad arn %q: unexpected partition", arn)
+		return
+	}
+	if arn.Region != "" && !regionReg.MatchString(arn.Region) {
+		err = fmt.Errorf("bad arn %q: unexpected region (should be empty or match %s)", arn, regionReg)
+		return
+	}
+	if arn.AccountID != "" && !accountIDReg.MatchString(arn.AccountID) {
+		err = fmt.Errorf("bad arn %q: unexpected account ID (should match %s)", arn, accountIDReg)
+		return
+	}
+	switch {
+	case arn.Service == "ec2" && strings.HasPrefix(arn.Resource, "volume/"):
+		resourceType, resourceID = ResourceTypeVolume, strings.TrimPrefix(arn.Resource, "volume/")
+		if !strings.HasPrefix(resourceID, "vol-") {
+			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
+			return
+		}
+		if !resourceIDReg.MatchString(strings.TrimPrefix(resourceID, "vol-")) {
+			err = fmt.Errorf("bad arn %q: resource ID has wrong format (should match %s)", arn, resourceIDReg)
+			return
+		}
+	case arn.Service == "ec2" && strings.HasPrefix(arn.Resource, "snapshot/"):
+		resourceType, resourceID = ResourceTypeSnapshot, strings.TrimPrefix(arn.Resource, "snapshot/")
+		if !strings.HasPrefix(resourceID, "snap-") {
+			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
+			return
+		}
+		if !resourceIDReg.MatchString(strings.TrimPrefix(resourceID, "snap-")) {
+			err = fmt.Errorf("bad arn %q: resource ID has wrong format (should match %s)", arn, resourceIDReg)
+			return
+		}
+	case arn.Service == "lambda" && strings.HasPrefix(arn.Resource, "function:"):
+		resourceType, resourceID = ResourceTypeFunction, strings.TrimPrefix(arn.Resource, "function:")
+		if sep := strings.Index(resourceID, ":"); sep > 0 {
+			resourceID = resourceID[:sep]
+		}
+		if !functionReg.MatchString(resourceID) {
+			err = fmt.Errorf("bad arn %q: function name has wrong format (should match %s)", arn, functionReg)
+		}
+	case arn.Service == "iam" && strings.HasPrefix(arn.Resource, "role/"):
+		resourceType, resourceID = ResourceTypeRole, strings.TrimPrefix(arn.Resource, "role/")
+		if !roleNameReg.MatchString(resourceID) {
+			err = fmt.Errorf("bad arn %q: role name has wrong format (should match %s)", arn, roleNameReg)
+			return
+		}
+	default:
+		err = fmt.Errorf("bad arn %q: unexpected resource type", arn)
+		return
+	}
+	return
+}
+
+// NewScanTask creates a new scan task.
+func NewScanTask(resourceARN, scannerHostname, targetHostname string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
+	var scan ScanTask
+	var err error
+	scan.ARN, err = ParseARN(resourceARN, ResourceTypeLocalDir, ResourceTypeSnapshot, ResourceTypeVolume, ResourceTypeFunction)
+	if err != nil {
+		return nil, err
+	}
+	resourceType, _, err := GetARNResource(scan.ARN)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case resourceType == ResourceTypeLocalDir:
+		scan.Type = HostScanType
+	case resourceType == ResourceTypeSnapshot || resourceType == ResourceTypeVolume:
+		scan.Type = EBSScanType
+	case resourceType == ResourceTypeFunction:
+		scan.Type = LambdaScanType
+	default:
+		return nil, fmt.Errorf("unsupported resource type %q for scanning", resourceType)
+	}
+	scan.ScannerHostname = scannerHostname
+	scan.TargetHostname = targetHostname
+	scan.Roles = roles
+	scan.DiskMode = mode
+	scan.Actions = actions
+	scan.CreatedAt = time.Now()
+	scan.ID = MakeScanTaskID(&scan)
+	scan.CreatedSnapshots = make(map[string]*time.Time)
+	return &scan, nil
+}
+
+// ParseScanActions parses a list of actions as strings into a list of scan actions.
+func ParseScanActions(actions []string) ([]ScanAction, error) {
+	var scanActions []ScanAction
+	for _, actionRaw := range actions {
+		switch actionRaw {
+		case string(VulnsHost):
+			scanActions = append(scanActions, VulnsHost)
+		case string(VulnsContainers):
+			scanActions = append(scanActions, VulnsContainers)
+		case string(Malware):
+			scanActions = append(scanActions, Malware)
+		default:
+			return nil, fmt.Errorf("unknown action type %q", actionRaw)
+		}
+	}
+	return scanActions, nil
+}
+
+// UnmarshalConfig unmarshals a scan configuration from a JSON byte slice.
+func UnmarshalConfig(b []byte, scannerHostname string, defaultActions []ScanAction, defaultRolesMapping RolesMapping) (*ScanConfig, error) {
+	var configRaw ScanConfigRaw
+	err := json.Unmarshal(b, &configRaw)
+	if err != nil {
+		return nil, err
+	}
+	var config ScanConfig
+
+	switch configRaw.Type {
+	case string(AWSScan):
+		config.Type = AWSScan
+	default:
+		return nil, fmt.Errorf("unexpected config type %q", config.Type)
+	}
+
+	if len(configRaw.Roles) > 0 {
+		config.Roles = ParseRolesMapping(configRaw.Roles)
+	} else {
+		config.Roles = defaultRolesMapping
+	}
+
+	config.DiskMode, err = ParseDiskMode(configRaw.DiskMode)
+	if err != nil {
+		return nil, err
+	}
+
+	config.Tasks = make([]*ScanTask, 0, len(configRaw.Tasks))
+	for _, rawScan := range configRaw.Tasks {
+		var actions []ScanAction
+		if rawScan.Actions == nil {
+			actions = defaultActions
+		} else {
+			actions, err = ParseScanActions(rawScan.Actions)
+			if err != nil {
+				return nil, err
+			}
+		}
+		task, err := NewScanTask(rawScan.ARN, scannerHostname, rawScan.Hostname, actions, config.Roles, config.DiskMode)
+		if err != nil {
+			return nil, err
+		}
+		config.Tasks = append(config.Tasks, task)
+	}
+	return &config, nil
+}

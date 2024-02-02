@@ -105,7 +105,7 @@ var (
 	globalParams struct {
 		configFilePath string
 		diskMode       types.DiskMode
-		defaultActions []string
+		defaultActions []types.ScanAction
 		noForkScanners bool
 	}
 
@@ -135,6 +135,7 @@ func main() {
 
 func rootCommand() *cobra.Command {
 	var diskModeStr string
+	var defaultActionsStr []string
 
 	cmd := &cobra.Command{
 		Use:          "agentless-scanner [command]",
@@ -142,11 +143,12 @@ func rootCommand() *cobra.Command {
 		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			mode, err := parseDiskMode(diskModeStr)
+			mode, err := types.ParseDiskMode(diskModeStr)
 			if err != nil {
 				return err
 			}
-			if _, err := parseScanActions(globalParams.defaultActions); err != nil {
+			globalParams.defaultActions, err = types.ParseScanActions(defaultActionsStr)
+			if err != nil {
 				return err
 			}
 			globalParams.diskMode = mode
@@ -159,7 +161,7 @@ func rootCommand() *cobra.Command {
 	pflags.StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
 	pflags.StringVar(&diskModeStr, "disk-mode", string(types.NoAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.VolumeAttach, types.NBDAttach, types.NoAttach))
 	pflags.BoolVar(&globalParams.noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
-	pflags.StringSliceVar(&globalParams.defaultActions, "actions", []string{string(types.VulnsHost)}, "disable spawning a dedicated process for launching scanners")
+	pflags.StringSliceVar(&defaultActionsStr, "actions", []string{string(types.VulnsHost)}, "disable spawning a dedicated process for launching scanners")
 	cmd.AddCommand(runCommand())
 	cmd.AddCommand(runScannerCommand())
 	cmd.AddCommand(scanCommand())
@@ -253,7 +255,7 @@ func snapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			scan, err := newScanTask(volumeARN.String(), "unknown", "unknown", globalParams.defaultActions, nil, globalParams.diskMode)
+			scan, err := types.NewScanTask(volumeARN.String(), "unknown", "unknown", globalParams.defaultActions, nil, globalParams.diskMode)
 			if err != nil {
 				return err
 			}
@@ -309,7 +311,7 @@ func offlineCommand() *cobra.Command {
 				})
 			}
 			for _, action := range globalParams.defaultActions {
-				if action == string(types.VulnsContainers) && globalParams.diskMode == types.NoAttach {
+				if action == types.VulnsContainers && globalParams.diskMode == types.NoAttach {
 					globalParams.diskMode = types.VolumeAttach
 				}
 			}
@@ -454,41 +456,12 @@ func runScannerCmd(sock string) error {
 	return nil
 }
 
-func parseDiskMode(diskModeStr string) (types.DiskMode, error) {
-	switch diskModeStr {
-	case string(types.VolumeAttach):
-		return types.VolumeAttach, nil
-	case string(types.NBDAttach):
-		return types.NBDAttach, nil
-	case string(types.NoAttach), "":
-		return types.NoAttach, nil
-	default:
-		return "", fmt.Errorf("invalid flag \"disk-mode\": expecting either %s, %s or %s", types.VolumeAttach, types.NBDAttach, types.NoAttach)
-	}
-}
-
-func parseRolesMapping(roles []string) types.RolesMapping {
-	if len(roles) == 0 {
-		return nil
-	}
-	rolesMap := make(types.RolesMapping, len(roles))
-	for _, role := range roles {
-		roleARN, err := parseARN(role, types.ResourceTypeRole)
-		if err != nil {
-			log.Warnf("role-mapping: bad role %q: %v", role, err)
-			continue
-		}
-		rolesMap[roleARN.AccountID] = &roleARN
-	}
-	return rolesMap
-}
-
 func getDefaultRolesMapping() types.RolesMapping {
 	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
-	return parseRolesMapping(roles)
+	return types.ParseRolesMapping(roles)
 }
 
-func scanCmd(resourceARN arn.ARN, targetHostname string, actions []string) error {
+func scanCmd(resourceARN arn.ARN, targetHostname string, actions []types.ScanAction) error {
 	ctx := ctxTerminated()
 
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -500,7 +473,7 @@ func scanCmd(resourceARN arn.ARN, targetHostname string, actions []string) error
 	}
 
 	roles := getDefaultRolesMapping()
-	task, err := newScanTask(resourceARN.String(), hostname, targetHostname, actions, roles, globalParams.diskMode)
+	task, err := types.NewScanTask(resourceARN.String(), hostname, targetHostname, actions, roles, globalParams.diskMode)
 	if err != nil {
 		return err
 	}
@@ -521,7 +494,7 @@ func scanCmd(resourceARN arn.ARN, targetHostname string, actions []string) error
 	return nil
 }
 
-func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans int, printResults bool, actions []string, filters []ec2types.Filter) error {
+func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans int, printResults bool, actions []types.ScanAction, filters []ec2types.Filter) error {
 	ctx := ctxTerminated()
 	defer statsd.Flush()
 
@@ -660,7 +633,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 							}
 							volumeARN := ec2ARN(regionName, *identity.Account, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
 							log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
-							scan, err := newScanTask(volumeARN.String(), hostname, *instance.InstanceId, actions, roles, globalParams.diskMode)
+							scan, err := types.NewScanTask(volumeARN.String(), hostname, *instance.InstanceId, actions, roles, globalParams.diskMode)
 							if err != nil {
 								return err
 							}
@@ -708,7 +681,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 					return fmt.Errorf("could not scan region %q for EBS volumes: %w", regionName, err)
 				}
 				for _, function := range functions.Functions {
-					scan, err := newScanTask(*function.FunctionArn, hostname, "", actions, roles, globalParams.diskMode)
+					scan, err := types.NewScanTask(*function.FunctionArn, hostname, "", actions, roles, globalParams.diskMode)
 					if err != nil {
 						return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
 					}
@@ -849,7 +822,7 @@ func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool) error {
 		hostname = "unknown"
 	}
 
-	scan, err := newScanTask(resourceARN.String(), hostname, resourceARN.Resource, nil, nil, mode)
+	scan, err := types.NewScanTask(resourceARN.String(), hostname, resourceARN.Resource, globalParams.defaultActions, nil, mode)
 	if err != nil {
 		return err
 	}
@@ -857,7 +830,7 @@ func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool) error {
 
 	waiter := &awsWaiter{}
 
-	resourceType, _, _ := getARNResource(resourceARN)
+	resourceType, _, _ := types.GetARNResource(resourceARN)
 	var snapshotARN arn.ARN
 	switch resourceType {
 	case types.ResourceTypeVolume:
@@ -910,218 +883,6 @@ func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool) error {
 	return nil
 }
 
-func newScanTask(resourceARN, scannerHostname, targetHostname string, actions []string, roles types.RolesMapping, mode types.DiskMode) (*types.ScanTask, error) {
-	var scan types.ScanTask
-	var err error
-	scan.ARN, err = parseARN(resourceARN, types.ResourceTypeLocalDir, types.ResourceTypeSnapshot, types.ResourceTypeVolume, types.ResourceTypeFunction)
-	if err != nil {
-		return nil, err
-	}
-	resourceType, _, err := getARNResource(scan.ARN)
-	if err != nil {
-		return nil, err
-	}
-	switch {
-	case resourceType == types.ResourceTypeLocalDir:
-		scan.Type = types.HostScanType
-	case resourceType == types.ResourceTypeSnapshot || resourceType == types.ResourceTypeVolume:
-		scan.Type = types.EBSScanType
-	case resourceType == types.ResourceTypeFunction:
-		scan.Type = types.LambdaScanType
-	default:
-		return nil, fmt.Errorf("unsupported resource type %q for scanning", resourceType)
-	}
-	scan.ScannerHostname = scannerHostname
-	scan.TargetHostname = targetHostname
-	scan.Roles = roles
-	scan.DiskMode = mode
-	if actions == nil {
-		actions = globalParams.defaultActions
-	}
-	scan.Actions, err = parseScanActions(actions)
-	if err != nil {
-		log.Warn(err)
-	}
-	scan.CreatedAt = time.Now()
-	scan.ID = types.MakeScanTaskID(&scan)
-	scan.CreatedSnapshots = make(map[string]*time.Time)
-	return &scan, nil
-}
-
-func parseScanActions(actions []string) ([]types.ScanAction, error) {
-	var scanActions []types.ScanAction
-	for _, actionRaw := range actions {
-		switch actionRaw {
-		case string(types.VulnsHost):
-			scanActions = append(scanActions, types.VulnsHost)
-		case string(types.VulnsContainers):
-			scanActions = append(scanActions, types.VulnsContainers)
-		case string(types.Malware):
-			scanActions = append(scanActions, types.Malware)
-		default:
-			return nil, fmt.Errorf("unknown action type %q", actionRaw)
-		}
-	}
-	return scanActions, nil
-}
-
-func unmarshalConfig(b []byte, scannerHostname string) (*types.ScanConfig, error) {
-	var configRaw types.ScanConfigRaw
-	err := json.Unmarshal(b, &configRaw)
-	if err != nil {
-		return nil, err
-	}
-	var config types.ScanConfig
-
-	switch configRaw.Type {
-	case string(types.AWSScan):
-		config.Type = types.AWSScan
-	default:
-		return nil, fmt.Errorf("unexpected config type %q", config.Type)
-	}
-
-	if len(configRaw.Roles) > 0 {
-		config.Roles = parseRolesMapping(configRaw.Roles)
-	} else {
-		config.Roles = getDefaultRolesMapping()
-	}
-
-	config.DiskMode, err = parseDiskMode(configRaw.DiskMode)
-	if err != nil {
-		return nil, err
-	}
-
-	config.Tasks = make([]*types.ScanTask, 0, len(configRaw.Tasks))
-	for _, rawScan := range configRaw.Tasks {
-		task, err := newScanTask(rawScan.ARN, scannerHostname, rawScan.Hostname, rawScan.Actions, config.Roles, config.DiskMode)
-		if err != nil {
-			log.Warnf("dropping malformed task: %v", err)
-			continue
-		}
-		config.Tasks = append(config.Tasks, task)
-	}
-	return &config, nil
-}
-
-func parseARN(s string, expectedTypes ...types.ResourceType) (arn.ARN, error) {
-	a, err := arn.Parse(s)
-	if err != nil {
-		return arn.ARN{}, err
-	}
-	resType, _, err := getARNResource(a)
-	if err != nil {
-		return arn.ARN{}, err
-	}
-	isExpected := len(expectedTypes) == 0
-	for _, t := range expectedTypes {
-		if t == resType {
-			isExpected = true
-			break
-		}
-	}
-	if !isExpected {
-		return arn.ARN{}, fmt.Errorf("bad arn: expecting one of these resource types %v but got %s", expectedTypes, resType)
-	}
-	return a, nil
-}
-
-func humanParseARN(s string, expectedTypes ...types.ResourceType) (arn.ARN, error) {
-	if strings.HasPrefix(s, "arn:") {
-		return parseARN(s, expectedTypes...)
-	}
-	self, err := getSelfEC2InstanceIndentity(context.TODO())
-	if err != nil {
-		return arn.ARN{}, err
-	}
-	a := arn.ARN{
-		Partition: "aws",
-		Region:    self.Region,
-		AccountID: self.AccountID,
-		Resource:  s,
-	}
-	if strings.HasPrefix(s, "/") && (len(s) == 1 || fs.ValidPath(s[1:])) {
-		a.Partition = "localhost"
-	} else if strings.HasPrefix(s, "vol-") {
-		a.Service = "ec2"
-		a.Resource = "volume/" + a.Resource
-	} else if strings.HasPrefix(s, "snap-") {
-		a.Service = "ec2"
-		a.Resource = "snapshot/" + a.Resource
-	} else if strings.HasPrefix(s, "function:") {
-		a.Service = "lambda"
-	} else {
-		return arn.ARN{}, fmt.Errorf("unable to parse resource: expecting an ARN for %v", expectedTypes)
-	}
-	return parseARN(a.String(), expectedTypes...)
-}
-
-var (
-	partitionReg  = regexp.MustCompile("^aws[a-zA-Z-]*$")
-	regionReg     = regexp.MustCompile("^[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-[0-9]{1}$")
-	accountIDReg  = regexp.MustCompile("^[0-9]{12}$")
-	resourceIDReg = regexp.MustCompile("^[a-f0-9]+$")
-	roleNameReg   = regexp.MustCompile("^[a-zA-Z0-9_+=,.@-]{1,64}$")
-	functionReg   = regexp.MustCompile(`^([a-zA-Z0-9-_.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`)
-)
-
-func getARNResource(arn arn.ARN) (resourceType types.ResourceType, resourceID string, err error) {
-	if arn.Partition == "localhost" {
-		return types.ResourceTypeLocalDir, filepath.Join("/", arn.Resource), nil
-	}
-	if !partitionReg.MatchString(arn.Partition) {
-		err = fmt.Errorf("bad arn %q: unexpected partition", arn)
-		return
-	}
-	if arn.Region != "" && !regionReg.MatchString(arn.Region) {
-		err = fmt.Errorf("bad arn %q: unexpected region (should be empty or match %s)", arn, regionReg)
-		return
-	}
-	if arn.AccountID != "" && !accountIDReg.MatchString(arn.AccountID) {
-		err = fmt.Errorf("bad arn %q: unexpected account ID (should match %s)", arn, accountIDReg)
-		return
-	}
-	switch {
-	case arn.Service == "ec2" && strings.HasPrefix(arn.Resource, "volume/"):
-		resourceType, resourceID = types.ResourceTypeVolume, strings.TrimPrefix(arn.Resource, "volume/")
-		if !strings.HasPrefix(resourceID, "vol-") {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
-			return
-		}
-		if !resourceIDReg.MatchString(strings.TrimPrefix(resourceID, "vol-")) {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong format (should match %s)", arn, resourceIDReg)
-			return
-		}
-	case arn.Service == "ec2" && strings.HasPrefix(arn.Resource, "snapshot/"):
-		resourceType, resourceID = types.ResourceTypeSnapshot, strings.TrimPrefix(arn.Resource, "snapshot/")
-		if !strings.HasPrefix(resourceID, "snap-") {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
-			return
-		}
-		if !resourceIDReg.MatchString(strings.TrimPrefix(resourceID, "snap-")) {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong format (should match %s)", arn, resourceIDReg)
-			return
-		}
-	case arn.Service == "lambda" && strings.HasPrefix(arn.Resource, "function:"):
-		resourceType, resourceID = types.ResourceTypeFunction, strings.TrimPrefix(arn.Resource, "function:")
-		if sep := strings.Index(resourceID, ":"); sep > 0 {
-			resourceID = resourceID[:sep]
-		}
-		if !functionReg.MatchString(resourceID) {
-			err = fmt.Errorf("bad arn %q: function name has wrong format (should match %s)", arn, functionReg)
-		}
-	case arn.Service == "iam" && strings.HasPrefix(arn.Resource, "role/"):
-		resourceType, resourceID = types.ResourceTypeRole, strings.TrimPrefix(arn.Resource, "role/")
-		if !roleNameReg.MatchString(resourceID) {
-			err = fmt.Errorf("bad arn %q: role name has wrong format (should match %s)", arn, roleNameReg)
-			return
-		}
-	default:
-		err = fmt.Errorf("bad arn %q: unexpected resource type", arn)
-		return
-	}
-	return
-}
-
 type sideScanner struct {
 	hostname         string
 	workers          int
@@ -1172,11 +933,12 @@ func newSideScanner(hostname string, workers, scannersMax int) (*sideScanner, er
 
 func (s *sideScanner) subscribeRemoteConfig(ctx context.Context) error {
 	log.Infof("subscribing to remote-config")
+	defaultRolesMapping := getDefaultRolesMapping()
 	s.rcClient.Subscribe(state.ProductCSMSideScanning, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
 			log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
-			config, err := unmarshalConfig(rawConfig.Config, s.hostname)
+			config, err := types.UnmarshalConfig(rawConfig.Config, s.hostname, globalParams.defaultActions, defaultRolesMapping)
 			if err != nil {
 				log.Errorf("could not parse agentless-scanner task: %v", err)
 				return
@@ -1695,7 +1457,7 @@ func createSnapshot(ctx context.Context, scan *types.ScanTask, waiter *awsWaiter
 
 	retries := 0
 retry:
-	resourceType, volumeID, err := getARNResource(volumeARN)
+	resourceType, volumeID, err := types.GetARNResource(volumeARN)
 	if err != nil {
 		return arn.ARN{}, err
 	}
@@ -2058,7 +1820,7 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 }
 
 func scanEBS(ctx context.Context, scan *types.ScanTask, waiter *awsWaiter, pool *scannersPool, resultsCh chan types.ScanResult) error {
-	resourceType, _, err := getARNResource(scan.ARN)
+	resourceType, _, err := types.GetARNResource(scan.ARN)
 	if err != nil {
 		return err
 	}
@@ -2763,7 +2525,7 @@ func extractLambdaZip(ctx context.Context, zipPath, destinationPath string) (uin
 }
 
 func attachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *awsWaiter, snapshotARN arn.ARN) error {
-	resourceType, snapshotID, err := getARNResource(snapshotARN)
+	resourceType, snapshotID, err := types.GetARNResource(snapshotARN)
 	if err != nil {
 		return err
 	}
@@ -2828,7 +2590,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 	locaEC2Client := ec2.NewFromConfig(localAWSCfg)
 
 	log.Debugf("%s: creating new volume for snapshot %q in az %q", scan, localSnapshotARN, self.AvailabilityZone)
-	_, localSnapshotID, _ := getARNResource(localSnapshotARN)
+	_, localSnapshotID, _ := types.GetARNResource(localSnapshotARN)
 	volume, err := locaEC2Client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 		VolumeType:        ec2types.VolumeTypeGp3,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
@@ -2966,7 +2728,7 @@ func listDevicePartitions(ctx context.Context, scan *types.ScanTask) ([]devicePa
 	// the actual block device path.
 	var serialNumber *string
 	if volumeARN != nil {
-		_, volumeID, _ := getARNResource(*volumeARN)
+		_, volumeID, _ := types.GetARNResource(*volumeARN)
 		sn := "vol" + strings.TrimPrefix(volumeID, "vol-") // vol-XXX => volXXX
 		serialNumber = &sn
 	}
@@ -3104,7 +2866,7 @@ func mountDevice(ctx context.Context, scan *types.ScanTask, partitions []deviceP
 }
 
 func cleanupScanDetach(ctx context.Context, maybeScan *types.ScanTask, volumeARN arn.ARN, roles types.RolesMapping) error {
-	_, volumeID, _ := getARNResource(volumeARN)
+	_, volumeID, _ := types.GetARNResource(volumeARN)
 	cfg, err := newAWSConfig(ctx, volumeARN.Region, roles[volumeARN.AccountID])
 	if err != nil {
 		return err
@@ -3222,11 +2984,11 @@ func cleanupScan(scan *types.ScanTask) {
 	log.Debugf("%s: cleaning up scan data on filesystem", scan)
 
 	for snapshotARNString, snapshotCreatedAt := range scan.CreatedSnapshots {
-		snapshotARN, err := parseARN(snapshotARNString, types.ResourceTypeSnapshot)
+		snapshotARN, err := types.ParseARN(snapshotARNString, types.ResourceTypeSnapshot)
 		if err != nil {
 			continue
 		}
-		_, snapshotID, _ := getARNResource(snapshotARN)
+		_, snapshotID, _ := types.GetARNResource(snapshotARN)
 		cfg, err := newAWSConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
 		if err != nil {
 			log.Errorf("%s: %v", scan, err)
@@ -3394,7 +3156,7 @@ func (w *awsWaiter) wait(ctx context.Context, snapshotARN arn.ARN, ec2client *ec
 	if w.subs[region] == nil {
 		w.subs[region] = make(map[string][]chan error)
 	}
-	_, resourceID, _ := getARNResource(snapshotARN)
+	_, resourceID, _ := types.GetARNResource(snapshotARN)
 	ch := make(chan error, 1)
 	subs := w.subs[region]
 	subs[resourceID] = append(subs[resourceID], ch)
@@ -3548,4 +3310,34 @@ func (l *awsLimits) getLimiter(accountID, region, service, action string) *rate.
 	}
 	l.limitersMu.Unlock()
 	return ll
+}
+
+func humanParseARN(s string, expectedTypes ...types.ResourceType) (arn.ARN, error) {
+	if strings.HasPrefix(s, "arn:") {
+		return types.ParseARN(s, expectedTypes...)
+	}
+	self, err := getSelfEC2InstanceIndentity(context.TODO())
+	if err != nil {
+		return arn.ARN{}, err
+	}
+	a := arn.ARN{
+		Partition: "aws",
+		Region:    self.Region,
+		AccountID: self.AccountID,
+		Resource:  s,
+	}
+	if strings.HasPrefix(s, "/") && (len(s) == 1 || fs.ValidPath(s[1:])) {
+		a.Partition = "localhost"
+	} else if strings.HasPrefix(s, "vol-") {
+		a.Service = "ec2"
+		a.Resource = "volume/" + a.Resource
+	} else if strings.HasPrefix(s, "snap-") {
+		a.Service = "ec2"
+		a.Resource = "snapshot/" + a.Resource
+	} else if strings.HasPrefix(s, "function:") {
+		a.Service = "lambda"
+	} else {
+		return arn.ARN{}, fmt.Errorf("unable to parse resource: expecting an ARN for %v", expectedTypes)
+	}
+	return types.ParseARN(a.String(), expectedTypes...)
 }
