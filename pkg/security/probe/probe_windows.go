@@ -209,18 +209,10 @@ func (p *WindowsProbe) setupEtw() error {
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
-			case idCreate: // a file was opened
-				// if ca, err := parseCreateArgs(e); err == nil {
-				// 	log.Infof("Got create/open new file on file %s", ca.string())
-				// 	ev.Type = uint32(model.OpenEventType)
-				// 	ev.Open = model.OpenEvent{
-				// 		File: model.FileEvent{
-				// 			PathnameStr: ca.fileName,
-				// 			BasenameStr: filepath.Base(ca.fileName),
-				// 		},
-				// 	}
-
-				// }
+			case idCreate:
+				if ca, err := parseCreateArgs(e); err == nil {
+					log.Infof("Got create/open new file on file %s", ca.string())
+				}
 			case idCreateNewFile:
 				if ca, err := parseCreateArgs(e); err == nil {
 					log.Infof("Got create/create new file on file %s", ca.string())
