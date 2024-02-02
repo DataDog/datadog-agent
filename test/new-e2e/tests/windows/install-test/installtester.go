@@ -65,8 +65,12 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 		return nil, err
 	}
 	if !snapshotExists {
-		err = t.snapshotSystemfiles(tt, t.beforeInstallSystemDirListPath)
-		require.NoError(tt, err)
+		if !tt.Run("snapshot system files", func(tt *testing.T) {
+			err = t.snapshotSystemfiles(tt, t.beforeInstallSystemDirListPath)
+			require.NoError(tt, err)
+		}) {
+			tt.FailNow()
+		}
 	}
 
 	for _, opt := range opts {
