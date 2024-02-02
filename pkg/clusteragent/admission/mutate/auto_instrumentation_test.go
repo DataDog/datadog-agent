@@ -1387,7 +1387,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{"python": "latest", "java": "latest"},
 			langDetectionDeployments: []mockDeployment{
-				mockDeployment{
+				{
 					containerName:  "pod",
 					deploymentName: "test-app",
 					namespace:      "ns",
@@ -1459,7 +1459,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{"ruby": "v1.2.3"},
 			langDetectionDeployments: []mockDeployment{
-				mockDeployment{
+				{
 					containerName:  "pod",
 					deploymentName: "test-app",
 					namespace:      "ns",
@@ -1532,7 +1532,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{"js": "v1.10"},
 			langDetectionDeployments: []mockDeployment{
-				mockDeployment{
+				{
 					containerName:  "pod",
 					deploymentName: "test-app",
 					namespace:      "ns",
