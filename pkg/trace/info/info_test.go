@@ -432,6 +432,7 @@ func TestPublishReceiverStats(t *testing.T) {
 				atom(6),
 				atom(7),
 				atom(8),
+				atom(9),
 			},
 			SpansMalformed: &SpansMalformed{
 				atom(1),
