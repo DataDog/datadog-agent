@@ -183,6 +183,7 @@ github.com/gogo/protobuf: ["Copyright (c) 2013, The GoGo Authors. All rights res
 #  * Author, when known only by GitHub username, is "GitHub Full Name (github-username)"
 github.com/moby/sys/mountinfo: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/moby/sys/signal: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
+github.com/moby/sys/user: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/modern-go/concurrent: Copyright (c) 2018 Tao Wen
 github.com/modern-go/reflect2: Copyright (c) 2018 Tao Wen
 github.com/opencontainers/selinux/*: Copyright (c) 2017 The Authors
