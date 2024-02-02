@@ -39,3 +39,4 @@ jobs:
               run: |
                 git fetch
                 inv -e release.create-rc
+                
