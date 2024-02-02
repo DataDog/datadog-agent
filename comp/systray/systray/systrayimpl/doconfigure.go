@@ -44,7 +44,7 @@ func doConfigure(s *systrayImpl) error {
 		return err
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, s.config.GetInt("cmd_port"))
-	err = util.SetAuthToken()
+	err = util.SetAuthToken(pkgconfig.Datadog)
 	if err != nil {
 		return err
 	}
