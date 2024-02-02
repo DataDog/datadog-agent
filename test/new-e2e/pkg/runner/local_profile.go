@@ -125,7 +125,13 @@ func (p localProfile) GetOutputDir() (string, error) {
 
 	// Create a symlink to the latest run for user convenience
 	latestLink := filepath.Join(filepath.Dir(outDir), "latest")
-	_ = os.Remove(latestLink)
+	// Remove the symlink if it already exists
+	if _, err := os.Lstat(latestLink); err == nil {
+		err = os.Remove(latestLink)
+		if err != nil {
+			return "", err
+		}
+	}
 	err = os.Symlink(outDir, latestLink)
 	if err != nil {
 		return "", err
