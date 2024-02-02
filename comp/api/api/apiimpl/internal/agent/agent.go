@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -51,7 +52,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -59,6 +59,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+var mimeTypeMap = map[string]string{
+	"text": "text/plain",
+	"json": "application/json",
+}
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
@@ -76,15 +81,15 @@ func SetupHandlers(
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
+	statusComponent status.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, invAgent) }).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
-	r.HandleFunc("/status/formatted", func(w http.ResponseWriter, r *http.Request) { getFormattedStatus(w, r, invAgent) }).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
@@ -100,6 +105,7 @@ func SetupHandlers(
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
 	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
+	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
 	r.HandleFunc("/metadata/v5", func(w http.ResponseWriter, r *http.Request) { metadataPayloadV5(w, r, hostMetadata) }).Methods("GET")
 	r.HandleFunc("/metadata/inventory-checks", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvChecks(w, r, invChecks) }).Methods("GET")
@@ -214,23 +220,34 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.Component) {
+func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
-	s, err := status.GetStatus(verbose, invAgent)
-	w.Header().Set("Content-Type", "application/json")
+	format := r.URL.Query().Get("format")
+	var contentType string
+
+	contentType, ok := mimeTypeMap[format]
+
+	if !ok {
+		log.Warn("Got a request with invalid format parameter. Defaulting to 'text' format")
+		format = "text"
+		contentType = mimeTypeMap[format]
+	}
+	w.Header().Set("Content-Type", contentType)
+
+	s, err := statusComponent.GetStatus(format, verbose)
+
 	if err != nil {
+		if format == "text" {
+			http.Error(w, log.Errorf("Error getting status. Error: %v.", err).Error(), 500)
+			return
+		}
+
 		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
 		return
 	}
 
-	jsonStats, err := json.Marshal(s)
-	if err != nil {
-		setJSONError(w, log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s), 500)
-		return
-	}
-
-	w.Write(jsonStats)
+	w.Write(s)
 }
 
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
@@ -352,17 +369,6 @@ func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer d
 	w.Write(jsonStats)
 }
 
-func getFormattedStatus(w http.ResponseWriter, _ *http.Request, invAgent inventoryagent.Component) {
-	log.Info("Got a request for the formatted status. Making formatted status.")
-	s, err := status.GetAndFormatStatus(invAgent)
-	if err != nil {
-		setJSONError(w, log.Errorf("Error getting status: %v %v", err, s), 500)
-		return
-	}
-
-	w.Write(s)
-}
-
 func getHealth(w http.ResponseWriter, _ *http.Request) {
 	h := health.GetReady()
 
@@ -445,6 +451,15 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 
 func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
 	secretResolver.GetDebugInfo(w)
+}
+
+func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
+	result, err := secretResolver.Refresh()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write([]byte(result))
 }
 
 func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {

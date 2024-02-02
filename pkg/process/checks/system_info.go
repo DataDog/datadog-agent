@@ -35,15 +35,7 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 	cpus := make([]*model.CPUInfo, 0, len(cpuInfo))
 	for _, c := range cpuInfo {
 		cpus = append(cpus, &model.CPUInfo{
-			Number:     c.CPU,
-			Vendor:     c.VendorID,
-			Family:     c.Family,
-			Model:      c.Model,
-			PhysicalId: c.PhysicalID,
-			CoreId:     c.CoreID,
-			Cores:      c.Cores,
-			Mhz:        int64(c.Mhz),
-			CacheSize:  c.CacheSize,
+			Cores: c.Cores,
 		})
 	}
 

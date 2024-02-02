@@ -27,6 +27,7 @@ const (
 	smjtNS                       = smNS + ".tls.java"
 	diNS                         = "dynamic_instrumentation"
 	wcdNS                        = "windows_crash_detection"
+	pngNS                        = "ping"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -287,6 +288,17 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "kernel_bpf_stats"), false)
 
+	// settings for the entry count of the ebpfcheck
+	// control the size of the buffers used for the batch lookups of the ebpf maps
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "max_keys_buffer_size_bytes"), 512*1024)
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "max_values_buffer_size_bytes"), 1024*1024)
+	// How many times we can restart the entry count of a map before we give up if we get an iteration restart
+	// due to the map changing while we look it up
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "max_restarts"), 3)
+	// How many entries we should keep track of in the entry count map to detect restarts in the
+	// single-item iteration
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "entries_for_iteration_restart_detection"), 100)
+
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 
@@ -338,6 +350,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Windows crash detection
 	cfg.BindEnvAndSetDefault(join(wcdNS, "enabled"), false)
+
+	// Ping
+	cfg.BindEnvAndSetDefault(join(pngNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

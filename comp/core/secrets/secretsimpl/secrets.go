@@ -222,7 +222,7 @@ func (r *secretResolver) startRefreshRoutine() {
 	go func() {
 		for {
 			<-r.ticker.C
-			if err := r.Refresh(); err != nil {
+			if _, err := r.Refresh(); err != nil {
 				log.Info(err)
 			}
 		}
@@ -346,34 +346,46 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 // allowlistHandles restricts what config settings may be updated
 // tests can override this to exercise functionality: by setting this to nil, allow all handles
 // NOTE: Related feature to `authorizedConfigPathsCore` in `comp/api/api/apiimpl/internal/config/endpoint.go`
-var allowlistHandles = []string{"api_key"}
+var allowlistHandles = map[string]struct{}{"api_key": {}}
 
-func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool) {
+func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool) secretRefreshInfo {
+	var handleInfoList []handleInfo
+
 	// notify subscriptions about the changes to secrets
 	for handle, secretValue := range secretResponse {
 		// if allowlist is enabled and the handle is not contained in it, skip it
-		if useAllowlist && allowlistHandles != nil && !slices.Contains(allowlistHandles, handle) {
-			continue
+		if useAllowlist && allowlistHandles != nil {
+			if _, ok := allowlistHandles[handle]; !ok {
+				continue
+			}
 		}
 		oldValue := r.cache[handle]
 		// if value hasn't changed, don't send notifications
 		if oldValue == secretValue {
 			continue
 		}
+		places := make([]handlePlace, 0, len(r.origin[handle]))
 		for _, secretCtx := range r.origin[handle] {
 			for _, sub := range r.subscriptions {
 				sub(handle, secretCtx.origin, secretCtx.path, oldValue, secretValue)
+				places = append(places, handlePlace{Context: secretCtx.origin, Path: strings.Join(secretCtx.path, "/")})
 			}
 		}
+		handleInfoList = append(handleInfoList, handleInfo{Name: handle, Places: places})
 	}
 	// add results to the cache
 	for handle, secretValue := range secretResponse {
 		r.cache[handle] = secretValue
 	}
+	// return info about the handles sorted by their name
+	sort.Slice(handleInfoList, func(i, j int) bool {
+		return handleInfoList[i].Name < handleInfoList[j].Name
+	})
+	return secretRefreshInfo{Handles: handleInfoList}
 }
 
 // Refresh the secrets after they have been Resolved by fetching them from the backend again
-func (r *secretResolver) Refresh() error {
+func (r *secretResolver) Refresh() (string, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -382,15 +394,17 @@ func (r *secretResolver) Refresh() error {
 	if allowlistHandles != nil {
 		filteredHandles := make([]string, 0, len(newHandles))
 		for _, handle := range newHandles {
-			if slices.Contains(allowlistHandles, handle) {
+			if _, ok := allowlistHandles[handle]; ok {
 				filteredHandles = append(filteredHandles, handle)
 			}
 		}
 		newHandles = filteredHandles
 	}
 	if len(newHandles) == 0 {
-		return nil
+		return "", nil
 	}
+
+	log.Infof("Refreshing secrets for %d handles", len(newHandles))
 
 	var secretResponse map[string]string
 	var err error
@@ -401,12 +415,24 @@ func (r *secretResolver) Refresh() error {
 		secretResponse, err = r.fetchSecret(newHandles)
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	// when Refreshing secrets, only update what the allowlist allows
-	r.processSecretResponse(secretResponse, true)
-	return nil
+	// when Refreshing secrets, only update what the allowlist allows by passing `true`
+	refreshResult := r.processSecretResponse(secretResponse, true)
+
+	// render a report
+	t := template.New("secret_refresh")
+	t, err = t.Parse(secretRefreshTmpl)
+	if err != nil {
+		return "", err
+	}
+	b := new(strings.Builder)
+	err = t.Execute(b, refreshResult)
+	if err != nil {
+		return "", err
+	}
+	return b.String(), nil
 }
 
 type secretInfo struct {
@@ -417,8 +443,25 @@ type secretInfo struct {
 	Handles                      map[string][][]string
 }
 
+type secretRefreshInfo struct {
+	Handles []handleInfo
+}
+
+type handleInfo struct {
+	Name   string
+	Places []handlePlace
+}
+
+type handlePlace struct {
+	Context string
+	Path    string
+}
+
 //go:embed info.tmpl
 var secretInfoTmpl string
+
+//go:embed refresh.tmpl
+var secretRefreshTmpl string
 
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
 func (r *secretResolver) GetDebugInfo(w io.Writer) {

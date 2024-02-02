@@ -76,12 +76,17 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	if err != nil {
 		return errorHandler(err)
 	}
-	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
+	var tags strings.Builder
+	tags.WriteString(fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion))
+
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
-		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
-		tags = tags + "," + tag
+		tags.WriteString(fmt.Sprintf(",orchestrator:fargate_%s", strings.ToLower(string(orch))))
 	}
-	return newProfileProxy(r.conf, targets, keys, tags)
+	if r.conf.LambdaFunctionName != "" {
+		tags.WriteString(fmt.Sprintf("functionname:%s", strings.ToLower(r.conf.LambdaFunctionName)))
+		tags.WriteString("_dd.origin:lambda")
+	}
+	return newProfileProxy(r.conf, targets, keys, tags.String())
 }
 
 func errorHandler(err error) http.Handler {

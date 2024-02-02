@@ -37,6 +37,8 @@ from tasks.system_probe import (
 )
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
+is_windows = sys.platform == "win32"
+
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
@@ -368,17 +370,18 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     kernel_release=None,
+    windows=False,
     debug=False,
 ):
-    build_cws_object_files(
-        ctx,
-        major_version=major_version,
-        arch=arch,
-        kernel_release=kernel_release,
-        debug=debug,
-    )
-
-    build_embed_syscall_tester(ctx)
+    if not windows:
+        build_cws_object_files(
+            ctx,
+            major_version=major_version,
+            arch=arch,
+            kernel_release=kernel_release,
+            debug=debug,
+        )
+        build_embed_syscall_tester(ctx)
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
@@ -387,12 +390,13 @@ def build_functional_tests(
         env["GOARCH"] = "386"
 
     build_tags = build_tags.split(",")
-    build_tags.append("linux_bpf")
-    build_tags.append("trivy")
-    build_tags.append("containerd")
+    if not windows:
+        build_tags.append("linux_bpf")
+        build_tags.append("trivy")
+        build_tags.append("containerd")
 
-    if bundle_ebpf:
-        build_tags.append("ebpf_bindata")
+        if bundle_ebpf:
+            build_tags.append("ebpf_bindata")
 
     if static:
         build_tags.extend(["osusergo", "netgo"])
@@ -825,7 +829,7 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx, skip_linters=False):
+def kitchen_prepare(ctx, windows=is_windows, skip_linters=False):
     """
     Compile test suite for kitchen
     """
@@ -834,15 +838,24 @@ def kitchen_prepare(ctx, skip_linters=False):
     if os.path.exists(KITCHEN_ARTIFACT_DIR):
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
 
-    testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "testsuite")
+    out_binary = "testsuite"
+    race = True
+    if windows:
+        out_binary = "testsuite.exe"
+        race = False
+
+    testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", out_binary)
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
-        race=True,
+        race=race,
         debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,
+        windows=windows,
     )
+    if windows:
+        return
     stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
     build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters)
 
