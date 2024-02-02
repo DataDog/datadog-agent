@@ -1,0 +1,10 @@
+suites:
+
+- name: win-secagent-test
+  run_list:
+    - "recipe[dd-security-agent-check]"
+  attributes:
+    dd-agent-rspec:
+      driver_path: <%= ENV['WINDOWS_DDPROCMON_DRIVER'] %>
+      driver_ver: <%= ENV['WINDOWS_DDPROCMON_VERSION'] %>
+      driver_msmsha: <%= ENV['WINDOWS_DDPROCMON_SHASUM'] %>

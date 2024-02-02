@@ -210,6 +210,7 @@ DEFAULT_MODULES = {
     "pkg/util/sort": GoModule("pkg/util/sort", independent=True),
     "pkg/util/optional": GoModule("pkg/util/optional", independent=True),
     "pkg/util/statstracker": GoModule("pkg/util/statstracker", independent=True),
+    "pkg/util/system": GoModule("pkg/util/system", independent=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True),

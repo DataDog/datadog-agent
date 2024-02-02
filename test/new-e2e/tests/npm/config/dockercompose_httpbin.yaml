@@ -1,0 +1,11 @@
+version: '3.9'
+services:
+  httpbin:
+    pid: host
+    privileged: true
+    ports:
+    - 80:8080/tcp
+    image: mccutchen/go-httpbin
+    container_name: httpbin
+    volumes: []
+    environment: {}

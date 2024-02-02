@@ -24,10 +24,11 @@ import (
 	"strings"
 	"syscall"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"golang.org/x/sys/unix"
 )
 
 // Funcs mainly copied from github.com/DataDog/datadog-agent/pkg/security/utils/cgroup.go
@@ -181,7 +182,7 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 }
 
 func getFullPathFromFilename(process *Process, filename string) (string, error) {
-	if filename[0] != '/' {
+	if len(filename) > 0 && filename[0] != '/' {
 		if process.Res.Cwd != "" || fillProcessCwd(process) == nil {
 			filename = filepath.Join(process.Res.Cwd, filename)
 		} else {
