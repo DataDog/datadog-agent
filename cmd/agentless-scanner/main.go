@@ -11,8 +11,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -38,6 +36,7 @@ import (
 
 	// DataDog agent: config stuffs
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -105,7 +104,7 @@ var statsd *ddgostatsd.Client
 var (
 	globalParams struct {
 		configFilePath string
-		diskMode       diskMode
+		diskMode       types.DiskMode
 		defaultActions []string
 		noForkScanners bool
 	}
@@ -115,237 +114,6 @@ var (
 	awsConfigs   = make(map[awsConfigKey]*aws.Config)
 	awsConfigsMu sync.Mutex
 )
-
-const (
-	scansRootDir = "/scans"
-
-	ebsMountPrefix        = "ebs-"
-	containerdMountPrefix = "containerd-"
-	dockerMountPrefix     = "docker-"
-	lambdaMountPrefix     = "lambda-"
-)
-
-type configType string
-
-const (
-	awsScan configType = "aws-scan"
-)
-
-type scanType string
-
-const (
-	hostScanType   scanType = "localhost-scan"
-	ebsScanType    scanType = "ebs-volume"
-	lambdaScanType scanType = "lambda"
-)
-
-type scanAction string
-
-const (
-	malware         scanAction = "malware"
-	vulnsHost       scanAction = "vulns"
-	vulnsContainers scanAction = "vulnscontainers"
-)
-
-type diskMode string
-
-const (
-	volumeAttach diskMode = "volume-attach"
-	nbdAttach    diskMode = "nbd-attach"
-	noAttach     diskMode = "no-attach"
-)
-
-type scannerName string
-
-const (
-	scannerNameHostVulns      scannerName = "hostvulns"
-	scannerNameHostVulnsEBS   scannerName = "hostvulns-ebs"
-	scannerNameContainerVulns scannerName = "containervulns"
-	scannerNameAppVulns       scannerName = "appvulns"
-	scannerNameContainers     scannerName = "containers"
-	scannerNameMalware        scannerName = "malware"
-)
-
-type resourceType string
-
-const (
-	resourceTypeLocalDir = "localdir"
-	resourceTypeVolume   = "volume"
-	resourceTypeSnapshot = "snapshot"
-	resourceTypeFunction = "function"
-	resourceTypeRole     = "role"
-)
-
-type (
-	rolesMapping map[string]*arn.ARN
-
-	scanConfigRaw struct {
-		Type  string `json:"type"`
-		Tasks []struct {
-			Type     string   `json:"type"`
-			ARN      string   `json:"arn"`
-			Hostname string   `json:"hostname"`
-			Actions  []string `json:"actions,omitempty"`
-		} `json:"tasks"`
-		Roles    []string `json:"roles"`
-		DiskMode string   `json:"disk_mode"`
-	}
-
-	scanConfig struct {
-		Type     configType
-		Tasks    []*scanTask
-		Roles    rolesMapping
-		DiskMode diskMode
-	}
-
-	scanTask struct {
-		ID              string       `json:"ID"`
-		CreatedAt       time.Time    `json:"CreatedAt"`
-		StartedAt       time.Time    `json:"StartedAt"`
-		Type            scanType     `json:"Type"`
-		ARN             arn.ARN      `json:"ARN"`
-		TargetHostname  string       `json:"Hostname"`
-		ScannerHostname string       `json:"ScannerHostname"`
-		Actions         []scanAction `json:"Actions"`
-		Roles           rolesMapping `json:"Roles"`
-		DiskMode        diskMode     `json:"DiskMode"`
-
-		// Lifecycle metadata of the task
-		CreatedSnapshots        map[string]*time.Time `json:"CreatedSnapshots"`
-		AttachedDeviceName      *string               `json:"AttachedDeviceName"`
-		AttachedVolumeARN       *arn.ARN              `json:"AttachedVolumeARN"`
-		AttachedVolumeCreatedAt *time.Time            `json:"AttachedVolumeCreatedAt"`
-	}
-
-	scanJSONError struct {
-		err error
-	}
-
-	scanResult struct {
-		scannerOptions
-
-		Err *scanJSONError `json:"Err"`
-
-		// Results union
-		Vulns      *scanVulnsResult     `json:"Vulns"`
-		Malware    *scanMalwareResult   `json:"Malware"`
-		Containers *scanContainerResult `json:"Containers"`
-	}
-
-	scannerOptions struct {
-		Scanner   scannerName `json:"Scanner"`
-		Scan      *scanTask   `json:"Scan"`
-		Root      string      `json:"Root"`
-		CreatedAt time.Time   `jons:"CreatedAt"`
-		StartedAt time.Time   `jons:"StartedAt"`
-		Container *container  `json:"Container"`
-
-		// Vulns specific
-		SnapshotARN *arn.ARN `json:"SnapshotARN"` // TODO: deprecate as we remove "vm" mode
-	}
-
-	scanVulnsResult struct {
-		BOM        *cdx.BOM                 `json:"BOM"`
-		SourceType sbommodel.SBOMSourceType `json:"SourceType"`
-		ID         string                   `json:"ID"`
-		Tags       []string                 `json:"Tags"`
-	}
-
-	scanContainerResult struct {
-		Containers []*container `json:"Containers"`
-	}
-
-	scanMalwareResult struct {
-		Findings []*scanFinding
-	}
-
-	scanFinding struct {
-		AgentVersion string      `json:"agent_version,omitempty"`
-		RuleID       string      `json:"agent_rule_id,omitempty"`
-		RuleVersion  int         `json:"agent_rule_version,omitempty"`
-		FrameworkID  string      `json:"agent_framework_id,omitempty"`
-		Evaluator    string      `json:"evaluator,omitempty"`
-		ExpireAt     *time.Time  `json:"expire_at,omitempty"`
-		Result       string      `json:"result,omitempty"`
-		ResourceType string      `json:"resource_type,omitempty"`
-		ResourceID   string      `json:"resource_id,omitempty"`
-		Tags         []string    `json:"tags"`
-		Data         interface{} `json:"data"`
-	}
-)
-
-func (e *scanJSONError) Error() string {
-	return e.err.Error()
-}
-
-func (e *scanJSONError) Unwrap() error {
-	return e.err
-}
-
-func (e *scanJSONError) MarshalJSON() ([]byte, error) {
-	return json.Marshal(e.err.Error())
-}
-
-func (e *scanJSONError) UnmarshalJSON(data []byte) error {
-	var msg string
-	if err := json.Unmarshal(data, &msg); err != nil {
-		return err
-	}
-	e.err = errors.New(msg)
-	return nil
-}
-
-func (o scannerOptions) ErrResult(err error) scanResult {
-	return scanResult{scannerOptions: o, Err: &scanJSONError{err}}
-}
-
-func (o scannerOptions) ID() string {
-	h := sha256.New()
-	createdAt, _ := o.CreatedAt.MarshalBinary()
-	h.Write(createdAt)
-	h.Write([]byte(o.Scanner))
-	h.Write([]byte(o.Root))
-	h.Write([]byte(o.Scan.ID))
-	if ctr := o.Container; ctr != nil {
-		h.Write([]byte((*ctr).String()))
-	}
-	if o.SnapshotARN != nil {
-		h.Write([]byte(o.SnapshotARN.String()))
-	}
-	return string(o.Scanner) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
-}
-
-func makeScanTaskID(s *scanTask) string {
-	h := sha256.New()
-	createdAt, _ := s.CreatedAt.MarshalBinary()
-	h.Write(createdAt)
-	h.Write([]byte(s.Type))
-	h.Write([]byte(s.ARN.String()))
-	h.Write([]byte(s.TargetHostname))
-	h.Write([]byte(s.ScannerHostname))
-	h.Write([]byte(s.DiskMode))
-	for _, action := range s.Actions {
-		h.Write([]byte(action))
-	}
-	return string(s.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
-}
-
-func (s *scanTask) Path(names ...string) string {
-	root := filepath.Join(scansRootDir, s.ID)
-	for _, name := range names {
-		name = strings.ToLower(name)
-		name = regexp.MustCompile("[^a-z0-9_.-]").ReplaceAllString(name, "")
-		root = filepath.Join(root, name)
-	}
-	return root
-}
-
-func (s *scanTask) String() string {
-	if s == nil {
-		return "nilscan"
-	}
-	return s.ID
-}
 
 func main() {
 	flavor.SetFlavor(flavor.AgentlessScanner)
@@ -389,9 +157,9 @@ func rootCommand() *cobra.Command {
 
 	pflags := cmd.PersistentFlags()
 	pflags.StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
-	pflags.StringVar(&diskModeStr, "disk-mode", string(noAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", volumeAttach, nbdAttach, noAttach))
+	pflags.StringVar(&diskModeStr, "disk-mode", string(types.NoAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.VolumeAttach, types.NBDAttach, types.NoAttach))
 	pflags.BoolVar(&globalParams.noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
-	pflags.StringSliceVar(&globalParams.defaultActions, "actions", []string{string(vulnsHost)}, "disable spawning a dedicated process for launching scanners")
+	pflags.StringSliceVar(&globalParams.defaultActions, "actions", []string{string(types.VulnsHost)}, "disable spawning a dedicated process for launching scanners")
 	cmd.AddCommand(runCommand())
 	cmd.AddCommand(runScannerCommand())
 	cmd.AddCommand(scanCommand())
@@ -481,7 +249,7 @@ func snapshotCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
 			ctx := ctxTerminated()
-			volumeARN, err := humanParseARN(args[0], resourceTypeVolume)
+			volumeARN, err := humanParseARN(args[0], types.ResourceTypeVolume)
 			if err != nil {
 				return err
 			}
@@ -541,18 +309,18 @@ func offlineCommand() *cobra.Command {
 				})
 			}
 			for _, action := range globalParams.defaultActions {
-				if action == string(vulnsContainers) && globalParams.diskMode == noAttach {
-					globalParams.diskMode = volumeAttach
+				if action == string(types.VulnsContainers) && globalParams.diskMode == types.NoAttach {
+					globalParams.diskMode = types.VolumeAttach
 				}
 			}
-			return offlineCmd(cliArgs.workers, scanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, globalParams.defaultActions, filters)
+			return offlineCmd(cliArgs.workers, types.ScanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, globalParams.defaultActions, filters)
 		}),
 	}
 
 	cmd.Flags().IntVar(&cliArgs.workers, "workers", defaultWorkersCount, "number of scans running in parallel")
 	cmd.Flags().StringSliceVar(&cliArgs.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
 	cmd.Flags().StringVar(&cliArgs.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
-	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(ebsScanType), "scan type (ebs-volume or lambda)")
+	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(types.EBSScanType), "scan type (ebs-volume or lambda)")
 	cmd.Flags().IntVar(&cliArgs.maxScans, "max-scans", 0, "maximum number of scans to perform")
 	cmd.Flags().BoolVar(&cliArgs.printResults, "print-results", false, "print scan results to stdout")
 	return cmd
@@ -568,7 +336,7 @@ func attachCommand() *cobra.Command {
 		Short: "Mount the given snapshot into /snapshots/<snapshot-id>/<part> using a network block device",
 		Args:  cobra.ExactArgs(1),
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			resourceARN, err := humanParseARN(args[0], resourceTypeSnapshot, resourceTypeVolume)
+			resourceARN, err := humanParseARN(args[0], types.ResourceTypeSnapshot, types.ResourceTypeVolume)
 			if err != nil {
 				return err
 			}
@@ -660,7 +428,7 @@ func runCmd(pidfilePath string, workers, scannersMax int) error {
 func runScannerCmd(sock string) error {
 	ctx := ctxTerminated()
 
-	var opts scannerOptions
+	var opts types.ScannerOptions
 
 	conn, err := net.Dial("unix", sock)
 	if err != nil {
@@ -686,36 +454,36 @@ func runScannerCmd(sock string) error {
 	return nil
 }
 
-func parseDiskMode(diskModeStr string) (diskMode, error) {
+func parseDiskMode(diskModeStr string) (types.DiskMode, error) {
 	switch diskModeStr {
-	case string(volumeAttach):
-		return volumeAttach, nil
-	case string(nbdAttach):
-		return nbdAttach, nil
-	case string(noAttach), "":
-		return noAttach, nil
+	case string(types.VolumeAttach):
+		return types.VolumeAttach, nil
+	case string(types.NBDAttach):
+		return types.NBDAttach, nil
+	case string(types.NoAttach), "":
+		return types.NoAttach, nil
 	default:
-		return "", fmt.Errorf("invalid flag \"disk-mode\": expecting either %s, %s or %s", volumeAttach, nbdAttach, noAttach)
+		return "", fmt.Errorf("invalid flag \"disk-mode\": expecting either %s, %s or %s", types.VolumeAttach, types.NBDAttach, types.NoAttach)
 	}
 }
 
-func parseRolesMapping(roles []string) rolesMapping {
+func parseRolesMapping(roles []string) types.RolesMapping {
 	if len(roles) == 0 {
 		return nil
 	}
-	rolesMapping := make(rolesMapping, len(roles))
+	rolesMap := make(types.RolesMapping, len(roles))
 	for _, role := range roles {
-		roleARN, err := parseARN(role, resourceTypeRole)
+		roleARN, err := parseARN(role, types.ResourceTypeRole)
 		if err != nil {
 			log.Warnf("role-mapping: bad role %q: %v", role, err)
 			continue
 		}
-		rolesMapping[roleARN.AccountID] = &roleARN
+		rolesMap[roleARN.AccountID] = &roleARN
 	}
-	return rolesMapping
+	return rolesMap
 }
 
-func getDefaultRolesMapping() rolesMapping {
+func getDefaultRolesMapping() types.RolesMapping {
 	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
 	return parseRolesMapping(roles)
 }
@@ -743,9 +511,9 @@ func scanCmd(resourceARN arn.ARN, targetHostname string, actions []string) error
 	}
 	scanner.printResults = true
 	go func() {
-		scanner.pushConfig(ctx, &scanConfig{
-			Type:  awsScan,
-			Tasks: []*scanTask{task},
+		scanner.pushConfig(ctx, &types.ScanConfig{
+			Type:  types.AWSScan,
+			Tasks: []*types.ScanTask{task},
 		})
 		scanner.stop()
 	}()
@@ -753,7 +521,7 @@ func scanCmd(resourceARN arn.ARN, targetHostname string, actions []string) error
 	return nil
 }
 
-func offlineCmd(workers int, scanType scanType, regions []string, maxScans int, printResults bool, actions []string, filters []ec2types.Filter) error {
+func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans int, printResults bool, actions []string, filters []ec2types.Filter) error {
 	ctx := ctxTerminated()
 	defer statsd.Flush()
 
@@ -890,14 +658,14 @@ func offlineCmd(workers int, scanType scanType, regions []string, maxScans int, 
 								// Exclude Windows.
 								continue
 							}
-							volumeARN := ec2ARN(regionName, *identity.Account, resourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
+							volumeARN := ec2ARN(regionName, *identity.Account, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
 							log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
 							scan, err := newScanTask(volumeARN.String(), hostname, *instance.InstanceId, actions, roles, globalParams.diskMode)
 							if err != nil {
 								return err
 							}
 
-							config := &scanConfig{Type: awsScan, Tasks: []*scanTask{scan}, Roles: roles}
+							config := &types.ScanConfig{Type: types.AWSScan, Tasks: []*types.ScanTask{scan}, Roles: roles}
 							if !scanner.pushConfig(ctx, config) {
 								return nil
 							}
@@ -944,7 +712,7 @@ func offlineCmd(workers int, scanType scanType, regions []string, maxScans int, 
 					if err != nil {
 						return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
 					}
-					config := &scanConfig{Type: awsScan, Tasks: []*scanTask{scan}, Roles: roles}
+					config := &types.ScanConfig{Type: types.AWSScan, Tasks: []*types.ScanTask{scan}, Roles: roles}
 					if !scanner.pushConfig(ctx, config) {
 						return nil
 					}
@@ -965,9 +733,9 @@ func offlineCmd(workers int, scanType scanType, regions []string, maxScans int, 
 	go func() {
 		defer scanner.stop()
 		var err error
-		if scanType == ebsScanType {
+		if scanType == types.EBSScanType {
 			err = pushEBSVolumes()
-		} else if scanType == lambdaScanType {
+		} else if scanType == types.LambdaScanType {
 			err = pushLambdaFunctions()
 		} else {
 			panic("unreachable")
@@ -1061,7 +829,7 @@ func (s *sideScanner) cleanupProcess(ctx context.Context) {
 	}
 }
 
-func attachCmd(resourceARN arn.ARN, mode diskMode, mount bool) error {
+func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool) error {
 	ctx := ctxTerminated()
 
 	cfg, err := newAWSConfig(ctx, resourceARN.Region, nil)
@@ -1069,8 +837,8 @@ func attachCmd(resourceARN arn.ARN, mode diskMode, mount bool) error {
 		return err
 	}
 
-	if mode == noAttach {
-		mode = nbdAttach
+	if mode == types.NoAttach {
+		mode = types.NBDAttach
 	}
 
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -1092,24 +860,24 @@ func attachCmd(resourceARN arn.ARN, mode diskMode, mount bool) error {
 	resourceType, _, _ := getARNResource(resourceARN)
 	var snapshotARN arn.ARN
 	switch resourceType {
-	case resourceTypeVolume:
+	case types.ResourceTypeVolume:
 		ec2client := ec2.NewFromConfig(cfg)
 		snapshotARN, err = createSnapshot(ctx, scan, waiter, ec2client, resourceARN)
 		if err != nil {
 			return err
 		}
-	case resourceTypeSnapshot:
+	case types.ResourceTypeSnapshot:
 		snapshotARN = resourceARN
 	default:
 		panic("unreachable")
 	}
 
 	switch mode {
-	case volumeAttach:
+	case types.VolumeAttach:
 		if err := attachSnapshotWithVolume(ctx, scan, waiter, snapshotARN); err != nil {
 			return err
 		}
-	case nbdAttach:
+	case types.NBDAttach:
 		ebsclient := ebs.NewFromConfig(cfg)
 		if err := attachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient); err != nil {
 			return err
@@ -1142,10 +910,10 @@ func attachCmd(resourceARN arn.ARN, mode diskMode, mount bool) error {
 	return nil
 }
 
-func newScanTask(resourceARN, scannerHostname, targetHostname string, actions []string, roles rolesMapping, mode diskMode) (*scanTask, error) {
-	var scan scanTask
+func newScanTask(resourceARN, scannerHostname, targetHostname string, actions []string, roles types.RolesMapping, mode types.DiskMode) (*types.ScanTask, error) {
+	var scan types.ScanTask
 	var err error
-	scan.ARN, err = parseARN(resourceARN, resourceTypeLocalDir, resourceTypeSnapshot, resourceTypeVolume, resourceTypeFunction)
+	scan.ARN, err = parseARN(resourceARN, types.ResourceTypeLocalDir, types.ResourceTypeSnapshot, types.ResourceTypeVolume, types.ResourceTypeFunction)
 	if err != nil {
 		return nil, err
 	}
@@ -1154,12 +922,12 @@ func newScanTask(resourceARN, scannerHostname, targetHostname string, actions []
 		return nil, err
 	}
 	switch {
-	case resourceType == resourceTypeLocalDir:
-		scan.Type = hostScanType
-	case resourceType == resourceTypeSnapshot || resourceType == resourceTypeVolume:
-		scan.Type = ebsScanType
-	case resourceType == resourceTypeFunction:
-		scan.Type = lambdaScanType
+	case resourceType == types.ResourceTypeLocalDir:
+		scan.Type = types.HostScanType
+	case resourceType == types.ResourceTypeSnapshot || resourceType == types.ResourceTypeVolume:
+		scan.Type = types.EBSScanType
+	case resourceType == types.ResourceTypeFunction:
+		scan.Type = types.LambdaScanType
 	default:
 		return nil, fmt.Errorf("unsupported resource type %q for scanning", resourceType)
 	}
@@ -1175,21 +943,21 @@ func newScanTask(resourceARN, scannerHostname, targetHostname string, actions []
 		log.Warn(err)
 	}
 	scan.CreatedAt = time.Now()
-	scan.ID = makeScanTaskID(&scan)
+	scan.ID = types.MakeScanTaskID(&scan)
 	scan.CreatedSnapshots = make(map[string]*time.Time)
 	return &scan, nil
 }
 
-func parseScanActions(actions []string) ([]scanAction, error) {
-	var scanActions []scanAction
+func parseScanActions(actions []string) ([]types.ScanAction, error) {
+	var scanActions []types.ScanAction
 	for _, actionRaw := range actions {
 		switch actionRaw {
-		case string(vulnsHost):
-			scanActions = append(scanActions, vulnsHost)
-		case string(vulnsContainers):
-			scanActions = append(scanActions, vulnsContainers)
-		case string(malware):
-			scanActions = append(scanActions, malware)
+		case string(types.VulnsHost):
+			scanActions = append(scanActions, types.VulnsHost)
+		case string(types.VulnsContainers):
+			scanActions = append(scanActions, types.VulnsContainers)
+		case string(types.Malware):
+			scanActions = append(scanActions, types.Malware)
 		default:
 			return nil, fmt.Errorf("unknown action type %q", actionRaw)
 		}
@@ -1197,17 +965,17 @@ func parseScanActions(actions []string) ([]scanAction, error) {
 	return scanActions, nil
 }
 
-func unmarshalConfig(b []byte, scannerHostname string) (*scanConfig, error) {
-	var configRaw scanConfigRaw
+func unmarshalConfig(b []byte, scannerHostname string) (*types.ScanConfig, error) {
+	var configRaw types.ScanConfigRaw
 	err := json.Unmarshal(b, &configRaw)
 	if err != nil {
 		return nil, err
 	}
-	var config scanConfig
+	var config types.ScanConfig
 
 	switch configRaw.Type {
-	case string(awsScan):
-		config.Type = awsScan
+	case string(types.AWSScan):
+		config.Type = types.AWSScan
 	default:
 		return nil, fmt.Errorf("unexpected config type %q", config.Type)
 	}
@@ -1223,7 +991,7 @@ func unmarshalConfig(b []byte, scannerHostname string) (*scanConfig, error) {
 		return nil, err
 	}
 
-	config.Tasks = make([]*scanTask, 0, len(configRaw.Tasks))
+	config.Tasks = make([]*types.ScanTask, 0, len(configRaw.Tasks))
 	for _, rawScan := range configRaw.Tasks {
 		task, err := newScanTask(rawScan.ARN, scannerHostname, rawScan.Hostname, rawScan.Actions, config.Roles, config.DiskMode)
 		if err != nil {
@@ -1235,7 +1003,7 @@ func unmarshalConfig(b []byte, scannerHostname string) (*scanConfig, error) {
 	return &config, nil
 }
 
-func parseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
+func parseARN(s string, expectedTypes ...types.ResourceType) (arn.ARN, error) {
 	a, err := arn.Parse(s)
 	if err != nil {
 		return arn.ARN{}, err
@@ -1257,7 +1025,7 @@ func parseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
 	return a, nil
 }
 
-func humanParseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
+func humanParseARN(s string, expectedTypes ...types.ResourceType) (arn.ARN, error) {
 	if strings.HasPrefix(s, "arn:") {
 		return parseARN(s, expectedTypes...)
 	}
@@ -1296,9 +1064,9 @@ var (
 	functionReg   = regexp.MustCompile(`^([a-zA-Z0-9-_.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`)
 )
 
-func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, err error) {
+func getARNResource(arn arn.ARN) (resourceType types.ResourceType, resourceID string, err error) {
 	if arn.Partition == "localhost" {
-		return resourceTypeLocalDir, filepath.Join("/", arn.Resource), nil
+		return types.ResourceTypeLocalDir, filepath.Join("/", arn.Resource), nil
 	}
 	if !partitionReg.MatchString(arn.Partition) {
 		err = fmt.Errorf("bad arn %q: unexpected partition", arn)
@@ -1314,7 +1082,7 @@ func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, 
 	}
 	switch {
 	case arn.Service == "ec2" && strings.HasPrefix(arn.Resource, "volume/"):
-		resourceType, resourceID = resourceTypeVolume, strings.TrimPrefix(arn.Resource, "volume/")
+		resourceType, resourceID = types.ResourceTypeVolume, strings.TrimPrefix(arn.Resource, "volume/")
 		if !strings.HasPrefix(resourceID, "vol-") {
 			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
 			return
@@ -1324,7 +1092,7 @@ func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, 
 			return
 		}
 	case arn.Service == "ec2" && strings.HasPrefix(arn.Resource, "snapshot/"):
-		resourceType, resourceID = resourceTypeSnapshot, strings.TrimPrefix(arn.Resource, "snapshot/")
+		resourceType, resourceID = types.ResourceTypeSnapshot, strings.TrimPrefix(arn.Resource, "snapshot/")
 		if !strings.HasPrefix(resourceID, "snap-") {
 			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
 			return
@@ -1334,7 +1102,7 @@ func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, 
 			return
 		}
 	case arn.Service == "lambda" && strings.HasPrefix(arn.Resource, "function:"):
-		resourceType, resourceID = resourceTypeFunction, strings.TrimPrefix(arn.Resource, "function:")
+		resourceType, resourceID = types.ResourceTypeFunction, strings.TrimPrefix(arn.Resource, "function:")
 		if sep := strings.Index(resourceID, ":"); sep > 0 {
 			resourceID = resourceID[:sep]
 		}
@@ -1342,7 +1110,7 @@ func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, 
 			err = fmt.Errorf("bad arn %q: function name has wrong format (should match %s)", arn, functionReg)
 		}
 	case arn.Service == "iam" && strings.HasPrefix(arn.Resource, "role/"):
-		resourceType, resourceID = resourceTypeRole, strings.TrimPrefix(arn.Resource, "role/")
+		resourceType, resourceID = types.ResourceTypeRole, strings.TrimPrefix(arn.Resource, "role/")
 		if !roleNameReg.MatchString(resourceID) {
 			err = fmt.Errorf("bad arn %q: role name has wrong format (should match %s)", arn, roleNameReg)
 			return
@@ -1370,9 +1138,9 @@ type sideScanner struct {
 	scansInProgress   map[arn.ARN]struct{}
 	scansInProgressMu sync.RWMutex
 
-	configsCh chan *scanConfig
-	scansCh   chan *scanTask
-	resultsCh chan scanResult
+	configsCh chan *types.ScanConfig
+	scansCh   chan *types.ScanTask
+	resultsCh chan types.ScanResult
 }
 
 func newSideScanner(hostname string, workers, scannersMax int) (*sideScanner, error) {
@@ -1396,9 +1164,9 @@ func newSideScanner(hostname string, workers, scannersMax int) (*sideScanner, er
 
 		scansInProgress: make(map[arn.ARN]struct{}),
 
-		configsCh: make(chan *scanConfig),
-		scansCh:   make(chan *scanTask),
-		resultsCh: make(chan scanResult),
+		configsCh: make(chan *types.ScanConfig),
+		scansCh:   make(chan *types.ScanTask),
+		resultsCh: make(chan types.ScanResult),
 	}, nil
 }
 
@@ -1450,26 +1218,26 @@ func (s *sideScanner) cleanSlate() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	scansDir, err := os.Open(scansRootDir)
+	scansDir, err := os.Open(types.ScansRootDir)
 	if os.IsNotExist(err) {
-		if err := os.Mkdir(scansRootDir, 0700); err != nil {
-			return fmt.Errorf("clean slate: could not create directory %q: %w", scansRootDir, err)
+		if err := os.Mkdir(types.ScansRootDir, 0700); err != nil {
+			return fmt.Errorf("clean slate: could not create directory %q: %w", types.ScansRootDir, err)
 		}
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("clean slate: could not open %q: %w", scansRootDir, err)
+		return fmt.Errorf("clean slate: could not open %q: %w", types.ScansRootDir, err)
 	}
 	scanDirInfo, err := scansDir.Stat()
 	if err != nil {
-		return fmt.Errorf("clean slate: could not stat %q: %w", scansRootDir, err)
+		return fmt.Errorf("clean slate: could not stat %q: %w", types.ScansRootDir, err)
 	}
 	if !scanDirInfo.IsDir() {
-		return fmt.Errorf("clean slate: %q already exists and is not a directory: %w", scansRootDir, os.ErrExist)
+		return fmt.Errorf("clean slate: %q already exists and is not a directory: %w", types.ScansRootDir, os.ErrExist)
 	}
 	if scanDirInfo.Mode() != 0700 {
-		if err := os.Chmod(scansRootDir, 0700); err != nil {
-			return fmt.Errorf("clean slate: could not chmod %q: %w", scansRootDir, err)
+		if err := os.Chmod(types.ScansRootDir, 0700); err != nil {
+			return fmt.Errorf("clean slate: could not chmod %q: %w", types.ScansRootDir, err)
 		}
 	}
 	scanDirs, err := scansDir.ReadDir(0)
@@ -1480,28 +1248,28 @@ func (s *sideScanner) cleanSlate() error {
 	var ebsMountPoints []string
 	var ctrMountPoints []string
 	for _, scanDir := range scanDirs {
-		name := filepath.Join(scansRootDir, scanDir.Name())
+		name := filepath.Join(types.ScansRootDir, scanDir.Name())
 		if !scanDir.IsDir() {
 			if err := os.Remove(name); err != nil {
 				log.Warnf("clean slate: could not remove file %q", name)
 			}
 		} else {
 			switch {
-			case strings.HasPrefix(scanDir.Name(), string(lambdaScanType)+"-"):
+			case strings.HasPrefix(scanDir.Name(), string(types.LambdaScanType)+"-"):
 				if err := os.RemoveAll(name); err != nil {
 					log.Warnf("clean slate: could not remove directory %q", name)
 				}
-			case strings.HasPrefix(scanDir.Name(), string(ebsScanType)):
-				scanDirname := filepath.Join(scansRootDir, scanDir.Name())
+			case strings.HasPrefix(scanDir.Name(), string(types.EBSScanType)):
+				scanDirname := filepath.Join(types.ScansRootDir, scanDir.Name())
 				scanEntries, err := os.ReadDir(scanDirname)
 				if err != nil {
 					log.Errorf("clean slate: %v", err)
 				} else {
 					for _, scanEntry := range scanEntries {
 						switch {
-						case strings.HasPrefix(scanEntry.Name(), ebsMountPrefix):
+						case strings.HasPrefix(scanEntry.Name(), types.EBSMountPrefix):
 							ebsMountPoints = append(ebsMountPoints, filepath.Join(scanDirname, scanEntry.Name()))
-						case strings.HasPrefix(scanEntry.Name(), containerdMountPrefix) || strings.HasPrefix(scanEntry.Name(), dockerMountPrefix):
+						case strings.HasPrefix(scanEntry.Name(), types.ContainerdMountPrefix) || strings.HasPrefix(scanEntry.Name(), types.DockerMountPrefix):
 							ctrMountPoints = append(ctrMountPoints, filepath.Join(scanDirname, scanEntry.Name()))
 						}
 					}
@@ -1521,7 +1289,7 @@ func (s *sideScanner) cleanSlate() error {
 	}
 
 	for _, scanDir := range scanDirs {
-		scanDirname := filepath.Join(scansRootDir, scanDir.Name())
+		scanDirname := filepath.Join(types.ScansRootDir, scanDir.Name())
 		log.Warnf("clean slate: removing directory %q", scanDirname)
 		if err := os.RemoveAll(scanDirname); err != nil {
 			log.Errorf("clean slate: could not remove directory %q", scanDirname)
@@ -1554,7 +1322,7 @@ func (s *sideScanner) cleanSlate() error {
 						noMount++
 					} else {
 						for _, mountpoint := range child.Mountpoints {
-							if strings.HasPrefix(mountpoint, scansRootDir+"/") {
+							if strings.HasPrefix(mountpoint, types.ScansRootDir+"/") {
 								isScan = true
 							}
 						}
@@ -1570,7 +1338,7 @@ func (s *sideScanner) cleanSlate() error {
 
 	if self, err := getSelfEC2InstanceIndentity(ctx); err == nil {
 		for _, volumeID := range attachedVolumes {
-			volumeARN := ec2ARN(self.Region, self.AccountID, resourceTypeVolume, volumeID)
+			volumeARN := ec2ARN(self.Region, self.AccountID, types.ResourceTypeVolume, volumeID)
 			if errd := cleanupScanDetach(ctx, nil, volumeARN, getDefaultRolesMapping()); err != nil {
 				log.Warnf("clean slate: %v", errd)
 			}
@@ -1643,7 +1411,7 @@ func (s *sideScanner) start(ctx context.Context) {
 					s.sendFindings(malware.Findings)
 					if s.printResults {
 						b, _ := json.MarshalIndent(malware.Findings, "", "  ")
-						fmt.Printf("scanning malware result %s (took %s): %s\n", result.Scan, time.Since(result.StartedAt), string(b))
+						fmt.Printf("scanning types.Malware result %s (took %s): %s\n", result.Scan, time.Since(result.StartedAt), string(b))
 					}
 				}
 			}
@@ -1721,7 +1489,7 @@ func (s *sideScanner) stop() {
 	close(s.configsCh)
 }
 
-func (s *sideScanner) pushConfig(ctx context.Context, config *scanConfig) bool {
+func (s *sideScanner) pushConfig(ctx context.Context, config *types.ScanConfig) bool {
 	select {
 	case s.configsCh <- config:
 		return true
@@ -1730,7 +1498,7 @@ func (s *sideScanner) pushConfig(ctx context.Context, config *scanConfig) bool {
 	}
 }
 
-func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error) {
+func (s *sideScanner) launchScan(ctx context.Context, scan *types.ScanTask) (err error) {
 	if err := statsd.Count("datadog.agentless_scanner.scans.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -1750,18 +1518,18 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 	scan.StartedAt = time.Now()
 	defer cleanupScan(scan)
 	switch scan.Type {
-	case hostScanType:
+	case types.HostScanType:
 		return scanRootFilesystems(ctx, scan, []string{scan.ARN.Resource}, pool, s.resultsCh)
-	case ebsScanType:
+	case types.EBSScanType:
 		return scanEBS(ctx, scan, s.waiter, pool, s.resultsCh)
-	case lambdaScanType:
+	case types.LambdaScanType:
 		return scanLambda(ctx, scan, pool, s.resultsCh)
 	default:
 		return fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
 }
 
-func (s *sideScanner) sendSBOM(result scanResult) error {
+func (s *sideScanner) sendSBOM(result types.ScanResult) error {
 	vulns := result.Vulns
 	sourceAgent := "agentless-scanner"
 	envVarEnv := pkgconfig.Datadog.GetString("env")
@@ -1797,7 +1565,7 @@ func (s *sideScanner) sendSBOM(result scanResult) error {
 	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
-func (s *sideScanner) sendFindings(findings []*scanFinding) {
+func (s *sideScanner) sendFindings(findings []*types.ScanFinding) {
 	var tags []string // TODO: tags
 	expireAt := time.Now().Add(24 * time.Hour)
 	for _, finding := range findings {
@@ -1807,7 +1575,7 @@ func (s *sideScanner) sendFindings(findings []*scanFinding) {
 	}
 }
 
-func cloudResourceTagSpec(resourceType resourceType, scannerHostname string) []ec2types.TagSpecification {
+func cloudResourceTagSpec(resourceType types.ResourceType, scannerHostname string) []ec2types.TagSpecification {
 	return []ec2types.TagSpecification{
 		{
 			ResourceType: ec2types.ResourceType(resourceType),
@@ -1831,8 +1599,8 @@ func cloudResourceTagFilters() []ec2types.Filter {
 	}
 }
 
-func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL time.Duration) map[resourceType][]string {
-	toBeDeleted := make(map[resourceType][]string)
+func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL time.Duration) map[types.ResourceType][]string {
+	toBeDeleted := make(map[types.ResourceType][]string)
 	var nextToken *string
 
 	for {
@@ -1847,7 +1615,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL 
 		for i := range volumes.Volumes {
 			if volumes.Volumes[i].State == ec2types.VolumeStateAvailable {
 				volumeID := *volumes.Volumes[i].VolumeId
-				toBeDeleted[resourceTypeVolume] = append(toBeDeleted[resourceTypeVolume], volumeID)
+				toBeDeleted[types.ResourceTypeVolume] = append(toBeDeleted[types.ResourceTypeVolume], volumeID)
 			}
 		}
 		nextToken = volumes.NextToken
@@ -1874,7 +1642,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL 
 				continue
 			}
 			snapshotID := *snapshots.Snapshots[i].SnapshotId
-			toBeDeleted[resourceTypeSnapshot] = append(toBeDeleted[resourceTypeSnapshot], snapshotID)
+			toBeDeleted[types.ResourceTypeSnapshot] = append(toBeDeleted[types.ResourceTypeSnapshot], snapshotID)
 		}
 		nextToken = snapshots.NextToken
 		if nextToken == nil {
@@ -1884,7 +1652,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL 
 	return toBeDeleted
 }
 
-func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDeleted map[resourceType][]string) {
+func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDeleted map[types.ResourceType][]string) {
 	for resourceType, resources := range toBeDeleted {
 		for _, resourceID := range resources {
 			if err := ctx.Err(); err != nil {
@@ -1893,11 +1661,11 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDelet
 			log.Infof("cleaning up resource %s/%s", resourceType, resourceID)
 			var err error
 			switch resourceType {
-			case resourceTypeSnapshot:
+			case types.ResourceTypeSnapshot:
 				_, err = ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
 					SnapshotId: aws.String(resourceID),
 				})
-			case resourceTypeVolume:
+			case types.ResourceTypeVolume:
 				_, err = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
 					VolumeId: aws.String(resourceID),
 				})
@@ -1909,7 +1677,7 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDelet
 	}
 }
 
-func statsResourceTTL(resourceType resourceType, scan *scanTask, createTime time.Time) {
+func statsResourceTTL(resourceType types.ResourceType, scan *types.ScanTask, createTime time.Time) {
 	ttl := time.Since(createTime)
 	tags := tagScan(scan)
 	tags = append(tags, fmt.Sprintf("aws_resource_type:%s", string(resourceType)))
@@ -1918,7 +1686,7 @@ func statsResourceTTL(resourceType resourceType, scan *scanTask, createTime time
 	}
 }
 
-func createSnapshot(ctx context.Context, scan *scanTask, waiter *awsWaiter, ec2client *ec2.Client, volumeARN arn.ARN) (arn.ARN, error) {
+func createSnapshot(ctx context.Context, scan *types.ScanTask, waiter *awsWaiter, ec2client *ec2.Client, volumeARN arn.ARN) (arn.ARN, error) {
 	snapshotCreatedAt := time.Now()
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
@@ -1931,12 +1699,12 @@ retry:
 	if err != nil {
 		return arn.ARN{}, err
 	}
-	if resourceType != resourceTypeVolume {
+	if resourceType != types.ResourceTypeVolume {
 		return arn.ARN{}, fmt.Errorf("bad volume ARN %q: expecting a volume ARN", volumeARN)
 	}
 	createSnapshotOutput, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 		VolumeId:          aws.String(volumeID),
-		TagSpecifications: cloudResourceTagSpec(resourceTypeSnapshot, scan.ScannerHostname),
+		TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
 	})
 	if err != nil {
 		var aerr smithy.APIError
@@ -1982,7 +1750,7 @@ retry:
 	}
 
 	snapshotID := *createSnapshotOutput.SnapshotId
-	snapshotARN := ec2ARN(volumeARN.Region, volumeARN.AccountID, resourceTypeSnapshot, snapshotID)
+	snapshotARN := ec2ARN(volumeARN.Region, volumeARN.AccountID, types.ResourceTypeSnapshot, snapshotID)
 	scan.CreatedSnapshots[snapshotARN.String()] = &snapshotCreatedAt
 
 	err = <-waiter.wait(ctx, snapshotARN, ec2client)
@@ -2006,7 +1774,7 @@ retry:
 	return snapshotARN, err
 }
 
-func tagScan(scan *scanTask, rest ...string) []string {
+func tagScan(scan *types.ScanTask, rest ...string) []string {
 	return append([]string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 		fmt.Sprintf("region:%s", scan.ARN.Region),
@@ -2014,22 +1782,22 @@ func tagScan(scan *scanTask, rest ...string) []string {
 	}, rest...)
 }
 
-func tagNoResult(scan *scanTask) []string {
+func tagNoResult(scan *types.ScanTask) []string {
 	return tagScan(scan, "status:noresult")
 }
 
-func tagNotFound(scan *scanTask) []string {
+func tagNotFound(scan *types.ScanTask) []string {
 	return tagScan(scan, "status:notfound")
 }
 
-func tagFailure(scan *scanTask, err error) []string {
+func tagFailure(scan *types.ScanTask, err error) []string {
 	if errors.Is(err, context.Canceled) {
 		return tagScan(scan, "status:canceled")
 	}
 	return tagScan(scan, "status:failure")
 }
 
-func tagSuccess(scan *scanTask) []string {
+func tagSuccess(scan *types.ScanTask) []string {
 	return append(tagScan(scan), "status:success")
 }
 
@@ -2289,7 +2057,7 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
 }
 
-func scanEBS(ctx context.Context, scan *scanTask, waiter *awsWaiter, pool *scannersPool, resultsCh chan scanResult) error {
+func scanEBS(ctx context.Context, scan *types.ScanTask, waiter *awsWaiter, pool *scannersPool, resultsCh chan types.ScanResult) error {
 	resourceType, _, err := getARNResource(scan.ARN)
 	if err != nil {
 		return err
@@ -2313,12 +2081,12 @@ func scanEBS(ctx context.Context, scan *scanTask, waiter *awsWaiter, pool *scann
 
 	var snapshotARN arn.ARN
 	switch resourceType {
-	case resourceTypeVolume:
+	case types.ResourceTypeVolume:
 		snapshotARN, err = createSnapshot(ctx, scan, waiter, ec2client, scan.ARN)
 		if err != nil {
 			return err
 		}
-	case resourceTypeSnapshot:
+	case types.ResourceTypeSnapshot:
 		snapshotARN = scan.ARN
 	default:
 		return fmt.Errorf("ebs-volume: bad arn %q", scan.ARN)
@@ -2330,17 +2098,17 @@ func scanEBS(ctx context.Context, scan *scanTask, waiter *awsWaiter, pool *scann
 
 	log.Infof("%s: start EBS scanning", scan)
 
-	// In noAttach mode we are only able to do host vuln scanning.
+	// In types.NoAttach mode we are only able to do host vuln scanning.
 	// TODO: remove this mode
-	if scan.DiskMode == noAttach {
+	if scan.DiskMode == types.NoAttach {
 		// Only vulns scanning works without a proper mount point (for now)
 		for _, action := range scan.Actions {
-			if action != vulnsHost {
+			if action != types.VulnsHost {
 				return fmt.Errorf("we can only perform vulns scanning of %q without volume attach", scan)
 			}
 		}
-		result := pool.launchScanner(ctx, scannerOptions{
-			Scanner:     scannerNameHostVulnsEBS,
+		result := pool.launchScanner(ctx, types.ScannerOptions{
+			Scanner:     types.ScannerNameHostVulnsEBS,
 			Scan:        scan,
 			SnapshotARN: &snapshotARN,
 			CreatedAt:   time.Now(),
@@ -2358,11 +2126,11 @@ func scanEBS(ctx context.Context, scan *scanTask, waiter *awsWaiter, pool *scann
 	}
 
 	switch scan.DiskMode {
-	case volumeAttach:
+	case types.VolumeAttach:
 		if err := attachSnapshotWithVolume(ctx, scan, waiter, snapshotARN); err != nil {
 			return err
 		}
-	case nbdAttach:
+	case types.NBDAttach:
 		ebsclient := ebs.NewFromConfig(cfg)
 		if err := attachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient); err != nil {
 			return err
@@ -2384,16 +2152,16 @@ func scanEBS(ctx context.Context, scan *scanTask, waiter *awsWaiter, pool *scann
 	return scanRootFilesystems(ctx, scan, mountPoints, pool, resultsCh)
 }
 
-func scanRootFilesystems(ctx context.Context, scan *scanTask, roots []string, pool *scannersPool, resultsCh chan scanResult) error {
+func scanRootFilesystems(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool, resultsCh chan types.ScanResult) error {
 	var wg sync.WaitGroup
 
-	scanRoot := func(root string, action scanAction) {
+	scanRoot := func(root string, action types.ScanAction) {
 		defer wg.Done()
 
 		switch action {
-		case vulnsHost:
-			result := pool.launchScanner(ctx, scannerOptions{
-				Scanner:   scannerNameHostVulns,
+		case types.VulnsHost:
+			result := pool.launchScanner(ctx, types.ScannerOptions{
+				Scanner:   types.ScannerNameHostVulns,
 				Scan:      scan,
 				Root:      root,
 				CreatedAt: time.Now(),
@@ -2404,9 +2172,9 @@ func scanRootFilesystems(ctx context.Context, scan *scanTask, roots []string, po
 				result.Vulns.Tags = nil
 			}
 			resultsCh <- result
-		case vulnsContainers:
-			ctrResult := pool.launchScanner(ctx, scannerOptions{
-				Scanner:   scannerNameContainers,
+		case types.VulnsContainers:
+			ctrResult := pool.launchScanner(ctx, types.ScannerOptions{
+				Scanner:   types.ScannerNameContainers,
 				Scan:      scan,
 				Root:      root,
 				CreatedAt: time.Now(),
@@ -2427,10 +2195,10 @@ func scanRootFilesystems(ctx context.Context, scan *scanTask, roots []string, po
 				}
 				for _, ctr := range ctrResult.Containers.Containers {
 					wg.Add(1)
-					go func(ctr container) {
+					go func(ctr types.Container) {
 						defer wg.Done()
-						resultsCh <- pool.launchScanner(ctx, scannerOptions{
-							Scanner:   scannerNameContainerVulns,
+						resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
+							Scanner:   types.ScannerNameContainerVulns,
 							Scan:      scan,
 							Root:      root,
 							Container: &ctr,
@@ -2439,9 +2207,9 @@ func scanRootFilesystems(ctx context.Context, scan *scanTask, roots []string, po
 					}(*ctr)
 				}
 			}
-		case malware:
-			resultsCh <- pool.launchScanner(ctx, scannerOptions{
-				Scanner:   scannerNameMalware,
+		case types.Malware:
+			resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
+				Scanner:   types.ScannerNameMalware,
 				Scan:      scan,
 				Root:      root,
 				CreatedAt: time.Now(),
@@ -2471,7 +2239,7 @@ func newScannersPool(size int) *scannersPool {
 	return &scannersPool{make(chan struct{}, size)}
 }
 
-func (p *scannersPool) launchScanner(ctx context.Context, opts scannerOptions) scanResult {
+func (p *scannersPool) launchScanner(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
 	select {
 	case p.sem <- struct{}{}:
 	case <-ctx.Done():
@@ -2479,9 +2247,9 @@ func (p *scannersPool) launchScanner(ctx context.Context, opts scannerOptions) s
 	}
 
 	opts.StartedAt = time.Now()
-	ch := make(chan scanResult, 1)
+	ch := make(chan types.ScanResult, 1)
 	go func() {
-		var result scanResult
+		var result types.ScanResult
 		if globalParams.noForkScanners {
 			result = launchScannerInSameProcess(ctx, opts)
 		} else {
@@ -2499,23 +2267,23 @@ func (p *scannersPool) launchScanner(ctx context.Context, opts scannerOptions) s
 	}
 }
 
-func launchScannerInSameProcess(ctx context.Context, opts scannerOptions) scanResult {
+func launchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
 	switch opts.Scanner {
-	case scannerNameHostVulns:
+	case types.ScannerNameHostVulns:
 		bom, err := launchScannerTrivyHost(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
-		return scanResult{scannerOptions: opts, Vulns: &scanVulnsResult{BOM: bom}}
+		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
 
-	case scannerNameHostVulnsEBS:
+	case types.ScannerNameHostVulnsEBS:
 		bom, err := launchScannerTrivyHostVM(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
-		return scanResult{scannerOptions: opts, Vulns: &scanVulnsResult{BOM: bom}}
+		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
 
-	case scannerNameContainerVulns:
+	case types.ScannerNameContainerVulns:
 		ctr := *opts.Container
 		mountPoint, err := mountContainer(ctx, opts.Scan, ctr)
 		if err != nil {
@@ -2568,40 +2336,40 @@ func launchScannerInSameProcess(ctx context.Context, opts scannerOptions) scanRe
 		// https://github.com/DataDog/datadog-agent/pull/22161
 		appendSBOMRepoMetadata(bom, refTag, refCan)
 
-		vulns := &scanVulnsResult{
+		vulns := &types.ScanVulnsResult{
 			BOM:        bom,
 			SourceType: sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS, // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
 			ID:         ctr.ImageRefCanonical.Reference().String(),
 			Tags:       tags,
 		}
-		return scanResult{scannerOptions: opts, Vulns: vulns}
+		return types.ScanResult{ScannerOptions: opts, Vulns: vulns}
 
-	case scannerNameAppVulns:
+	case types.ScannerNameAppVulns:
 		bom, err := launchScannerTrivyApp(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
-		return scanResult{scannerOptions: opts, Vulns: &scanVulnsResult{BOM: bom}}
+		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
 
-	case scannerNameContainers:
+	case types.ScannerNameContainers:
 		containers, err := launchScannerContainers(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
-		return scanResult{scannerOptions: opts, Containers: &containers}
+		return types.ScanResult{ScannerOptions: opts, Containers: &containers}
 
-	case scannerNameMalware:
+	case types.ScannerNameMalware:
 		result, err := launchScannerMalware(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
-		return scanResult{scannerOptions: opts, Malware: &result}
+		return types.ScanResult{ScannerOptions: opts, Malware: &result}
 	default:
 		panic("unreachable")
 	}
 }
 
-func launchScannerInChildProcess(ctx context.Context, opts scannerOptions) scanResult {
+func launchScannerInChildProcess(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
@@ -2617,8 +2385,8 @@ func launchScannerInChildProcess(ctx context.Context, opts scannerOptions) scanR
 	}
 	defer l.Close()
 
-	remoteCall := func() scanResult {
-		var result scanResult
+	remoteCall := func() types.ScanResult {
+		var result types.ScanResult
 
 		conn, err := l.Accept()
 		if err != nil {
@@ -2642,7 +2410,7 @@ func launchScannerInChildProcess(ctx context.Context, opts scannerOptions) scanR
 		return result
 	}
 
-	resultsCh := make(chan scanResult, 1)
+	resultsCh := make(chan types.ScanResult, 1)
 	go func() {
 		resultsCh <- remoteCall()
 	}()
@@ -2729,7 +2497,7 @@ func (w *truncatedWriter) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
-func attachSnapshotWithNBD(_ context.Context, scan *scanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) error {
+func attachSnapshotWithNBD(_ context.Context, scan *types.ScanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) error {
 	device, ok := nextNBDDevice()
 	if !ok {
 		return fmt.Errorf("could not find non busy NBD block device")
@@ -2804,7 +2572,7 @@ func nextNBDDevice() (string, bool) {
 	return "", false
 }
 
-func scanLambda(ctx context.Context, scan *scanTask, pool *scannersPool, resultsCh chan scanResult) error {
+func scanLambda(ctx context.Context, scan *types.ScanTask, pool *scannersPool, resultsCh chan types.ScanResult) error {
 	defer statsd.Flush()
 
 	lambdaDir := scan.Path()
@@ -2817,8 +2585,8 @@ func scanLambda(ctx context.Context, scan *scanTask, pool *scannersPool, results
 		return err
 	}
 
-	result := pool.launchScanner(ctx, scannerOptions{
-		Scanner:   scannerNameAppVulns,
+	result := pool.launchScanner(ctx, types.ScannerOptions{
+		Scanner:   types.ScannerNameAppVulns,
 		Scan:      scan,
 		Root:      codePath,
 		CreatedAt: time.Now(),
@@ -2839,7 +2607,7 @@ func scanLambda(ctx context.Context, scan *scanTask, pool *scannersPool, results
 	return nil
 }
 
-func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, lambdaDir string) (codePath string, err error) {
+func downloadAndUnzipLambda(ctx context.Context, scan *types.ScanTask, lambdaDir string) (codePath string, err error) {
 	if err := statsd.Count("datadog.agentless_scanner.functions.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -2994,12 +2762,12 @@ func extractLambdaZip(ctx context.Context, zipPath, destinationPath string) (uin
 	return uncompressed, nil
 }
 
-func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, waiter *awsWaiter, snapshotARN arn.ARN) error {
+func attachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *awsWaiter, snapshotARN arn.ARN) error {
 	resourceType, snapshotID, err := getARNResource(snapshotARN)
 	if err != nil {
 		return err
 	}
-	if resourceType != resourceTypeSnapshot {
+	if resourceType != types.ResourceTypeSnapshot {
 		return fmt.Errorf("expected ARN for a snapshot: %s", snapshotARN.String())
 	}
 
@@ -3023,12 +2791,12 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, waiter *awsWa
 			SourceRegion: aws.String(snapshotARN.Region),
 			// DestinationRegion: aws.String(self.Region): automatically filled by SDK
 			SourceSnapshotId:  aws.String(snapshotID),
-			TagSpecifications: cloudResourceTagSpec(resourceTypeSnapshot, scan.ScannerHostname),
+			TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
 		})
 		if err != nil {
 			return fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotARN, self.Region, err)
 		}
-		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, resourceTypeSnapshot, *copySnapshot.SnapshotId)
+		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
 		log.Debugf("%s: waiting for copy of snapshot %q into %q as %q", scan, snapshotARN, self.Region, *copySnapshot.SnapshotId)
 		err = <-waiter.wait(ctx, localSnapshotARN, remoteEC2Client)
 		if err != nil {
@@ -3065,13 +2833,13 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, waiter *awsWa
 		VolumeType:        ec2types.VolumeTypeGp3,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
 		SnapshotId:        aws.String(localSnapshotID),
-		TagSpecifications: cloudResourceTagSpec(resourceTypeVolume, scan.ScannerHostname),
+		TagSpecifications: cloudResourceTagSpec(types.ResourceTypeVolume, scan.ScannerHostname),
 	})
 	if err != nil {
 		return fmt.Errorf("could not create volume from snapshot: %w", err)
 	}
 
-	volumeARN := ec2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, resourceTypeVolume, *volume.VolumeId)
+	volumeARN := ec2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, types.ResourceTypeVolume, *volume.VolumeId)
 	scan.AttachedVolumeARN = &volumeARN
 	scan.AttachedVolumeCreatedAt = volume.CreateTime
 
@@ -3186,7 +2954,7 @@ func listBlockDevices(ctx context.Context, deviceName ...string) ([]blockDevice,
 	return blockDevices.BlockDevices, nil
 }
 
-func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartition, error) {
+func listDevicePartitions(ctx context.Context, scan *types.ScanTask) ([]devicePartition, error) {
 	device, volumeARN := *scan.AttachedDeviceName, scan.AttachedVolumeARN
 	log.Debugf("%s: listing partitions from device %q (volume = %q)", scan, device, volumeARN)
 
@@ -3269,10 +3037,10 @@ func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartitio
 	return partitions, nil
 }
 
-func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartition) ([]string, error) {
+func mountDevice(ctx context.Context, scan *types.ScanTask, partitions []devicePartition) ([]string, error) {
 	var mountPoints []string
 	for _, mp := range partitions {
-		mountPoint := scan.Path(ebsMountPrefix + path.Base(mp.devicePath))
+		mountPoint := scan.Path(types.EBSMountPrefix + path.Base(mp.devicePath))
 		if err := os.MkdirAll(mountPoint, 0700); err != nil {
 			return nil, fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
 		}
@@ -3335,7 +3103,7 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 	return mountPoints, nil
 }
 
-func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.ARN, roles rolesMapping) error {
+func cleanupScanDetach(ctx context.Context, maybeScan *types.ScanTask, volumeARN arn.ARN, roles types.RolesMapping) error {
 	_, volumeID, _ := getARNResource(volumeARN)
 	cfg, err := newAWSConfig(ctx, volumeARN.Region, roles[volumeARN.AccountID])
 	if err != nil {
@@ -3416,7 +3184,7 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 	return nil
 }
 
-func cleanupScanUmount(ctx context.Context, maybeScan *scanTask, mountPoint string) {
+func cleanupScanUmount(ctx context.Context, maybeScan *types.ScanTask, mountPoint string) {
 	log.Debugf("%s: un-mounting %q", maybeScan, mountPoint)
 	var umountOutput []byte
 	var erru error
@@ -3445,7 +3213,7 @@ func cleanupScanUmount(ctx context.Context, maybeScan *scanTask, mountPoint stri
 	log.Errorf("could not umount %s: %s: %s", mountPoint, erru, string(umountOutput))
 }
 
-func cleanupScan(scan *scanTask) {
+func cleanupScan(scan *types.ScanTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 	defer cancel()
 
@@ -3454,7 +3222,7 @@ func cleanupScan(scan *scanTask) {
 	log.Debugf("%s: cleaning up scan data on filesystem", scan)
 
 	for snapshotARNString, snapshotCreatedAt := range scan.CreatedSnapshots {
-		snapshotARN, err := parseARN(snapshotARNString, resourceTypeSnapshot)
+		snapshotARN, err := parseARN(snapshotARNString, types.ResourceTypeSnapshot)
 		if err != nil {
 			continue
 		}
@@ -3471,7 +3239,7 @@ func cleanupScan(scan *scanTask) {
 				log.Warnf("%s: could not delete snapshot %s: %v", scan, snapshotID, err)
 			} else {
 				log.Debugf("%s: snapshot deleted %s", scan, snapshotID)
-				statsResourceTTL(resourceTypeSnapshot, scan, *snapshotCreatedAt)
+				statsResourceTTL(types.ResourceTypeSnapshot, scan, *snapshotCreatedAt)
 			}
 		}
 	}
@@ -3491,10 +3259,10 @@ func cleanupScan(scan *scanTask) {
 
 		for _, entry := range entries {
 			if entry.IsDir() {
-				if strings.HasPrefix(entry.Name(), ebsMountPrefix) {
+				if strings.HasPrefix(entry.Name(), types.EBSMountPrefix) {
 					ebsMountPoints = append(ebsMountPoints, entry)
 				}
-				if strings.HasPrefix(entry.Name(), containerdMountPrefix) || strings.HasPrefix(entry.Name(), dockerMountPrefix) {
+				if strings.HasPrefix(entry.Name(), types.ContainerdMountPrefix) || strings.HasPrefix(entry.Name(), types.DockerMountPrefix) {
 					ctrMountPoints = append(ctrMountPoints, entry)
 				}
 				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".pid") {
@@ -3551,19 +3319,19 @@ func cleanupScan(scan *scanTask) {
 	}
 
 	switch scan.DiskMode {
-	case volumeAttach:
+	case types.VolumeAttach:
 		if volumeARN := scan.AttachedVolumeARN; volumeARN != nil {
 			if errd := cleanupScanDetach(ctx, scan, *volumeARN, scan.Roles); errd != nil {
 				log.Warnf("%s: could not delete volume %q: %v", scan, volumeARN, errd)
 			} else {
-				statsResourceTTL(resourceTypeVolume, scan, *scan.AttachedVolumeCreatedAt)
+				statsResourceTTL(types.ResourceTypeVolume, scan, *scan.AttachedVolumeCreatedAt)
 			}
 		}
-	case nbdAttach:
+	case types.NBDAttach:
 		if diskDeviceName := scan.AttachedDeviceName; diskDeviceName != nil {
 			stopEBSBlockDevice(ctx, *diskDeviceName)
 		}
-	case noAttach:
+	case types.NoAttach:
 		// do nothing
 	default:
 		panic("unreachable")
@@ -3579,7 +3347,7 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-func ec2ARN(region, accountID string, resourceType resourceType, resourceID string) arn.ARN {
+func ec2ARN(region, accountID string, resourceType types.ResourceType, resourceID string) arn.ARN {
 	return arn.ARN{
 		Partition: "aws",
 		Service:   "ec2",

@@ -28,24 +28,12 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type container struct {
-	Runtime           string          `json:"Runtime"`
-	MountName         string          `json:"MountName"`
-	ImageRefTagged    reference.Field `json:"ImageRefTagged"`    // public.ecr.aws/datadog/agent:7-rc
-	ImageRefCanonical reference.Field `json:"ImageRefCanonical"` // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-	ContainerName     string          `json:"ContainerName"`
-	Layers            []string        `json:"Layers"`
-}
-
-func (c container) String() string {
-	return fmt.Sprintf("%s/%s/%s", c.Runtime, c.ContainerName, c.ImageRefCanonical.Reference())
-}
-
-func launchScannerContainers(_ context.Context, opts scannerOptions) (scanContainerResult, error) {
-	var containers []*container
+func launchScannerContainers(_ context.Context, opts types.ScannerOptions) (types.ScanContainerResult, error) {
+	var containers []*types.Container
 
 	containerdRoot := filepath.Join(opts.Root, "/var/lib/containerd")
 	containerdRootInfo, err := os.Stat(containerdRoot)
@@ -71,12 +59,12 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) (scanContai
 		}
 	}
 
-	return scanContainerResult{
+	return types.ScanContainerResult{
 		Containers: containers,
 	}, nil
 }
 
-func mountContainer(ctx context.Context, scan *scanTask, ctr container) (string, error) {
+func mountContainer(ctx context.Context, scan *types.ScanTask, ctr types.Container) (string, error) {
 	if len(ctr.Layers) == 0 {
 		return "", fmt.Errorf("container without any layer")
 	}
@@ -247,7 +235,7 @@ type containerdSnapshot struct {
 	UpdatedAt time.Time
 }
 
-func containerdListMetadata(scan *scanTask, containerdRoot string) ([]*container, error) {
+func containerdListMetadata(scan *types.ScanTask, containerdRoot string) ([]*types.Container, error) {
 	metadbPath := filepath.Join(containerdRoot, "io.containerd.metadata.v1.bolt", "meta.db")
 	metadbInfo, err := os.Stat(metadbPath)
 	if err != nil || metadbInfo.Size() == 0 {
@@ -535,7 +523,7 @@ func containerdListMetadata(scan *scanTask, containerdRoot string) ([]*container
 		}
 	}
 
-	results := make([]*container, 0, len(containers))
+	results := make([]*types.Container, 0, len(containers))
 	for _, ctr := range containers {
 		if ctr.Snapshot.Backend.Kind != kindActive {
 			continue
@@ -547,8 +535,8 @@ func containerdListMetadata(scan *scanTask, containerdRoot string) ([]*container
 		}
 
 		ctrLayers := containerdLayersPaths(containerdRoot, ctr.Snapshot)
-		ctrMountName := fmt.Sprintf("%s%s-%s-%d", containerdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
-		results = append(results, &container{
+		ctrMountName := fmt.Sprintf("%s%s-%s-%d", types.ContainerdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
+		results = append(results, &types.Container{
 			Runtime:           "containerd",
 			MountName:         ctrMountName,
 			ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
@@ -685,7 +673,7 @@ func (c dockerContainer) String() string {
 	return path.Join(c.ID, c.Name)
 }
 
-func dockerListContainers(scan *scanTask, dockerRoot string) ([]*container, error) {
+func dockerListContainers(scan *types.ScanTask, dockerRoot string) ([]*types.Container, error) {
 	const maxFileSize = 2 * 1024 * 1024
 
 	entries, err := os.ReadDir(filepath.Join(dockerRoot, "containers"))
@@ -801,18 +789,18 @@ func dockerListContainers(scan *scanTask, dockerRoot string) ([]*container, erro
 		}
 	}
 
-	results := make([]*container, 0, len(containers))
+	results := make([]*types.Container, 0, len(containers))
 	for _, ctr := range containers {
 		if !ctr.State.Running {
 			continue
 		}
-		ctrMountName := dockerMountPrefix + ctr.ID
+		ctrMountName := types.DockerMountPrefix + ctr.ID
 		ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
 		if err != nil {
 			log.Errorf("%s: docker: could not get container layers %s: %v", scan, ctr, err)
 			continue
 		}
-		results = append(results, &container{
+		results = append(results, &types.Container{
 			Runtime:           "docker",
 			MountName:         ctrMountName,
 			ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
