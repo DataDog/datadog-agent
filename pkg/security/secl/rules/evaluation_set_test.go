@@ -10,14 +10,15 @@ package rules
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
-	"path/filepath"
-	"strings"
-	"testing"
 )
 
 // Tests
@@ -327,7 +328,6 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 									{
 										ID:         "foo",
 										Expression: "open.file.path == \"/etc/local-default/shadow\"",
-										Disabled:   true,
 									},
 									{
 										ID:         "bar",
@@ -346,7 +346,8 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
-										Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+										Expression: "",
+										Disabled:   true,
 									},
 									{
 										ID:         "bar",
@@ -391,7 +392,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 				return true
 			},
 			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
-				assert.Equal(t, 2, err.Len(), fmt.Sprintf("Errors are: %s", err.Errors))
+				assert.Equal(t, 1, err.Len(), fmt.Sprintf("Errors are: %s", err.Errors))
 				return assert.ErrorContains(t, err, "rule `bar` error: multiple definition with the same ID")
 			},
 		},
@@ -414,6 +415,10 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 										ID:         "bar",
 										Expression: "open.file.path == \"/etc/local-default/file\"",
 									},
+									{
+										ID:         "foobar",
+										Expression: "open.file.path == \"/etc/local-default/foobar\"",
+									},
 								},
 								Macros: nil,
 							}}, nil
@@ -429,10 +434,35 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 										ID:         "foo",
 										Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
 										Combine:    OverridePolicy,
+										Tags: map[string]string{
+											"tag1": "test1",
+										},
+										Actions: []*ActionDefinition{
+											{
+												Kill: &KillDefinition{
+													Signal: "SIGKILL",
+												},
+											},
+										},
 									},
 									{
 										ID:         "bar",
 										Expression: "open.file.path == \"/etc/rc-custom/file\"",
+									},
+									{
+										ID:         "foobar",
+										Expression: "",
+										Combine:    OverridePolicy,
+										Tags: map[string]string{
+											"tag1": "test2",
+										},
+										Actions: []*ActionDefinition{
+											{
+												Kill: &KillDefinition{
+													Signal: "SIGKILL",
+												},
+											},
+										},
 									},
 								},
 							}}, nil
@@ -446,17 +476,29 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 					t.Errorf("Missing %s rule set", DefaultRuleSetTagValue)
 				}
 
-				assert.Equal(t, 2, len(got.RuleSets[DefaultRuleSetTagValue].rules))
+				assert.Equal(t, 3, len(got.RuleSets[DefaultRuleSetTagValue].rules))
 
 				expectedRules := map[eval.RuleID]*Rule{
 					"foo": {
 						Rule: &eval.Rule{
 							ID:         "foo",
 							Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+							Tags:       []string{"tag1:test1"},
 						},
 						Definition: &RuleDefinition{
 							ID:         "foo",
 							Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+							Combine:    OverridePolicy,
+							Tags: map[string]string{
+								"tag1": "test1",
+							},
+							Actions: []*ActionDefinition{
+								{
+									Kill: &KillDefinition{
+										Signal: "SIGKILL",
+									},
+								},
+							},
 						}},
 					"bar": {
 						Rule: &eval.Rule{
@@ -468,6 +510,27 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 							Expression: "open.file.path == \"/etc/local-default/file\"",
 						},
 					},
+					"foobar": {
+						Rule: &eval.Rule{
+							ID:         "foobar",
+							Expression: "open.file.path == \"/etc/local-default/foobar\"",
+							Tags:       []string{"tag1:test2"},
+						},
+						Definition: &RuleDefinition{
+							ID:         "foobar",
+							Expression: "open.file.path == \"/etc/local-default/foobar\"",
+							Combine:    OverridePolicy,
+							Tags: map[string]string{
+								"tag1": "test2",
+							},
+							Actions: []*ActionDefinition{
+								{
+									Kill: &KillDefinition{
+										Signal: "SIGKILL",
+									},
+								},
+							},
+						}},
 				}
 
 				var r DiffReporter

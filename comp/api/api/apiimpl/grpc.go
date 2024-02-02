@@ -8,8 +8,6 @@ package apiimpl
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"time"
 
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
@@ -23,6 +21,7 @@ import (
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -37,7 +36,7 @@ type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
 	taggerServer       *taggerserver.Server
 	workloadmetaServer *workloadmetaServer.Server
-	configService      optional.Option[rcservice.Component]
+	configService      *remoteconfig.Service
 	dogstatsdServer    dogstatsdServer.Component
 	capture            dsdReplay.Component
 }
@@ -115,21 +114,19 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 var rcNotInitializedErr = status.Error(codes.Unimplemented, "remote configuration service not initialized")
 
 func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
-	rcService, isSet := s.configService.Get()
-	if !isSet || rcService == nil {
+	if s.configService == nil {
 		log.Debug(rcNotInitializedErr.Error())
 		return nil, rcNotInitializedErr
 	}
-	return rcService.ClientGetConfigs(ctx, in)
+	return s.configService.ClientGetConfigs(ctx, in)
 }
 
 func (s *serverSecure) GetConfigState(_ context.Context, _ *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
-	rcService, isSet := s.configService.Get()
-	if !isSet || rcService == nil {
+	if s.configService == nil {
 		log.Debug(rcNotInitializedErr.Error())
 		return nil, rcNotInitializedErr
 	}
-	return rcService.ConfigGetState()
+	return s.configService.ConfigGetState()
 }
 
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter

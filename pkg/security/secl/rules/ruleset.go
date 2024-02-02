@@ -108,7 +108,13 @@ func (rd *RuleDefinition) GetTag(tagKey string) (string, bool) {
 func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	switch rd2.Combine {
 	case OverridePolicy:
-		rd.Expression = rd2.Expression
+		// keep the old expression if the new one is empty
+		expression := rd.Expression
+
+		*rd = *rd2
+		if rd2.Expression == "" {
+			rd.Expression = expression
+		}
 	default:
 		if !rd2.Disabled {
 			return &ErrRuleLoad{Definition: rd2, Err: ErrDefinitionIDConflict}
