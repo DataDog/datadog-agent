@@ -18,7 +18,12 @@ echo "options nbd nbds_max=128" > /etc/modprobe.d/nbd.conf
 echo "agentless-scanning-${SCANNER_NAME}" > /etc/hostname
 
 # Install the agent
-DD_API_KEY="${DD_API_KEY}" DD_SITE="datad0g.com" DD_HOSTNAME="agentless-scanning-${SCANNER_NAME}" DD_REPO_URL="datad0g.com" DD_AGENT_DIST_CHANNEL="beta" DD_AGENT_MINOR_VERSION="50.0~agentless~scanner~2024011701" bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"
+DD_API_KEY="${DD_API_KEY}" DD_SITE="datad0g.com" DD_HOSTNAME="agentless-scanning-${SCANNER_NAME}" DD_AGENT_MINOR_VERSION="50.3" bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"
+
+# Install the agentless-scanner
+VERSION="7.50.0~agentless~scanner~2024020101"
+curl -sL -o /tmp/datadog-agentless-scanner_${VERSION}-1_arm64.deb https://s3.amazonaws.com/apt.datad0g.com/pool/d/da/datadog-agentless-scanner_${VERSION}-1_arm64.deb
+dpkg -i /tmp/datadog-agentless-scanner_${VERSION}-1_arm64.deb
 
 cat << EOF > /etc/datadog-agent/datadog.yaml
 hostname: agentless-scanning-${SCANNER_NAME}
