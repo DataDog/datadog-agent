@@ -51,7 +51,9 @@ func Module() fxutil.Module {
 		fx.Provide(newStatus))
 }
 
-type statusProvider struct{}
+type statusProvider struct {
+	testServerURL string
+}
 
 func newStatus() provides {
 	return provides{
@@ -84,19 +86,28 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 
 func (s statusProvider) populateStatus() map[string]interface{} {
 	status := make(map[string]interface{})
-	addressPort, err := config.GetProcessAPIAddressPort()
+
+	c := client()
+
+	var url string
+	if s.testServerURL != "" {
+		url = s.testServerURL
+	} else {
+		addressPort, err := config.GetProcessAPIAddressPort()
+		if err != nil {
+			status["error"] = fmt.Sprintf("%v", err.Error())
+			return status
+		}
+		url = fmt.Sprintf("http://%s/agent/status", addressPort)
+	}
+
+	b, err := apiutil.DoGet(c, url, apiutil.CloseConnection)
+
 	if err != nil {
 		status["error"] = fmt.Sprintf("%v", err.Error())
 		return status
 	}
 
-	c := client()
-	statusEndpoint := fmt.Sprintf("http://%s/agent/status", addressPort)
-	b, err := apiutil.DoGet(c, statusEndpoint, apiutil.CloseConnection)
-	if err != nil {
-		status["error"] = fmt.Sprintf("%v", err.Error())
-		return status
-	}
 	err = json.Unmarshal(b, &status)
 	if err != nil {
 		return map[string]interface{}{
