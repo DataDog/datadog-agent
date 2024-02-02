@@ -23,7 +23,7 @@ import (
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
 type ServerlessTraceAgent struct {
-	ta           *agent.Agent
+	ta           *agent.ServerlessAgent
 	spanModifier *spanModifier
 	cancel       context.CancelFunc
 }
@@ -95,7 +95,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanCh
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			s.ta = agent.NewAgent(context, tc, telemetry.NewNoopCollector())
+			s.ta = agent.NewServerlessAgent(context, tc, telemetry.NewNoopCollector())
 			s.spanModifier = &spanModifier{
 				coldStartSpanId: coldStartSpanId,
 				lambdaSpanChan:  lambdaSpanChan,
@@ -117,7 +117,7 @@ func (s *ServerlessTraceAgent) Flush() {
 }
 
 // Get returns the trace agent instance
-func (s *ServerlessTraceAgent) Get() *agent.Agent {
+func (s *ServerlessTraceAgent) Get() *agent.ServerlessAgent {
 	return s.ta
 }
 

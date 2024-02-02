@@ -53,15 +53,6 @@ func (a *Agent) Truncate(s *pb.Span) {
 	}
 }
 
-const (
-	// MaxMetaKeyLen the maximum length of metadata key
-	MaxMetaKeyLen = 200
-	// MaxMetaValLen the maximum length of metadata value
-	MaxMetaValLen = 25000
-	// MaxMetricsKeyLen the maximum length of a metric name key
-	MaxMetricsKeyLen = MaxMetaKeyLen
-)
-
 // TruncateResource truncates a span's resource to the maximum allowed length.
 // It returns true if the input was below the max size.
 func (a *Agent) TruncateResource(r string) (string, bool) {

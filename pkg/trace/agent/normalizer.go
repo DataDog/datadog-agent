@@ -9,32 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-)
-
-const (
-	// MaxTypeLen the maximum length a span type can have
-	MaxTypeLen = 100
-	// tagOrigin specifies the origin of the trace.
-	// DEPRECATED: Origin is now specified as a TraceChunk field.
-	tagOrigin = "_dd.origin"
-	// tagSamplingPriority specifies the sampling priority of the trace.
-	// DEPRECATED: Priority is now specified as a TraceChunk field.
-	tagSamplingPriority = "_sampling_priority_v1"
-	// peerServiceKey is the key for the peer.service meta field.
-	peerServiceKey = "peer.service"
-)
-
-var (
-	// Year2000NanosecTS is an arbitrary cutoff to spot weird-looking values
-	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
 )
 
 // normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
@@ -161,30 +141,6 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	return nil
 }
 
-// setChunkAttributesFromRoot takes a trace chunk and from the root span
-// * populates Origin field if it wasn't populated
-// * populates Priority field if it wasn't populated
-func setChunkAttributesFromRoot(chunk *pb.TraceChunk, root *pb.Span) {
-	// check if priority is already populated
-	if chunk.Priority == int32(sampler.PriorityNone) {
-		// Older tracers set sampling priority in the root span.
-		if p, ok := root.Metrics[tagSamplingPriority]; ok {
-			chunk.Priority = int32(p)
-		} else {
-			for _, s := range chunk.Spans {
-				if p, ok := s.Metrics[tagSamplingPriority]; ok {
-					chunk.Priority = int32(p)
-					break
-				}
-			}
-		}
-	}
-	if chunk.Origin == "" && root.Meta != nil {
-		// Older tracers set origin in the root span.
-		chunk.Origin = root.Meta[tagOrigin]
-	}
-}
-
 // normalizeTrace takes a trace and
 // * rejects the trace if there is a trace ID discrepancy between 2 spans
 // * rejects the trace if two spans have the same span_id
@@ -233,11 +189,4 @@ func (a *Agent) normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
 		b.Resource = b.Name
 	}
 	b.Resource, _ = a.TruncateResource(b.Resource)
-}
-
-func isValidStatusCode(sc string) bool {
-	if code, err := strconv.ParseUint(sc, 10, 64); err == nil {
-		return 100 <= code && code < 600
-	}
-	return false
 }

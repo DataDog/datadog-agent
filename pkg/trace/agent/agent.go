@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// go:build: !serverless
+//
 //nolint:revive // TODO(APM) Fix revive linter
 package agent
 
@@ -30,24 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
-)
-
-const (
-	// tagHostname specifies the hostname of the tracer.
-	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
-	tagHostname = "_dd.hostname"
-
-	// tagInstallID, tagInstallType, and tagInstallTime are included in the first trace sent by the agent,
-	// and used to track successful onboarding onto APM.
-	tagInstallID   = "_dd.install.id"
-	tagInstallType = "_dd.install.type"
-	tagInstallTime = "_dd.install.time"
-
-	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
-	manualSampling = "-4"
-
-	// tagDecisionMaker specifies the sampling decision maker
-	tagDecisionMaker = "_dd.p.dm"
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -389,29 +373,6 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 	}
 }
 
-// processedTrace creates a ProcessedTrace based on the provided chunk and root.
-func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) *traceutil.ProcessedTrace {
-	return &traceutil.ProcessedTrace{
-		TraceChunk:             chunk,
-		Root:                   root,
-		AppVersion:             p.TracerPayload.AppVersion,
-		TracerEnv:              p.TracerPayload.Env,
-		TracerHostname:         p.TracerPayload.Hostname,
-		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
-	}
-}
-
-// newChunksArray creates a new array which will point only to sampled chunks.
-
-// The underlying array behind TracePayload.Chunks points to unsampled chunks
-// preventing them from being collected by the GC.
-func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
-	//nolint:revive // TODO(APM) Fix revive linter
-	new := make([]*pb.TraceChunk, len(chunks))
-	copy(new, chunks)
-	return new
-}
-
 var _ api.StatsProcessor = (*Agent)(nil)
 
 // discardSpans removes all spans for which the provided DiscardFunction function returns true
@@ -472,37 +433,9 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion stri
 	return in
 }
 
-func mergeDuplicates(s *pb.ClientStatsBucket) {
-	indexes := make(map[stats.Aggregation]int, len(s.Stats))
-	for i, g := range s.Stats {
-		a := stats.NewAggregationFromGroup(g)
-		if j, ok := indexes[a]; ok {
-			s.Stats[j].Hits += g.Hits
-			s.Stats[j].Errors += g.Errors
-			s.Stats[j].Duration += g.Duration
-			s.Stats[i].Hits = 0
-			s.Stats[i].Errors = 0
-			s.Stats[i].Duration = 0
-		} else {
-			indexes[a] = i
-		}
-	}
-}
-
 // ProcessStats processes incoming client stats in from the given tracer.
 func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion string) {
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
-}
-
-func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.ProcessedTrace) bool {
-	if priority != sampler.PriorityUserDrop {
-		return false
-	}
-	dm, hasDm := pt.Root.Meta[tagDecisionMaker]
-	if !hasDm {
-		return false
-	}
-	return dm == manualSampling
 }
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace
@@ -597,52 +530,6 @@ func (a *Agent) sampleNoPriorityTrace(now time.Time, pt traceutil.ProcessedTrace
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
 	return a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
-}
-
-func traceContainsError(trace pb.Trace) bool {
-	for _, span := range trace {
-		if span.Error != 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func filteredByTags(root *pb.Span, require, reject []*config.Tag, requireRegex, rejectRegex []*config.TagRegex) bool {
-	for _, tag := range reject {
-		if v, ok := root.Meta[tag.K]; ok && (tag.V == "" || v == tag.V) {
-			return true
-		}
-	}
-	for _, tag := range rejectRegex {
-		if v, ok := root.Meta[tag.K]; ok && (tag.V == nil || tag.V.MatchString(v)) {
-			return true
-		}
-	}
-	for _, tag := range require {
-		v, ok := root.Meta[tag.K]
-		if !ok || (tag.V != "" && v != tag.V) {
-			return true
-		}
-	}
-	for _, tag := range requireRegex {
-		v, ok := root.Meta[tag.K]
-		if !ok || (tag.V != nil && !tag.V.MatchString(v)) {
-			return true
-		}
-	}
-	return false
-}
-
-func newEventProcessor(conf *config.AgentConfig) *event.Processor {
-	extractors := []event.Extractor{event.NewMetricBasedExtractor()}
-	if len(conf.AnalyzedSpansByService) > 0 {
-		extractors = append(extractors, event.NewFixedRateExtractor(conf.AnalyzedSpansByService))
-	} else if len(conf.AnalyzedRateByServiceLegacy) > 0 {
-		extractors = append(extractors, event.NewLegacyExtractor(conf.AnalyzedRateByServiceLegacy))
-	}
-
-	return event.NewProcessor(extractors, conf.MaxEPS)
 }
 
 // SetGlobalTagsUnsafe sets global tags to the agent configuration. Unsafe for concurrent use.
