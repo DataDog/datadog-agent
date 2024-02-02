@@ -24,7 +24,18 @@ jobs:
                 pip install -r requirements.txt
                 pip install -r tasks/libs/requirements-github.txt
 
-            - name: Create RC PR
+            - name: Determine the release active branch
               run: |
                 export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+                echo "RELEASE_BRANCH=$(inv -e release.get-active-release-branch)" >> $GITHUB_ENV
+            
+            - name: Checkout release branch
+              uses: actions/checkout@v4
+              with:
+                ref: ${{ env.RELEASE_BRANCH }}
+                fetch-depth: 0
+              
+            - name: Create RC PR
+              run: |
+                git fetch
                 inv -e release.create-rc
