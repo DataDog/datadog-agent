@@ -8,11 +8,14 @@
 package rcclient
 
 import (
+	"encoding/json"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
+	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -113,6 +116,15 @@ func (rc rcClient) SubscribeAgentTask() {
 		return
 	}
 	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
+}
+
+func (rc rcClient) SubscribeApmTracing() {
+	rc.taskProcessed = map[string]bool{}
+	if rc.client == nil {
+		pkglog.Errorf("No remote-config client")
+		return
+	}
+	rc.client.Subscribe(state.ProductAPMTracing, rc.onAPMTracingUpdate)
 }
 
 func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
@@ -270,4 +282,90 @@ type ListenerProvider struct {
 	fx.Out
 
 	ListenerProvider RCListener `group:"rCListener"`
+}
+
+func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
+	pkglog.Infof("Starting APM_TRACING remote update!!!!!!!!!!!!!!!!!!!!!!!!!!: %v", update)
+
+	if len(update) == 0 {
+		// Empty update means revert to default behavior, so remove any existing config file
+		err := os.Remove(apmTracingFilePath)
+		if err != nil {
+			pkglog.Infof("Removed APM_TRACING remote config file, APM injection will revert to default behavior")
+		}
+		return
+	}
+	// todo: refactor for usability outside core agent (cluster agent)
+	// todo: check the VM's agent status
+
+	var senvConfigs []serviceEnvConfig
+	// Maps update IDs to their error, empty string indicates success
+	updateStatus := map[string]string{}
+	var hostTracingEnabled bool
+	var hostEnvTarget string
+	for id, rawConfig := range update {
+		tcu := tracingConfigUpdate{}
+		err := json.Unmarshal(rawConfig.Config, &tcu)
+		if err != nil {
+			pkglog.Warnf("Skipping invalid APM_TRACING remote update %s: %v, any err: %v", id, tcu, err)
+			updateStatus[id] = InvalidAPMTracingPayload
+			continue
+		}
+		pkglog.Infof("Received APM_TRACING remote update %s: %v, any err: %v", id, tcu, err)
+		if tcu.InfraTarget != nil {
+			// This is an infra targeting payload
+			hostTracingEnabled = tcu.LibConfig.TracingEnabled
+			hostEnvTarget = tcu.LibConfig.Env
+			updateStatus[id] = ""
+			continue
+		}
+		if tcu.ServiceTarget == nil {
+			pkglog.Warnf("Missing service_target from APM_TRACING config update, SKIPPING: %v", tcu)
+			updateStatus[id] = MissingServiceTarget
+			continue
+		}
+
+		updateStatus[id] = ""
+		senvConfigs = append(senvConfigs, serviceEnvConfig{
+			Service:        tcu.ServiceTarget.Service,
+			Env:            tcu.ServiceTarget.Env,
+			TracingEnabled: tcu.LibConfig.TracingEnabled,
+		})
+	}
+
+	tec := tracingEnabledConfig{
+		TracingEnabled:    hostTracingEnabled,
+		Env:               hostEnvTarget,
+		ServiceEnvConfigs: senvConfigs,
+	}
+	configFile, err := yamlv2.Marshal(tec)
+	if err != nil {
+		//TODO: do we bother sending this back? This shouldn't be possible
+		pkglog.Errorf("Failed to marshal APM_TRACING config update %v", err)
+		return
+	}
+	err = os.WriteFile(apmTracingFilePath, configFile, 0666) //TODO: are these the right permissions?
+	if err != nil {
+		pkglog.Errorf("Failed to write single step config data file from APM_TRACING config: %v", err)
+		// Failed to write file, report failure for all updates
+		for id := range update {
+			applyStateCallback(id, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: FileWriteFailure,
+			})
+		}
+	} else {
+		pkglog.Debugf("Successfully wrote APM_TRACING config to %s", apmTracingFilePath)
+		// Successfully wrote file, report success/failure
+		for id, errStatus := range updateStatus {
+			applyState := state.ApplyStateAcknowledged
+			if errStatus != "" {
+				applyState = state.ApplyStateError
+			}
+			applyStateCallback(id, state.ApplyStatus{
+				State: applyState,
+				Error: errStatus,
+			})
+		}
+	}
 }

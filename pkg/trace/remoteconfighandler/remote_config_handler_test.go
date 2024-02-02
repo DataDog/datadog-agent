@@ -9,8 +9,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -230,59 +228,4 @@ func TestLogLevel(t *testing.T) {
 	}, remoteClient.UpdateApplyStatus)
 
 	ctrl.Finish()
-}
-
-func TestApmTracing(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
-	apmTracingFilePath = path.Join(os.TempDir(), "apm_tracing.yaml")
-
-	pkglog.SetupLogger(seelog.Default, "debug")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-	}))
-	defer srv.Close()
-	port, _ := strconv.Atoi(strings.Split(srv.URL, ":")[2])
-
-	agentConfig := config.AgentConfig{
-		RemoteConfigClient: remoteClient,
-		DefaultEnv:         "agent-env",
-		ReceiverHost:       "127.0.0.1",
-		ReceiverPort:       port,
-	}
-	h := New(&agentConfig, nil, nil, nil)
-
-	hostConfig := state.RawConfig{Config: []byte(`{"infra_target": {"tags":["k:v"]}}`)}
-	senvConfig := state.RawConfig{Config: []byte(`{"service_target": {"service":"s1", "env":"e1"}}`)}
-	unknownConfig := state.RawConfig{Config: []byte(`{"some_new_target": {"a":"b"}}`)}
-	invalidConfig := state.RawConfig{Config: []byte(`{`)}
-
-	remoteClient.EXPECT().UpdateApplyStatus(
-		"datadog/2/APM_TRACING/config1",
-		state.ApplyStatus{State: state.ApplyStateAcknowledged},
-	)
-	remoteClient.EXPECT().UpdateApplyStatus(
-		"datadog/2/APM_TRACING/config2",
-		state.ApplyStatus{State: state.ApplyStateAcknowledged},
-	)
-	remoteClient.EXPECT().UpdateApplyStatus(
-		"datadog/2/APM_TRACING/config3",
-		state.ApplyStatus{State: state.ApplyStateError, Error: "MISSING_SERVICE_TARGET"},
-	)
-	remoteClient.EXPECT().UpdateApplyStatus(
-		"datadog/2/APM_TRACING/config4",
-		state.ApplyStatus{State: state.ApplyStateError, Error: "INVALID_APM_TRACING_PAYLOAD"},
-	)
-
-	h.onAPMTracingUpdate(map[string]state.RawConfig{
-		"datadog/2/APM_TRACING/config1": hostConfig,
-		"datadog/2/APM_TRACING/config2": senvConfig,
-		"datadog/2/APM_TRACING/config3": unknownConfig,
-		"datadog/2/APM_TRACING/config4": invalidConfig,
-	}, remoteClient.UpdateApplyStatus)
-
-	ctrl.Finish()
-	actualBytes, err := os.ReadFile(apmTracingFilePath)
-	assert.NoError(t, err)
-	assert.Equal(t, "tracing_enabled: false\nservice_env_configs:\n- service: s1\n  env: e1\n  tracing_enabled: false\n", string(actualBytes))
 }
