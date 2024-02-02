@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package main
+// Package scanners implements the different scanners that can be launched by
+// our agentless scanner.
+package scanners
 
 import (
 	"context"
@@ -21,11 +23,9 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	trivyartifactlocal "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
-	"github.com/aquasecurity/trivy/pkg/fanal/artifact/vm"
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	trivyhandler "github.com/aquasecurity/trivy/pkg/fanal/handler"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/aquasecurity/trivy/pkg/fanal/walker"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	trivyscanner "github.com/aquasecurity/trivy/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
@@ -33,7 +33,6 @@ import (
 	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
-	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
 
 func init() {
@@ -60,7 +59,8 @@ func getTrivyDisabledAnalyzers(allowedAnalyzers []analyzer.Type) []analyzer.Type
 	return disabledAnalyzers
 }
 
-func launchScannerTrivyHost(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
+// LaunchTrivyHost launches a trivy scan on a directory.
+func LaunchTrivyHost(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
 	trivyCache := newMemoryCache()
 	trivyArtifact, err := trivyartifactlocal.NewArtifact(opts.Root, trivyCache, artifact.Option{
 		Offline:           true,
@@ -85,44 +85,8 @@ func launchScannerTrivyHost(ctx context.Context, opts types.ScannerOptions) (*cd
 	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
 }
 
-func launchScannerTrivyHostVM(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
-	assumedRole := opts.Scan.Roles[opts.Scan.ARN.AccountID]
-	cfg, err := newAWSConfig(ctx, opts.Scan.ARN.Region, assumedRole)
-	if err != nil {
-		return nil, err
-	}
-
-	ebsclient := ebs.NewFromConfig(cfg)
-	_, snapshotID, _ := types.GetARNResource(*opts.SnapshotARN)
-	trivyCache := newMemoryCache()
-	onlyDirs := []string{
-		"/etc/*",
-		"/usr/lib/*",
-		"/var/lib/dpkg/**",
-		"/var/lib/rpm/**",
-		"/usr/lib/sysimage/**",
-		"/lib/apk/**",
-	}
-	w := walker.NewVM(nil, nil, onlyDirs)
-	target := "ebs:" + snapshotID
-	trivyArtifact, err := vm.NewArtifact(target, trivyCache, w, artifact.Option{
-		Offline:           true,
-		NoProgress:        true,
-		DisabledAnalyzers: getTrivyDisabledAnalyzers(analyzer.TypeOSes),
-		Parallel:          1,
-		SBOMSources:       []string{},
-		DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
-		AWSRegion:         opts.Scan.ARN.Region,
-	})
-	if err != nil {
-		return nil, err
-	}
-	trivyArtifactEBS := trivyArtifact.(*vm.EBS)
-	trivyArtifactEBS.SetEBS(EBSClientWithWalk{ebsclient})
-	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
-}
-
-func launchScannerTrivyApp(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
+// LaunchTrivyApp launches a trivy scan on a directory for application SBOMs.
+func LaunchTrivyApp(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
 	var allowedAnalyzers []analyzer.Type
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLanguages...)
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLockfiles...)
