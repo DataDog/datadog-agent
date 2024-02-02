@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -24,9 +23,6 @@ import (
 )
 
 var (
-	// AC is the global object orchestrating checks' loading and running
-	AC *autodiscovery.AutoConfig
-
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server
 

@@ -31,7 +31,7 @@ func (h *Handler) GetState() (types.StateResponse, error) {
 }
 
 // NewHandler not implemented
-func NewHandler(_ *autodiscovery.AutoConfig) (*Handler, error) {
+func NewHandler(_ autodiscovery.Component) (*Handler, error) {
 	return nil, ErrNotCompiled
 }
 

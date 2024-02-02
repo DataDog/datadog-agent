@@ -11,9 +11,11 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 )
@@ -36,8 +38,12 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 }
 
 // LoadComponents configures several common Agent components:
-// tagger, scheduler and autodiscovery
-func LoadComponents(secretResolver secrets.Component, wmeta workloadmeta.Component, confdPath string) {
+// tagger, collector, scheduler and autodiscovery
+func LoadComponents(senderManager sender.SenderManager,
+	secretResolver secrets.Component,
+	wmeta workloadmeta.Component,
+	ac autodiscovery.Component,
+	confdPath string) {
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(path.GetDistPath(), "conf.d"),
@@ -45,11 +51,5 @@ func LoadComponents(secretResolver secrets.Component, wmeta workloadmeta.Compone
 	}
 
 	// setup autodiscovery. must be done after the tagger is initialized.
-
-	// TODO(components): revise this pattern.
-	// Currently the workloadmeta init hook will initialize the tagger.
-	// No big concern here, but be sure to understand there is an implicit
-	// assumption about the initializtion of the tagger prior to being here.
-	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver, wmeta)
+	setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver, wmeta, ac)
 }

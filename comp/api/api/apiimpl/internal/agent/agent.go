@@ -85,6 +85,7 @@ func SetupHandlers(
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
+	ac autodiscovery.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -98,7 +99,9 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
-	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
+	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
+		getConfigCheck(w, r, ac)
+	}).Methods("GET")
 	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
@@ -401,23 +404,17 @@ func getCSRFToken(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(gui.CsrfToken))
 }
 
-func getConfigCheck(w http.ResponseWriter, _ *http.Request) {
+func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
 	var response response.ConfigCheckResponse
 
-	if common.AC == nil {
-		log.Errorf("Trying to use /config-check before the agent has been initialized.")
-		setJSONError(w, fmt.Errorf("agent not initialized"), 503)
-		return
-	}
-
-	configSlice := common.AC.LoadedConfigs()
+	configSlice := ac.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
 	response.Configs = configSlice
 	response.ResolveWarnings = autodiscovery.GetResolveWarnings()
 	response.ConfigErrors = autodiscovery.GetConfigErrors()
-	response.Unresolved = common.AC.GetUnresolvedTemplates()
+	response.Unresolved = ac.GetUnresolvedTemplates()
 
 	jsonConfig, err := json.Marshal(response)
 	if err != nil {

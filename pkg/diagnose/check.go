@@ -108,7 +108,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))
-	diagnoseConfigs, err := common.WaitForAllConfigsFromAD(waitCtx)
+	diagnoseConfigs, err := common.WaitForAllConfigsFromAD(waitCtx, ac)
 	cancelTimeout()
 	if err != nil {
 		return []diagnosis.Diagnosis{

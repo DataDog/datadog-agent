@@ -10,18 +10,16 @@ import (
 	"embed"
 	"io"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // PopulateStatus populates the status stats
-func PopulateStatus(stats map[string]interface{}) {
+func PopulateStatus(ac autodiscovery.Component, stats map[string]interface{}) {
 	stats["adEnabledFeatures"] = config.GetDetectedFeatures()
-	if common.AC != nil {
-		stats["adConfigErrors"] = common.AC.GetAutodiscoveryErrors()
-	}
+	stats["adConfigErrors"] = ac.GetAutodiscoveryErrors()
 	stats["filterErrors"] = containers.GetFilterErrors()
 }
 
@@ -29,12 +27,14 @@ func PopulateStatus(stats map[string]interface{}) {
 var templatesFS embed.FS
 
 // Provider provides the functionality to populate the status output
-type Provider struct{}
+type Provider struct {
+	ac autodiscovery.Component
+}
 
 // GetProvider if agent is running in a container environment returns status.Provider otherwise returns nil
-func GetProvider() status.Provider {
+func GetProvider(ac autodiscovery.Component) status.Provider {
 	if config.IsContainerized() {
-		return Provider{}
+		return Provider{ac: ac}
 	}
 
 	return nil
@@ -43,7 +43,7 @@ func GetProvider() status.Provider {
 func (p Provider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	PopulateStatus(stats)
+	PopulateStatus(p.ac, stats)
 
 	return stats
 }
@@ -60,7 +60,7 @@ func (p Provider) Section() string {
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	PopulateStatus(stats)
+	PopulateStatus(p.ac, stats)
 
 	return nil
 }

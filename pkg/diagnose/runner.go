@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -411,14 +412,16 @@ type SuitesDeps struct {
 	senderManager  sender.DiagnoseSenderManager
 	collector      optional.Option[collector.Component]
 	secretResolver secrets.Component
+	ac             autodiscovery.Component
 }
 
 // NewSuitesDeps returns a new SuitesDeps.
-func NewSuitesDeps(senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) SuitesDeps {
+func NewSuitesDeps(senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) SuitesDeps {
 	return SuitesDeps{
 		senderManager:  senderManager,
 		collector:      collector,
 		secretResolver: secretResolver,
+		ac:             ac,
 	}
 }
 
