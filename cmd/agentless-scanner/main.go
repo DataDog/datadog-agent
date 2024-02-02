@@ -34,6 +34,7 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/nbd"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/scanners"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 
@@ -2273,9 +2274,15 @@ func attachSnapshotWithNBD(_ context.Context, scan *types.ScanTask, snapshotARN 
 	if !ok {
 		return fmt.Errorf("could not find non busy NBD block device")
 	}
-	err := startEBSBlockDevice(scan.ID, ebsclient, device, snapshotARN)
+	backend, err := nbd.NewEBSBackend(ebsclient, snapshotARN)
+	if err != nil {
+		return err
+	}
+	if err := nbd.StartNBDBlockDevice(scan.ID, device, backend); err != nil {
+		return err
+	}
 	scan.AttachedDeviceName = &device
-	return err
+	return nil
 }
 
 // reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
@@ -3100,7 +3107,7 @@ func cleanupScan(scan *types.ScanTask) {
 		}
 	case types.NBDAttach:
 		if diskDeviceName := scan.AttachedDeviceName; diskDeviceName != nil {
-			stopEBSBlockDevice(ctx, *diskDeviceName)
+			nbd.StopNBDBlockDevice(ctx, *diskDeviceName)
 		}
 	case types.NoAttach:
 		// do nothing
