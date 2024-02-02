@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -27,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
 )
 
 var (
@@ -80,8 +81,6 @@ rules:
 
 const testConfig = `---
 log_level: DEBUG
-system_probe_config:
-  enabled: true
 
 event_monitoring_config:
   remote_tagger: false
@@ -169,7 +168,7 @@ runtime_security_config:
     - {{.}}
   {{end}}
   ebpfless:
-    enabled: {{.EnableEBPFLess}}
+    enabled: {{.EBPFLessEnabled}}
 `
 
 type onRuleHandler func(*model.Event, *rules.Rule)
@@ -201,22 +200,10 @@ type testModule struct {
 	statsdClient  *statsdclient.StatsdClient
 	proFile       *os.File
 	ruleEngine    *rulesmodule.RuleEngine
-	//tracePipe     *tracePipeLogger
 }
 
-var (
-	testMod      *testModule
-	commonCfgDir string
-	// for now, add this to resolve variable; should be unused in windows
-	testEnvironment  string
-	logLevelStr      string
-	logPatterns      stringSlice
-	logTags          stringSlice
-	logStatusMetrics bool
-	withProfile      bool
-	trace            bool
-	ebpfLessEnabled  bool
-)
+var testMod *testModule
+var commonCfgDir string
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 
