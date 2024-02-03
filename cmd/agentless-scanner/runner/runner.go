@@ -78,9 +78,9 @@ type Runner struct {
 	waiter awsutils.SnapshotWaiter
 
 	regionsCleanupMu sync.Mutex
-	regionsCleanup   map[string]*types.ARN
+	regionsCleanup   map[string]*types.CloudID
 
-	scansInProgress   map[types.ARN]struct{}
+	scansInProgress   map[types.CloudID]struct{}
 	scansInProgressMu sync.RWMutex
 
 	configsCh chan *types.ScanConfig
@@ -116,7 +116,7 @@ func New(opts Options) (*Runner, error) {
 		findingsReporter: findingsReporter,
 		rcClient:         rcClient,
 
-		scansInProgress: make(map[types.ARN]struct{}),
+		scansInProgress: make(map[types.CloudID]struct{}),
 
 		configsCh: make(chan *types.ScanConfig),
 		scansCh:   make(chan *types.ScanTask),
@@ -125,7 +125,7 @@ func New(opts Options) (*Runner, error) {
 }
 
 // Cleanup cleans up all the resources created by the runner.
-func (s *Runner) Cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.ARN) error {
+func (s *Runner) Cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.CloudID) error {
 	toBeDeleted := awsutils.ListResourcesForCleanup(ctx, maxTTL, region, assumedRole)
 	awsutils.ResourcesCleanup(ctx, toBeDeleted, region, assumedRole)
 	return nil
@@ -144,7 +144,7 @@ func (s *Runner) cleanupProcess(ctx context.Context) {
 
 		log.Infof("starting cleanup process")
 		s.regionsCleanupMu.Lock()
-		regionsCleanup := make(map[string]*types.ARN, len(s.regionsCleanup))
+		regionsCleanup := make(map[string]*types.CloudID, len(s.regionsCleanup))
 		for region, role := range s.regionsCleanup {
 			regionsCleanup[region] = role
 		}
@@ -394,19 +394,19 @@ func (s *Runner) Start(ctx context.Context) {
 				// will be used for cleanup process.
 				s.regionsCleanupMu.Lock()
 				if s.regionsCleanup == nil {
-					s.regionsCleanup = make(map[string]*types.ARN)
+					s.regionsCleanup = make(map[string]*types.CloudID)
 				}
-				s.regionsCleanup[scan.ARN.Region] = scan.Roles[scan.ARN.Region]
+				s.regionsCleanup[scan.CloudID.Region] = scan.Roles[scan.CloudID.Region]
 				s.regionsCleanupMu.Unlock()
 
 				// Avoid pushing a scan that we are already performing.
 				// TODO: this guardrail could be avoided with a smarter scheduling.
 				s.scansInProgressMu.Lock()
-				if _, ok := s.scansInProgress[scan.ARN]; ok {
+				if _, ok := s.scansInProgress[scan.CloudID]; ok {
 					s.scansInProgressMu.Unlock()
 					continue
 				}
-				s.scansInProgress[scan.ARN] = struct{}{}
+				s.scansInProgress[scan.CloudID] = struct{}{}
 				s.scansInProgressMu.Unlock()
 
 				if err := s.launchScan(ctx, scan); err != nil {
@@ -416,7 +416,7 @@ func (s *Runner) Start(ctx context.Context) {
 				}
 
 				s.scansInProgressMu.Lock()
-				delete(s.scansInProgress, scan.ARN)
+				delete(s.scansInProgress, scan.CloudID)
 				s.scansInProgressMu.Unlock()
 			}
 		}()
@@ -487,7 +487,7 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 	scan.StartedAt = time.Now()
 	switch scan.Type {
 	case types.HostScanType:
-		s.scanRootFilesystems(ctx, scan, []string{scan.ARN.ResourceName}, pool, s.resultsCh)
+		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName}, pool, s.resultsCh)
 	case types.EBSScanType:
 		defer awsutils.CleanupScan(scan)
 		mountpoints, err := awsutils.SetupEBS(ctx, scan, &s.waiter)
@@ -518,8 +518,8 @@ func (s *Runner) sendSBOM(result types.ScanResult) error {
 		InUse:  true,
 		DdTags: append([]string{
 			"agentless_scanner_host:" + s.Hostname,
-			"region:" + result.Scan.ARN.Region,
-			"account_id:" + result.Scan.ARN.AccountID,
+			"region:" + result.Scan.CloudID.Region,
+			"account_id:" + result.Scan.CloudID.AccountID,
 		}, vulns.Tags...),
 		GeneratedAt:        timestamppb.New(result.StartedAt),
 		GenerationDuration: convertDuration(time.Since(result.StartedAt)),
@@ -639,9 +639,9 @@ func (s *Runner) scanApplication(ctx context.Context, scan *types.ScanTask, root
 	})
 	if result.Vulns != nil {
 		result.Vulns.SourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA
-		result.Vulns.ID = scan.ARN.String()
+		result.Vulns.ID = scan.CloudID.String()
 		result.Vulns.Tags = []string{
-			"runtime_id:" + scan.ARN.String(),
+			"runtime_id:" + scan.CloudID.String(),
 			"service_version:TODO", // XXX
 		}
 	}

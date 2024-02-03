@@ -28,10 +28,10 @@ type SnapshotWaiter struct {
 
 // Wait waits for the given snapshot to be created and returns a channel that
 // will send an error or nil.
-func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotARN types.ARN, ec2client *ec2.Client) <-chan error {
+func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotID types.CloudID, ec2client *ec2.Client) <-chan error {
 	w.Lock()
 	defer w.Unlock()
-	region := snapshotARN.Region
+	region := snapshotID.Region
 	if w.subs == nil {
 		w.subs = make(map[string]map[string][]chan error)
 	}
@@ -40,7 +40,7 @@ func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotARN types.ARN, ec2cli
 	}
 	ch := make(chan error, 1)
 	subs := w.subs[region]
-	subs[snapshotARN.ResourceName] = append(subs[snapshotARN.ResourceName], ch)
+	subs[snapshotID.ResourceName] = append(subs[snapshotID.ResourceName], ch)
 	if len(subs) == 1 {
 		go w.loop(ctx, region, ec2client)
 	}

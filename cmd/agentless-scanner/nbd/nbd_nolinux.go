@@ -18,7 +18,7 @@ import (
 
 // StartNBDBlockDevice starts the NBD server and client for the given device
 // name with the provided backend.
-func StartNBDBlockDevice(_ string, _ *ebs.Client, _ string, _ types.ARN) error {
+func StartNBDBlockDevice(_ string, _ *ebs.Client, _ string, _ types.CloudID) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
 

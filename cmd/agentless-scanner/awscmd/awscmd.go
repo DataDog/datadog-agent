@@ -97,24 +97,22 @@ func runCommand(defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra
 
 func scanCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
 	var flags struct {
-		ARN      string
 		Hostname string
 	}
 	cmd := &cobra.Command{
 		Use:   "scan",
 		Short: "Executes a scan",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resourceARN, err := awsutils.HumanParseARN(flags.ARN)
+			resourceID, err := awsutils.HumanParseARN(args[0])
 			if err != nil {
 				return err
 			}
-			return scanCmd(resourceARN, flags.Hostname, *defaultActions, *diskMode, *noForkScanners)
+			return scanCmd(resourceID, flags.Hostname, *defaultActions, *diskMode, *noForkScanners)
 		},
 	}
 
-	cmd.Flags().StringVar(&flags.ARN, "arn", "", "arn to scan")
 	cmd.Flags().StringVar(&flags.Hostname, "hostname", "unknown", "scan hostname")
-	_ = cmd.MarkFlagRequired("arn")
 	return cmd
 }
 
@@ -125,25 +123,25 @@ func snapshotCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanActio
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := ctxTerminated()
-			volumeARN, err := awsutils.HumanParseARN(args[0], types.ResourceTypeVolume)
+			volumeID, err := awsutils.HumanParseARN(args[0], types.ResourceTypeVolume)
 			if err != nil {
 				return err
 			}
-			scan, err := types.NewScanTask(volumeARN.String(), "unknown", "unknown", *defaultActions, nil, *diskMode)
+			scan, err := types.NewScanTask(volumeID.String(), "unknown", "unknown", *defaultActions, nil, *diskMode)
 			if err != nil {
 				return err
 			}
-			cfg, err := awsutils.GetConfig(ctx, scan.ARN.Region, nil)
+			cfg, err := awsutils.GetConfig(ctx, scan.CloudID.Region, nil)
 			if err != nil {
 				return err
 			}
 			var waiter awsutils.SnapshotWaiter
 			ec2client := ec2.NewFromConfig(cfg)
-			snapshotARN, err := awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, scan.ARN)
+			snapshotID, err := awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, scan.CloudID)
 			if err != nil {
 				return err
 			}
-			fmt.Println(snapshotARN)
+			fmt.Println(snapshotID)
 			return nil
 		},
 	}
@@ -204,15 +202,15 @@ func attachCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction)
 	}
 
 	cmd := &cobra.Command{
-		Use:   "attach <snapshot-arn>",
-		Short: "Mount the given snapshot into /snapshots/<snapshot-id>/<part> using a network block device",
+		Use:   "attach <snapshot|volume>",
+		Short: "Attaches a snapshot or volume to the current instance",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resourceARN, err := awsutils.HumanParseARN(args[0], types.ResourceTypeSnapshot, types.ResourceTypeVolume)
+			resourceID, err := awsutils.HumanParseARN(args[0], types.ResourceTypeSnapshot, types.ResourceTypeVolume)
 			if err != nil {
 				return err
 			}
-			return attachCmd(resourceARN, *diskMode, cliArgs.mount, *defaultActions)
+			return attachCmd(resourceID, *diskMode, cliArgs.mount, *defaultActions)
 		},
 	}
 
@@ -312,7 +310,7 @@ func getDefaultRolesMapping() types.RolesMapping {
 	return types.ParseRolesMapping(roles)
 }
 
-func scanCmd(resourceARN types.ARN, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -324,7 +322,7 @@ func scanCmd(resourceARN types.ARN, targetHostname string, actions []types.ScanA
 	}
 
 	roles := getDefaultRolesMapping()
-	task, err := types.NewScanTask(resourceARN.String(), hostname, targetHostname, actions, roles, diskMode)
+	task, err := types.NewScanTask(resourceID.String(), hostname, targetHostname, actions, roles, diskMode)
 	if err != nil {
 		return err
 	}
@@ -500,12 +498,12 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 								// Exclude Windows.
 								continue
 							}
-							volumeARN, err := awsutils.EC2ARN(regionName, *identity.Account, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
+							volumeID, err := awsutils.EC2CloudID(regionName, *identity.Account, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
 							if err != nil {
 								return err
 							}
-							log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
-							scan, err := types.NewScanTask(volumeARN.String(), hostname, *instance.InstanceId, actions, roles, diskMode)
+							log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeID, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
+							scan, err := types.NewScanTask(volumeID.String(), hostname, *instance.InstanceId, actions, roles, diskMode)
 							if err != nil {
 								return err
 							}
@@ -627,10 +625,10 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	return nil
 }
 
-func attachCmd(resourceARN types.ARN, mode types.DiskMode, mount bool, defaultActions []types.ScanAction) error {
+func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaultActions []types.ScanAction) error {
 	ctx := ctxTerminated()
 
-	cfg, err := awsutils.GetConfig(ctx, resourceARN.Region, nil)
+	cfg, err := awsutils.GetConfig(ctx, resourceID.Region, nil)
 	if err != nil {
 		return err
 	}
@@ -643,7 +641,7 @@ func attachCmd(resourceARN types.ARN, mode types.DiskMode, mount bool, defaultAc
 		hostname = "unknown"
 	}
 
-	scan, err := types.NewScanTask(resourceARN.String(), hostname, resourceARN.ResourceName, defaultActions, nil, mode)
+	scan, err := types.NewScanTask(resourceID.String(), hostname, resourceID.ResourceName, defaultActions, nil, mode)
 	if err != nil {
 		return err
 	}
@@ -651,28 +649,28 @@ func attachCmd(resourceARN types.ARN, mode types.DiskMode, mount bool, defaultAc
 
 	var waiter awsutils.SnapshotWaiter
 
-	var snapshotARN types.ARN
-	switch resourceARN.ResourceType {
+	var snapshotID types.CloudID
+	switch resourceID.ResourceType {
 	case types.ResourceTypeVolume:
 		ec2client := ec2.NewFromConfig(cfg)
-		snapshotARN, err = awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, resourceARN)
+		snapshotID, err = awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, resourceID)
 		if err != nil {
 			return err
 		}
 	case types.ResourceTypeSnapshot:
-		snapshotARN = resourceARN
+		snapshotID = resourceID
 	default:
 		panic("unreachable")
 	}
 
 	switch mode {
 	case types.VolumeAttach:
-		if err := awsutils.AttachSnapshotWithVolume(ctx, scan, &waiter, snapshotARN); err != nil {
+		if err := awsutils.AttachSnapshotWithVolume(ctx, scan, &waiter, snapshotID); err != nil {
 			return err
 		}
 	case types.NBDAttach:
 		ebsclient := ebs.NewFromConfig(cfg)
-		if err := awsutils.AttachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient); err != nil {
+		if err := awsutils.AttachSnapshotWithNBD(ctx, scan, snapshotID, ebsclient); err != nil {
 			return err
 		}
 	default:

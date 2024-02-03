@@ -52,8 +52,8 @@ type ebsBackend struct {
 	size  int64
 }
 
-// NewEBSBackend creates a new EBS NBD backend for the given snapshot ARN.
-func NewEBSBackend(ebsclient *ebs.Client, snapshotARN types.ARN) (backend.Backend, error) {
+// NewEBSBackend creates a new EBS NBD backend for the given snapshot ID.
+func NewEBSBackend(ebsclient *ebs.Client, snapshot types.CloudID) (backend.Backend, error) {
 	cache, err := lru.NewWithEvict[int32, []byte](ebsCacheSize, func(_ int32, block []byte) {
 		blockPool.Put(block)
 	})
@@ -62,7 +62,7 @@ func NewEBSBackend(ebsclient *ebs.Client, snapshotARN types.ARN) (backend.Backen
 	}
 	b := &ebsBackend{
 		ebsclient:   ebsclient,
-		snapshotID:  snapshotARN.ResourceName,
+		snapshotID:  snapshot.ResourceName,
 		cache:       cache,
 		singlegroup: new(singleflight.Group),
 	}

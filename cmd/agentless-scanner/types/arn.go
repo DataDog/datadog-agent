@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// ARN represents an Amazon Resource Name.
-type ARN struct {
+// CloudID represents an Amazon Resource Name.
+type CloudID struct {
 	Partition    string
 	Service      string
 	Region       string
@@ -20,20 +20,21 @@ type ARN struct {
 	resource string
 }
 
-func (a ARN) String() string {
-	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", a.Partition, a.Service, a.Region, a.AccountID, a.resource)
+func (id CloudID) String() string {
+	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", id.Partition, id.Service, id.Region, id.AccountID, id.resource)
 }
 
-// ParseARN parses an ARN and checks that it is of the expected type.
-func ParseARN(s string, expectedTypes ...ResourceType) (ARN, error) {
-	if !strings.HasPrefix(s, "arn:") {
-		return ARN{}, errors.New("arn: invalid prefix")
+// ParseCloudID parses an cloud resource identifier and checks that it is of
+// the expected type.
+func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
+	if !strings.HasPrefix(s, "cloudID:") {
+		return CloudID{}, errors.New("cloudID: invalid prefix")
 	}
 	sections := strings.SplitN(s, ":", 6)
 	if len(sections) != 6 {
-		return ARN{}, errors.New("arn: invalid number of sections")
+		return CloudID{}, errors.New("cloudID: invalid number of sections")
 	}
-	a := ARN{
+	id := CloudID{
 		Partition: sections[1],
 		Service:   sections[2],
 		Region:    sections[3],
@@ -41,21 +42,21 @@ func ParseARN(s string, expectedTypes ...ResourceType) (ARN, error) {
 		resource:  sections[5],
 	}
 	var err error
-	a.ResourceType, a.ResourceName, err = getARNResource(a)
+	id.ResourceType, id.ResourceName, err = parseAWSCloudID(id)
 	if err != nil {
-		return ARN{}, err
+		return CloudID{}, err
 	}
 	isExpected := len(expectedTypes) == 0
 	for _, t := range expectedTypes {
-		if t == a.ResourceType {
+		if t == id.ResourceType {
 			isExpected = true
 			break
 		}
 	}
 	if !isExpected {
-		return ARN{}, fmt.Errorf("bad arn: expecting one of these resource types %v but got %s", expectedTypes, a.ResourceType)
+		return CloudID{}, fmt.Errorf("bad cloudID: expecting one of these resource types %v but got %s", expectedTypes, id.ResourceType)
 	}
-	return a, nil
+	return id, nil
 }
 
 var (
@@ -67,65 +68,65 @@ var (
 	functionReg     = regexp.MustCompile(`^([a-zA-Z0-9-_.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`)
 )
 
-func getARNResource(arn ARN) (resourceType ResourceType, resourceName string, err error) {
-	if arn.Partition == "localhost" {
-		return ResourceTypeLocalDir, filepath.Join("/", arn.resource), nil
+func parseAWSCloudID(id CloudID) (resourceType ResourceType, resourceName string, err error) {
+	if id.Partition == "localhost" {
+		return ResourceTypeLocalDir, filepath.Join("/", id.resource), nil
 	}
-	if !partitionReg.MatchString(arn.Partition) {
-		err = fmt.Errorf("bad arn %q: unexpected partition", arn)
+	if !partitionReg.MatchString(id.Partition) {
+		err = fmt.Errorf("bad cloud id %q: unexpected partition", id)
 		return
 	}
-	if arn.Region != "" && !regionReg.MatchString(arn.Region) {
-		err = fmt.Errorf("bad arn %q: unexpected region (should be empty or match %s)", arn, regionReg)
+	if id.Region != "" && !regionReg.MatchString(id.Region) {
+		err = fmt.Errorf("bad cloud id %q: unexpected region (should be empty or match %s)", id, regionReg)
 		return
 	}
-	if arn.AccountID != "" && !accountIDReg.MatchString(arn.AccountID) {
-		err = fmt.Errorf("bad arn %q: unexpected account ID (should match %s)", arn, accountIDReg)
+	if id.AccountID != "" && !accountIDReg.MatchString(id.AccountID) {
+		err = fmt.Errorf("bad cloud id %q: unexpected account ID (should match %s)", id, accountIDReg)
 		return
 	}
 	switch {
-	case arn.Service == "ec2" && strings.HasPrefix(arn.resource, "volume/"):
-		resourceType, resourceName = ResourceTypeVolume, strings.TrimPrefix(arn.resource, "volume/")
+	case id.Service == "ec2" && strings.HasPrefix(id.resource, "volume/"):
+		resourceType, resourceName = ResourceTypeVolume, strings.TrimPrefix(id.resource, "volume/")
 		if !strings.HasPrefix(resourceName, "vol-") {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
+			err = fmt.Errorf("bad cloud id %q: resource ID has wrong prefix", id)
 			return
 		}
 		if !resourceNameReg.MatchString(strings.TrimPrefix(resourceName, "vol-")) {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong format (should match %s)", arn, resourceNameReg)
+			err = fmt.Errorf("bad cloud id %q: resource ID has wrong format (should match %s)", id, resourceNameReg)
 			return
 		}
-	case arn.Service == "ec2" && strings.HasPrefix(arn.resource, "snapshot/"):
-		resourceType, resourceName = ResourceTypeSnapshot, strings.TrimPrefix(arn.resource, "snapshot/")
+	case id.Service == "ec2" && strings.HasPrefix(id.resource, "snapshot/"):
+		resourceType, resourceName = ResourceTypeSnapshot, strings.TrimPrefix(id.resource, "snapshot/")
 		if !strings.HasPrefix(resourceName, "snap-") {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
+			err = fmt.Errorf("bad cloud id %q: resource ID has wrong prefix", id)
 			return
 		}
 		if !resourceNameReg.MatchString(strings.TrimPrefix(resourceName, "snap-")) {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong format (should match %s)", arn, resourceNameReg)
+			err = fmt.Errorf("bad cloud id %q: resource ID has wrong format (should match %s)", id, resourceNameReg)
 			return
 		}
-	case arn.Service == "lambda" && strings.HasPrefix(arn.resource, "function:"):
-		resourceType, resourceName = ResourceTypeFunction, strings.TrimPrefix(arn.resource, "function:")
+	case id.Service == "lambda" && strings.HasPrefix(id.resource, "function:"):
+		resourceType, resourceName = ResourceTypeFunction, strings.TrimPrefix(id.resource, "function:")
 		if sep := strings.Index(resourceName, ":"); sep > 0 {
 			resourceName = resourceName[:sep]
 		}
 		if !functionReg.MatchString(resourceName) {
-			err = fmt.Errorf("bad arn %q: function name has wrong format (should match %s)", arn, functionReg)
+			err = fmt.Errorf("bad cloud id %q: function name has wrong format (should match %s)", id, functionReg)
 		}
-	case arn.Service == "sts" && strings.HasPrefix(arn.resource, "assumed-role/"):
-		resourceType, resourceName = ResourceTypeRole, strings.TrimPrefix(arn.resource, "assumed-role/")
+	case id.Service == "sts" && strings.HasPrefix(id.resource, "assumed-role/"):
+		resourceType, resourceName = ResourceTypeRole, strings.TrimPrefix(id.resource, "assumed-role/")
 		if !roleNameReg.MatchString(resourceName) {
-			err = fmt.Errorf("bad arn %q: role name has wrong format (should match %s)", arn, roleNameReg)
+			err = fmt.Errorf("bad cloud id %q: role name has wrong format (should match %s)", id, roleNameReg)
 			return
 		}
-	case arn.Service == "iam" && strings.HasPrefix(arn.resource, "role/"):
-		resourceType, resourceName = ResourceTypeRole, strings.TrimPrefix(arn.resource, "role/")
+	case id.Service == "iam" && strings.HasPrefix(id.resource, "role/"):
+		resourceType, resourceName = ResourceTypeRole, strings.TrimPrefix(id.resource, "role/")
 		if !roleNameReg.MatchString(resourceName) {
-			err = fmt.Errorf("bad arn %q: role name has wrong format (should match %s)", arn, roleNameReg)
+			err = fmt.Errorf("bad cloud id %q: role name has wrong format (should match %s)", id, roleNameReg)
 			return
 		}
 	default:
-		err = fmt.Errorf("bad arn %q: unexpected resource type", arn)
+		err = fmt.Errorf("bad cloud id %q: unexpected resource type", id)
 		return
 	}
 	return

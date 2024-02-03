@@ -87,12 +87,12 @@ func CleanSlate(ctx context.Context, bds []devices.BlockDevice, roles types.Role
 
 	if self, err := GetSelfEC2InstanceIndentity(ctx); err == nil {
 		for _, volumeID := range attachedVolumes {
-			volumeARN, err := EC2ARN(self.Region, self.AccountID, types.ResourceTypeVolume, volumeID)
+			volumeID, err := EC2CloudID(self.Region, self.AccountID, types.ResourceTypeVolume, volumeID)
 			if err != nil {
 				log.Warnf("clean slate: %v", err)
 				continue
 			}
-			if errd := CleanupScanVolumes(ctx, nil, volumeARN, roles); err != nil {
+			if errd := CleanupScanVolumes(ctx, nil, volumeID, roles); err != nil {
 				log.Warnf("clean slate: %v", errd)
 			}
 		}
@@ -108,20 +108,19 @@ func CleanupScan(scan *types.ScanTask) {
 
 	log.Debugf("%s: cleaning up scan data on filesystem", scan)
 
-	for snapshotARNString, snapshotCreatedAt := range scan.CreatedSnapshots {
-		snapshotARN, err := types.ParseARN(snapshotARNString, types.ResourceTypeSnapshot)
+	for snapshotIDString, snapshotCreatedAt := range scan.CreatedSnapshots {
+		snapshotID, err := types.ParseCloudID(snapshotIDString, types.ResourceTypeSnapshot)
 		if err != nil {
 			continue
 		}
-		snapshotID := snapshotARN.ResourceName
-		cfg, err := GetConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
+		cfg, err := GetConfig(ctx, snapshotID.Region, scan.Roles[snapshotID.AccountID])
 		if err != nil {
 			log.Errorf("%s: %v", scan, err)
 		} else {
 			ec2client := ec2.NewFromConfig(cfg)
 			log.Debugf("%s: deleting snapshot %q", scan, snapshotID)
 			if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-				SnapshotId: aws.String(snapshotID),
+				SnapshotId: aws.String(snapshotID.ResourceName),
 			}); err != nil {
 				log.Warnf("%s: could not delete snapshot %s: %v", scan, snapshotID, err)
 			} else {
@@ -207,9 +206,9 @@ func CleanupScan(scan *types.ScanTask) {
 
 	switch scan.DiskMode {
 	case types.VolumeAttach:
-		if volumeARN := scan.AttachedVolumeARN; volumeARN != nil {
-			if errd := CleanupScanVolumes(ctx, scan, *volumeARN, scan.Roles); errd != nil {
-				log.Warnf("%s: could not delete volume %q: %v", scan, volumeARN, errd)
+		if volumeID := scan.AttachedVolumeID; volumeID != nil {
+			if errd := CleanupScanVolumes(ctx, scan, *volumeID, scan.Roles); errd != nil {
+				log.Warnf("%s: could not delete volume %q: %v", scan, volumeID, errd)
 			} else {
 				statsResourceTTL(types.ResourceTypeVolume, scan, *scan.AttachedVolumeCreatedAt)
 			}
@@ -224,9 +223,8 @@ func CleanupScan(scan *types.ScanTask) {
 }
 
 // CleanupScanVolumes removes all resources associated with a volume.
-func CleanupScanVolumes(ctx context.Context, maybeScan *types.ScanTask, volumeARN types.ARN, roles types.RolesMapping) error {
-	volumeID := volumeARN.ResourceName
-	cfg, err := GetConfig(ctx, volumeARN.Region, roles[volumeARN.AccountID])
+func CleanupScanVolumes(ctx context.Context, maybeScan *types.ScanTask, volumeID types.CloudID, roles types.RolesMapping) error {
+	cfg, err := GetConfig(ctx, volumeID.Region, roles[volumeID.AccountID])
 	if err != nil {
 		return err
 	}
@@ -239,7 +237,7 @@ func CleanupScanVolumes(ctx context.Context, maybeScan *types.ScanTask, volumeAR
 	for i := 0; i < 5; i++ {
 		if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
 			Force:    aws.Bool(true),
-			VolumeId: aws.String(volumeID),
+			VolumeId: aws.String(volumeID.ResourceName),
 		}); err != nil {
 			var aerr smithy.APIError
 			// NOTE(jinroh): we're trying to detach a volume in an 'available'
@@ -282,7 +280,7 @@ func CleanupScanVolumes(ctx context.Context, maybeScan *types.ScanTask, volumeAR
 			break
 		}
 		_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
-			VolumeId: aws.String(volumeID),
+			VolumeId: aws.String(volumeID.ResourceName),
 		})
 		if errd != nil {
 			var aerr smithy.APIError
@@ -315,7 +313,7 @@ func statsResourceTTL(resourceType types.ResourceType, scan *types.ScanTask, cre
 
 // ListResourcesForCleanup lists all AWS resources that are created by our
 // scanner.
-func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.ARN) map[types.ResourceType][]string {
+func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.CloudID) map[types.ResourceType][]string {
 	cfg, err := GetConfig(ctx, region, assumedRole)
 	if err != nil {
 		return nil
@@ -375,7 +373,7 @@ func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region s
 }
 
 // ResourcesCleanup removes all resources provided in the map.
-func ResourcesCleanup(ctx context.Context, toBeDeleted map[types.ResourceType][]string, region string, assumedRole *types.ARN) {
+func ResourcesCleanup(ctx context.Context, toBeDeleted map[types.ResourceType][]string, region string, assumedRole *types.CloudID) {
 	cfg, err := GetConfig(ctx, region, assumedRole)
 	if err != nil {
 		return

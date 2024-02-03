@@ -64,8 +64,8 @@ func downloadAndUnzipLambda(ctx context.Context, scan *types.ScanTask, lambdaDir
 		}
 	}()
 
-	assumedRole := scan.Roles[scan.ARN.AccountID]
-	cfg, err := GetConfig(ctx, scan.ARN.Region, assumedRole)
+	assumedRole := scan.Roles[scan.CloudID.AccountID]
+	cfg, err := GetConfig(ctx, scan.CloudID.Region, assumedRole)
 	if err != nil {
 		return "", err
 	}
@@ -76,7 +76,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *types.ScanTask, lambdaDir
 	}
 
 	lambdaFunc, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
-		FunctionName: aws.String(scan.ARN.String()),
+		FunctionName: aws.String(scan.CloudID.String()),
 	})
 	if err != nil {
 		return "", err
