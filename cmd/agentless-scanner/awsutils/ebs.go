@@ -148,7 +148,10 @@ retry:
 	}
 
 	snapshotID := *createSnapshotOutput.SnapshotId
-	snapshotARN := EC2ARN(volumeARN.Region, volumeARN.AccountID, types.ResourceTypeSnapshot, snapshotID)
+	snapshotARN, err := EC2ARN(volumeARN.Region, volumeARN.AccountID, types.ResourceTypeSnapshot, snapshotID)
+	if err != nil {
+		return snapshotARN, err
+	}
 	scan.CreatedSnapshots[snapshotARN.String()] = &snapshotCreatedAt
 
 	err = <-waiter.Wait(ctx, snapshotARN, ec2client)
@@ -226,7 +229,10 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		if err != nil {
 			return fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotARN, self.Region, err)
 		}
-		localSnapshotARN = EC2ARN(self.Region, snapshotARN.AccountID, types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
+		localSnapshotARN, err = EC2ARN(self.Region, snapshotARN.AccountID, types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
+		if err != nil {
+			return err
+		}
 		log.Debugf("%s: waiting for copy of snapshot %q into %q as %q", scan, snapshotARN, self.Region, *copySnapshot.SnapshotId)
 		err = <-waiter.Wait(ctx, localSnapshotARN, remoteEC2Client)
 		if err != nil {
@@ -269,7 +275,10 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		return fmt.Errorf("could not create volume from snapshot: %w", err)
 	}
 
-	volumeARN := EC2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, types.ResourceTypeVolume, *volume.VolumeId)
+	volumeARN, err := EC2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, types.ResourceTypeVolume, *volume.VolumeId)
+	if err != nil {
+		return err
+	}
 	scan.AttachedVolumeARN = &volumeARN
 	scan.AttachedVolumeCreatedAt = volume.CreateTime
 
@@ -335,12 +344,6 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 }
 
 // EC2ARN returns an ARN for the given EC2 resource.
-func EC2ARN(region, accountID string, resourceType types.ResourceType, resourceID string) types.ARN {
-	return types.ARN{
-		Partition: "aws",
-		Service:   "ec2",
-		Region:    region,
-		AccountID: accountID,
-		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceID),
-	}
+func EC2ARN(region, accountID string, resourceType types.ResourceType, resourceName string) (types.ARN, error) {
+	return types.ParseARN(fmt.Sprintf("arn:aws:ec2:%s:%s:%s/%s", region, accountID, resourceType, resourceName))
 }
