@@ -22,7 +22,6 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/docker/distribution/reference"
 )
 
@@ -115,7 +114,7 @@ const (
 )
 
 // RolesMapping is the mapping of roles from accounts IDs to role ARNs
-type RolesMapping map[string]*arn.ARN
+type RolesMapping map[string]*ARN
 
 // ScanConfigRaw is the raw representation of the scan configuration received
 // from RC.
@@ -147,7 +146,7 @@ type ScanTask struct {
 	CreatedAt       time.Time    `json:"CreatedAt"`
 	StartedAt       time.Time    `json:"StartedAt"`
 	Type            ScanType     `json:"Type"`
-	ARN             arn.ARN      `json:"ARN"`
+	ARN             ARN          `json:"ARN"`
 	TargetHostname  string       `json:"Hostname"`
 	ScannerHostname string       `json:"ScannerHostname"`
 	Actions         []ScanAction `json:"Actions"`
@@ -157,7 +156,7 @@ type ScanTask struct {
 	// Lifecycle metadata of the task
 	CreatedSnapshots        map[string]*time.Time `json:"CreatedSnapshots"`
 	AttachedDeviceName      *string               `json:"AttachedDeviceName"`
-	AttachedVolumeARN       *arn.ARN              `json:"AttachedVolumeARN"`
+	AttachedVolumeARN       *ARN                  `json:"AttachedVolumeARN"`
 	AttachedVolumeCreatedAt *time.Time            `json:"AttachedVolumeCreatedAt"`
 }
 
@@ -279,7 +278,7 @@ type ScannerOptions struct {
 	Container *Container  `json:"Container"`
 
 	// Vulns specific
-	SnapshotARN *arn.ARN `json:"SnapshotARN"` // TODO: deprecate as we remove "vm" mode
+	SnapshotARN *ARN `json:"SnapshotARN"` // TODO: deprecate as we remove "vm" mode
 }
 
 // ErrResult returns a ScanResult with an error.
@@ -379,29 +378,6 @@ func ParseRolesMapping(roles []string) RolesMapping {
 	return rolesMap
 }
 
-// ParseARN parses an ARN and checks that it is of the expected type.
-func ParseARN(s string, expectedTypes ...ResourceType) (arn.ARN, error) {
-	a, err := arn.Parse(s)
-	if err != nil {
-		return arn.ARN{}, err
-	}
-	resType, _, err := GetARNResource(a)
-	if err != nil {
-		return arn.ARN{}, err
-	}
-	isExpected := len(expectedTypes) == 0
-	for _, t := range expectedTypes {
-		if t == resType {
-			isExpected = true
-			break
-		}
-	}
-	if !isExpected {
-		return arn.ARN{}, fmt.Errorf("bad arn: expecting one of these resource types %v but got %s", expectedTypes, resType)
-	}
-	return a, nil
-}
-
 var (
 	partitionReg  = regexp.MustCompile("^aws[a-zA-Z-]*$")
 	regionReg     = regexp.MustCompile("^[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-[0-9]{1}$")
@@ -411,65 +387,6 @@ var (
 	functionReg   = regexp.MustCompile(`^([a-zA-Z0-9-_.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`)
 )
 
-// GetARNResource returns the resource type and ID of an ARN.
-func GetARNResource(arn arn.ARN) (resourceType ResourceType, resourceID string, err error) {
-	if arn.Partition == "localhost" {
-		return ResourceTypeLocalDir, filepath.Join("/", arn.Resource), nil
-	}
-	if !partitionReg.MatchString(arn.Partition) {
-		err = fmt.Errorf("bad arn %q: unexpected partition", arn)
-		return
-	}
-	if arn.Region != "" && !regionReg.MatchString(arn.Region) {
-		err = fmt.Errorf("bad arn %q: unexpected region (should be empty or match %s)", arn, regionReg)
-		return
-	}
-	if arn.AccountID != "" && !accountIDReg.MatchString(arn.AccountID) {
-		err = fmt.Errorf("bad arn %q: unexpected account ID (should match %s)", arn, accountIDReg)
-		return
-	}
-	switch {
-	case arn.Service == "ec2" && strings.HasPrefix(arn.Resource, "volume/"):
-		resourceType, resourceID = ResourceTypeVolume, strings.TrimPrefix(arn.Resource, "volume/")
-		if !strings.HasPrefix(resourceID, "vol-") {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
-			return
-		}
-		if !resourceIDReg.MatchString(strings.TrimPrefix(resourceID, "vol-")) {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong format (should match %s)", arn, resourceIDReg)
-			return
-		}
-	case arn.Service == "ec2" && strings.HasPrefix(arn.Resource, "snapshot/"):
-		resourceType, resourceID = ResourceTypeSnapshot, strings.TrimPrefix(arn.Resource, "snapshot/")
-		if !strings.HasPrefix(resourceID, "snap-") {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
-			return
-		}
-		if !resourceIDReg.MatchString(strings.TrimPrefix(resourceID, "snap-")) {
-			err = fmt.Errorf("bad arn %q: resource ID has wrong format (should match %s)", arn, resourceIDReg)
-			return
-		}
-	case arn.Service == "lambda" && strings.HasPrefix(arn.Resource, "function:"):
-		resourceType, resourceID = ResourceTypeFunction, strings.TrimPrefix(arn.Resource, "function:")
-		if sep := strings.Index(resourceID, ":"); sep > 0 {
-			resourceID = resourceID[:sep]
-		}
-		if !functionReg.MatchString(resourceID) {
-			err = fmt.Errorf("bad arn %q: function name has wrong format (should match %s)", arn, functionReg)
-		}
-	case arn.Service == "iam" && strings.HasPrefix(arn.Resource, "role/"):
-		resourceType, resourceID = ResourceTypeRole, strings.TrimPrefix(arn.Resource, "role/")
-		if !roleNameReg.MatchString(resourceID) {
-			err = fmt.Errorf("bad arn %q: role name has wrong format (should match %s)", arn, roleNameReg)
-			return
-		}
-	default:
-		err = fmt.Errorf("bad arn %q: unexpected resource type", arn)
-		return
-	}
-	return
-}
-
 // NewScanTask creates a new scan task.
 func NewScanTask(resourceARN, scannerHostname, targetHostname string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
 	var scan ScanTask
@@ -478,10 +395,7 @@ func NewScanTask(resourceARN, scannerHostname, targetHostname string, actions []
 	if err != nil {
 		return nil, err
 	}
-	resourceType, _, err := GetARNResource(scan.ARN)
-	if err != nil {
-		return nil, err
-	}
+	resourceType := scan.ARN.ResourceType
 	switch {
 	case resourceType == ResourceTypeLocalDir:
 		scan.Type = HostScanType

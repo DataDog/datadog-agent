@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -30,7 +32,7 @@ var (
 )
 
 type confKey struct {
-	role   arn.ARN
+	role   types.ARN
 	region string
 }
 
@@ -43,7 +45,7 @@ func InitConfig(client *ddogstatsd.Client, limiterOptions LimiterOptions, tags [
 }
 
 // GetConfig returns an AWS Config for the given region and assumed role.
-func GetConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Config, error) {
+func GetConfig(ctx context.Context, region string, assumedRole *types.ARN) (aws.Config, error) {
 	globalConfigsMu.Lock()
 	defer globalConfigsMu.Unlock()
 

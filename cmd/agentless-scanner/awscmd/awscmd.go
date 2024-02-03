@@ -22,15 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/runner"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
-
-	// DataDog agent: config stuffs
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
@@ -315,7 +313,7 @@ func getDefaultRolesMapping() types.RolesMapping {
 	return types.ParseRolesMapping(roles)
 }
 
-func scanCmd(resourceARN arn.ARN, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func scanCmd(resourceARN types.ARN, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -627,7 +625,7 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	return nil
 }
 
-func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool, defaultActions []types.ScanAction) error {
+func attachCmd(resourceARN types.ARN, mode types.DiskMode, mount bool, defaultActions []types.ScanAction) error {
 	ctx := ctxTerminated()
 
 	cfg, err := awsutils.GetConfig(ctx, resourceARN.Region, nil)
@@ -651,9 +649,8 @@ func attachCmd(resourceARN arn.ARN, mode types.DiskMode, mount bool, defaultActi
 
 	var waiter awsutils.SnapshotWaiter
 
-	resourceType, _, _ := types.GetARNResource(resourceARN)
-	var snapshotARN arn.ARN
-	switch resourceType {
+	var snapshotARN types.ARN
+	switch resourceARN.ResourceType {
 	case types.ResourceTypeVolume:
 		ec2client := ec2.NewFromConfig(cfg)
 		snapshotARN, err = awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, resourceARN)
@@ -713,15 +710,15 @@ func getAWSLimitsOptions() awsutils.LimiterOptions {
 	}
 }
 
-func humanParseARN(s string, expectedTypes ...types.ResourceType) (arn.ARN, error) {
+func humanParseARN(s string, expectedTypes ...types.ResourceType) (types.ARN, error) {
 	if strings.HasPrefix(s, "arn:") {
 		return types.ParseARN(s, expectedTypes...)
 	}
 	self, err := awsutils.GetSelfEC2InstanceIndentity(context.TODO())
 	if err != nil {
-		return arn.ARN{}, err
+		return types.ARN{}, err
 	}
-	a := arn.ARN{
+	a := types.ARN{
 		Partition: "aws",
 		Region:    self.Region,
 		AccountID: self.AccountID,
@@ -738,7 +735,7 @@ func humanParseARN(s string, expectedTypes ...types.ResourceType) (arn.ARN, erro
 	} else if strings.HasPrefix(s, "function:") {
 		a.Service = "lambda"
 	} else {
-		return arn.ARN{}, fmt.Errorf("unable to parse resource: expecting an ARN for %v", expectedTypes)
+		return types.ARN{}, fmt.Errorf("unable to parse resource: expecting an ARN for %v", expectedTypes)
 	}
 	return types.ParseARN(a.String(), expectedTypes...)
 }

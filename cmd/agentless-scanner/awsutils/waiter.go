@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
@@ -29,7 +28,7 @@ type SnapshotWaiter struct {
 
 // Wait waits for the given snapshot to be created and returns a channel that
 // will send an error or nil.
-func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotARN arn.ARN, ec2client *ec2.Client) <-chan error {
+func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotARN types.ARN, ec2client *ec2.Client) <-chan error {
 	w.Lock()
 	defer w.Unlock()
 	region := snapshotARN.Region
@@ -39,10 +38,9 @@ func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotARN arn.ARN, ec2clien
 	if w.subs[region] == nil {
 		w.subs[region] = make(map[string][]chan error)
 	}
-	_, resourceID, _ := types.GetARNResource(snapshotARN)
 	ch := make(chan error, 1)
 	subs := w.subs[region]
-	subs[resourceID] = append(subs[resourceID], ch)
+	subs[snapshotARN.ResourceName] = append(subs[snapshotARN.ResourceName], ch)
 	if len(subs) == 1 {
 		go w.loop(ctx, region, ec2client)
 	}

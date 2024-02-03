@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -35,10 +34,6 @@ const (
 // volume, attaches it to the instance and returns the list of partitions that
 // were mounted.
 func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter) ([]string, error) {
-	resourceType, _, err := types.GetARNResource(scan.ARN)
-	if err != nil {
-		return nil, err
-	}
 	if scan.TargetHostname == "" {
 		return nil, fmt.Errorf("ebs-volume: missing hostname")
 	}
@@ -54,8 +49,8 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 		return nil, err
 	}
 
-	var snapshotARN arn.ARN
-	switch resourceType {
+	var snapshotARN types.ARN
+	switch scan.ARN.ResourceType {
 	case types.ResourceTypeVolume:
 		snapshotARN, err = CreateSnapshot(ctx, scan, waiter, ec2client, scan.ARN)
 		if err != nil {
@@ -65,10 +60,6 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 		snapshotARN = scan.ARN
 	default:
 		return nil, fmt.Errorf("ebs-volume: bad arn %q", scan.ARN)
-	}
-
-	if snapshotARN.Resource == "" {
-		return nil, fmt.Errorf("ebs-volume: missing snapshot ID")
 	}
 
 	log.Infof("%s: start EBS scanning", scan)
@@ -96,7 +87,7 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 }
 
 // CreateSnapshot creates a snapshot of the given EBS volume and returns its ARN.
-func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, ec2client *ec2.Client, volumeARN arn.ARN) (arn.ARN, error) {
+func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, ec2client *ec2.Client, volumeARN types.ARN) (types.ARN, error) {
 	snapshotCreatedAt := time.Now()
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
@@ -105,13 +96,10 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotW
 
 	retries := 0
 retry:
-	resourceType, volumeID, err := types.GetARNResource(volumeARN)
-	if err != nil {
-		return arn.ARN{}, err
+	if volumeARN.ResourceType != types.ResourceTypeVolume {
+		return types.ARN{}, fmt.Errorf("bad volume ARN %q: expecting a volume ARN", volumeARN)
 	}
-	if resourceType != types.ResourceTypeVolume {
-		return arn.ARN{}, fmt.Errorf("bad volume ARN %q: expecting a volume ARN", volumeARN)
-	}
+	volumeID := volumeARN.ResourceName
 	createSnapshotOutput, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 		VolumeId:          aws.String(volumeID),
 		TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
@@ -132,7 +120,7 @@ retry:
 				d := 15 * time.Second
 				log.Debugf("%s: snapshot creation rate exceeded for volume %q; retrying after %v (%d/%d)", scan, volumeARN, d, retries, maxSnapshotRetries)
 				if !sleepCtx(ctx, d) {
-					return arn.ARN{}, ctx.Err()
+					return types.ARN{}, ctx.Err()
 				}
 				goto retry
 			}
@@ -156,7 +144,7 @@ retry:
 		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, tags, 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
-		return arn.ARN{}, err
+		return types.ARN{}, err
 	}
 
 	snapshotID := *createSnapshotOutput.SnapshotId
@@ -186,7 +174,7 @@ retry:
 
 // AttachSnapshotWithNBD attaches the given snapshot to the instance using a
 // Network Block Device (NBD).
-func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) error {
+func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotARN types.ARN, ebsclient *ebs.Client) error {
 	device, ok := devices.NextNBD()
 	if !ok {
 		return fmt.Errorf("could not find non busy NBD block device")
@@ -208,15 +196,11 @@ func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotAR
 
 // AttachSnapshotWithVolume attaches the given snapshot to the instance as a
 // new volume.
-func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, snapshotARN arn.ARN) error {
-	resourceType, snapshotID, err := types.GetARNResource(snapshotARN)
-	if err != nil {
-		return err
-	}
-	if resourceType != types.ResourceTypeSnapshot {
+func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, snapshotARN types.ARN) error {
+	if snapshotARN.ResourceType != types.ResourceTypeSnapshot {
 		return fmt.Errorf("expected ARN for a snapshot: %s", snapshotARN.String())
 	}
-
+	snapshotID := snapshotARN.ResourceName
 	self, err := GetSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
@@ -229,7 +213,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 	}
 	remoteEC2Client := ec2.NewFromConfig(remoteAWSCfg)
 
-	var localSnapshotARN arn.ARN
+	var localSnapshotARN types.ARN
 	if snapshotARN.Region != self.Region {
 		log.Debugf("%s: copying snapshot %q into %q", scan, snapshotARN, self.Region)
 		copySnapshotCreatedAt := time.Now()
@@ -274,7 +258,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 	locaEC2Client := ec2.NewFromConfig(localAWSCfg)
 
 	log.Debugf("%s: creating new volume for snapshot %q in az %q", scan, localSnapshotARN, self.AvailabilityZone)
-	_, localSnapshotID, _ := types.GetARNResource(localSnapshotARN)
+	localSnapshotID := localSnapshotARN.ResourceName
 	volume, err := locaEC2Client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 		VolumeType:        ec2types.VolumeTypeGp3,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
@@ -351,8 +335,8 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 }
 
 // EC2ARN returns an ARN for the given EC2 resource.
-func EC2ARN(region, accountID string, resourceType types.ResourceType, resourceID string) arn.ARN {
-	return arn.ARN{
+func EC2ARN(region, accountID string, resourceType types.ResourceType, resourceID string) types.ARN {
+	return types.ARN{
 		Partition: "aws",
 		Service:   "ec2",
 		Region:    region,

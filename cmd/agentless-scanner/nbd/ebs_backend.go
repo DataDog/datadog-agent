@@ -14,7 +14,6 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 	"golang.org/x/sync/singleflight"
 
@@ -54,11 +53,7 @@ type ebsBackend struct {
 }
 
 // NewEBSBackend creates a new EBS NBD backend for the given snapshot ARN.
-func NewEBSBackend(ebsclient *ebs.Client, snapshotARN arn.ARN) (backend.Backend, error) {
-	_, snapshotID, err := types.GetARNResource(snapshotARN)
-	if err != nil {
-		return nil, err
-	}
+func NewEBSBackend(ebsclient *ebs.Client, snapshotARN types.ARN) (backend.Backend, error) {
 	cache, err := lru.NewWithEvict[int32, []byte](ebsCacheSize, func(_ int32, block []byte) {
 		blockPool.Put(block)
 	})
@@ -67,7 +62,7 @@ func NewEBSBackend(ebsclient *ebs.Client, snapshotARN arn.ARN) (backend.Backend,
 	}
 	b := &ebsBackend{
 		ebsclient:   ebsclient,
-		snapshotID:  snapshotID,
+		snapshotID:  snapshotARN.ResourceName,
 		cache:       cache,
 		singlegroup: new(singleflight.Group),
 	}
