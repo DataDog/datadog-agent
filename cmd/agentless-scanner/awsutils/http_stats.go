@@ -14,22 +14,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 )
 
 type roundtrip struct {
 	transport *http.Transport
 	region    string
 	limiter   *Limiter
-	role      arn.ARN
+	role      types.ARN
 	statsd    *ddogstatsd.Client
 	tags      []string
 }
 
-func newHTTPClientWithStats(region string, assumedRole *arn.ARN, statsd *ddogstatsd.Client, limiter *Limiter, tags []string) *http.Client {
+func newHTTPClientWithStats(region string, assumedRole *types.ARN, statsd *ddogstatsd.Client, limiter *Limiter, tags []string) *http.Client {
 	rt := &roundtrip{
 		region:  region,
 		limiter: limiter,
@@ -143,7 +143,7 @@ func (rt *roundtrip) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	tags := append(rt.tags,
 		fmt.Sprintf("aws_region:%s", rt.region),
-		fmt.Sprintf("aws_assumed_role:%s", rt.role.Resource),
+		fmt.Sprintf("aws_assumed_role:%s", rt.role.ResourceName),
 		fmt.Sprintf("aws_account_id:%s", rt.role.AccountID),
 		fmt.Sprintf("aws_service:%s", service),
 		fmt.Sprintf("aws_action:%s_%s", service, action),

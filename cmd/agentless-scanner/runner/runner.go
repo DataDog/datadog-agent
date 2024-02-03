@@ -44,7 +44,6 @@ import (
 
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/docker/distribution/reference"
 )
 
@@ -79,9 +78,9 @@ type Runner struct {
 	waiter awsutils.SnapshotWaiter
 
 	regionsCleanupMu sync.Mutex
-	regionsCleanup   map[string]*arn.ARN
+	regionsCleanup   map[string]*types.ARN
 
-	scansInProgress   map[arn.ARN]struct{}
+	scansInProgress   map[types.ARN]struct{}
 	scansInProgressMu sync.RWMutex
 
 	configsCh chan *types.ScanConfig
@@ -117,7 +116,7 @@ func New(opts Options) (*Runner, error) {
 		findingsReporter: findingsReporter,
 		rcClient:         rcClient,
 
-		scansInProgress: make(map[arn.ARN]struct{}),
+		scansInProgress: make(map[types.ARN]struct{}),
 
 		configsCh: make(chan *types.ScanConfig),
 		scansCh:   make(chan *types.ScanTask),
@@ -126,7 +125,7 @@ func New(opts Options) (*Runner, error) {
 }
 
 // Cleanup cleans up all the resources created by the runner.
-func (s *Runner) Cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *arn.ARN) error {
+func (s *Runner) Cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.ARN) error {
 	toBeDeleted := awsutils.ListResourcesForCleanup(ctx, maxTTL, region, assumedRole)
 	awsutils.ResourcesCleanup(ctx, toBeDeleted, region, assumedRole)
 	return nil
@@ -145,7 +144,7 @@ func (s *Runner) cleanupProcess(ctx context.Context) {
 
 		log.Infof("starting cleanup process")
 		s.regionsCleanupMu.Lock()
-		regionsCleanup := make(map[string]*arn.ARN, len(s.regionsCleanup))
+		regionsCleanup := make(map[string]*types.ARN, len(s.regionsCleanup))
 		for region, role := range s.regionsCleanup {
 			regionsCleanup[region] = role
 		}
@@ -395,7 +394,7 @@ func (s *Runner) Start(ctx context.Context) {
 				// will be used for cleanup process.
 				s.regionsCleanupMu.Lock()
 				if s.regionsCleanup == nil {
-					s.regionsCleanup = make(map[string]*arn.ARN)
+					s.regionsCleanup = make(map[string]*types.ARN)
 				}
 				s.regionsCleanup[scan.ARN.Region] = scan.Roles[scan.ARN.Region]
 				s.regionsCleanupMu.Unlock()

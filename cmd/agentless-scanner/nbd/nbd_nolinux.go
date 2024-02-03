@@ -11,13 +11,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
 
 // StartNBDBlockDevice starts the NBD server and client for the given device
 // name with the provided backend.
-func StartNBDBlockDevice(_ string, _ *ebs.Client, _ string, _ arn.ARN) error {
+func StartNBDBlockDevice(_ string, _ *ebs.Client, _ string, _ types.ARN) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
 

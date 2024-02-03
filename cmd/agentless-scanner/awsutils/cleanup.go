@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/smithy-go"
@@ -110,7 +109,7 @@ func CleanupScan(scan *types.ScanTask) {
 		if err != nil {
 			continue
 		}
-		_, snapshotID, _ := types.GetARNResource(snapshotARN)
+		snapshotID := snapshotARN.ResourceName
 		cfg, err := GetConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
 		if err != nil {
 			log.Errorf("%s: %v", scan, err)
@@ -221,8 +220,8 @@ func CleanupScan(scan *types.ScanTask) {
 }
 
 // CleanupScanVolumes removes all resources associated with a volume.
-func CleanupScanVolumes(ctx context.Context, maybeScan *types.ScanTask, volumeARN arn.ARN, roles types.RolesMapping) error {
-	_, volumeID, _ := types.GetARNResource(volumeARN)
+func CleanupScanVolumes(ctx context.Context, maybeScan *types.ScanTask, volumeARN types.ARN, roles types.RolesMapping) error {
+	volumeID := volumeARN.ResourceName
 	cfg, err := GetConfig(ctx, volumeARN.Region, roles[volumeARN.AccountID])
 	if err != nil {
 		return err
@@ -312,7 +311,7 @@ func statsResourceTTL(resourceType types.ResourceType, scan *types.ScanTask, cre
 
 // ListResourcesForCleanup lists all AWS resources that are created by our
 // scanner.
-func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *arn.ARN) map[types.ResourceType][]string {
+func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.ARN) map[types.ResourceType][]string {
 	cfg, err := GetConfig(ctx, region, assumedRole)
 	if err != nil {
 		return nil
@@ -372,7 +371,7 @@ func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region s
 }
 
 // ResourcesCleanup removes all resources provided in the map.
-func ResourcesCleanup(ctx context.Context, toBeDeleted map[types.ResourceType][]string, region string, assumedRole *arn.ARN) {
+func ResourcesCleanup(ctx context.Context, toBeDeleted map[types.ResourceType][]string, region string, assumedRole *types.ARN) {
 	cfg, err := GetConfig(ctx, region, assumedRole)
 	if err != nil {
 		return
