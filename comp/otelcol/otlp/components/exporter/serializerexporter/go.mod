@@ -37,6 +37,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../../../../pkg/util/json/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../../../pkg/util/log/
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../../../pkg/util/optional/
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../../../pkg/util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../../../../../../pkg/util/sort/
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../../../pkg/util/system/

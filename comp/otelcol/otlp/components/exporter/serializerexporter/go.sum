@@ -54,8 +54,6 @@ github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2 h1:lG8c2Clq
 github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2/go.mod h1:Vc+snp0Bey4MrrJyiV2tVxxJb6BmLomPvN1RgAvjGaQ=
 github.com/DataDog/datadog-agent/pkg/trace v0.51.0-rc.2 h1:MeiOAIy+R+x1G+Qk/YC2+s4Si5KP4NCAR6XJ9etXWKg=
 github.com/DataDog/datadog-agent/pkg/trace v0.51.0-rc.2/go.mod h1:/7q3SMOAqtKayFwr/5Sp2LLpu39lyZgV9eFp9lAZGC4=
-github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.2 h1:GhPHmuh0vepRhxmgHyC0uzl/aRDBsHwHY50SRvqC1Ok=
-github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.2/go.mod h1:eTXti9mx7qhkoi+Qg3mMmvVY5McghUUgsf4Hrk9zY8k=
 github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.2 h1:o7Ys6VLP6wVQULSOlTlv/N9X9l4toLUBJSE+iOdA2vo=
 github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.2/go.mod h1:X7ODRWbUGbvM07oZPDbrYzKqt8205dXjD35M9yWrMm8=
 github.com/DataDog/datadog-go/v5 v5.4.0 h1:Ea3eXUVwrVV28F/fo3Dr3aa+TL/Z7Xi6SUPKW8L99aI=
