@@ -113,8 +113,8 @@ const (
 	ResourceTypeRole = "role"
 )
 
-// RolesMapping is the mapping of roles from accounts IDs to role ARNs
-type RolesMapping map[string]*ARN
+// RolesMapping is the mapping of roles from accounts IDs to role IDs
+type RolesMapping map[string]*CloudID
 
 // ScanConfigRaw is the raw representation of the scan configuration received
 // from RC.
@@ -122,7 +122,7 @@ type ScanConfigRaw struct {
 	Type  string `json:"type"`
 	Tasks []struct {
 		Type     string   `json:"type"`
-		ARN      string   `json:"arn"`
+		CloudID  string   `json:"arn"`
 		Hostname string   `json:"hostname"`
 		Actions  []string `json:"actions,omitempty"`
 	} `json:"tasks"`
@@ -146,7 +146,7 @@ type ScanTask struct {
 	CreatedAt       time.Time    `json:"CreatedAt"`
 	StartedAt       time.Time    `json:"StartedAt"`
 	Type            ScanType     `json:"Type"`
-	ARN             ARN          `json:"ARN"`
+	CloudID         CloudID      `json:"CloudID"`
 	TargetHostname  string       `json:"Hostname"`
 	ScannerHostname string       `json:"ScannerHostname"`
 	Actions         []ScanAction `json:"Actions"`
@@ -156,7 +156,7 @@ type ScanTask struct {
 	// Lifecycle metadata of the task
 	CreatedSnapshots        map[string]*time.Time `json:"CreatedSnapshots"`
 	AttachedDeviceName      *string               `json:"AttachedDeviceName"`
-	AttachedVolumeARN       *ARN                  `json:"AttachedVolumeARN"`
+	AttachedVolumeID        *CloudID              `json:"AttachedVolumeID"`
 	AttachedVolumeCreatedAt *time.Time            `json:"AttachedVolumeCreatedAt"`
 }
 
@@ -166,7 +166,7 @@ func MakeScanTaskID(s *ScanTask) string {
 	createdAt, _ := s.CreatedAt.MarshalBinary()
 	h.Write(createdAt)
 	h.Write([]byte(s.Type))
-	h.Write([]byte(s.ARN.String()))
+	h.Write([]byte(s.CloudID.String()))
 	h.Write([]byte(s.TargetHostname))
 	h.Write([]byte(s.ScannerHostname))
 	h.Write([]byte(s.DiskMode))
@@ -198,7 +198,7 @@ func (s *ScanTask) String() string {
 func (s *ScanTask) Tags(rest ...string) []string {
 	return append([]string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("region:%s", s.ARN.Region),
+		fmt.Sprintf("region:%s", s.CloudID.Region),
 		fmt.Sprintf("type:%s", s.Type),
 	}, rest...)
 }
@@ -276,9 +276,6 @@ type ScannerOptions struct {
 	CreatedAt time.Time   `jons:"CreatedAt"`
 	StartedAt time.Time   `jons:"StartedAt"`
 	Container *Container  `json:"Container"`
-
-	// Vulns specific
-	SnapshotARN *ARN `json:"SnapshotARN"` // TODO: deprecate as we remove "vm" mode
 }
 
 // ErrResult returns a ScanResult with an error.
@@ -296,9 +293,6 @@ func (o ScannerOptions) ID() string {
 	h.Write([]byte(o.Scan.ID))
 	if ctr := o.Container; ctr != nil {
 		h.Write([]byte((*ctr).String()))
-	}
-	if o.SnapshotARN != nil {
-		h.Write([]byte(o.SnapshotARN.String()))
 	}
 	return string(o.Scanner) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
 }
@@ -362,31 +356,32 @@ func ParseDiskMode(diskModeStr string) (DiskMode, error) {
 	}
 }
 
-// ParseRolesMapping parses a list of roles into a mapping from account ID  to role ARN.
+// ParseRolesMapping parses a list of roles into a mapping from account ID to
+// role cloud resource ID.
 func ParseRolesMapping(roles []string) RolesMapping {
 	if len(roles) == 0 {
 		return nil
 	}
 	rolesMap := make(RolesMapping, len(roles))
 	for _, role := range roles {
-		roleARN, err := ParseARN(role, ResourceTypeRole)
+		roleID, err := ParseCloudID(role, ResourceTypeRole)
 		if err != nil {
 			continue
 		}
-		rolesMap[roleARN.AccountID] = &roleARN
+		rolesMap[roleID.AccountID] = &roleID
 	}
 	return rolesMap
 }
 
 // NewScanTask creates a new scan task.
-func NewScanTask(resourceARN, scannerHostname, targetHostname string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
+func NewScanTask(resourceID, scannerHostname, targetHostname string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
 	var scan ScanTask
 	var err error
-	scan.ARN, err = ParseARN(resourceARN, ResourceTypeLocalDir, ResourceTypeSnapshot, ResourceTypeVolume, ResourceTypeFunction)
+	scan.CloudID, err = ParseCloudID(resourceID, ResourceTypeLocalDir, ResourceTypeSnapshot, ResourceTypeVolume, ResourceTypeFunction)
 	if err != nil {
 		return nil, err
 	}
-	resourceType := scan.ARN.ResourceType
+	resourceType := scan.CloudID.ResourceType
 	switch {
 	case resourceType == ResourceTypeLocalDir:
 		scan.Type = HostScanType
@@ -464,7 +459,7 @@ func UnmarshalConfig(b []byte, scannerHostname string, defaultActions []ScanActi
 				return nil, err
 			}
 		}
-		task, err := NewScanTask(rawScan.ARN, scannerHostname, rawScan.Hostname, actions, config.Roles, config.DiskMode)
+		task, err := NewScanTask(rawScan.CloudID, scannerHostname, rawScan.Hostname, actions, config.Roles, config.DiskMode)
 		if err != nil {
 			return nil, err
 		}

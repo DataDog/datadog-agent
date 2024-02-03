@@ -33,7 +33,7 @@ var (
 )
 
 type confKey struct {
-	role   types.ARN
+	role   types.CloudID
 	region string
 }
 
@@ -46,7 +46,7 @@ func InitConfig(client *ddogstatsd.Client, limiterOptions LimiterOptions, tags [
 }
 
 // GetConfig returns an AWS Config for the given region and assumed role.
-func GetConfig(ctx context.Context, region string, assumedRole *types.ARN) (aws.Config, error) {
+func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) (aws.Config, error) {
 	globalConfigsMu.Lock()
 	defer globalConfigsMu.Unlock()
 
@@ -82,11 +82,11 @@ func GetConfig(ctx context.Context, region string, assumedRole *types.ARN) (aws.
 	}
 
 	if assumedRole == nil {
-		roleARN, err := types.ParseARN(*identity.Arn, types.ResourceTypeRole)
+		roleID, err := types.ParseCloudID(*identity.Arn, types.ResourceTypeRole)
 		if err != nil {
 			return aws.Config{}, fmt.Errorf("awsconfig: could not parse caller identity arn: %w", err)
 		}
-		cfg.HTTPClient = newHTTPClientWithStats(region, &roleARN, statsd, limiter, globalStatsTags)
+		cfg.HTTPClient = newHTTPClientWithStats(region, &roleID, statsd, limiter, globalStatsTags)
 	}
 
 	globalConfigs[key] = &cfg
@@ -105,14 +105,14 @@ func GetSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 }
 
 // HumanParseARN parses an ARN string or a resource identifier string and
-// returns an ARN. Helpful for CLI interface.
-func HumanParseARN(s string, expectedTypes ...types.ResourceType) (types.ARN, error) {
+// returns an cloud identifier. Helpful for CLI interface.
+func HumanParseARN(s string, expectedTypes ...types.ResourceType) (types.CloudID, error) {
 	if strings.HasPrefix(s, "arn:") {
-		return types.ParseARN(s, expectedTypes...)
+		return types.ParseCloudID(s, expectedTypes...)
 	}
 	self, err := GetSelfEC2InstanceIndentity(context.Background())
 	if err != nil {
-		return types.ARN{}, err
+		return types.CloudID{}, err
 	}
 	partition := "aws"
 	var service string
@@ -127,8 +127,8 @@ func HumanParseARN(s string, expectedTypes ...types.ResourceType) (types.ARN, er
 	} else if strings.HasPrefix(s, "function:") {
 		service = "lambda"
 	} else {
-		return types.ARN{}, fmt.Errorf("unable to parse resource: expecting an ARN for %v", expectedTypes)
+		return types.CloudID{}, fmt.Errorf("unable to parse resource: expecting a resource of types %v", expectedTypes)
 	}
 	arn := fmt.Sprintf("arn:%s:%s:%s:%s:%s", partition, service, self.Region, self.AccountID, s)
-	return types.ParseARN(arn, expectedTypes...)
+	return types.ParseCloudID(arn, expectedTypes...)
 }

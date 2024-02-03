@@ -24,12 +24,12 @@ type roundtrip struct {
 	transport *http.Transport
 	region    string
 	limiter   *Limiter
-	role      types.ARN
+	role      types.CloudID
 	statsd    *ddogstatsd.Client
 	tags      []string
 }
 
-func newHTTPClientWithStats(region string, assumedRole *types.ARN, statsd *ddogstatsd.Client, limiter *Limiter, tags []string) *http.Client {
+func newHTTPClientWithStats(region string, assumedRole *types.CloudID, statsd *ddogstatsd.Client, limiter *Limiter, tags []string) *http.Client {
 	rt := &roundtrip{
 		region:  region,
 		limiter: limiter,

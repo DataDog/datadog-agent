@@ -38,8 +38,8 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 		return nil, fmt.Errorf("ebs-volume: missing hostname")
 	}
 
-	assumedRole := scan.Roles[scan.ARN.AccountID]
-	cfg, err := GetConfig(ctx, scan.ARN.Region, assumedRole)
+	assumedRole := scan.Roles[scan.CloudID.AccountID]
+	cfg, err := GetConfig(ctx, scan.CloudID.Region, assumedRole)
 	if err != nil {
 		return nil, err
 	}
@@ -49,29 +49,29 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 		return nil, err
 	}
 
-	var snapshotARN types.ARN
-	switch scan.ARN.ResourceType {
+	var snapshotID types.CloudID
+	switch scan.CloudID.ResourceType {
 	case types.ResourceTypeVolume:
-		snapshotARN, err = CreateSnapshot(ctx, scan, waiter, ec2client, scan.ARN)
+		snapshotID, err = CreateSnapshot(ctx, scan, waiter, ec2client, scan.CloudID)
 		if err != nil {
 			return nil, err
 		}
 	case types.ResourceTypeSnapshot:
-		snapshotARN = scan.ARN
+		snapshotID = scan.CloudID
 	default:
-		return nil, fmt.Errorf("ebs-volume: bad arn %q", scan.ARN)
+		return nil, fmt.Errorf("ebs-volume: bad arn %q", scan.CloudID)
 	}
 
 	log.Infof("%s: start EBS scanning", scan)
 
 	switch scan.DiskMode {
 	case types.VolumeAttach:
-		if err := AttachSnapshotWithVolume(ctx, scan, waiter, snapshotARN); err != nil {
+		if err := AttachSnapshotWithVolume(ctx, scan, waiter, snapshotID); err != nil {
 			return nil, err
 		}
 	case types.NBDAttach:
 		ebsclient := ebs.NewFromConfig(cfg)
-		if err := AttachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient); err != nil {
+		if err := AttachSnapshotWithNBD(ctx, scan, snapshotID, ebsclient); err != nil {
 			return nil, err
 		}
 	default:
@@ -86,22 +86,21 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 	return devices.Mount(ctx, scan, partitions)
 }
 
-// CreateSnapshot creates a snapshot of the given EBS volume and returns its ARN.
-func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, ec2client *ec2.Client, volumeARN types.ARN) (types.ARN, error) {
+// CreateSnapshot creates a snapshot of the given EBS volume and returns its Cloud Identifier.
+func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, ec2client *ec2.Client, volumeID types.CloudID) (types.CloudID, error) {
 	snapshotCreatedAt := time.Now()
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
-	log.Debugf("%s: starting volume snapshotting %q", scan, volumeARN)
+	log.Debugf("%s: starting volume snapshotting %q", scan, volumeID)
 
 	retries := 0
 retry:
-	if volumeARN.ResourceType != types.ResourceTypeVolume {
-		return types.ARN{}, fmt.Errorf("bad volume ARN %q: expecting a volume ARN", volumeARN)
+	if volumeID.ResourceType != types.ResourceTypeVolume {
+		return types.CloudID{}, fmt.Errorf("bad resource ID %q: expecting a volume", volumeID)
 	}
-	volumeID := volumeARN.ResourceName
 	createSnapshotOutput, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
-		VolumeId:          aws.String(volumeID),
+		VolumeId:          aws.String(volumeID.ResourceName),
 		TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
 	})
 	if err != nil {
@@ -118,15 +117,15 @@ retry:
 				// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
 				// Wait at least 15 seconds between concurrent volume snapshots.
 				d := 15 * time.Second
-				log.Debugf("%s: snapshot creation rate exceeded for volume %q; retrying after %v (%d/%d)", scan, volumeARN, d, retries, maxSnapshotRetries)
+				log.Debugf("%s: snapshot creation rate exceeded for volume %q; retrying after %v (%d/%d)", scan, volumeID, d, retries, maxSnapshotRetries)
 				if !sleepCtx(ctx, d) {
-					return types.ARN{}, ctx.Err()
+					return types.CloudID{}, ctx.Err()
 				}
 				goto retry
 			}
 		}
 		if isRateExceededError {
-			log.Debugf("%s: snapshot creation rate exceeded for volume %q; skipping)", scan, volumeARN)
+			log.Debugf("%s: snapshot creation rate exceeded for volume %q; skipping)", scan, volumeID)
 		}
 	}
 	if err != nil {
@@ -144,20 +143,19 @@ retry:
 		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, tags, 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
-		return types.ARN{}, err
+		return types.CloudID{}, err
 	}
 
-	snapshotID := *createSnapshotOutput.SnapshotId
-	snapshotARN, err := EC2ARN(volumeARN.Region, volumeARN.AccountID, types.ResourceTypeSnapshot, snapshotID)
+	snapshotID, err := EC2CloudID(volumeID.Region, volumeID.AccountID, types.ResourceTypeSnapshot, *createSnapshotOutput.SnapshotId)
 	if err != nil {
-		return snapshotARN, err
+		return snapshotID, err
 	}
-	scan.CreatedSnapshots[snapshotARN.String()] = &snapshotCreatedAt
+	scan.CreatedSnapshots[snapshotID.String()] = &snapshotCreatedAt
 
-	err = <-waiter.Wait(ctx, snapshotARN, ec2client)
+	err = <-waiter.Wait(ctx, snapshotID, ec2client)
 	if err == nil {
 		snapshotDuration := time.Since(snapshotCreatedAt)
-		log.Debugf("%s: volume snapshotting of %q finished successfully %q (took %s)", scan, volumeARN, snapshotID, snapshotDuration)
+		log.Debugf("%s: volume snapshotting of %q finished successfully %q (took %s)", scan, volumeID, snapshotID, snapshotDuration)
 		if err := statsd.Histogram("datadog.agentless_scanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), scan.Tags(), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
@@ -172,17 +170,17 @@ retry:
 			log.Warnf("failed to send metric: %v", err)
 		}
 	}
-	return snapshotARN, err
+	return snapshotID, err
 }
 
 // AttachSnapshotWithNBD attaches the given snapshot to the instance using a
 // Network Block Device (NBD).
-func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotARN types.ARN, ebsclient *ebs.Client) error {
+func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotID types.CloudID, ebsclient *ebs.Client) error {
 	device, ok := devices.NextNBD()
 	if !ok {
 		return fmt.Errorf("could not find non busy NBD block device")
 	}
-	backend, err := nbd.NewEBSBackend(ebsclient, snapshotARN)
+	backend, err := nbd.NewEBSBackend(ebsclient, snapshotID)
 	if err != nil {
 		return err
 	}
@@ -199,60 +197,59 @@ func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotAR
 
 // AttachSnapshotWithVolume attaches the given snapshot to the instance as a
 // new volume.
-func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, snapshotARN types.ARN) error {
-	if snapshotARN.ResourceType != types.ResourceTypeSnapshot {
-		return fmt.Errorf("expected ARN for a snapshot: %s", snapshotARN.String())
+func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, snapshotID types.CloudID) error {
+	if snapshotID.ResourceType != types.ResourceTypeSnapshot {
+		return fmt.Errorf("expected snapshot resource: %s", snapshotID.String())
 	}
-	snapshotID := snapshotARN.ResourceName
 	self, err := GetSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
 	}
 
-	remoteAssumedRole := scan.Roles[snapshotARN.AccountID]
-	remoteAWSCfg, err := GetConfig(ctx, snapshotARN.Region, remoteAssumedRole)
+	remoteAssumedRole := scan.Roles[snapshotID.AccountID]
+	remoteAWSCfg, err := GetConfig(ctx, snapshotID.Region, remoteAssumedRole)
 	if err != nil {
 		return err
 	}
 	remoteEC2Client := ec2.NewFromConfig(remoteAWSCfg)
 
-	var localSnapshotARN types.ARN
-	if snapshotARN.Region != self.Region {
-		log.Debugf("%s: copying snapshot %q into %q", scan, snapshotARN, self.Region)
+	var localSnapshotID types.CloudID
+	if snapshotID.Region != self.Region {
+		log.Debugf("%s: copying snapshot %q into %q", scan, snapshotID, self.Region)
 		copySnapshotCreatedAt := time.Now()
 		copySnapshot, err := remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
-			SourceRegion: aws.String(snapshotARN.Region),
+			SourceRegion: aws.String(snapshotID.Region),
 			// DestinationRegion: aws.String(self.Region): automatically filled by SDK
-			SourceSnapshotId:  aws.String(snapshotID),
+			SourceSnapshotId:  aws.String(snapshotID.ResourceName),
 			TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
 		})
 		if err != nil {
-			return fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotARN, self.Region, err)
+			return fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotID, self.Region, err)
 		}
-		localSnapshotARN, err = EC2ARN(self.Region, snapshotARN.AccountID, types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
+		localSnapshotID, err = EC2CloudID(self.Region, snapshotID.AccountID, types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
 		if err != nil {
 			return err
 		}
-		log.Debugf("%s: waiting for copy of snapshot %q into %q as %q", scan, snapshotARN, self.Region, *copySnapshot.SnapshotId)
-		err = <-waiter.Wait(ctx, localSnapshotARN, remoteEC2Client)
+		log.Debugf("%s: waiting for copy of snapshot %q into %q as %q", scan, snapshotID, self.Region, *copySnapshot.SnapshotId)
+		err = <-waiter.Wait(ctx, localSnapshotID, remoteEC2Client)
 		if err != nil {
-			return fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotARN, self.Region, *copySnapshot.SnapshotId, err)
+			return fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotID, self.Region, *copySnapshot.SnapshotId, err)
 		}
-		log.Debugf("%s: successfully copied snapshot %q into %q: %q", scan, snapshotARN, self.Region, *copySnapshot.SnapshotId)
-		scan.CreatedSnapshots[localSnapshotARN.String()] = &copySnapshotCreatedAt
+		log.Debugf("%s: successfully copied snapshot %q into %q: %q", scan, snapshotID, self.Region, *copySnapshot.SnapshotId)
+		scan.CreatedSnapshots[localSnapshotID.String()] = &copySnapshotCreatedAt
 	} else {
-		localSnapshotARN = snapshotARN
+		localSnapshotID = snapshotID
 	}
 
-	if localSnapshotARN.AccountID != "" && localSnapshotARN.AccountID != self.AccountID {
+	if localSnapshotID.AccountID != "" && localSnapshotID.AccountID != self.AccountID {
 		_, err = remoteEC2Client.ModifySnapshotAttribute(ctx, &ec2.ModifySnapshotAttributeInput{
-			SnapshotId:    aws.String(snapshotID),
+			SnapshotId:    aws.String(snapshotID.ResourceName),
 			Attribute:     ec2types.SnapshotAttributeNameCreateVolumePermission,
 			OperationType: ec2types.OperationTypeAdd,
 			UserIds:       []string{self.AccountID},
 		})
 		if err != nil {
-			return fmt.Errorf("could not modify snapshot attributes %q for sharing with account ID %q: %w", localSnapshotARN, self.AccountID, err)
+			return fmt.Errorf("could not modify snapshot attributes %q for sharing with account ID %q: %w", localSnapshotID, self.AccountID, err)
 		}
 	}
 
@@ -263,23 +260,22 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 	}
 	locaEC2Client := ec2.NewFromConfig(localAWSCfg)
 
-	log.Debugf("%s: creating new volume for snapshot %q in az %q", scan, localSnapshotARN, self.AvailabilityZone)
-	localSnapshotID := localSnapshotARN.ResourceName
+	log.Debugf("%s: creating new volume for snapshot %q in az %q", scan, localSnapshotID, self.AvailabilityZone)
 	volume, err := locaEC2Client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 		VolumeType:        ec2types.VolumeTypeGp3,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
-		SnapshotId:        aws.String(localSnapshotID),
+		SnapshotId:        aws.String(localSnapshotID.ResourceName),
 		TagSpecifications: cloudResourceTagSpec(types.ResourceTypeVolume, scan.ScannerHostname),
 	})
 	if err != nil {
 		return fmt.Errorf("could not create volume from snapshot: %w", err)
 	}
 
-	volumeARN, err := EC2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, types.ResourceTypeVolume, *volume.VolumeId)
+	volumeID, err := EC2CloudID(localSnapshotID.Region, localSnapshotID.AccountID, types.ResourceTypeVolume, *volume.VolumeId)
 	if err != nil {
 		return err
 	}
-	scan.AttachedVolumeARN = &volumeARN
+	scan.AttachedVolumeID = &volumeID
 	scan.AttachedVolumeCreatedAt = volume.CreateTime
 
 	device, ok := devices.NextXen()
@@ -343,7 +339,7 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-// EC2ARN returns an ARN for the given EC2 resource.
-func EC2ARN(region, accountID string, resourceType types.ResourceType, resourceName string) (types.ARN, error) {
-	return types.ParseARN(fmt.Sprintf("arn:aws:ec2:%s:%s:%s/%s", region, accountID, resourceType, resourceName))
+// EC2CloudID returns an ARN for the given EC2 resource.
+func EC2CloudID(region, accountID string, resourceType types.ResourceType, resourceName string) (types.CloudID, error) {
+	return types.ParseCloudID(fmt.Sprintf("arn:aws:ec2:%s:%s:%s/%s", region, accountID, resourceType, resourceName))
 }

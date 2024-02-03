@@ -77,7 +77,7 @@ func LaunchTrivyHost(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, 
 			filepath.Join(opts.Root, "/usr/lib/sysimage/**"),
 			filepath.Join(opts.Root, "lib/apk/**"),
 		},
-		AWSRegion: opts.Scan.ARN.Region,
+		AWSRegion: opts.Scan.CloudID.Region,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
@@ -99,7 +99,7 @@ func LaunchTrivyApp(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, e
 		Parallel:          1,
 		SBOMSources:       []string{},
 		DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
-		AWSRegion:         opts.Scan.ARN.Region,
+		AWSRegion:         opts.Scan.CloudID.Region,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs: %w", err)
