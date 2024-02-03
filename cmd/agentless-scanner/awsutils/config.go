@@ -8,6 +8,8 @@ package awsutils
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
@@ -15,7 +17,6 @@ import (
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -81,7 +82,7 @@ func GetConfig(ctx context.Context, region string, assumedRole *types.ARN) (aws.
 	}
 
 	if assumedRole == nil {
-		roleARN, err := arn.Parse(*identity.Arn)
+		roleARN, err := types.ParseARN(*identity.Arn, types.ResourceTypeRole)
 		if err != nil {
 			return aws.Config{}, fmt.Errorf("awsconfig: could not parse caller identity arn: %w", err)
 		}
@@ -101,4 +102,33 @@ func GetSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 	}
 	imdsclient := imds.NewFromConfig(cfg)
 	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
+}
+
+// HumanParseARN parses an ARN string or a resource identifier string and
+// returns an ARN. Helpful for CLI interface.
+func HumanParseARN(s string, expectedTypes ...types.ResourceType) (types.ARN, error) {
+	if strings.HasPrefix(s, "arn:") {
+		return types.ParseARN(s, expectedTypes...)
+	}
+	self, err := GetSelfEC2InstanceIndentity(context.Background())
+	if err != nil {
+		return types.ARN{}, err
+	}
+	partition := "aws"
+	var service string
+	if strings.HasPrefix(s, "/") && (len(s) == 1 || fs.ValidPath(s[1:])) {
+		partition = "localhost"
+	} else if strings.HasPrefix(s, "vol-") {
+		service = "ec2"
+		s = "volume/" + s
+	} else if strings.HasPrefix(s, "snap-") {
+		service = "ec2"
+		s = "snapshot/" + s
+	} else if strings.HasPrefix(s, "function:") {
+		service = "lambda"
+	} else {
+		return types.ARN{}, fmt.Errorf("unable to parse resource: expecting an ARN for %v", expectedTypes)
+	}
+	arn := fmt.Sprintf("arn:%s:%s:%s:%s:%s", partition, service, self.Region, self.AccountID, s)
+	return types.ParseARN(arn, expectedTypes...)
 }

@@ -378,15 +378,6 @@ func ParseRolesMapping(roles []string) RolesMapping {
 	return rolesMap
 }
 
-var (
-	partitionReg  = regexp.MustCompile("^aws[a-zA-Z-]*$")
-	regionReg     = regexp.MustCompile("^[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-[0-9]{1}$")
-	accountIDReg  = regexp.MustCompile("^[0-9]{12}$")
-	resourceIDReg = regexp.MustCompile("^[a-f0-9]+$")
-	roleNameReg   = regexp.MustCompile("^[a-zA-Z0-9_+=,.@-]{1,64}$")
-	functionReg   = regexp.MustCompile(`^([a-zA-Z0-9-_.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`)
-)
-
 // NewScanTask creates a new scan task.
 func NewScanTask(resourceARN, scannerHostname, targetHostname string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
 	var scan ScanTask

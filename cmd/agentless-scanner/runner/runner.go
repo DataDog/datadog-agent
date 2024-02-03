@@ -487,7 +487,7 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 	scan.StartedAt = time.Now()
 	switch scan.Type {
 	case types.HostScanType:
-		s.scanRootFilesystems(ctx, scan, []string{scan.ARN.Resource}, pool, s.resultsCh)
+		s.scanRootFilesystems(ctx, scan, []string{scan.ARN.ResourceName}, pool, s.resultsCh)
 	case types.EBSScanType:
 		defer awsutils.CleanupScan(scan)
 		mountpoints, err := awsutils.SetupEBS(ctx, scan, &s.waiter)

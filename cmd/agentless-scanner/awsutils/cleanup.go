@@ -87,7 +87,11 @@ func CleanSlate(ctx context.Context, bds []devices.BlockDevice, roles types.Role
 
 	if self, err := GetSelfEC2InstanceIndentity(ctx); err == nil {
 		for _, volumeID := range attachedVolumes {
-			volumeARN := EC2ARN(self.Region, self.AccountID, types.ResourceTypeVolume, volumeID)
+			volumeARN, err := EC2ARN(self.Region, self.AccountID, types.ResourceTypeVolume, volumeID)
+			if err != nil {
+				log.Warnf("clean slate: %v", err)
+				continue
+			}
 			if errd := CleanupScanVolumes(ctx, nil, volumeARN, roles); err != nil {
 				log.Warnf("clean slate: %v", errd)
 			}
@@ -379,24 +383,24 @@ func ResourcesCleanup(ctx context.Context, toBeDeleted map[types.ResourceType][]
 
 	ec2client := ec2.NewFromConfig(cfg)
 	for resourceType, resources := range toBeDeleted {
-		for _, resourceID := range resources {
+		for _, resourceName := range resources {
 			if err := ctx.Err(); err != nil {
 				return
 			}
-			log.Infof("cleaning up resource %s/%s", resourceType, resourceID)
+			log.Infof("cleaning up resource %s/%s", resourceType, resourceName)
 			var err error
 			switch resourceType {
 			case types.ResourceTypeSnapshot:
 				_, err = ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-					SnapshotId: aws.String(resourceID),
+					SnapshotId: aws.String(resourceName),
 				})
 			case types.ResourceTypeVolume:
 				_, err = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
-					VolumeId: aws.String(resourceID),
+					VolumeId: aws.String(resourceName),
 				})
 			}
 			if err != nil {
-				log.Errorf("could not delete resource %s/%s: %s", resourceType, resourceID, err)
+				log.Errorf("could not delete resource %s/%s: %s", resourceType, resourceName, err)
 			}
 		}
 	}

@@ -9,7 +9,6 @@ package awscmd
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/signal"
 	"strings"
@@ -105,7 +104,7 @@ func scanCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction, n
 		Use:   "scan",
 		Short: "Executes a scan",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resourceARN, err := humanParseARN(flags.ARN)
+			resourceARN, err := awsutils.HumanParseARN(flags.ARN)
 			if err != nil {
 				return err
 			}
@@ -126,7 +125,7 @@ func snapshotCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanActio
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := ctxTerminated()
-			volumeARN, err := humanParseARN(args[0], types.ResourceTypeVolume)
+			volumeARN, err := awsutils.HumanParseARN(args[0], types.ResourceTypeVolume)
 			if err != nil {
 				return err
 			}
@@ -209,7 +208,7 @@ func attachCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction)
 		Short: "Mount the given snapshot into /snapshots/<snapshot-id>/<part> using a network block device",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resourceARN, err := humanParseARN(args[0], types.ResourceTypeSnapshot, types.ResourceTypeVolume)
+			resourceARN, err := awsutils.HumanParseARN(args[0], types.ResourceTypeSnapshot, types.ResourceTypeVolume)
 			if err != nil {
 				return err
 			}
@@ -501,7 +500,10 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 								// Exclude Windows.
 								continue
 							}
-							volumeARN := awsutils.EC2ARN(regionName, *identity.Account, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
+							volumeARN, err := awsutils.EC2ARN(regionName, *identity.Account, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
+							if err != nil {
+								return err
+							}
 							log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
 							scan, err := types.NewScanTask(volumeARN.String(), hostname, *instance.InstanceId, actions, roles, diskMode)
 							if err != nil {
@@ -615,8 +617,8 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	fmt.Printf("cleaning up these resources:\n")
 	for resourceType, resources := range toBeDeleted {
 		fmt.Printf("  - %s:\n", resourceType)
-		for _, resourceID := range resources {
-			fmt.Printf("    - %s\n", resourceID)
+		for _, resourceName := range resources {
+			fmt.Printf("    - %s\n", resourceName)
 		}
 	}
 	if !dryRun {
@@ -641,7 +643,7 @@ func attachCmd(resourceARN types.ARN, mode types.DiskMode, mount bool, defaultAc
 		hostname = "unknown"
 	}
 
-	scan, err := types.NewScanTask(resourceARN.String(), hostname, resourceARN.Resource, defaultActions, nil, mode)
+	scan, err := types.NewScanTask(resourceARN.String(), hostname, resourceARN.ResourceName, defaultActions, nil, mode)
 	if err != nil {
 		return err
 	}
@@ -708,34 +710,4 @@ func getAWSLimitsOptions() awsutils.LimiterOptions {
 		EBSGetBlockRate:  rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate")),
 		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
 	}
-}
-
-func humanParseARN(s string, expectedTypes ...types.ResourceType) (types.ARN, error) {
-	if strings.HasPrefix(s, "arn:") {
-		return types.ParseARN(s, expectedTypes...)
-	}
-	self, err := awsutils.GetSelfEC2InstanceIndentity(context.TODO())
-	if err != nil {
-		return types.ARN{}, err
-	}
-	a := types.ARN{
-		Partition: "aws",
-		Region:    self.Region,
-		AccountID: self.AccountID,
-		Resource:  s,
-	}
-	if strings.HasPrefix(s, "/") && (len(s) == 1 || fs.ValidPath(s[1:])) {
-		a.Partition = "localhost"
-	} else if strings.HasPrefix(s, "vol-") {
-		a.Service = "ec2"
-		a.Resource = "volume/" + a.Resource
-	} else if strings.HasPrefix(s, "snap-") {
-		a.Service = "ec2"
-		a.Resource = "snapshot/" + a.Resource
-	} else if strings.HasPrefix(s, "function:") {
-		a.Service = "lambda"
-	} else {
-		return types.ARN{}, fmt.Errorf("unable to parse resource: expecting an ARN for %v", expectedTypes)
-	}
-	return types.ParseARN(a.String(), expectedTypes...)
 }
