@@ -40,8 +40,8 @@ BPF_PERCPU_ARRAY_MAP(http2_stream_heap, http2_stream_t, 1)
    enqueued. The primary motivation here is to save eBPF stack memory. */
 BPF_PERCPU_ARRAY_MAP(http2_scratch_buffer, http2_event_t, 1)
 
-/* Allocating a ctx on the heap, in order to save the ctx between the current stream. */
-BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, http2_ctx_t, 1)
+// Allocating a stream_key on the heap to reduce stack pressure.
+BPF_PERCPU_ARRAY_MAP(http2_stream_key_heap, http2_stream_key_t, 1)
 
 /* This map is used for telemetry in kernelspace
  * only key 0 is used
