@@ -120,6 +120,24 @@ typedef struct {
     conn_tuple_t tup;
 } dynamic_table_index_t;
 
+// The struct represents a dynamic-table value being sent to the user mode.
+typedef struct {
+    // The key of the dynamic table value. Contains a connection tuple and the index.
+    dynamic_table_index_t key;
+
+    // This boolean is used to mark the entry as temporary, which means the value came from Literal Header Field
+    // Without Indexing or Literal Header Field Never Indexed, in opposed to regular Literal Headers.
+    bool temporary;
+    // Whether the value is huffman encoded or passed as is.
+    bool is_huffman_encoded;
+    // The length of the value.
+    __u8 string_len;
+    // The raw buffer of the value. We need to use the max size among all dynamic table options. We care for path,
+    // method, and status. Path is the only value that does not have known "options", and can be very long, thus we use
+    // its max path.
+    char buf[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
+} dynamic_table_value_t;
+
 typedef struct {
     conn_tuple_t tup;
     __u32 stream_id;
