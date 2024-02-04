@@ -92,13 +92,6 @@
 
 #define MAX_FRAME_SIZE 16384
 
-// Definitions representing empty and /index.html paths. These types are sent using the static table.
-// We include these to eliminate the necessity of copying the specified encoded path to the buffer.
-#define HTTP2_ROOT_PATH      "/"
-#define HTTP2_ROOT_PATH_LEN  (sizeof(HTTP2_ROOT_PATH) - 1)
-#define HTTP2_INDEX_PATH     "/index.html"
-#define HTTP2_INDEX_PATH_LEN (sizeof(HTTP2_INDEX_PATH) - 1)
-
 typedef enum {
     kGET = 2,
     kPOST = 3,
@@ -175,11 +168,8 @@ typedef struct {
 
     interesting_value_t status_code;
     method_t request_method;
-    __u8 path_size;
+    interesting_value_t path;
     bool request_end_of_stream;
-    bool is_huffman_encoded;
-
-    __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
 } http2_stream_t;
 
 typedef struct {

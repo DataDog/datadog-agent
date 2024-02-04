@@ -58,11 +58,9 @@ type http2Stream struct {
 	Request_started       uint64
 	Status_code           http2InterestingValue
 	Request_method        http2requestMethod
-	Path_size             uint8
+	Path                  http2InterestingValue
 	Request_end_of_stream bool
-	Is_huffman_encoded    bool
-	Pad_cgo_0             [2]byte
-	Request_path          [160]uint8
+	Pad_cgo_0             [3]byte
 }
 type http2DynamicTableValue struct {
 	Key                HTTP2DynamicTableIndex

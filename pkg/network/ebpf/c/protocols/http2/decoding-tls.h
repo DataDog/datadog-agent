@@ -322,12 +322,9 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 current_stream->status_code.static_table_entry = current_header->index;
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
-            } else if (current_header->index == kEmptyPath) {
-                current_stream->path_size = HTTP2_ROOT_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP2_ROOT_PATH, HTTP2_ROOT_PATH_LEN);
-            } else if (current_header->index == kIndexPath) {
-                current_stream->path_size = HTTP2_INDEX_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP2_INDEX_PATH, HTTP2_INDEX_PATH_LEN);
+            } else if (current_header->index == kEmptyPath || current_header->index == kIndexPath) {
+                current_stream->path.static_table_entry = current_header->index;
+                current_stream->path.finalized = true;
             }
             continue;
         }
@@ -339,9 +336,9 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 break;
             }
             if (is_path_index(dynamic_value->original_index)) {
-                current_stream->path_size = dynamic_value->string_len;
-                current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+                current_stream->path.dynamic_table_entry = current_header->index;
+                current_stream->path.tuple_flipped = flipped;
+                current_stream->path.finalized = true;
             } else if (is_status_index(dynamic_value->original_index)) {
                 current_stream->status_code.dynamic_table_entry = current_header->index;
                 current_stream->status_code.tuple_flipped = flipped;
@@ -364,12 +361,11 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_value, BPF_ANY);
             }
             if (is_path_index(current_header->original_index)) {
-                current_stream->path_size = current_header->new_dynamic_value_size;
-                current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
-                bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+                current_stream->path.dynamic_table_entry = current_header->index;
+                current_stream->path.tuple_flipped = flipped;
+                current_stream->path.finalized = true;
             } else if (is_status_index(current_header->original_index)) {
                 current_stream->status_code.dynamic_table_entry = current_header->index;
-                current_stream->status_code.tuple_flipped = flipped;
                 current_stream->status_code.finalized = true;
             } else if (is_method_index(current_header->original_index)) {
                 current_stream->request_started = bpf_ktime_get_ns();
