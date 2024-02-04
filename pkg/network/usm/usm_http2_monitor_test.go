@@ -1258,15 +1258,6 @@ func headersWithGivenEndpoint(path string) []hpack.HeaderField {
 // testHeaders returns a set of header fields.
 func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(headersGenerationOptions{}) }
 
-// multipleTestHeaders returns a set of header fields, with the given number of headers.
-func multipleTestHeaders(testHeadersCount int) []hpack.HeaderField {
-	additionalHeaders := make([]hpack.HeaderField, testHeadersCount)
-	for i := 0; i < testHeadersCount; i++ {
-		additionalHeaders[i] = hpack.HeaderField{Name: fmt.Sprintf("name-%d", i), Value: fmt.Sprintf("test-%d", i)}
-	}
-	return append(testHeaders(), additionalHeaders...)
-}
-
 type headersGenerationOptions struct {
 	pathTypeValue         pathType
 	overrideMethod        string
