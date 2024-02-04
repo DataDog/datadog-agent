@@ -150,19 +150,15 @@ typedef struct {
     __u32 stream_id;
 } http2_stream_key_t;
 
-// If the path is huffman encoded then the length is 2, but if it is not, then the length is 3.
-#define HTTP2_STATUS_CODE_MAX_LEN 3
-
 // Max length of the method is 7.
 #define HTTP2_METHOD_MAX_LEN 7
 
 typedef struct {
-    __u8 raw_buffer[HTTP2_STATUS_CODE_MAX_LEN];
-    bool is_huffman_encoded;
-
+    __u32 dynamic_table_entry;
     __u8 static_table_entry;
     bool finalized;
-} status_code_t;
+    bool tuple_flipped;
+} interesting_value_t;
 
 typedef struct {
     __u8 raw_buffer[HTTP2_METHOD_MAX_LEN];
@@ -177,7 +173,7 @@ typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
 
-    status_code_t status_code;
+    interesting_value_t status_code;
     method_t request_method;
     __u8 path_size;
     bool request_end_of_stream;
