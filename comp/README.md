@@ -279,6 +279,10 @@ Package collector implements the OpenTelemetry Collector component.
 
 Package process implements the "process" bundle, providing components for the Process Agent
 
+### [comp/process/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/agent)
+
+Package agent contains a process-agent component
+
 ### [comp/process/apiserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/apiserver)
 
 Package apiserver initializes the api server that powers many subcommands.
@@ -349,14 +353,6 @@ Package remoteconfig defines the fx options for the Bundle
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 
 
-
-### [comp/remote-config/rcservice](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservice)
-
-Package rcservice is a remote config service that can run within the agent to receive remote config updates from the DD backend.
-
-### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
-
-Package rctelemetryreporter provides a component that sends RC-specific metrics to the DD backend.
 
 ## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps) (Component Bundle)
 

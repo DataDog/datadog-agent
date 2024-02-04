@@ -50,6 +50,9 @@
 /.github/workflows/go-update-commenter.yml          @DataDog/agent-shared-components
 /.github/workflows/buildimages-update.yml           @DataDog/agent-platform @DataDog/agent-shared-components
 
+/.run                                               @DataDog/agent-platform
+/.run/docker/                                       @DataDog/container-integrations
+
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
 # Files that only describe structure (eg. includes, rules) are owned by agent-platform
@@ -502,6 +505,7 @@
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing
 /test/new-e2e/                                @DataDog/agent-e2e-testing
+/test/new-e2e/test-infra-definition           @DataDog/agent-platform
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components

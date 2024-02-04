@@ -58,6 +58,7 @@ const (
 	unixPath             = "/tmp/transparent.sock"
 	http2DefaultTestPath = "/aaa"
 	defaultMethod        = http.MethodPost
+	defaultContentLength = 4
 )
 
 var (
@@ -715,32 +716,41 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
-			name: "validate 300 status code",
-			// The purpose of this test is to verify that currently we do not support status code 300.
+			name: "validate various status codes",
+			// The purpose of this test is to verify that we support status codes that do not appear in the static table.
 			messageBuilder: func() [][]byte {
-				framer := newFramer()
-				return [][]byte{
-					framer.
-						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/status/300")}).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
+				statusCodes := []int{http.StatusCreated, http.StatusMultipleChoices, http.StatusUnauthorized, http.StatusGatewayTimeout}
+				const iterationsPerStatusCode = 3
+				messages := make([][]byte, 0, len(statusCodes)*iterationsPerStatusCode)
+				for statusCodeIteration, statusCode := range statusCodes {
+					for i := 0; i < iterationsPerStatusCode; i++ {
+						streamID := getStreamID(statusCodeIteration*iterationsPerStatusCode + i)
+						messages = append(messages, newFramer().
+							writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint(fmt.Sprintf("/status/%d", statusCode))}).
+							writeData(t, streamID, true, emptyBody).
+							bytes())
+					}
 				}
+				return messages
 			},
-			expectedEndpoints: nil,
-		},
-		{
-			name: "validate 401 status code",
-			// The purpose of this test is to verify that currently we do not support status code 401.
-			messageBuilder: func() [][]byte {
-				framer := newFramer()
-				return [][]byte{
-					framer.
-						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/status/401")}).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
-				}
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/201")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/300")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/401")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/504")},
+					Method: usmhttp.MethodPost,
+				}: 3,
 			},
-			expectedEndpoints: nil,
 		},
 		{
 			name: "validate http methods",
@@ -883,6 +893,88 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
 					Method: usmhttp.MethodPost,
 				}: 5,
+			},
+		},
+		{
+			name: "Data frame header sent separately from frame payload",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				payload := []byte("test")
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				dataFrame := newFramer().writeData(t, 1, true, payload).bytes()
+				// We are creating a header frame with a content-length header field that contains the payload size.
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}).writeData(t, 3, true, payload).bytes()
+
+				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
+				secondMessage := append(dataFrame[9:], secondMessageHeadersFrame...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 2,
+			},
+		},
+		{
+			name: "Data frame header sent separately from frame payload with PING between them",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload.,
+			// including a PING frame in the second message between the data frame.
+			messageBuilder: func() [][]byte {
+				payload := []byte("test")
+				// We are creating a header frame with a content-length header field that contains the payload size.
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}).bytes()
+				dataFrame := newFramer().writeData(t, 1, true, payload).bytes()
+				pingFrame := newFramer().writePing(t).bytes()
+
+				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
+				secondMessage := append(pingFrame, dataFrame[9:]...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "Payload data frame header sent separately",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				payload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
+				// We are creating a header frame with a content-length header field that contains the payload size.
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}).bytes()
+				dataFrame := newFramer().writeData(t, 1, true, payload).bytes()
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				secondMessageDataFrame := newFramer().writeData(t, 3, true, emptyBody).bytes()
+
+				// We are cutting in the middle of the payload
+				firstMessage := append(headersFrame, dataFrame[:9+3]...)
+				secondMessage := append(dataFrame[9+3:], secondMessageHeadersFrame...)
+				secondMessage = append(secondMessage, secondMessageDataFrame...)
+				return [][]byte{
+					firstMessage,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 2,
 			},
 		},
 	}
@@ -1079,7 +1171,14 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int) bool {
 	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
-			count := stat.Data[200].Count
+			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
+			// statusCode 0 represents an error returned from the function, which means the URL is not in the special
+			// form which contains the expected status code (form - `/status/{statusCode}`). So by default we use
+			// 200 as the status code.
+			if statusCode == 0 {
+				statusCode = 200
+			}
+			count := stat.Data[statusCode].Count
 			newKey := usmhttp.Key{
 				Path:   usmhttp.Path{Content: key.Path.Content},
 				Method: key.Method,
@@ -1169,9 +1268,10 @@ func multipleTestHeaders(testHeadersCount int) []hpack.HeaderField {
 }
 
 type headersGenerationOptions struct {
-	pathTypeValue    pathType
-	overrideMethod   string
-	overrideEndpoint string
+	pathTypeValue         pathType
+	overrideMethod        string
+	overrideEndpoint      string
+	overrideContentLength int
 }
 
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
@@ -1199,13 +1299,18 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 		pathHeaderField.Value = options.overrideEndpoint
 	}
 
+	contentLength := defaultContentLength
+	if options.overrideContentLength != 0 {
+		contentLength = options.overrideContentLength
+	}
+
 	return []hpack.HeaderField{
 		{Name: ":authority", Value: authority},
 		{Name: ":method", Value: method},
 		pathHeaderField,
 		{Name: ":scheme", Value: "http"},
 		{Name: "content-type", Value: "application/json"},
-		{Name: "content-length", Value: "4"},
+		{Name: "content-length", Value: strconv.Itoa(contentLength)},
 		{Name: "accept-encoding", Value: "gzip"},
 		{Name: "user-agent", Value: "Go-http-client/2.0"},
 	}

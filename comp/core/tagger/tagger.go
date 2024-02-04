@@ -148,7 +148,14 @@ func newTaggerClient(deps dependencies) Component {
 		}
 		// Main context passed to components, consistent with the one used in the workloadmeta component
 		mainCtx, _ := common.GetMainCtxCancel()
-		return taggerClient.Start(mainCtx)
+		err = taggerClient.Start(mainCtx)
+		if err != nil && deps.Params.fallBackToLocalIfRemoteTaggerFails {
+			deps.Log.Warnf("Starting remote tagger failed. Falling back to local tagger: %s", err)
+			taggerClient.defaultTagger = local.NewTagger(deps.Wmeta)
+			// Retry to start the local tagger
+			return taggerClient.Start(mainCtx)
+		}
+		return err
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
 		return taggerClient.Stop()

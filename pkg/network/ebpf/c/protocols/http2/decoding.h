@@ -116,10 +116,11 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     // with an indexed name, literal value, reusing the index 4 and 5 in the
     // static table. A different index means that the header is not a path, so
     // we skip it.
-    if (index != kIndexPath && index != kEmptyPath) {
+    if (is_path_index(index)) {
+        update_path_size_telemetry(http2_tel, str_len);
+    } else if (!is_status_index(index)) {
         goto end;
     }
-    update_path_size_telemetry(http2_tel, str_len);
 
     // We skip if:
     // - The string is too big
@@ -140,6 +141,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     } else {
         headers_to_process->type = kNewDynamicHeaderNotIndexed;
     }
+    headers_to_process->original_index = index;
     headers_to_process->new_dynamic_value_offset = skb_info->data_off;
     headers_to_process->new_dynamic_value_size = str_len;
     headers_to_process->is_huffman_encoded = is_huffman_encoded;
@@ -306,13 +308,14 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         current_header = &headers_to_process[iteration];
 
         if (current_header->type == kStaticHeader) {
-            if (current_header->index == kPOST || current_header->index == kGET) {
+            if (is_method_index(current_header->index)) {
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method = current_header->index;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
-            } else if (current_header->index >= k200 && current_header->index <= k500) {
-                current_stream->response_status_code = current_header->index;
+            } else if (is_status_index(current_header->index)) {
+                current_stream->status_code.indexed_value = current_header->index;
+                current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
                 current_stream->path_size = HTTP2_ROOT_PATH_LEN;
@@ -330,9 +333,15 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             if (dynamic_value == NULL) {
                 break;
             }
-            current_stream->path_size = dynamic_value->string_len;
-            current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
-            bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+            if (is_path_index(dynamic_value->original_index)) {
+                current_stream->path_size = dynamic_value->string_len;
+                current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+            } else if (is_status_index(dynamic_value->original_index)) {
+                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
+                current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->status_code.finalized = true;
+            }
         } else {
             // create the new dynamic value which will be added to the internal table.
             read_into_buffer_path(dynamic_value.buffer, skb, current_header->new_dynamic_value_offset);
@@ -340,11 +349,18 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             if (current_header->type == kNewDynamicHeader) {
                 dynamic_value.string_len = current_header->new_dynamic_value_size;
                 dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
+                dynamic_value.original_index = current_header->original_index;
                 bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             }
-            current_stream->path_size = current_header->new_dynamic_value_size;
-            current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
-            bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+            if (is_path_index(current_header->original_index)) {
+                current_stream->path_size = current_header->new_dynamic_value_size;
+                current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
+                bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+            } else if (is_status_index(current_header->original_index)) {
+                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
+                current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->status_code.finalized = true;
+            }
         }
     }
 }
@@ -905,7 +921,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         // When we accept an RST, it means that the current stream is terminated.
         // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
         // If rst, and stream is empty (no status code, or no response) then delete from inflight
-        if (is_rst && (current_stream->response_status_code == 0 || current_stream->request_started == 0)) {
+        if (is_rst && (!current_stream->status_code.finalized || current_stream->request_started == 0)) {
             bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
             continue;
         }
