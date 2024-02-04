@@ -29,6 +29,7 @@ type HTTP2DynamicTableEntry C.dynamic_table_entry_t
 type http2StreamKey C.http2_stream_key_t
 type http2StatusCode C.status_code_t
 type http2Stream C.http2_stream_t
+type http2DynamicTableValue C.dynamic_table_value_t
 type EbpfTx C.http2_event_t
 type HTTP2Telemetry C.http2_telemetry_t
 

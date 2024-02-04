@@ -56,6 +56,14 @@ type http2Stream struct {
 	Pad_cgo_0             [6]byte
 	Request_path          [160]uint8
 }
+type http2DynamicTableValue struct {
+	Key                HTTP2DynamicTableIndex
+	Temporary          bool
+	Is_huffman_encoded bool
+	String_len         uint8
+	Pad_cgo_0          [5]byte
+	Buf                [160]byte
+}
 type EbpfTx struct {
 	Tuple  connTuple
 	Stream http2Stream
