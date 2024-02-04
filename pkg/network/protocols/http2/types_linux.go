@@ -10,6 +10,8 @@ const (
 	HTTP2TerminatedBatchSize = 0x50
 
 	http2RawStatusCodeMaxLength = 0x3
+
+	Http2MaxHeadersCountPerFiltering = 0x21
 )
 
 type connTuple = struct {
