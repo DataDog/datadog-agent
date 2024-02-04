@@ -135,6 +135,9 @@ typedef struct {
 // If the path is huffman encoded then the length is 2, but if it is not, then the length is 3.
 #define HTTP2_STATUS_CODE_MAX_LEN 3
 
+// Max length of the method is 7.
+#define HTTP2_METHOD_MAX_LEN 7
+
 typedef struct {
     __u8 raw_buffer[HTTP2_STATUS_CODE_MAX_LEN];
     bool is_huffman_encoded;
@@ -142,6 +145,14 @@ typedef struct {
     __u8 indexed_value;
     bool finalized;
 } status_code_t;
+
+typedef struct {
+    __u8 raw_buffer[HTTP2_METHOD_MAX_LEN];
+    bool is_huffman_encoded;
+
+    __u8 indexed_value;
+    bool finalized;
+} method_t;
 
 typedef struct {
     __u64 response_last_seen;
