@@ -799,8 +799,8 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
     }
 
     const __u32 zero = 0;
-    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
-    if (http2_ctx == NULL) {
+    http2_stream_key_t *http2_stream_key = bpf_map_lookup_elem(&http2_stream_key_heap, &zero);
+    if (http2_stream_key == NULL) {
         goto delete_iteration;
     }
 
@@ -818,10 +818,9 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
     http2_frame_with_offset *frames_array = tail_call_state->frames_array;
     http2_frame_with_offset current_frame;
 
-    // create the http2 ctx for the current http2 frame.
-    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
-    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+    bpf_memset(http2_stream_key, 0, sizeof(http2_stream_key_t));
+    http2_stream_key->tup = dispatcher_args_copy.tup;
+    normalize_tuple(&http2_stream_key->tup);
 
     http2_stream_t *current_stream = NULL;
 
@@ -841,8 +840,8 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
             continue;
         }
 
-        http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        http2_stream_key->stream_id = current_frame.frame.stream_id;
+        current_stream = http2_fetch_stream(http2_stream_key);
         if (current_stream == NULL) {
             continue;
         }
@@ -903,13 +902,13 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
     http2_frame_with_offset *frames_array = tail_call_state->frames_array;
     http2_frame_with_offset current_frame;
 
-    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
-    if (http2_ctx == NULL) {
+    http2_stream_key_t *http2_stream_key = bpf_map_lookup_elem(&http2_stream_key_heap, &zero);
+    if (http2_stream_key == NULL) {
         goto delete_iteration;
     }
-    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
-    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+    bpf_memset(http2_stream_key, 0, sizeof(http2_stream_key_t));
+    http2_stream_key->tup = dispatcher_args_copy.tup;
+    normalize_tuple(&http2_stream_key->tup);
 
     bool is_rst = false, is_end_of_stream = false;
     http2_stream_t *current_stream = NULL;
@@ -933,8 +932,8 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
             continue;
         }
 
-        http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        http2_stream_key->stream_id = current_frame.frame.stream_id;
+        current_stream = http2_fetch_stream(http2_stream_key);
         if (current_stream == NULL) {
             continue;
         }
@@ -943,7 +942,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
         // If rst, and stream is empty (no status code, or no response) then delete from inflight
         if (is_rst && (!current_stream->status_code.finalized || current_stream->request_started == 0)) {
-            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+            bpf_map_delete_elem(&http2_in_flight, http2_stream_key);
             continue;
         }
 
@@ -952,7 +951,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
             __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
         }
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
+        handle_end_of_stream(current_stream, http2_stream_key, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&

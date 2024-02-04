@@ -190,10 +190,6 @@ typedef struct {
     http2_stream_t stream;
 } http2_event_t;
 
-typedef struct {
-    http2_stream_key_t http2_stream_key;
-} http2_ctx_t;
-
 typedef enum {
     kStaticHeader = 0,
     kExistingDynamicHeader = 1,
