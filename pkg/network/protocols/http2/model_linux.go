@@ -27,6 +27,21 @@ import (
 
 var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
 
+// flipTuple returns a new connection tuple with the source and destination fields flipped.
+func flipTuple(t connTuple) connTuple {
+	return connTuple{
+		Saddr_h:  t.Daddr_h,
+		Saddr_l:  t.Daddr_l,
+		Daddr_h:  t.Saddr_h,
+		Daddr_l:  t.Saddr_l,
+		Sport:    t.Dport,
+		Dport:    t.Sport,
+		Netns:    t.Netns,
+		Pid:      t.Pid,
+		Metadata: t.Metadata,
+	}
+}
+
 // validatePath validates the given path.
 func validatePath(str string) error {
 	if len(str) == 0 {

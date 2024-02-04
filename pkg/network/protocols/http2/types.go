@@ -34,6 +34,7 @@ type http2StatusCode C.status_code_t
 type http2requestMethod C.method_t
 type http2Path C.path_t
 type http2Stream C.http2_stream_t
+type http2DynamicTableValue C.dynamic_table_value_t
 type EbpfTx C.http2_event_t
 type HTTP2Telemetry C.http2_telemetry_t
 
