@@ -342,6 +342,37 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedError: true,
 		},
+		{
+			name: "validate HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING limit",
+			// The purpose of this test is to validate the limit of HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING.
+			// We are sending 2 requests, one of which surpasses the maximum allowed value for HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING,
+			// leading to a mismatch with our internal counter calculation and subsequently causing the second request to be missed.
+			runClients: func(t *testing.T, clientsCount int) {
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
+				defer cleanup()
+				ctxWithHeaders := context.Background()
+				const headersCount = 34
+				headers := make(map[string]string, headersCount)
+				for i := 1; i <= headersCount; i++ {
+					headers[fmt.Sprintf("header-%d", i)] = "value"
+				}
+				md := metadata.New(headers)
+				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
+
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithHeaders, -743999179, 408122808))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithHeaders, -743999179, 408122808))
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Method: http.MethodPost,
+				}: {
+					lower: 1,
+					upper: 1,
+				},
+			},
+			expectedError: false,
+		},
 	}
 	for _, tt := range tests {
 		for _, clientCount := range []int{1, 2, 5} {
