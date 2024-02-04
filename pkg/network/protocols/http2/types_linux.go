@@ -8,8 +8,6 @@ const (
 	http2PathBuckets = 0x7
 
 	HTTP2TerminatedBatchSize = 0x50
-
-	http2RawStatusCodeMaxLength = 0x3
 )
 
 type connTuple = struct {

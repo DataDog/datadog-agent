@@ -143,9 +143,6 @@ typedef struct {
     __u32 stream_id;
 } http2_stream_key_t;
 
-// If the path is huffman encoded then the length is 2, but if it is not, then the length is 3.
-#define HTTP2_STATUS_CODE_MAX_LEN 3
-
 typedef struct {
     __u32 dynamic_table_entry;
     __u8 static_table_entry;
