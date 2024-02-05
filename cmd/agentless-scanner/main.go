@@ -19,11 +19,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awscmd"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/runner"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
-	"golang.org/x/time/rate"
 
 	// DataDog agent: config stuffs
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
@@ -52,12 +49,12 @@ const (
 
 var statsd *ddogstatsd.Client
 
-var (
+var globalFlags struct {
 	configFilePath string
 	diskMode       types.DiskMode
 	defaultActions []types.ScanAction
 	noForkScanners bool
-)
+}
 
 func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
@@ -65,7 +62,7 @@ func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd 
 			func(_ complog.Component, _ compconfig.Component) error {
 				return run(cmd, args)
 			},
-			fx.Supply(compconfig.NewAgentParamsWithSecrets(configFilePath)),
+			fx.Supply(compconfig.NewAgentParamsWithSecrets(globalFlags.configFilePath)),
 			fx.Supply(complog.ForDaemon(runner.LoggerName, "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
 			complog.Module,
 			compconfig.Module,
@@ -114,28 +111,28 @@ func rootCommand() *cobra.Command {
 		SilenceUsage: true,
 		PersistentPreRunE: runWithModules(func(cmd *cobra.Command, args []string) error {
 			initStatsdClient()
-			awsutils.InitConfig(statsd, getAWSLimitsOptions())
-			var err error
-			diskMode, err = types.ParseDiskMode(flags.diskModeStr)
+			diskMode, err := types.ParseDiskMode(flags.diskModeStr)
 			if err != nil {
 				return err
 			}
-			defaultActions, err = types.ParseScanActions(flags.defaultActionsStr)
+			defaultActions, err := types.ParseScanActions(flags.defaultActionsStr)
 			if err != nil {
 				return err
 			}
+			globalFlags.diskMode = diskMode
+			globalFlags.defaultActions = defaultActions
 			return nil
 		}),
 	}
 
 	cmd.AddCommand(runCommand())
 	cmd.AddCommand(runScannerCommand())
-	cmd.AddCommand(awscmd.RootCommand(&statsd, &diskMode, &defaultActions, &noForkScanners))
+	cmd.AddCommand(awsGroupCommand(cmd))
 
 	pflags := cmd.PersistentFlags()
-	pflags.StringVarP(&configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
-	pflags.StringVar(&flags.diskModeStr, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s or %s", types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
-	pflags.BoolVar(&noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
+	pflags.StringVarP(&globalFlags.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
+	pflags.StringVar(&flags.diskModeStr, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.DiskModeNoAttach, types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
+	pflags.BoolVar(&globalFlags.noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
 	pflags.StringSliceVar(&flags.defaultActionsStr, "actions", []string{string(types.ScanActionVulnsHost)}, "disable spawning a dedicated process for launching scanners")
 	return cmd
 }
@@ -156,7 +153,7 @@ func runCommand() *cobra.Command {
 			if flags.scannersMax <= 0 {
 				return fmt.Errorf("scanners-max must be greater than 0")
 			}
-			return runCmd(flags.pidfilePath, flags.workers, flags.scannersMax, defaultActions, noForkScanners)
+			return runCmd(flags.pidfilePath, flags.workers, flags.scannersMax, globalFlags.defaultActions, globalFlags.noForkScanners)
 		},
 	}
 	cmd.Flags().StringVarP(&flags.pidfilePath, "pidfile", "p", "", "path to the pidfile")
@@ -255,14 +252,4 @@ func runScannerCmd(sock string) error {
 func getDefaultRolesMapping() types.RolesMapping {
 	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
 	return types.ParseRolesMapping(roles)
-}
-
-// TODO: copy pasted from cmd/agentless-scanner/awscmd
-func getAWSLimitsOptions() awsutils.LimiterOptions {
-	return awsutils.LimiterOptions{
-		EC2Rate:          rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ec2_rate")),
-		EBSListBlockRate: rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate")),
-		EBSGetBlockRate:  rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate")),
-		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
-	}
 }

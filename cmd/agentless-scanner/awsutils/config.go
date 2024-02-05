@@ -12,7 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"golang.org/x/time/rate"
 
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -25,21 +27,13 @@ import (
 var (
 	statsd *ddogstatsd.Client
 
-	globalConfigs        = make(map[confKey]*aws.Config)
-	globalConfigsMu      sync.Mutex
-	globalLimiterOptions LimiterOptions
+	globalConfigs   = make(map[confKey]*aws.Config)
+	globalConfigsMu sync.Mutex
 )
 
 type confKey struct {
 	role   types.CloudID
 	region string
-}
-
-// InitConfig initializes the global AWS parameters for subsequent configs
-// with the given statsd client and tags.
-func InitConfig(client *ddogstatsd.Client, limiterOptions LimiterOptions) {
-	statsd = client
-	globalLimiterOptions = limiterOptions
 }
 
 // GetConfig returns an AWS Config for the given region and assumed role.
@@ -57,10 +51,18 @@ func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) (
 		return *cfg, nil
 	}
 
+	if statsd == nil {
+		statsd, _ = ddogstatsd.New("localhost:8125")
+	}
 	tags := []string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 	}
-	limiter := NewLimiter(globalLimiterOptions)
+	limiter := NewLimiter(LimiterOptions{
+		EC2Rate:          rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ec2_rate")),
+		EBSListBlockRate: rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate")),
+		EBSGetBlockRate:  rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate")),
+		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
+	})
 	httpClient := newHTTPClientWithStats(region, assumedRole, statsd, limiter, tags)
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),

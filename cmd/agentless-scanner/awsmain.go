@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package awscmd exports the root subcommand for AWS Agentless Scanner.
-package awscmd
+package main
 
 import (
 	"context"
@@ -14,8 +13,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
@@ -36,8 +33,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/spf13/cobra"
 )
 
@@ -45,30 +40,23 @@ const (
 	defaultSelfRegion = "us-east-1"
 )
 
-// RootCommand returns the AWS sub-command for the agentless-scanner.
-func RootCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
+func awsGroupCommand(parent *cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "aws",
-		Short:        "Datadog Agentless Scanner at your service.",
-		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
-		SilenceUsage: true,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := cmd.Parent().PersistentPreRunE(cmd.Parent(), args); err != nil {
-				return err
-			}
-			awsutils.InitConfig(*statsd, getAWSLimitsOptions())
-			return nil
-		},
+		Use:               "aws",
+		Short:             "Datadog Agentless Scanner at your service.",
+		Long:              `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
+		SilenceUsage:      true,
+		PersistentPreRunE: parent.PersistentPreRunE,
 	}
-	cmd.AddCommand(scanCommand(statsd, diskMode, defaultActions, noForkScanners))
-	cmd.AddCommand(snapshotCommand(diskMode, defaultActions))
-	cmd.AddCommand(offlineCommand(statsd, diskMode, defaultActions, noForkScanners))
-	cmd.AddCommand(attachCommand(diskMode, defaultActions))
-	cmd.AddCommand(cleanupCommand())
+	cmd.AddCommand(awsScanCommand())
+	cmd.AddCommand(awsSnapshotCommand())
+	cmd.AddCommand(awsOfflineCommand())
+	cmd.AddCommand(awsAttachCommand())
+	cmd.AddCommand(awsCleanupCommand())
 	return cmd
 }
 
-func scanCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
+func awsScanCommand() *cobra.Command {
 	var flags struct {
 		Hostname string
 	}
@@ -85,7 +73,7 @@ func scanCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaultAc
 			if err != nil {
 				return err
 			}
-			return scanCmd(*statsd, resourceID, flags.Hostname, *defaultActions, *diskMode, *noForkScanners)
+			return scanCmd(resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
 		},
 	}
 
@@ -93,7 +81,7 @@ func scanCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaultAc
 	return cmd
 }
 
-func snapshotCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction) *cobra.Command {
+func awsSnapshotCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "snapshot",
 		Short: "Create a snapshot of the given (server-less mode)",
@@ -108,7 +96,7 @@ func snapshotCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanActio
 			if err != nil {
 				return err
 			}
-			scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.String(), "unknown", "unknown", *defaultActions, nil, *diskMode)
+			scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.String(), "unknown", "unknown", globalFlags.defaultActions, nil, globalFlags.diskMode)
 			if err != nil {
 				return err
 			}
@@ -129,7 +117,7 @@ func snapshotCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanActio
 	return cmd
 }
 
-func offlineCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
+func awsOfflineCommand() *cobra.Command {
 	var flags struct {
 		workers      int
 		regions      []string
@@ -171,7 +159,16 @@ func offlineCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaul
 			if err != nil {
 				return err
 			}
-			return offlineCmd(*statsd, flags.workers, scanType, flags.regions, flags.maxScans, flags.printResults, filters, *diskMode, *defaultActions, *noForkScanners)
+			return offlineCmd(
+				flags.workers,
+				scanType,
+				flags.regions,
+				flags.maxScans,
+				flags.printResults,
+				filters,
+				globalFlags.diskMode,
+				globalFlags.defaultActions,
+				globalFlags.noForkScanners)
 		},
 	}
 
@@ -184,7 +181,7 @@ func offlineCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaul
 	return cmd
 }
 
-func attachCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction) *cobra.Command {
+func awsAttachCommand() *cobra.Command {
 	var flags struct {
 		mount bool
 	}
@@ -201,7 +198,7 @@ func attachCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction)
 			if err != nil {
 				return err
 			}
-			return attachCmd(resourceID, *diskMode, flags.mount, *defaultActions)
+			return attachCmd(resourceID, globalFlags.diskMode, flags.mount, globalFlags.defaultActions)
 		},
 	}
 
@@ -210,7 +207,7 @@ func attachCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction)
 	return cmd
 }
 
-func cleanupCommand() *cobra.Command {
+func awsCleanupCommand() *cobra.Command {
 	var flags struct {
 		region string
 		dryRun bool
@@ -244,7 +241,7 @@ func ctxTerminated() context.Context {
 	return ctx
 }
 
-func scanCmd(statsd *ddogstatsd.Client, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -290,7 +287,7 @@ func scanCmd(statsd *ddogstatsd.Client, resourceID types.CloudID, targetHostname
 	return nil
 }
 
-func offlineCmd(statsd *ddogstatsd.Client, workers int, scanType types.TaskType, regions []string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+func offlineCmd(workers int, scanType types.TaskType, regions []string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	ctx := ctxTerminated()
 	defer statsd.Flush()
 
@@ -644,20 +641,4 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 
 	<-ctx.Done()
 	return nil
-}
-
-// TODO: copy pasted in cmd/agentless-scanner/main.go
-func getDefaultRolesMapping() types.RolesMapping {
-	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
-	return types.ParseRolesMapping(roles)
-}
-
-// TODO: copy pasted in cmd/agentless-scanner/main.go
-func getAWSLimitsOptions() awsutils.LimiterOptions {
-	return awsutils.LimiterOptions{
-		EC2Rate:          rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ec2_rate")),
-		EBSListBlockRate: rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate")),
-		EBSGetBlockRate:  rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate")),
-		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
-	}
 }
