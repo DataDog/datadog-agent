@@ -154,10 +154,8 @@ type ScanTask struct {
 	DiskMode        DiskMode     `json:"DiskMode"`
 
 	// Lifecycle metadata of the task
-	CreatedSnapshots        map[string]*time.Time `json:"CreatedSnapshots"`
-	AttachedDeviceName      *string               `json:"AttachedDeviceName"`
-	AttachedVolumeID        *CloudID              `json:"AttachedVolumeID"`
-	AttachedVolumeCreatedAt *time.Time            `json:"AttachedVolumeCreatedAt"`
+	CreatedResources   map[CloudID]time.Time `json:"CreatedResources"`
+	AttachedDeviceName *string               `json:"AttachedDeviceName"`
 }
 
 // MakeScanTaskID builds a unique task ID.
@@ -185,6 +183,12 @@ func (s *ScanTask) Path(names ...string) string {
 		root = filepath.Join(root, name)
 	}
 	return root
+}
+
+// PushCreatedResource adds a created resource to the scan task. This is used
+// to track of resources that require to be cleaned up at the end of the scan.
+func (s *ScanTask) PushCreatedResource(resourceID CloudID, createdAt time.Time) {
+	s.CreatedResources[resourceID] = createdAt
 }
 
 func (s *ScanTask) String() string {
@@ -407,7 +411,7 @@ func NewScanTask(resourceID, scannerHostname, targetHostname string, actions []S
 	scan.Actions = actions
 	scan.CreatedAt = time.Now()
 	scan.ID = MakeScanTaskID(&scan)
-	scan.CreatedSnapshots = make(map[string]*time.Time)
+	scan.CreatedResources = make(map[CloudID]time.Time)
 	return &scan, nil
 }
 

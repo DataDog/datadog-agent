@@ -34,6 +34,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/nbd"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/scanners"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 
@@ -161,6 +162,14 @@ func (s *Runner) cleanupProcess(ctx context.Context) {
 				}
 			}
 		}
+	}
+}
+
+func (s *Runner) statsResourceTTL(resourceType types.ResourceType, scan *types.ScanTask, createTime time.Time) {
+	ttl := time.Since(createTime)
+	tags := scan.Tags(fmt.Sprintf("aws_resource_type:%s", string(resourceType)))
+	if err := s.Statsd.Histogram("datadog.agentless_scanner.aws.resources_ttl", float64(ttl.Milliseconds()), tags, 1.0); err != nil {
+		log.Warnf("failed to send metric: %v", err)
 	}
 }
 
@@ -590,14 +599,24 @@ func (s *Runner) cleanupScan(scan *types.ScanTask) {
 				}
 			}
 		}
+		if scan.DiskMode == types.DiskModeNBDAttach {
+			nbd.StopNBDBlockDevice(ctx, *scan.AttachedDeviceName)
+		}
 	}
 
 	switch scan.Type {
 	case types.ScanTypeEBS:
-		awsutils.CleanupScanEBS(ctx, scan)
-	case types.ScanTypeLambda:
-		// nothing to do
-	case types.ScanTypeHost:
+		for resourceID, createdAt := range scan.CreatedResources {
+			if err := awsutils.CleanupScanEBS(ctx, scan, resourceID); err != nil {
+				log.Warnf("%s: failed to cleanup EBS resource %q: %v", scan, resourceID, err)
+			} else {
+				s.statsResourceTTL(resourceID.ResourceType(), scan, createdAt)
+			}
+		}
+	case types.ScanTypeLambda, types.ScanTypeHost:
+		if len(scan.CreatedResources) > 0 {
+			panic(fmt.Errorf("unexpected resources created in %s scan", scan.Type))
+		}
 		// nothing to do
 	default:
 		panic("unreachable")
