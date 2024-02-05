@@ -357,14 +357,13 @@ func (s *Runner) Start(ctx context.Context) {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
-				log.Infof("%s: scanner %s finished successfully (waited %s | took %s)", result.Scan, result.Scanner, result.StartedAt.Sub(result.CreatedAt), time.Since(result.StartedAt))
+				log.Infof("%s: scanner %s finished (waited %s | took %s): %s", result.Scan, result.Scanner, result.StartedAt.Sub(result.CreatedAt), time.Since(result.StartedAt), nResults(result))
 				if vulns := result.Vulns; vulns != nil {
 					if hasResults(vulns.BOM) {
 						if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsSuccess(), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					} else {
-						log.Debugf("%s: scanner %s finished successfully without results", result.Scan, result.Scanner)
 						if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsNoResult(), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
@@ -1035,4 +1034,19 @@ func hasResults(bom *cdx.BOM) bool {
 	// We can't use Dependencies > 0, since len(Dependencies) == 1 when there are no components.
 	// See https://github.com/aquasecurity/trivy/blob/main/pkg/sbom/cyclonedx/core/cyclonedx.go
 	return bom.Components != nil && len(*bom.Components) > 0
+}
+
+func nResults(result types.ScanResult) string {
+	if vulns := result.Vulns; vulns != nil {
+		if vulns.BOM.Components != nil {
+			return fmt.Sprintf("%d components", len(*vulns.BOM.Components))
+		}
+		return "no components"
+	}
+
+	if malware := result.Malware; malware != nil {
+		return fmt.Sprintf("%d findings", len(malware.Findings))
+	}
+
+	return "no results"
 }
