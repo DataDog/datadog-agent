@@ -59,11 +59,15 @@ func RootCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction, n
 		Short:        "Datadog Agentless Scanner at your service.",
 		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmd.Parent().PersistentPreRunE(cmd.Parent(), args); err != nil {
+				return err
+			}
 			initStatsdClient()
 			awsutils.InitConfig(statsd, getAWSLimitsOptions(), []string{
 				fmt.Sprintf("agent_version:%s", version.AgentVersion),
 			})
+			return nil
 		},
 	}
 	cmd.AddCommand(runCommand(defaultActions, noForkScanners))
@@ -539,7 +543,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 			}
 			cfg, err := awsutils.GetConfig(ctx, regionName, roles[*identity.Account])
 			if err != nil {
-				return fmt.Errorf("could not scan region %q for EBS volumes: %w", regionName, err)
+				return fmt.Errorf("could not scan region %q for Lambda functions: %w", regionName, err)
 			}
 			lambdaclient := lambda.NewFromConfig(cfg)
 			var marker *string
@@ -548,7 +552,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 					Marker: marker,
 				})
 				if err != nil {
-					return fmt.Errorf("could not scan region %q for EBS volumes: %w", regionName, err)
+					return fmt.Errorf("could not scan region %q for Lambda functions: %w", regionName, err)
 				}
 				for _, function := range functions.Functions {
 					scan, err := types.NewScanTask(*function.FunctionArn, hostname, "", actions, roles, diskMode)

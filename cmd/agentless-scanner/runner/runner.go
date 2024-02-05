@@ -485,11 +485,11 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 
 	pool := newScannersPool(s.NoFork, s.ScannersMax)
 	scan.StartedAt = time.Now()
+	defer awsutils.CleanupScan(scan)
 	switch scan.Type {
 	case types.HostScanType:
 		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName}, pool, s.resultsCh)
 	case types.EBSScanType:
-		defer awsutils.CleanupScan(scan)
 		mountpoints, err := awsutils.SetupEBS(ctx, scan, &s.waiter)
 		if err != nil {
 			return err
