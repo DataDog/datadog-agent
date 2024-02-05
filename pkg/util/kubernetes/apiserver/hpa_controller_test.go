@@ -133,6 +133,7 @@ func (h *fakeProcessor) ProcessEMList(metrics []custommetrics.ExternalMetricValu
 	return nil
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *fakeProcessor) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
 	return nil, nil
 }

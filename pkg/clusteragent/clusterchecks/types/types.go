@@ -39,6 +39,14 @@ type RebalanceResponse struct {
 	DestDiff     int    `json:"dest_diff"`
 }
 
+// IsolateResponse holds the DCA response for an isolate request
+type IsolateResponse struct {
+	CheckID    string `json:"check_id"`
+	CheckNode  string `json:"check_node"`
+	IsIsolated bool   `json:"is_isolated"`
+	Reason     string `json:"reason"`
+}
+
 // ConfigResponse holds the DCA response for a config query
 type ConfigResponse struct {
 	LastChange int64                `json:"last_change"`

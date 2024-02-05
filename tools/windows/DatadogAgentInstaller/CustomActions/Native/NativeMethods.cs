@@ -1,12 +1,13 @@
 using System;
 using System.ComponentModel;
-using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using Datadog.CustomActions.Interfaces;
+
 // ReSharper disable InconsistentNaming
 
 namespace Datadog.CustomActions.Native
@@ -45,6 +46,27 @@ namespace Datadog.CustomActions.Native
         SidTypeInvalid,
         SidTypeUnknown,
         SidTypeComputer
+    }
+
+    // https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights
+    [Flags]
+    public enum ServiceAccess
+    {
+        // specific access rights
+        SERVICE_QUERY_CONFIG = 0x0001,
+        SERVICE_QUERY_STATUS = 0x0004,
+        SERVICE_ENUMERATE_DEPENDENTS = 0x0008,
+        SERVICE_START = 0x0010,
+        SERVICE_STOP = 0x0020,
+        SERVICE_INTERROGATE = 0x0080,
+
+        // standard access rights
+        READ_CONTROL = 0x20000,
+
+        STANDARD_RIGHTS_READ = READ_CONTROL,
+        GENERIC_READ = STANDARD_RIGHTS_READ | SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS | SERVICE_INTERROGATE | SERVICE_ENUMERATE_DEPENDENTS,
+
+        SERVICE_ALL_ACCESS = 0xF01FF
     }
 
     public class Win32NativeMethods : INativeMethods
@@ -396,6 +418,15 @@ namespace Datadog.CustomActions.Native
         int dwStartType, int dwErrorControl, string lpBinaryPathName, string lpLoadOrderGroup,
         string lpdwTagId, string lpDependencies, string lpServiceStartName, string lpPassword,
         string lpDisplayName);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool QueryServiceObjectSecurity(SafeHandle serviceHandle,
+            SecurityInfos secInfo,
+            byte[] lpSecDescBuf, uint bufSize, out uint bufSizeNeeded);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool SetServiceObjectSecurity(SafeHandle serviceHandle,
+            SecurityInfos secInfos, byte[] lpSecDescBuf);
 
         [StructLayout(LayoutKind.Sequential)]
         public class GuidClass
@@ -756,6 +787,8 @@ namespace Datadog.CustomActions.Native
             return result;
         }
 
+
+
         /// <summary>
         /// Enable privilege on current token
         /// https://learn.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
@@ -816,6 +849,68 @@ namespace Datadog.CustomActions.Native
                 {
                     CloseHandle(token);
                 }
+            }
+        }
+
+        // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-queryserviceobjectsecurity
+        public static CommonSecurityDescriptor QueryServiceObjectSecurity(SafeHandle serviceHandle,
+            System.Security.AccessControl.SecurityInfos secInfo)
+        {
+            byte[] secDescBuf = null;
+            if (!QueryServiceObjectSecurity(serviceHandle, secInfo, null, 0, out var bytesNeeded))
+            {
+                var result = (ReturnCodes)Marshal.GetLastWin32Error();
+                if (result != ReturnCodes.ERROR_INSUFFICIENT_BUFFER)
+                {
+                    throw new Exception("Failed to get size for service security descriptor",
+                        new Win32Exception((int)result));
+                }
+            }
+            else
+            {
+                throw new Exception("Failed to get size for service security descriptor");
+            }
+
+            // alloc space
+            secDescBuf = new byte[bytesNeeded];
+
+            if (!QueryServiceObjectSecurity(serviceHandle, secInfo, secDescBuf, bytesNeeded, out _))
+            {
+                throw new Exception("Failed to get service security descriptor",
+                    new Win32Exception(Marshal.GetLastWin32Error()));
+            }
+
+            // isContainer/isDS are N/A to service ACL
+            return new CommonSecurityDescriptor(false, false, new RawSecurityDescriptor(secDescBuf, 0));
+        }
+
+        // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-setserviceobjectsecurity
+        public static void SetServiceObjectSecurity(SafeHandle serviceHandle,
+            System.Security.AccessControl.SecurityInfos secInfo,
+            CommonSecurityDescriptor securityDescriptor)
+        {
+            var secDescBuf = new byte[securityDescriptor.BinaryLength];
+            securityDescriptor.GetBinaryForm(secDescBuf, 0);
+            if (!SetServiceObjectSecurity(serviceHandle, secInfo, secDescBuf))
+            {
+                throw new Exception("Failed to set service security descriptor",
+                    new Win32Exception(Marshal.GetLastWin32Error()));
+            }
+        }
+
+        public void GetCurrentUser(out string name, out SecurityIdentifier sid)
+        {
+            var identity = WindowsIdentity.GetCurrent();
+            if (identity == null)
+            {
+                throw new Exception("Unable to get current user");
+            }
+
+            name = identity.Name;
+            sid = identity.User;
+            if (sid == null)
+            {
+                throw new Exception($"Unable to lookup SID for current user: {name}");
             }
         }
 

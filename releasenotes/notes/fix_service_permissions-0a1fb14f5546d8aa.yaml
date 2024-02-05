@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Set the correct service permissions on Windows.

@@ -20,9 +20,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	os.Setenv("DD_APPSEC_WAF_TIMEOUT", "1m")
+}
+
 func TestProxyLifecycleProcessor(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
-	lp, err := appsec.New()
+	lp, err := appsec.New(nil)
 	if err != nil {
 		t.Skipf("appsec disabled: %v", err)
 	}
@@ -43,6 +47,7 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 			IsError: false,
 		})
 		// Run the span modifier to mock the trace-agent calling it when receiving a trace from the tracer
+		//nolint:revive // TODO(ASM) Fix revive linter
 		spanId := rand.Uint64()
 		chunk := &pb.TraceChunk{
 			Spans: []*pb.Span{

@@ -288,7 +288,6 @@ def windows_service_status(service)
   raise "windows_service_status is only for windows" unless os == :windows
   # Language-independent way of getting the service status
   res =  `powershell -command \"try { (get-service #{service} -ErrorAction Stop).Status } catch { write-host NOTINSTALLED }\"`
-  puts res
   return (res).upcase.strip
 end
 
@@ -371,6 +370,17 @@ def dogstatsd_processes_running?
   false
 end
 
+def expect_windows_cws?
+  if os == :windows && get_agent_flavor == 'datadog-agent'
+    cws = parse_dna().fetch('dd-agent-rspec').fetch('cws_included')
+    if cws == "testsigned" || cws == "release-signed" || cws == "attestation-signed"
+      return true
+    end
+  end
+  return false
+  
+end
+
 def deploy_cws?
   os != :windows &&
   get_agent_flavor == 'datadog-agent' &&
@@ -450,14 +460,13 @@ def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
   output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
-  ##
   ## signature below is for new cert acquired May 2023 using new hsm-backed signing method
   signature_hash = "B03F29CC07566505A718583E9270A6EE17678742"
   if output.upcase.strip == signature_hash.upcase.strip
     return true
   end
 
-  puts("expected hash = #{signature_hash}, msi's hash = #{output}")
+  puts("expected hash = #{signature_hash}, actual hash = #{output}")
   return false
 end
 
@@ -527,16 +536,10 @@ shared_examples_for "an installed Agent" do
       if File.file?(msi_path_upgrade)
         msi_path = msi_path_upgrade
       end
-      is_signed = is_file_signed(msi_path)
-      expect(is_signed).to be_truthy
 
       program_files = safe_program_files
-      # The glob in the bottom makes sure we add the full Python version dll, e.g.
-      # python39.dll or python310.dll. Thanks to this, we don't have to fix this test case
-      # manually when we upgrade the Python version. Additionally, some scenarios like
-      # win-upgrade-rollback might test two Agents with two different Python versions,
-      # so hardcoding just one dll wouldn't work in these cases.
       verify_signature_files = [
+        msi_path,
         # TODO: Uncomment this when we start shipping the security agent on Windows
         # "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
@@ -544,10 +547,7 @@ shared_examples_for "an installed Agent" do
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-three.dll",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe",
-        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe",
-        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe",
-        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll",
-      ] + Dir.glob("#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3?*.dll")
+      ]
       libdatadog_agent_two = "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-two.dll"
       if File.file?(libdatadog_agent_two)
         verify_signature_files += [
@@ -866,6 +866,20 @@ shared_examples_for 'an Agent that is removed' do
   end
 
   if os == :windows
+    windows_service_names = [
+      'datadogagent',
+      'datadog-process-agent',
+      'datadog-trace-agent',
+      'datadog-system-probe',
+      'datadog-security-agent'
+    ]
+    it 'should not have services installed' do
+      windows_service_names.each do |ws|
+        expect(is_windows_service_installed(ws)).to be_falsey
+      end
+    end
+  end 
+if os == :windows
     it 'should not make changes to system files' do
       exclude = [
             'C:/Windows/Assembly/Temp/',

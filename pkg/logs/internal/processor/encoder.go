@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package processor
 
 import (
@@ -14,7 +15,7 @@ import (
 
 // Encoder turns a message into a raw byte array ready to be sent.
 type Encoder interface {
-	Encode(msg *message.Message) error
+	Encode(msg *message.Message, hostname string) error
 }
 
 // toValidUtf8 ensures all characters are UTF-8.

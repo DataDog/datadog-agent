@@ -22,13 +22,13 @@ import (
 	"k8s.io/client-go/dynamic"
 	k8s "k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -98,7 +98,6 @@ const (
 
 var (
 	supportedLanguages = []language{java, js, python, dotnet, ruby}
-	targetNamespaces   = config.Datadog.GetStringSlice("admission_controller.auto_instrumentation.inject_all.namespaces")
 
 	singleStepInstrumentationInstallTypeEnvVar = corev1.EnvVar{
 		Name:  instrumentationInstallTypeEnvVarName,
@@ -156,15 +155,18 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 		return nil
 	}
 	// Inject env variables used for Onboarding KPIs propagation
+	var injectionType string
 	if isApmInstrumentationEnabled(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
 		_ = injectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
+		injectionType = singleStepInstrumentationInstallType
 	} else {
 		// if local library injection is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection
 		_ = injectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
+		injectionType = localLibraryInstrumentationInstallType
 	}
 
-	return injectAutoInstruConfig(pod, libsToInject, autoDetected)
+	return injectAutoInstruConfig(pod, libsToInject, autoDetected, injectionType)
 }
 
 func injectApmTelemetryConfig(pod *corev1.Pod) {
@@ -187,37 +189,22 @@ func injectApmTelemetryConfig(pod *corev1.Pod) {
 	_ = injectEnv(pod, instrumentationInstallIDEnvVar)
 }
 
-func isNsTargeted(ns string) bool {
-	if len(targetNamespaces) == 0 {
-		return false
-	}
-	for _, targetNs := range targetNamespaces {
-		if ns == targetNs {
-			return true
-		}
-	}
-	return false
-}
-
-func getAllLibsToInject(ns, registry string) map[string]libInfo {
+func getAllLibsToInject(registry string) map[string]libInfo {
 	libsToInject := map[string]libInfo{}
 	var libVersion string
-	if isNsTargeted(ns) || isApmInstrumentationEnabled(ns) {
-		singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
-		for _, lang := range supportedLanguages {
-			libVersion = "latest"
+	singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
 
-			// if Single Step Instrumentation enabled, check if some libraries have pinned versions
-			if isApmInstrumentationEnabled(ns) {
-				if version, ok := singleStepLibraryVersions[string(lang)]; ok {
-					log.Warnf("Library version %s is specified for language %s", version, string(lang))
-					libVersion = version
-				}
-			}
-			libsToInject[string(lang)] = libInfo{
-				lang:  lang,
-				image: libImageName(registry, lang, libVersion),
-			}
+	for _, lang := range supportedLanguages {
+		libVersion = "latest"
+
+		if version, ok := singleStepLibraryVersions[string(lang)]; ok {
+			log.Warnf("Library version %s is specified for language %s", version, string(lang))
+			libVersion = version
+		}
+
+		libsToInject[string(lang)] = libInfo{
+			lang:  lang,
+			image: libImageName(registry, lang, libVersion),
 		}
 	}
 	return libsToInject
@@ -238,7 +225,7 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool)
 
 	// Inject all libraries if Single Step Instrumentation is enabled
 	if isApmInstrumentationEnabled(pod.Namespace) {
-		libInfoMap = getAllLibsToInject(pod.Namespace, containerRegistry)
+		libInfoMap = getAllLibsToInject(containerRegistry)
 		if len(libInfoMap) > 0 {
 			log.Debugf("Single Step Instrumentation: Injecting all libraries into pod %q in namespace %q", podString(pod), pod.Namespace)
 		}
@@ -374,7 +361,7 @@ func extractLibrariesFromAnnotations(
 	return libList
 }
 
-func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetected bool) error {
+func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetected bool, injectionType string) error {
 	var lastError error
 
 	initContainerToInject := make(map[language]string)
@@ -383,7 +370,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 		injected := false
 		langStr := string(lib.lang)
 		defer func() {
-			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected))
+			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
 			metrics.MutationAttempts.Inc(metrics.LibInjectionMutationType, strconv.FormatBool(injected), langStr, strconv.FormatBool(autoDetected))
 		}()
 
@@ -441,14 +428,14 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 					valFunc: rubyEnvValFunc,
 				}})
 		default:
-			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected))
+			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "unsupported language", langStr, strconv.FormatBool(autoDetected))
 			lastError = fmt.Errorf("language %q is not supported. Supported languages are %v", lib.lang, supportedLanguages)
 			continue
 		}
 
 		if err != nil {
-			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected))
+			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "requirements config error", langStr, strconv.FormatBool(autoDetected))
 			lastError = err
 			log.Errorf("Error injecting library config requirements: %s", err)
@@ -463,7 +450,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 		err := injectLibInitContainer(pod, image, lang)
 		if err != nil {
 			langStr := string(lang)
-			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected))
+			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "cannot inject init container", langStr, strconv.FormatBool(autoDetected))
 			lastError = err
 			log.Errorf("Cannot inject init container into pod %s: %s", podString(pod), err)
@@ -471,7 +458,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 		err = injectLibConfig(pod, lang)
 		if err != nil {
 			langStr := string(lang)
-			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected))
+			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "cannot inject lib config", langStr, strconv.FormatBool(autoDetected))
 			lastError = err
 			log.Errorf("Cannot inject library configuration into pod %s: %s", podString(pod), err)
@@ -480,7 +467,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 
 	// try to inject all if the annotation is set
 	if err := injectLibConfig(pod, "all"); err != nil {
-		metrics.LibInjectionErrors.Inc("all", strconv.FormatBool(autoDetected))
+		metrics.LibInjectionErrors.Inc("all", strconv.FormatBool(autoDetected), injectionType)
 		metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "cannot inject lib config", "all", strconv.FormatBool(autoDetected))
 		lastError = err
 		log.Errorf("Cannot inject library configuration into pod %s: %s", podString(pod), err)

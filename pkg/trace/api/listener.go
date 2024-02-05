@@ -27,6 +27,7 @@ type measuredListener struct {
 	errored  *atomic.Uint32 // errored connection count
 	exit     chan struct{}  // exit signal channel (on Close call)
 	sem      chan struct{}  // Used to limit active connections
+	stop     sync.Once
 }
 
 // NewMeasuredListener wraps ln and emits metrics every 10 seconds. The metric name is
@@ -53,7 +54,6 @@ func NewMeasuredListener(ln net.Listener, name string, maxConn int) net.Listener
 func (ln *measuredListener) run() {
 	tick := time.NewTicker(10 * time.Second)
 	defer tick.Stop()
-	defer close(ln.exit)
 	for {
 		select {
 		case <-tick.C:
@@ -91,6 +91,7 @@ func (c *onCloseConn) Close() error {
 	return err
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func OnCloseConn(c net.Conn, onclose func()) net.Conn {
 	return &onCloseConn{c, onclose, sync.Once{}}
 }
@@ -117,16 +118,17 @@ func (ln *measuredListener) Accept() (net.Conn, error) {
 }
 
 // Close implements net.Listener.
-func (ln measuredListener) Close() error {
+func (ln *measuredListener) Close() error {
 	err := ln.Listener.Close()
 	ln.flushMetrics()
-	ln.exit <- struct{}{}
-	<-ln.exit
+	ln.stop.Do(func() {
+		close(ln.exit)
+	})
 	return err
 }
 
 // Addr implements net.Listener.
-func (ln measuredListener) Addr() net.Addr { return ln.Listener.Addr() }
+func (ln *measuredListener) Addr() net.Addr { return ln.Listener.Addr() }
 
 // rateLimitedListener wraps a regular TCPListener with rate limiting.
 type rateLimitedListener struct {
@@ -224,7 +226,7 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 				if ne.Temporary() {
 					// deadline expired; continue
 					continue
-				} else {
+				} else { //nolint:revive // TODO(APM) Fix revive linter
 					// don't count temporary errors; they usually signify expired deadlines
 					// see (golang/go/src/internal/poll/fd.go).TimeoutError
 					sl.timedout.Inc()
@@ -245,8 +247,7 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 // Close wraps the Close method of the underlying tcp listener
 func (sl *rateLimitedListener) Close() error {
 	if !sl.closed.CompareAndSwap(0, 1) {
-		// already closed; avoid multiple calls if we're on go1.10
-		// https://golang.org/issue/24803
+		// already closed
 		return nil
 	}
 	sl.exit <- struct{}{}

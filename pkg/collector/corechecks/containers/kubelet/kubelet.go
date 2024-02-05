@@ -9,6 +9,7 @@
 package kubelet
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -25,11 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	kubeletCheckName = "kubelet_core"
+	// CheckName is the name of the check
+	CheckName = "kubelet_core"
 )
 
 // Provider provides the metrics related to a given Kubelet endpoint
@@ -44,40 +46,42 @@ type KubeletCheck struct {
 	filter    *containers.Filter
 	providers []Provider
 	podUtils  *common.PodUtils
+	store     workloadmeta.Component
 }
 
 // NewKubeletCheck returns a new KubeletCheck
-func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig) *KubeletCheck {
+func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store workloadmeta.Component) *KubeletCheck {
 	return &KubeletCheck{
 		CheckBase: base,
 		instance:  instance,
+		store:     store,
 	}
 }
 
-func initProviders(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils) []Provider {
+func initProviders(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils, store workloadmeta.Component) []Provider {
 	podProvider := pod.NewProvider(filter, config, podUtils)
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
 	healthProvider := health.NewProvider(config)
-	summaryProvider := summary.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	summaryProvider := summary.NewProvider(filter, config, store)
 
-	sliProvider, err := slis.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	sliProvider, err := slis.NewProvider(filter, config, store)
 	if err != nil {
 		log.Warnf("Can't get sli provider: %v", err)
 	}
 
-	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	probeProvider, err := probe.NewProvider(filter, config, store)
 	if err != nil {
 		log.Warnf("Can't get probe provider: %v", err)
 	}
 
-	kubeletProvider, err := kube.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
+	kubeletProvider, err := kube.NewProvider(filter, config, store, podUtils)
 	if err != nil {
 		log.Warnf("Can't get kubelet provider: %v", err)
 	}
 
-	cadvisorProvider, err := cadvisor.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
+	cadvisorProvider, err := cadvisor.NewProvider(filter, config, store, podUtils)
 	if err != nil {
 		log.Warnf("Can't get cadvisor provider: %v", err)
 	}
@@ -94,9 +98,11 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 	}
 }
 
-// KubeletFactory returns a new KubeletCheck
-func KubeletFactory() check.Check {
-	return NewKubeletCheck(core.NewCheckBase(kubeletCheckName), &common.KubeletConfig{})
+// Factory returns a new KubeletCheck factory
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store)
+	})
 }
 
 // Configure configures the check
@@ -124,7 +130,7 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, integration
 	}
 
 	k.podUtils = common.NewPodUtils()
-	k.providers = initProviders(filter, k.instance, k.podUtils)
+	k.providers = initProviders(filter, k.instance, k.podUtils, k.store)
 
 	return nil
 }
@@ -155,8 +161,4 @@ func (k *KubeletCheck) Run() error {
 	}
 
 	return nil
-}
-
-func init() {
-	core.RegisterCheck(kubeletCheckName, KubeletFactory)
 }

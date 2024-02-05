@@ -13,14 +13,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type APIServerDeps struct {
 	fx.In
 
-	Config config.Component
-	Log    log.Component
+	Config       config.Component
+	Log          log.Component
+	WorkloadMeta workloadmeta.Component
 }
 
 func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWriter, *http.Request)) http.HandlerFunc {
@@ -29,6 +32,7 @@ func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWri
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("process_config")).Methods("GET") // Get only settings in the process_config namespace
 	r.HandleFunc("/config/all", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")           // Get all fields from process-agent Config object
@@ -37,7 +41,11 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/agent/status", injectDeps(deps, statusHandler)).Methods("GET")
 	r.HandleFunc("/agent/tagger-list", injectDeps(deps, getTaggerList)).Methods("GET")
-	r.HandleFunc("/agent/workload-list/short", getShortWorkloadList).Methods("GET")
-	r.HandleFunc("/agent/workload-list/verbose", getVerboseWorkloadList).Methods("GET")
+	r.HandleFunc("/agent/workload-list/short", func(w http.ResponseWriter, r *http.Request) {
+		workloadList(w, false, deps.WorkloadMeta)
+	}).Methods("GET")
+	r.HandleFunc("/agent/workload-list/verbose", func(w http.ResponseWriter, r *http.Request) {
+		workloadList(w, true, deps.WorkloadMeta)
+	}).Methods("GET")
 	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
 }

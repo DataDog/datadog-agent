@@ -89,11 +89,7 @@ func ListProcesses(ctx context.Context) map[utils.ContainerID]int32 {
 		if !ok {
 			continue
 		}
-
-		containerID, ok := utils.GetProcessContainerID(proc.Pid)
-		if !ok {
-			continue
-		}
+		containerID, _ := utils.GetProcessContainerID(proc.Pid)
 		// We dedupe our scans based on the resource type and the container
 		// ID, assuming that we will scan the same configuration for each
 		// containers running the process.
@@ -109,36 +105,35 @@ func ListProcesses(ctx context.Context) map[utils.ContainerID]int32 {
 
 // LoadDBResourceFromPID loads and returns an optional DBResource associated
 // with the given process PID.
-func LoadDBResourceFromPID(ctx context.Context, pid int32) (resource *DBResource, ok bool) {
+func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 	proc, err := process.NewProcessWithContext(ctx, pid)
 	if err != nil {
-		return
+		return nil, false
 	}
 
 	resourceType, ok := getProcResourceType(proc)
 	if !ok {
-		return
+		return nil, false
 	}
-	containerID, ok := utils.GetProcessContainerID(pid)
-	if !ok {
-		return
-	}
+	containerID, _ := utils.GetProcessContainerID(pid)
 	hostroot, ok := utils.GetProcessRootPath(pid)
 	if !ok {
-		return
+		return nil, false
 	}
 
 	var conf *DBConfig
 	switch resourceType {
 	case postgresqlResourceType:
-		conf, _ = LoadPostgreSQLConfig(ctx, hostroot, proc)
+		conf, ok = LoadPostgreSQLConfig(ctx, hostroot, proc)
 	case mongoDBResourceType:
-		conf, _ = LoadMongoDBConfig(ctx, hostroot, proc)
+		conf, ok = LoadMongoDBConfig(ctx, hostroot, proc)
 	case cassandraResourceType:
-		conf, _ = LoadCassandraConfig(ctx, hostroot, proc)
+		conf, ok = LoadCassandraConfig(ctx, hostroot, proc)
+	default:
+		ok = false
 	}
-	if conf == nil {
-		return
+	if !ok || conf == nil {
+		return nil, false
 	}
 	return &DBResource{
 		Type:        resourceType,
@@ -196,7 +191,7 @@ func LoadCassandraConfig(ctx context.Context, hostroot string, proc *process.Pro
 		result.ProcessName, _ = proc.NameWithContext(ctx)
 	}
 
-	var configData map[string]interface{}
+	var configData *cassandraDBConfig
 	matches, _ := filepath.Glob(filepath.Join(hostroot, cassandraConfigGlob))
 	for _, configPath := range matches {
 		fi, err := os.Stat(configPath)
@@ -222,8 +217,8 @@ func LoadCassandraConfig(ctx context.Context, hostroot string, proc *process.Pro
 
 	logback, err := readFileLimit(filepath.Join(hostroot, cassandraLogbackPath))
 	if err == nil {
-		configData["logback_file_path"] = cassandraLogbackPath
-		configData["logback_file_content"] = string(logback)
+		configData.LogbackFilePath = cassandraLogbackPath
+		configData.LogbackFileContent = string(logback)
 	}
 	result.ConfigData = configData
 	return &result, true

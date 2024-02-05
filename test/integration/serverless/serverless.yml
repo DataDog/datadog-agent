@@ -2,6 +2,9 @@
 service: integration-tests-extension
 frameworkVersion: "3"
 
+plugins:
+  - serverless-plugin-conditional-functions
+
 resources:
   Description: "[Serverless] Integration tests application for lambda extension"
 
@@ -13,7 +16,6 @@ provider:
     apiGateway: true
   environment:
     DD_DD_URL: http://127.0.0.1:3333
-    DD_API_KEY: NO_NEED_TO_BE_VALID
     DD_LOGS_CONFIG_LOGS_DD_URL: 127.0.0.1:3333
     DD_LOGS_CONFIG_LOGS_NO_SSL: true
     DD_LOGS_INJECTION: false
@@ -43,6 +45,7 @@ package:
     - "!src/bin"
     - "!recorder-extension"
     - "!snapshots"
+    - '!datadog.yaml'
 
 custom:
   ddLayerArchitectureFlag:
@@ -63,6 +66,7 @@ layers:
 
 functions:
   appsec-node:
+    enabled: '"${env:RUN_SUITE_APPSEC}" == "true"'
     runtime: nodejs18.x
     handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
     layers:
@@ -71,10 +75,15 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
-      DD_LAMBDA_HANDLER: src/metric.appSecHandler
+      DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_LAMBDA_HANDLER: src/trace.simpleTest
       DD_SERVERLESS_APPSEC_ENABLED: true
+      # Explicitly disable instrumentation telemetry as this causes the traces to somehow no longer be seen by the recorder.
+      DD_INSTRUMENTATION_TELEMETRY_ENABLED: false
+      DD_TRACE_TELEMETRY_ENABLED: false
 
   appsec-python:
+    enabled: '"${env:RUN_SUITE_APPSEC}" == "true"'
     runtime: python3.11
     handler: datadog_lambda.handler.handler
     layers:
@@ -83,10 +92,12 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_LAMBDA_HANDLER: src/appSecPython.handler
       DD_SERVERLESS_APPSEC_ENABLED: true
 
   appsec-java:
+    enabled: '"${env:RUN_SUITE_APPSEC}" == "true"'
     runtime: java8.al2
     handler: Handler
     package:
@@ -98,11 +109,13 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
       DD_SERVERLESS_APPSEC_ENABLED: true
 
   appsec-go:
+    enabled: '"${env:RUN_SUITE_APPSEC}" == "true"'
     runtime: provided.al2
     package:
       individually: true
@@ -114,9 +127,11 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       # AWS_LAMBDA_EXEC_WRAPPER is not applied by provided.al2 and go1.x runtimes
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_SERVERLESS_APPSEC_ENABLED: true
 
   appsec-csharp:
+    enabled: '"${env:RUN_SUITE_APPSEC}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
     package:
@@ -128,17 +143,22 @@ functions:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_SERVERLESS_APPSEC_ENABLED: true
 
   metric-node:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: nodejs14.x
     handler: src/metric.enhancedMetricTest
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   metric-python:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: python3.8
     handler: datadog_lambda.handler.handler
     layers:
@@ -146,9 +166,11 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_LAMBDA_HANDLER: src/metricPython.metric
 
   metric-go:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: provided.al2
     package:
       individually: true
@@ -158,8 +180,11 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   metric-java:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: java8.al2
     handler: Handler
     package:
@@ -170,10 +195,12 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
 
   metric-csharp:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
     package:
@@ -185,26 +212,33 @@ functions:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   metric-proxy:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: nodejs14.x
     handler: src/proxyTestFunctions.noop
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   error-node:
+    enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
     runtime: nodejs14.x
     handler: src/metric.errorTest
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   error-python:
+    enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
     runtime: python3.8
     handler: datadog_lambda.handler.handler
     layers:
@@ -212,9 +246,11 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_LAMBDA_HANDLER: src/metricPython.error
 
   error-java:
+    enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
     runtime: java8.al2
     handler: ErrorHandler
     package:
@@ -225,10 +261,12 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
 
   error-csharp:
+    enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Error
     package:
@@ -240,8 +278,10 @@ functions:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   error-proxy:
+    enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
     runtime: nodejs14.x
     handler: src/proxyTestFunctions.error
     layers:
@@ -250,8 +290,10 @@ functions:
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   timeout-node:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: nodejs14.x
     timeout: 1
     handler: src/metric.timeoutMetricTest
@@ -259,8 +301,11 @@ functions:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   timeout-python:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: python3.8
     timeout: 1
     handler: datadog_lambda.handler.handler
@@ -269,9 +314,11 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_LAMBDA_HANDLER: src/metricPython.timeout
 
   timeout-go:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: provided.al2
     timeout: 1
     package:
@@ -282,8 +329,11 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   timeout-java:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: java8.al2
     handler: TimeoutHandler
     timeout: 1
@@ -295,10 +345,12 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
 
   timeout-csharp:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Timeout
     timeout: 1
@@ -311,8 +363,10 @@ functions:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   timeout-proxy:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: nodejs14.x
     handler: src/proxyTestFunctions.timeout
     layers:
@@ -321,65 +375,96 @@ functions:
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   log-node:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: nodejs14.x
+    package:
+      individually: true
+      patterns:
+        - datadog.yaml
     handler: src/log.logTest
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   log-python:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: python3.8
+    package:
+      individually: true
+      patterns:
+        - datadog.yaml
     handler: datadog_lambda.handler.handler
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_LAMBDA_HANDLER: src/logPython.log
 
   log-go:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: provided.al2
     package:
       individually: true
       patterns:
         - src/bin/log
+        - datadog.yaml
     handler: src/bin/log
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   log-csharp:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
     package:
       individually: true
       artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
+      patterns:
+        - datadog.yaml
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   log-java:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: java8.al2
     handler: LogHandler
     package:
       individually: true
       artifact: src/java-tests/log/target/log-dev.jar
+      patterns:
+        - datadog.yaml
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
 
   log-proxy:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: nodejs14.x
+    package:
+      individually: true
+      patterns:
+        - datadog.yaml
     handler: src/proxyTestFunctions.log
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -387,8 +472,10 @@ functions:
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   trace-node:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: nodejs14.x
     handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
     layers:
@@ -396,9 +483,11 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_LAMBDA_HANDLER: src/trace.simpleTest
 
   trace-python:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: python3.8
     handler: datadog_lambda.handler.handler
     layers:
@@ -406,9 +495,11 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_LAMBDA_HANDLER: src/tracePython.simple_test
 
   trace-go:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: provided.al2
     package:
       individually: true
@@ -418,8 +509,11 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   trace-java:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: java8.al2
     handler: TraceHandler
     package:
@@ -430,10 +524,12 @@ functions:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
 
   trace-csharp:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Trace
     package:
@@ -445,8 +541,10 @@ functions:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:DOTNET_TRACE_LAYER_VERSION}
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   trace-proxy:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: nodejs14.x
     handler: src/proxyTestFunctions.noop
     layers:
@@ -455,8 +553,10 @@ functions:
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_API_KEY: NO_NEED_TO_BE_VALID
 
   otlp-python:
+    enabled: '"${env:RUN_SUITE_OTLP}" == "true"'
     runtime: python3.8
     # a bug in opentelemetry instrumentation makes it impossible to define a
     # handler inside of a directory
@@ -468,7 +568,165 @@ functions:
       - arn:aws:lambda:${self:provider.region}:184161586896:layer:opentelemetry-python-0_1_0:1
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
+      DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: localhost:4318
       OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
       OTEL_METRICS_EXPORTER: otlp
       OTEL_TRACES_EXPORTER: otlp
+
+  proxy-env-apikey:
+    enabled: '"${env:RUN_SUITE_PROXY}" == "true"'
+    runtime: nodejs18.x
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_LAMBDA_HANDLER: src/hello.lambda_handler
+      DD_LOG_LEVEL: DEBUG
+      DD_PROXY_HTTP: "http://proxy.env:80"
+      DD_PROXY_HTTPS: "https://proxy.env:80"
+
+  proxy-yaml-apikey:
+    enabled: '"${env:RUN_SUITE_PROXY}" == "true"'
+    runtime: nodejs18.x
+    package:
+      individually: true
+      patterns:
+        - datadog.yaml
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_LAMBDA_HANDLER: src/hello.lambda_handler
+      DD_LOG_LEVEL: DEBUG
+
+  proxy-yaml-env-apikey:
+    enabled: '"${env:RUN_SUITE_PROXY}" == "true"'
+    runtime: nodejs18.x
+    package:
+      individually: true
+      patterns:
+        - datadog.yaml
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_LAMBDA_HANDLER: src/hello.lambda_handler
+      DD_LOG_LEVEL: DEBUG
+      DD_PROXY_HTTP: "http://proxy.env:80"
+      DD_PROXY_HTTPS: "https://proxy.env:80"
+
+  proxy-env-secret:
+    enabled: '"${env:RUN_SUITE_PROXY}" == "true"'
+    runtime: nodejs18.x
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY_SECRET_ARN: arn:aws:secretsmanager:eu-west-1:425362996713:secret:integration-tests-extension-secret-MDTT46
+      DD_LAMBDA_HANDLER: src/hello.lambda_handler
+      DD_LOG_LEVEL: DEBUG
+      DD_PROXY_HTTP: "http://proxy.env:80"
+      DD_PROXY_HTTPS: "https://proxy.env:80"
+      DD_PROXY_NO_PROXY: "secretsmanager.eu-west-1.amazonaws.com"
+
+  proxy-yaml-secret:
+    enabled: '"${env:RUN_SUITE_PROXY}" == "true"'
+    runtime: nodejs18.x
+    package:
+      individually: true
+      patterns:
+        - datadog.yaml
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY_SECRET_ARN: arn:aws:secretsmanager:eu-west-1:425362996713:secret:integration-tests-extension-secret-MDTT46
+      DD_LAMBDA_HANDLER: src/hello.lambda_handler
+      DD_LOG_LEVEL: DEBUG
+
+  proxy-yaml-env-secret:
+    enabled: '"${env:RUN_SUITE_PROXY}" == "true"'
+    runtime: nodejs18.x
+    package:
+      individually: true
+      patterns:
+        - datadog.yaml
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_API_KEY_SECRET_ARN: arn:aws:secretsmanager:eu-west-1:425362996713:secret:integration-tests-extension-secret-MDTT46
+      DD_LAMBDA_HANDLER: src/hello.lambda_handler
+      DD_LOG_LEVEL: DEBUG
+      DD_PROXY_HTTP: "http://proxy.env:80"
+      DD_PROXY_HTTPS: "https://proxy.env:80"
+      DD_PROXY_NO_PROXY: "secretsmanager.eu-west-1.amazonaws.com"
+
+  proxy-env-kms:
+    enabled: '"${env:RUN_SUITE_PROXY}" == "true"'
+    runtime: nodejs18.x
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_KMS_API_KEY: AQICAHgsBW4nQEVAn5OIFYrKQuzjQ3LdqfR7xGqbiAChbjXogwHjsTUdDig75WssdcMQt5vcAAAAeTB3BgkqhkiG9w0BBwagajBoAgEAMGMGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMHEA6IYfLJSKfbRcyAgEQgDahdOOi2wbbnF7sGZAjXZZSywhkZKnys2YP6GQtN+tyuuj/ZS3y6jtATE4bsVTMhuiNvytc3OI=
+      DD_LAMBDA_HANDLER: src/hello.lambda_handler
+      DD_LOG_LEVEL: DEBUG
+      DD_PROXY_HTTP: "http://proxy.env:80"
+      DD_PROXY_HTTPS: "https://proxy.env:80"
+      DD_PROXY_NO_PROXY: "kms.eu-west-1.amazonaws.com"
+
+  proxy-yaml-kms:
+    enabled: '"${env:RUN_SUITE_PROXY}" == "true"'
+    runtime: nodejs18.x
+    package:
+      individually: true
+      patterns:
+        - datadog.yaml
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_KMS_API_KEY: AQICAHgsBW4nQEVAn5OIFYrKQuzjQ3LdqfR7xGqbiAChbjXogwHjsTUdDig75WssdcMQt5vcAAAAeTB3BgkqhkiG9w0BBwagajBoAgEAMGMGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMHEA6IYfLJSKfbRcyAgEQgDahdOOi2wbbnF7sGZAjXZZSywhkZKnys2YP6GQtN+tyuuj/ZS3y6jtATE4bsVTMhuiNvytc3OI=
+      DD_LAMBDA_HANDLER: src/hello.lambda_handler
+      DD_LOG_LEVEL: DEBUG
+
+  proxy-yaml-env-kms:
+    enabled: '"${env:RUN_SUITE_PROXY}" == "true"'
+    runtime: nodejs18.x
+    package:
+      individually: true
+      patterns:
+        - datadog.yaml
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_KMS_API_KEY: AQICAHgsBW4nQEVAn5OIFYrKQuzjQ3LdqfR7xGqbiAChbjXogwHjsTUdDig75WssdcMQt5vcAAAAeTB3BgkqhkiG9w0BBwagajBoAgEAMGMGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMHEA6IYfLJSKfbRcyAgEQgDahdOOi2wbbnF7sGZAjXZZSywhkZKnys2YP6GQtN+tyuuj/ZS3y6jtATE4bsVTMhuiNvytc3OI=
+      DD_LAMBDA_HANDLER: src/hello.lambda_handler
+      DD_LOG_LEVEL: DEBUG
+      DD_PROXY_HTTP: "http://proxy.env:80"
+      DD_PROXY_HTTPS: "https://proxy.env:80"
+      DD_PROXY_NO_PROXY: "kms.eu-west-1.amazonaws.com"

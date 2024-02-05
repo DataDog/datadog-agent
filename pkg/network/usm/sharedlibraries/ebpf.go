@@ -17,9 +17,9 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,27 +39,28 @@ var traceTypes = []string{"enter", "exit"}
 type ebpfProgram struct {
 	cfg         *config.Config
 	perfHandler *ddebpf.PerfHandler
-	*errtelemetry.Manager
+	*ebpftelemetry.Manager
 }
 
-func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) *ebpfProgram {
+func newEBPFProgram(c *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) *ebpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
-	mgr := &manager.Manager{
-		PerfMaps: []*manager.PerfMap{
-			{
-				Map: manager.Map{
-					Name: sharedLibrariesPerfMap,
-				},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
-					Watermark:          1,
-					RecordHandler:      perfHandler.RecordHandler,
-					LostHandler:        perfHandler.LostHandler,
-					RecordGetter:       perfHandler.RecordGetter,
-				},
-			},
+	pm := &manager.PerfMap{
+		Map: manager.Map{
+			Name: sharedLibrariesPerfMap,
+		},
+		PerfMapOptions: manager.PerfMapOptions{
+			PerfRingBufferSize: 8 * os.Getpagesize(),
+			Watermark:          1,
+			RecordHandler:      perfHandler.RecordHandler,
+			LostHandler:        perfHandler.LostHandler,
+			RecordGetter:       perfHandler.RecordGetter,
+			TelemetryEnabled:   c.InternalTelemetryEnabled,
 		},
 	}
+	mgr := &manager.Manager{
+		PerfMaps: []*manager.PerfMap{pm},
+	}
+	ebpftelemetry.ReportPerfMapTelemetry(pm)
 
 	probeIDs := getSysOpenHooksIdentifiers()
 	for _, identifier := range probeIDs {
@@ -73,17 +74,13 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 
 	return &ebpfProgram{
 		cfg:         c,
-		Manager:     errtelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:     ebpftelemetry.NewManager(mgr, bpfTelemetry),
 		perfHandler: perfHandler,
 	}
 }
 
 func (e *ebpfProgram) Init() error {
 	var err error
-
-	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, getAllUndefinedProbes())
-	}
 	if e.cfg.EnableCORE {
 		err = e.initCORE()
 		if err == nil {
@@ -116,6 +113,7 @@ func (e *ebpfProgram) GetPerfHandler() *ddebpf.PerfHandler {
 }
 
 func (e *ebpfProgram) Stop() {
+	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	e.Manager.Stop(manager.CleanAll) //nolint:errcheck
 	e.perfHandler.Stop()
 }
@@ -205,21 +203,4 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
-}
-
-func getAllUndefinedProbes() []manager.ProbeIdentificationPair {
-	undefined := []manager.ProbeIdentificationPair{}
-
-	if !sysOpenAt2Supported() {
-		undefined = append(undefined,
-			manager.ProbeIdentificationPair{
-				EBPFFuncName: "tracepoint__syscalls__sys_enter_openat2",
-			},
-			manager.ProbeIdentificationPair{
-				EBPFFuncName: "tracepoint__syscalls__sys_exit_openat2",
-			},
-		)
-	}
-
-	return undefined
 }

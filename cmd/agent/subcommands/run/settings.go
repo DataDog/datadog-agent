@@ -35,5 +35,15 @@ func initRuntimeSettings(serverDebug dogstatsddebug.Component) error {
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingGoroutines()); err != nil {
 		return err
 	}
+	if err := commonsettings.RegisterRuntimeSetting(
+		settings.NewHighAvailabilityRuntimeSetting("ha.enabled", "Enable/disable High Availability support."),
+	); err != nil {
+		return err
+	}
+	if err := commonsettings.RegisterRuntimeSetting(
+		settings.NewHighAvailabilityRuntimeSetting("ha.failover", "Enable/disable redirection of telemetry data to failover region."),
+	); err != nil {
+		return err
+	}
 	return commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"))
 }

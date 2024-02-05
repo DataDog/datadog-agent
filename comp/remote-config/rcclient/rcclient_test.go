@@ -6,13 +6,15 @@
 package rcclient
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -54,8 +56,7 @@ func (m *mockLogLevelRuntimeSettings) Hidden() bool {
 	return true
 }
 
-// nolint: revive
-func applyEmpty(s string, as state.ApplyStatus) {}
+func applyEmpty(_ string, _ state.ApplyStatus) {}
 
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")
@@ -64,7 +65,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	err := settings.RegisterRuntimeSetting(mockSettings)
 	assert.NoError(t, err)
 
-	rc := fxutil.Test[Component](t, fx.Options(Module, log.MockModule))
+	rc := fxutil.Test[Component](t, fx.Options(Module(), logimpl.MockModule()))
 
 	layerStartFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": "debug"}}`)}
 	layerEndFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": ""}}`)}
@@ -72,11 +73,14 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	structRC := rc.(rcClient)
 
-	structRC.client, _ = remote.NewUnverifiedGRPCClient(
-		"test-agent",
-		"9.99.9",
-		[]data.Product{data.ProductAgentConfig},
-		1*time.Hour,
+	ipcAddress, err := config.GetIPCAddress()
+	assert.NoError(t, err)
+
+	structRC.client, _ = client.NewUnverifiedGRPCClient(
+		ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+		client.WithAgent("test-agent", "9.99.9"),
+		client.WithProducts([]data.Product{data.ProductAgentConfig}),
+		client.WithPollInterval(time.Hour),
 	)
 
 	// -----------------
@@ -129,4 +133,49 @@ func TestAgentConfigCallback(t *testing.T) {
 	}, applyEmpty)
 	assert.Equal(t, "debug", config.Datadog.Get("log_level"))
 	assert.Equal(t, model.SourceCLI, config.Datadog.GetSource("log_level"))
+}
+
+func TestStatusOuput(t *testing.T) {
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		logimpl.MockModule(),
+	))
+
+	provides, err := newRemoteConfigClient(deps)
+	assert.NoError(t, err)
+
+	headerProvider := provides.StatusProvider.Provider
+
+	tests := []struct {
+		name       string
+		assertFunc func(t *testing.T)
+	}{
+		{"JSON", func(t *testing.T) {
+			stats := make(map[string]interface{})
+			headerProvider.JSON(false, stats)
+
+			assert.NotEmpty(t, stats)
+		}},
+		{"Text", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := headerProvider.Text(false, b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+		{"HTML", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := headerProvider.HTML(false, b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.assertFunc(t)
+		})
+	}
 }

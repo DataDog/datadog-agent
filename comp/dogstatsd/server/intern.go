@@ -8,6 +8,7 @@ package server
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
@@ -26,6 +27,7 @@ var (
 		"Number of times string interner returned an existing string")
 	tlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
 		"Number of times string interner created a new string object")
+	//nolint:unused // TODO(AML) Fix unused linter
 	tlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
 		"Number of times string interner was created")
 	tlmSIRStrBytes = telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
@@ -36,6 +38,17 @@ var (
 // stringInterner is a string cache providing a longer life for strings,
 // helping to avoid GC runs because they're re-used many times instead of
 // created every time.
+//
+// The current interning strategy is fairly simple, but can require manual
+// adjustments of the `maxSize` to improve performance, which is not ideal.
+
+// However the current strategy works well enough, and there is an
+// accepted go proposal to offer an "interning" mechanism from the
+// go runtime directly.
+
+// Once this is available, the interner design should be re-visited to
+// take advantage of the new "Unique" api that is proposed below.
+// ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
 	strings map[string]string
 	maxSize int
@@ -61,7 +74,7 @@ func newStringInterner(maxSize int, internerID int) *stringInterner {
 		id:      fmt.Sprintf("interner_%d", internerID),
 		maxSize: maxSize,
 		telemetry: siTelemetry{
-			enabled: utils.IsTelemetryEnabled(),
+			enabled: utils.IsTelemetryEnabled(config.Datadog),
 		},
 	}
 

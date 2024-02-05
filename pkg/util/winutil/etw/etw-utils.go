@@ -3,22 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && npm
+//go:build windows
 
 package etw
 
 import (
 	"bytes"
 	"fmt"
-	"net/netip"
 	"reflect"
 	"strconv"
 	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 /*
@@ -175,7 +172,7 @@ func GoBytes(data unsafe.Pointer, len int) []byte {
 	// then built-in method
 
 	var slice []byte
-	sliceHdr := (*reflect.SliceHeader)((unsafe.Pointer(&slice)))
+	sliceHdr := (*reflect.SliceHeader)((unsafe.Pointer(&slice))) //nolint:staticcheck // TODO (WINA) fix reflect.SliceHeader has been deprecated: Use unsafe.Slice or unsafe.SliceData instead
 	sliceHdr.Cap = int(len)
 	sliceHdr.Len = int(len)
 	sliceHdr.Data = uintptr(data)
@@ -293,37 +290,4 @@ func skipASCIIString(data []byte, offset int) (nextOffset int, valFound bool, fo
 	}
 
 	return (offset + termZeroIdx + 1), true, (offset + termZeroIdx + 1)
-}
-
-func ip4format(ip [16]uint8) string {
-	ipObj := netip.AddrFrom4(*(*[4]byte)(ip[:4]))
-	return ipObj.String()
-}
-
-func ip6format(ip [16]uint8) string {
-	ipObj := netip.AddrFrom16(ip)
-	return ipObj.String()
-}
-
-func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) {
-	if local {
-		return tup.LocalAddr, tup.LocalPort
-	}
-	return tup.RemoteAddr, tup.RemotePort
-}
-
-// IPFormat takes a binary ip representation and returns a string type
-func IPFormat(tup driver.ConnTupleType, local bool) string {
-	ip, port := ipAndPortFromTup(tup, local)
-
-	if tup.Family == 2 {
-		// IPv4
-		return fmt.Sprintf("%v:%v", ip4format(ip), port)
-	} else if tup.Family == 23 {
-		// IPv6
-		return fmt.Sprintf("[%v]:%v", ip6format(ip), port)
-	} else {
-		// everything else
-		return "<UNKNOWN>"
-	}
 }

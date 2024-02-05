@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package pipeline
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -35,7 +37,8 @@ func NewPipeline(outputChan chan *message.Payload,
 	destinationsContext *client.DestinationsContext,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
-	pipelineID int) *Pipeline {
+	pipelineID int,
+	hostname hostnameinterface.Component) *Pipeline {
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless)
 
@@ -60,7 +63,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver)
+	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname)
 
 	return &Pipeline{
 		InputChan: inputChan,
@@ -116,6 +119,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 	return client.NewDestinations(reliable, additionals)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		encoder := sender.IdentityContentType

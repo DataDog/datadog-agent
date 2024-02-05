@@ -11,29 +11,30 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const sysMetricsQuery11 = `SELECT 
+const sysMetricsQuery11 = `SELECT
 	metric_name,
-	value, 
+	value,
 	metric_unit
   FROM %s s`
 
-const sysMetricsQuery12 = `SELECT 
+const sysMetricsQuery12 = `SELECT
 	metric_name,
-	value, 
-	metric_unit, 
-	name pdb_name 
-  FROM %s s, v$containers c 
+	value,
+	metric_unit,
+	name pdb_name
+  FROM %s s, v$containers c
   WHERE s.con_id = c.con_id(+)`
 
 const (
+	//nolint:revive // TODO(DBM) Fix revive linter
 	Count int = 0
 )
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type SysmetricsRowDB struct {
 	MetricName string         `db:"METRIC_NAME"`
 	Value      float64        `db:"VALUE"`
@@ -46,6 +47,7 @@ type sysMetricsDefinition struct {
 	DBM      bool
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Average Active Sessions":                       {DDmetric: "active_sessions"},
 	"Average Synchronous Single-Block Read Latency": {DDmetric: "avg_synchronous_single_block_read_latency", DBM: true},
@@ -115,7 +117,7 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"User Rollbacks Per Sec":                        {DDmetric: "user_rollbacks"},
 }
 
-func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]bool) {
+func (c *Check) sendMetric(r SysmetricsRowDB, seen map[string]bool, n *int64) {
 	if metric, ok := SYSMETRICS_COLS[r.MetricName]; ok {
 		value := r.Value
 		if r.MetricUnit == "CentiSeconds Per Second" {
@@ -123,16 +125,20 @@ func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]b
 		}
 		if !SYSMETRICS_COLS[r.MetricName].DBM || SYSMETRICS_COLS[r.MetricName].DBM && c.dbmEnabled {
 			log.Debugf("%s %s: %f", c.logPrompt, metric.DDmetric, value)
-			s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, "", appendPDBTag(c.tags, r.PdbName))
+			sendMetric(c, gauge, fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, appendPDBTag(c.tags, r.PdbName))
 			seen[r.MetricName] = true
+			*n++
 		}
 	}
 }
 
-func (c *Check) SysMetrics() error {
+// sysMetrics emits sysmetrics metrics
+// It returns the number of metrics emitted and any errors encountered.
+func (c *Check) sysMetrics() (int64, error) {
+	var n int64
 	sender, err := c.GetSender()
 	if err != nil {
-		return fmt.Errorf("failed to initialize sender: %w", err)
+		return n, fmt.Errorf("failed to initialize sender: %w", err)
 	}
 
 	metricRows := []SysmetricsRowDB{}
@@ -147,26 +153,24 @@ func (c *Check) SysMetrics() error {
 	if isDbVersionGreaterOrEqualThan(c, "18") {
 		err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$con_sysmetric"))
 		if err != nil {
-			return fmt.Errorf("failed to collect container sysmetrics: %w", err)
+			return n, fmt.Errorf("failed to collect container sysmetrics: %w", err)
 		}
 	}
 
 	seenInContainerMetrics := make(map[string]bool)
 	for _, r := range metricRows {
-		c.sendMetric(sender, r, seenInContainerMetrics)
+		c.sendMetric(r, seenInContainerMetrics, &n)
 	}
 
 	seenInGlobalMetrics := make(map[string]bool)
-	err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
+	err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$sysmetric")+" ORDER BY begin_time DESC, metric_name ASC")
 	if err != nil {
-		return fmt.Errorf("failed to collect sysmetrics: %w", err)
+		return 0, fmt.Errorf("failed to collect sysmetrics: %w", err)
 	}
 	for _, r := range metricRows {
 		if _, ok := seenInContainerMetrics[r.MetricName]; !ok {
-			if _, ok := seenInGlobalMetrics[r.MetricName]; ok {
-				break
-			} else {
-				c.sendMetric(sender, r, seenInGlobalMetrics)
+			if _, ok := seenInGlobalMetrics[r.MetricName]; !ok {
+				c.sendMetric(r, seenInGlobalMetrics, &n)
 			}
 		}
 	}
@@ -174,16 +178,16 @@ func (c *Check) SysMetrics() error {
 	var overAllocationCount float64
 	err = getWrapper(c, &overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
 	if err != nil {
-		return fmt.Errorf("failed to get PGA over allocation count: %w", err)
+		return n, fmt.Errorf("failed to get PGA over allocation count: %w", err)
 	}
 	if c.previousPGAOverAllocationCount.valid {
 		v := overAllocationCount - c.previousPGAOverAllocationCount.value
-		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v, "", c.tags)
+		sendMetricWithDefaultTags(c, gauge, fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v)
 		c.previousPGAOverAllocationCount.value = overAllocationCount
 	} else {
 		c.previousPGAOverAllocationCount = pgaOverAllocationCount{value: overAllocationCount, valid: true}
 	}
 
 	sender.Commit()
-	return nil
+	return n, nil
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -29,7 +29,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, opts)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,9 +104,13 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 }
 
 func TestHardLinkWithERPC(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	runHardlinkTests(t, testOpts{disableMapDentryResolution: true})
 }
 
 func TestHardLinkWithMaps(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	runHardlinkTests(t, testOpts{disableERPCDentryResolution: true})
 }

@@ -77,7 +77,7 @@ int __attribute__((always_inline)) trace__mnt_want_write_file(ctx_t *ctx) {
 
     struct file *file = (struct file *)CTX_PARM1(ctx);
     struct vfsmount *mnt;
-    bpf_probe_read(&mnt, sizeof(mnt), &file->f_path.mnt);
+    bpf_probe_read(&mnt, sizeof(mnt), &get_file_f_path_addr(file)->mnt);
 
     switch (syscall->type) {
     case EVENT_CHOWN:

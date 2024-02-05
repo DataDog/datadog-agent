@@ -1,6 +1,9 @@
 ---
 .integration_tests_windows_base:
   stage: integration_test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   before_script:

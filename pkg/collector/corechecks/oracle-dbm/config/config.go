@@ -5,6 +5,7 @@
 
 //go:build oracle
 
+//nolint:revive // TODO(DBM) Fix revive linter
 package config
 
 import (
@@ -25,6 +26,7 @@ type InitConfig struct {
 	CustomQueries         []CustomQuery `yaml:"custom_queries"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type QuerySamplesConfig struct {
 	Enabled            bool `yaml:"enabled"`
 	IncludeAllSessions bool `yaml:"include_all_sessions"`
@@ -44,14 +46,17 @@ type QueryMetricsConfig struct {
 	MaxRunTime         int64                       `yaml:"max_run_time"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type SysMetricsConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type TablespacesConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
@@ -60,16 +65,19 @@ type inactiveSessionsConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type SharedMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type ExecutionPlansConfig struct {
 	Enabled              bool `yaml:"enabled"`
 	PlanCacheRetention   int  `yaml:"plan_cache_retention"`
 	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type AgentSQLTrace struct {
 	Enabled    bool `yaml:"enabled"`
 	Binds      bool `yaml:"binds"`
@@ -77,11 +85,13 @@ type AgentSQLTrace struct {
 	TracedRuns int  `yaml:"traced_runs"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type CustomQueryColumns struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type CustomQuery struct {
 	MetricPrefix string               `yaml:"metric_prefix"`
 	Pdb          string               `yaml:"pdb"`
@@ -95,6 +105,10 @@ type asmConfig struct {
 }
 
 type resourceManagerConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type locksConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
@@ -114,6 +128,7 @@ type InstanceConfig struct {
 	LogUnobfuscatedQueries             bool                   `yaml:"log_unobfuscated_queries"`
 	ObfuscatorOptions                  obfuscate.SQLConfig    `yaml:"obfuscator_options"`
 	InstantClient                      bool                   `yaml:"instant_client"`
+	OracleClient                       bool                   `yaml:"oracle_client"`
 	ReportedHostname                   string                 `yaml:"reported_hostname"`
 	QuerySamples                       QuerySamplesConfig     `yaml:"query_samples"`
 	QueryMetrics                       QueryMetricsConfig     `yaml:"query_metrics"`
@@ -130,6 +145,7 @@ type InstanceConfig struct {
 	DatabaseInstanceCollectionInterval uint64                 `yaml:"database_instance_collection_interval"`
 	Asm                                asmConfig              `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
+	Locks                              locksConfig            `yaml:"locks"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -157,6 +173,7 @@ func GetDefaultObfuscatorOptions() obfuscate.SQLConfig {
 		ObfuscationMode:               obfuscate.ObfuscateAndNormalize,
 		RemoveSpaceBetweenParentheses: true,
 		KeepNull:                      true,
+		KeepTrailingSemicolon:         true,
 	}
 }
 
@@ -188,6 +205,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.InactiveSessions.Enabled = true
 	instance.Asm.Enabled = true
 	instance.ResourceManager.Enabled = true
+	instance.Locks.Enabled = true
 
 	instance.UseGlobalCustomQueries = "true"
 
@@ -215,6 +233,16 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		} else {
 			instance.Port = 1521
 		}
+	}
+
+	/*
+	 * `instant_client` is deprecated but still supported to avoid a breaking change
+	 * `oracle_client` is a more appropriate naming because besides Instant Client
+	 * the Agent can be used with an Oracle software home.
+	 */
+	if instance.InstantClient {
+		instance.OracleClient = true
+		log.Warn("The config parameter instance_client is deprecated and will be removed in future versions. Please use oracle_client instead.")
 	}
 
 	c := &CheckConfig{

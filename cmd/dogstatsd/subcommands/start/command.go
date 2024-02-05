@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package start
 
 import (
@@ -16,31 +17,44 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+
+	//nolint:revive // TODO(AML) Fix revive linter
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/metadata"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgmetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 type CLIParams struct {
@@ -50,7 +64,7 @@ type CLIParams struct {
 type DogstatsdComponents struct {
 	DogstatsdServer dogstatsdServer.Component
 	DogstatsdStats  *http.Server
-	MetaScheduler   *pkgmetadata.Scheduler
+	WorkloadMeta    workloadmeta.Component
 }
 
 const (
@@ -94,43 +108,83 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Supply(config.NewParams(
 			defaultConfPath,
 			config.WithConfFilePath(cliParams.confPath),
-			config.WithConfigLoadSecrets(true),
 			config.WithConfigMissingOK(true),
 			config.WithConfigName("dogstatsd")),
 		),
+		fx.Supply(secrets.NewEnabledParams()),
 		fx.Supply(logComponent.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
-		config.Module,
-		logComponent.Module,
+		config.Module(),
+		logComponent.Module(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
-		dogstatsd.Bundle,
-		forwarder.Bundle,
+		dogstatsd.Bundle(),
+		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParams),
-		demultiplexer.Module,
+		// workloadmeta setup
+		collectors.GetCatalog(),
+		fx.Provide(func(config config.Component) workloadmeta.Params {
+			catalog := workloadmeta.NodeAgent
+			instantiate := config.GetBool("dogstatsd_origin_detection")
+
+			return workloadmeta.Params{
+				AgentType:  catalog,
+				InitHelper: common.GetWorkloadmetaInit(),
+				NoInstance: !instantiate,
+			}
+		}),
+		workloadmeta.OptionalModule(),
+		demultiplexerimpl.Module(),
+		secretsimpl.Module(),
+		orchestratorForwarderImpl.Module(),
+		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
+		tagger.OptionalModule(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
-		fx.Provide(func(config config.Component) demultiplexer.Params {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.UseOrchestratorForwarder = false
-			opts.UseEventPlatformForwarder = false
-			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return demultiplexer.Params{Options: opts, ContinueOnMissingHostname: true}
+		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
+			params := demultiplexerimpl.NewDefaultParams()
+			params.UseEventPlatformForwarder = false
+			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+			params.ContinueOnMissingHostname = true
+			return params
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
-		metadata.Bundle,
+		metadatarunnerimpl.Module(),
+		resourcesimpl.Module(),
+		hostimpl.Module(),
+		inventoryagentimpl.Module(),
+		// sysprobeconfig is optionally required by inventoryagent
+		sysprobeconfig.NoneModule(),
+		inventoryhostimpl.Module(),
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, demultiplexer demultiplexer.Component, metadataRunner runner.Component, hostComp host.Component) error { //nolint:revive // TODO fix revive unusued-parameter
+func start(
+	cliParams *CLIParams,
+	config config.Component,
+	log log.Component,
+	params *Params,
+	server dogstatsdServer.Component,
+	_ defaultforwarder.Component,
+	wmeta optional.Option[workloadmeta.Component],
+	_ optional.Option[tagger.Component],
+	demultiplexer demultiplexer.Component,
+	_ runner.Component,
+	_ resources.Component,
+	_ host.Component,
+	_ inventoryagent.Component,
+	_ inventoryhost.Component,
+) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
+	w, _ := wmeta.Get()
 	components := &DogstatsdComponents{
 		DogstatsdServer: server,
+		WorkloadMeta:    w,
 	}
 	defer StopAgent(cancel, components)
 
@@ -214,23 +268,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	// setup the pkgmetadata collector
-	components.MetaScheduler = pkgmetadata.NewScheduler(demultiplexer) //nolint:staticcheck
-	if err = pkgmetadata.SetupInventories(components.MetaScheduler, nil); err != nil {
-		return
-	}
-
-	// container tagging initialisation if origin detection is on
-	if config.GetBool("dogstatsd_origin_detection") {
-		store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-		store.Start(ctx)
-
-		tagger.SetDefaultTagger(local.NewTagger(store))
-		if err := tagger.Init(ctx); err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
-	}
-
 	err = components.DogstatsdServer.Start(demultiplexer)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
@@ -273,11 +310,6 @@ func StopAgent(cancel context.CancelFunc, components *DogstatsdComponents) {
 
 	// gracefully shut down any component
 	cancel()
-
-	// stop metaScheduler and statsd if they are instantiated
-	if components.MetaScheduler != nil {
-		components.MetaScheduler.Stop()
-	}
 
 	if components.DogstatsdStats != nil {
 		if err := components.DogstatsdStats.Shutdown(context.Background()); err != nil {

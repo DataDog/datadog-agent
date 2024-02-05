@@ -19,18 +19,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
+	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	fakeworkloadmeta "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 func TestProcessEvents(t *testing.T) {
@@ -103,6 +106,9 @@ func TestProcessEvents(t *testing.T) {
 						"7-rc",
 						"7.41.1-rc.1",
 					},
+					RepoDigests: []string{
+						"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					},
 					InUse:              false,
 					GeneratedAt:        timestamppb.New(sbomGenerationTime),
 					GenerationDuration: durationpb.New(10 * time.Second),
@@ -138,6 +144,9 @@ func TestProcessEvents(t *testing.T) {
 					RepoTags: []string{
 						"7-rc",
 						"7.41.1-rc.1",
+					},
+					RepoDigests: []string{
+						"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 					},
 					InUse:              false,
 					GeneratedAt:        timestamppb.New(sbomGenerationTime),
@@ -175,6 +184,9 @@ func TestProcessEvents(t *testing.T) {
 						"7-rc",
 						"7.41.1-rc.1",
 					},
+					RepoDigests: []string{
+						"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					},
 					InUse:              false,
 					GeneratedAt:        timestamppb.New(sbomGenerationTime),
 					GenerationDuration: durationpb.New(10 * time.Second),
@@ -205,7 +217,8 @@ func TestProcessEvents(t *testing.T) {
 			// this test, we define an image with 2 repo tags: one for the gcr.io
 			// registry and another for the public.ecr.aws registry, but there's only
 			// one repo digest.
-			// We expect to send 2 events, one for each registry.
+			// We expect to send only one event as the backend-end will drop
+			// sbom without any repo digest anyhow.
 			name: "repo tag with no matching repo digest",
 			inputEvents: []workloadmeta.Event{
 				{
@@ -259,39 +272,8 @@ func TestProcessEvents(t *testing.T) {
 					RepoTags: []string{
 						"7-rc",
 					},
-					InUse:              false,
-					GeneratedAt:        timestamppb.New(sbomGenerationTime),
-					GenerationDuration: durationpb.New(10 * time.Second),
-					Sbom: &model.SBOMEntity_Cyclonedx{
-						Cyclonedx: &cyclonedx_v1_4.Bom{
-							SpecVersion: "1.4",
-							Version:     pointer.Ptr(int32(42)),
-							Components: []*cyclonedx_v1_4.Component{
-								{
-									Name: "Foo",
-								},
-								{
-									Name: "Bar",
-								},
-								{
-									Name: "Baz",
-								},
-							},
-						},
-					},
-					Status: model.SBOMStatus_SUCCESS,
-				},
-				{
-					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-					Id:   "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					DdTags: []string{
-						"image_id:gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-						"image_name:gcr.io/datadoghq/agent",
-						"short_image:agent",
-						"image_tag:7-rc",
-					},
-					RepoTags: []string{
-						"7-rc",
+					RepoDigests: []string{
+						"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 					},
 					InUse:              false,
 					GeneratedAt:        timestamppb.New(sbomGenerationTime),
@@ -369,6 +351,9 @@ func TestProcessEvents(t *testing.T) {
 					RepoTags: []string{
 						"7-rc",
 					},
+					RepoDigests: []string{
+						"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					},
 					InUse:              false,
 					GeneratedAt:        timestamppb.New(sbomGenerationTime),
 					GenerationDuration: durationpb.New(10 * time.Second),
@@ -391,6 +376,9 @@ func TestProcessEvents(t *testing.T) {
 					},
 					RepoTags: []string{
 						"7-rc",
+					},
+					RepoDigests: []string{
+						"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 					},
 					InUse:              true,
 					GeneratedAt:        timestamppb.New(sbomGenerationTime),
@@ -449,6 +437,9 @@ func TestProcessEvents(t *testing.T) {
 						"7-rc",
 						"7.41.1-rc.1",
 					},
+					RepoDigests: []string{
+						"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					},
 					InUse:  false,
 					Status: model.SBOMStatus_PENDING,
 				},
@@ -466,6 +457,9 @@ func TestProcessEvents(t *testing.T) {
 						"7-rc",
 						"7.41.1-rc.1",
 					},
+					RepoDigests: []string{
+						"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					},
 					InUse:  false,
 					Status: model.SBOMStatus_PENDING,
 				},
@@ -482,6 +476,9 @@ func TestProcessEvents(t *testing.T) {
 					RepoTags: []string{
 						"7-rc",
 						"7.41.1-rc.1",
+					},
+					RepoDigests: []string{
+						"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 					},
 					InUse:  false,
 					Status: model.SBOMStatus_PENDING,
@@ -533,6 +530,9 @@ func TestProcessEvents(t *testing.T) {
 						"7-rc",
 						"7.41.1-rc.1",
 					},
+					RepoDigests: []string{
+						"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					},
 					InUse: false,
 					Sbom: &model.SBOMEntity_Error{
 						Error: "error",
@@ -553,6 +553,9 @@ func TestProcessEvents(t *testing.T) {
 						"7-rc",
 						"7.41.1-rc.1",
 					},
+					RepoDigests: []string{
+						"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					},
 					InUse: false,
 					Sbom: &model.SBOMEntity_Error{
 						Error: "error",
@@ -572,6 +575,9 @@ func TestProcessEvents(t *testing.T) {
 					RepoTags: []string{
 						"7-rc",
 						"7.41.1-rc.1",
+					},
+					RepoDigests: []string{
+						"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 					},
 					InUse: false,
 					Sbom: &model.SBOMEntity_Error{
@@ -596,7 +602,13 @@ func TestProcessEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var SBOMsSent = atomic.NewInt32(0)
 
-			fakeworkloadmeta := fakeworkloadmeta.NewStore()
+			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+				logimpl.MockModule(),
+				configcomp.MockModule(),
+				fx.Supply(context.Background()),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2(),
+			))
 
 			sender := mocksender.NewMockSender("")
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
@@ -605,7 +617,7 @@ func TestProcessEvents(t *testing.T) {
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(fakeworkloadmeta, sender, 1, 50*time.Millisecond, false, time.Second)
+			p, err := newProcessor(workloadmetaStore, sender, 1, 50*time.Millisecond, false, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -613,9 +625,9 @@ func TestProcessEvents(t *testing.T) {
 			for _, ev := range test.inputEvents {
 				switch ev.Type {
 				case workloadmeta.EventTypeSet:
-					fakeworkloadmeta.Set(ev.Entity)
+					workloadmetaStore.Set(ev.Entity)
 				case workloadmeta.EventTypeUnset:
-					fakeworkloadmeta.Unset(ev.Entity)
+					workloadmetaStore.Unset(ev.Entity)
 				}
 			}
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -24,12 +24,14 @@ import (
 )
 
 func TestRmdir(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rmdir.file.path in ["{{.Root}}/test-rmdir", "{{.Root}}/test-unlink-rmdir"] && rmdir.file.uid == 0 && rmdir.file.gid == 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +60,7 @@ func TestRmdir(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
+			assertInode(t, event.Rmdir.File.Inode, inode)
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
@@ -88,7 +90,7 @@ func TestRmdir(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
+			assertInode(t, event.Rmdir.File.Inode, inode)
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
@@ -99,6 +101,8 @@ func TestRmdir(t *testing.T) {
 	})
 
 	t.Run("unlinkat-io_uring", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		testDir, _, err := test.Path("test-unlink-rmdir")
 		if err != nil {
 			t.Fatal(err)
@@ -165,12 +169,14 @@ func TestRmdir(t *testing.T) {
 }
 
 func TestRmdirInvalidate(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rmdir.file.path =~ "{{.Root}}/test-rmdir-*"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

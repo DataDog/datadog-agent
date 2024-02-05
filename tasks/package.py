@@ -1,10 +1,9 @@
 import glob
-import os
 
 from invoke import task
 from invoke.exceptions import Exit
 
-from .libs.common.color import color_message
+from tasks.libs.common.color import color_message
 
 
 def get_package_path(glob_pattern):
@@ -17,12 +16,26 @@ def get_package_path(glob_pattern):
     return package_paths[0]
 
 
+def _get_deb_uncompressed_size(ctx, package):
+    # the size returned by dpkg is a number of bytes divided by 1024
+    # so we multiply it back to get the same unit as RPM or stat
+    return int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs').stdout) * 1024
+
+
+def _get_rpm_uncompressed_size(ctx, package):
+    return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs').stdout)
+
+
 @task
-def compare_size(_, new_package, stable_package, package_type, last_stable, threshold):
+def compare_size(ctx, new_package, stable_package, package_type, last_stable, threshold):
     mb = 1000000
 
-    new_package_size = os.path.getsize(get_package_path(new_package))
-    stable_package_size = os.path.getsize(get_package_path(stable_package))
+    if package_type.endswith('deb'):
+        new_package_size = _get_deb_uncompressed_size(ctx, get_package_path(new_package))
+        stable_package_size = _get_deb_uncompressed_size(ctx, get_package_path(stable_package))
+    else:
+        new_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(new_package))
+        stable_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(stable_package))
 
     threshold = int(threshold)
 

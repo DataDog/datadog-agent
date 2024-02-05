@@ -12,19 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
-
-// FieldHandlers defines a field handlers
-type FieldHandlers struct {
-	resolvers *resolvers.Resolvers
-}
-
-// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
-func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event, e *model.BaseEvent) int {
-	return int(fh.ResolveEventTime(ev).UnixNano())
-}
 
 func bestGuessServiceTag(serviceValues []string) string {
 	if len(serviceValues) == 0 {
@@ -51,13 +40,8 @@ func bestGuessServiceTag(serviceValues []string) string {
 	return serviceValues[0]
 }
 
-// GetProcessService returns the service tag based on the process context
-func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
-	}
-
+// getProcessService returns the service tag based on the process context
+func getProcessService(entry *model.ProcessCacheEntry) string {
 	var serviceValues []string
 
 	// first search in the process context itself
@@ -83,77 +67,4 @@ func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
 	}
 
 	return bestGuessServiceTag(serviceValues)
-}
-
-// ResolveContainerID resolves the container ID of the event
-func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
-	if len(e.ID) == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.ID = entry.ContainerID
-		}
-	}
-	return e.ID
-}
-
-// ResolveContainerCreatedAt resolves the container creation time of the event
-func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
-	if e.CreatedAt == 0 {
-		if containerContext, _ := fh.ResolveContainerContext(ev); containerContext != nil {
-			e.CreatedAt = containerContext.CreatedAt
-		}
-	}
-	return int(e.CreatedAt)
-}
-
-// ResolveContainerTags resolves the container tags of the event
-func (fh *FieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
-	if len(e.Tags) == 0 && e.ID != "" {
-		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
-	}
-	return e.Tags
-}
-
-// ResolveProcessCreatedAt resolves process creation time
-func (fh *FieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Process) int {
-	return int(e.ExecTime.UnixNano())
-}
-
-// ResolveK8SUsername resolves the k8s username of the event
-func (fh *FieldHandlers) ResolveK8SUsername(_ *model.Event, evtCtx *model.UserSessionContext) string {
-	if !evtCtx.Resolved {
-		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
-			*evtCtx = *ctx
-		}
-	}
-	return evtCtx.K8SUsername
-}
-
-// ResolveK8SUID resolves the k8s UID of the event
-func (fh *FieldHandlers) ResolveK8SUID(_ *model.Event, evtCtx *model.UserSessionContext) string {
-	if !evtCtx.Resolved {
-		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
-			*evtCtx = *ctx
-		}
-	}
-	return evtCtx.K8SUID
-}
-
-// ResolveK8SGroups resolves the k8s groups of the event
-func (fh *FieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.UserSessionContext) []string {
-	if !evtCtx.Resolved {
-		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
-			*evtCtx = *ctx
-		}
-	}
-	return evtCtx.K8SGroups
-}
-
-// ResolveK8SExtra resolves the k8s extra of the event
-func (fh *FieldHandlers) ResolveK8SExtra(_ *model.Event, evtCtx *model.UserSessionContext) map[string][]string {
-	if !evtCtx.Resolved {
-		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
-			*evtCtx = *ctx
-		}
-	}
-	return evtCtx.K8SExtra
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -22,6 +22,8 @@ import (
 )
 
 func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -29,7 +31,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -49,7 +51,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
 		activityDumpLoadControllerTimeout:   time.Minute,
 	}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, opts)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,6 +87,8 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 }
 
 func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -92,7 +96,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -100,7 +104,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -110,7 +114,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +149,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		}
 		t.Run(testName, func(t *testing.T) {
 			// add all event types to the dump
-			test.addAllEventTypesOnDump(dockerInstance, dump, syscallTester)
+			test.addAllEventTypesOnDump(dockerInstance, syscallTester)
 			time.Sleep(time.Second * 3)
 			// trigger reducer
 			test.triggerLoadControllerReducer(dockerInstance, dump)
@@ -173,6 +177,8 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 }
 
 func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -180,7 +186,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -188,7 +194,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -198,7 +204,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

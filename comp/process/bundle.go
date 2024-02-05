@@ -12,11 +12,13 @@
 package process
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/podcheck/podcheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
@@ -32,22 +34,25 @@ import (
 // team: processes
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	runnerimpl.Module,
-	submitterimpl.Module,
-	profilerimpl.Module,
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		runnerimpl.Module(),
+		submitterimpl.Module(),
+		profilerimpl.Module(),
 
-	// Checks
-	connectionscheckimpl.Module,
-	containercheckimpl.Module,
-	podcheckimpl.Module,
-	processcheckimpl.Module,
-	processeventscheckimpl.Module,
-	rtcontainercheckimpl.Module,
-	processdiscoverycheckimpl.Module,
+		// Checks
+		connectionscheckimpl.Module(),
+		containercheckimpl.Module(),
+		podcheckimpl.Module(),
+		processcheckimpl.Module(),
+		processeventscheckimpl.Module(),
+		rtcontainercheckimpl.Module(),
+		processdiscoverycheckimpl.Module(),
 
-	hostinfoimpl.Module,
-	expvarsimpl.Module,
-	apiserver.Module,
-	forwarders.Module,
-)
+		hostinfoimpl.Module(),
+		expvarsimpl.Module(),
+		apiserver.Module(),
+		forwardersimpl.Module(),
+		workloadmeta.Module(),
+		tagger.Module())
+}

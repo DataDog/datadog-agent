@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests && linux_bpf
+//go:build linux && functionaltests && linux_bpf
 
 // Package tests holds tests related files
 package tests
@@ -43,6 +43,8 @@ var BTFVsFallbackPossiblyMissingConstants = []string{
 }
 
 func TestOctogonConstants(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if err := initLogger(); err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +60,7 @@ func TestOctogonConstants(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, secconfig, err := genTestConfigs(dir, testOpts{}, "")
+	_, secconfig, err := genTestConfigs(dir, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}

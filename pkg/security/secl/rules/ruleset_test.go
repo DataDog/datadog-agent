@@ -39,11 +39,11 @@ func (rs *RuleSet) setRuleSetTagValue(value eval.RuleSetTagValue) error {
 	return nil
 }
 
-func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) bool {
+func (f *testHandler) RuleMatch(_ *Rule, _ eval.Event) bool {
 	return true
 }
 
-func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string, eventType eval.EventType) {
+func (f *testHandler) EventDiscarderFound(_ *RuleSet, event eval.Event, field string, _ eval.EventType) {
 	values, ok := f.filters[event.GetType()]
 	if !ok {
 		values = make(testFieldValues)

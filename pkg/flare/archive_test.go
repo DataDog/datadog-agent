@@ -24,9 +24,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func TestGoRoutines(t *testing.T) {
@@ -43,7 +43,7 @@ func TestGoRoutines(t *testing.T) {
 }
 
 func TestIncludeSystemProbeConfig(t *testing.T) {
-	common.SetupConfigWithWarnings("./test/datadog-agent.yaml", "")
+	common.SetupConfigForTest("./test/datadog-agent.yaml")
 	// create system-probe.yaml file because it's in .gitignore
 	_, err := os.Create("./test/system-probe.yaml")
 	require.NoError(t, err, "couldn't create system-probe.yaml")
@@ -57,7 +57,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 }
 
 func TestIncludeConfigFiles(t *testing.T) {
-	common.SetupConfigWithWarnings("./test", "")
+	common.SetupConfigForTest("./test")
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
@@ -68,7 +68,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 }
 
 func TestIncludeConfigFilesWithPrefix(t *testing.T) {
-	common.SetupConfigWithWarnings("./test", "")
+	common.SetupConfigForTest("./test")
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getConfigFiles(mock.Fb, searchPaths{"prefix": "./test/confd"})
@@ -103,7 +103,7 @@ func setupIPCAddress(t *testing.T, URL string) *config.MockConfig {
 	require.NoError(t, err)
 
 	confMock := config.Mock(t)
-	confMock.SetWithoutSource("ipc_address", host)
+	confMock.SetWithoutSource("cmd_host", host)
 	confMock.SetWithoutSource("cmd_port", port)
 	confMock.SetWithoutSource("process_config.cmd_port", port)
 

@@ -17,17 +17,17 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var (
@@ -73,7 +73,7 @@ type processCache struct {
 // Provider provides the metrics related to data collected from the `/metrics/cadvisor` Kubelet endpoint
 type Provider struct {
 	filter         *containers.Filter
-	store          workloadmeta.Store
+	store          workloadmeta.Component
 	podUtils       *common.PodUtils
 	fsUsageBytes   map[string]*processCache
 	memUsageBytes  map[string]*processCache
@@ -82,7 +82,7 @@ type Provider struct {
 }
 
 // NewProvider creates and returns a new Provider, configured based on the values passed in.
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store, podUtils *common.PodUtils) (*Provider, error) {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, podUtils *common.PodUtils) (*Provider, error) {
 	// clone instance configuration so we can set our default metrics
 	cadvisorConfig := *config
 

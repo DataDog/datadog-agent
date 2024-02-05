@@ -27,6 +27,7 @@ import (
 	"github.com/urfave/negroni"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -60,7 +61,7 @@ func StopGUIServer() {
 }
 
 // StartGUIServer creates the router, starts the HTTP server & generates the authentication token for access
-func StartGUIServer(port string, flare flare.Component) error {
+func StartGUIServer(port string, flare flare.Component, statusComponent status.Component) error {
 	// Set start time...
 	startTimestamp = time.Now().Unix()
 
@@ -78,7 +79,7 @@ func StartGUIServer(port string, flare flare.Component) error {
 
 	// Set up handlers for the API
 	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
-	agentHandler(agentRouter, flare)
+	agentHandler(agentRouter, flare, statusComponent)
 	checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
 	checkHandler(checkRouter)
 
@@ -119,7 +120,7 @@ func createCSRFToken() error {
 	return nil
 }
 
-func generateIndex(w http.ResponseWriter, r *http.Request) {
+func generateIndex(w http.ResponseWriter, _ *http.Request) {
 	data, err := viewsFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -138,7 +139,7 @@ func generateIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
+func generateAuthEndpoint(w http.ResponseWriter, _ *http.Request) {
 	data, err := viewsFS.ReadFile("views/templates/auth.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

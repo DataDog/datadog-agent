@@ -13,7 +13,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/gopsutil/cpu"
+	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -36,6 +36,7 @@ const (
 	configScrubArgs            = configPrefix + "scrub_args"
 	configStripProcArgs        = configPrefix + "strip_proc_arguments"
 	configDisallowList         = configPrefix + "blacklist_patterns"
+	configIgnoreZombies        = configPrefix + "ignore_zombie_processes"
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
@@ -46,17 +47,13 @@ func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
 		lookupIdProbe: NewLookupIDProbe(config),
 	}
 
-	if workloadmeta.Enabled(config) {
-		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
-		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
-	}
-
 	return check
 }
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 const (
+	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryHint int32 = 1 << iota // 1
 )
 
@@ -72,6 +69,9 @@ type ProcessCheck struct {
 
 	// disallowList to hide processes
 	disallowList []*regexp.Regexp
+
+	// determine if zombies process will be collected
+	ignoreZombieProcesses bool
 
 	hostInfo                   *HostInfo
 	lastCPUTime                cpu.TimesStat
@@ -103,6 +103,7 @@ type ProcessCheck struct {
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 
+	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe
 
 	extractors []metadata.Extractor
@@ -112,10 +113,12 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
+func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
-	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
+	p.probe = newProcessProbe(p.config,
+		procutil.WithPermission(syscfg.ProcessModuleEnabled),
+		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
 	p.containerProvider = proccontainers.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
@@ -140,13 +143,17 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 
 	p.disallowList = initDisallowList(p.config)
 
+	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
+
 	p.initConnRates()
 
-	if workloadmeta.Enabled(p.config) {
+	if !oneShot && workloadmeta.Enabled(p.config) {
+		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
+		p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
 		err = p.workloadMetaServer.Start()
 		if err != nil {
 			return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
-		} else {
+		} else { //nolint:revive // TODO(PROC) Fix revive linter
 			p.extractors = append(p.extractors, p.workloadMetaExtractor)
 		}
 	}
@@ -276,7 +283,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	p.checkCount++
 
 	connsRates := p.getLastConnRates()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -429,12 +436,14 @@ func fmtProcesses(
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connRates ProcessConnRates,
+	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe,
+	zombiesIgnored bool,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
 	for _, fp := range procs {
-		if skipProcess(disallowList, fp, lastProcs) {
+		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
 			continue
 		}
 
@@ -578,6 +587,7 @@ func skipProcess(
 	disallowList []*regexp.Regexp,
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
+	zombiesIgnored bool,
 ) bool {
 	cl := fp.Cmdline
 	if len(cl) == 0 {
@@ -590,6 +600,11 @@ func skipProcess(
 	if _, ok := lastProcs[fp.Pid]; !ok {
 		// Skipping any processes that didn't exist in the previous run.
 		// This means short-lived processes (<2s) will never be captured.
+		return true
+	}
+	// Skipping zombie processes (defined in docs as Status = "Z") if the config
+	// for skipping zombie processes is on.
+	if zombiesIgnored && fp.Stats != nil && fp.Stats.Status == "Z" {
 		return true
 	}
 	return false

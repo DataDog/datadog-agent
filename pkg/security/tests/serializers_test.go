@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -38,7 +38,7 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSeriali
 		Expression: `open.file.path == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(tb, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(tb, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSeriali
 		assert.Equal(tb, "open", event.GetType(), "wrong event type")
 	})
 
-	return serializers.NewEventSerializer(workingEvent, test.probe.GetResolvers())
+	return serializers.NewEventSerializer(workingEvent)
 }
 
 func BenchmarkSerializersEasyJson(b *testing.B) {

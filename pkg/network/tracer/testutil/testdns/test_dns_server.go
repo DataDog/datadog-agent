@@ -9,10 +9,13 @@
 package testdns
 
 import (
+	"fmt"
 	"net"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/require"
 )
@@ -28,6 +31,7 @@ const localhostAddr = "127.0.0.1"
 //
 // see server#start to see which domains are handled.
 func GetServerIP(t *testing.T) net.IP {
+	t.Helper()
 	var srv *server
 	serverOnce.Do(func() {
 		srv = newServer()
@@ -124,4 +128,64 @@ func respond(req *dns.Msg, writer dns.ResponseWriter, record string) {
 	}
 	resp.Answer = []dns.RR{rr}
 	_ = writer.WriteMsg(resp)
+}
+
+// SendDNSQueriesOnPort makes a DNS query for every domain provided, on the given serverIP, port, and protocol.
+func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port string, protocol string) (string, int, []*dns.Msg, error) {
+	t.Helper()
+	dnsClient := dns.Client{Net: protocol, Timeout: 3 * time.Second}
+	dnsHost := net.JoinHostPort(serverIP.String(), port)
+	conn, err := dnsClient.Dial(dnsHost)
+	if err != nil {
+		return "", 0, nil, err
+	}
+
+	var clientPort int
+	var clientIP string
+	if protocol == "tcp" {
+		clientPort = conn.Conn.(*net.TCPConn).LocalAddr().(*net.TCPAddr).Port
+		clientIP = conn.Conn.(*net.TCPConn).LocalAddr().(*net.TCPAddr).IP.String()
+	} else { // UDP
+		clientPort = conn.Conn.(*net.UDPConn).LocalAddr().(*net.UDPAddr).Port
+		clientIP = conn.Conn.(*net.UDPConn).LocalAddr().(*net.UDPAddr).IP.String()
+	}
+	var reps []*dns.Msg
+	msg := new(dns.Msg)
+	msg.RecursionDesired = true
+	for _, domain := range domains {
+		msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+		rep, _, _err := dnsClient.ExchangeWithConn(msg, conn)
+		if _err != nil {
+			err = multierror.Append(err, fmt.Errorf("failed sending dns query for domain %s to server %s: %w", domain, serverIP, _err))
+		}
+		reps = append(reps, rep)
+	}
+
+	_ = conn.Close()
+
+	return clientIP, clientPort, reps, err
+}
+
+// SendDNSQueriesAndCheckError is a simple helper that requires no errors to be present when calling SendDNSQueries
+func SendDNSQueriesAndCheckError(
+	t *testing.T,
+	domains []string,
+	serverIP net.IP,
+	protocol string,
+) (string, int, []*dns.Msg) {
+	t.Helper()
+	ip, port, resp, err := SendDNSQueries(t, domains, serverIP, protocol)
+	require.NoError(t, err)
+	return ip, port, resp
+}
+
+// SendDNSQueries is a simple helper that calls SendDNSQueriesOnPort with port 53
+func SendDNSQueries(
+	t *testing.T,
+	domains []string,
+	serverIP net.IP,
+	protocol string,
+) (string, int, []*dns.Msg, error) {
+	t.Helper()
+	return SendDNSQueriesOnPort(t, domains, serverIP, "53", protocol)
 }

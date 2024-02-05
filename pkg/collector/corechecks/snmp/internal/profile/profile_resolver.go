@@ -100,6 +100,9 @@ func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinitio
 	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
 	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
 	targetDefinition.StaticTags = append(targetDefinition.StaticTags, baseDefinition.StaticTags...)
+	if targetDefinition.Metadata == nil {
+		targetDefinition.Metadata = make(profiledefinition.MetadataConfig)
+	}
 	for baseResName, baseResource := range baseDefinition.Metadata {
 		if _, ok := targetDefinition.Metadata[baseResName]; !ok {
 			targetDefinition.Metadata[baseResName] = profiledefinition.NewMetadataResourceConfig()

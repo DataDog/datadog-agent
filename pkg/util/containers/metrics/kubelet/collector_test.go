@@ -8,26 +8,36 @@
 package kubelet
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 )
 
 func TestKubeletCollectorLinux(t *testing.T) {
-	metadataStore := workloadmeta.NewMockStore()
+	metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule(),
+	))
+
 	kubeletMock := mock.NewKubeletMock()
 
 	// POD UID is c84eb7fb-09f2-11ea-abb1-42010a84017a
 	// Has containers kubedns, prometheus-to-sd, sidecar, dnsmasq
 	setStatsSummaryFromFile(t, "./testdata/statsSummaryLinux.json", kubeletMock)
-	metadataStore.SetEntity(&workloadmeta.KubernetesPod{
+	metadataStore.Set(&workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   "c84eb7fb-09f2-11ea-abb1-42010a84017a",
@@ -149,13 +159,18 @@ func TestKubeletCollectorLinux(t *testing.T) {
 }
 
 func TestKubeletCollectorWindows(t *testing.T) {
-	metadataStore := workloadmeta.NewMockStore()
+	metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule(),
+	))
 	kubeletMock := mock.NewKubeletMock()
 
 	// POD UID is 8ddf0e3f-ac6c-4d44-87d7-0bc41f6729ec
 	// Has containers trace-agent, agent, process-agent
 	setStatsSummaryFromFile(t, "./testdata/statsSummaryWindows.json", kubeletMock)
-	metadataStore.SetEntity(&workloadmeta.KubernetesPod{
+	metadataStore.Set(&workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   "8ddf0e3f-ac6c-4d44-87d7-0bc41f6729ec",

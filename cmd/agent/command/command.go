@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 )
 
 const (
@@ -46,8 +46,8 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 // without secrets and logger disabled).
 func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
-		ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
-		LogParams:    log.ForOneShot(LoggerName, "off", true)}
+		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+		LogParams:    logimpl.ForOneShot(LoggerName, "off", true)}
 }
 
 // MakeCommand makes the top-level Cobra command for this app.

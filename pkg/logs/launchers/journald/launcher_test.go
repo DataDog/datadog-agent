@@ -26,12 +26,19 @@ import (
 
 type MockJournal struct{}
 
-func (m *MockJournal) AddMatch(match string) error                { return nil }
-func (m *MockJournal) AddDisjunction() error                      { return nil }
-func (m *MockJournal) SeekTail() error                            { return nil }
-func (m *MockJournal) SeekHead() error                            { return nil }
-func (m *MockJournal) Wait(timeout time.Duration) int             { return 0 }
-func (m *MockJournal) SeekCursor(cursor string) error             { return nil }
+//nolint:revive // TODO(AML) Fix revive linter
+func (m *MockJournal) AddMatch(match string) error { return nil }
+func (m *MockJournal) AddDisjunction() error       { return nil }
+func (m *MockJournal) SeekTail() error             { return nil }
+func (m *MockJournal) SeekHead() error             { return nil }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (m *MockJournal) Wait(timeout time.Duration) int { return 0 }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (m *MockJournal) SeekCursor(cursor string) error { return nil }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) NextSkip(skip uint64) (uint64, error)       { return 0, nil }
 func (m *MockJournal) Close() error                               { return nil }
 func (m *MockJournal) Next() (uint64, error)                      { return 0, nil }
@@ -46,6 +53,7 @@ func (s *MockJournalFactory) NewJournal() (tailer.Journal, error) {
 	return &MockJournal{}, nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
 	return &MockJournal{}, nil
 }

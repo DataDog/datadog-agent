@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -20,6 +20,8 @@ import (
 )
 
 func TestBPFEventLoad(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
 	})
@@ -31,7 +33,7 @@ func TestBPFEventLoad(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,6 +57,8 @@ func TestBPFEventLoad(t *testing.T) {
 }
 
 func TestBPFEventMap(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
 	})
@@ -66,7 +70,7 @@ func TestBPFEventMap(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,6 +94,8 @@ func TestBPFEventMap(t *testing.T) {
 }
 
 func TestBPFCwsMapConstant(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
 	})
@@ -101,7 +107,7 @@ func TestBPFCwsMapConstant(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

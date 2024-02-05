@@ -41,7 +41,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stop,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -49,7 +49,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{stopCmd}
 }
 
-func stop(config config.Component, cliParams *cliParams) error {
+func stop(config config.Component, _ *cliParams) error {
 	// Global Agent configuration
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 

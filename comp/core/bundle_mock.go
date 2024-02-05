@@ -18,7 +18,7 @@ package core
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -27,14 +27,24 @@ import (
 
 // team: agent-shared-components
 
+// MakeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
+func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
+	return fxutil.Bundle(
+		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
+		config.MockModule(),
+		logParams,
+		logger,
+		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
+		sysprobeconfigimpl.MockModule(),
+		telemetry.Module(),
+		hostnameimpl.MockModule(),
+	)
+}
+
 // MockBundle defines the mock fx options for this bundle.
-var MockBundle = fxutil.Bundle(
-	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-	config.MockModule,
-	fx.Supply(log.Params{}),
-	log.MockModule,
-	fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
-	sysprobeconfigimpl.MockModule,
-	telemetry.Module,
-	hostnameimpl.MockModule,
-)
+func MockBundle() fxutil.BundleOptions {
+	return MakeMockBundle(
+		fx.Supply(logimpl.Params{}),
+		logimpl.MockModule(),
+	)
+}

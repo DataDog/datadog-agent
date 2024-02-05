@@ -8,7 +8,7 @@ package run
 import (
 	"context"
 
-	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
@@ -19,7 +19,7 @@ type service struct {
 }
 
 func (s *service) Name() string {
-	return tracecfg.ServiceName
+	return config.ServiceName
 }
 
 func (s *service) Init() error {
@@ -28,5 +28,5 @@ func (s *service) Init() error {
 }
 
 func (s *service) Run(ctx context.Context) error {
-	return runFx(ctx, s.cliParams, s.defaultConfPath)
+	return runTraceAgentProcess(ctx, s.cliParams, s.defaultConfPath)
 }

@@ -7,12 +7,11 @@ package invocationlifecycle
 
 import (
 	"bytes"
-	"encoding/json"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-lambda-go/events"
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -191,7 +191,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromKinesisStreamEvent(event)
 	case trigger.EventBridgeEvent:
-		var event inferredspan.EventBridgeEvent
+		var event events.EventBridgeEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", eventBridge, err)
 			break
@@ -276,7 +276,9 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			endDetails.IsError = true
 		}
 
-		lp.endExecutionSpan(endDetails)
+		spans := make([]*pb.Span, 0, 3)
+		span := lp.endExecutionSpan(endDetails)
+		spans = append(spans, span)
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
@@ -288,17 +290,20 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 					lp.setParentIDForMultipleInferredSpans()
 					span1.AddTagToInferredSpan("http.status_code", statusCode)
 					span1.AddTagToInferredSpan("peer.service", lp.GetServiceName())
-					lp.completeInferredSpan(span1, lp.getInferredSpanStart(), endDetails.IsError)
+					span := lp.completeInferredSpan(span1, lp.getInferredSpanStart(), endDetails.IsError)
+					spans = append(spans, span)
 					log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
 				}
 				span0.AddTagToInferredSpan("http.status_code", statusCode)
 				span0.AddTagToInferredSpan("peer.service", lp.GetServiceName())
-				lp.completeInferredSpan(span0, endDetails.EndTime, endDetails.IsError)
+				span := lp.completeInferredSpan(span0, endDetails.EndTime, endDetails.IsError)
+				spans = append(spans, span)
 				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
 			} else {
 				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
 			}
 		}
+		lp.processTrace(spans)
 	}
 
 	if endDetails.IsError {

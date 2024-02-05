@@ -13,32 +13,31 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
+	"golang.org/x/sys/windows/registry"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
-
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/crashreport"
-	"golang.org/x/sys/windows/registry"
-	yaml "gopkg.in/yaml.v2"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	crashDetectCheckName = "agentcrashdetect"
-	maxStartupWarnings   = 20
-	reportedKey          = `lastReported`
+	// CheckName is the name of the check
+	CheckName          = "agentcrashdetect"
+	maxStartupWarnings = 20
+	reportedKey        = `lastReported`
 )
 
 var (
@@ -60,9 +59,10 @@ var (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newAgentCrashComponent),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAgentCrashComponent))
+}
 
 // WinCrashConfig is the configuration options for this check
 // it is exported so that the yaml parser can read it.
@@ -176,15 +176,15 @@ func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 	instance.tconfig = deps.TConfig.Object()
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			core.RegisterCheck(crashDetectCheckName, func() check.Check {
+			core.RegisterCheck(CheckName, optional.NewOption(func() check.Check {
 				checkInstance := &AgentCrashDetect{
-					CheckBase:   core.NewCheckBase(crashDetectCheckName),
+					CheckBase:   core.NewCheckBase(CheckName),
 					instance:    &WinCrashConfig{},
 					tconfig:     instance.tconfig,
 					probeconfig: deps.SConfig,
 				}
 				return checkInstance
-			})
+			}))
 			return nil
 		},
 	})

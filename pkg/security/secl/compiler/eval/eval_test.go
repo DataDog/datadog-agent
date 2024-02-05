@@ -54,7 +54,7 @@ func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 	return rule, nil
 }
 
-func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) {
+func eval(_ *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) {
 	model := &testModel{}
 
 	ctx := NewContext(event)

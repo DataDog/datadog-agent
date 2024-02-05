@@ -113,6 +113,7 @@ updates:
       - team/agent-platform
       - changelog/no-changelog
       - qa/skip-qa
+      - qa/no-code-change
     milestone: 22
     schedule:
       interval: monthly
@@ -139,6 +140,7 @@ updates:
       - team/agent-e2e-test
       - changelog/no-changelog
       - qa/skip-qa
+      - qa/no-code-change
       - dev/testing
     milestone: 22
     ignore:
@@ -157,47 +159,50 @@ updates:
       - team/agent-e2e-test
       - changelog/no-changelog
       - qa/skip-qa
+      - qa/no-code-change
       - dev/testing
     milestone: 22
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
-  - package-ecosystem: "pip"
-    directory: "/.circleci"
-    labels:
-      - dependencies
-      - python
-      - team/agent-platform
-      - changelog/no-changelog
-      - qa/skip-qa
-      - dev/tooling
-    milestone: 22
-    schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 100
-  - package-ecosystem: "pip"
-    directory: "/test/e2e/cws-tests"
+  - package-ecosystem: pip
+    directory: /test/e2e/cws-tests
     labels:
       - dependencies
       - python
       - team/agent-security
       - changelog/no-changelog
       - qa/skip-qa
+      - qa/no-code-change
       - dev/tooling
     milestone: 22
     schedule:
-      interval: "monthly"
+      interval: monthly
     open-pull-requests-limit: 100
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: docker
+    directory: /test/fakeintake
+    labels:
+      - dependencies
+      - team/agent-e2e-test
+      - changelog/no-changelog
+      - qa/skip-qa
+      - qa/no-code-change
+      - dev/testing
+    milestone: 22
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: github-actions
+    directory: /
     labels:
       - dependencies
       - dependencies-github-actions
       - team/agent-platform
       - changelog/no-changelog
       - qa/skip-qa
+      - qa/no-code-change
       - dev/tooling
     milestone: 22
     schedule:
-      interval: "weekly"
+      interval: weekly
     open-pull-requests-limit: 100

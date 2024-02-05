@@ -20,9 +20,10 @@ import (
 )
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
+}
 
 var _ types.CheckComponent = (*mockCheck)(nil)
 
@@ -37,7 +38,7 @@ func (m *mockCheck) Object() checks.Check {
 func newMock(t testing.TB, params types.MockCheckParams[*checks.ProcessCheck]) types.ProvidesCheck {
 	c := mocks.NewCheck(t)
 	if params.OrchestrateMock == nil {
-		c.On("Init", mock.Anything, mock.Anything).Return(nil).Maybe()
+		c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
 		c.On("Name").Return("process").Maybe()
 		c.On("SupportsRunOptions").Return(false).Maybe()
 		c.On("Realtime").Return(false).Maybe()

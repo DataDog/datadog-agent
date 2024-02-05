@@ -2,6 +2,361 @@
 Release Notes
 =============
 
+.. _Release Notes_7.50.3:
+
+7.50.3 / 6.50.3
+======
+
+.. _Release Notes_7.50.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-01-11
+
+
+.. _Release Notes_7.50.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix incorrect metadata about system-probe being sent to Inventory and Fleet Automation products.
+
+
+.. _Release Notes_7.50.2:
+
+7.50.2 / 6.50.2
+======
+
+.. _Release Notes_7.50.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-01-04
+
+- Please refer to the `7.50.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7502>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.50.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.20.12``.
+
+
+.. _Release Notes_7.50.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The CWS configuration parameter to enable anomaly detection is now working and taken
+  into account by the Agent.
+
+- Fix issue introduced in 7.47 that allowed all users to start/stop the
+  Windows Datadog Agent services. The Windows installer now, as in versions
+  before 7.47, grants this permission explicitly to ddagentuser.
+
+
+.. _Release Notes_7.50.1:
+
+7.50.1 / 6.50.1
+======
+
+.. _Release Notes_7.50.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-12-21
+
+Bug Fixes
+---------
+
+- Fixes a bug introduced in `7.50.0` preventing `DD_TAGS` to be added to `kubernetes_state.*` metrics.
+
+
+.. _Release Notes_7.50.0:
+
+7.50.0 / 6.50.0
+======
+
+.. _Release Notes_7.50.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-12-18
+
+- Please refer to the `7.50.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7500>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.50.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The `win32_event_log check <https://docs.datadoghq.com/integrations/win32_event_log/?tab=events>`_
+  has moved from Python `(integrations-core#16108) <https://github.com/DataDog/integrations-core/pull/16108>`_
+  to Go `(#20701 <https://github.com/DataDog/datadog-agent/pull/20701>)`_.
+  All ``legacy_mode: false`` configuration options are backwards compatible except for some regular expressions
+  used in the ``included_messages`` and ``excluded_messages`` options.
+  For example, Go regular expressions do not support lookahead or lookbehind assertions. If you do not
+  use these options, then no configuration changes are necessary.
+  See the `Python regular expression docs <https://docs.python.org/3/library/re.html>`_ and the
+  `Go regular expression docs <https://github.com/google/re2/wiki/Syntax>`_ for more information on
+  the supported regular expression syntax.
+  Set ``legacy_mode_v2: true`` to revert to the Python implementation of the check. The Python implementation
+  may be removed in a future version of the Agent.
+
+
+.. _Release Notes_7.50.0_New Features:
+
+New Features
+------------
+
+- The orchestrator check is moving from the Process Agent to the Node Agent. In the next release, this new check will replace the current pod check in the Process Agent. You can start using this new check now by manually setting the environment variable ``DD_ORCHESTRATOR_EXPLORER_RUN_ON_NODE_AGENT`` to ``true``.
+
+- Adds the following CPU manager metrics to the kubelet core check: `kubernetes_core.kubelet.cpu_manager.pinning_errors_total`, `kubernetes_core.kubelet.cpu_manager.pinning_requests_total`.
+
+- Add a diagnosis for connecting to the agent logs endpoints. This is accessible through the ``agent diagnose`` command.
+
+- Add FIPS mode support for Network Device Monitoring products
+
+- Added support for collecting Cloud Foundry container names without the Cluster Agent.
+
+- The Kubernetes State Metrics Core check now collects `kubernetes_state.ingress.tls`.
+
+- APM: Added a new endpoint tracer_flare/v1/. This endpoint acts as a 
+  proxy to forward HTTP POST request from tracers to the serverless_flare 
+  endpoint, allowing tracer flares to be triggered via remote config, improving
+  the support experience by automating the collection of logs.
+
+- CWS: Ability to send a signal to a process when a rule was triggered.
+  CWS: Add Kubernetes user session context to events, in particular the username, UID and groups of the user that ran the commands remotely.
+
+- Enable container image collection by default.
+
+- Enable container lifecycle events collection by default.
+  This feature helps stopped containers to be cleaned from Datadog faster.
+
+- [netflow] Allow collecting configurable fields for Netflow V9/IPFIX
+
+- Add support for Oracle 12.1 and Oracle 11.
+
+- Add monitoring of Oracle ASM disk groups.
+
+- Add metrics for monitoring Oracle resource manager.
+
+- [corechecks/snmp] Load downloaded profiles
+
+- DBM: Add configuration option to SQL obfuscator to use go-sqllexer package to run SQL obfuscation and normalization
+
+- Support filtering metrics from endpoint and service checks based 
+  on namespace when the `DD_CONTAINER_EXCLUDE_METRICS` environment
+  variable is set.
+
+- The Windows Event Log tailer saves its current position in an event log and
+  resumes reading from that location when the Agent restarts. This allows
+  the Agent to collect events created before the Agent starts.
+
+
+.. _Release Notes_7.50.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- [corechecks/snmp] Support symbol modifiers for global metric tags and metadata tags.
+
+- Update the go-systemd package to the latest version (22.5.0).
+
+- Added default peer tags for APM stats aggregation which can be enabled through a new flag (`peer_tags_aggregation`).
+
+- Add a stop timeout to the Windows Agent services. If an Agent service
+  does not cleanly stop within 15 seconds after receiving a stop command
+  from the Service Control Manager, the service will hard stop.
+  The timeout can be configured by setting the DD_WINDOWS_SERVICE_STOP_TIMEOUT_SECONDS
+  environment variable.
+  Agent stop timeouts are logged to the Windows Event Log and can be monitored and alerted on.
+
+- APM: OTLP: Add support for custom container tags via resource attributes prefixed by `datadog.container.tag.*`.
+
+- Agents are now built with Go ``1.20.11``.
+
+- CWS: Support for Ubuntu 23.10.
+  CWS: Reduce memory usage of ring buffer on machines with more than 64 CPU cores.
+  CSPM: Move away from libapt to run Debian packages compliance checks.
+
+- DBM: Bump the minimum version of the `go-sqllexer` library to 0.0.7 to support collecting stored procedure names.
+
+- Add subcommand `diagnose show-metadata gohai` for gohai data
+
+- Upgraded JMXFetch to ``0.49.0`` which adds some more telemetry
+  and contains some small fixes.
+
+- Netflow now supports the `datadog-agent status` command, providing
+  configuration information. Any configuration errors encountered will be
+  listed.
+
+- Emit `database_instance` tag with the value `host/cdb`. The goal is to show each database separately in the DBM entry page. Currently, the backend initializes `database_instance` to `host`.
+  Also, the Agent will emit the new `db_server` tag because we have to initialize the `host` tag to `host/cdb`.
+
+- Improve obfuscator formatting. Prevent spaces after parentheses.
+  Prevent spaces before `#` when `#` is a part of an identifier.
+
+- Emit query metrics with zero executions to capture long runners spanning over several sampling periods.
+
+- Impose a time limit on query metrics processing. After exceeding the default limit of 20s, the Agent stops emitting execution plans and fqt events.
+
+- Add `oracle.inactive_seconds` metric. Add tags with session attributes to `oracle.process_pga*` metrics.
+
+- Stop override peer.service with other attributes in OTel spans.
+
+- Process-Agent: Improved parsing performance of the '/proc/pid/stat' file (Linux only)
+
+- [snmp_listener] Enable ``collect_topology`` by default.
+
+- dbm: add SQL obfuscation options to give customer more control over how SQL is obfuscated and normalized.
+  - ``RemoveSpaceBetweenParentheses`` - remove spaces between parentheses. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.
+  - ``KeepNull` - disable obfuscating null values with ?. This option is only valid when ``ObfuscationMode`` is "obfuscate_only" or ``obfuscate_and_normalize``.
+  - ``KeepBoolean`` - disable obfuscating boolean values with ?. This option is only valid when ``ObfuscationMode`` is ``obfuscate_only`` or ``obfuscate_and_normalize``.
+  - ``KeepPositionalParameter`` - disable obfuscating positional parameters with ?. This option is only valid when ``ObfuscationMode`` is ``obfuscate_only`` or ``obfuscate_and_normalize``.
+
+- Add logic to support multiple tags created by a single label/annotaion. 
+  For example, add the following config to extract tags for chart_name and app_chart_name. 
+    podLabelsAsTags: 
+      chart_name: chart_name, app_chart_name 
+  Note: the format must be a comma-separated list of tags.
+
+- The logs collection pipeline has been through a refactor to support 
+  processing only the message content (instead of the whole raw message)
+  in the journald and Windows events tailers.
+  This feature is experimental and off by default since it changes how
+  existing `log_processing_rules` behaves with journald and Windows events
+  tailer.
+  Note that it will be switched on by default in a future release of the Agent.
+  A warning notifying about this is shown when the journald and Windows events
+  tailers are used with some `log_processing_rules`.
+
+- The Datadog agent container image is now using Ubuntu 23.10 mantic
+  as the base image.
+
+- The win32_event_log check now continuously collects and reports events instead of waiting for
+  ``min_collection_interval`` to collect.
+  ``min_collection_interval`` now controls how frequently the check attempts to reconnect
+  when the event subscription is in an error state.
+
+
+.. _Release Notes_7.50.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Installing the Agent on Windows Server versions lower than 2016 and client versions lower than 10 is now deprecated.
+
+- The ``timeout`` option for the win32_event_log check is no longer applicable and can be removed. If the option
+  is set, the check logs a deprecation warning and ignores the option.
+
+
+.. _Release Notes_7.50.0_Security Notes:
+
+Security Notes
+--------------
+
+- Fix ``CVE-2023-45283`` and ``CVE-2023-45284``
+
+- Update OpenSSL from 3.0.11 to 3.0.12.
+  This addresses CVE-2023-5363.
+
+
+.. _Release Notes_7.50.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, uninstalling the Agent should not fail if the Datadog Agent registry key is missing.
+
+- APM: OTLP: Only extract DD container tags from resource attributes. Previously, container tags were also extracted from span attributes.
+
+- APM: OTLP: Only add container tags in tag `_dd.tags.container`. Previously, container tags were also added as span tags.
+
+- Resolved an issue in the containerd collector where the SBOM collection did not correctly attach RepoTags and RepoDigests to the SBOM payload.
+
+- Add a workaround for a bug in a Windows API that can cause the Agent to
+  crash when collecting forwarded events from the Windows Event Log.
+
+- Resolve the issue with hostname resolution in the kube_apiserver provider when the useHostNetwork setting is enabled.
+
+- Fix an issue that prevented process ID (PID) from being associated with containers in Live Container View when the Agent is deployed in AWS Fargate.
+
+- APM: Fixed trace-agent not forwarding errors from remote configuration and reporting them all as 500s
+
+- On Windows, the `SE_DACL_AUTO_INHERITED` flag is reset on `%PROJECTLOCATION%` during upgrades and uninstalls.
+
+- Fixes a bug in the Windows NPM driver where NPM displays byte overcounts.
+
+- For USM on Windows, fixes the problem where paths were being erroneously
+  reported as truncated
+
+- Fixes journald log's Seek function to be set at the beginning or end upon initialization.
+
+- Fixed the cause of some crashes related to CPU instruction
+  incompatibility happening under certain CPUs when making calls to
+  the included libgmp library.
+
+- [kubelet] The Kubelet client no longer fails to initialize when the parameter ``kubelet_tls_verify`` is set to ``false`` with a misconfigured root certificate authority.
+
+- Fixes a bug where the process-agent process check command would fail to run 
+  when language detection was enabled.
+
+- Document query metrics `metric_prefix` parameter.
+
+- Set the tag `dd.internal.resource:database_instance` to `host` instead of `host/cdb`.
+
+- Switch to the new obfuscator where bugs such as getting an error when obfuscating `@!` and where comments on DMLs weren't being removed are fixed.
+
+- Fixes wrong values in Oracle query metrics data. Extreme cases had inflated statistics and missing statements. The affected were pure DML and PL/SQL statements.
+
+- Fix the bug that prevented Oracle DBM working properly on AWS RDS non-multitenant instances.
+
+- Fix an issue that caused the win32_event_log check to not stop running when the rate of incoming event
+  records was higher than the ``timeout`` option. The ``timeout`` option is now deprecated.
+
+- The Windows Event Log tailer automatically recovers and is able to resume collecting
+  events when a log provider is reinstalled, which sometimes happens during Windows updates.
+
+
+.. _Release Notes_7.49.1:
+
+7.49.1 / 6.49.1
+======
+
+.. _Release Notes_7.49.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-11-15
+
+- Please refer to the `7.49.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7491>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.49.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- CWS: add ``arch`` field into agent context included in CWS events.
+
+- APM: Fix a deadlock issue which can prevent the trace-agent from shutting down.
+
+- CWS: Fix the broken lineage check for process activity in CWS.
+
+- APM: fix a regression in the Trace Agent that caused container tagging
+  with UDS and cgroup v2 to fail.
+
+
 .. _Release Notes_7.49.0:
 
 7.49.0 / 6.49.0

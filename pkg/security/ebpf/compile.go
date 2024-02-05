@@ -40,6 +40,8 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFen
 
 	if useRingBuffer {
 		cflags = append(cflags, "-DUSE_RING_BUFFER=1")
+	} else {
+		cflags = append(cflags, "-DUSE_RING_BUFFER=0")
 	}
 
 	cflags = append(cflags, "-g")

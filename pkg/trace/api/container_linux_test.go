@@ -51,6 +51,7 @@ func TestConnContext(t *testing.T) {
 	if err := os.Chmod(sockPath, 0o722); err != nil {
 		t.Fatalf("error setting socket permissions: %v", err)
 	}
+	ln = NewMeasuredListener(ln, "uds_connections", 10)
 	defer ln.Close()
 
 	s := &http.Server{
@@ -78,17 +79,19 @@ func TestConnContext(t *testing.T) {
 func TestGetContainerID(t *testing.T) {
 	const containerID = "abcdef"
 	const containerPID = 1234
+	const containerInode = "in-4242"
 	// fudge factor to ease testing, if our tests take over 24 hours we got bigger problems
 	timeFudgeFactor := 24 * time.Hour
 	c := NewCache(timeFudgeFactor)
 	c.Store(time.Now().Add(timeFudgeFactor), strconv.Itoa(containerPID), containerID, nil)
+	c.Store(time.Now().Add(timeFudgeFactor), containerInode, containerID, nil)
 	provider := &cgroupIDProvider{
 		procRoot:   "",
 		controller: "",
 		cache:      c,
 	}
 
-	t.Run("header", func(t *testing.T) {
+	t.Run("cid header", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
 			t.Fail()
@@ -97,13 +100,51 @@ func TestGetContainerID(t *testing.T) {
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
-	t.Run("header-cred", func(t *testing.T) {
+	t.Run("cid header and wrong eid header", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		req.Header.Add(header.ContainerID, containerID)
+		req.Header.Add(header.EntityID, "in-2321")
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+	})
+
+	t.Run("entity header wrapping cid", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		req.Header.Add(header.EntityID, "cid-"+containerID)
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+	})
+
+	t.Run("entity header wrapping correct inode", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		req.Header.Add(header.EntityID, containerInode)
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+	})
+
+	t.Run("cid header-cred", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
 		req.Header.Add(header.ContainerID, containerID)
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+	})
+
+	t.Run("eid header wrapping cid + cred", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
+		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		req.Header.Add(header.EntityID, "cid-"+containerID)
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 

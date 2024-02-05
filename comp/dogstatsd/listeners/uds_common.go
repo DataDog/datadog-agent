@@ -55,7 +55,16 @@ type UDSListener struct {
 	transport string
 
 	dogstatsdMemBasedRateLimiter bool
+
+	packetBufferSize         uint
+	packetBufferFlushTimeout time.Duration
+	telemetryWithListenerID  bool
+
+	listenWg *sync.WaitGroup
 }
+
+// CloseFunction is a function that closes a connection
+type CloseFunction func(unixConn *net.UnixConn) error
 
 func setupUnixConn(conn *net.UnixConn, originDetection bool, config config.Reader) (bool, error) {
 	if originDetection {
@@ -128,6 +137,10 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		dogstatsdMemBasedRateLimiter: cfg.GetBool("dogstatsd_mem_based_rate_limiter.enabled"),
 		config:                       cfg,
 		transport:                    transport,
+		packetBufferSize:             uint(cfg.GetInt("dogstatsd_packet_buffer_size")),
+		packetBufferFlushTimeout:     cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
+		telemetryWithListenerID:      cfg.GetBool("dogstatsd_telemetry_enabled_listener_id"),
+		listenWg:                     &sync.WaitGroup{},
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -143,24 +156,28 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 }
 
 // Listen runs the intake loop. Should be called in its own goroutine
-func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
+func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFunction) error {
 	listenerID := l.getListenerID(conn)
 	tlmListenerID := listenerID
-	if !l.config.GetBool("dogstatsd_telemetry_enabled_listener_id") {
-		tlmListenerID = ""
+	telemetryWithFullListenerID := l.telemetryWithListenerID
+	if !telemetryWithFullListenerID {
+		// In case we don't want the full listener id, we only keep the transport.
+		tlmListenerID = "uds-" + conn.LocalAddr().Network()
 	}
 
 	packetsBuffer := packets.NewBuffer(
-		uint(l.config.GetInt("dogstatsd_packet_buffer_size")),
-		l.config.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
+		l.packetBufferSize,
+		l.packetBufferFlushTimeout,
 		l.packetOut,
 		tlmListenerID,
 	)
 	tlmUDSConnections.Inc(tlmListenerID, l.transport)
 	defer func() {
-		_ = conn.Close()
+		_ = closeFunc(conn)
 		packetsBuffer.Close()
-		l.clearTelemetry(tlmListenerID)
+		if telemetryWithFullListenerID {
+			l.clearTelemetry(tlmListenerID)
+		}
 		tlmUDSConnections.Dec(tlmListenerID, l.transport)
 	}()
 
@@ -288,6 +305,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 			if capBuff != nil {
 				capBuff.Oob = oob
 				capBuff.Pid = int32(pid)
+				capBuff.Pb.Pid = int32(pid)
 				capBuff.Pb.AncillarySize = int32(oobn)
 				capBuff.Pb.Ancillary = oobS[:oobn]
 			}
@@ -355,6 +373,7 @@ func (l *UDSListener) getListenerID(conn *net.UnixConn) string {
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
 	// Socket cleanup on exit is not necessary as sockets are automatically removed by go.
+	l.listenWg.Wait()
 }
 
 func (l *UDSListener) clearTelemetry(id string) {

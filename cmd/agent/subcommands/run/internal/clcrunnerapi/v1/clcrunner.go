@@ -37,7 +37,7 @@ func SetupHandlers(r *mux.Router) {
 }
 
 // getCLCRunnerStats retrieves Cluster Level Check runners stats
-func getCLCRunnerStats(w http.ResponseWriter, r *http.Request) {
+func getCLCRunnerStats(w http.ResponseWriter, _ *http.Request) {
 	log.Info("Got a request for the runner stats. Making stats.")
 	w.Header().Set("Content-Type", "application/json")
 	stats, err := status.GetExpvarRunnerStats()
@@ -95,7 +95,7 @@ func replaceIDsWithIDsKnownByDCA(stats map[string]status.CLCStats) map[string]st
 	return res
 }
 
-func getCLCRunnerWorkers(w http.ResponseWriter, r *http.Request) {
+func getCLCRunnerWorkers(w http.ResponseWriter, _ *http.Request) {
 	log.Info("Got a request for the runner workers")
 	w.Header().Set("Content-Type", "application/json")
 	stats, err := status.GetExpvarRunnerStats()

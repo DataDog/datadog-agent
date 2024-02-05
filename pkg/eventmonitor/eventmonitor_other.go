@@ -34,6 +34,8 @@ type EventTypeHandler interface {
 }
 
 // AddEventTypeHandler registers an event handler
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
 	return fmt.Errorf("Not implemented on this platform")
 }

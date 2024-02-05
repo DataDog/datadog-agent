@@ -20,7 +20,7 @@ jobs:
       - name: Checkout btfhub-archive repository
         uses: actions/checkout@v4
         with:
-          repository: aquasecurity/btfhub-archive
+          repository: DataDog/btfhub-archive
           path: dev/dist/archive
 
       - name: Install python
@@ -58,7 +58,7 @@ jobs:
           skip_checkout: true
 
       - name: Create Pull Request
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         if: steps.commit-creator.outputs.changes_detected == 'true'
         with:
           script: |
@@ -85,5 +85,5 @@ jobs:
               owner,
               repo,
               issue_number: result.data.number,
-              labels: ['changelog/no-changelog', 'qa/skip-qa', 'team/agent-security']
+              labels: ['changelog/no-changelog', 'qa/skip-qa', 'qa/no-code-change', 'team/agent-security']
             });

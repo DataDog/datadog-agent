@@ -1,0 +1,30 @@
+  Status date: {{ formatUnixTime .time_nano }}
+  Agent start: {{ formatUnixTime .agent_start_nano }}
+  Pid: {{.pid}}
+  Go Version: {{.go_version}}
+  {{- if .python_version }}
+  Python Version: {{.python_version}}
+  {{- end }}
+  Build arch: {{.build_arch}}
+  Agent flavor: {{.flavor}}
+  {{- if .config.log_file}}
+  Log File: {{.config.log_file}}
+  {{- end }}
+  Log Level: {{.config.log_level}}
+
+  Paths
+  =====
+    Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
+    conf.d: {{.config.confd_path}}
+    {{- if .config.additional_checksd }}
+    checks.d: {{.config.additional_checksd}}
+    {{- end }}
+
+  {{- if eq .config.fips_enabled "true" }}
+
+  FIPS proxy
+  ==========
+    FIPS proxy is enabled. All communication to Datadog is routed to a local FIPS proxy:
+      - Local address: {{ .config.fips_local_address }}
+      - Starting port: {{ .config.fips_port_range_start }}
+  {{- end }}

@@ -1,11 +1,11 @@
 [
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "END RequestId: XXX"
@@ -16,11 +16,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "END RequestId: XXX"
@@ -31,11 +31,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "REPORT"
@@ -46,11 +46,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "REPORT"
@@ -61,11 +61,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "START RequestId: XXX Version: $LATEST"
@@ -76,11 +76,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "START RequestId: XXX Version: $LATEST"
@@ -91,11 +91,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "[ERROR]\tTIMESTAMP\tXXX\tXXX LOG 0 XXX\n"
@@ -106,11 +106,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "[ERROR]\tTIMESTAMP\tXXX\tXXX LOG 0 XXX\n"
@@ -121,11 +121,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "[ERROR]\tTIMESTAMP\tXXX\tXXX LOG 1 XXX\n"
@@ -136,11 +136,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "[ERROR]\tTIMESTAMP\tXXX\tXXX LOG 1 XXX\n"
@@ -151,11 +151,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "[ERROR]\tTIMESTAMP\tXXX\tXXX LOG 2 XXX\n"
@@ -166,11 +166,11 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python,functionname:integration-tests-extension-XXXXXX-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
     "message": {
       "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-python",
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-python",
         "request_id": "XXX"
       },
       "message": "[ERROR]\tTIMESTAMP\tXXX\tXXX LOG 2 XXX\n"

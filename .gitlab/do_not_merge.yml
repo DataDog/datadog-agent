@@ -24,8 +24,5 @@ do-not-merge:
             echo "This workflow fails so that the pull request cannot be merged"
             exit 1
           fi
-      - test "$(inv -e release.get-release-json-value --key=nightly::OMNIBUS_RUBY_VERSION)" = "datadog-5.5.0" || exit 1
-      - test "$(inv -e release.get-release-json-value --key=nightly::OMNIBUS_SOFTWARE_VERSION)" = "master" || exit 1
-      - test "$(inv -e release.get-release-json-value --key=nightly-a7::OMNIBUS_RUBY_VERSION)" = "datadog-5.5.0" || exit 1
-      - test "$(inv -e release.get-release-json-value --key=nightly-a7::OMNIBUS_SOFTWARE_VERSION)" = "master" || exit 1
+      - inv -e release.check-omnibus-branches || exit 1
       - exit 0

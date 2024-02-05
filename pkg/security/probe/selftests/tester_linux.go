@@ -14,6 +14,9 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/hashicorp/go-multierror"
+
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -21,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
 )
 
 // EventPredicate defines a self test event validation predicate
@@ -57,7 +59,12 @@ type SelfTester struct {
 var _ rules.PolicyProvider = (*SelfTester)(nil)
 
 // NewSelfTester returns a new SelfTester, enabled or not
-func NewSelfTester(probe *probe.Probe) (*SelfTester, error) {
+func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*SelfTester, error) {
+	// not supported on ebpfless environment
+	if cfg.EBPFLessEnabled {
+		return nil, nil
+	}
+
 	s := &SelfTester{
 		waitingForEvent: atomic.NewBool(false),
 		eventChan:       make(chan selfTestEvent, 10),
@@ -152,11 +159,12 @@ func (t *SelfTester) Close() error {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (t *SelfTester) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) { //nolint:revive // TODO fix revive unused-parameter
+func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
-		Name:    policyName,
-		Source:  policySource,
-		Version: policyVersion,
+		Name:       policyName,
+		Source:     policySource,
+		Version:    policyVersion,
+		IsInternal: true,
 	}
 
 	for _, selftest := range FileSelfTests {
@@ -186,14 +194,14 @@ type selfTestEvent struct {
 }
 
 // IsExpectedEvent sends an event to the tester
-func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *probe.Probe) bool {
+func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *probe.Probe) bool {
 	if t.waitingForEvent.Load() && rule.Definition.Policy.Source == policySource {
 		ev, ok := event.(*model.Event)
 		if !ok {
 			return true
 		}
 
-		s := serializers.NewEventSerializer(ev, p.GetResolvers())
+		s := serializers.NewEventSerializer(ev)
 		if s == nil || s.FileEventSerializer == nil {
 			return true
 		}

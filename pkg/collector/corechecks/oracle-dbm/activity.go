@@ -34,6 +34,7 @@ type ActivitySnapshot struct {
 	OracleActivityRows []OracleActivityRow `json:"oracle_activity,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type RowMetadata struct {
 	Commands       []string `json:"dd_commands,omitempty"`
 	Tables         []string `json:"dd_tables,omitempty"`
@@ -50,6 +51,7 @@ type Metadata struct {
 	DDAgentVersion string  `json:"ddagentversion,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleSQLRow struct {
 	SQLID                  string `json:"sql_id,omitempty"`
 	ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
@@ -57,6 +59,7 @@ type OracleSQLRow struct {
 	SQLExecStart           string `json:"sql_exec_start,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleActivityRow struct {
 	Now           string `json:"now"`
 	SessionID     uint64 `json:"sid,omitempty"`
@@ -92,6 +95,7 @@ type OracleActivityRow struct {
 	RowMetadata
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleActivityRowDB struct {
 	Now                        string         `db:"NOW"`
 	SessionID                  uint64         `db:"SID"`
@@ -160,6 +164,7 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 	return SQLRow, nil
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
 	start := time.Now()
 
@@ -357,6 +362,13 @@ func (c *Check) SampleSession() error {
 		if sample.PdbName.Valid {
 			sessionRow.PdbName = sample.PdbName.String
 		}
+		if sessionRow.PdbName == "" {
+			if c.multitenant {
+				sessionRow.PdbName = "CDB$ROOT"
+			} else {
+				sessionRow.PdbName = c.cdbName
+			}
+		}
 		sessionRow.CdbName = c.cdbName
 		sessionRows = append(sessionRows, sessionRow)
 	}
@@ -388,8 +400,8 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
-	sender.Count("dd.oracle.activity.samples_count", float64(len(sessionRows)), "", c.tags)
-	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
+	sendMetricWithDefaultTags(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)))
+	sendMetricWithDefaultTags(c, gauge, "dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()))
 	sender.Commit()
 
 	return nil

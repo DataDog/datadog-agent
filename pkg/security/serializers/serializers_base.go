@@ -8,7 +8,6 @@
 package serializers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -50,6 +49,10 @@ type EventContextSerializer struct {
 	Async bool `json:"async,omitempty"`
 	// The list of rules that the event matched (only valid in the context of an anomaly)
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
+	// Origin of the event
+	Origin string `json:"origin,omitempty"`
+	// True if the event has been suppressed
+	Suppressed bool `json:"suppressed,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -166,6 +169,7 @@ func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 	for tagName, tagValue := range r.RuleTags {
 		mrs.Tags = append(mrs.Tags, tagName+":"+tagValue)
 	}
+
 	return mrs
 }
 
@@ -208,17 +212,19 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 }
 
 // NewBaseEventSerializer creates a new event serializer based on the event type
-func NewBaseEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *BaseEventSerializer {
+func NewBaseEventSerializer(event *model.Event) *BaseEventSerializer {
 	pc := event.ProcessContext
 
 	eventType := model.EventType(event.Type)
 
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
-			Name: eventType.String(),
+			Name:       eventType.String(),
+			Origin:     event.Origin,
+			Suppressed: event.Suppressed,
 		},
-		ProcessContextSerializer: newProcessContextSerializer(pc, event, resolvers),
-		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTime(event)),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event),
+		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {

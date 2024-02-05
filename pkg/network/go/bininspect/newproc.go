@@ -23,6 +23,7 @@ type newProcessBinaryInspector struct {
 	goVersion goversion.GoVersion
 }
 
+// InspectNewProcessBinary process the given elf File, and returns the offsets of the given functions and structs.
 func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionConfiguration, structs map[FieldIdentifier]StructLookupFunction) (*Result, error) {
 	if elfFile == nil {
 		return nil, errors.New("got nil elf file")

@@ -81,12 +81,13 @@ build_clang_arm64:
 
 build_processed_btfhub_archive:
   rules:
-    !reference [.on_scheduled_main_or_manual]
+    - !reference [.except_mergequeue]
+    - !reference [.on_scheduled_main_or_manual]
   stage: deps_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
-    - git clone https://github.com/aquasecurity/btfhub-archive.git
+    - git clone https://github.com/DataDog/btfhub-archive.git
     - cd btfhub-archive
     # Flatten btfhub-archive directories & separate arm/x64 btfs into separate directories
     - dirs=("amzn/2" "centos/7" "centos/8" "debian/9" "debian/10" "fedora/28" "fedora/29" "fedora/30" "fedora/31" "ol/7" "ol/8" "rhel/7" "rhel/8")

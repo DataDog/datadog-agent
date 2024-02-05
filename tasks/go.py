@@ -11,10 +11,10 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
-from .licenses import get_licenses_list
-from .modules import DEFAULT_MODULES, generate_dummy_package
-from .utils import get_build_flags, timed
+from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.libs.common.utils import get_build_flags, timed
+from tasks.licenses import get_licenses_list
+from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -115,7 +115,7 @@ def deps_vendored(ctx, verbose=False):
         verbosity = ' -v' if verbose else ''
 
         ctx.run(f"go mod vendor{verbosity}")
-        ctx.run(f"go mod tidy{verbosity} -compat=1.17")
+        ctx.run(f"go mod tidy{verbosity}")
 
         # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
         # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
@@ -370,8 +370,8 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
         errors_found = []
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
-                ctx.run("go mod tidy -compat=1.17")
-                res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
+                ctx.run("go mod tidy")
+                res = ctx.run("git diff --exit-code go.mod go.sum", warn=True)
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
@@ -381,7 +381,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
 
         with ctx.cd(dummy_folder):
-            ctx.run("go mod tidy -compat=1.17")
+            ctx.run("go mod tidy")
             res = ctx.run("go build main.go", warn=True)
             if res.exited is None or res.exited > 0:
                 errors_found.append("could not build test module importing external modules")
@@ -398,13 +398,13 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
 def tidy_all(ctx):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy -compat=1.17")
+            ctx.run("go mod tidy")
 
 
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.20.11 linux/amd64"
+    # result is like "go version go1.21.5 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

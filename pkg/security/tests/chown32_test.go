@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests && amd64
+//go:build linux && functionaltests && amd64
 
 // Package tests holds tests related files
 package tests
@@ -21,6 +21,8 @@ import (
 )
 
 func TestChown32(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "SUSE kernel", func(kv *kernel.Version) bool {
 		return kv.IsSuseKernel()
 	})
@@ -35,7 +37,7 @@ func TestChown32(t *testing.T) {
 		Expression: `chown.file.path == "{{.Root}}/test-symlink" && chown.file.destination.uid in [100, 101, 102, 103, 104, 105, 106] && chown.file.destination.gid in [200, 201, 202, 203, 204, 205, 206]`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef, ruleDef2}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef, ruleDef2})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
@@ -33,7 +34,6 @@ import (
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const containersCountMetricName = "datadog.security_agent.compliance.containers_running"
@@ -121,6 +121,8 @@ type Agent struct {
 
 	finish chan struct{}
 	cancel context.CancelFunc
+
+	k8sManaged *string
 }
 
 func xccdfEnabled() bool {
@@ -144,7 +146,7 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel, err := rules.NewRuleFilterModel()
+		ruleFilterModel, err := rules.NewRuleFilterModel("")
 		if err != nil {
 			log.Errorf("failed to apply rule filters: %v", err)
 			return false
@@ -213,6 +215,11 @@ func (a *Agent) Start() error {
 		}),
 	)
 
+	_, k8sResourceData := k8sconfig.LoadConfiguration(ctx, a.opts.HostRoot)
+	if k8sResourceData != nil && k8sResourceData.ManagedEnvironment != nil {
+		a.k8sManaged = &k8sResourceData.ManagedEnvironment.Name
+	}
+
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -276,6 +283,7 @@ func (a *Agent) Stop() {
 	case <-time.After(10 * time.Second):
 	case <-a.finish:
 	}
+	a.opts.Reporter.Stop()
 	log.Infof("compliance agent shut down")
 }
 
@@ -397,7 +405,7 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel, err := rules.NewRuleFilterModel()
+	ruleFilterModel, err := rules.NewRuleFilterModel("")
 	if err != nil {
 		log.Errorf("failed to run apt configuration export: %v", err)
 		return
@@ -448,7 +456,7 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 			} else {
 				err := a.reportDBConfigurationFromSystemProbe(ctx, pid)
 				if err != nil {
-					log.Errorf("error evaluating cross-container benchmark from system-probe: %v", err)
+					log.Infof("error evaluating cross-container benchmark from system-probe: %v", err)
 				}
 			}
 		}
@@ -463,12 +471,12 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, pid in
 		return fmt.Errorf("system-probe socket client was not created")
 	}
 
-	qs := new(url.Values)
+	qs := make(url.Values)
 	qs.Add("pid", strconv.FormatInt(int64(pid), 10))
 	sysProbeComplianceModuleURL := &url.URL{
 		Scheme:   "http",
 		Host:     "unix",
-		Path:     "/dbconfig",
+		Path:     "/compliance/dbconfig",
 		RawQuery: qs.Encode(),
 	}
 
@@ -495,7 +503,13 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, pid in
 		return err
 	}
 	if resource != nil {
-		a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+		dbResourceLog := NewResourceLog(a.opts.Hostname, resource.Type, resource.Config)
+		if cID := resource.ContainerID; cID != "" {
+			dbResourceLog.Container = &CheckContainerMeta{
+				ContainerID: cID,
+			}
+		}
+		a.reportResourceLog(defaultCheckIntervalLowPriority, dbResourceLog)
 	}
 	return nil
 }
@@ -530,6 +544,7 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 				event.Container.ImageTag = ctnr.Image.Tag
 			}
 		}
+		event.K8SManaged = a.k8sManaged
 		a.opts.Reporter.ReportEvent(event)
 	}
 }

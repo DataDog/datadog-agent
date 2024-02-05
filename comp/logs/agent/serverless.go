@@ -8,7 +8,7 @@ package agent
 import (
 	"context"
 
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"

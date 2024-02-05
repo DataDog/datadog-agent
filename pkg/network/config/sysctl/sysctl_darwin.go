@@ -5,6 +5,7 @@
 
 //go:build darwin
 
+//nolint:revive // TODO(NET) Fix revive linter
 package sysctl
 
 import (

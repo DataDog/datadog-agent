@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -55,7 +54,6 @@ func NewEtcdConfigProvider(providerConfig *config.ConfigurationProviders) (Confi
 
 	cl, err := client.New(clientCfg)
 	if err != nil {
-		telemetry.Errors.Inc(names.Etcd)
 		return nil, fmt.Errorf("Unable to instantiate the etcd client: %s", err)
 	}
 	cache := newProviderCache()
@@ -87,7 +85,6 @@ func (p *EtcdConfigProvider) getIdentifiers(ctx context.Context, key string) []s
 	identifiers := make([]string, 0)
 	resp, err := p.Client.Get(ctx, key, &client.GetOptions{Recursive: true})
 	if err != nil {
-		telemetry.Errors.Inc(names.Etcd)
 		log.Error("Can't get templates keys from etcd: ", err)
 		return identifiers
 	}
@@ -110,21 +107,18 @@ func (p *EtcdConfigProvider) getTemplates(ctx context.Context, key string) []int
 
 	checkNames, err := p.getCheckNames(ctx, checkNameKey)
 	if err != nil {
-		telemetry.Errors.Inc(names.Etcd)
 		log.Errorf("Failed to retrieve check names at %s. Error: %s", checkNameKey, err)
 		return nil
 	}
 
 	initConfigs, err := p.getJSONValue(ctx, initKey)
 	if err != nil {
-		telemetry.Errors.Inc(names.Etcd)
 		log.Errorf("Failed to retrieve init configs at %s. Error: %s", initKey, err)
 		return nil
 	}
 
 	instances, err := p.getJSONValue(ctx, instanceKey)
 	if err != nil {
-		telemetry.Errors.Inc(names.Etcd)
 		log.Errorf("Failed to retrieve instances at %s. Error: %s", instanceKey, err)
 		return nil
 	}
@@ -169,7 +163,6 @@ func (p *EtcdConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 
 	resp, err := p.Client.Get(ctx, p.templateDir, &client.GetOptions{Recursive: true})
 	if err != nil {
-		telemetry.Errors.Inc(names.Etcd)
 		return false, err
 	}
 	identifiers := resp.Node.Nodes

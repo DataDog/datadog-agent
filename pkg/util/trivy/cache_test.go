@@ -14,9 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 )
 
 var (
@@ -217,8 +222,18 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 
 func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	// Create a workload meta global store containing two images with a distinct artifactID/blobs and a shared blob
-	globalStore := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-	globalStore.Start(context.TODO())
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+
+	// setup workloadmeta for test
+	workloadmeta.SetGlobalStore(workloadmetaStore)
+	defer workloadmeta.SetGlobalStore(nil)
+
 	image1 := &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainerImageMetadata,
@@ -241,13 +256,15 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 		},
 	}
 
-	globalStore.Reset([]workloadmeta.Entity{image1, image2, image3}, workloadmeta.SourceAll)
+	workloadmetaStore.Reset([]workloadmeta.Entity{image1, image2, image3}, workloadmeta.SourceAll)
 
 	cache, cacheCleaner, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
 	}()
+
+	time.Sleep(5 * time.Second)
 
 	// link image1 to artifact key1, an owned blob and a shared blob
 	cacheCleaner.setKeysForEntity("image1", []string{"key1", "blob1", "sharedBlob"})
@@ -303,7 +320,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	require.Equal(t, newTestBlobInfo(), blob)
 
 	// Remove the second image from the workloadmeta
-	globalStore.Reset([]workloadmeta.Entity{image1}, workloadmeta.SourceAll)
+	workloadmetaStore.Reset([]workloadmeta.Entity{image1}, workloadmeta.SourceAll)
 
 	// Wait for the garbage collector to clean up the unused artifact
 	time.Sleep(time.Second)

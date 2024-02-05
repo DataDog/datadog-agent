@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -195,6 +196,258 @@ func TestRetrieveClosedConnection(t *testing.T) {
 		// It should no more have connections stored
 		conns = state.GetDelta(clientID, latestEpochTime(), nil, nil, nil).Conns
 		assert.Equal(t, 0, len(conns))
+	})
+}
+
+func TestDropEmptyConnections(t *testing.T) {
+	conn := ConnectionStats{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  31890,
+		DPort:  80,
+		Monotonic: StatCounters{
+			SentBytes:   12345,
+			RecvBytes:   6789,
+			Retransmits: 2,
+		},
+		Last: StatCounters{
+			SentBytes:   12345,
+			RecvBytes:   6789,
+			Retransmits: 2,
+		},
+		IntraHost: true,
+		Cookie:    1,
+	}
+
+	clientID := "1"
+
+	t.Run("drop empty connection", func(t *testing.T) {
+		//drop empty even though it's sent first
+		state := newDefaultState()
+		state.maxClosedConns = 1
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		conns := state.clients[clientID].closed.conns
+		_, ok := state.clients[clientID].closed.byCookie[0]
+
+		assert.Equal(t, 1, len(conns))
+		assert.Equal(t, []ConnectionStats{conn}, conns)
+		assert.False(t, ok)
+
+	})
+	t.Run("drop incoming empty connection", func(t *testing.T) {
+		//drop incoming empty connection when conn is full
+		state := newDefaultState()
+		state.maxClosedConns = 1
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+
+		conns := state.clients[clientID].closed.conns
+		_, ok := state.clients[clientID].closed.byCookie[0]
+
+		assert.Equal(t, 1, len(conns))
+		assert.Equal(t, []ConnectionStats{conn}, conns)
+		assert.False(t, ok)
+
+	})
+	t.Run("drop incoming connection when conns full", func(t *testing.T) {
+		// drop incoming non-empty conn when conns is full
+		state := newDefaultState()
+		state.maxClosedConns = 1
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		conn2 := conn
+		conn2.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+		_, ok := state.clients[clientID].closed.byCookie[2]
+
+		assert.Equal(t, 1, len(conns))
+		assert.Equal(t, []ConnectionStats{conn}, conns)
+		assert.False(t, ok)
+
+	})
+	t.Run("replace empty connection with non-empty", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		emptyconn := ConnectionStats{}
+		emptyconn.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{emptyconn})
+
+		conns := state.clients[clientID].closed.conns
+
+		// Check that the emptyConn is at the last index
+		assert.Equal(t, []ConnectionStats{conn, {}, emptyconn}, conns)
+
+		// Send non-empty connection with same cookie
+		conn2 := conn
+		conn2.Cookie = 2
+		conn2.LastUpdateEpoch = 100
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		// Check that the index changed
+		conns = state.clients[clientID].closed.conns
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+	})
+
+	t.Run("replace non-empty connection with empty", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		// Send non-empty connection
+		conn2 := conn
+		conn2.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+
+		// Send empty connection with same cookie
+		emptyconn := ConnectionStats{}
+		emptyconn.Cookie = 2
+		emptyconn.LastUpdateEpoch = 100
+		state.storeClosedConnections([]ConnectionStats{emptyconn})
+
+		// Check that the index stayed the same
+		conns = state.clients[clientID].closed.conns
+		assert.Equal(t, 3, len(conns))
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+	})
+	t.Run("Replace with latest", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		// Send non-empty connection
+		conn2 := conn
+		conn2.Cookie = 2
+		conn2.LastUpdateEpoch = 100
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+
+		// Send empty connection with same cookie
+		emptyconn := ConnectionStats{}
+		emptyconn.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{emptyconn})
+
+		// Check that the index stayed the same
+		conns = state.clients[clientID].closed.conns
+		assert.Equal(t, 3, len(conns))
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+	})
+	t.Run("Replace at index", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		// Send non-empty connection
+		conn2 := conn
+		conn2.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+
+		// Send empty second connection with same cookie
+		conn3 := conn
+		conn3.Cookie = 2
+		conn3.LastUpdateEpoch = 300
+		conn3.Pid = 300
+		conn3.Last = StatCounters{
+			SentBytes:   22222,
+			RecvBytes:   3333,
+			Retransmits: 4,
+		}
+		state.storeClosedConnections([]ConnectionStats{conn3})
+
+		// Check that the index stayed the same
+		conns = state.clients[clientID].closed.conns
+		assert.Equal(t, 3, len(conns))
+		assert.Equal(t, []ConnectionStats{conn, conn3, {}}, conns)
+	})
+	t.Run("insert empty connection at end", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnections([]ConnectionStats{{}})
+
+		conns := state.clients[clientID].closed.conns
+		emptyConnStart := state.clients[clientID].closed.emptyStart
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, {}}, conns)
+		assert.Equal(t, emptyConnStart, 1)
+	})
+	t.Run("insert conn before empty connections", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		conns := state.clients[clientID].closed.conns
+		emptyConnStart := state.clients[clientID].closed.emptyStart
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, {}}, conns)
+		assert.Equal(t, emptyConnStart, 1)
+	})
+	t.Run("insert non-empty conn at the end", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		conn2 := conn
+		conn2.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+		emptyConnStart := state.clients[clientID].closed.emptyStart
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, conn2}, conns)
+		assert.Equal(t, emptyConnStart, 2)
 	})
 }
 
@@ -1328,12 +1581,10 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	client3 := "client3"
 	state := newDefaultState()
 
-	getRCodeFrom := func(delta Delta, c ConnectionStats, domain string, qtype dns.QueryType, code int) uint32 {
-		key, _ := DNSKey(&c)
-		stats, ok := delta.DNSStats[key]
-		require.Truef(t, ok, "couldn't find DNSStats for connection: %+v", c)
+	getRCodeFrom := func(c ConnectionStats, domain string, qtype dns.QueryType, code int) uint32 {
+		require.NotEmpty(t, c.DNSStats, "couldn't find DNSStats for connection: %+v", c)
 
-		domainStats, ok := stats[dns.ToHostname(domain)]
+		domainStats, ok := c.DNSStats[dns.ToHostname(domain)]
 		require.Truef(t, ok, "couldn't find DNSStats for domain: %s", domain)
 
 		queryTypeStats, ok := domainStats[qtype]
@@ -1357,7 +1608,7 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	delta := state.GetDelta(client1, latestEpochTime(), []ConnectionStats{c}, getStats(), nil)
 	require.Len(t, delta.Conns, 1)
 
-	rcode := getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	rcode := getRCodeFrom(delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 1, rcode)
 
 	// Register the third client but also pass in dns stats
@@ -1365,14 +1616,14 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	require.Len(t, delta.Conns, 1)
 
 	// DNS stats should be available for the new client
-	rcode = getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	rcode = getRCodeFrom(delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 1, rcode)
 
 	delta = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{c}, getStats(), nil)
 	require.Len(t, delta.Conns, 1)
 
 	// 2nd client should get accumulated stats
-	rcode = getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	rcode = getRCodeFrom(delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 3, rcode)
 }
 
@@ -2142,6 +2393,68 @@ func TestFilterConnections(t *testing.T) {
 			assert.Equal(t, kept[i], conns[i])
 		}
 	})
+}
+
+func TestDNSPIDCollision(t *testing.T) {
+	conns := []ConnectionStats{
+		{
+			Source:    util.AddressFromString("10.1.1.1"),
+			Dest:      util.AddressFromString("8.8.8.8"),
+			Pid:       1,
+			SPort:     1000,
+			DPort:     53,
+			Type:      UDP,
+			Family:    AFINET,
+			Direction: LOCAL,
+			Cookie:    1,
+			Monotonic: StatCounters{
+				RecvBytes: 2,
+			},
+		},
+		{
+			Source:    util.AddressFromString("10.1.1.1"),
+			Dest:      util.AddressFromString("8.8.8.8"),
+			Pid:       2,
+			SPort:     1000,
+			DPort:     53,
+			Type:      UDP,
+			Family:    AFINET,
+			Direction: LOCAL,
+			Cookie:    2,
+			Monotonic: StatCounters{
+				RecvBytes: 2,
+			},
+		},
+	}
+
+	dnsStats := dns.StatsByKeyByNameByType{
+		dns.Key{
+			ClientIP:   util.AddressFromString("10.1.1.1"),
+			ServerIP:   util.AddressFromString("8.8.8.8"),
+			ClientPort: uint16(1000),
+			Protocol:   syscall.IPPROTO_UDP,
+		}: map[dns.Hostname]map[dns.QueryType]dns.Stats{
+			dns.ToHostname("foo.com"): {
+				dns.TypeA: {
+					Timeouts:          0,
+					SuccessLatencySum: 0,
+					FailureLatencySum: 0,
+					CountByRcode:      map[uint32]uint32{0: 1},
+				},
+			},
+		},
+	}
+
+	config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
+	config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
+
+	state := newDefaultState()
+	state.RegisterClient("foo")
+	delta := state.GetDelta("foo", 0, conns, dnsStats, nil)
+
+	// Only the first connection should be bound to DNS stats in the context of a PID collision
+	assert.NotEmpty(t, delta.Conns[0].DNSStats, "dns stats should not be empty")
+	assert.Empty(t, delta.Conns[1].DNSStats, "dns stats should not be empty")
 }
 
 func generateRandConnections(n int) []ConnectionStats {

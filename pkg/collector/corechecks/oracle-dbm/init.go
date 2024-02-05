@@ -10,15 +10,9 @@ package oracle
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-type vDatabase struct {
-	Name string `db:"NAME"`
-	Cdb  string `db:"CDB"`
-}
 
 type vInstance struct {
 	HostName     sql.NullString `db:"HOST_NAME"`
@@ -56,9 +50,6 @@ func (c *Check) init() error {
 	}
 	if i.HostName.Valid {
 		tags = append(tags, fmt.Sprintf("real_hostname:%s", i.HostName.String))
-	}
-	if c.dbHostname != "" {
-		tags = append(tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("db_server:%s", c.dbHostname))
 	}
 	tags = append(tags, fmt.Sprintf("oracle_version:%s", c.dbVersion))
 
@@ -138,9 +129,9 @@ func (c *Check) init() error {
 
 	tags = append(tags, fmt.Sprintf("hosting_type:%s", ht))
 	c.hostingType = ht
-	c.tags = make([]string, len(tags))
+	c.tagsWithoutDbRole = make([]string, len(tags))
+	copy(c.tagsWithoutDbRole, tags)
 	copy(c.tags, tags)
-	c.tagsString = strings.Join(tags, ",")
 
 	c.fqtEmitted = getFqtEmittedCache()
 	c.planEmitted = getPlanEmittedCache(c)

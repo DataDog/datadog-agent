@@ -16,6 +16,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(_ *config.Config, _, _, _ bool, _ statsd.ClientInterface) (bytecode.AssetReader, error) {
 	return nil, fmt.Errorf("runtime compilation unsupported")
 }

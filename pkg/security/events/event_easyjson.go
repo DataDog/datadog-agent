@@ -76,7 +76,66 @@ func (v Signal) MarshalEasyJSON(w *jwriter.Writer) {
 func (v *Signal) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents(l, v)
 }
-func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(in *jlexer.Lexer, out *AgentContext) {
+func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(in *jlexer.Lexer, out *RuleActionContext) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "name":
+			out.Name = string(in.String())
+		case "signal":
+			out.Signal = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityEvents1(out *jwriter.Writer, in RuleActionContext) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"name\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Name))
+	}
+	{
+		const prefix string = ",\"signal\":"
+		out.RawString(prefix)
+		out.String(string(in.Signal))
+	}
+	out.RawByte('}')
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v RuleActionContext) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityEvents1(w, v)
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *RuleActionContext) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(l, v)
+}
+func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents2(in *jlexer.Lexer, out *AgentContext) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -99,6 +158,29 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(in *jl
 			out.RuleID = string(in.String())
 		case "rule_version":
 			out.RuleVersion = string(in.String())
+		case "rule_actions":
+			if in.IsNull() {
+				in.Skip()
+				out.RuleActions = nil
+			} else {
+				in.Delim('[')
+				if out.RuleActions == nil {
+					if !in.IsDelim(']') {
+						out.RuleActions = make([]RuleActionContext, 0, 2)
+					} else {
+						out.RuleActions = []RuleActionContext{}
+					}
+				} else {
+					out.RuleActions = (out.RuleActions)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v1 RuleActionContext
+					(v1).UnmarshalEasyJSON(in)
+					out.RuleActions = append(out.RuleActions, v1)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
 		case "policy_name":
 			out.PolicyName = string(in.String())
 		case "policy_version":
@@ -119,7 +201,7 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(in *jl
 		in.Consumed()
 	}
 }
-func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityEvents1(out *jwriter.Writer, in AgentContext) {
+func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityEvents2(out *jwriter.Writer, in AgentContext) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -132,6 +214,20 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityEvents1(out *j
 		const prefix string = ",\"rule_version\":"
 		out.RawString(prefix)
 		out.String(string(in.RuleVersion))
+	}
+	if len(in.RuleActions) != 0 {
+		const prefix string = ",\"rule_actions\":"
+		out.RawString(prefix)
+		{
+			out.RawByte('[')
+			for v2, v3 := range in.RuleActions {
+				if v2 > 0 {
+					out.RawByte(',')
+				}
+				(v3).MarshalEasyJSON(out)
+			}
+			out.RawByte(']')
+		}
 	}
 	if in.PolicyName != "" {
 		const prefix string = ",\"policy_name\":"
@@ -163,10 +259,10 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityEvents1(out *j
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v AgentContext) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityEvents1(w, v)
+	easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityEvents2(w, v)
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *AgentContext) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(l, v)
+	easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents2(l, v)
 }

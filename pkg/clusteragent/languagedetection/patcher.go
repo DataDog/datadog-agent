@@ -12,11 +12,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -30,11 +30,15 @@ type OwnersLanguages map[NamespacedOwnerReference]langUtil.ContainersLanguages
 // LanguagePatcher defines an object that patches kubernetes resources with language annotations
 type LanguagePatcher struct {
 	k8sClient dynamic.Interface
-	store     workloadmeta.Store
+	store     workloadmeta.Component
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
-func NewLanguagePatcher() (*LanguagePatcher, error) {
+func NewLanguagePatcher(store workloadmeta.Component) (*LanguagePatcher, error) {
+	if store == nil {
+		return nil, fmt.Errorf("cannot initialize patcher with a nil workloadmeta store")
+	}
+
 	apiCl, err := apiserver.GetAPIClient()
 
 	if err != nil {
@@ -44,7 +48,7 @@ func NewLanguagePatcher() (*LanguagePatcher, error) {
 	k8sClient := apiCl.DynamicCl
 	return &LanguagePatcher{
 		k8sClient: k8sClient,
-		store:     workloadmeta.GetGlobalStore(),
+		store:     store,
 	}, nil
 }
 
@@ -100,13 +104,13 @@ func (lp *LanguagePatcher) detectedNewLanguages(namespacedOwnerRef *NamespacedOw
 
 	existingContainersLanguages := langUtil.NewContainersLanguages()
 
-	for container, languages := range owner.ContainerLanguages {
+	for container, languages := range owner.InjectableLanguages.ContainerLanguages {
 		for _, language := range languages {
 			existingContainersLanguages.GetOrInitializeLanguageset(container).Add(string(language.Name))
 		}
 	}
 
-	for container, languages := range owner.InitContainerLanguages {
+	for container, languages := range owner.InjectableLanguages.InitContainerLanguages {
 		for _, language := range languages {
 			existingContainersLanguages.GetOrInitializeLanguageset(fmt.Sprintf("init.%s", container)).Add(string(language.Name))
 		}

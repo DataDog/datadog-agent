@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -19,8 +20,8 @@ import (
 // UDSStreamListener implements the StatsdListener interface for Unix Domain (streams)
 type UDSStreamListener struct {
 	UDSListener
-
-	conn *net.UnixListener
+	connTracker *ConnectionTracker
+	conn        *net.UnixListener
 }
 
 // NewUDSStreamListener returns an idle UDS datagram Statsd listener
@@ -50,6 +51,7 @@ func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManage
 
 	listener := &UDSStreamListener{
 		UDSListener: *l,
+		connTracker: NewConnectionTracker(transport, 1*time.Second),
 		conn:        conn,
 	}
 
@@ -59,6 +61,16 @@ func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManage
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSStreamListener) Listen() {
+	l.listenWg.Add(1)
+	go func() {
+		defer l.listenWg.Done()
+		l.listen()
+	}()
+}
+
+func (l *UDSStreamListener) listen() {
+
+	l.connTracker.Start()
 	log.Infof("dogstatsd-uds-stream: starting to listen on %s", l.conn.Addr())
 	for {
 		conn, err := l.conn.AcceptUnix()
@@ -69,7 +81,11 @@ func (l *UDSStreamListener) Listen() {
 			break
 		}
 		go func() {
-			_ = l.handleConnection(conn)
+			l.connTracker.Track(conn)
+			_ = l.handleConnection(conn, func(c *net.UnixConn) error {
+				l.connTracker.Close(c)
+				return nil
+			})
 			if err != nil {
 				log.Errorf("dogstatsd-uds-stream: error handling connection: %v", err)
 			}
@@ -80,5 +96,6 @@ func (l *UDSStreamListener) Listen() {
 // Stop closes the UDS connection and stops listening
 func (l *UDSStreamListener) Stop() {
 	_ = l.conn.Close()
+	l.connTracker.Stop()
 	l.UDSListener.Stop()
 }

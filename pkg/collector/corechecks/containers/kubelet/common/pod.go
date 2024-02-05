@@ -13,12 +13,12 @@ import (
 
 	"github.com/prometheus/common/model"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var (
@@ -140,10 +140,10 @@ func (p *PodUtils) IsHostNetworkedPod(podUID string) bool {
 	return false
 }
 
-// GetContainerID returns the container ID from the workloadmeta.Store for a given set of metric labels.
+// GetContainerID returns the container ID from the workloadmeta.Component for a given set of metric labels.
 // It should only be called on a container-scoped metric. It returns an empty string if the container could not be
 // found, or if the container should be filtered out.
-func GetContainerID(store workloadmeta.Store, metric model.Metric, filter *containers.Filter) string {
+func GetContainerID(store workloadmeta.Component, metric model.Metric, filter *containers.Filter) string {
 	namespace := string(metric["namespace"])
 	podUID := string(metric["pod_uid"])
 	// k8s >= 1.16

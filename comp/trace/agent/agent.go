@@ -17,14 +17,19 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
@@ -44,6 +49,9 @@ type dependencies struct {
 	Context            context.Context
 	Params             *Params
 	TelemetryCollector telemetry.TelemetryCollector
+	Workloadmeta       workloadmeta.Component
+	Statsd             statsd.Component
+	Tagger             tagger.Component
 }
 
 type component struct{}
@@ -56,7 +64,10 @@ type agent struct {
 	ctx                context.Context
 	params             *Params
 	shutdowner         fx.Shutdowner
+	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
+	statsd             statsd.Component
+	workloadmeta       workloadmeta.Component
 	wg                 sync.WaitGroup
 }
 
@@ -79,10 +90,13 @@ func newAgent(deps dependencies) Component {
 		),
 		cancel:             cancel,
 		config:             deps.Config,
+		statsd:             deps.Statsd,
 		ctx:                ctx,
 		params:             deps.Params,
 		shutdowner:         deps.Shutdowner,
+		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
+		tagger:             deps.Tagger,
 		wg:                 sync.WaitGroup{},
 	}
 	deps.Lc.Append(fx.Hook{
@@ -113,6 +127,11 @@ func start(ag *agent) error {
 
 		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), ag.params.PIDFilePath)
 	}
+
+	if err := setupMetrics(ag.statsd, ag.config, ag.telemetryCollector); err != nil {
+		return err
+	}
+
 	if err := runAgentSidekicks(ag.ctx, ag.config, ag.telemetryCollector); err != nil {
 		return err
 	}
@@ -121,6 +140,20 @@ func start(ag *agent) error {
 		defer ag.wg.Done()
 		ag.Run()
 	}()
+	return nil
+}
+
+func setupMetrics(statsd statsd.Component, cfg config.Component, telemetryCollector telemetry.TelemetryCollector) error {
+	tracecfg := cfg.Object()
+
+	// TODO: Try to use statsd.Get() everywhere instead in the long run.
+	err := metrics.Configure(tracecfg, []string{"version:" + version.AgentVersion}, statsd.CreateForAddr)
+	if err != nil {
+		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
+		return fmt.Errorf("cannot configure dogstatsd: %v", err)
+	}
+
+	metrics.Count("datadog.trace_agent.started", 1, nil, 1)
 	return nil
 }
 

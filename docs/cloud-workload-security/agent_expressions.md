@@ -16,14 +16,14 @@ Cloud Security Management Threats (CSM Threats) first evaluates activity within 
 
 
 {{< code-block lang="javascript" >}}
-<event-type>.<event-attribute> <operator> <value> <event-attribute> ...
+<event-type>.<event-attribute> <operator> <value> [<operator> <event-type>.<event-attribute>] ...
 
 {{< /code-block >}}
 
 Using this format, an example rule looks like this:
 
 {{< code-block lang="javascript" >}}
-open.file.path == "/etc/shadow" && file.path not in ["/usr/sbin/vipw"]
+open.file.path == "/etc/shadow" && process.file.path not in ["/usr/sbin/vipw"]
 
 {{< /code-block >}}
 
@@ -838,6 +838,7 @@ A filesystem was mounted
 | [`mount.fs_type`](#mount-fs_type-doc) | Type of the mounted file system |
 | [`mount.mountpoint.path`](#mount-mountpoint-path-doc) | Path of the mount point |
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`mount.root.path`](#mount-root-path-doc) | Root path of the mount |
 | [`mount.source.path`](#mount-source-path-doc) | Source path of a bind mount |
 
 ### Event `mprotect`
@@ -2576,6 +2577,13 @@ Definition: Type of the mounted file system
 Type: string
 
 Definition: Path of the mount point
+
+
+
+### `mount.root.path` {#mount-root-path-doc}
+Type: string
+
+Definition: Root path of the mount
 
 
 

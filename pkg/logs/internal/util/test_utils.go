@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package util
 
 import "github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -12,6 +14,7 @@ import "github.com/DataDog/datadog-agent/pkg/logs/sources"
 func consumeSources(sources *sources.LogSources) {
 	go func() {
 		sources := sources.GetAddedForType("foo")
+		//nolint:revive // TODO(AML) Fix revive linter
 		for range sources {
 		}
 	}()

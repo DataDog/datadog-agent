@@ -230,7 +230,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := injectAutoInstruConfig(tt.pod, tt.libsToInject, false)
+			err := injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
 			require.False(t, (err != nil) != tt.wantErr)
 			if err != nil {
 				return
@@ -808,44 +808,8 @@ func TestInjectAll(t *testing.T) {
 		"dotnet": {lang: dotnet, image: "gcr.io/datadoghq/dd-lib-dotnet-init:latest"},
 		"ruby":   {lang: ruby, image: "gcr.io/datadoghq/dd-lib-ruby-init:latest"},
 	}
-	tests := []struct {
-		name             string
-		ns               string
-		targetNamespaces []string
-		want             map[string]libInfo
-	}{
-		{
-			name:             "nominal",
-			ns:               "targeted",
-			targetNamespaces: []string{"targeted"},
-			want:             wantAll,
-		},
-		{
-			name:             "many",
-			ns:               "targeted",
-			targetNamespaces: []string{"targeted", "foo", "bar"},
-			want:             wantAll,
-		},
-		{
-			name:             "no match",
-			ns:               "not-targeted",
-			targetNamespaces: []string{"foo", "bar"},
-			want:             map[string]libInfo{},
-		},
-		{
-			name:             "empty target",
-			ns:               "targeted",
-			targetNamespaces: []string{},
-			want:             map[string]libInfo{},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			targetNamespaces = tt.targetNamespaces
-			got := getAllLibsToInject(tt.ns, "gcr.io/datadoghq")
-			require.EqualValues(t, tt.want, got)
-		})
-	}
+
+	require.EqualValues(t, wantAll, getAllLibsToInject("gcr.io/datadoghq"))
 }
 
 func injectAllEnvs() []corev1.EnvVar {
@@ -1574,7 +1538,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			),
 			wantErr: false,
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
 			},
 		},

@@ -3,8 +3,10 @@ Release helper tasks
 """
 
 import json
+import os
 import re
 import sys
+import tempfile
 from collections import OrderedDict
 from datetime import date
 from time import sleep
@@ -12,14 +14,11 @@ from time import sleep
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from .libs.common.color import color_message
-from .libs.common.github_api import GithubAPI
-from .libs.common.gitlab import Gitlab, get_gitlab_token
-from .libs.common.user_interactions import yes_no_question
-from .libs.version import Version
-from .modules import DEFAULT_MODULES
-from .pipeline import run
-from .utils import (
+from tasks.libs.common.color import color_message
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
     check_clean_branch_state,
@@ -27,6 +26,9 @@ from .utils import (
     nightly_entry_for,
     release_entry_for,
 )
+from tasks.libs.version import Version
+from tasks.modules import DEFAULT_MODULES
+from tasks.pipeline import edit_schedule, run
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -35,8 +37,17 @@ from .utils import (
 # - vX.Y(.Z) (security-agent-policies repo)
 VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 
+# Regex matching rc version tag format like 7.50.0-rc.1
+RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
+
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
+RELEASE_JSON_FIELDS_TO_UPDATE = [
+    "INTEGRATIONS_CORE_VERSION",
+    "OMNIBUS_SOFTWARE_VERSION",
+    "OMNIBUS_RUBY_VERSION",
+    "MACOS_BUILD_VERSION",
+]
 
 
 @task
@@ -766,9 +777,13 @@ def __get_force_option(force: bool) -> str:
     return force_option
 
 
-def __tag_single_module(ctx, module, agent_version, commit, push, force_option):
+def __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel):
     """Tag a given module."""
     for tag in module.tag(agent_version):
+
+        if devel:
+            tag += "-devel"
+
         ok = try_git_command(
             ctx,
             f"git tag -m {tag} {tag} {commit}{force_option}",
@@ -783,7 +798,7 @@ def __tag_single_module(ctx, module, agent_version, commit, push, force_option):
 
 
 @task
-def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False, devel=False):
     """
     Create tags for Go nested modules for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
@@ -792,6 +807,7 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     * --verify checks for correctness on the Agent version (on by default).
     * --push will push the tags to the origin remote (on by default).
     * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+    * --devel will create -devel tags (used after creation of the release branch)
 
     Examples:
     inv -e release.tag-modules 7.27.0                 # Create tags and push them to origin
@@ -806,13 +822,13 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     for module in DEFAULT_MODULES.values():
         # Skip main module; this is tagged at tag_version via __tag_single_module.
         if module.should_tag and module.path != ".":
-            __tag_single_module(ctx, module, agent_version, commit, push, force_option)
+            __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel)
 
     print(f"Created module tags for version {agent_version}")
 
 
 @task
-def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False, devel=False):
     """
     Create tags for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
@@ -821,6 +837,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     * --verify checks for correctness on the Agent version (on by default).
     * --push will push the tags to the origin remote (on by default).
     * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+    * --devel will create -devel tags (used after creation of the release branch)
 
     Examples:
     inv -e release.tag-version 7.27.0                 # Create tags and push them to origin
@@ -832,8 +849,14 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
 
     # Always tag the main module
     force_option = __get_force_option(force)
-    __tag_single_module(ctx, DEFAULT_MODULES["."], agent_version, commit, push, force_option)
+    __tag_single_module(ctx, DEFAULT_MODULES["."], agent_version, commit, push, force_option, devel)
     print(f"Created tags for version {agent_version}")
+
+
+@task
+def tag_devel(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+    tag_version(ctx, agent_version, commit, verify, push, force, devel=True)
+    tag_modules(ctx, agent_version, commit, verify, push, force, devel=True)
 
 
 def current_version(ctx, major_version) -> Version:
@@ -1113,6 +1136,7 @@ Make sure that milestone is open before trying again.""",
         labels=[
             "changelog/no-changelog",
             "qa/skip-qa",
+            "qa/no-code-change",
             "team/agent-platform",
             "team/agent-release-management",
             "category/release_operations",
@@ -1132,10 +1156,12 @@ Make sure that milestone is open before trying again.""",
 
 
 @task
-def build_rc(ctx, major_versions="6,7", patch_version=False):
+def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=False):
     """
     To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
+
+    k8s_deployments - when set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
 
     Tags the new RC versions on the current commit, and creates the build pipeline for these
     new tags.
@@ -1206,7 +1232,26 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
         major_versions=major_versions,
         repo_branch="beta",
         deploy=True,
+        rc_build=True,
+        rc_k8s_deployments=k8s_deployments,
     )
+
+
+@task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
+def set_release_json(_, key, value):
+    release_json = _load_release_json()
+    path = key.split('::')
+    current_node = release_json
+    for key_idx in range(len(path)):
+        key = path[key_idx]
+        if key not in current_node:
+            raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
+        if key_idx == len(path) - 1:
+            current_node[key] = value
+            break
+        else:
+            current_node = current_node[key]
+    _save_release_json(release_json)
 
 
 @task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
@@ -1229,7 +1274,7 @@ def _get_release_json_value(key):
     return release_json
 
 
-def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
+def create_and_update_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
     # Perform branch out in all required repositories
     with ctx.cd(f"{base_directory}/{repo}"):
         # Step 1 - Create a local branch out from the default branch
@@ -1242,11 +1287,31 @@ def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upst
         ctx.run(f"git checkout -b {release_branch}")
 
         if repo == UNFREEZE_REPO_AGENT:
+            # Step 1.1 - In datadog-agent repo update base_branch and nightly builds entries
             rj = _load_release_json()
+
             rj["base_branch"] = release_branch
+
+            for nightly in ["nightly", "nightly-a7"]:
+                for field in RELEASE_JSON_FIELDS_TO_UPDATE:
+                    rj[nightly][field] = f"{release_branch}"
+
             _save_release_json(rj)
-            ctx.run("git add release.json")
-            ok = try_git_command(ctx, f"git commit -m 'Set base_branch to {release_branch}'")
+
+            # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml jobs
+            with open(".gitlab-ci.yml", "r") as gl:
+                file_content = gl.readlines()
+
+            with open(".gitlab-ci.yml", "w") as gl:
+                for line in file_content:
+                    if re.search(r"compare_to: main", line):
+                        gl.write(line.replace("main", f"{release_branch}"))
+                    else:
+                        gl.write(line)
+
+            # Step 1.3 - Commit new changes
+            ctx.run("git add release.json .gitlab-ci.yml")
+            ok = try_git_command(ctx, f"git commit -m 'Update release.json and .gitlab-ci.yml with {release_branch}'")
             if not ok:
                 raise Exit(
                     color_message(
@@ -1271,13 +1336,13 @@ def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upst
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin", redo=False):
+def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"):
     """
     Performs set of tasks required for the main branch unfreeze during the agent release cycle.
     That includes:
-    - creates a release branch in datadog-agent, omnibus-ruby and omnibus-software repositories,
-    - pushes an empty commit on the datadog-agent main branch,
-    - creates devel tags in the datadog-agent repository on the empty commit from the last step.
+    - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
+    - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
+    - updates entries in .gitlab-ci.yml which depend on local branch name
 
     Notes:
     base_directory - path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
@@ -1297,7 +1362,6 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     # Strings with proper branch/tag names
     release_branch = current.branch()
-    devel_tag = str(next)
 
     # Step 0: checks
 
@@ -1314,55 +1378,14 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     ):
         raise Exit(color_message("Aborting.", "red"), code=1)
 
-    # Step 1: Create release branch
     for repo in UNFREEZE_REPOS:
-        create_release_branch(ctx, repo, release_branch, base_directory=base_directory)
-
-    print(color_message("Creating empty commit for devel tags", "bold"))
-    with ctx.cd(f"{base_directory}/datadog-agent"):
-        ctx.run("git checkout main")
-        ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    "Could not create commit. Please commit manually, push the commit manually to the main branch.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        print(color_message("Pushing new commit", "bold"))
-        res = ctx.run(f"git push {upstream}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push commit to the upstream '{upstream}'. Please push it manually.",
-                    "red",
-                ),
-                code=1,
-            )
-
-    # Step 3: Create tags for next version
-    print(color_message(f"Creating devel tags for agent version(s) {list_major_versions}", "bold"))
-    print(
-        color_message("If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold")
-    )
-
-    tag_version(ctx, devel_tag, tag_modules=False, push=True, force=redo)
+        create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
 
 
-@task
-def update_last_stable(_, major_versions="6,7"):
+def _update_last_stable(_, version, major_versions="6,7"):
     """
     Updates the last_release field(s) of release.json
     """
-    gh = GithubAPI('datadog/datadog-agent')
-    latest_release = gh.latest_release()
-    match = VERSION_RE.search(latest_release)
-    if not match:
-        raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
-    version = _create_version_from_match(match)
-
     release_json = _load_release_json()
     list_major_versions = parse_major_versions(major_versions)
     # If the release isn't a RC, update the last stable release field
@@ -1370,3 +1393,153 @@ def update_last_stable(_, major_versions="6,7"):
         version.major = major
         release_json['last_stable'][str(major)] = str(version)
     _save_release_json(release_json)
+
+
+@task
+def cleanup(ctx):
+    """
+    Perform the post release cleanup steps
+    Currently this:
+      - Updates the scheduled nightly pipeline to target the new stable branch
+      - Updates the release.json last_stable fields
+    """
+    gh = GithubAPI('datadog/datadog-agent')
+    latest_release = gh.latest_release()
+    match = VERSION_RE.search(latest_release)
+    if not match:
+        raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
+    version = _create_version_from_match(match)
+    _update_last_stable(ctx, version)
+    edit_schedule(ctx, 2555, ref=version.branch())
+
+
+@task
+def check_omnibus_branches(ctx):
+    base_branch = _get_release_json_value('base_branch')
+    if base_branch == 'main':
+        omnibus_ruby_branch = 'datadog-5.5.0'
+        omnibus_software_branch = 'master'
+    else:
+        omnibus_ruby_branch = base_branch
+        omnibus_software_branch = base_branch
+
+    def _check_commit_in_repo(repo_name, branch, release_json_field):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ctx.run(
+                f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
+                hide='stdout',
+            )
+            for version in ['nightly', 'nightly-a7']:
+                commit = _get_release_json_value(f'{version}::{release_json_field}')
+                if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
+                    raise Exit(
+                        code=1,
+                        message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
+                    )
+                else:
+                    print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
+
+    _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
+    _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
+
+    return True
+
+
+@task
+def update_build_links(_ctx, new_version):
+    """
+    Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
+
+    new_version - should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format.
+
+    Notes:
+    Attlasian credentials are required to be available as ATLASSIAN_USERNAME and ATLASSIAN_PASSWORD as environment variables.
+    ATLASSIAN_USERNAME is typically an email address.
+    ATLASSIAN_PASSWORD is a token. See: https://id.atlassian.com/manage-profile/security/api-tokens
+    """
+    from atlassian import Confluence
+    from atlassian.confluence import ApiError
+
+    BUILD_LINKS_PAGE_ID = 2889876360
+
+    match = RC_VERSION_RE.match(new_version)
+    if not match:
+        raise Exit(
+            color_message(
+                f"{new_version} is not a valid Agent RC version number/tag. \nCorrect example: 7.50.0-rc.1",
+                "red",
+            ),
+            code=1,
+        )
+
+    username = os.getenv("ATLASSIAN_USERNAME")
+    password = os.getenv("ATLASSIAN_PASSWORD")
+
+    if username is None or password is None:
+        raise Exit(
+            color_message(
+                "No Atlassian credentials provided. Run inv --help update-build-links for more details.",
+                "red",
+            ),
+            code=1,
+        )
+
+    confluence = Confluence(url="https://datadoghq.atlassian.net/", username=username, password=password)
+
+    content = confluence.get_page_by_id(page_id=BUILD_LINKS_PAGE_ID, expand="body.storage")
+
+    title = content["title"]
+    current_version = title[-11:]
+    body = content["body"]["storage"]["value"]
+
+    title = title.replace(current_version, new_version)
+
+    patterns = _create_build_links_patterns(current_version, new_version)
+
+    for key in patterns:
+        body = body.replace(key, patterns[key])
+
+    print(color_message(f"Updating QA Build links page with {new_version}", "bold"))
+
+    try:
+        confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
+    except ApiError as e:
+        raise Exit(
+            color_message(
+                f"Failed to update confluence page. Reason: {e.reason}",
+                "red",
+            ),
+            code=1,
+        )
+    print(color_message("Build links page updated", "green"))
+
+
+def _create_build_links_patterns(current_version, new_version):
+    patterns = {}
+
+    current_minor_version = current_version[1:]
+    new_minor_version = new_version[1:]
+
+    patterns[current_minor_version] = new_minor_version
+    patterns[current_minor_version.replace("rc.", "rc-")] = new_minor_version.replace("rc.", "rc-")
+    patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
+
+    return patterns
+
+
+@task
+def get_active_release_branch(_ctx):
+    """
+    Determine what is the current active release branch for the Agent.
+    If release started and code freeze is in place - main branch is considered active.
+    If release started and code freeze is over - release branch is considered active.
+    """
+    gh = GithubAPI('datadog/datadog-agent')
+    latest_release = gh.latest_release()
+    version = _create_version_from_match(VERSION_RE.search(latest_release))
+    next_version = version.next_version(bump_minor=True)
+    release_branch = gh.get_branch(next_version.branch())
+    if release_branch:
+        print(f"{release_branch.name}")
+    else:
+        print("main")

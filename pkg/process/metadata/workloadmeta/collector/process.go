@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package collector
 
 import (
@@ -10,11 +11,11 @@ import (
 
 	"github.com/benbjohnson/clock"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const collectorId = "local-process"
@@ -51,7 +52,8 @@ type Collector struct {
 	collectionClock clock.Clock
 }
 
-func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
+// Start will start the collector
+func (c *Collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	err := c.grpcServer.Start()
 	if err != nil {
 		return err
@@ -74,7 +76,7 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	return nil
 }
 
-func (c *Collector) run(ctx context.Context, store workloadmeta.Store, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
+func (c *Collector) run(ctx context.Context, store workloadmeta.Component, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
 	defer c.grpcServer.Stop()
 	defer store.Unsubscribe(containerEvt)
 	defer collectionTicker.Stop()
@@ -83,7 +85,11 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Store, container
 
 	for {
 		select {
-		case evt := <-containerEvt:
+		case evt, ok := <-containerEvt:
+			if !ok {
+				log.Infof("The %s collector has stopped, workloadmeta channel is closed", collectorId)
+				return
+			}
 			c.handleContainerEvent(evt)
 		case <-collectionTicker.C:
 			err := c.processData.Fetch()
@@ -98,7 +104,7 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Store, container
 }
 
 func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
-	defer close(evt.Ch)
+	defer evt.Acknowledge()
 
 	for _, evt := range evt.Events {
 		ent := evt.Entity.(*workloadmeta.Container)

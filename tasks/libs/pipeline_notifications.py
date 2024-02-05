@@ -5,8 +5,8 @@ import subprocess
 from collections import defaultdict
 from typing import Dict
 
-from .common.gitlab import Gitlab, get_gitlab_token
-from .types import FailedJobs, Test
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.types import FailedJobs, Test
 
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
 DEFAULT_JIRA_PROJECT = "AGNTR"
@@ -27,6 +27,7 @@ GITHUB_SLACK_MAP = {
     "@datadog/metrics-aggregation": "#metrics-aggregation",
     "@datadog/serverless": "#serverless-agent",
     "@datadog/remote-config": "#remote-config-monitoring",
+    "@datadog/fleet": "#fleet-automation",
     "@datadog/agent-all": "#datadog-agent-pipelines",
     "@datadog/ebpf-platform": "#ebpf-platform-ops",
     "@datadog/networks": "#network-performance-monitoring",
@@ -60,6 +61,7 @@ GITHUB_JIRA_MAP = {
     "@datadog/metrics-aggregation": "AGGR",
     "@datadog/serverless": "SVLS",
     "@datadog/remote-config": "RC",
+    "@datadog/fleet": "RC",
     "@datadog/agent-all": DEFAULT_JIRA_PROJECT,
     "@datadog/ebpf-platform": "EBPF",
     "@datadog/networks": "NPM",
@@ -67,7 +69,7 @@ GITHUB_JIRA_MAP = {
     "@datadog/windows-agent": "WINA",
     "@datadog/windows-kernel-integrations": "WKINT",
     "@datadog/opentelemetry": "OTEL",
-    "@datadog/agent-e2e-testing": "AETT",
+    "@datadog/agent-e2e-testing": "APL",
     "@datadog/software-integrity-and-trust": "SINT",
     "@datadog/single-machine-performance": "SMP",
     "@datadog/agent-integrations": "AI",

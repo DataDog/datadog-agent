@@ -12,13 +12,14 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 )
 
 var chk Check
@@ -85,4 +86,22 @@ func TestCustomQueries(t *testing.T) {
 	err = chk.CustomQueries()
 	assert.NoError(t, err, "failed to execute custom query")
 	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.c1", []string{"c2:A"})
+}
+
+func TestFloat(t *testing.T) {
+	c, s := newRealCheck(t, `custom_queries:
+  - metric_prefix: oracle.custom_query.test
+    query: |
+      select 'TAG1', 1.012345 value from dual
+    columns:
+      - name: name
+        type: tag
+      - name: value
+        type: gauge
+`)
+	err := c.Run()
+	require.NoError(t, err)
+	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	s.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.value", []string{"name:TAG1"})
+	s.AssertMetric(t, "Gauge", "oracle.custom_query.test.value", 1.012345, c.dbHostname, []string{})
 }

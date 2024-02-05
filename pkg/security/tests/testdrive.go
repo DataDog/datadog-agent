@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -134,22 +134,36 @@ func (td *testDrive) lsof() string {
 	return string(output)
 }
 
-func (td *testDrive) unmount() error {
+func (td *testDrive) Unmount() error {
 	return td.mount.unmount(syscall.MNT_FORCE)
 }
 
-func (td *testDrive) Close() {
-	if err := td.unmount(); err != nil {
-		fmt.Printf("failed to unmount test drive: %s (lsof: %s)", err, td.lsof())
-	}
+func (td *testDrive) DetachDevice() error {
 	if td.dev != nil {
 		if err := td.dev.Detach(); err != nil {
-			fmt.Printf("failed to detach test drive: %s (lsof: %s)", err, td.lsof())
+			return err
 		}
 		if err := retry.Do(td.dev.Remove); err != nil {
-			fmt.Printf("failed to remove test drive: %s (lsof: %s)", err, td.lsof())
+			return err
 		}
 	}
-	os.Remove(td.file.Name())
-	os.RemoveAll(td.Root())
+
+	if err := os.Remove(td.file.Name()); err != nil {
+		return err
+	}
+
+	if err := os.RemoveAll(td.Root()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (td *testDrive) Close() {
+	if err := td.Unmount(); err != nil {
+		fmt.Printf("failed to unmount test drive: %s (lsof: %s)\n", err, td.lsof())
+	}
+
+	if err := td.DetachDevice(); err != nil {
+		fmt.Printf("failed to detach test drive: %s (lsof: %s)\n", err, td.lsof())
+	}
 }

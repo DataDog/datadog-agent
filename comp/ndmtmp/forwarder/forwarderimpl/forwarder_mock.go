@@ -23,10 +23,11 @@ func getMockForwarder(t testing.TB) forwarder.MockComponent {
 }
 
 // MockModule defines a component with a mock forwarder
-var MockModule = fxutil.Component(
-	fx.Provide(
-		getMockForwarder,
-		// Provide the mock as the primary component as well
-		func(c forwarder.MockComponent) forwarder.Component { return c },
-	),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(
+			getMockForwarder,
+			// Provide the mock as the primary component as well
+			func(c forwarder.MockComponent) forwarder.Component { return c },
+		))
+}

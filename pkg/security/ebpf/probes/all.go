@@ -61,12 +61,12 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getOpenProbes(fentry)...)
 	allProbes = append(allProbes, getRenameProbes(fentry)...)
 	allProbes = append(allProbes, getRmdirProbe(fentry)...)
-	allProbes = append(allProbes, getSharedProbes(fentry)...)
-	allProbes = append(allProbes, getIouringProbes(fentry)...)
+	allProbes = append(allProbes, getSharedProbes()...)
+	allProbes = append(allProbes, getIouringProbes()...)
 	allProbes = append(allProbes, getUnlinkProbes(fentry)...)
 	allProbes = append(allProbes, getXattrProbes(fentry)...)
 	allProbes = append(allProbes, getIoctlProbes()...)
-	allProbes = append(allProbes, getSELinuxProbes(fentry)...)
+	allProbes = append(allProbes, getSELinuxProbes()...)
 	allProbes = append(allProbes, getBPFProbes(fentry)...)
 	allProbes = append(allProbes, getPTraceProbes(fentry)...)
 	allProbes = append(allProbes, getMMapProbes(fentry)...)
@@ -240,7 +240,7 @@ func AllRingBuffers() []*manager.RingBuffer {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableMaps bool, fentry bool) []manager.TailCallRoute {
+func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
@@ -257,8 +257,6 @@ func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableM
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
 		"tail_call_target_dentry_resolver_erpc_write_user",
-		"tail_call_target_dentry_resolver_parent_erpc_write_user",
-		"tail_call_target_dentry_resolver_segment_erpc_write_user",
 	}
 }
 

@@ -8,19 +8,31 @@
 package demultiplexer
 
 import (
-	"go.uber.org/fx"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // Mock implements mock-specific methods.
 type Mock interface {
 	SetDefaultSender(sender.Sender)
+	Stop(bool)
 	Component
 }
 
-// MockModule defines the fx options for this component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+// FakeSamplerMock is an implementation of the Demultiplexer which is sending
+// the time samples into a fake sampler, you can then use WaitForSamples() to retrieve
+// the samples that the TimeSamplers should have received.
+type FakeSamplerMock interface {
+	aggregator.DemultiplexerWithAggregator
+
+	WaitForSamples(timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample)
+	WaitForNumberOfSamples(ontimeCount, timedCount int, timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample)
+	Reset()
+
+	GetAgentDemultiplexer() *aggregator.AgentDemultiplexer
+
+	Stop(bool)
+}

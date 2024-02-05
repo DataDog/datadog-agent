@@ -15,25 +15,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 )
 
-const shmQuery12 = `SELECT 
+const shmQuery12 = `SELECT
     c.name pdb_name, s.name, ROUND(bytes/1024/1024,2) size_
   FROM v$sgainfo s, v$containers c
-  WHERE 
+  WHERE
     c.con_id(+) = s.con_id
     AND s.name NOT IN ('Maximum SGA Size','Startup overhead in Shared Pool','Granule Size','Shared IO Pool Size')`
 
-const shmQuery11 = `SELECT 
+const shmQuery11 = `SELECT
 	s.name, ROUND(bytes/1024/1024,2) size_
 FROM v$sgainfo s
-WHERE 
+WHERE
   s.name NOT IN ('Maximum SGA Size','Startup overhead in Shared Pool','Granule Size','Shared IO Pool Size')`
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type SHMRow struct {
 	PdbName sql.NullString `db:"PDB_NAME"`
 	Memory  string         `db:"NAME"`
 	Size    float64        `db:"SIZE_"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SharedMemory() error {
 	rows := []SHMRow{}
 	var shmQuery string
@@ -56,7 +58,7 @@ func (c *Check) SharedMemory() error {
 		memoryTag = strings.ToLower(memoryTag)
 		memoryTag = strings.ReplaceAll(memoryTag, "_size", "")
 		tags = append(tags, fmt.Sprintf("memory:%s", memoryTag))
-		sender.Gauge(fmt.Sprintf("%s.shared_memory.size", common.IntegrationName), r.Size, "", tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.shared_memory.size", common.IntegrationName), r.Size, tags)
 	}
 	sender.Commit()
 	return nil

@@ -19,6 +19,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
 
+	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -26,7 +27,7 @@ import (
 )
 
 // OrderedPerfMap implements the EventStream interface
-// using an eBPF perf map associated with a event reorder.
+// using an eBPF perf map associated with an event reorderer.
 type OrderedPerfMap struct {
 	perfMap          *manager.PerfMap
 	lostEventCounter eventstream.LostEventCounter
@@ -43,19 +44,21 @@ func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error
 	}
 
 	m.perfMap.PerfMapOptions = manager.PerfMapOptions{
-		RecordHandler: m.reOrderer.HandleEvent,
-		LostHandler:   m.handleLostEvents,
-		RecordGetter:  m.recordPool.Get,
+		RecordHandler:    m.reOrderer.HandleEvent,
+		LostHandler:      m.handleLostEvents,
+		RecordGetter:     m.recordPool.Get,
+		TelemetryEnabled: config.InternalTelemetryEnabled,
 	}
 
 	if config.EventStreamBufferSize != 0 {
 		m.perfMap.PerfMapOptions.PerfRingBufferSize = config.EventStreamBufferSize
 	}
 
+	ebpfTelemetry.ReportPerfMapTelemetry(m.perfMap)
 	return nil
 }
 
-func (m *OrderedPerfMap) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
+func (m *OrderedPerfMap) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, _ *manager.Manager) {
 	seclog.Tracef("lost %d events", count)
 	if m.lostEventCounter != nil {
 		m.lostEventCounter.CountLostEvent(count, perfMap.Name, CPU)

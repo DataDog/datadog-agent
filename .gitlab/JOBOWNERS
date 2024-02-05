@@ -8,6 +8,7 @@ build_processed_btfhub_archive       @DataDog/ebpf-platform
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
 tests_ebpf*                          @DataDog/ebpf-platform
+tests_windows_sysprobe*              @DataDog/ebpf-platform
 security_go_generate_check           @DataDog/agent-security
 prepare_ebpf_functional_tests*       @DataDog/ebpf-platform
 
@@ -61,6 +62,9 @@ internal_kubernetes_deploy*            @DataDog/container-integrations
 # Deploy
 deploy_containers*                     @DataDog/container-integrations
 
+# Integration test
+integration_tests_windows*    @DataDog/windows-agent
+
 # Functional test
 kitchen_*_system_probe*                        @DataDog/ebpf-platform
 kitchen_*_security_agent*                      @DataDog/agent-security
@@ -78,9 +82,16 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 # New E2E
 new-e2e-containers*               @DataDog/container-integrations
 new-e2e-agent-subcommands*        @DataDog/agent-shared-components
+new-e2e-agent-shared-components*  @DataDog/agent-shared-components
 new-e2e-language-detection*       @DataDog/processes
+new-e2e-process*                  @DataDog/processes
 new-e2e-agent-platform*           @DataDog/agent-platform
+new-e2e-aml*                      @DataDog/agent-metrics-logs
 new-e2e-npm*                      @DataDog/Networks
+new-e2e-cws*                      @DataDog/agent-security
+new-e2e-windows-agent*            @DataDog/windows-agent
+new-e2e-orchestrator*             @DataDog/container-app
+e2e_pre_test*                     @DataDog/agent-platform
 
 # Kernel version testing
 package_dependencies*             @DataDog/ebpf-platform

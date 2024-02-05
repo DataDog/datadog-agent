@@ -9,7 +9,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,7 +20,9 @@ type LogLevelRuntimeSetting struct {
 
 // NewLogLevelRuntimeSetting returns a new LogLevelRuntimeSetting
 func NewLogLevelRuntimeSetting() *LogLevelRuntimeSetting {
-	return &LogLevelRuntimeSetting{ConfigKey: "log_level"}
+	return &LogLevelRuntimeSetting{
+		ConfigKey: "log_level",
+	}
 }
 
 // Description returns the runtime setting's description
@@ -66,7 +67,5 @@ func (l *LogLevelRuntimeSetting) Set(v interface{}, source model.Source) error {
 		cfg = l.Config
 	}
 	cfg.Set(key, level, source)
-	// we trigger a new inventory metadata payload since the configuration was updated by the user.
-	inventories.Refresh()
 	return nil
 }

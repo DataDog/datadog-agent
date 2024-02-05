@@ -73,7 +73,7 @@ func newEcsFargateCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.RuntimeNameECSFargate: provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameECSFargate), ""): provider.MakeCached(collectorID, cache, collectors),
 		},
 	}, nil
 }
@@ -82,6 +82,8 @@ func newEcsFargateCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 func (e *ecsFargateCollector) ID() string { return collectorID }
 
 // GetContainerStats returns stats by container ID.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (e *ecsFargateCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := e.stats(containerID)
 	if err != nil {
@@ -100,6 +102,8 @@ func (e *ecsFargateCollector) GetContainerStats(containerNS, containerID string,
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (e *ecsFargateCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	stats, err := e.stats(containerID)
 	if err != nil {

@@ -1,4 +1,5 @@
 version: '3'
+name: mongo
 services:
   mongodb-primary:
     image: 'mongo:5.0.14'
@@ -7,11 +8,5 @@ services:
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER:-root}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-password}
-    networks:
-      - mongo
     tmpfs:
       - /data/db
-
-networks:
-  mongo:
-    driver: bridge

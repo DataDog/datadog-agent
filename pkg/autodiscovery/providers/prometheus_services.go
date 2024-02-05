@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -70,13 +69,11 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
-		telemetry.Errors.Inc(names.PrometheusServices)
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
 
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
-		telemetry.Errors.Inc(names.PrometheusServices)
 		return nil, errors.New("cannot get services informer")
 	}
 
@@ -87,7 +84,6 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 	if collectEndpoints {
 		endpointsInformer = ac.InformerFactory.Core().V1().Endpoints()
 		if endpointsInformer == nil {
-			telemetry.Errors.Inc(names.PrometheusServices)
 			return nil, errors.New("cannot get endpoints informer")
 		}
 		endpointsLister = endpointsInformer.Lister()
@@ -100,7 +96,6 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 
 	checks, err := getPrometheusConfigs()
 	if err != nil {
-		telemetry.Errors.Inc(names.PrometheusServices)
 		return nil, err
 	}
 
@@ -111,7 +106,6 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 		UpdateFunc: p.invalidateIfChanged,
 		DeleteFunc: p.invalidate,
 	}); err != nil {
-		telemetry.Errors.Inc(names.PrometheusServices)
 		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
 	}
 
@@ -120,7 +114,6 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 			AddFunc:    p.invalidateIfAddedEndpoints,
 			UpdateFunc: p.invalidateIfChangedEndpoints,
 		}); err != nil {
-			telemetry.Errors.Inc(names.PrometheusServices)
 			return nil, fmt.Errorf("cannot add event handler to endpoints informer: %s", err)
 		}
 	}
@@ -142,6 +135,8 @@ func (p *PrometheusServicesConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := p.api.ListServices()
 	if err != nil {
@@ -171,7 +166,6 @@ func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integ
 					if k8serrors.IsNotFound(err) {
 						continue
 					}
-					telemetry.Errors.Inc(names.PrometheusServices)
 					return nil, err
 				}
 
@@ -202,6 +196,8 @@ func (p *PrometheusServicesConfigProvider) setUpToDate(v bool) {
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *PrometheusServicesConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -214,14 +210,12 @@ func (p *PrometheusServicesConfigProvider) invalidate(obj interface{}) {
 		// It's possible that we got a DeletedFinalStateUnknown here
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			telemetry.Errors.Inc(names.PrometheusServices)
 			log.Errorf("Received unexpected object: %T", obj)
 			return
 		}
 
 		castedObj, ok = deletedState.Obj.(*v1.Service)
 		if !ok {
-			telemetry.Errors.Inc(names.PrometheusServices)
 			log.Errorf("Expected DeletedFinalStateUnknown to contain *v1.Service, got: %T", deletedState.Obj)
 			return
 		}
@@ -241,7 +235,6 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChanged(old, obj interfac
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		telemetry.Errors.Inc(names.PrometheusServices)
 		log.Errorf("Expected a Service type, got: %T", obj)
 		return
 	}
@@ -249,7 +242,6 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChanged(old, obj interfac
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
-		telemetry.Errors.Inc(names.PrometheusServices)
 		log.Errorf("Expected a Service type, got: %T", old)
 		p.setUpToDate(false)
 		return
@@ -268,6 +260,7 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChanged(old, obj interfac
 	}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *PrometheusServicesConfigProvider) invalidateIfAddedEndpoints(obj interface{}) {
 	// An endpoint can be added after a service is created, in which case we need to re-run Collect
 	p.setUpToDate(false)
@@ -278,7 +271,6 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChangedEndpoints(old, obj
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		telemetry.Errors.Inc(names.PrometheusServices)
 		log.Errorf("Expected a Endpoints type, got: %T", obj)
 		return
 	}

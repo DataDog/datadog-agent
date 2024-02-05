@@ -11,29 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
-
-func mockDemultiplexer(config config.Component, log log.Component) aggregator.Demultiplexer {
-	return mockDemultiplexerWithFlushInterval(config, log, time.Millisecond*10)
-}
-
-func mockDemultiplexerWithFlushInterval(config config.Component, log log.Component, d time.Duration) aggregator.Demultiplexer {
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = d
-	opts.DontStartForwarders = true
-	forwarder := forwarder.NewDefaultForwarder(config, log, forwarder.NewOptions(config, log, nil))
-
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, "hostname")
-	return demux
-}
 
 func buildPacketContent(numberOfMetrics int, nbValuePerMessage int) []byte {
 	values := ""
@@ -54,8 +36,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
-	demux := aggregator.InitTestAgentDemultiplexer(deps.Log)
-	defer demux.Stop(false)
+	demux := deps.Demultiplexer
 	_ = s.Start(demux)
 	defer s.Stop()
 
@@ -69,7 +50,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	defer close(done)
 
 	b.RunParallel(func(pb *testing.PB) {
-		batcher := newBatcher(demux.AgentDemultiplexer)
+		batcher := newBatcher(demux)
 		parser := newParser(deps.Config, newFloat64ListPool(), 1)
 		packet := packets.Packet{
 			Contents: rawPacket,
@@ -103,7 +84,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
-	demux := aggregator.InitTestAgentDemultiplexer(deps.Log)
+	demux := deps.Demultiplexer
 	_ = s.Start(demux)
 	defer s.Stop()
 
@@ -156,7 +137,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
-	demux := aggregator.InitTestAgentDemultiplexer(deps.Log)
+	demux := deps.Demultiplexer
 	_ = s.Start(demux)
 	defer s.Stop()
 
@@ -169,7 +150,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	}()
 	defer close(done)
 
-	batcher := newBatcher(demux.AgentDemultiplexer)
+	batcher := newBatcher(demux)
 	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 
 	samples := make([]metrics.MetricSample, 0, 512)

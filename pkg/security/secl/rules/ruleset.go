@@ -15,11 +15,12 @@ import (
 
 	"github.com/spf13/cast"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/hashicorp/go-multierror"
 )
 
 // MacroID represents the ID of a macro
@@ -79,19 +80,19 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID                     RuleID             `yaml:"id"`
-	Version                string             `yaml:"version"`
-	Expression             string             `yaml:"expression"`
-	Description            string             `yaml:"description"`
-	Tags                   map[string]string  `yaml:"tags"`
-	AgentVersionConstraint string             `yaml:"agent_version"`
-	Filters                []string           `yaml:"filters"`
-	Disabled               bool               `yaml:"disabled"`
-	Combine                CombinePolicy      `yaml:"combine"`
-	Actions                []ActionDefinition `yaml:"actions"`
-	Every                  time.Duration      `yaml:"every"`
+	ID                     RuleID              `yaml:"id"`
+	Version                string              `yaml:"version"`
+	Expression             string              `yaml:"expression"`
+	Description            string              `yaml:"description"`
+	Tags                   map[string]string   `yaml:"tags"`
+	AgentVersionConstraint string              `yaml:"agent_version"`
+	Filters                []string            `yaml:"filters"`
+	Disabled               bool                `yaml:"disabled"`
+	Combine                CombinePolicy       `yaml:"combine"`
+	Actions                []*ActionDefinition `yaml:"actions"`
+	Every                  time.Duration       `yaml:"every"`
+	Silent                 bool                `yaml:"silent"`
 	Policy                 *Policy
-	Silent                 bool
 }
 
 // GetTag returns the tag value associated with a tag key
@@ -107,7 +108,13 @@ func (rd *RuleDefinition) GetTag(tagKey string) (string, bool) {
 func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	switch rd2.Combine {
 	case OverridePolicy:
-		rd.Expression = rd2.Expression
+		// keep the old expression if the new one is empty
+		expression := rd.Expression
+
+		*rd = *rd2
+		if rd2.Expression == "" {
+			rd.Expression = expression
+		}
 	default:
 		if !rd2.Disabled {
 			return &ErrRuleLoad{Definition: rd2, Err: ErrDefinitionIDConflict}
@@ -115,64 +122,6 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	}
 	rd.Disabled = rd2.Disabled
 	return nil
-}
-
-// ActionDefinition describes a rule action section
-type ActionDefinition struct {
-	Set                        *SetDefinition `yaml:"set"`
-	InternalCallbackDefinition *InternalCallbackDefinition
-	Kill                       *KillDefinition `yaml:"kill"`
-}
-
-// Check returns an error if the action in invalid
-func (a *ActionDefinition) Check() error {
-	if a.Set == nil && a.InternalCallbackDefinition == nil && a.Kill == nil {
-		return errors.New("either 'set' or 'kill' section of an action must be specified")
-	}
-
-	if a.Set != nil {
-		if a.Kill != nil {
-			return errors.New("only of 'set' or 'kill' section of an action can be specified")
-		}
-
-		if a.Set.Name == "" {
-			return errors.New("action name is empty")
-		}
-
-		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
-			return errors.New("either 'value' or 'field' must be specified")
-		}
-	} else if a.Kill != nil {
-		if a.Kill.Signal == "" {
-			a.Kill.Signal = "SIGTERM"
-		}
-
-		if _, found := model.SignalConstants[a.Kill.Signal]; !found {
-			return fmt.Errorf("unsupported signal '%s'", a.Kill.Signal)
-		}
-	}
-
-	return nil
-}
-
-// Scope describes the scope variables
-type Scope string
-
-// SetDefinition describes the 'set' section of a rule action
-type SetDefinition struct {
-	Name   string      `yaml:"name"`
-	Value  interface{} `yaml:"value"`
-	Field  string      `yaml:"field"`
-	Append bool        `yaml:"append"`
-	Scope  Scope       `yaml:"scope"`
-}
-
-// InternalCallbackDefinition describes an internal rule action
-type InternalCallbackDefinition struct{}
-
-// KillDefinition describes the 'kill' section of a rule action
-type KillDefinition struct {
-	Signal string `yaml:"signal"`
 }
 
 // Rule describes a rule of a ruleset
@@ -475,6 +424,25 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 		}
 	}
 
+	for _, action := range rule.Definition.Actions {
+		// compile action filter
+		if action.Filter != nil {
+			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
+				return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
+			}
+		}
+
+		if action.Set != nil && action.Set.Field != "" {
+			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
+				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
+				if err != nil {
+					return nil, err
+				}
+				rs.fieldEvaluators[action.Set.Field] = evaluator
+			}
+		}
+	}
+
 	for _, event := range rule.GetEvaluator().EventTypes {
 		bucket, exists := rs.eventRuleBuckets[event]
 		if !exists {
@@ -491,19 +459,6 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
 	rs.rules[ruleDef.ID] = rule
-
-	// Generate evaluator for fields that are used in variables
-	for _, action := range rule.Definition.Actions {
-		if action.Set != nil && action.Set.Field != "" {
-			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
-				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
-				if err != nil {
-					return nil, err
-				}
-				rs.fieldEvaluators[action.Set.Field] = evaluator
-			}
-		}
-	}
 
 	return rule.Rule, nil
 }

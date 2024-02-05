@@ -5,6 +5,7 @@
 //
 //go:build clusterchecks
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package providers
 
 import (
@@ -17,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,7 +40,6 @@ func NewCloudFoundryConfigProvider(*config.ConfigurationProviders) (ConfigProvid
 	var err error
 
 	if cfp.bbsCache, err = cloudfoundry.GetGlobalBBSCache(); err != nil {
-		telemetry.Errors.Inc(names.CloudFoundryBBS)
 		return nil, err
 	}
 	return cfp, nil
@@ -52,11 +51,15 @@ func (cf CloudFoundryConfigProvider) String() string {
 }
 
 // IsUpToDate returns true if the last collection time was later than last BBS Cache refresh time
+//
+//nolint:revive // TODO(PLINT) Fix revive linter
 func (cf CloudFoundryConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return cf.lastCollected.After(cf.bbsCache.LastUpdated()), nil
 }
 
 // Collect collects AD config templates from all relevant BBS API information
+//
+//nolint:revive // TODO(PLINT) Fix revive linter
 func (cf CloudFoundryConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	log.Debug("Collecting configs via the CloudFoundryProvider")
 	cf.lastCollected = time.Now()
@@ -88,7 +91,6 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP *cloudfoundry.D
 		}
 		parsedConfigs, errs := utils.ExtractTemplatesFromMap(id.String(), convertedADVal, "")
 		for _, err := range errs {
-			telemetry.Errors.Inc(names.CloudFoundryBBS)
 			log.Errorf("Cannot parse endpoint template for service %s of app %s: %s, skipping",
 				adName, desiredLRP.AppGUID, err)
 		}
@@ -101,7 +103,6 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP *cloudfoundry.D
 			// if service is found in VCAP_SERVICES (non-container service), we will run a single check per App
 			err := cf.renderExtractedConfigs(parsedConfigs, variables, vcVal)
 			if err != nil {
-				telemetry.Errors.Inc(names.CloudFoundryBBS)
 				log.Errorf("Failed to render config for service %s of app %s: %s", adName, desiredLRP.AppGUID, err)
 			} else {
 				success = true
@@ -116,7 +117,6 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP *cloudfoundry.D
 			if allSvcsStr == "" {
 				allSvcsStr = "no services found"
 			}
-			telemetry.Errors.Inc(names.CloudFoundryBBS)
 			log.Errorf(
 				"Service %s for app %s has variables configured, but is not present in VCAP_SERVICES (found services: %s)",
 				adName, desiredLRP.AppGUID, allSvcsStr,

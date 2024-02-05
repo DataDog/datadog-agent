@@ -17,6 +17,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 )
 
 func TestEmbeddedBTFMatch(t *testing.T) {
@@ -40,6 +42,8 @@ func TestEmbeddedBTFMatch(t *testing.T) {
 		{"ubuntu", "22.04", "5.4.0-80-generic", "", true},
 		// non-existent kernel version
 		{"ubuntu", "22.04", "15.0", "", true},
+		// kernel is in testdata for centos, and fakecentos, so multiple matches, but platform filter
+		{"redhat", "7", "3.10.0-1062.0.0.0.1.el7.x86_64", "centos/3.10.0-1062.0.0.0.1.el7.x86_64.btf.tar.xz", false},
 	}
 
 	for i, test := range tests {
@@ -59,7 +63,7 @@ func TestBTFTelemetry(t *testing.T) {
 	spec, result, err := loader.Get()
 	require.NoError(t, err)
 	require.NotNil(t, spec)
-	require.NotEqual(t, COREResult(btfNotFound), result)
+	require.NotEqual(t, ebpftelemetry.COREResult(ebpftelemetry.BtfNotFound), result)
 }
 
 func curDir() (string, error) {

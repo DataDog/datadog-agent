@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package diagnose
 
 import (
@@ -11,6 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -97,8 +100,18 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 		}
 	}
 
+	// TODO: (components) Hack to retrieve a singleton reference to the secrets Component
+	//
+	// Only needed temporarily, since the secrets.Component is needed for the diagnose functionality.
+	// It is very difficult right now to modify diagnose because it would require modifying many
+	// function signatures, which would only increase future maintenance. Once diagnose is better
+	// integrated with Components, we should be able to remove this hack.
+	//
+	// Other components should not copy this pattern, it is only meant to be used temporarily.
+	secretResolver := secretsimpl.GetInstance()
+
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	common.LoadComponents(context.Background(), senderManagerInstance, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(senderManagerInstance, secretResolver, workloadmeta.GetGlobalStore(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

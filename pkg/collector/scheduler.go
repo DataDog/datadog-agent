@@ -53,13 +53,13 @@ func init() {
 type CheckScheduler struct {
 	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
 	loaders        []check.Loader
-	collector      *Collector
+	collector      Collector
 	senderManager  sender.SenderManager
 	m              sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector *Collector, senderManager sender.SenderManager) *CheckScheduler {
+func InitCheckScheduler(collector Collector, senderManager sender.SenderManager) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,

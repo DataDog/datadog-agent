@@ -77,6 +77,7 @@ func queryCacheBool(cacheKey string, cacheMissEvalFunc func() (bool, time.Durati
 }
 
 func newBoolEntry(v bool) (bool, time.Duration) {
+	//nolint:gosimple // TODO(CINT) Fix gosimple linter
 	if v == true {
 		return v, 5 * time.Minute
 	}

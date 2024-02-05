@@ -1,0 +1,23 @@
+---
+name: "Milestone analysis"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, milestoned, demilestoned]
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+
+jobs:
+  milestone:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check milestone
+        run: |
+          milestone="${{github.event.pull_request.milestone.title}}"
+          if [[ "$milestone" != "triage" ]]; then
+            echo "Milestone: $milestone"
+            exit 0
+          fi
+          echo "PR ${{github.event.number}} requires a non-Triage milestone."
+          exit 1

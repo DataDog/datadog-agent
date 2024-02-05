@@ -5,11 +5,10 @@
 
 //go:build containerd
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package containerd
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-)
+import "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 
 var metricsNameMapping = map[string]string{
 	"container.uptime":                         "containerd.uptime",
@@ -47,6 +46,8 @@ var metricsNameMapping = map[string]string{
 type metricsAdapter struct{}
 
 // AdaptTags can be used to change Tagger tags before submitting the metrics
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (a metricsAdapter) AdaptTags(tags []string, c *workloadmeta.Container) []string {
 	return append(tags, "runtime:containerd")
 }

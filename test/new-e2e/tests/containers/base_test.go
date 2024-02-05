@@ -86,7 +86,7 @@ func (mc *myCollectT) Errorf(format string, args ...interface{}) {
 func (suite *baseSuite) testMetric(args *testMetricArgs) {
 	prettyMetricQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
-	suite.Run(prettyMetricQuery, func() {
+	suite.Run("metric   "+prettyMetricQuery, func() {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
@@ -129,7 +129,7 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 
 		defer func() {
 			if suite.T().Failed() {
-				sendEvent("error", fmt.Sprintf("Failed finding %s with proper tags", prettyMetricQuery))
+				sendEvent("error", fmt.Sprintf("Failed finding %s with proper tags and value", prettyMetricQuery))
 			} else {
 				sendEvent("success", "All good!")
 			}
@@ -185,5 +185,125 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 				)
 			}
 		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and value", prettyMetricQuery)
+	})
+}
+
+type testLogArgs struct {
+	Filter testLogFilterArgs
+	Expect testLogExpectArgs
+}
+
+type testLogFilterArgs struct {
+	Service string
+	Tags    []string
+}
+
+type testLogExpectArgs struct {
+	Tags    *[]string
+	Message string
+}
+
+func (suite *baseSuite) testLog(args *testLogArgs) {
+	prettyLogQuery := fmt.Sprintf("%s{%s}", args.Filter.Service, strings.Join(args.Filter.Tags, ","))
+
+	suite.Run("log   "+prettyLogQuery, func() {
+		var expectedTags []*regexp.Regexp
+		if args.Expect.Tags != nil {
+			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+		}
+
+		var expectedMessage *regexp.Regexp
+		if args.Expect.Message != "" {
+			expectedMessage = regexp.MustCompile(args.Expect.Message)
+		}
+
+		sendEvent := func(alertType, text string) {
+			formattedArgs, err := yaml.Marshal(args)
+			suite.Require().NoError(err)
+
+			tags := lo.Map(args.Filter.Tags, func(tag string, _ int) string {
+				return "filter_tag_" + tag
+			})
+
+			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+				Title: pointer.Ptr(fmt.Sprintf("testLog %s", prettyLogQuery)),
+				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
+### Result
+
+`+"```"+`
+%s
+`+"```"+`
+
+### Query
+
+`+"```"+`
+%s
+`+"```"+`
+ %%%%%%`, text, formattedArgs)),
+				AlertType: &alertType,
+				Tags: append([]string{
+					"app:agent-new-e2e-tests-containers",
+					"cluster_name:" + suite.clusterName,
+					"log_service:" + args.Filter.Service,
+					"test:" + suite.T().Name(),
+				}, tags...),
+			}); err != nil {
+				suite.T().Logf("Failed to post event: %s", err)
+			}
+		}
+
+		defer func() {
+			if suite.T().Failed() {
+				sendEvent("error", fmt.Sprintf("Failed finding %s with proper tags and message", prettyLogQuery))
+			} else {
+				sendEvent("success", "All good!")
+			}
+		}()
+
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{
+				CollectT: collect,
+				errors:   []error{},
+			}
+			// To enforce the use of myCollectT instead
+			collect = nil //nolint:ineffassign
+
+			defer func() {
+				if len(c.errors) == 0 {
+					sendEvent("success", "All good!")
+				} else {
+					sendEvent("warning", errors.Join(c.errors...).Error())
+				}
+			}()
+
+			logs, err := suite.Fakeintake.FilterLogs(
+				args.Filter.Service,
+				fakeintake.WithTags[*aggregator.Log](args.Filter.Tags),
+			)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+				return
+			}
+			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NotEmptyf(c, logs, "No `%s` logs yet", prettyLogQuery) {
+				return
+			}
+
+			// Check tags
+			if expectedTags != nil {
+				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags)
+				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
+			}
+
+			// Check message
+			if args.Expect.Message != "" {
+				assert.NotEmptyf(c, lo.Filter(logs, func(m *aggregator.Log, _ int) bool {
+					return expectedMessage.MatchString(m.Message)
+				}), "No log of `%s` is matching %q",
+					prettyLogQuery,
+					args.Expect.Message,
+				)
+			}
+		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and message", prettyLogQuery)
 	})
 }

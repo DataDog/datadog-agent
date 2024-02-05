@@ -22,10 +22,11 @@ import (
 
 // MetricSender is a wrapper around sender.Sender
 type MetricSender struct {
-	sender           sender.Sender
-	hostname         string
-	submittedMetrics int
-	interfaceConfigs []snmpintegration.InterfaceConfig
+	sender                  sender.Sender
+	hostname                string
+	submittedMetrics        int
+	interfaceConfigs        []snmpintegration.InterfaceConfig
+	interfaceBandwidthState InterfaceBandwidthState
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
@@ -38,11 +39,12 @@ type MetricSample struct {
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState InterfaceBandwidthState) *MetricSender {
 	return &MetricSender{
-		sender:           sender,
-		hostname:         hostname,
-		interfaceConfigs: interfaceConfigs,
+		sender:                  sender,
+		hostname:                hostname,
+		interfaceConfigs:        interfaceConfigs,
+		interfaceBandwidthState: interfaceBandwidthState,
 	}
 }
 
@@ -95,7 +97,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []profiledefinitio
 		}
 		strValue, err := newValue.ToString()
 		if err != nil {
-			log.Debugf("error converting value (%#v) to string : %v", value, err)
+			log.Debugf("error converting value (%#v) to string : %v", newValue, err)
 			continue
 		}
 		globalTags = append(globalTags, checkconfig.BuildMetricTagsFromValue(&metricTag, strValue)...)
@@ -252,8 +254,8 @@ func (ms *MetricSender) MonotonicCount(metric string, value float64, tags []stri
 }
 
 // ServiceCheck wraps Sender.ServiceCheck
-func (ms *MetricSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, tags []string, message string) {
-	ms.sender.ServiceCheck(checkName, status, ms.hostname, tags, message)
+func (ms *MetricSender) ServiceCheck(CheckName string, status servicecheck.ServiceCheckStatus, tags []string, message string) {
+	ms.sender.ServiceCheck(CheckName, status, ms.hostname, tags, message)
 }
 
 // GetSubmittedMetrics returns submitted metrics count

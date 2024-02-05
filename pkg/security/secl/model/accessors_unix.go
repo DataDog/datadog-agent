@@ -5,7 +5,6 @@
 // Code generated - DO NOT EDIT.
 
 //go:build unix
-// +build unix
 
 package model
 
@@ -14,9 +13,6 @@ import (
 	"net"
 	"reflect"
 )
-
-// Aliases used to avoid compilation error in case of unused imported package
-type NetIP = net.IP
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
@@ -707,7 +703,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "dns.question.name":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.DNSNameCmp,
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.DNS.Name
@@ -717,7 +713,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "dns.question.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: eval.DNSNameCmp,
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.DNS.Name)
@@ -759,7 +755,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "exec.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -795,7 +791,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "exec.argv0":
 		return &eval.StringEvaluator{
@@ -1550,7 +1546,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "exit.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -1586,7 +1582,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "exit.argv0":
 		return &eval.StringEvaluator{
@@ -3416,6 +3412,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "mount.root.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveMountRootPath(ev, &ev.Mount)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "mount.source.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3763,7 +3768,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -3847,7 +3852,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -5478,7 +5483,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "process.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -5514,7 +5519,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "process.argv0":
 		return &eval.StringEvaluator{
@@ -6191,7 +6196,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -6239,7 +6244,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.argv0":
 		return &eval.StringEvaluator{
@@ -7303,7 +7308,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -7387,7 +7392,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -9018,7 +9023,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.PTrace.Tracee.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -9054,7 +9059,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.argv0":
 		return &eval.StringEvaluator{
@@ -9731,7 +9736,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.PTrace.Tracee.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -9779,7 +9784,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.argv0":
 		return &eval.StringEvaluator{
@@ -11979,7 +11984,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -12063,7 +12068,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -13694,7 +13699,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.Signal.Target.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -13730,7 +13735,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.argv0":
 		return &eval.StringEvaluator{
@@ -14407,7 +14412,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Signal.Target.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -14455,7 +14460,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.argv0":
 		return &eval.StringEvaluator{
@@ -16463,6 +16468,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"mount.fs_type",
 		"mount.mountpoint.path",
 		"mount.retval",
+		"mount.root.path",
 		"mount.source.path",
 		"mprotect.req_protection",
 		"mprotect.retval",
@@ -18281,6 +18287,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveMountPointPath(ev, &ev.Mount), nil
 	case "mount.retval":
 		return int(ev.Mount.SyscallEvent.Retval), nil
+	case "mount.root.path":
+		return ev.FieldHandlers.ResolveMountRootPath(ev, &ev.Mount), nil
 	case "mount.source.path":
 		return ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount), nil
 	case "mprotect.req_protection":
@@ -24325,6 +24333,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mount", nil
 	case "mount.retval":
 		return "mount", nil
+	case "mount.root.path":
+		return "mount", nil
 	case "mount.source.path":
 		return "mount", nil
 	case "mprotect.req_protection":
@@ -26832,6 +26842,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "mount.retval":
 		return reflect.Int, nil
+	case "mount.root.path":
+		return reflect.String, nil
 	case "mount.source.path":
 		return reflect.String, nil
 	case "mprotect.req_protection":
@@ -31477,6 +31489,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Mount.SyscallEvent.Retval"}
 		}
 		ev.Mount.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "mount.root.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mount.MountRootPath"}
+		}
+		ev.Mount.MountRootPath = rv
 		return nil
 	case "mount.source.path":
 		rv, ok := value.(string)

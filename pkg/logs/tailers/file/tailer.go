@@ -256,8 +256,6 @@ func (t *Tailer) Stop() {
 
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
-//
-// This is only used on UNIX.
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
 	bytesReadAtRotationTime := t.bytesRead.Get()
@@ -396,14 +394,17 @@ func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetId() string {
 	return t.file.GetScanKey()
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetType() string {
 	return "file"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
 }

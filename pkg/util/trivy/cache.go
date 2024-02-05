@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
@@ -78,9 +78,13 @@ type StubCacheCleaner struct{}
 func (c *StubCacheCleaner) Clean() error { return nil }
 
 // setKeysForEntity does nothing
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *StubCacheCleaner) setKeysForEntity(entity string, keys []string) {}
 
 // GetKeysForEntity does nothing
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *StubCacheCleaner) GetKeysForEntity(entity string) []string { return nil }
 
 // Cache describes an interface for a key-value cache.

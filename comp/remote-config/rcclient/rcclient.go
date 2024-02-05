@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package rcclient is a remote config client that can run within the agent to receive
+// configurations.
 package rcclient
 
 import (
@@ -13,9 +15,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -39,7 +43,7 @@ type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, er
 type RCListener map[data.Product]func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 
 type rcClient struct {
-	client        *remote.Client
+	client        *client.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
 
@@ -57,13 +61,29 @@ type dependencies struct {
 	TaskListeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
-func newRemoteConfigClient(deps dependencies) (Component, error) {
+type provides struct {
+	fx.Out
+
+	Comp           Component
+	StatusProvider status.InformationProvider
+}
+
+func newRemoteConfigClient(deps dependencies) (provides, error) {
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return provides{}, err
+	}
+
 	// We have to create the client in the constructor and set its name later
-	c, err := remote.NewUnverifiedGRPCClient(
-		"unknown", version.AgentVersion, []data.Product{}, 5*time.Second,
+	c, err := client.NewUnverifiedGRPCClient(
+		ipcAddress,
+		config.GetIPCPort(),
+		security.FetchAuthToken,
+		client.WithAgent("unknown", version.AgentVersion),
+		client.WithPollInterval(5*time.Second),
 	)
 	if err != nil {
-		return nil, err
+		return provides{}, err
 	}
 
 	rc := rcClient{
@@ -73,7 +93,10 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 		client:        c,
 	}
 
-	return rc, nil
+	return provides{
+		Comp:           rc,
+		StatusProvider: status.NewInformationProvider(rc),
+	}, nil
 }
 
 // Listen subscribes to AGENT_CONFIG configurations and start the remote config client

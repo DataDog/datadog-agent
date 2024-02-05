@@ -6,6 +6,7 @@
 package settings
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -65,7 +66,7 @@ func TestRuntimeSettings(t *testing.T) {
 
 	err = RegisterRuntimeSetting(&runtimeSetting)
 	assert.NotNil(t, err)
-	assert.Equal(t, "duplicated settings detected", err.Error())
+	assert.Equal(t, fmt.Sprintf("duplicated settings detected: %s", runtimeSetting.Name()), err.Error())
 }
 
 func TestLogLevel(t *testing.T) {

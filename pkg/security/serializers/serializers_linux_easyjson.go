@@ -1687,7 +1687,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 		case "source.path":
 			out.MountSourcePath = string(in.String())
 		case "mountpoint.path_error":
-			out.MountPointPathResolutionError = string(in.String())
+			out.MountRootPathResolutionError = string(in.String())
 		case "source.path_error":
 			out.MountSourcePathResolutionError = string(in.String())
 		default:
@@ -1760,10 +1760,10 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 		out.RawString(prefix)
 		out.String(string(in.MountSourcePath))
 	}
-	if in.MountPointPathResolutionError != "" {
+	if in.MountRootPathResolutionError != "" {
 		const prefix string = ",\"mountpoint.path_error\":"
 		out.RawString(prefix)
-		out.String(string(in.MountPointPathResolutionError))
+		out.String(string(in.MountRootPathResolutionError))
 	}
 	if in.MountSourcePathResolutionError != "" {
 		const prefix string = ",\"source.path_error\":"
@@ -3381,8 +3381,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 		switch key {
 		case "name":
 			out.Name = string(in.String())
-		case "status":
-			out.Status = string(in.String())
 		case "version":
 			out.Version = string(in.String())
 		case "tags":
@@ -3426,11 +3424,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 		const prefix string = ",\"name\":"
 		out.RawString(prefix[1:])
 		out.String(string(in.Name))
-	}
-	{
-		const prefix string = ",\"status\":"
-		out.RawString(prefix)
-		out.String(string(in.Status))
 	}
 	{
 		const prefix string = ",\"version\":"

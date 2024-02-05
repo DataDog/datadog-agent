@@ -1,11 +1,11 @@
 module github.com/DataDog/datadog-agent/pkg/tagset
 
-go 1.20
+go 1.21
 
 replace github.com/DataDog/datadog-agent/pkg/util/sort => ../util/sort/
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.50.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.51.0-rc.2
 	github.com/stretchr/testify v1.8.4
 	github.com/twmb/murmur3 v1.1.8
 )

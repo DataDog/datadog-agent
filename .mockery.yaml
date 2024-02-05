@@ -10,6 +10,9 @@ packages:
     interfaces:
       SecurityModuleServer:
       SecurityModuleClient:
+  github.com/DataDog/datadog-agent/pkg/security/agent:
+    interfaces:
+      SecurityModuleClientWrapper:
   github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api:
     interfaces:
       EventMonitoringModuleServer:

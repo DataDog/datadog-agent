@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package tags
 
 import (
@@ -26,7 +27,8 @@ const (
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
-	InitType        = "AWS_LAMBDA_INITIALIZATION_TYPE"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	InitType = "AWS_LAMBDA_INITIALIZATION_TYPE"
 
 	// FunctionARNKey is the tag key for a function's arn
 	FunctionARNKey = "function_arn"
@@ -121,6 +123,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	return tags
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func ArrayToMap(tagArray []string) map[string]string {
 	tagMap := make(map[string]string)
 	for _, tag := range tagArray {

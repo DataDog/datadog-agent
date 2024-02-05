@@ -6,11 +6,6 @@
 // Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
 package inventoryagent
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
-)
-
 // team: agent-shared-components
 
 // Component is the component type.
@@ -20,28 +15,6 @@ type Component interface {
 	Set(name string, value interface{})
 	// GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
 	GetAsJSON() ([]byte, error)
-	// Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
-	Refresh()
+	// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
+	Get() map[string]interface{}
 }
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newInventoryAgentProvider),
-)
-
-// Mock implements mock-specific methods for the inventoryagent component.
-type Mock interface {
-	Component
-}
-
-// MockModule defines the fx options for the mock component.
-//
-// Usage:
-//
-//	fxutil.Test[dependencies](
-//	   t,
-//	   inventoryagent.MockModule,
-//	)
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)

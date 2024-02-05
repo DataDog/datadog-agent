@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package tcp
 
 import (
@@ -10,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // AddrToHostPort converts a net.Addr to a (string, int).
@@ -26,7 +29,7 @@ func AddrToHostPort(remoteAddr net.Addr) (string, int) {
 // AddrToEndPoint creates an EndPoint from an Addr.
 func AddrToEndPoint(addr net.Addr) config.Endpoint {
 	host, port := AddrToHostPort(addr)
-	return config.Endpoint{Host: host, Port: port}
+	return config.Endpoint{Host: host, Port: port, UseSSL: pointer.Ptr(false)}
 }
 
 // AddrToDestination creates a Destination from an Addr

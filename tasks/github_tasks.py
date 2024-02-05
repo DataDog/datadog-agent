@@ -1,8 +1,11 @@
 import os
+import time
 
 from invoke import Exit, task
 
-from .libs.github_actions_tools import (
+from tasks.libs.common.utils import DEFAULT_BRANCH
+from tasks.libs.datadog_api import create_count, send_metrics
+from tasks.libs.github_actions_tools import (
     download_artifacts,
     download_with_retry,
     follow_workflow_run,
@@ -10,12 +13,34 @@ from .libs.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from .utils import DEFAULT_BRANCH, load_release_versions
+from tasks.release import _get_release_json_value
+
+
+def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
+    github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
+
+    run = trigger_macos_workflow(
+        github_action_ref=github_action_ref,
+        **kwargs,
+    )
+
+    workflow_conclusion, workflow_url = follow_workflow_run(run)
+
+    if workflow_conclusion == "failure":
+        print_failed_jobs_logs(run)
+
+    print_workflow_conclusion(workflow_conclusion, workflow_url)
+
+    if destination:
+        download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
+
+    if workflow_conclusion != "success":
+        raise Exit(code=1)
 
 
 @task
 def trigger_macos_build(
-    ctx,
+    _,
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     major_version="7",
@@ -25,13 +50,16 @@ def trigger_macos_build(
     retry_download=3,
     retry_interval=10,
 ):
-    env = load_release_versions(ctx, release_version)
-    github_action_ref = env["MACOS_BUILD_VERSION"]
-
-    run = trigger_macos_workflow(
+    _trigger_macos_workflow(
+        # Provide the release version to be able to fetch the associated
+        # macos-build branch from release.json for all workflows...
+        release_version,
+        destination,
+        retry_download,
+        retry_interval,
         workflow_name="macos.yaml",
-        github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
+        # ... And provide the release version as a workflow input when needed
         release_version=release_version,
         major_version=major_version,
         python_runtimes=python_runtimes,
@@ -42,22 +70,10 @@ def trigger_macos_build(
         version_cache_file_content=version_cache,
     )
 
-    workflow_conclusion, workflow_url = follow_workflow_run(run)
-
-    if workflow_conclusion == "failure":
-        print_failed_jobs_logs(run)
-
-    print_workflow_conclusion(workflow_conclusion, workflow_url)
-
-    download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
-
-    if workflow_conclusion != "success":
-        raise Exit(code=1)
-
 
 @task
 def trigger_macos_test(
-    ctx,
+    _,
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     python_runtimes="3",
@@ -66,28 +82,33 @@ def trigger_macos_test(
     retry_download=3,
     retry_interval=10,
 ):
-    env = load_release_versions(ctx, release_version)
-    github_action_ref = env["MACOS_BUILD_VERSION"]
-
-    run = trigger_macos_workflow(
+    _trigger_macos_workflow(
+        release_version,
+        destination,
+        retry_download,
+        retry_interval,
         workflow_name="test.yaml",
-        github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
         python_runtimes=python_runtimes,
         version_cache_file_content=version_cache,
     )
 
-    workflow_conclusion, workflow_url = follow_workflow_run(run)
 
-    if workflow_conclusion == "failure":
-        print_failed_jobs_logs(run)
-
-    print_workflow_conclusion(workflow_conclusion, workflow_url)
-
-    download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
-
-    if workflow_conclusion != "success":
-        raise Exit(code=1)
+@task
+def trigger_macos_lint(
+    _,
+    datadog_agent_ref=DEFAULT_BRANCH,
+    release_version="nightly-a7",
+    python_runtimes="3",
+    version_cache=None,
+):
+    _trigger_macos_workflow(
+        release_version,
+        workflow_name="lint.yaml",
+        datadog_agent_ref=datadog_agent_ref,
+        python_runtimes=python_runtimes,
+        version_cache_file_content=version_cache,
+    )
 
 
 @task
@@ -133,3 +154,32 @@ def _get_code_owners(root_folder):
                 # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
                 owners[path] = parts[1:]
     return owners
+
+
+@task
+def get_milestone_id(_, milestone):
+    # Local import as github isn't part of our default set of installed
+    # dependencies, and we don't want to propagate it to files importing this one
+    from libs.common.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    m = gh.get_milestone_by_name(milestone)
+    if not m:
+        raise Exit(f'Milestone {milestone} wasn\'t found in the repo', code=1)
+    print(m.number)
+
+
+@task
+def send_rate_limit_info_datadog(_, pipeline_id):
+    from .libs.common.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    rate_limit_info = gh.get_rate_limit_info()
+    print(f"Remaining rate limit: {rate_limit_info[0]}/{rate_limit_info[1]}")
+    metric = create_count(
+        metric_name='github.rate_limit.remaining',
+        timestamp=int(time.time()),
+        value=rate_limit_info[0],
+        tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
+    )
+    send_metrics([metric])

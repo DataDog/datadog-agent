@@ -18,26 +18,20 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
+	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	// register all workloadmeta collectors
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
@@ -60,50 +54,15 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryColle
 		return fmt.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
-	err = metrics.Configure(tracecfg, []string{"version:" + version.AgentVersion})
-	if err != nil {
-		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
-		return fmt.Errorf("cannot configure dogstatsd: %v", err)
-	}
-
-	metrics.Count("datadog.trace_agent.started", 1, nil, 1)
-
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	remoteTagger := coreconfig.Datadog.GetBool("apm_config.remote_tagger")
-	if remoteTagger {
-		options, err := remote.NodeAgentOptions()
-		if err != nil {
-			log.Errorf("Unable to configure the remote tagger: %s", err)
-			remoteTagger = false
-		} else {
-			tagger.SetDefaultTagger(remote.NewTagger(options))
-			if err := tagger.Init(ctx); err != nil {
-				log.Infof("Starting remote tagger failed. Falling back to local tagger: %s", err)
-				remoteTagger = false
-			}
-		}
-	}
-
-	// starts the local tagger if apm_config says so, or if starting the
-	// remote tagger has failed.
-	if !remoteTagger {
-		store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-		store.Start(ctx)
-
-		tagger.SetDefaultTagger(local.NewTagger(store))
-		if err := tagger.Init(ctx); err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
-	}
-
 	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
-		// Auth tokens are handled by the rcClient
-		rcClient, err := rc.NewAgentGRPCConfigFetcher()
+		rcClient, err := newConfigFetcher()
 		if err != nil {
 			telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
 		}
+
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
 			Handler: func(r *api.HTTPReceiver) http.Handler { return remotecfg.ConfigHandler(r, rcClient, tracecfg) },
@@ -182,11 +141,6 @@ func stopAgentSidekicks(cfg config.Component) {
 	log.Flush()
 	metrics.Flush()
 
-	timing.Stop()
-	err := tagger.Stop()
-	if err != nil {
-		log.Error(err)
-	}
 	tracecfg := cfg.Object()
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {
 		profiling.Stop()
@@ -206,10 +160,21 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 
 		// remaining configuration parameters use the top-level `internal_profiling` config
 		Period:               coreconfig.Datadog.GetDuration("internal_profiling.period"),
+		Service:              "trace-agent",
 		CPUDuration:          coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"),
 		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
 		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
 		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
 		Tags:                 []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 	}
+}
+
+func newConfigFetcher() (rc.ConfigUpdater, error) {
+	ipcAddress, err := coreconfig.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	// Auth tokens are handled by the rcClient
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, coreconfig.GetIPCPort(), security.FetchAuthToken)
 }

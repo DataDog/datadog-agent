@@ -41,7 +41,7 @@ func (r *CallbackRecorder) Callback() func(FilePath) error {
 	}
 }
 
-// `CallsForPathID` returns the number of callback executions for a given `PathIdentifier`
+// CallsForPathID returns the number of callback executions for a given `PathIdentifier`
 func (r *CallbackRecorder) CallsForPathID(pathID PathIdentifier) int {
 	r.mux.Lock()
 	defer r.mux.Unlock()

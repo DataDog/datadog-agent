@@ -3,16 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package message
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,6 +30,7 @@ type Payload struct {
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
 	MessageContent
+	Hostname           string
 	Origin             *Origin
 	Status             string
 	IngestionTimestamp int64
@@ -303,18 +303,4 @@ func (m *Message) GetStatus() string {
 // GetLatency returns the latency delta from ingestion time until now
 func (m *Message) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
-}
-
-// GetHostname returns the hostname to applied the given log message
-func (m *Message) GetHostname() string {
-	if m.Lambda != nil {
-		return m.Lambda.ARN
-	}
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		// this scenario is not likely to happen since
-		// the agent cannot start without a hostname
-		hname = "unknown"
-	}
-	return hname
 }

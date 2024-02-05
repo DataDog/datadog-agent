@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests && trivy
+//go:build linux && functionaltests && trivy
 
 // Package tests holds tests related files
 package tests
@@ -15,11 +15,14 @@ import (
 
 	"github.com/avast/retry-go/v4"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestSBOM(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID: "test_file_package",
@@ -27,11 +30,16 @@ func TestSBOM(t *testing.T) {
 				`&& open.file.package.name == "base-files" && process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 	}
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{enableSBOM: true})
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu")
 	if err != nil {
@@ -43,7 +51,7 @@ func TestSBOM(t *testing.T) {
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, kind wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			retry.Do(func() error {
-				sbom := test.probe.GetResolvers().SBOMResolver.GetWorkload(dockerWrapper.containerID)
+				sbom := p.Resolvers.SBOMResolver.GetWorkload(dockerWrapper.containerID)
 				if sbom == nil {
 					return fmt.Errorf("failed to find SBOM for '%s'", dockerWrapper.containerID)
 				}

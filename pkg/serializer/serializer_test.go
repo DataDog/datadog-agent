@@ -22,7 +22,7 @@ import (
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -113,8 +113,13 @@ func init() {
 
 type testPayload struct{}
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
-func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (p *testPayload) Marshal() ([]byte, error) { return protobufString, nil }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
 	payloads := transaction.BytesPayloads{}
 	payload, err := compression.Compress(protobufString)
@@ -125,31 +130,44 @@ func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContex
 	return payloads, nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
 	return []marshaler.AbstractMarshaler{}, nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
 	return err
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteFooter(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonFooter)
 	return err
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteItem(stream *jsoniter.Stream, i int) error {
 	_, err := stream.Write(jsonItem)
 	return err
 }
-func (p *testPayload) Len() int                  { return 1 }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (p *testPayload) Len() int { return 1 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) DescribeItem(i int) string { return "description" }
 
 type testErrorPayload struct{}
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, fmt.Errorf("some error") }
-func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Errorf("some error") }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (p *testErrorPayload) Marshal() ([]byte, error) { return nil, fmt.Errorf("some error") }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
 	return []marshaler.AbstractMarshaler{}, fmt.Errorf("some error")
 }
@@ -164,10 +182,13 @@ func (p *testErrorPayload) WriteFooter(stream *jsoniter.Stream) error {
 	return err
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) WriteItem(stream *jsoniter.Stream, i int) error {
 	return fmt.Errorf("some error")
 }
-func (p *testErrorPayload) Len() int                  { return 1 }
+func (p *testErrorPayload) Len() int { return 1 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) DescribeItem(i int) string { return "description" }
 
 func mkPayloads(payload []byte, compress bool) (transaction.BytesPayloads, error) {
@@ -193,7 +214,7 @@ func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string) bool {
 	for _, compressedPayload := range payloads {
 		if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
 			return false
-		} else {
+		} else { //nolint:revive // TODO(AML) Fix revive linter
 			if strings.HasPrefix(string(payload), prefix) {
 				return true
 			}
@@ -213,14 +234,14 @@ func createProtoscopeMatcher(protoscopeDef string) interface{} {
 		for _, compressedPayload := range payloads {
 			if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
 				return false
-			} else {
+			} else { //nolint:revive // TODO(AML) Fix revive linter
 				res, err := protoscope.NewScanner(protoscopeDef).Exec()
 				if err != nil {
 					return false
 				}
 				if reflect.DeepEqual(res, payload) {
 					return true
-				} else {
+				} else { //nolint:revive // TODO(AML) Fix revive linter
 					fmt.Printf("Did not match. Payload was\n%x and protoscope compilation was\n%x\n", payload, res)
 				}
 			}
@@ -230,26 +251,26 @@ func createProtoscopeMatcher(protoscopeDef string) interface{} {
 }
 
 func TestSendV1Events(t *testing.T) {
-	config.Datadog.SetWithoutSource("enable_events_stream_payload_serialization", false)
-	defer config.Datadog.SetWithoutSource("enable_events_stream_payload_serialization", nil)
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("enable_events_stream_payload_serialization", false)
 
 	f := &forwarder.MockedForwarder{}
 
 	matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`)
 	f.On("SubmitV1Intake", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil)
+	s := NewSerializer(f, nil, mockConfig, "testhost")
 	err := s.SendEvents([]*event.Event{})
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
 
 func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
-	config.Datadog.SetWithoutSource("enable_events_stream_payload_serialization", true)
-	defer config.Datadog.SetWithoutSource("enable_events_stream_payload_serialization", nil)
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("enable_events_stream_payload_serialization", true)
 	f := &forwarder.MockedForwarder{}
 
-	s := NewSerializer(f, nil)
+	s := NewSerializer(f, nil, mockConfig, "testhost")
 
 	events := event.Events{&event.Event{SourceTypeName: "source1"}, &event.Event{SourceTypeName: "source2"}, &event.Event{SourceTypeName: "source3"}}
 	payloadsCountMatcher := func(payloadCount int) interface{} {
@@ -263,8 +284,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	assert.NoError(t, err)
 	f.AssertExpectations(t)
 
-	config.Datadog.SetWithoutSource("serializer_max_payload_size", 20)
-	defer config.Datadog.SetWithoutSource("serializer_max_payload_size", nil)
+	mockConfig.SetWithoutSource("serializer_max_payload_size", 20)
 
 	f.On("SubmitV1Intake", payloadsCountMatcher(3), jsonExtraHeadersWithCompression).Return(nil)
 	err = s.SendEvents(events)
@@ -276,10 +296,10 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	matcher := createJSONPayloadMatcher(`[{"check":"","host_name":"","timestamp":0,"status":0,"message":"","tags":null}]`)
 	f.On("SubmitV1CheckRuns", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.SetWithoutSource("enable_service_checks_stream_payload_serialization", false)
-	defer config.Datadog.SetWithoutSource("enable_service_checks_stream_payload_serialization", nil)
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("enable_service_checks_stream_payload_serialization", false)
 
-	s := NewSerializer(f, nil)
+	s := NewSerializer(f, nil, mockConfig, "testhost")
 	err := s.SendServiceChecks(servicecheck.ServiceChecks{&servicecheck.ServiceCheck{}})
 	require.Nil(t, err)
 	f.AssertExpectations(t)
@@ -290,12 +310,11 @@ func TestSendV1Series(t *testing.T) {
 	matcher := createJSONBytesPayloadMatcher(`{"series":[]}`)
 
 	f.On("SubmitV1Series", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.SetWithoutSource("enable_stream_payload_serialization", false)
-	defer config.Datadog.SetWithoutSource("enable_stream_payload_serialization", nil)
-	config.Datadog.SetWithoutSource("use_v2_api.series", false)
-	defer config.Datadog.SetWithoutSource("use_v2_api.series", true)
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("enable_stream_payload_serialization", false)
+	mockConfig.SetWithoutSource("use_v2_api.series", false)
 
-	s := NewSerializer(f, nil)
+	s := NewSerializer(f, nil, mockConfig, "testhost")
 
 	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	require.Nil(t, err)
@@ -310,9 +329,10 @@ func TestSendSeries(t *testing.T) {
 		9: { 1: { 4: 10 }}
 	  }`)
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.SetWithoutSource("use_v2_api.series", true) // default value, but just to be sure
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("use_v2_api.series", true) // default value, but just to be sure
 
-	s := NewSerializer(f, nil)
+	s := NewSerializer(f, nil, mockConfig, "testhost")
 
 	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
 	require.Nil(t, err)
@@ -322,11 +342,14 @@ func TestSendSeries(t *testing.T) {
 func TestSendSketch(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 
-	matcher := createProtoscopeMatcher(`2: {}`)
+	matcher := createProtoscopeMatcher(`
+		1: { 1: {"fakename"} 2: {"fakehost"} 8: { 1: { 4: 10 }}}
+		2: {}
+		`)
 	f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil)
-	err := s.SendSketch(metrics.NewSketchesSourceTest())
+	s := NewSerializer(f, nil, pkgconfigsetup.Conf(), "testhost")
+	err := s.SendSketch(metrics.NewSketchesSourceTestWithSketch())
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -335,7 +358,7 @@ func TestSendMetadata(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil)
+	s := NewSerializer(f, nil, pkgconfigsetup.Conf(), "testhost")
 
 	payload := &testPayload{}
 	err := s.SendMetadata(payload)
@@ -358,7 +381,7 @@ func TestSendProcessesMetadata(t *testing.T) {
 	payloads, _ := mkPayloads(payload, true)
 	f.On("SubmitV1Intake", payloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil)
+	s := NewSerializer(f, nil, pkgconfigsetup.Conf(), "testhost")
 
 	err := s.SendProcessesMetadata("test")
 	require.Nil(t, err)
@@ -375,7 +398,7 @@ func TestSendProcessesMetadata(t *testing.T) {
 }
 
 func TestSendWithDisabledKind(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 
 	mockConfig.SetWithoutSource("enable_payloads.events", false)
 	mockConfig.SetWithoutSource("enable_payloads.series", false)
@@ -383,17 +406,8 @@ func TestSendWithDisabledKind(t *testing.T) {
 	mockConfig.SetWithoutSource("enable_payloads.sketches", false)
 	mockConfig.SetWithoutSource("enable_payloads.json_to_v1_intake", false)
 
-	// restore default values
-	defer func() {
-		mockConfig.SetWithoutSource("enable_payloads.events", true)
-		mockConfig.SetWithoutSource("enable_payloads.series", true)
-		mockConfig.SetWithoutSource("enable_payloads.service_checks", true)
-		mockConfig.SetWithoutSource("enable_payloads.sketches", true)
-		mockConfig.SetWithoutSource("enable_payloads.json_to_v1_intake", true)
-	}()
-
 	f := &forwarder.MockedForwarder{}
-	s := NewSerializer(f, nil)
+	s := NewSerializer(f, nil, mockConfig, "testhost")
 
 	payload := &testPayload{}
 

@@ -32,46 +32,67 @@ type MockJournal struct {
 	entries  []*sdjournal.JournalEntry
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) AddMatch(match string) error {
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) AddDisjunction() error {
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) SeekTail() error {
 	m.seekTail++
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) SeekHead() error {
 	m.seekHead++
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Wait(timeout time.Duration) int {
 	time.Sleep(time.Millisecond)
 	return 0
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) SeekCursor(cursor string) error {
 	m.cursor = cursor
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) NextSkip(skip uint64) (uint64, error) {
 	return 0, nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Close() error {
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Next() (uint64, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
 	m.next++
 	return uint64(len(m.entries)), nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Previous() (uint64, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
 	m.previous++
 	return uint64(len(m.entries)), nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
@@ -85,6 +106,8 @@ func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) {
 
 	return m.entries[0], nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) GetCursor() (string, error) {
 	return "", nil
 }

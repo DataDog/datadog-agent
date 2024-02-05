@@ -4,7 +4,7 @@
 #include "ktypes.h"
 
 #define BATCH_BUFFER_SIZE (4*1024)
-#define BATCH_PAGES_PER_CPU 3
+#define BATCH_PAGES_PER_CPU 8
 
 typedef struct {
     // idx is a monotonic counter used for uniquely determining a batch within a CPU core
@@ -30,7 +30,8 @@ typedef struct {
     __u16 len;
     __u16 cap;
     __u16 event_size;
-    __u16 dropped_events;
+    __u32 dropped_events;
+    __u32 failed_flushes;
     char data[BATCH_BUFFER_SIZE];
 } batch_data_t;
 

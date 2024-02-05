@@ -64,8 +64,18 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSDatagramListener) Listen() {
+	l.listenWg.Add(1)
+	go func() {
+		defer l.listenWg.Done()
+		l.listen()
+	}()
+}
+
+func (l *UDSDatagramListener) listen() {
 	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
-	_ = l.handleConnection(l.conn)
+	_ = l.handleConnection(l.conn, func(conn *net.UnixConn) error {
+		return conn.Close()
+	})
 }
 
 // Stop closes the UDS connection and stops listening
@@ -74,6 +84,5 @@ func (l *UDSDatagramListener) Stop() {
 	if err != nil {
 		log.Errorf("dogstatsd-uds: error closing connection: %s", err)
 	}
-	// FIXME close all currently running connections.
 	l.UDSListener.Stop()
 }

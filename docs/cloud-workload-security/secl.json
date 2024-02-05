@@ -3010,6 +3010,11 @@
           "property_doc_link": "common-syscallevent-retval-doc"
         },
         {
+          "name": "mount.root.path",
+          "definition": "Root path of the mount",
+          "property_doc_link": "mount-root-path-doc"
+        },
+        {
           "name": "mount.source.path",
           "definition": "Source path of a bind mount",
           "property_doc_link": "mount-source-path-doc"
@@ -8872,6 +8877,18 @@
       "link": "mount-mountpoint-path-doc",
       "type": "string",
       "definition": "Path of the mount point",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.root.path",
+      "link": "mount-root-path-doc",
+      "type": "string",
+      "definition": "Root path of the mount",
       "prefixes": [
         "mount"
       ],

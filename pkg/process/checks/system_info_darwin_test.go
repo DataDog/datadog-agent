@@ -8,15 +8,17 @@
 package checks
 
 import (
-	"github.com/DataDog/gopsutil/cpu"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/stretchr/testify/assert"
 )
 
 var _ statsProvider = &mockStatsProvider{}
 
 type mockStatsProvider struct{}
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (_ *mockStatsProvider) getThreadCount() (int32, error) {
 	return 32, nil
 }
@@ -33,5 +35,21 @@ func TestPatchCPUInfo(t *testing.T) {
 	assert.Len(t, patchedCPUInfo, 16)
 	for _, c := range patchedCPUInfo {
 		assert.Equal(t, int32(2), c.Cores)
+	}
+}
+
+func TestOnlyCorePopulatedDarwin(t *testing.T) {
+	sysInfo, _ := CollectSystemInfo()
+	for _, cpuData := range sysInfo.Cpus {
+		// Checks if only the cores does not have the default value
+		assert.Greater(t, cpuData.Cores, int32(0))
+		assert.Empty(t, cpuData.Number)
+		assert.Empty(t, cpuData.Vendor)
+		assert.Empty(t, cpuData.Family)
+		assert.Empty(t, cpuData.Model)
+		assert.Empty(t, cpuData.PhysicalId)
+		assert.Empty(t, cpuData.CoreId)
+		assert.Empty(t, cpuData.Mhz)
+		assert.Empty(t, cpuData.CacheSize)
 	}
 }

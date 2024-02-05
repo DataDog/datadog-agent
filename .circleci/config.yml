@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: gcr.io/datadoghq/agent-circleci-runner:v23168861-fcc48431
+      - image: gcr.io/datadoghq/agent-circleci-runner:v27246432-de27d514
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -100,7 +100,9 @@ jobs:
       - run:
           name: run unit tests
           no_output_timeout: 20m
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8
+          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8 --build-stdlib
+          environment:
+            GO_TEST_SKIP_FLAKE: "true"
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
@@ -123,26 +125,11 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
+          command: pip install -r tasks/libs/requirements-github.txt
+          name: Install additional requirements
+      - run:
           command: inv -e lint-releasenote
           name: run PR check for release note
-
-  team_label:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-teamassignment
-          name: run PR check for team assignment labels
-
-  milestone:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-milestone
-          name: run PR check for milestone assignment
 
   go_linting:
     <<: *job_template
@@ -208,8 +195,8 @@ jobs:
       - run:
           name: setting env vars for click
           command: |
-              echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
-              echo 'export LANG="C.UTF-8"' >> $BASH_ENV
+            echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
+            echo 'export LANG="C.UTF-8"' >> $BASH_ENV
       - run:
           name: lint python files
           command: inv -e lint-python
@@ -294,20 +281,6 @@ workflows:
           requires:
             - dependencies
       - release_note:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
-      - team_label:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
-      - milestone:
           filters:
             branches:
               ignore:

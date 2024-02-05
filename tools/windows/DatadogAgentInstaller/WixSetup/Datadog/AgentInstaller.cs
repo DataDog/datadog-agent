@@ -91,6 +91,11 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Secure=yes",
                 },
+                // Custom WindowsBuild property since MSI caps theirs at 9600
+                new Property("DDAGENT_WINDOWSBUILD")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,
@@ -370,19 +375,6 @@ namespace WixSetup.Datadog
             return new Dir(new Id("DatadogAppRoot"), "%ProgramFiles%\\Datadog", datadogAgentFolder);
         }
 
-        private static PermissionEx DefaultPermissions()
-        {
-            return new PermissionEx
-            {
-                User = "[DDAGENTUSER_PROCESSED_FQ_NAME]",
-                ServicePauseContinue = true,
-                ServiceQueryStatus = true,
-                ServiceStart = true,
-                ServiceStop = true,
-                ServiceUserDefinedControl = true
-            };
-        }
-
         private static ServiceInstaller GenerateServiceInstaller(string name, string displayName, string description)
         {
             return new ServiceInstaller
@@ -405,7 +397,6 @@ namespace WixSetup.Datadog
                 RestartServiceDelayInSeconds = 60,
                 ResetPeriodInDays = 0,
                 PreShutdownDelay = 1000 * 60 * 3,
-                PermissionEx = DefaultPermissions(),
                 // Account must be a fully qualified name.
                 Account = "[DDAGENTUSER_PROCESSED_FQ_NAME]",
                 Password = "[DDAGENTUSER_PROCESSED_PASSWORD]"
@@ -440,7 +431,6 @@ namespace WixSetup.Datadog
                 RestartServiceDelayInSeconds = 60,
                 ResetPeriodInDays = 0,
                 PreShutdownDelay = 1000 * 60 * 3,
-                PermissionEx = DefaultPermissions(),
                 Interactive = false,
                 Type = SvcType.ownProcess,
                 // Account must be a fully qualified name.

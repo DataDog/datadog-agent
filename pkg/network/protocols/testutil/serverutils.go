@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	// DefaultTimeout is the default timeout for running a server.
 	DefaultTimeout = time.Minute
 )
 
@@ -41,14 +42,14 @@ func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 func runDockerServer(t testing.TB, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) error {
 	t.Helper()
 	// Ensuring no previous instances exists.
-	c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
+	c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
 	c.Env = append(c.Env, env...)
 	_ = c.Run()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	cmd := exec.CommandContext(ctx, "docker-compose", "-f", dockerPath, "up", "--force-recreate", "--remove-orphans", "-V")
+	cmd := exec.CommandContext(ctx, "docker-compose", "-f", dockerPath, "up", "--remove-orphans", "-V")
 	patternScanner := NewScanner(serverStartRegex, make(chan struct{}, 1))
 
 	cmd.Stdout = patternScanner
@@ -61,7 +62,7 @@ func runDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 		cancel()
 		_ = cmd.Wait()
 
-		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
+		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
 		c.Env = append(c.Env, env...)
 		// Not waiting for its finish.
 		_ = c.Start()

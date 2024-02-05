@@ -5,8 +5,8 @@ from unittest import mock
 
 from invoke.exceptions import Exit
 
-from .. import release
-from ..libs.version import Version
+from tasks import release
+from tasks.libs.version import Version
 
 
 def mocked_github_requests_get(*args, **_kwargs):
@@ -418,5 +418,13 @@ class TestGetJMXFetchReleaseJsonInfo(unittest.TestCase):
         self.assertEqual(jmxfetch_hash, "hash7_nightly")
 
 
-if __name__ == '__main__':
-    unittest.main()
+class TestCreateBuildLinksPatterns(unittest.TestCase):
+    current_version = "7.50.0-rc.1"
+
+    def test_create_build_links_patterns_correct_values(self):
+        new_rc_version = "7.51.1-rc.2"
+        patterns = release._create_build_links_patterns(self.current_version, new_rc_version)
+
+        self.assertEqual(patterns[".50.0-rc.1"], ".51.1-rc.2")
+        self.assertEqual(patterns[".50.0-rc-1"], ".51.1-rc-2")
+        self.assertEqual(patterns[".50.0~rc.1"], ".51.1~rc.2")

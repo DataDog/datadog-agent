@@ -16,12 +16,12 @@ import (
 
 	"github.com/docker/docker/api/types"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -44,7 +44,7 @@ func init() {
 type dockerCollector struct {
 	du            *docker.DockerUtil
 	pidCache      *provider.Cache
-	metadataStore workloadmeta.Store
+	metadataStore workloadmeta.Component
 }
 
 func newDockerCollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
@@ -60,8 +60,9 @@ func newDockerCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	}
 
 	collector := &dockerCollector{
-		du:            du,
-		pidCache:      provider.NewCache(pidCacheGCInterval),
+		du:       du,
+		pidCache: provider.NewCache(pidCacheGCInterval),
+		// TODO(components): remove use of global, use injected component instead
 		metadataStore: workloadmeta.GetGlobalStore(),
 	}
 
@@ -75,7 +76,7 @@ func newDockerCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.RuntimeNameContainerd: provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameDocker), ""): provider.MakeCached(collectorID, cache, collectors),
 		},
 	}, nil
 }

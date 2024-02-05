@@ -6,6 +6,8 @@ qa_statuses = [
 ]
 ignored_labels = [
   "qa/skip-qa",
+  "qa/done",
+  "qa/no-code-change",
 ]
 
 [teams."Agent Metrics Logs"]
@@ -30,7 +32,11 @@ jira_statuses = [
 ]
 github_team = "agent-shared-components"
 github_labels = ["team/agent-shared-components"]
-exclude_members = ["olivielpeau", "sgnn7"]
+exclude_members = [
+  "sgnn7",
+  "truthbk",
+  "cmourot",
+]
 
 [teams."Agent Platform"]
 jira_project = "APL"
@@ -65,6 +71,7 @@ jira_statuses = [
 ]
 github_team = "network-device-monitoring"
 github_labels = ["team/network-device-monitoring"]
+exclude_members = ["leeavital", "heyronhay"]
 
 [teams."Network Performance Monitoring"]
 jira_project = "NPM"
@@ -110,7 +117,8 @@ jira_statuses = [
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
 exclude_members = [
-  "hithwen",
+  "ofek",
+  "alopezz",
 ]
 
 [teams."Platform Integrations"]
@@ -261,3 +269,14 @@ jira_statuses = [
 ]
 github_team = "apm-onboarding"
 github_labels = ["team/apm-onboarding"]
+
+[teams."Agent Release Management"]
+jira_project = "AGNTR"
+jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
+github_team = "agent-release-management"
+github_labels = ["team/agent-release-management"]

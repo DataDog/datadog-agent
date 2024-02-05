@@ -42,6 +42,32 @@
     - tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
   allow_failure: false
 
+.kitchen_test_windows_cws_base:
+  extends:
+    - .kitchen_azure_x64
+  before_script:  # test all of the kernels to make sure the driver loads and runs properly
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
+    - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_DRIVER")
+    - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_VERSION")
+    - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_SHASUM")
+
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
+    - cd $DD_AGENT_TESTING_DIR
+    - tasks/kitchen_setup.sh
+  script:
+    - tasks/run-test-kitchen.sh windows-cwsinstall $AGENT_MAJOR_VERSION
+
+.kitchen_test_windows_cws:
+  extends:
+    - .kitchen_test_windows_cws_base
+  variables:
+    KITCHEN_PLATFORM: "windows"
+    KITCHEN_OSVERS: "win2016,win2019,win2019cn,win2022"
+    DEFAULT_KITCHEN_OSVERS: "win2022"
+
+
+
 .kitchen_test_windows_npm_driver_base:
   extends:
     - .kitchen_azure_x64
@@ -140,19 +166,6 @@ kitchen_windows_installer_agent-a7:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_agent
 
-kitchen_windows_chef_agent-a6:
-  extends:
-    - .kitchen_scenario_windows_a6
-    - .kitchen_test_chef_agent
-
-kitchen_windows_chef_agent-a7:
-  # Run chef test on branches, on a reduced number of platforms
-  rules:
-    !reference [.on_default_kitchen_tests_a7]
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_chef_agent
-
 kitchen_windows_upgrade5_agent-a6:
   extends:
     - .kitchen_scenario_windows_a6
@@ -185,3 +198,11 @@ kitchen_windows_process_agent-a7:
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_process_agent
+
+kitchen_windows_installer_cws-a7:
+  # Run NPM driver installer test on branches, on a reduced number of platforms
+  rules:
+    !reference [.on_default_kitchen_tests_a7]
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_windows_cws

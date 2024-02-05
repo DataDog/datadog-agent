@@ -36,6 +36,7 @@ type mockEvt struct {
 	mockSubscribe func(ctx context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (m *mockEvt) Subscribe(ctx context.Context, filters ...string) (ch <-chan *events.Envelope, errs <-chan error) {
 	return m.mockSubscribe(ctx)
 }

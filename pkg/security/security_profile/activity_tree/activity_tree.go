@@ -224,7 +224,7 @@ func (at *ActivityTree) Debug(w io.Writer) {
 }
 
 // ScrubProcessArgsEnvs scrubs and retains process args and envs
-func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.Resolver) {
+func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
 	// iterate through all the process nodes
 	openList := make([]*ProcessNode, len(at.ProcessNodes))
 	copy(openList, at.ProcessNodes)
@@ -241,6 +241,14 @@ func (at *ActivityTree) DifferentiateArgs() {
 	at.differentiateArgs = true
 }
 
+type untracedEventError struct {
+	eventType model.EventType
+}
+
+func (e untracedEventError) Error() string {
+	return fmt.Sprintf("invalid event: event type not valid: %s", e.eventType)
+}
+
 // isEventValid evaluates if the provided event is valid
 func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, error) {
 	// check event type
@@ -248,7 +256,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 		if !dryRun {
 			at.Stats.droppedCount[event.GetEventType()][eventTypeReason].Inc()
 		}
-		return false, fmt.Errorf("event type not valid: %s", event.GetEventType())
+		return false, untracedEventError{eventType: event.GetEventType()}
 	}
 
 	// event specific filtering
@@ -259,14 +267,14 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 			if !dryRun {
 				at.Stats.droppedCount[model.BindEventType][bindFamilyReason].Inc()
 			}
-			return false, fmt.Errorf("invalid bind family")
+			return false, errors.New("invalid event: invalid bind family")
 		}
 	}
 	return true, nil
 }
 
 // Insert inserts the event in the activity tree
-func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
+func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
 	newEntry, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, generationType, resolvers)
 	if newEntry {
 		// this doesn't count the exec events which are counted separately
@@ -276,13 +284,13 @@ func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, 
 }
 
 // Contains looks up the event in the activity tree
-func (at *ActivityTree) Contains(event *model.Event, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
+func (at *ActivityTree) Contains(event *model.Event, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
 	newEntry, err := at.insertEvent(event, true /* dryRun */, insertMissingProcesses, generationType, resolvers)
 	return !newEntry, err
 }
 
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
-func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
+func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
 	// sanity check
 	if generationType == Unknown || generationType > MaxNodeGenerationType {
 		return false, fmt.Errorf("invalid generation type: %v", generationType)
@@ -290,7 +298,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 
 	// check if this event type is traced
 	if valid, err := at.isEventValid(event, dryRun); !valid || err != nil {
-		return false, fmt.Errorf("invalid event: %s", err)
+		return false, err
 	}
 
 	// Next we'll call CreateProcessNode, which will retrieve the process node if already present, or create a new one (with all its lineage if needed).
@@ -397,10 +405,6 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 	return nil
 }
 
-func eventHaveValidCookie(entry *model.ProcessCacheEntry) bool {
-	return !entry.ExecTime.IsZero() && entry.Cookie != 0
-}
-
 // buildBranchAndLookupCookies iterates over the ancestors of entry with 2 intentions in mind:
 //   - check if one of the ancestors of entry is already in the tree and has a shortcut thanks to its cookie
 //   - creates the list of ancestors "we care about" for the tree, i.e. the chain of ancestors created by calling
@@ -448,7 +452,7 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 }
 
 // CreateProcessNode looks up or inserts the provided entry in the tree
-func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.Resolvers) (*ProcessNode, bool, error) {
+func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
 	if entry == nil {
 		return nil, false, nil
 	}
@@ -486,7 +490,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 	return at.insertBranch(parent, branchToInsert, generationType, dryRun, resolvers)
 }
 
-func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []*model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool, r *resolvers.Resolvers) (*ProcessNode, bool, error) {
+func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []*model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool, r *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
 	var matchingNode *ProcessNode
 	var branchIncrement int
 	var newNode, newNodeFromRebase bool
@@ -536,7 +540,7 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 
 // findBranch2 looks for the provided branch in the list of children. Returns the node that matches the
 // first node of the branch and true if a new entry was inserted.
-func (at *ActivityTree) findBranch(parent ProcessNodeParent, branch []*model.ProcessCacheEntry, dryRun bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (*ProcessNode, int, bool) {
+func (at *ActivityTree) findBranch(parent ProcessNodeParent, branch []*model.ProcessCacheEntry, dryRun bool, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (*ProcessNode, int, bool) {
 	for i := len(branch) - 1; i >= 0; i-- {
 		branchCursor := branch[i]
 
@@ -612,7 +616,7 @@ func (at *ActivityTree) findBranch(parent ProcessNodeParent, branch []*model.Pro
 // rebaseTree rebases the node identified by "nodeIndexToRebase" in the input "tree" onto a newly created branch made of
 // "branchToInsert" and appended to "treeToRebaseOnto". New nodes will be tagged with the input "generationType".
 // This function returns the top level node, owner of the newly inserted branch that lead to the rebased node
-func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase int, newParent ProcessNodeParent, branchToInsert []*model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.Resolvers) *ProcessNode {
+func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase int, newParent ProcessNodeParent, branchToInsert []*model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
 	if len(branchToInsert) > 1 {
 		// We know that the entries in "branch" are all "isExecChild = true" nodes, except the top level entry that might be
 		// a "isExecChild = false" node. Similarly, all the nodes below parent.GetChildren()[childIndexToRebase] must be non

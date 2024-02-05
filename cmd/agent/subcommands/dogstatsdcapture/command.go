@@ -59,7 +59,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dogstatsdCapture,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -74,6 +74,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdCaptureCmd}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func dogstatsdCapture(log log.Component, config config.Component, cliParams *cliParams) error {
 	fmt.Printf("Starting a dogstatsd traffic capture session...\n\n")
 

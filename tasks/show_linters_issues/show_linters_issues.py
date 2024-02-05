@@ -5,8 +5,8 @@ Invoke tasks to fix the linter
 from invoke import task
 from invoke.exceptions import Exit
 
-from ..libs.pipeline_notifications import GITHUB_SLACK_MAP
-from .golangci_lint_parser import (
+from tasks.libs.pipeline_notifications import GITHUB_SLACK_MAP
+from tasks.show_linters_issues.golangci_lint_parser import (
     count_lints_per_team,
     display_nb_lints_per_team,
     display_result,
@@ -17,6 +17,9 @@ from .golangci_lint_parser import (
 FIRST_COMMIT_HASH = "52a313fe7f5e8e16d487bc5dc770038bc234608b"
 # See https://go.dev/doc/install/source#environment for all available combinations of GOOS x GOARCH.
 CI_TESTED_OS_AND_ARCH = ["linux,arm64", "linux,amd64", "windows,amd64", "darwin,amd64"]
+# Used to differentiate classic errors (exit code 1) with real linter errors exit code.
+# If you modify it, do not use 0 or 1.
+GOLANGCI_EXIT_CODE = 7
 
 
 def check_if_team_exists(team: str):
@@ -40,9 +43,13 @@ def run_linters_for_each_os_x_arch(ctx, platforms, command, show_output):
     for tested_os, tested_arch in platforms:
         env = {"GOOS": tested_os, "GOARCH": tested_arch}
         print(f"Running linters for {tested_os}_{tested_arch}...")
-        results_per_os_x_arch[f"{tested_os}_{tested_arch}"] = ctx.run(
-            command, env=env, warn=True, hide=not show_output
-        ).stdout
+        command_run = ctx.run(command, env=env, hide=not show_output, warn=True)
+        # If the exit code is neither 0 (no linter errors) nor GOLANGCI_EXIT_CODE (existing linter errors), then there's an error in the command.
+        if command_run.exited not in [0, GOLANGCI_EXIT_CODE]:
+            raise Exit(
+                f"The command below failed with exit code {command_run.exited}.\n{command}\nError: {command_run.stderr}"
+            )
+        results_per_os_x_arch[f"{tested_os}_{tested_arch}"] = command_run.stdout
     return merge_results(results_per_os_x_arch)
 
 
@@ -72,7 +79,9 @@ def show_linters_issues(
     if filter_team:
         filter_team = filter_team.lower()
     check_if_team_exists(filter_team)
-    golangci_lint_kwargs = f'"--new-from-rev {from_commit_hash} --print-issued-lines=false"'
+    golangci_lint_kwargs = (
+        f'"--new-from-rev {from_commit_hash} --print-issued-lines=false --issues-exit-code {GOLANGCI_EXIT_CODE}"'
+    )
     command = f"inv lint-go --golangci-lint-kwargs {golangci_lint_kwargs} --headless-mode"
 
     if build_tags:

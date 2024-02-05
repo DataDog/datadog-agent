@@ -11,26 +11,29 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
 )
 
 type subcommandSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 type subcommandWithFakeIntakeSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestSubcommandSuite(t *testing.T) {
-	e2e.Run(t, &subcommandSuite{}, e2e.AgentStackDef())
-	e2e.Run(t, &subcommandWithFakeIntakeSuite{}, e2e.FakeIntakeStackDef(e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer())))
+	e2e.Run(t, &subcommandSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &subcommandWithFakeIntakeSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 // section contains the content status of a specific section (e.g. Forwarder)
@@ -74,11 +77,10 @@ type expectedSection struct {
 
 // verifySectionContent verifies that a specific status section behaves as expected (is correctly present or not, contains specific strings or not)
 func verifySectionContent(t *testing.T, statusOutput string, section expectedSection) {
-
 	sectionContent, err := getStatusComponentContent(statusOutput, section.name)
 
 	if section.shouldBePresent {
-		if assert.NoError(t, err, "Section %v was expected in the status output, but was not found", section.name) {
+		if assert.NoError(t, err, "Section %v was expected in the status output, but was not found. \n Here is the status output %s", section.name, statusOutput) {
 			for _, expectedContent := range section.shouldContain {
 				assert.Contains(t, sectionContent.content, expectedContent)
 			}
@@ -93,15 +95,19 @@ func verifySectionContent(t *testing.T, statusOutput string, section expectedSec
 }
 
 func (v *subcommandSuite) TestDefaultInstallStatus() {
-	metadata := client.NewEC2Metadata(v.Env().VM)
+	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
 	resourceID := metadata.Get("instance-id")
 
 	expectedSections := []expectedSection{
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
 			shouldBePresent:  true,
-			shouldContain:    []string{fmt.Sprintf("hostname: %v", resourceID), "hostname provider: aws"},
 			shouldNotContain: []string{"FIPS proxy"},
+		},
+		{
+			name:            `Hostname`,
+			shouldBePresent: true,
+			shouldContain:   []string{fmt.Sprintf("hostname: %v", resourceID), "hostname provider: aws"},
 		},
 		{
 			name:            "Aggregator",
@@ -149,7 +155,7 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 			shouldBePresent: true,
 		},
 		{
-			name:            "JMXFetch",
+			name:            "JMX Fetch",
 			shouldBePresent: true,
 			shouldContain:   []string{"no checks"},
 		},
@@ -199,7 +205,7 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 		},
 	}
 
-	status := v.Env().Agent.Status()
+	status := v.Env().Agent.Client.Status()
 
 	for _, section := range expectedSections {
 		verifySectionContent(v.T(), status.Content, section)
@@ -207,14 +213,14 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 }
 
 func (v *subcommandSuite) TestFIPSProxyStatus() {
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true"))))
 
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("fips.enabled: true"))))
 	expectedSection := expectedSection{
 		name:            `Agent \(.*\)`,
 		shouldBePresent: true,
 		shouldContain:   []string{"FIPS proxy"},
 	}
-	status := v.Env().Agent.Status()
+	status := v.Env().Agent.Client.Status()
 	verifySectionContent(v.T(), status.Content, expectedSection)
 }
 
@@ -224,7 +230,7 @@ func (v *subcommandWithFakeIntakeSuite) TestDefaultInstallHealthy() {
 	var output string
 	var err error
 	err = backoff.Retry(func() error {
-		output, err = v.Env().Agent.Health()
+		output, err = v.Env().Agent.Client.Health()
 		if err != nil {
 			return err
 		}
@@ -233,4 +239,28 @@ func (v *subcommandWithFakeIntakeSuite) TestDefaultInstallHealthy() {
 
 	assert.NoError(v.T(), err)
 	assert.Contains(v.T(), output, "Agent health: PASS")
+}
+
+func (v *subcommandWithFakeIntakeSuite) TestDefaultInstallUnhealthy() {
+	// the fakeintake says that any API key is invalid by sending a 403 code
+	override := api.ResponseOverride{
+		Endpoint:    "/api/v1/validate",
+		StatusCode:  403,
+		ContentType: "text/plain",
+		Body:        []byte("invalid API key"),
+	}
+	v.Env().FakeIntake.Client().ConfigureOverride(override)
+
+	// restart the agent, which validates the key using the fakeintake at startup
+	v.UpdateEnv(awshost.Provisioner(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\n")),
+	))
+
+	// agent should be unhealthy because the key is invalid
+	_, err := v.Env().Agent.Client.Health()
+	if err == nil {
+		assert.Fail(v.T(), "agent expected to be unhealthy, but no error found!")
+		return
+	}
+	assert.Contains(v.T(), err.Error(), "Agent health: FAIL")
 }

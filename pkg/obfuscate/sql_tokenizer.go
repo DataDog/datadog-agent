@@ -610,6 +610,7 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	return ID, t
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte) {
 	for tkn.advance(); tkn.lastChar != ')' && tkn.lastChar != EndChar; tkn.advance() {
 	}
@@ -622,6 +623,7 @@ func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte)
 	return Variable, tkn.bytes()
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (tkn *SQLTokenizer) scanFormatParameter(prefix rune) (TokenKind, []byte) {
 	tkn.advance()
 	return Variable, tkn.bytes()
@@ -675,6 +677,7 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 	return DollarQuotedString, buf.Bytes()
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) {
 	// a prepared statement expect a digit identifier like $1
 	if !isDigit(tkn.lastChar) {
@@ -692,6 +695,7 @@ func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) 
 	return PreparedStatement, buff
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (TokenKind, []byte) {
 	for tkn.lastChar != '}' && tkn.lastChar != EndChar {
 		tkn.advance()
@@ -821,6 +825,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 	return kind, buf.Bytes()
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (tkn *SQLTokenizer) scanCommentType1(prefix string) (TokenKind, []byte) {
 	for tkn.lastChar != EndChar {
 		if tkn.lastChar == '\n' {

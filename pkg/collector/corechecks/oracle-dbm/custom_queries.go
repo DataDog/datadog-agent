@@ -17,12 +17,10 @@ import (
 	godror "github.com/godror/godror"
 )
 
-type Method func(string, float64, string, []string)
-
 type metricRow struct {
 	name   string
 	value  float64
-	method Method
+	method metricType
 	tags   []string
 }
 
@@ -37,6 +35,7 @@ func concatenateError(input error, new string) error {
 	return fmt.Errorf("%w %s", input, new)
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) CustomQueries() error {
 	/*
 	 * We are creating a dedicated DB connection for custom queries. Custom queries is
@@ -60,14 +59,6 @@ func (c *Check) CustomQueries() error {
 	sender, err := c.GetSender()
 	if err != nil {
 		return fmt.Errorf("failed to get sender for custom queries %w", err)
-	}
-	methods := map[string]Method{
-		"gauge":           sender.Gauge,
-		"count":           sender.Count,
-		"rate":            sender.Rate,
-		"monotonic_count": sender.MonotonicCount,
-		"histogram":       sender.Histogram,
-		"historate":       sender.Historate,
 	}
 	var allErrors error
 	var customQueries []config.CustomQuery
@@ -141,7 +132,7 @@ func (c *Check) CustomQueries() error {
 					if v != nil {
 						tags = append(tags, fmt.Sprintf("%s:%s", q.Columns[i].Name, v))
 					}
-				} else if methodFunc, ok := methods[q.Columns[i].Type]; ok {
+				} else if method, err := getMetricFunctionCode(q.Columns[i].Type); err == nil {
 					metricRow.name = fmt.Sprintf("%s.%s", metricPrefix, q.Columns[i].Name)
 					if v_str, ok := v.(string); ok {
 						metricRow.value, err = strconv.ParseFloat(v_str, 64)
@@ -150,7 +141,7 @@ func (c *Check) CustomQueries() error {
 							errInQuery = true
 							break
 						}
-					} else if v_gn, ok := v.(godror.Number); ok {
+					} else if v_gn, ok := v.(godror.Number); ok { //nolint:revive // TODO(DBM) Fix revive linter
 						metricRow.value, err = strconv.ParseFloat(string(v_gn), 64)
 						if err != nil {
 							allErrors = concatenateTypeError(allErrors, metricPrefix, "godror.Number", metricRow.name, v, q.Query, err)
@@ -159,18 +150,15 @@ func (c *Check) CustomQueries() error {
 						}
 					} else if vInt64, ok := v.(int64); ok {
 						metricRow.value = float64(vInt64)
-						if err != nil {
-							allErrors = concatenateTypeError(allErrors, metricPrefix, "int64", metricRow.name, v, q.Query, err)
-							errInQuery = true
-							break
-						}
+					} else if vFloat64, ok := v.(float64); ok {
+						metricRow.value = vFloat64
 					} else {
 						allErrors = concatenateTypeError(allErrors, metricPrefix, "UNKNOWN", metricRow.name, v, q.Query, err)
 						errInQuery = true
 						break
 					}
 
-					metricRow.method = methodFunc
+					metricRow.method = method
 					metricsFromSingleRow = append(metricsFromSingleRow, metricRow)
 				} else {
 					allErrors = concatenateError(allErrors, fmt.Sprintf("Unknown column type %s in custom query %s", q.Columns[i].Type, metricRow.name))
@@ -198,7 +186,7 @@ func (c *Check) CustomQueries() error {
 		}
 		for _, m := range metricRows {
 			log.Debugf("%s send metric %+v", c.logPrompt, m)
-			m.method(m.name, m.value, "", m.tags)
+			sendMetric(c, m.method, m.name, m.value, m.tags)
 		}
 		sender.Commit()
 	}

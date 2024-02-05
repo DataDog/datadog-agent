@@ -40,6 +40,7 @@ func testUDSOriginDetection(t *testing.T, network string) {
 
 	cfg := map[string]any{}
 
+	t.Logf("Running testUDSOriginDetection with network %s", network)
 	// Detect whether we are containerised and set the socket path accordingly
 	var socketVolume string
 	var composeFile string
@@ -54,21 +55,23 @@ func testUDSOriginDetection(t *testing.T, network string) {
 		composeFile = "mount_volume.compose"
 	}
 	socketPath := filepath.Join(dir, "dsd.socket")
+	t.Logf("Using socket %s", socketPath)
 	if network == "unixgram" {
 		cfg["dogstatsd_socket"] = socketPath
 	} else if network == "unix" {
 		cfg["dogstatsd_stream_socket"] = socketPath
 	}
-	cfg["dogstatsd_experimental_and_not_yet_supported"] = "true"
 	cfg["dogstatsd_origin_detection"] = true
 
 	confComponent := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: cfg}),
 	))
 
 	// Start DSD
-	packetsChannel := make(chan packets.Packets)
+	// The packet channel needs to be buffered, otherwise the sender will block and this
+	// will prevent disconnections.
+	packetsChannel := make(chan packets.Packets, 1024)
 	sharedPacketPool := packets.NewPool(32)
 	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
 	var err error
@@ -81,7 +84,9 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	require.NotNil(t, s)
 	require.Nil(t, err)
 
-	go s.Listen()
+	// Start sender container
+	t.Logf("Starting sender container %s", composeFile)
+	s.Listen()
 	defer s.Stop()
 
 	compose := &utils.ComposeConf{
@@ -99,7 +104,10 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	t.Logf("Docker output: %s", output)
 
 	containers, err := compose.ListContainers()
-	require.Nil(t, err)
+	if e, ok := err.(*exec.ExitError); ok {
+		require.NoError(t, e, string(e.Stderr))
+	}
+	require.NoError(t, err)
 	require.True(t, len(containers) > 0)
 	containerId := containers[0]
 	require.Equal(t, 64, len(containerId))
