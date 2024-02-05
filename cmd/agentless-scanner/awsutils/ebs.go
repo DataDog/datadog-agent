@@ -330,6 +330,137 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 	return nil
 }
 
+// CleanupScanEBS removes all resources associated with a scan.
+func CleanupScanEBS(ctx context.Context, scan *types.ScanTask) {
+	for snapshotIDString, snapshotCreatedAt := range scan.CreatedSnapshots {
+		snapshotID, err := types.ParseCloudID(snapshotIDString, types.ResourceTypeSnapshot)
+		if err != nil {
+			continue
+		}
+		cfg, err := GetConfig(ctx, snapshotID.Region, scan.Roles[snapshotID.AccountID])
+		if err != nil {
+			log.Errorf("%s: %v", scan, err)
+		} else {
+			ec2client := ec2.NewFromConfig(cfg)
+			log.Debugf("%s: deleting snapshot %q", scan, snapshotID)
+			if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+				SnapshotId: aws.String(snapshotID.ResourceName),
+			}); err != nil {
+				log.Warnf("%s: could not delete snapshot %s: %v", scan, snapshotID, err)
+			} else {
+				log.Debugf("%s: snapshot deleted %s", scan, snapshotID)
+				statsResourceTTL(types.ResourceTypeSnapshot, scan, *snapshotCreatedAt)
+			}
+		}
+	}
+
+	switch scan.DiskMode {
+	case types.VolumeAttach:
+		if volumeID := scan.AttachedVolumeID; volumeID != nil {
+			if errd := CleanupScanVolumes(ctx, scan, *volumeID, scan.Roles); errd != nil {
+				log.Warnf("%s: could not delete volume %q: %v", scan, volumeID, errd)
+			} else {
+				statsResourceTTL(types.ResourceTypeVolume, scan, *scan.AttachedVolumeCreatedAt)
+			}
+		}
+	case types.NBDAttach:
+		if diskDeviceName := scan.AttachedDeviceName; diskDeviceName != nil {
+			nbd.StopNBDBlockDevice(ctx, *diskDeviceName)
+		}
+	default:
+		panic("unreachable")
+	}
+}
+
+// CleanupScanVolumes removes all resources associated with a volume.
+func CleanupScanVolumes(ctx context.Context, maybeScan *types.ScanTask, volumeID types.CloudID, roles types.RolesMapping) error {
+	cfg, err := GetConfig(ctx, volumeID.Region, roles[volumeID.AccountID])
+	if err != nil {
+		return err
+	}
+
+	ec2client := ec2.NewFromConfig(cfg)
+
+	volumeNotFound := false
+	volumeDetached := false
+	log.Debugf("%s: detaching volume %q", maybeScan, volumeID)
+	for i := 0; i < 5; i++ {
+		if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
+			Force:    aws.Bool(true),
+			VolumeId: aws.String(volumeID.ResourceName),
+		}); err != nil {
+			var aerr smithy.APIError
+			// NOTE(jinroh): we're trying to detach a volume in an 'available'
+			// state for instance. Just bail.
+			if errors.As(err, &aerr) {
+				if aerr.ErrorCode() == "IncorrectState" {
+					volumeDetached = true
+					break
+				}
+				if aerr.ErrorCode() == "InvalidVolume.NotFound" {
+					volumeNotFound = true
+					break
+				}
+			}
+			log.Warnf("%s: could not detach volume %s: %v", maybeScan, volumeID, err)
+		} else {
+			volumeDetached = true
+			break
+		}
+		if !sleepCtx(ctx, 10*time.Second) {
+			return fmt.Errorf("could not detach volume: %w", ctx.Err())
+		}
+	}
+
+	if volumeDetached && maybeScan != nil && maybeScan.AttachedDeviceName != nil {
+		for i := 0; i < 30; i++ {
+			if !sleepCtx(ctx, 1*time.Second) {
+				return ctx.Err()
+			}
+			devices, err := devices.List(ctx, *maybeScan.AttachedDeviceName)
+			if err != nil || len(devices) == 0 {
+				break
+			}
+		}
+	}
+
+	var errd error
+	for i := 0; i < 10; i++ {
+		if volumeNotFound {
+			break
+		}
+		_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
+			VolumeId: aws.String(volumeID.ResourceName),
+		})
+		if errd != nil {
+			var aerr smithy.APIError
+			if errors.As(err, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" {
+				errd = nil
+				break
+			}
+		} else {
+			log.Debugf("%s: volume deleted %q", maybeScan, volumeID)
+			break
+		}
+		if !sleepCtx(ctx, 10*time.Second) {
+			errd = ctx.Err()
+			break
+		}
+	}
+	if errd != nil {
+		return fmt.Errorf("could not delete volume %q: %w", volumeID, errd)
+	}
+	return nil
+}
+
+func statsResourceTTL(resourceType types.ResourceType, scan *types.ScanTask, createTime time.Time) {
+	ttl := time.Since(createTime)
+	tags := scan.Tags(fmt.Sprintf("aws_resource_type:%s", string(resourceType)))
+	if err := statsd.Histogram("datadog.agentless_scanner.aws.resources_ttl", float64(ttl.Milliseconds()), tags, 1.0); err != nil {
+		log.Warnf("failed to send metric: %v", err)
+	}
+}
+
 func sleepCtx(ctx context.Context, d time.Duration) bool {
 	select {
 	case <-time.After(d):

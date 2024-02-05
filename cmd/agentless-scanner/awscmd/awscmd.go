@@ -194,7 +194,7 @@ func offlineCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction
 	cmd.Flags().IntVar(&cliArgs.workers, "workers", defaultWorkersCount, "number of scans running in parallel")
 	cmd.Flags().StringSliceVar(&cliArgs.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
 	cmd.Flags().StringVar(&cliArgs.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
-	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(types.EBSScanType), "scan type (ebs-volume or lambda)")
+	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(types.ScanTypeEBS), "scan type (ebs-volume or lambda)")
 	cmd.Flags().IntVar(&cliArgs.maxScans, "max-scans", 0, "maximum number of scans to perform")
 	cmd.Flags().BoolVar(&cliArgs.printResults, "print-results", false, "print scan results to stdout")
 	return cmd
@@ -580,9 +580,9 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 	go func() {
 		defer scanner.Stop()
 		var err error
-		if scanType == types.EBSScanType {
+		if scanType == types.ScanTypeEBS {
 			err = pushEBSVolumes()
-		} else if scanType == types.LambdaScanType {
+		} else if scanType == types.ScanTypeLambda {
 			err = pushLambdaFunctions()
 		} else {
 			panic("unreachable")
@@ -649,7 +649,11 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 	if err != nil {
 		return err
 	}
-	defer awsutils.CleanupScan(scan)
+	defer func() {
+		ctxcleanup, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		defer cancel()
+		awsutils.CleanupScanEBS(ctxcleanup, scan)
+	}()
 
 	var waiter awsutils.SnapshotWaiter
 

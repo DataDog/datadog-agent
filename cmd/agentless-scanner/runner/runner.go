@@ -14,6 +14,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -51,6 +53,7 @@ const (
 	// LoggerName is the name of the logger used by this package.
 	LoggerName = "AGENTLESSSCANER"
 
+	cleanupMaxDuration     = 2 * time.Minute
 	defaultSnapshotsMaxTTL = 24 * time.Hour
 )
 
@@ -249,11 +252,11 @@ func (s *Runner) CleanSlate() error {
 			}
 		} else {
 			switch {
-			case strings.HasPrefix(scanDir.Name(), string(types.LambdaScanType)+"-"):
+			case strings.HasPrefix(scanDir.Name(), string(types.ScanTypeLambda)+"-"):
 				if err := os.RemoveAll(name); err != nil {
 					log.Warnf("clean slate: could not remove directory %q", name)
 				}
-			case strings.HasPrefix(scanDir.Name(), string(types.EBSScanType)):
+			case strings.HasPrefix(scanDir.Name(), string(types.ScanTypeEBS)):
 				scanDirname := filepath.Join(types.ScansRootDir, scanDir.Name())
 				scanEntries, err := os.ReadDir(scanDirname)
 				if err != nil {
@@ -485,17 +488,17 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 
 	pool := newScannersPool(s.NoFork, s.ScannersMax)
 	scan.StartedAt = time.Now()
-	defer awsutils.CleanupScan(scan)
+	defer s.cleanupScan(scan)
 	switch scan.Type {
-	case types.HostScanType:
+	case types.ScanTypeHost:
 		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName}, pool, s.resultsCh)
-	case types.EBSScanType:
+	case types.ScanTypeEBS:
 		mountpoints, err := awsutils.SetupEBS(ctx, scan, &s.waiter)
 		if err != nil {
 			return err
 		}
 		s.scanRootFilesystems(ctx, scan, mountpoints, pool, s.resultsCh)
-	case types.LambdaScanType:
+	case types.ScanTypeLambda:
 		mountpoint, err := awsutils.SetupLambda(ctx, scan)
 		if err != nil {
 			return err
@@ -505,6 +508,100 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 		return fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
 	return nil
+}
+
+func (s *Runner) cleanupScan(scan *types.ScanTask) {
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+	defer cancel()
+
+	scanRoot := scan.Path()
+
+	log.Debugf("%s: cleaning up scan data on filesystem", scan)
+
+	entries, err := os.ReadDir(scanRoot)
+	if err == nil {
+		var wg sync.WaitGroup
+
+		umount := func(mountPoint string) {
+			defer wg.Done()
+			devices.Umount(ctx, scan, mountPoint)
+		}
+
+		var ebsMountPoints []fs.DirEntry
+		var ctrMountPoints []fs.DirEntry
+		var pidFiles []fs.DirEntry
+
+		for _, entry := range entries {
+			if entry.IsDir() {
+				if strings.HasPrefix(entry.Name(), types.EBSMountPrefix) {
+					ebsMountPoints = append(ebsMountPoints, entry)
+				}
+				if strings.HasPrefix(entry.Name(), types.ContainerdMountPrefix) || strings.HasPrefix(entry.Name(), types.DockerMountPrefix) {
+					ctrMountPoints = append(ctrMountPoints, entry)
+				}
+				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".pid") {
+					pidFiles = append(pidFiles, entry)
+				}
+			}
+		}
+		for _, entry := range ctrMountPoints {
+			wg.Add(1)
+			go umount(filepath.Join(scanRoot, entry.Name()))
+		}
+		wg.Wait()
+		// unmount "ebs-*" entrypoint last as the other mountpoint may depend on it
+		for _, entry := range ebsMountPoints {
+			wg.Add(1)
+			go umount(filepath.Join(scanRoot, entry.Name()))
+		}
+		wg.Wait()
+
+		for _, entry := range pidFiles {
+			pidFile, err := os.Open(filepath.Join(scanRoot, entry.Name()))
+			if err != nil {
+				continue
+			}
+			pidRaw, err := io.ReadAll(io.LimitReader(pidFile, 32))
+			if err != nil {
+				pidFile.Close()
+				continue
+			}
+			pidFile.Close()
+			if pid, err := strconv.Atoi(strings.TrimSpace(string(pidRaw))); err == nil {
+				if proc, err := os.FindProcess(pid); err == nil {
+					log.Debugf("%s: killing remaining scanner process with pid %d", scan, pid)
+					_ = proc.Kill()
+				}
+			}
+		}
+	}
+
+	log.Debugf("%s: removing folder %q", scan, scanRoot)
+	if err := os.RemoveAll(scanRoot); err != nil {
+		log.Errorf("%s: could not cleanup mount root %q: %v", scan, scanRoot, err)
+	}
+
+	if scan.AttachedDeviceName != nil {
+		blockDevices, err := devices.List(ctx, *scan.AttachedDeviceName)
+		if err == nil && len(blockDevices) == 1 {
+			for _, child := range blockDevices[0].GetChildrenType("lvm") {
+				if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
+					log.Errorf("%s: could not remove logical device %q from block device %q: %v", scan, child.Path, child.Name, err)
+				}
+			}
+		}
+	}
+
+	switch scan.Type {
+	case types.ScanTypeEBS:
+		awsutils.CleanupScanEBS(ctx, scan)
+	case types.ScanTypeLambda:
+		// nothing to do
+	case types.ScanTypeHost:
+		// nothing to do
+	default:
+		panic("unreachable")
+	}
 }
 
 func (s *Runner) sendSBOM(result types.ScanResult) error {
