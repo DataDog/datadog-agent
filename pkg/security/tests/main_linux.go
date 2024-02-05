@@ -24,6 +24,10 @@ import (
 
 func SkipIfNotAvailable(t *testing.T) {
 	if ebpfLessEnabled {
+		if testEnvironment == DockerEnvironment {
+			t.Skip("skipping ebpfless test in docker")
+		}
+
 		available := []string{
 			"~TestProcess",
 			"~TestOpen",

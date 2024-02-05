@@ -259,6 +259,7 @@ func TestChown(t *testing.T) {
 
 func TestChownUserGroup(t *testing.T) {
 	SkipIfNotAvailable(t)
+
 	testUser := "test_user_1"
 	testUID := int32(1901)
 	testGroup := "test_group_1"
