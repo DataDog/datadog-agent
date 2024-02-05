@@ -36,8 +36,6 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
         stopItem.target = self
         restartItem = NSMenuItem(title: "Restart", action: #selector(restartAgent), keyEquivalent: "")
         restartItem.target = self
-        loginItem = NSMenuItem(title: loginStatusEnableTitle, action: #selector(loginAction), keyEquivalent: "")
-        loginItem.target = self
         exitItem = NSMenuItem(title: "Exit", action: #selector(exitGUI), keyEquivalent: "")
         exitItem.target = self
 
@@ -99,8 +97,6 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
     func run() {
         // Initialising
         agentStatus = AgentManager.status()
-        loginStatus = AgentManager.getLoginStatus()
-        updateLoginItem()
         updatingAgent = false
         agentRestart = false
         if !agentStatus {
@@ -123,15 +119,6 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
         startItem.isEnabled = !self.agentStatus
         stopItem.isEnabled = self.agentStatus
         restartItem.isEnabled = self.agentStatus
-    }
-
-    func updateLoginItem() {
-        loginItem.title = loginStatus! ? loginStatusDisableTitle : loginStatusEnableTitle
-    }
-
-    @objc func loginAction(_ sender: Any?) {
-        self.loginStatus = AgentManager.switchLoginStatus()
-        updateLoginItem()
     }
 
     @objc func startAgent(_ sender: Any?) {
@@ -181,7 +168,6 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
 
 class AgentManager {
     static let agentServiceName = "com.datadoghq.agent"
-    static let systemEventsCommandFormat = "tell application \"System Events\" to %@"
     static let serviceTimeout = 10000  // time to wait for service to start/stop, in milliseconds
     static let statusCheckFrequency = 500  // time to wait between checks on the service status, in milliseconds
 
@@ -221,29 +207,6 @@ class AgentManager {
         }
     }
 
-    static func switchLoginStatus() -> Bool {
-        let currentLoginStatus = getLoginStatus()
-        var command: String
-        if currentLoginStatus { // enabled -> disable
-            command = "delete every login item whose name is \"Datadog Agent\""
-        } else { // disabled -> enable
-            command = "make login item at end with properties {path:\"/Applications/Datadog Agent.app\", name:\"Datadog Agent\", hidden:false}"
-        }
-        let processInfo = systemEventsCall(command: command)
-        if processInfo.exitCode != 0 {
-            NSLog(processInfo.stdOut)
-            NSLog(processInfo.stdErr)
-            return currentLoginStatus
-        }
-
-        return !currentLoginStatus
-    }
-
-    static func getLoginStatus() -> Bool {
-        let processInfo = systemEventsCall(command: "get the path of every login item whose name is \"Datadog Agent\"")
-        return processInfo.stdOut.contains("Datadog")
-    }
-
     private static func checkStatusAndCall(command: String, timeout: Int, callback: @escaping (Bool) -> Void) {
         let agentStatus = status()
         if command == "start" && agentStatus ||
@@ -269,10 +232,6 @@ class AgentManager {
         return call(launchPath: "/usr/local/bin/datadog-agent", arguments: [command])
     }
 
-    private static func systemEventsCall(command: String) -> (exitCode: Int32, stdOut: String, stdErr: String) {
-        return call(launchPath: "/usr/bin/osascript", arguments: ["-e", String(format: systemEventsCommandFormat, command)])
-    }
-
     private static func call(launchPath: String, arguments: [String]) -> (exitCode: Int32, stdOut: String, stdErr: String) {
         let stdOutPipe = Pipe()
         let stdErrPipe = Pipe()
@@ -289,4 +248,3 @@ class AgentManager {
         return (process.terminationStatus, stdOut!, stdErr!)
     }
 }
-
