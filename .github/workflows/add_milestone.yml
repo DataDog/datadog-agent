@@ -46,7 +46,7 @@ jobs:
 
       - name: Set the merged PR milestone to current_milestone from release.json
         run: |
-          echo "Setting milestone $MILESTONE to PR #$NUMBER."
+          echo "Setting milestone $MILESTONE to PR $NUMBER."
           gh issue edit "$NUMBER" --milestone "$MILESTONE"
           exit 0
         env:
