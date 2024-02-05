@@ -9,6 +9,8 @@
 package journald
 
 import (
+	"os"
+
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -85,7 +87,15 @@ func (l *Launcher) run() {
 			}
 
 			if source.Config.Path != "" {
+				// Add path to flare if specified in configuration
 				allJournalSources = append(allJournalSources, source.Config.Path)
+			} else {
+				// Check default locations otherwise
+				if _, err := os.Stat("/var/log/journal"); err == nil {
+					allJournalSources = append(allJournalSources, "/var/log/journal")
+				} else if _, err := os.Stat("/run/log/journal"); err == nil {
+					allJournalSources = append(allJournalSources, "/run/log/journal")
+				}
 			}
 
 			tailer, err := l.setupTailer(source)
