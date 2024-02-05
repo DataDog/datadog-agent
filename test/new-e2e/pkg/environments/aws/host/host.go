@@ -147,7 +147,7 @@ func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[env
 	return Provisioner(mergedOpts...)
 }
 
-// Run main provisioner work running here
+// Run deploys a environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
 	var err error

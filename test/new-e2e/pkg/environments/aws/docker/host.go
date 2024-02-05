@@ -119,6 +119,7 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
+// Run deploys a docker environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
 	var err error
