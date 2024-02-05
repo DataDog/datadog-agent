@@ -6,7 +6,6 @@
 package apm
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net"
@@ -173,7 +172,7 @@ func waitRemotePort(v *VMFakeintakeSuite, port uint16) error {
 	v.Eventually(func() bool {
 		v.T().Logf("Waiting for remote:%v", port)
 		// TODO: Use the e2e context
-		c, err = v.Env().RemoteHost.DialRemotePort(context.Background(), port)
+		c, err = v.Env().RemoteHost.DialRemotePort(port)
 		if err != nil {
 			v.T().Logf("Failed to dial remote:%v: %s\n", port, err)
 			return false
