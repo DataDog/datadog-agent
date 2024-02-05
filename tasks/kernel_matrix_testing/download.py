@@ -72,6 +72,7 @@ def download_rootfs(ctx, rootfs_dir):
 
         for disk in vmset["disks"]:
             d = os.path.basename(disk["source"])
+            # Use the uncompressed disk name, avoid errors due to images being downloaded but not extracted
             if not os.path.exists(os.path.join(rootfs_dir, d)):
                 disks_to_download.append(d)
 
