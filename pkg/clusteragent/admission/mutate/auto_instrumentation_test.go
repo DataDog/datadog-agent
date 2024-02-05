@@ -1396,7 +1396,6 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			wantErr: false,
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("admission_controller.run_language_detection", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_auto_detected_libraries", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 			},
@@ -1468,7 +1467,6 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			wantErr: false,
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("admission_controller.run_language_detection", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_auto_detected_libraries", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"ruby": "v1.2.3"})
@@ -1541,7 +1539,6 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			wantErr: false,
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("admission_controller.run_language_detection", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_auto_detected_libraries", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"ruby": "v1.2.3"})
