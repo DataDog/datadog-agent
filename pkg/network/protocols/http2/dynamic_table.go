@@ -64,7 +64,7 @@ type DynamicTable struct {
 	// terminatedConnectionMux is used to protect the terminated connections list from concurrent access.
 	terminatedConnectionMux sync.Mutex
 	// mapCleaner is the map cleaner used to clear entries of terminated connections from the kernel map.
-	mapCleaner *ddebpf.MapCleaner[HTTP2DynamicTableIndex, HTTP2DynamicTableEntry]
+	mapCleaner *ddebpf.MapCleaner[HTTP2DynamicTableIndex, uint32]
 }
 
 // NewDynamicTable creates a new dynamic table.
@@ -133,7 +133,7 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(mgr *manager.Manager, cfg *c
 		return fmt.Errorf("error getting http2 dynamic table map: %w", err)
 	}
 
-	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2DynamicTableIndex, HTTP2DynamicTableEntry](dynamicTableMap, defaultMapCleanerBatchSize)
+	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2DynamicTableIndex, uint32](dynamicTableMap, defaultMapCleanerBatchSize)
 	if err != nil {
 		return fmt.Errorf("error creating a map cleaner for http2 dynamic table: %w", err)
 	}
@@ -166,7 +166,7 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(mgr *manager.Manager, cfg *c
 			dt.mux.Unlock()
 			terminatedConnectionsMap = make(map[netebpf.ConnTuple]struct{})
 		},
-		func(_ int64, key HTTP2DynamicTableIndex, _ HTTP2DynamicTableEntry) bool {
+		func(_ int64, key HTTP2DynamicTableIndex, _ uint32) bool {
 			_, ok := terminatedConnectionsMap[key.Tup]
 			if ok {
 				return true
