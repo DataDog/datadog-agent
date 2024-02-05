@@ -88,89 +88,81 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 
 // CreateSnapshot creates a snapshot of the given EBS volume and returns its Cloud Identifier.
 func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, ec2client *ec2.Client, volumeID types.CloudID) (types.CloudID, error) {
-	snapshotCreatedAt := time.Now()
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
-	log.Debugf("%s: starting volume snapshotting %q", scan, volumeID)
-
-	retries := 0
-retry:
 	if volumeID.ResourceType() != types.ResourceTypeVolume {
 		return types.CloudID{}, fmt.Errorf("bad resource ID %q: expecting a volume", volumeID)
 	}
-	createSnapshotOutput, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
-		VolumeId:          aws.String(volumeID.ResourceName()),
-		TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
-	})
-	if err != nil {
-		var aerr smithy.APIError
-		var isRateExceededError bool
-		// TODO: if we reach this error, we maybe could reuse a pending or
-		// very recent snapshot that was created by the scanner.
-		if errors.As(err, &aerr) && aerr.ErrorCode() == "SnapshotCreationPerVolumeRateExceeded" {
-			isRateExceededError = true
-		}
-		if retries <= maxSnapshotRetries {
-			retries++
-			if isRateExceededError {
+	log.Debugf("%s: starting volume snapshotting %q", scan, volumeID)
+	for tryCount := 0; ; tryCount++ {
+		snapshotCreatedAt := time.Now()
+		createSnapshotOutput, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
+			VolumeId:          aws.String(volumeID.ResourceName()),
+			TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
+		})
+		if err != nil {
+			var aerr smithy.APIError
+			var isRateExceededError bool
+			var isVolumeNotFoundError bool
+			if errors.As(err, &aerr) {
+				// TODO: if we reach this error, we maybe could reuse a pending or
+				// very recent snapshot that was created by the scanner.
+				if aerr.ErrorCode() == "SnapshotCreationPerVolumeRateExceeded" {
+					isRateExceededError = true
+				}
+				if aerr.ErrorCode() == "InvalidVolume.NotFound" {
+					isVolumeNotFoundError = true
+				}
+			}
+			if isRateExceededError && tryCount < maxSnapshotRetries {
 				// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
 				// Wait at least 15 seconds between concurrent volume snapshots.
 				d := 15 * time.Second
-				log.Debugf("%s: snapshot creation rate exceeded for volume %q; retrying after %v (%d/%d)", scan, volumeID, d, retries, maxSnapshotRetries)
+				log.Debugf("%s: snapshot creation rate exceeded for volume %q; retrying after %v (%d/%d)", scan, volumeID, d, tryCount+1, maxSnapshotRetries)
 				if !sleepCtx(ctx, d) {
 					return types.CloudID{}, ctx.Err()
 				}
-				goto retry
+				continue
+			}
+			var tags []string
+			if isVolumeNotFoundError {
+				tags = scan.TagsNotFound()
+			} else {
+				tags = scan.TagsFailure(err)
+			}
+			if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, tags, 1.0); err != nil {
+				log.Warnf("failed to send metric: %v", err)
+			}
+			return types.CloudID{}, err
+		}
+
+		snapshotID, err := EC2CloudID(volumeID.Region, volumeID.AccountID, types.ResourceTypeSnapshot, *createSnapshotOutput.SnapshotId)
+		if err != nil {
+			return snapshotID, err
+		}
+		scan.PushCreatedResource(snapshotID, snapshotCreatedAt)
+
+		err = <-waiter.Wait(ctx, snapshotID, ec2client)
+		if err == nil {
+			snapshotDuration := time.Since(snapshotCreatedAt)
+			log.Debugf("%s: volume snapshotting of %q finished successfully %q (took %s)", scan, volumeID, snapshotID, snapshotDuration)
+			if err := statsd.Histogram("datadog.agentless_scanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), scan.Tags(), 1.0); err != nil {
+				log.Warnf("failed to send metric: %v", err)
+			}
+			if err := statsd.Histogram("datadog.agentless_scanner.snapshots.size", float64(*createSnapshotOutput.VolumeSize), scan.TagsFailure(err), 1.0); err != nil {
+				log.Warnf("failed to send metric: %v", err)
+			}
+			if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, scan.TagsSuccess(), 1.0); err != nil {
+				log.Warnf("failed to send metric: %v", err)
+			}
+		} else {
+			if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, scan.TagsFailure(err), 1.0); err != nil {
+				log.Warnf("failed to send metric: %v", err)
 			}
 		}
-		if isRateExceededError {
-			log.Debugf("%s: snapshot creation rate exceeded for volume %q; skipping)", scan, volumeID)
-		}
-	}
-	if err != nil {
-		var isVolumeNotFoundError bool
-		var aerr smithy.APIError
-		if errors.As(err, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" {
-			isVolumeNotFoundError = true
-		}
-		var tags []string
-		if isVolumeNotFoundError {
-			tags = scan.TagsNotFound()
-		} else {
-			tags = scan.TagsFailure(err)
-		}
-		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, tags, 1.0); err != nil {
-			log.Warnf("failed to send metric: %v", err)
-		}
-		return types.CloudID{}, err
-	}
-
-	snapshotID, err := EC2CloudID(volumeID.Region, volumeID.AccountID, types.ResourceTypeSnapshot, *createSnapshotOutput.SnapshotId)
-	if err != nil {
 		return snapshotID, err
 	}
-	scan.PushCreatedResource(snapshotID, snapshotCreatedAt)
-
-	err = <-waiter.Wait(ctx, snapshotID, ec2client)
-	if err == nil {
-		snapshotDuration := time.Since(snapshotCreatedAt)
-		log.Debugf("%s: volume snapshotting of %q finished successfully %q (took %s)", scan, volumeID, snapshotID, snapshotDuration)
-		if err := statsd.Histogram("datadog.agentless_scanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), scan.Tags(), 1.0); err != nil {
-			log.Warnf("failed to send metric: %v", err)
-		}
-		if err := statsd.Histogram("datadog.agentless_scanner.snapshots.size", float64(*createSnapshotOutput.VolumeSize), scan.TagsFailure(err), 1.0); err != nil {
-			log.Warnf("failed to send metric: %v", err)
-		}
-		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, scan.TagsSuccess(), 1.0); err != nil {
-			log.Warnf("failed to send metric: %v", err)
-		}
-	} else {
-		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, scan.TagsFailure(err), 1.0); err != nil {
-			log.Warnf("failed to send metric: %v", err)
-		}
-	}
-	return snapshotID, err
 }
 
 // AttachSnapshotWithNBD attaches the given snapshot to the instance using a
