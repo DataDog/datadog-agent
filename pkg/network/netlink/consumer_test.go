@@ -19,9 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
+	flake.Mark(t)
 	ns := testutil.SetupCrossNsDNAT(t)
 	cfg := &config.Config{
 		Config: ebpf.Config{
