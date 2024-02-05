@@ -259,7 +259,7 @@ func getAllLatestLibraries(registry string) []libInfo {
 		libsToInject = append(libsToInject, libInfo{lang: language(lang), image: libImageName(registry, lang, "latest")})
 	}
 
-	return []libInfo{}
+	return libsToInject
 }
 
 type libInfo struct {
