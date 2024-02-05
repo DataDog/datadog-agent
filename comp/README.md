@@ -76,6 +76,10 @@ Package flare implements a component to generate flares from the agent.
 
 Package hostname exposes hostname.Get() as a component.
 
+### [comp/core/hostname/hostnameinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface)
+
+Package hostnameinterface describes the interface for hostname methods
+
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/log)
 
 Package log implements a component to handle logging internal to the agent.
@@ -274,6 +278,10 @@ Package collector implements the OpenTelemetry Collector component.
 *Datadog Team*: processes
 
 Package process implements the "process" bundle, providing components for the Process Agent
+
+### [comp/process/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/agent)
+
+Package agent contains a process-agent component
 
 ### [comp/process/apiserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/apiserver)
 

@@ -438,6 +438,9 @@ type AgentConfig struct {
 
 	// Install Signature
 	InstallSignature InstallSignatureConfig
+
+	// Lambda function name
+	LambdaFunctionName string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -498,7 +501,8 @@ func New() *AgentConfig {
 		StatsdPort:    8125,
 		StatsdEnabled: true,
 
-		LogThrottling: true,
+		LogThrottling:      true,
+		LambdaFunctionName: os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%

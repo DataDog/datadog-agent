@@ -1100,7 +1100,7 @@ profiles:
 	assert.Len(t, deviceCk.config.MetricTags, 2)
 
 	// Assert Ping Metrics
-	sender.AssertMetric(t, "Gauge", pingCanConnectMetric, float64(1), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", pingReachableMetric, float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", pingAvgRttMetric, 4, "", snmpTags)
 	sender.AssertMetric(t, "Gauge", pingPacketLoss, 0.57, "", snmpTags)
 }
@@ -1242,7 +1242,7 @@ profiles:
 	assert.Len(t, deviceCk.config.MetricTags, 2)
 
 	// Assert Ping Metrics not sent
-	sender.AssertNotCalled(t, "Gauge", pingCanConnectMetric, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "Gauge", pingReachableMetric, mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertNotCalled(t, "Gauge", pingAvgRttMetric, mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertNotCalled(t, "Gauge", pingPacketLoss, mock.Anything, mock.Anything, mock.Anything)
 }
