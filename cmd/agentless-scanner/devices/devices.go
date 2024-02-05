@@ -172,7 +172,6 @@ func List(ctx context.Context, deviceName ...string) ([]BlockDevice, error) {
 // will filter the devices by serial number.
 func Poll(ctx context.Context, scan *types.ScanTask, device string, serialNumber *string) (*BlockDevice, error) {
 	log.Debugf("%s: polling partitions from device %q (sn=%v)", scan, device, serialNumber) // The attached device name may not be the one we expect. We update it.
-	var foundBlockDevice *BlockDevice
 	for i := 0; i < 120; i++ {
 		if !sleepCtx(ctx, 500*time.Millisecond) {
 			return nil, ctx.Err()
@@ -182,17 +181,12 @@ func Poll(ctx context.Context, scan *types.ScanTask, device string, serialNumber
 			continue
 		}
 		for _, bd := range blockDevices {
-			if serialNumber != nil && bd.Serial != "" {
-				if bd.Serial == *serialNumber {
-					foundBlockDevice = &bd
-					break
-				}
+			if serialNumber != nil && bd.Serial == *serialNumber {
+				return &bd, nil
 			} else if bd.Path == device {
-				foundBlockDevice = &bd
-				break
+				return &bd, nil
 			}
 		}
-		return foundBlockDevice, nil
 	}
 	return nil, fmt.Errorf("could not find the block device %s for", device)
 }

@@ -395,6 +395,14 @@ func NewScanTask(resourceID, scannerHostname, targetHostname string, actions []S
 	scan.ScannerHostname = scannerHostname
 	scan.TargetHostname = targetHostname
 	scan.Roles = roles
+	switch mode {
+	case NBDAttach, VolumeAttach:
+		scan.DiskMode = mode
+	case "":
+		scan.DiskMode = NBDAttach
+	default:
+		return nil, fmt.Errorf("invalid disk mode %q", mode)
+	}
 	scan.DiskMode = mode
 	scan.Actions = actions
 	scan.CreatedAt = time.Now()
