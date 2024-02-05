@@ -21,6 +21,8 @@ const (
 	// The upper limit for the size of the raw status code.
 	// If the status code is huffman encoded, the size is 2 characters, while if it is not encoded, the size is 3 characters.
 	http2RawStatusCodeMaxLength = C.HTTP2_STATUS_CODE_MAX_LEN
+	// The max number of headers we process in the request/response.
+	Http2MaxHeadersCountPerFiltering = C.HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING
 )
 
 type connTuple = C.conn_tuple_t

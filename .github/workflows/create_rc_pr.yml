@@ -2,6 +2,10 @@ name: Create RC PR
 
 on:
   workflow_dispatch:
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
     create_rc_pr:
         runs-on: ubuntu-latest
@@ -26,7 +30,6 @@ jobs:
 
             - name: Determine the release active branch
               run: |
-                export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
                 echo "RELEASE_BRANCH=$(inv -e release.get-active-release-branch)" >> $GITHUB_ENV
             
             - name: Checkout release branch
@@ -39,4 +42,3 @@ jobs:
               run: |
                 git fetch
                 inv -e release.create-rc
-                

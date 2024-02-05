@@ -10,6 +10,8 @@ const (
 	HTTP2TerminatedBatchSize = 0x50
 
 	http2RawStatusCodeMaxLength = 0x3
+
+	Http2MaxHeadersCountPerFiltering = 0x21
 )
 
 type connTuple = struct {
@@ -42,7 +44,7 @@ type http2StreamKey struct {
 type http2StatusCode struct {
 	Raw_buffer         [3]uint8
 	Is_huffman_encoded bool
-	Indexed_value      uint8
+	Static_table_entry uint8
 	Finalized          bool
 }
 type http2Stream struct {

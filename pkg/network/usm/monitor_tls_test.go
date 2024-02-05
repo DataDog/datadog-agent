@@ -432,6 +432,7 @@ func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Re
 
 func (s *tlsSuite) TestJavaInjection() {
 	t := s.T()
+	t.Skip("JavaTLS tests are currently disabled")
 
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true

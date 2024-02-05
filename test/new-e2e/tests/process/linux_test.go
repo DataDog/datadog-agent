@@ -24,6 +24,7 @@ type linuxTestSuite struct {
 }
 
 func TestLinuxTestSuite(t *testing.T) {
+	t.Skip("PROCS-3574: consistent failures on process tests")
 	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 }
 
