@@ -43,8 +43,8 @@ const (
 type ConfigType string
 
 const (
-	// AWSScan is the type of the scan configuration for AWS
-	AWSScan ConfigType = "aws-scan"
+	// ConfigTypeAWS is the type of the scan configuration for AWS
+	ConfigTypeAWS ConfigType = "aws-scan"
 )
 
 // ScanType is the type of the scan
@@ -63,22 +63,22 @@ const (
 type ScanAction string
 
 const (
-	// Malware is the action to scan for malware
-	Malware ScanAction = "malware"
-	// VulnsHost is the action to scan for vulnerabilities on hosts
-	VulnsHost ScanAction = "vulns"
-	// VulnsContainers is the action to scan for vulnerabilities in containers
-	VulnsContainers ScanAction = "vulnscontainers"
+	// ScanActionMalware is the action to scan for malware
+	ScanActionMalware ScanAction = "malware"
+	// ScanActionVulnsHost is the action to scan for vulnerabilities on hosts
+	ScanActionVulnsHost ScanAction = "vulns"
+	// ScanActionVulnsContainers is the action to scan for vulnerabilities in containers
+	ScanActionVulnsContainers ScanAction = "vulnscontainers"
 )
 
 // DiskMode is the mode to attach the disk
 type DiskMode string
 
 const (
-	// VolumeAttach is the mode to attach the disk as a volume
-	VolumeAttach DiskMode = "volume-attach"
-	// NBDAttach is the mode to attach the disk as a NBD
-	NBDAttach DiskMode = "nbd-attach"
+	// DiskModeVolumeAttach is the mode to attach the disk as a volume
+	DiskModeVolumeAttach DiskMode = "volume-attach"
+	// DiskModeNBDAttach is the mode to attach the disk as a NBD
+	DiskModeNBDAttach DiskMode = "nbd-attach"
 )
 
 // ScannerName is the name of the scanner
@@ -347,12 +347,12 @@ func (c Container) String() string {
 // ParseDiskMode parses a disk mode from a string.
 func ParseDiskMode(diskModeStr string) (DiskMode, error) {
 	switch diskModeStr {
-	case string(VolumeAttach):
-		return VolumeAttach, nil
-	case string(NBDAttach), "":
-		return NBDAttach, nil
+	case string(DiskModeVolumeAttach):
+		return DiskModeVolumeAttach, nil
+	case string(DiskModeNBDAttach), "":
+		return DiskModeNBDAttach, nil
 	default:
-		return "", fmt.Errorf("invalid flag \"disk-mode\": expecting either %s or %s", VolumeAttach, NBDAttach)
+		return "", fmt.Errorf("invalid flag \"disk-mode\": expecting either %s or %s", DiskModeVolumeAttach, DiskModeNBDAttach)
 	}
 }
 
@@ -381,7 +381,7 @@ func NewScanTask(resourceID, scannerHostname, targetHostname string, actions []S
 	if err != nil {
 		return nil, err
 	}
-	resourceType := scan.CloudID.ResourceType
+	resourceType := scan.CloudID.ResourceType()
 	switch {
 	case resourceType == ResourceTypeLocalDir:
 		scan.Type = ScanTypeHost
@@ -396,10 +396,10 @@ func NewScanTask(resourceID, scannerHostname, targetHostname string, actions []S
 	scan.TargetHostname = targetHostname
 	scan.Roles = roles
 	switch mode {
-	case NBDAttach, VolumeAttach:
+	case DiskModeNBDAttach, DiskModeVolumeAttach:
 		scan.DiskMode = mode
 	case "":
-		scan.DiskMode = NBDAttach
+		scan.DiskMode = DiskModeNBDAttach
 	default:
 		return nil, fmt.Errorf("invalid disk mode %q", mode)
 	}
@@ -411,20 +411,29 @@ func NewScanTask(resourceID, scannerHostname, targetHostname string, actions []S
 	return &scan, nil
 }
 
+// ParseScanAction parses a scan action from a string.
+func ParseScanAction(action string) (ScanAction, error) {
+	switch action {
+	case string(ScanActionVulnsHost):
+		return ScanActionVulnsHost, nil
+	case string(ScanActionVulnsContainers):
+		return ScanActionVulnsContainers, nil
+	case string(ScanActionMalware):
+		return ScanActionMalware, nil
+	default:
+		return "", fmt.Errorf("unknown action type %q", action)
+	}
+}
+
 // ParseScanActions parses a list of actions as strings into a list of scan actions.
 func ParseScanActions(actions []string) ([]ScanAction, error) {
 	var scanActions []ScanAction
-	for _, actionRaw := range actions {
-		switch actionRaw {
-		case string(VulnsHost):
-			scanActions = append(scanActions, VulnsHost)
-		case string(VulnsContainers):
-			scanActions = append(scanActions, VulnsContainers)
-		case string(Malware):
-			scanActions = append(scanActions, Malware)
-		default:
-			return nil, fmt.Errorf("unknown action type %q", actionRaw)
+	for _, a := range actions {
+		action, err := ParseScanAction(a)
+		if err != nil {
+			return nil, err
 		}
+		scanActions = append(scanActions, action)
 	}
 	return scanActions, nil
 }
@@ -439,8 +448,8 @@ func UnmarshalConfig(b []byte, scannerHostname string, defaultActions []ScanActi
 	var config ScanConfig
 
 	switch configRaw.Type {
-	case string(AWSScan):
-		config.Type = AWSScan
+	case string(ConfigTypeAWS):
+		config.Type = ConfigTypeAWS
 	default:
 		return nil, fmt.Errorf("unexpected config type %q", config.Type)
 	}

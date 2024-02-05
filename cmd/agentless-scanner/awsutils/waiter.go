@@ -40,7 +40,7 @@ func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotID types.CloudID, ec2
 	}
 	ch := make(chan error, 1)
 	subs := w.subs[region]
-	subs[snapshotID.ResourceName] = append(subs[snapshotID.ResourceName], ch)
+	subs[snapshotID.ResourceName()] = append(subs[snapshotID.ResourceName()], ch)
 	if len(subs) == 1 {
 		go w.loop(ctx, region, ec2client)
 	}

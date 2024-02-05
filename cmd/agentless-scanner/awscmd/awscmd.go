@@ -347,7 +347,7 @@ func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.Sc
 	}
 	go func() {
 		scanner.PushConfig(ctx, &types.ScanConfig{
-			Type:  types.AWSScan,
+			Type:  types.ConfigTypeAWS,
 			Tasks: []*types.ScanTask{task},
 		})
 		scanner.Stop()
@@ -512,7 +512,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 								return err
 							}
 
-							config := &types.ScanConfig{Type: types.AWSScan, Tasks: []*types.ScanTask{scan}, Roles: roles}
+							config := &types.ScanConfig{Type: types.ConfigTypeAWS, Tasks: []*types.ScanTask{scan}, Roles: roles}
 							if !scanner.PushConfig(ctx, config) {
 								return nil
 							}
@@ -559,7 +559,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 					if err != nil {
 						return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
 					}
-					config := &types.ScanConfig{Type: types.AWSScan, Tasks: []*types.ScanTask{scan}, Roles: roles}
+					config := &types.ScanConfig{Type: types.ConfigTypeAWS, Tasks: []*types.ScanTask{scan}, Roles: roles}
 					if !scanner.PushConfig(ctx, config) {
 						return nil
 					}
@@ -645,7 +645,7 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 		hostname = "unknown"
 	}
 
-	scan, err := types.NewScanTask(resourceID.String(), hostname, resourceID.ResourceName, defaultActions, nil, mode)
+	scan, err := types.NewScanTask(resourceID.String(), hostname, resourceID.ResourceName(), defaultActions, nil, mode)
 	if err != nil {
 		return err
 	}
@@ -658,7 +658,7 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 	var waiter awsutils.SnapshotWaiter
 
 	var snapshotID types.CloudID
-	switch resourceID.ResourceType {
+	switch resourceID.ResourceType() {
 	case types.ResourceTypeVolume:
 		ec2client := ec2.NewFromConfig(cfg)
 		snapshotID, err = awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, resourceID)
@@ -672,11 +672,11 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 	}
 
 	switch mode {
-	case types.VolumeAttach:
+	case types.DiskModeVolumeAttach:
 		if err := awsutils.AttachSnapshotWithVolume(ctx, scan, &waiter, snapshotID); err != nil {
 			return err
 		}
-	case types.NBDAttach:
+	case types.DiskModeNBDAttach:
 		ebsclient := ebs.NewFromConfig(cfg)
 		if err := awsutils.AttachSnapshotWithNBD(ctx, scan, snapshotID, ebsclient); err != nil {
 			return err

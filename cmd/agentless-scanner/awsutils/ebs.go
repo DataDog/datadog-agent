@@ -50,7 +50,7 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 	}
 
 	var snapshotID types.CloudID
-	switch scan.CloudID.ResourceType {
+	switch scan.CloudID.ResourceType() {
 	case types.ResourceTypeVolume:
 		snapshotID, err = CreateSnapshot(ctx, scan, waiter, ec2client, scan.CloudID)
 		if err != nil {
@@ -65,11 +65,11 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 	log.Infof("%s: start EBS scanning", scan)
 
 	switch scan.DiskMode {
-	case types.VolumeAttach:
+	case types.DiskModeVolumeAttach:
 		if err := AttachSnapshotWithVolume(ctx, scan, waiter, snapshotID); err != nil {
 			return nil, err
 		}
-	case types.NBDAttach:
+	case types.DiskModeNBDAttach:
 		ebsclient := ebs.NewFromConfig(cfg)
 		if err := AttachSnapshotWithNBD(ctx, scan, snapshotID, ebsclient); err != nil {
 			return nil, err
@@ -96,11 +96,11 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotW
 
 	retries := 0
 retry:
-	if volumeID.ResourceType != types.ResourceTypeVolume {
+	if volumeID.ResourceType() != types.ResourceTypeVolume {
 		return types.CloudID{}, fmt.Errorf("bad resource ID %q: expecting a volume", volumeID)
 	}
 	createSnapshotOutput, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
-		VolumeId:          aws.String(volumeID.ResourceName),
+		VolumeId:          aws.String(volumeID.ResourceName()),
 		TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
 	})
 	if err != nil {
@@ -198,7 +198,7 @@ func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotID
 // AttachSnapshotWithVolume attaches the given snapshot to the instance as a
 // new volume.
 func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, snapshotID types.CloudID) error {
-	if snapshotID.ResourceType != types.ResourceTypeSnapshot {
+	if snapshotID.ResourceType() != types.ResourceTypeSnapshot {
 		return fmt.Errorf("expected snapshot resource: %s", snapshotID.String())
 	}
 	self, err := GetSelfEC2InstanceIndentity(ctx)
@@ -220,7 +220,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		copySnapshot, err := remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
 			SourceRegion: aws.String(snapshotID.Region),
 			// DestinationRegion: aws.String(self.Region): automatically filled by SDK
-			SourceSnapshotId:  aws.String(snapshotID.ResourceName),
+			SourceSnapshotId:  aws.String(snapshotID.ResourceName()),
 			TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
 		})
 		if err != nil {
@@ -243,7 +243,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 
 	if localSnapshotID.AccountID != "" && localSnapshotID.AccountID != self.AccountID {
 		_, err = remoteEC2Client.ModifySnapshotAttribute(ctx, &ec2.ModifySnapshotAttributeInput{
-			SnapshotId:    aws.String(snapshotID.ResourceName),
+			SnapshotId:    aws.String(snapshotID.ResourceName()),
 			Attribute:     ec2types.SnapshotAttributeNameCreateVolumePermission,
 			OperationType: ec2types.OperationTypeAdd,
 			UserIds:       []string{self.AccountID},
@@ -264,7 +264,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 	volume, err := locaEC2Client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 		VolumeType:        ec2types.VolumeTypeGp3,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
-		SnapshotId:        aws.String(localSnapshotID.ResourceName),
+		SnapshotId:        aws.String(localSnapshotID.ResourceName()),
 		TagSpecifications: cloudResourceTagSpec(types.ResourceTypeVolume, scan.ScannerHostname),
 	})
 	if err != nil {
@@ -344,7 +344,7 @@ func CleanupScanEBS(ctx context.Context, scan *types.ScanTask) {
 			ec2client := ec2.NewFromConfig(cfg)
 			log.Debugf("%s: deleting snapshot %q", scan, snapshotID)
 			if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-				SnapshotId: aws.String(snapshotID.ResourceName),
+				SnapshotId: aws.String(snapshotID.ResourceName()),
 			}); err != nil {
 				log.Warnf("%s: could not delete snapshot %s: %v", scan, snapshotID, err)
 			} else {
@@ -355,7 +355,7 @@ func CleanupScanEBS(ctx context.Context, scan *types.ScanTask) {
 	}
 
 	switch scan.DiskMode {
-	case types.VolumeAttach:
+	case types.DiskModeVolumeAttach:
 		if volumeID := scan.AttachedVolumeID; volumeID != nil {
 			if errd := CleanupScanVolumes(ctx, scan, *volumeID, scan.Roles); errd != nil {
 				log.Warnf("%s: could not delete volume %q: %v", scan, volumeID, errd)
@@ -363,7 +363,7 @@ func CleanupScanEBS(ctx context.Context, scan *types.ScanTask) {
 				statsResourceTTL(types.ResourceTypeVolume, scan, *scan.AttachedVolumeCreatedAt)
 			}
 		}
-	case types.NBDAttach:
+	case types.DiskModeNBDAttach:
 		if diskDeviceName := scan.AttachedDeviceName; diskDeviceName != nil {
 			nbd.StopNBDBlockDevice(ctx, *diskDeviceName)
 		}
@@ -387,7 +387,7 @@ func CleanupScanVolumes(ctx context.Context, maybeScan *types.ScanTask, volumeID
 	for i := 0; i < 5; i++ {
 		if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
 			Force:    aws.Bool(true),
-			VolumeId: aws.String(volumeID.ResourceName),
+			VolumeId: aws.String(volumeID.ResourceName()),
 		}); err != nil {
 			var aerr smithy.APIError
 			// NOTE(jinroh): we're trying to detach a volume in an 'available'
@@ -430,7 +430,7 @@ func CleanupScanVolumes(ctx context.Context, maybeScan *types.ScanTask, volumeID
 			break
 		}
 		_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
-			VolumeId: aws.String(volumeID.ResourceName),
+			VolumeId: aws.String(volumeID.ResourceName()),
 		})
 		if errd != nil {
 			var aerr smithy.APIError
