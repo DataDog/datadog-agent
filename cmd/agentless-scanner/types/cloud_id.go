@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -60,11 +59,11 @@ var (
 // the expected type.
 func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 	if !strings.HasPrefix(s, "arn:") {
-		return CloudID{}, errors.New("cloudID: invalid prefix")
+		return CloudID{}, fmt.Errorf("cloudID: invalid prefix: %q", s)
 	}
 	sections := strings.SplitN(s, ":", 6)
 	if len(sections) != 6 {
-		return CloudID{}, errors.New("cloudID: invalid number of sections")
+		return CloudID{}, fmt.Errorf("cloudID: invalid number of sections: %q", s)
 	}
 	id := CloudID{
 		Partition: sections[1],
