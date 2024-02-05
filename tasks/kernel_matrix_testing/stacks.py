@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import platform
 
 from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
@@ -126,9 +127,18 @@ def check_libvirt_sock_perms():
 
 
 def check_env(ctx):
-    kvm_ok(ctx)
-    check_user_in_kvm(ctx)
-    check_user_in_libvirt(ctx)
+    info("[+] Checking environment for local machines")
+    supported_local_envs = ["Linux", "Darwin"]
+
+    if platform.system() not in supported_local_envs:
+        raise Exit("Local machines only supported on Linux and MacOS")
+
+    if platform.system() == "Linux":
+        kvm_ok(ctx)
+        # on macOS libvirt runs as the local user, so no need to check for group membership
+        check_user_in_kvm(ctx)
+        check_user_in_libvirt(ctx)
+
     check_libvirt_sock_perms()
 
 
@@ -284,7 +294,7 @@ def destroy_stack_force(ctx, stack):
     vm_config = os.path.join(stack_dir, VMCONFIG)
 
     if local_vms_in_config(vm_config):
-        conn = libvirt.open("qemu:///system")
+        conn = libvirt.open(get_kmt_os().libvirt_socket)
         if not conn:
             raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
         delete_domains(conn, stack)
@@ -336,7 +346,7 @@ def pause_stack(stack=None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     pause_domains(conn, stack)
     conn.close()
 
@@ -345,13 +355,13 @@ def resume_stack(stack=None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     resume_domains(conn, stack)
     conn.close()
 
 
 def read_libvirt_sock():
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("read_libvirt_sock: Failed to open connection to qemu:///system")
     conn.listAllDomains()
@@ -379,7 +389,7 @@ testPoolXML = """
 
 
 def write_libvirt_sock():
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("write_libvirt_sock: Failed to open connection to qemu:///system")
     pool = conn.storagePoolDefineXML(testPoolXML, 0)
