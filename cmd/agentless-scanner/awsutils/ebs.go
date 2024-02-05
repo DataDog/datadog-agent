@@ -74,6 +74,8 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 		if err := AttachSnapshotWithNBD(ctx, scan, snapshotID, ebsclient); err != nil {
 			return nil, err
 		}
+	case types.DiskModeNoAttach:
+		return nil, nil // nothing to do. early exit.
 	default:
 		panic("unreachable")
 	}
