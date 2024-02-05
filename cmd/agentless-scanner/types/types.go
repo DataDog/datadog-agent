@@ -79,6 +79,8 @@ const (
 	DiskModeVolumeAttach DiskMode = "volume-attach"
 	// DiskModeNBDAttach is the mode to attach the disk as a NBD
 	DiskModeNBDAttach DiskMode = "nbd-attach"
+	// DiskModeNoAttach is the mode to not attach the disk (using user-space filesystem drivers)
+	DiskModeNoAttach = "no-attach"
 )
 
 // ScannerName is the name of the scanner
@@ -87,6 +89,8 @@ type ScannerName string
 const (
 	// ScannerNameHostVulns is the name of the scanner for host vulnerabilities
 	ScannerNameHostVulns ScannerName = "hostvulns"
+	// ScannerNameHostVulnsVM is the name of the scanner for host vulnerabilities (using userspace drivers for filesystems)
+	ScannerNameHostVulnsVM ScannerName = "hostvulns-vm"
 	// ScannerNameContainerVulns is the name of the scanner for container vulnerabilities
 	ScannerNameContainerVulns ScannerName = "containervulns"
 	// ScannerNameAppVulns is the name of the scanner for application vulnerabilities
@@ -263,6 +267,9 @@ type ScannerOptions struct {
 	CreatedAt time.Time   `jons:"CreatedAt"`
 	StartedAt time.Time   `jons:"StartedAt"`
 	Container *Container  `json:"Container"`
+
+	// Used for ScannerNameHostVulnsVM
+	SnapshotID *CloudID `json:"SnapshotID"`
 }
 
 // ErrResult returns a ScanResult with an error.
@@ -356,19 +363,21 @@ func DefaultTaskType(resourceID CloudID) (TaskType, error) {
 	case ResourceTypeFunction:
 		return TaskTypeLambda, nil
 	default:
-		return "", fmt.Errorf("unsupported resource type %q for scanning", resourceType)
+		return "", fmt.Errorf("invalid resource type %q for scanning, expecting %s, %s or %s", resourceType, ResourceTypeLocalDir, ResourceTypeVolume, ResourceTypeSnapshot)
 	}
 }
 
 // ParseDiskMode parses a disk mode from a string.
 func ParseDiskMode(diskMode string) (DiskMode, error) {
 	switch diskMode {
+	case string(DiskModeNoAttach):
+		return DiskModeNoAttach, nil
 	case string(DiskModeVolumeAttach):
 		return DiskModeVolumeAttach, nil
 	case string(DiskModeNBDAttach), "":
 		return DiskModeNBDAttach, nil
 	default:
-		return "", fmt.Errorf("invalid flag \"disk-mode\": expecting either %s or %s", DiskModeVolumeAttach, DiskModeNBDAttach)
+		return "", fmt.Errorf("invalid disk mode %q, expecting either %s, %s or %s", diskMode, DiskModeVolumeAttach, DiskModeNBDAttach, DiskModeNoAttach)
 	}
 }
 

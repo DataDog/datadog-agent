@@ -505,7 +505,22 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 		if err != nil {
 			return err
 		}
-		s.scanRootFilesystems(ctx, scan, mountpoints, pool, s.resultsCh)
+		switch scan.DiskMode {
+		case types.DiskModeNoAttach:
+			result := pool.launchScanner(ctx, types.ScannerOptions{
+				Scanner:   types.ScannerNameHostVulnsVM,
+				Scan:      scan,
+				CreatedAt: time.Now(),
+			})
+			if result.Vulns != nil {
+				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
+				result.Vulns.ID = scan.TargetHostname
+				result.Vulns.Tags = nil
+			}
+			s.resultsCh <- result
+		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
+			s.scanRootFilesystems(ctx, scan, mountpoints, pool, s.resultsCh)
+		}
 	case types.TaskTypeLambda:
 		mountpoint, err := awsutils.SetupLambda(ctx, scan)
 		if err != nil {
@@ -811,6 +826,13 @@ func LaunchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) 
 	switch opts.Scanner {
 	case types.ScannerNameHostVulns:
 		bom, err := scanners.LaunchTrivyHost(ctx, opts)
+		if err != nil {
+			return opts.ErrResult(err)
+		}
+		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
+
+	case types.ScannerNameHostVulnsVM:
+		bom, err := scanners.LaunchTrivyHostVM(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
