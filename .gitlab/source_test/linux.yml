@@ -28,6 +28,7 @@
     - pushd test/kitchen
     - inv -e kitchen.invoke-unit-tests
     - popd
+    - echo $FAST_TESTS
     - if [ "$FAST_TESTS" = "true" ]; then FAST_TEST_FLAG="--only-modified-packages"; fi 
     - inv -e test $FLAVORS --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TEST_FLAG
   artifacts:
