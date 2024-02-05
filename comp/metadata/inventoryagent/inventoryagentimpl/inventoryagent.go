@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/viper"
 )
@@ -57,6 +58,7 @@ type Payload struct {
 	Hostname  string        `json:"hostname"`
 	Timestamp int64         `json:"timestamp"`
 	Metadata  agentMetadata `json:"agent_metadata"`
+	UUID      string        `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -334,6 +336,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		Hostname:  ia.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  data,
+		UUID:      uuid.GetUUID(),
 	}
 }
 

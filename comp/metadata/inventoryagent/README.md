@@ -31,6 +31,7 @@ Sending Agent configuration can be disabled using `inventories_configuration_ena
 The payload is a JSON dict with the following fields
 
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
+- `uuid` - **string**: a unique identifier of the agent, used in case the hostname is empty.
 - `timestamp` - **int**: the timestamp when the payload was created.
 - `agent_metadata` - **dict of string to JSON type**:
   - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname/providers.go:GetWithProvider).
