@@ -95,7 +95,7 @@ func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
 	v.beforeTest(suiteName, testName)
 }
 
-func (v *ec2VMSuite) beforeTest(suiteName, testName string) {
+func (v *ec2VMSuite) beforeTest(_, _ string) {
 	// default is to reset the current state of the fakeintake aggregators
 	if !v.BaseSuite.IsDevMode() {
 		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()

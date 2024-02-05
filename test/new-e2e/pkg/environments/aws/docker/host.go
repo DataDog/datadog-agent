@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -118,12 +117,6 @@ func WithoutAgent() ProvisionerOption {
 		params.agentOptions = nil
 		return nil
 	}
-}
-
-type ProvisionerPulumiEnv struct {
-	AwsEnvironment *aws.Environment
-	Host           *remote.Host
-	DockerManager  *docker.Manager
 }
 
 func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerParams) error {
