@@ -146,12 +146,18 @@ func runCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Runs the agentless-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if flags.workers <= 0 {
+				return fmt.Errorf("workers must be greater than 0")
+			}
+			if flags.scannersMax <= 0 {
+				return fmt.Errorf("scanners-max must be greater than 0")
+			}
 			return runCmd(flags.pidfilePath, flags.workers, flags.scannersMax, defaultActions, noForkScanners)
 		},
 	}
 	cmd.Flags().StringVarP(&flags.pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	cmd.Flags().IntVar(&flags.workers, "workers", defaultWorkersCount, "number of snapshots running in parallel")
-	cmd.Flags().IntVar(&flags.scannersMax, "scannersMax", defaultScannersMax, "maximum number of scanner processes in parallel")
+	cmd.Flags().IntVar(&flags.scannersMax, "scanners-max", defaultScannersMax, "maximum number of scanner processes in parallel")
 	return cmd
 }
 

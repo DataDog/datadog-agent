@@ -145,6 +145,9 @@ func offlineCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaul
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cliArgs.workers <= 0 {
+				return fmt.Errorf("workers must be greater than 0")
+			}
 			var filters []ec2types.Filter
 			if filter := cliArgs.filters; filter != "" {
 				if !strings.HasPrefix(filter, "Name=") {
@@ -171,6 +174,7 @@ func offlineCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaul
 		},
 	}
 
+	cmd.Flags().IntVar(&cliArgs.workers, "workers", 40, "number of scans running in parallel")
 	cmd.Flags().StringSliceVar(&cliArgs.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
 	cmd.Flags().StringVar(&cliArgs.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
 	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(types.ScanTypeEBS), "scan type (ebs-volume or lambda)")
