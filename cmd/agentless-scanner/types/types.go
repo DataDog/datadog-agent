@@ -477,8 +477,8 @@ func UnmarshalConfig(b []byte, scannerHostname string, defaultActions []ScanActi
 	if err != nil {
 		return nil, err
 	}
-	var config ScanConfig
 
+	var config ScanConfig
 	switch configRaw.Type {
 	case string(ConfigTypeAWS):
 		config.Type = ConfigTypeAWS
@@ -515,6 +515,9 @@ func UnmarshalConfig(b []byte, scannerHostname string, defaultActions []ScanActi
 		task, err := NewScanTask(scanType, rawScan.CloudID, scannerHostname, rawScan.Hostname, actions, config.Roles, config.DiskMode)
 		if err != nil {
 			return nil, err
+		}
+		if config.Type == ConfigTypeAWS && task.CloudID.Provider != CloudProviderAWS {
+			return nil, fmt.Errorf("invalid cloud resource identifier %q: expecting cloud provider %s", rawScan.CloudID, CloudProviderAWS)
 		}
 		config.Tasks = append(config.Tasks, task)
 	}
