@@ -68,7 +68,7 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	}
 	defer resp.Body.Close()
 	hashWriter := sha256.New()
-	reader := io.TeeReader(io.LimitReader(req.Body, maxArchiveSize), hashWriter)
+	reader := io.TeeReader(io.LimitReader(resp.Body, maxArchiveSize), hashWriter)
 	archivePath := filepath.Join(tmpDir, agentArchiveFileName)
 	archiveFile, err := os.Create(archivePath)
 	if err != nil {
