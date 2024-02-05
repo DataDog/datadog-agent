@@ -25,7 +25,7 @@ type DockerFakeintakeSuite struct {
 	transport transport
 }
 
-func dockerSuiteOpts(t *testing.T, tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
+func dockerSuiteOpts(tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -38,7 +38,7 @@ func dockerSuiteOpts(t *testing.T, tr transport, opts ...awsdocker.ProvisionerOp
 
 // TestDockerFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
 func TestDockerFakeintakeSuiteUDS(t *testing.T) {
-	options := dockerSuiteOpts(t, uds, awsdocker.WithAgentOptions(
+	options := dockerSuiteOpts(uds, awsdocker.WithAgentOptions(
 		// Enable the UDS receiver in the trace-agent
 		dockeragentparams.WithAgentServiceEnvVariable(
 			"DD_APM_RECEIVER_SOCKET",
@@ -53,7 +53,7 @@ func TestDockerFakeintakeSuiteUDS(t *testing.T) {
 
 // TestDockerFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestDockerFakeintakeSuiteTCP(t *testing.T) {
-	e2e.Run(t, &DockerFakeintakeSuite{transport: tcp}, dockerSuiteOpts(t, tcp)...)
+	e2e.Run(t, &DockerFakeintakeSuite{transport: tcp}, dockerSuiteOpts(tcp)...)
 }
 
 func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {

@@ -26,7 +26,7 @@ type VMFakeintakeSuite struct {
 	transport transport
 }
 
-func vmSuiteOpts(t *testing.T, tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
+func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -45,7 +45,7 @@ apm_config.enabled: true
 apm_config.receiver_socket: /var/run/datadog/apm.socket
 `
 
-	options := vmSuiteOpts(t, uds, awshost.WithAgentOptions(
+	options := vmSuiteOpts(uds, awshost.WithAgentOptions(
 		// Enable the UDS receiver in the trace-agent
 		agentparams.WithAgentConfig(cfg),
 	))
@@ -58,7 +58,7 @@ func TestVMFakeintakeSuiteTCP(t *testing.T) {
 apm_config.enabled: true
 `
 
-	options := vmSuiteOpts(t, tcp,
+	options := vmSuiteOpts(tcp,
 		awshost.WithAgentOptions(
 			// Enable the UDS receiver in the trace-agent
 			agentparams.WithAgentConfig(cfg),
