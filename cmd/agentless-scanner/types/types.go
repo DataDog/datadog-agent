@@ -47,16 +47,16 @@ const (
 	ConfigTypeAWS ConfigType = "aws-scan"
 )
 
-// ScanType is the type of the scan
-type ScanType string
+// TaskType is the type of the scan
+type TaskType string
 
 const (
-	// ScanTypeHost is the type of the scan for a host
-	ScanTypeHost ScanType = "localhost-scan"
-	// ScanTypeEBS is the type of the scan for an EBS volume
-	ScanTypeEBS ScanType = "ebs-volume"
-	// ScanTypeLambda is the type of the scan for a Lambda function
-	ScanTypeLambda ScanType = "lambda"
+	// TaskTypeHost is the type of the scan for a host
+	TaskTypeHost TaskType = "localhost-scan"
+	// TaskTypeEBS is the type of the scan for an EBS volume
+	TaskTypeEBS TaskType = "ebs-volume"
+	// TaskTypeLambda is the type of the scan for a Lambda function
+	TaskTypeLambda TaskType = "lambda"
 )
 
 // ScanAction is the action to perform during the scan
@@ -145,7 +145,7 @@ type ScanTask struct {
 	ID              string       `json:"ID"`
 	CreatedAt       time.Time    `json:"CreatedAt"`
 	StartedAt       time.Time    `json:"StartedAt"`
-	Type            ScanType     `json:"Type"`
+	Type            TaskType     `json:"Type"`
 	CloudID         CloudID      `json:"CloudID"`
 	TargetHostname  string       `json:"Hostname"`
 	ScannerHostname string       `json:"ScannerHostname"`
@@ -348,9 +348,38 @@ func (c Container) String() string {
 	return fmt.Sprintf("%s/%s/%s", c.Runtime, c.ContainerName, c.ImageRefCanonical.Reference())
 }
 
+// ParseTaskType parses a scan type from a string.
+func ParseTaskType(scanType string) (TaskType, error) {
+	switch scanType {
+	case string(TaskTypeHost):
+		return TaskTypeHost, nil
+	case string(TaskTypeEBS):
+		return TaskTypeEBS, nil
+	case string(TaskTypeLambda):
+		return TaskTypeLambda, nil
+	default:
+		return "", fmt.Errorf("unknown scan type %q", scanType)
+	}
+}
+
+// DefaultTaskType returns the default scan type for a resource.
+func DefaultTaskType(resourceID CloudID) (TaskType, error) {
+	resourceType := resourceID.ResourceType()
+	switch {
+	case resourceType == ResourceTypeLocalDir:
+		return TaskTypeHost, nil
+	case resourceType == ResourceTypeSnapshot || resourceType == ResourceTypeVolume:
+		return TaskTypeEBS, nil
+	case resourceType == ResourceTypeFunction:
+		return TaskTypeLambda, nil
+	default:
+		return "", fmt.Errorf("unsupported resource type %q for scanning", resourceType)
+	}
+}
+
 // ParseDiskMode parses a disk mode from a string.
-func ParseDiskMode(diskModeStr string) (DiskMode, error) {
-	switch diskModeStr {
+func ParseDiskMode(diskMode string) (DiskMode, error) {
+	switch diskMode {
 	case string(DiskModeVolumeAttach):
 		return DiskModeVolumeAttach, nil
 	case string(DiskModeNBDAttach), "":
@@ -378,24 +407,23 @@ func ParseRolesMapping(roles []string) RolesMapping {
 }
 
 // NewScanTask creates a new scan task.
-func NewScanTask(resourceID, scannerHostname, targetHostname string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
+func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetHostname string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
 	var scan ScanTask
 	var err error
-	scan.CloudID, err = ParseCloudID(resourceID, ResourceTypeLocalDir, ResourceTypeSnapshot, ResourceTypeVolume, ResourceTypeFunction)
+	switch taskType {
+	case TaskTypeEBS:
+		scan.CloudID, err = ParseCloudID(resourceID, ResourceTypeSnapshot, ResourceTypeVolume)
+	case TaskTypeHost:
+		scan.CloudID, err = ParseCloudID(resourceID, ResourceTypeLocalDir)
+	case TaskTypeLambda:
+		scan.CloudID, err = ParseCloudID(resourceID, ResourceTypeFunction)
+	default:
+		err = fmt.Errorf("unsupported task type %q", taskType)
+	}
 	if err != nil {
 		return nil, err
 	}
-	resourceType := scan.CloudID.ResourceType()
-	switch {
-	case resourceType == ResourceTypeLocalDir:
-		scan.Type = ScanTypeHost
-	case resourceType == ResourceTypeSnapshot || resourceType == ResourceTypeVolume:
-		scan.Type = ScanTypeEBS
-	case resourceType == ResourceTypeFunction:
-		scan.Type = ScanTypeLambda
-	default:
-		return nil, fmt.Errorf("unsupported resource type %q for scanning", resourceType)
-	}
+	scan.Type = taskType
 	scan.ScannerHostname = scannerHostname
 	scan.TargetHostname = targetHostname
 	scan.Roles = roles
@@ -480,7 +508,11 @@ func UnmarshalConfig(b []byte, scannerHostname string, defaultActions []ScanActi
 				return nil, err
 			}
 		}
-		task, err := NewScanTask(rawScan.CloudID, scannerHostname, rawScan.Hostname, actions, config.Roles, config.DiskMode)
+		scanType, err := ParseTaskType(rawScan.Type)
+		if err != nil {
+			return nil, err
+		}
+		task, err := NewScanTask(scanType, rawScan.CloudID, scannerHostname, rawScan.Hostname, actions, config.Roles, config.DiskMode)
 		if err != nil {
 			return nil, err
 		}
