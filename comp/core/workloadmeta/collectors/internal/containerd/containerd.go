@@ -12,13 +12,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"k8s.io/client-go/util/workqueue"
 	"sync"
 	"time"
 
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/events"
 	"go.uber.org/fx"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -79,15 +79,6 @@ var containerdTopics = []string{
 type exitInfo struct {
 	exitCode *uint32
 	exitTS   time.Time
-}
-
-// retryInfo keeps track of the number of retries and the next retry time for a given image
-// nolint: unused
-type retryInfo struct {
-	// errCount is needed to keep track of the number of retries for the retry backoff policy
-	errCount int
-	// nextRetry is needed because we might try to scan an image multiple times
-	nextRetry time.Time
 }
 
 type collector struct {
