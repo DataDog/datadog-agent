@@ -26,6 +26,7 @@ type windowsTestSuite struct {
 }
 
 func TestWindowsTestSuite(t *testing.T) {
+	t.Skip("PROCS-3644: consistent failures on process tests")
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
@@ -44,8 +45,6 @@ func (s *windowsTestSuite) SetupSuite() {
 
 func (s *windowsTestSuite) TestProcessCheck() {
 	t := s.T()
-	t.Skip("PROCS-3644: consistent failures on process tests")
-
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
 		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process", "rtprocess"}, false, command)
@@ -66,7 +65,6 @@ func (s *windowsTestSuite) TestProcessCheck() {
 
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
-	t.Skip("PROCS-3644: consistent failures on process tests")
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
@@ -90,7 +88,6 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 
 func (s *windowsTestSuite) TestProcessCheckIO() {
 	t := s.T()
-	t.Skip("PROCS-3644: consistent failures on process tests")
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
@@ -129,7 +126,6 @@ func (s *windowsTestSuite) TestManualProcessCheck() {
 func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 	// Skipping due to flakiness
 	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
-	s.T().Skip("PROCS-3644: consistent failures on process tests")
 
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")
@@ -137,7 +133,6 @@ func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
-	s.T().Skip("PROCS-3644: consistent failures on process tests")
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),

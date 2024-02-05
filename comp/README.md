@@ -279,6 +279,10 @@ Package collector implements the OpenTelemetry Collector component.
 
 Package process implements the "process" bundle, providing components for the Process Agent
 
+### [comp/process/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/agent)
+
+Package agent contains a process-agent component
+
 ### [comp/process/apiserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/apiserver)
 
 Package apiserver initializes the api server that powers many subcommands.
