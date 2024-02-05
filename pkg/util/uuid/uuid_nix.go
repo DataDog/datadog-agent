@@ -14,8 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GetUUID returns the host ID.
-func GetUUID() string {
+// getUUID returns the host ID.
+func getUUID() string {
 	guid, _ := cache.Get[string](
 		guidCacheKey,
 		func() (string, error) {

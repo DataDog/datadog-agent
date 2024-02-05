@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GetUUID returns the machine GUID on windows; copied from gopsutil
-func GetUUID() string {
+// getUUID returns the machine GUID on windows; copied from gopsutil
+func getUUID() string {
 	guid, _ := cache.Get[string](
 		guidCacheKey,
 		func() (string, error) {
