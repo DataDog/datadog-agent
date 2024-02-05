@@ -51,12 +51,12 @@ const (
 type ScanType string
 
 const (
-	// HostScanType is the type of the scan for a host
-	HostScanType ScanType = "localhost-scan"
-	// EBSScanType is the type of the scan for an EBS volume
-	EBSScanType ScanType = "ebs-volume"
-	// LambdaScanType is the type of the scan for a Lambda function
-	LambdaScanType ScanType = "lambda"
+	// ScanTypeHost is the type of the scan for a host
+	ScanTypeHost ScanType = "localhost-scan"
+	// ScanTypeEBS is the type of the scan for an EBS volume
+	ScanTypeEBS ScanType = "ebs-volume"
+	// ScanTypeLambda is the type of the scan for a Lambda function
+	ScanTypeLambda ScanType = "lambda"
 )
 
 // ScanAction is the action to perform during the scan
@@ -384,11 +384,11 @@ func NewScanTask(resourceID, scannerHostname, targetHostname string, actions []S
 	resourceType := scan.CloudID.ResourceType
 	switch {
 	case resourceType == ResourceTypeLocalDir:
-		scan.Type = HostScanType
+		scan.Type = ScanTypeHost
 	case resourceType == ResourceTypeSnapshot || resourceType == ResourceTypeVolume:
-		scan.Type = EBSScanType
+		scan.Type = ScanTypeEBS
 	case resourceType == ResourceTypeFunction:
-		scan.Type = LambdaScanType
+		scan.Type = ScanTypeLambda
 	default:
 		return nil, fmt.Errorf("unsupported resource type %q for scanning", resourceType)
 	}
