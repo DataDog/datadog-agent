@@ -104,6 +104,15 @@ func TestStatusError(t *testing.T) {
 	server := fakeStatusServer(t, 500, []byte{})
 	defer server.Close()
 
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+	defer func() {
+		os.Setenv("TZ", originalTZ)
+	}()
+
+	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
+	assert.NoError(t, err)
+
 	headerProvider := statusProvider{
 		testServerURL: server.URL,
 	}
@@ -128,7 +137,11 @@ func TestStatusError(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			assert.Equal(t, "\n  Status: Not running or unreachable\n", b.String())
+			// We replace windows line break by linux so the tests pass on every OS
+			expected := strings.Replace(string(errorResponse), "\r\n", "\n", -1)
+			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+
+			assert.Equal(t, expected, output)
 		}},
 	}
 
