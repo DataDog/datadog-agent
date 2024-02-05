@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -418,8 +419,8 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 
 	var disallowList []*regexp.Regexp
-
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false)
+	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false, ex)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
