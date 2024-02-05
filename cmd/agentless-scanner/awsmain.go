@@ -122,7 +122,7 @@ func awsOfflineCommand() *cobra.Command {
 		workers      int
 		regions      []string
 		filters      string
-		scanType     string
+		taskType     string
 		maxScans     int
 		printResults bool
 	}
@@ -155,13 +155,13 @@ func awsOfflineCommand() *cobra.Command {
 					Values: values,
 				})
 			}
-			scanType, err := types.ParseTaskType(flags.scanType)
+			taskType, err := types.ParseTaskType(flags.taskType)
 			if err != nil {
 				return err
 			}
 			return offlineCmd(
 				flags.workers,
-				scanType,
+				taskType,
 				flags.regions,
 				flags.maxScans,
 				flags.printResults,
@@ -175,7 +175,7 @@ func awsOfflineCommand() *cobra.Command {
 	cmd.Flags().IntVar(&flags.workers, "workers", 40, "number of scans running in parallel")
 	cmd.Flags().StringSliceVar(&flags.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
 	cmd.Flags().StringVar(&flags.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
-	cmd.Flags().StringVar(&flags.scanType, "scan-type", string(types.TaskTypeEBS), "scan type (ebs-volume or lambda)")
+	cmd.Flags().StringVar(&flags.taskType, "task-type", string(types.TaskTypeEBS), "scan type (ebs-volume or lambda)")
 	cmd.Flags().IntVar(&flags.maxScans, "max-scans", 0, "maximum number of scans to perform")
 	cmd.Flags().BoolVar(&flags.printResults, "print-results", false, "print scan results to stdout")
 	return cmd
@@ -252,12 +252,12 @@ func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.Sc
 		hostname = "unknown"
 	}
 
-	scanType, err := types.DefaultTaskType(resourceID)
+	taskType, err := types.DefaultTaskType(resourceID)
 	if err != nil {
 		return err
 	}
 	roles := getDefaultRolesMapping()
-	task, err := types.NewScanTask(scanType, resourceID.String(), hostname, targetHostname, actions, roles, diskMode)
+	task, err := types.NewScanTask(taskType, resourceID.String(), hostname, targetHostname, actions, roles, diskMode)
 	if err != nil {
 		return err
 	}
@@ -287,7 +287,7 @@ func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.Sc
 	return nil
 }
 
-func offlineCmd(workers int, scanType types.TaskType, regions []string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	ctx := ctxTerminated()
 	defer statsd.Flush()
 
@@ -510,9 +510,9 @@ func offlineCmd(workers int, scanType types.TaskType, regions []string, maxScans
 	go func() {
 		defer scanner.Stop()
 		var err error
-		if scanType == types.TaskTypeEBS {
+		if taskType == types.TaskTypeEBS {
 			err = pushEBSVolumes()
-		} else if scanType == types.TaskTypeLambda {
+		} else if taskType == types.TaskTypeLambda {
 			err = pushLambdaFunctions()
 		} else {
 			panic("unreachable")
