@@ -314,7 +314,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 current_stream->request_method = current_header->index;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (is_status_index(current_header->index)) {
-                current_stream->status_code.indexed_value = current_header->index;
+                current_stream->status_code.static_table_entry = current_header->index;
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {

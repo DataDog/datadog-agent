@@ -1,0 +1,117 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && (functionaltests || stresstests)
+
+// Package tests holds tests related files
+package tests
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+	"testing"
+
+	"golang.org/x/exp/slices"
+
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+)
+
+func SkipIfNotAvailable(t *testing.T) {
+	if ebpfLessEnabled {
+		available := []string{
+			"~TestProcess",
+			"~TestOpen",
+			"~TestUnlink",
+			"~KillAction",
+			"~TestRmdir",
+			"~TestRename",
+			"~TestMkdir",
+			"~TestUtimes",
+		}
+
+		exclude := []string{
+			"TestMkdir/io_uring",
+			"TestOpenDiscarded",
+			"TestOpenDiscarded/pipefs",
+			"TestOpen/truncate",
+			"TestOpen/io_uring",
+			"TestProcessContext/inode",
+			"TestProcessContext/pid1",
+			"~TestProcessBusybox",
+			"TestRename/io_uring",
+			"TestRenameReuseInode",
+			"TestUnlink/io_uring",
+			"TestRmdir/unlinkat-io_uring",
+		}
+
+		match := func(list []string) bool {
+			var match bool
+
+			for _, value := range list {
+				if value[0] == '~' {
+					if strings.HasPrefix(t.Name(), value[1:]) {
+						match = true
+						break
+					}
+				} else if value == t.Name() {
+					match = true
+					break
+				}
+			}
+
+			return match
+		}
+
+		if !match(available) || match(exclude) {
+			t.Skip("test not available for ebpfless")
+		}
+	}
+}
+
+func preTestsHook() {
+	if trace {
+		args := slices.DeleteFunc(os.Args, func(arg string) bool {
+			return arg == "-trace"
+		})
+		args = append(args, "-ebpfless")
+
+		envs := os.Environ()
+
+		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, ptracer.Creds{}, false /* verbose */, true /* async */, false /* disableStats */)
+		if err != nil {
+			fmt.Printf("unable to trace [%v]: %s", args, err)
+			os.Exit(-1)
+		}
+		os.Exit(0)
+	}
+}
+
+func postTestsHook() {
+	if testMod != nil {
+		testMod.cleanup()
+	}
+}
+
+var (
+	testEnvironment  string
+	logStatusMetrics bool
+	withProfile      bool
+	trace            bool
+)
+
+var testSuitePid uint32
+
+func init() {
+	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
+	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
+	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
+	flag.BoolVar(&trace, "trace", false, "wrap the test suite with the ptracer")
+
+	testSuitePid = utils.Getpid()
+}

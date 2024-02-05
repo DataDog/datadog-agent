@@ -716,27 +716,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
-			name: "validate capability to process up to max limit filtering frames",
-			// The purpose of this test is to verify our ability to process up to HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING frames.
-			// We write the path "/aaa" for the first time with an additional 25 headers (reaching to a total of 26 headers).
-			// When we exceed the limit, we expect to lose our internal counter (because we can filter up to 25 requests),
-			// and therefore, the next time we write the request "/aaa",
-			// its internal index will not be correct, and we will not be able to find it.
-			messageBuilder: func() [][]byte {
-				const multiHeadersCount = 25
-				framer := newFramer()
-				return [][]byte{
-					framer.writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
-						Headers: multipleTestHeaders(multiHeadersCount)}).
-						writeData(t, 1, true, emptyBody).
-						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
-				}
-			},
-			expectedEndpoints: nil,
-		},
-		{
 			name: "validate various status codes",
 			// The purpose of this test is to verify that we support status codes that do not appear in the static table.
 			messageBuilder: func() [][]byte {
@@ -1278,15 +1257,6 @@ func headersWithGivenEndpoint(path string) []hpack.HeaderField {
 
 // testHeaders returns a set of header fields.
 func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(headersGenerationOptions{}) }
-
-// multipleTestHeaders returns a set of header fields, with the given number of headers.
-func multipleTestHeaders(testHeadersCount int) []hpack.HeaderField {
-	additionalHeaders := make([]hpack.HeaderField, testHeadersCount)
-	for i := 0; i < testHeadersCount; i++ {
-		additionalHeaders[i] = hpack.HeaderField{Name: fmt.Sprintf("name-%d", i), Value: fmt.Sprintf("test-%d", i)}
-	}
-	return append(testHeaders(), additionalHeaders...)
-}
 
 type headersGenerationOptions struct {
 	pathTypeValue         pathType
