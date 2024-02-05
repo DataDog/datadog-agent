@@ -125,7 +125,7 @@ type ScanConfigRaw struct {
 		CloudID  string   `json:"arn"`
 		Hostname string   `json:"hostname"`
 		Actions  []string `json:"actions,omitempty"`
-		DiskMode string   `json:"disk_mode"`
+		DiskMode string   `json:"disk_mode,omitempty"`
 	} `json:"tasks"`
 	Roles []string `json:"roles"`
 }
