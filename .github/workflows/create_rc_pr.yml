@@ -37,6 +37,9 @@ jobs:
               with:
                 ref: ${{ env.RELEASE_BRANCH }}
                 fetch-depth: 0
+            
+            - name: Set git user
+              uses: fregante/setup-git-user@v2
               
             - name: Create RC PR
               run: |
