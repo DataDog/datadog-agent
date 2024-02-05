@@ -27,14 +27,14 @@ def requires_update(url_base, rootfs_dir, image):
     sum_url = os.path.join(url_base, "master", image + ".sum")
     r = requests.get(sum_url)
     new_sum = r.text.rstrip().split(' ')[0]
-    debug(f"[debug] new_sum: {new_sum}")
+    debug(f"[debug] {image} new_sum: {new_sum}")
 
     if not os.path.exists(os.path.join(rootfs_dir, f"{image}.sum")):
         return True
 
     with open(os.path.join(rootfs_dir, f"{image}.sum")) as f:
         original_sum = f.read().rstrip().split(' ')[0]
-        debug(f"[debug] original_sum: {original_sum}")
+        debug(f"[debug] {image} original_sum: {original_sum}")
     if new_sum != original_sum:
         return True
     return False
@@ -71,8 +71,8 @@ def download_rootfs(ctx, rootfs_dir):
             continue
 
         for disk in vmset["disks"]:
-            d = os.path.basename(disk["source"])
             # Use the uncompressed disk name, avoid errors due to images being downloaded but not extracted
+            d = os.path.basename(disk["target"])
             if not os.path.exists(os.path.join(rootfs_dir, d)):
                 disks_to_download.append(d)
 
