@@ -20,8 +20,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awscmd"
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/runner"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"golang.org/x/time/rate"
 
 	// DataDog agent: config stuffs
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
@@ -111,6 +113,7 @@ func rootCommand() *cobra.Command {
 		SilenceUsage: true,
 		PersistentPreRunE: runWithModules(func(cmd *cobra.Command, args []string) error {
 			initStatsdClient()
+			awsutils.InitConfig(statsd, getAWSLimitsOptions())
 			var err error
 			diskMode, err = types.ParseDiskMode(diskModeStr)
 			if err != nil {
@@ -203,11 +206,6 @@ func runCmd(pidfilePath string, workers, scannersMax int, defaultActions []types
 	return nil
 }
 
-func getDefaultRolesMapping() types.RolesMapping {
-	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
-	return types.ParseRolesMapping(roles)
-}
-
 func runScannerCommand() *cobra.Command {
 	var sock string
 	cmd := &cobra.Command{
@@ -250,4 +248,20 @@ func runScannerCmd(sock string) error {
 		return err
 	}
 	return nil
+}
+
+// TODO: copy pasted from cmd/agentless-scanner/awscmd
+func getDefaultRolesMapping() types.RolesMapping {
+	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
+	return types.ParseRolesMapping(roles)
+}
+
+// TODO: copy pasted from cmd/agentless-scanner/awscmd
+func getAWSLimitsOptions() awsutils.LimiterOptions {
+	return awsutils.LimiterOptions{
+		EC2Rate:          rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ec2_rate")),
+		EBSListBlockRate: rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate")),
+		EBSGetBlockRate:  rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate")),
+		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
+	}
 }
