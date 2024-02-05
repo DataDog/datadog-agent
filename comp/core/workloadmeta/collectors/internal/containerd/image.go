@@ -149,6 +149,23 @@ func (images *knownImages) getRepoDigests(imageID string) []string {
 	return res
 }
 
+// getPreferredName will return a user-friendly image name if it exists, otherwise
+// for example the name not including the digest.
+func (images *knownImages) getPreferredName(imageID string) string {
+	var res = ""
+	for ref := range images.namesByID[imageID] {
+		if res == "" && isAnImageID(ref) {
+			res = ref
+		} else if isARepoDigest(ref) {
+			res = ref // Prefer the repo digest
+			break
+		} else {
+			res = ref // Then repo tag
+		}
+	}
+	return res
+}
+
 // returns any of the existing references for the imageID. Returns empty if the
 // ID is not referenced.
 func (images *knownImages) getAReference(imageID string) string {
@@ -244,7 +261,7 @@ func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace str
 	return c.notifyEventForImage(ctx, namespace, img, bom)
 }
 
-// Create image metadata from containerd image and manifest if not already present
+// createOrUpdateImageMetadata: Create image metadata from containerd image and manifest if not already present
 // Update image metadata by adding references when existing entity is found
 // return nil when it fails to get image manifest
 func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
@@ -303,6 +320,7 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 	// of the name that includes a digest. This is just to show names that are
 	// more user-friendly (the digests are already present in other attributes
 	// like ID, and repo digest).
+	wlmImage.Name = c.knownImages.getPreferredName(wlmImage.ID)
 	existingImg, err := c.store.GetImage(wlmImage.ID)
 	if err == nil {
 		if strings.Contains(wlmImage.Name, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
