@@ -405,7 +405,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					assert.Equal(uint64(52), span.SpanLinks[0].SpanID)
 					assert.Equal("v1", span.SpanLinks[0].Attributes["a1"])
 					assert.Equal("v2", span.SpanLinks[0].Attributes["a2"])
-					assert.Equal("dd=asdf256,ee=jkl;128", span.SpanLinks[0].Tracestate)
+					assert.Equal("dd=s:2;o:rum,congo=baz123", span.SpanLinks[0].Tracestate)
 					assert.Equal(uint32(2147483649), span.SpanLinks[0].Flags)
 				case <-time.After(time.Second):
 					t.Fatalf("no data received")

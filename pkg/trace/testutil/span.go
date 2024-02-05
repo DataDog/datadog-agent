@@ -11,7 +11,6 @@ package testutil
 
 import (
 	"math/rand"
-	"strconv"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -326,8 +325,8 @@ func RandomSpanLink() *pb.SpanLink {
 		TraceIDHigh: RandomSpanTraceID(),
 		SpanID:      RandomSpanID(),
 		Attributes:  RandomStringMap(),
-		Tracestate:  strconv.Itoa(rand.Int()),
-		Flags:       rand.Uint32() % 2,
+		Tracestate:  stringRandomChoice([]string{"dd=s:2;o:rum,congo=baz123", "dd=o:invalid", "dd=t:f256,ee=j128", "dd=ff:_,dt=asd"}),
+		Flags:       uint32(1<<31 | rand.Intn(2)),
 	}
 }
 
@@ -385,7 +384,7 @@ func GetTestSpan() *pb.Span {
 					"a1": "v1",
 					"a2": "v2",
 				},
-				Tracestate: "dd=asdf256,ee=jkl;128",
+				Tracestate: "dd=s:2;o:rum,congo=baz123",
 				Flags:      1 | 1<<31, // 0th bit -> sampling decision, 31st bit -> set/unset
 			},
 		},
