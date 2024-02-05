@@ -129,11 +129,16 @@ func rootCommand() *cobra.Command {
 	cmd.AddCommand(runScannerCommand())
 	cmd.AddCommand(awsGroupCommand(cmd))
 
+	defaultActions := []string{
+		string(types.ScanActionVulnsHost),
+		string(types.ScanActionVulnsContainers),
+	}
+
 	pflags := cmd.PersistentFlags()
 	pflags.StringVarP(&globalFlags.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
 	pflags.StringVar(&flags.diskModeStr, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.DiskModeNoAttach, types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
 	pflags.BoolVar(&globalFlags.noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
-	pflags.StringSliceVar(&flags.defaultActionsStr, "actions", []string{string(types.ScanActionVulnsHost)}, "disable spawning a dedicated process for launching scanners")
+	pflags.StringSliceVar(&flags.defaultActionsStr, "actions", defaultActions, "disable spawning a dedicated process for launching scanners")
 	return cmd
 }
 
