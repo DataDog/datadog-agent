@@ -7,7 +7,6 @@ include:
   - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
-  - /.gitlab/source_test_stats.yml
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
   - /.gitlab/cancel-prev-pipelines.yml
@@ -71,7 +70,6 @@ stages:
   - deps_build
   - deps_fetch
   - source_test
-  - source_test_stats
   - source_test_junit_upload
   - binary_build
   - package_deps_build
