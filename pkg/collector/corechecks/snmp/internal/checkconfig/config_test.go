@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
@@ -1930,6 +1931,127 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 				assert.EqualError(t, err, tt.expectedErr)
 			} else {
 				assert.Equal(t, tt.expectedInterfaceConfigs, config.InterfaceConfigs)
+			}
+		})
+	}
+}
+
+func Test_buildConfig_PingConfig(t *testing.T) {
+	tests := []struct {
+		name                string
+		rawInstanceConfig   []byte
+		rawInitConfig       []byte
+		expectedPingEnabled bool
+		expectedPingConfig  pinger.Config
+		expectedErr         string
+	}{
+		{
+			name: "ping config as instance level yaml",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping:
+  enabled: true
+  linux:
+    use_raw_socket: true
+  timeout: 6
+  interval: 5
+  count: 4
+`),
+			// language=yaml
+			rawInitConfig:       []byte(``),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      6 * time.Millisecond,
+				Interval:     5 * time.Millisecond,
+				Count:        4,
+			},
+		},
+		{
+			name: "ping config as init config level yaml",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+ping:
+  enabled: true
+  linux:
+    use_raw_socket: true
+  timeout: 8
+  interval: 7
+  count: 2
+`),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      8 * time.Millisecond,
+				Interval:     7 * time.Millisecond,
+				Count:        2,
+			},
+		},
+		{
+			name: "ping config as instance level json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping: '{"linux":{"use_raw_socket":true},"enabled":true,"interval":443,"timeout":369,"count":679}'
+`),
+			// language=yaml
+			rawInitConfig:       []byte(``),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      369 * time.Millisecond,
+				Interval:     443 * time.Millisecond,
+				Count:        679,
+			},
+		},
+		{
+			name: "ping config as init level json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+ping: '{"linux":{"use_raw_socket":true},"enabled":true,"interval":344,"timeout":963,"count":976}'
+`),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      963 * time.Millisecond,
+				Interval:     344 * time.Millisecond,
+				Count:        976,
+			},
+		},
+		{
+			name: "no ping config passed",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+`),
+			// language=yaml
+			rawInitConfig:       []byte(``),
+			expectedPingEnabled: false,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: false,
+				Interval:     DefaultPingInterval,
+				Timeout:      DefaultPingTimeout,
+				Count:        DefaultPingCount,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			} else {
+				assert.Equal(t, tt.expectedPingEnabled, config.PingEnabled)
+				assert.Equal(t, tt.expectedPingConfig, config.PingConfig)
 			}
 		})
 	}

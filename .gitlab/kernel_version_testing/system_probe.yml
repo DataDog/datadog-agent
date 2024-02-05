@@ -3,7 +3,7 @@
   needs: []
   tags: ["arch:amd64"]
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
     # DockerHub login for build to limit rate limit when pulling base images
@@ -78,32 +78,20 @@ pull_test_dockers_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   allow_failure: true
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
   tags: ["arch:amd64"]
   script:
-    # Build dependencies directory
-    - mkdir -p $DEPENDENCIES
-    - pushd $DEPENDENCIES
-    # copy micro-vm-init.sh
-    - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh $DEPENDENCIES
-    # copy over docker images
-    - cp -R $KMT_DOCKERS $DEPENDENCIES/kmt-docker
-    # package all the dependencies
-    - ls -la $DEPENDENCIES
-    - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$ARCHIVE_NAME dependencies
-    - popd
-    # upload tests
+    # upload dependencies
     - !reference [.wait_for_instances]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
-    - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    - scp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh metal_instance:/opt/kernel-version-testing
+    - tar czvf $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH
+    - scp $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz metal_instance:/opt/kernel-version-testing
   variables:
-    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
-    KMT_DOCKERS: $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
 upload_dependencies_x64:
@@ -111,7 +99,6 @@ upload_dependencies_x64:
     - .package_dependencies
   needs: ["pull_test_dockers_x64"]
   variables:
-    ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
     INSTANCE_TYPE: m5d.metal
 
@@ -120,7 +107,6 @@ upload_dependencies_arm64:
     - .package_dependencies
   needs: ["pull_test_dockers_arm64"]
   variables:
-    ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
 
@@ -128,7 +114,7 @@ upload_dependencies_arm64:
   stage: kernel_matrix_testing
   allow_failure: true
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
@@ -149,23 +135,33 @@ upload_dependencies_arm64:
     - mkdir junit
     - mkdir testjson
     - mkdir pkgjson
-    # copy system probe tests
-    - mkdir -p $SYSTEM_PROBE_TESTS
-    - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
+    - popd
     - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner && go build -o $DEPENDENCIES/test-runner && popd
     - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review && go build -o $DEPENDENCIES/test-json-review && popd
     - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/files/*.json $DEPENDENCIES/
-    - popd
     # package all the dependencies
     - ls -la $DEPENDENCIES
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$ARCHIVE_NAME tests
+    - tar czvf ../$ARCHIVE_NAME dependencies
+    - popd
+    # copy system probe tests
+    - mkdir -p $SYSTEM_PROBE_TESTS
+    - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
+    - pushd $DD_AGENT_TESTING_DIR/$ARCH
+    - tar czvf ../$TEST_ARCHIVE_NAME system-probe-tests
     - popd
     # upload tests
     - !reference [.wait_for_instances]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
     - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    - scp $DD_AGENT_TESTING_DIR/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    - ssh metal_instance "tar xzf /opt/kernel-version-testing/${TEST_ARCHIVE_NAME} -C /opt/kernel-version-testing"
+    # give correct permissions to assets
+    - ssh metal_instance "sudo find /opt/kernel-version-testing/system-probe-tests -name *.o -type f -exec chown root:root {} \;"
+    # Add symlink to btf directory. Since this directory is mounted read-only in the micro-vms,
+    # we cannot write btf files here. Hence we create a symlink to a writable destination
+    - ssh metal_instance "sudo mkdir -p /opt/kernel-version-testing/system-probe-tests/pkg/ebpf/bytecode/build/co-re && sudo mkdir -p /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf && sudo ln -s /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf /opt/kernel-version-testing/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf"
     # build connector
     - pushd $CI_PROJECT_DIR/test/new-e2e
     - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
@@ -173,7 +169,7 @@ upload_dependencies_arm64:
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
   variables:
-    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/tests
+    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
     EMBEDDED_BIN: opt/datadog-agent/embedded/bin
     EMBEDDED_INC: opt/datadog-agent/embedded/include
     CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
@@ -181,9 +177,11 @@ upload_dependencies_arm64:
     GO_BIN: go/bin
     GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/gotestsum
     TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
-    SYSTEM_PROBE_TESTS: opt/system-probe-tests
+    SYSTEM_PROBE_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/system-probe-tests
     KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+    ARCHIVE_NAME: dependencies-$ARCH.tar.gz
+    TEST_ARCHIVE_NAME: system-probe-tests-$ARCH.tar.gz
   artifacts:
     when: always
     paths:
@@ -196,7 +194,6 @@ upload_system_probe_tests_x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
-    ARCHIVE_NAME: tests-x86_64.tar.gz
     ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
 
@@ -207,7 +204,6 @@ upload_system_probe_tests_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
-    ARCHIVE_NAME: tests-arm64.tar.gz
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
 
@@ -216,7 +212,7 @@ upload_system_probe_tests_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
   allow_failure: true
   script:
     # Build dependencies directory
@@ -274,7 +270,7 @@ upload_minimized_btfs_arm64:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
@@ -304,18 +300,20 @@ upload_minimized_btfs_arm64:
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --sets=$TEST_SETS
+    - inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --sets=$TEST_SETS --host-cpus=$AVAILABLE_CPUS
     - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID --run-agent
     - jq -r '.' $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
     - export AWS_PROFILE=agent-qa-ci
     - !reference [.shared_filters_and_queries]
-    - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml/$ARCH
+    - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml/$ARCH $CI_PROJECT_DIR/libvirt/qemu/$ARCH
     - !reference [.get_instance_ip_by_type]
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "sudo virsh list --name | grep -v -E '^$' | xargs -I '{}' sh -c \"sudo virsh dumpxml '{}' > /tmp/ddvm-xml-'{}'.txt\""
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "sudo virsh list --name | xargs -I '{}' sh -c \"sudo cp /var/log/libvirt/qemu/'{}'.log /tmp/ddvm-qemu-'{}'.log && sudo chown 1000:1000 /tmp/ddvm-qemu-*\""
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/$ARCH
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml/$ARCH
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-qemu-*" $CI_PROJECT_DIR/libvirt/qemu/$ARCH
   artifacts:
     when: always
     paths:
@@ -332,6 +330,7 @@ kernel_matrix_testing_setup_env_arm64:
     ARCH: arm64
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
+    AVAILABLE_CPUS: "64"
 
 kernel_matrix_testing_setup_env_x64:
   extends:
@@ -342,12 +341,13 @@ kernel_matrix_testing_setup_env_x64:
     ARCH: x86_64
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
+    AVAILABLE_CPUS: "96"
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
   allow_failure: true
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
@@ -377,7 +377,7 @@ kernel_matrix_testing_setup_env_x64:
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
     - scp "$DD_AGENT_TESTING_DIR/job_env.txt" "metal_instance:/home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt"
     - ssh metal_instance "scp /home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt ${MICRO_VM_IP}:/job_env.txt"
-    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${RETRY} /${TEST_SET}.json'"
+    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd '/root/fetch_dependencies.sh ${ARCH} && /opt/kernel-version-testing/micro-vm-init.sh ${RETRY} /${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/test-json-review'"
   after_script:
@@ -427,7 +427,7 @@ kernel_matrix_testing_run_tests_arm64:
   when: always
   tags: ["arch:amd64"]
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:

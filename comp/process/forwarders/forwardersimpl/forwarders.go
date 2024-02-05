@@ -7,6 +7,8 @@
 package forwardersimpl
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -16,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -63,10 +64,10 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	processForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
 
 	return &forwardersComp{
-		eventForwarder:       defaultforwarder.NewForwarder(deps.Config, deps.Logger, eventForwarderOpts),
-		processForwarder:     defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
-		rtProcessForwarder:   defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
-		connectionsForwarder: defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
+		eventForwarder:       defaultforwarder.NewForwarder(deps.Config, deps.Logger, eventForwarderOpts).Comp,
+		processForwarder:     defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts).Comp,
+		rtProcessForwarder:   defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts).Comp,
+		connectionsForwarder: defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts).Comp,
 	}, nil
 
 }

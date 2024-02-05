@@ -1,0 +1,44 @@
+name: Create RC PR
+
+on:
+  workflow_dispatch:
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+    create_rc_pr:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                fetch-depth: 0
+
+            - name: Install python
+              uses: actions/setup-python@v4
+              with:
+                python-version: 3.11
+                cache: "pip"
+
+            - name: Install Python dependencies
+              run: |
+                python -m pip install --upgrade pip
+                pip install -r requirements.txt
+                pip install -r tasks/libs/requirements-github.txt
+
+            - name: Determine the release active branch
+              run: |
+                echo "RELEASE_BRANCH=$(inv -e release.get-active-release-branch)" >> $GITHUB_ENV
+            
+            - name: Checkout release branch
+              uses: actions/checkout@v4
+              with:
+                ref: ${{ env.RELEASE_BRANCH }}
+                fetch-depth: 0
+              
+            - name: Create RC PR
+              run: |
+                git fetch
+                inv -e release.create-rc

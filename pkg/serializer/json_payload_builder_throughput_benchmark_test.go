@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 )
 
@@ -21,7 +22,7 @@ func benchmarkJSONPayloadBuilderThroughput(points int, items int, tags int, runs
 	initialSize := len(json)
 	metricsCount := len(series)
 
-	payloadBuilder := stream.NewJSONPayloadBuilder(true)
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf())
 	var totalTime time.Duration
 
 	for i := 0; i < runs; i++ {

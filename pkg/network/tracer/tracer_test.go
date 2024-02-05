@@ -248,7 +248,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 		return ok
-	}, 3*time.Second, time.Second, "connection not found")
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
 	m := conn.Monotonic
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
@@ -637,7 +637,7 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 			}
 		}
 		return false
-	}, 2*time.Second, time.Second)
+	}, 2*time.Second, 100*time.Millisecond)
 
 	// next call should not have the same connection
 	cxs := getConnections(t, tr)

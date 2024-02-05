@@ -34,7 +34,7 @@ func (v *linuxDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseLocalFallback() {
-	svcManager := svcmanager.NewSystemctlSvcManager(v.Env().RemoteHost)
+	svcManager := svcmanager.NewSystemctl(v.Env().RemoteHost)
 	svcManager.Stop("datadog-agent")
 
 	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite)

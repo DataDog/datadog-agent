@@ -6,16 +6,20 @@
 package inventoryagentimpl
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 	"time"
 
 	"go.uber.org/fx"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -23,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
 )
 
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) *inventoryagent {
@@ -102,9 +105,9 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.enable_http_monitoring":           true,
 		"service_monitoring_config.tls.native.enabled":               true,
 		"service_monitoring_config.enabled":                          true,
-		"data_streams_config.enabled":                                true,
 		"service_monitoring_config.tls.java.enabled":                 true,
 		"service_monitoring_config.enable_http2_monitoring":          true,
+		"service_monitoring_config.enable_kafka_monitoring":          true,
 		"service_monitoring_config.tls.istio.enabled":                true,
 		"service_monitoring_config.enable_http_stats_by_status_code": true,
 		"service_monitoring_config.tls.go.enabled":                   true,
@@ -250,4 +253,82 @@ func TestConfigRefresh(t *testing.T) {
 	assert.False(t, ia.RefreshTriggered())
 	pkgconfig.Datadog.Set("inventories_max_interval", 10*time.Minute, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
+}
+
+func TestStatusHeaderProvider(t *testing.T) {
+	ret := newInventoryAgentProvider(
+		fxutil.Test[dependencies](
+			t,
+			logimpl.MockModule(),
+			config.MockModule(),
+			fx.Replace(config.MockParams{Overrides: nil}),
+			sysprobeconfigimpl.MockModule(),
+			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: nil}),
+			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+		),
+	)
+
+	headerStatusProvider := ret.StatusHeaderProvider.Provider
+
+	tests := []struct {
+		name       string
+		assertFunc func(t *testing.T)
+	}{
+		{"JSON", func(t *testing.T) {
+			stats := make(map[string]interface{})
+			headerStatusProvider.JSON(false, stats)
+
+			assert.NotEmpty(t, stats)
+		}},
+		{"Text", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := headerStatusProvider.Text(false, b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+		{"HTML", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := headerStatusProvider.HTML(false, b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.assertFunc(t)
+		})
+	}
+}
+
+func TestFetchSecurityAgent(t *testing.T) {
+	defer func() {
+		fetchSecurityConfig = configFetcher.FetchSecurityAgentConfig
+	}()
+	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return "", fmt.Errorf("some error")
+	}
+
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchSecurityAgentMetadata()
+
+	assert.False(t, ia.data["feature_cspm_enabled"].(bool))
+	assert.False(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
+
+	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return `compliance_config:
+  enabled: true
+  host_benchmarks:
+    enabled: true
+`, nil
+	}
+
+	ia.fetchSecurityAgentMetadata()
+
+	assert.True(t, ia.data["feature_cspm_enabled"].(bool))
+	assert.True(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
 }

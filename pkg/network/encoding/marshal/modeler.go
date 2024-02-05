@@ -60,7 +60,6 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
 			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
-			DsmEnabled: config.SystemProbe.GetBool("data_streams_config.enabled"),
 		}
 	})
 

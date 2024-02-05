@@ -23,8 +23,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -40,8 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -60,6 +62,7 @@ func startCMDServer(
 	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
@@ -69,6 +72,7 @@ func startCMDServer(
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
+	statusComponent status.Component,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	cmdListener, err = getListener(cmdAddr)
@@ -90,7 +94,7 @@ func startCMDServer(
 	pb.RegisterAgentServer(s, &server{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
 		configService: configService,
-		taggerServer:  taggerserver.NewServer(tagger.GetDefaultTagger()),
+		taggerServer:  taggerserver.NewServer(taggerComp),
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,
@@ -122,6 +126,7 @@ func startCMDServer(
 	// create the REST HTTP router
 	agentMux := gorilla.NewRouter()
 	checkMux := gorilla.NewRouter()
+
 	// Validate token for every request
 	agentMux.Use(validateToken)
 	checkMux.Use(validateToken)
@@ -145,15 +150,19 @@ func startCMDServer(
 				secretResolver,
 				invChecks,
 				pkgSigning,
+				statusComponent,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)
+
+	// Add some observability in the API server
+	cmdMuxHandler := apiutils.LogResponseHandler(cmdServerName)(cmdMux)
 
 	srv := grpcutil.NewMuxedGRPCServer(
 		cmdAddr,
 		tlsConfig,
 		s,
-		grpcutil.TimeoutHandlerFunc(cmdMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
+		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
 	)
 
 	startServer(cmdListener, srv, cmdServerName)

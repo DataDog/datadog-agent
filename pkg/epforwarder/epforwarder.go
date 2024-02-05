@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	aggsender "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -62,7 +63,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    10e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -75,7 +77,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:   eventTypeDBMMetadata,
@@ -91,7 +94,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -104,7 +108,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:                     EventTypeNetworkDevicesMetadata,
@@ -437,8 +442,10 @@ func (p *passthroughPipeline) Start() {
 }
 
 func (p *passthroughPipeline) Stop() {
-	p.strategy.Stop()
-	p.sender.Stop()
+	if p.strategy != nil {
+		p.strategy.Stop()
+		p.sender.Stop()
+	}
 	p.auditor.Stop()
 }
 
@@ -487,7 +494,7 @@ func NewNoopEventPlatformForwarder() EventPlatformForwarder {
 // GetGlobalReceiver initializes and returns the global receiver for the epforwarder package
 func GetGlobalReceiver() *diagnostic.BufferedMessageReceiver {
 	if globalReceiver == nil {
-		globalReceiver = diagnostic.NewBufferedMessageReceiver(&epFormatter{})
+		globalReceiver = diagnostic.NewBufferedMessageReceiver(&epFormatter{}, hostnameimpl.NewHostnameService())
 	}
 
 	return globalReceiver
