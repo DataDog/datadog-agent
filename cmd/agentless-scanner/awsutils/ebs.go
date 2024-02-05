@@ -419,7 +419,7 @@ func CleanupScanVolume(ctx context.Context, maybeScan *types.ScanTask, volumeID 
 		})
 		if errd != nil {
 			var aerr smithy.APIError
-			if errors.As(err, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" {
+			if errors.As(errd, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" {
 				errd = nil
 				break
 			}
