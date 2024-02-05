@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
@@ -126,7 +125,7 @@ type ProvisionerPulumiEnv struct {
 	DockerManager  *docker.Manager
 }
 
-func DockerRunFunction(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerParams) error {
+func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
 	var err error
 	if env.AwsEnvironment != nil {
@@ -199,88 +198,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 	// We need to build params here to be able to use params.name in the provisioner name
 	params := GetProvisionerParams(opts...)
 	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.DockerHost) error {
-<<<<<<< HEAD
-		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
-		// and it's easy to forget about it, leading to hard to debug issues.
-		params := newProvisionerParams()
-		_ = optional.ApplyOptions(params, opts)
-
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
-
-		host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
-		if err != nil {
-			return err
-		}
-		err = host.Export(ctx, &env.RemoteHost.HostOutput)
-		if err != nil {
-			return err
-		}
-
-		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
-		if err != nil {
-			return err
-		}
-
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true, utils.PulumiDependsOn(installEcrCredsHelperCmd))
-		if err != nil {
-			return err
-		}
-
-		// Create FakeIntake if required
-		if params.fakeintakeOptions != nil {
-			fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
-			if err != nil {
-				return err
-			}
-			err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-			if err != nil {
-				return err
-			}
-
-			// Normally if FakeIntake is enabled, Agent is enabled, but just in case
-			if params.agentOptions != nil {
-				// Prepend in case it's overridden by the user
-				newOpts := []dockeragentparams.Option{dockeragentparams.WithFakeintake(fakeIntake)}
-				params.agentOptions = append(newOpts, params.agentOptions...)
-			}
-		} else {
-			// Suite inits all fields by default, so we need to explicitly set it to nil
-			env.FakeIntake = nil
-		}
-
-		// Create Agent if required
-		if params.agentOptions != nil {
-			agent, err := agent.NewDockerAgent(*awsEnv.CommonEnvironment, host, manager, params.agentOptions...)
-			if err != nil {
-				return err
-			}
-
-			err = agent.Export(ctx, &env.Agent.DockerAgentOutput)
-			if err != nil {
-				return err
-			}
-		} else {
-			// Suite inits all fields by default, so we need to explicitly set it to nil
-			env.Agent = nil
-		}
-
-		provisionerCtx := &ProvisionerPulumiEnv{
-			AwsEnvironment: &awsEnv,
-			Host:           host,
-			DockerManager:  manager,
-		}
-
-		if params.customPulumiCallback != nil {
-			params.customPulumiCallback(ctx, provisionerCtx, env)
-		}
-
-		return nil
-=======
-		return DockerRunFunction(ctx, env, params)
->>>>>>> 39ee74945ae7 (somethinglikethat)
+		return Run(ctx, env, params)
 	}, params.extraConfigParams)
 
 	return provisioner
