@@ -652,7 +652,11 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 	defer func() {
 		ctxcleanup, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
-		awsutils.CleanupScanEBS(ctxcleanup, scan)
+		for resourceID := range scan.CreatedResources {
+			if err := awsutils.CleanupScanEBS(ctxcleanup, scan, resourceID); err != nil {
+				log.Errorf("%s: could not cleanup resource %q: %v", scan, resourceID, err)
+			}
+		}
 	}()
 
 	var waiter awsutils.SnapshotWaiter

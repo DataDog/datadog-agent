@@ -77,7 +77,7 @@ func CleanSlate(ctx context.Context, bds []devices.BlockDevice, roles types.Role
 				log.Warnf("clean slate: %v", err)
 				continue
 			}
-			if errd := CleanupScanVolumes(ctx, nil, volumeID, roles); err != nil {
+			if errd := CleanupScanVolume(ctx, nil, volumeID, roles); err != nil {
 				log.Warnf("clean slate: %v", errd)
 			}
 		}
