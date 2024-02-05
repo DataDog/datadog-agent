@@ -10,6 +10,8 @@ import (
 	"embed"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,6 +37,12 @@ func fakeStatusServer(t *testing.T, errCode int, response []byte) *httptest.Serv
 }
 
 func TestStatus(t *testing.T) {
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+	defer func() {
+		os.Setenv("TZ", originalTZ)
+	}()
+
 	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/json_response.tmpl")
 	assert.NoError(t, err)
 
@@ -69,7 +77,11 @@ func TestStatus(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			assert.Equal(t, string(textResponse), b.String())
+			// We replace windows line break by linux so the tests pass on every OS
+			expected := strings.Replace(string(textResponse), "\r\n", "\n", -1)
+			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+
+			assert.Equal(t, expected, output)
 		}},
 		{"HTML", func(t *testing.T) {
 			b := new(bytes.Buffer)
