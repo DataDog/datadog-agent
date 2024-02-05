@@ -299,7 +299,8 @@ func Umount(ctx context.Context, maybeScan *types.ScanTask, mountPoint string) {
 	log.Debugf("%s: un-mounting %q", maybeScan, mountPoint)
 	var umountOutput []byte
 	var erru error
-	for i := 0; i < 10; i++ {
+	const maxTries = 10
+	for tryCount := 0; tryCount < maxTries; tryCount++ {
 		if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
 			return
 		}
@@ -310,8 +311,9 @@ func Umount(ctx context.Context, maybeScan *types.ScanTask, mountPoint string) {
 			if exiterr, ok := erru.(*exec.ExitError); ok && exiterr.ExitCode() == MntExFail && bytes.Contains(umountOutput, []byte("not mounted")) {
 				return
 			}
-			log.Warnf("%s: could not umount %s: %s: %s", maybeScan, mountPoint, erru, string(umountOutput))
-			if !sleepCtx(ctx, 3*time.Second) {
+			waitDuration := 3 * time.Second
+			log.Infof("%s: could not umount %s; retrying after %s (%d/%d): %s: %s", maybeScan, mountPoint, waitDuration, tryCount+1, maxTries, erru, string(umountOutput))
+			if !sleepCtx(ctx, waitDuration) {
 				return
 			}
 			continue
