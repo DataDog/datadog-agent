@@ -1135,7 +1135,6 @@ Make sure that milestone is open before trying again.""",
         milestone_number=milestone.number,
         labels=[
             "changelog/no-changelog",
-            "qa/skip-qa",
             "qa/no-code-change",
             "team/agent-platform",
             "team/agent-release-management",
