@@ -108,7 +108,7 @@ func snapshotCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanActio
 			if err != nil {
 				return err
 			}
-			scan, err := types.NewScanTask(volumeID.String(), "unknown", "unknown", *defaultActions, nil, *diskMode)
+			scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.String(), "unknown", "unknown", *defaultActions, nil, *diskMode)
 			if err != nil {
 				return err
 			}
@@ -167,14 +167,14 @@ func offlineCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaul
 					Values: values,
 				})
 			}
-			return offlineCmd(*statsd, cliArgs.workers, types.ScanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, filters, *diskMode, *defaultActions, *noForkScanners)
+			return offlineCmd(*statsd, cliArgs.workers, types.TaskType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, filters, *diskMode, *defaultActions, *noForkScanners)
 		},
 	}
 
 	cmd.Flags().IntVar(&cliArgs.workers, "workers", 40, "number of scans running in parallel")
 	cmd.Flags().StringSliceVar(&cliArgs.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
 	cmd.Flags().StringVar(&cliArgs.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
-	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(types.ScanTypeEBS), "scan type (ebs-volume or lambda)")
+	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(types.TaskTypeEBS), "scan type (ebs-volume or lambda)")
 	cmd.Flags().IntVar(&cliArgs.maxScans, "max-scans", 0, "maximum number of scans to perform")
 	cmd.Flags().BoolVar(&cliArgs.printResults, "print-results", false, "print scan results to stdout")
 	return cmd
@@ -252,8 +252,12 @@ func scanCmd(statsd *ddogstatsd.Client, resourceID types.CloudID, targetHostname
 		hostname = "unknown"
 	}
 
+	scanType, err := types.DefaultTaskType(resourceID)
+	if err != nil {
+		return err
+	}
 	roles := getDefaultRolesMapping()
-	task, err := types.NewScanTask(resourceID.String(), hostname, targetHostname, actions, roles, diskMode)
+	task, err := types.NewScanTask(scanType, resourceID.String(), hostname, targetHostname, actions, roles, diskMode)
 	if err != nil {
 		return err
 	}
@@ -283,7 +287,7 @@ func scanCmd(statsd *ddogstatsd.Client, resourceID types.CloudID, targetHostname
 	return nil
 }
 
-func offlineCmd(statsd *ddogstatsd.Client, workers int, scanType types.ScanType, regions []string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+func offlineCmd(statsd *ddogstatsd.Client, workers int, scanType types.TaskType, regions []string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	ctx := ctxTerminated()
 	defer statsd.Flush()
 
@@ -433,7 +437,7 @@ func offlineCmd(statsd *ddogstatsd.Client, workers int, scanType types.ScanType,
 								return err
 							}
 							log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeID, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
-							scan, err := types.NewScanTask(volumeID.String(), hostname, *instance.InstanceId, actions, roles, diskMode)
+							scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.String(), hostname, *instance.InstanceId, actions, roles, diskMode)
 							if err != nil {
 								return err
 							}
@@ -481,7 +485,7 @@ func offlineCmd(statsd *ddogstatsd.Client, workers int, scanType types.ScanType,
 					return fmt.Errorf("could not scan region %q for Lambda functions: %w", regionName, err)
 				}
 				for _, function := range functions.Functions {
-					scan, err := types.NewScanTask(*function.FunctionArn, hostname, "", actions, roles, diskMode)
+					scan, err := types.NewScanTask(types.TaskTypeLambda, *function.FunctionArn, hostname, "", actions, roles, diskMode)
 					if err != nil {
 						return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
 					}
@@ -506,9 +510,9 @@ func offlineCmd(statsd *ddogstatsd.Client, workers int, scanType types.ScanType,
 	go func() {
 		defer scanner.Stop()
 		var err error
-		if scanType == types.ScanTypeEBS {
+		if scanType == types.TaskTypeEBS {
 			err = pushEBSVolumes()
-		} else if scanType == types.ScanTypeLambda {
+		} else if scanType == types.TaskTypeLambda {
 			err = pushLambdaFunctions()
 		} else {
 			panic("unreachable")
@@ -571,7 +575,7 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 		hostname = "unknown"
 	}
 
-	scan, err := types.NewScanTask(resourceID.String(), hostname, resourceID.ResourceName(), defaultActions, nil, mode)
+	scan, err := types.NewScanTask(types.TaskTypeEBS, resourceID.String(), hostname, resourceID.ResourceName(), defaultActions, nil, mode)
 	if err != nil {
 		return err
 	}

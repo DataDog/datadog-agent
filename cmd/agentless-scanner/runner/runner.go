@@ -261,11 +261,11 @@ func (s *Runner) CleanSlate() error {
 			}
 		} else {
 			switch {
-			case strings.HasPrefix(scanDir.Name(), string(types.ScanTypeLambda)+"-"):
+			case strings.HasPrefix(scanDir.Name(), string(types.TaskTypeLambda)+"-"):
 				if err := os.RemoveAll(name); err != nil {
 					log.Warnf("clean slate: could not remove directory %q", name)
 				}
-			case strings.HasPrefix(scanDir.Name(), string(types.ScanTypeEBS)):
+			case strings.HasPrefix(scanDir.Name(), string(types.TaskTypeEBS)):
 				scanDirname := filepath.Join(types.ScansRootDir, scanDir.Name())
 				scanEntries, err := os.ReadDir(scanDirname)
 				if err != nil {
@@ -498,15 +498,15 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 	scan.StartedAt = time.Now()
 	defer s.cleanupScan(scan)
 	switch scan.Type {
-	case types.ScanTypeHost:
+	case types.TaskTypeHost:
 		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName()}, pool, s.resultsCh)
-	case types.ScanTypeEBS:
+	case types.TaskTypeEBS:
 		mountpoints, err := awsutils.SetupEBS(ctx, scan, &s.waiter)
 		if err != nil {
 			return err
 		}
 		s.scanRootFilesystems(ctx, scan, mountpoints, pool, s.resultsCh)
-	case types.ScanTypeLambda:
+	case types.TaskTypeLambda:
 		mountpoint, err := awsutils.SetupLambda(ctx, scan)
 		if err != nil {
 			return err
@@ -604,7 +604,7 @@ func (s *Runner) cleanupScan(scan *types.ScanTask) {
 	}
 
 	switch scan.Type {
-	case types.ScanTypeEBS:
+	case types.TaskTypeEBS:
 		for resourceID, createdAt := range scan.CreatedResources {
 			if err := awsutils.CleanupScanEBS(ctx, scan, resourceID); err != nil {
 				log.Warnf("%s: failed to cleanup EBS resource %q: %v", scan, resourceID, err)
@@ -612,7 +612,7 @@ func (s *Runner) cleanupScan(scan *types.ScanTask) {
 				s.statsResourceTTL(resourceID.ResourceType(), scan, createdAt)
 			}
 		}
-	case types.ScanTypeLambda, types.ScanTypeHost:
+	case types.TaskTypeLambda, types.TaskTypeHost:
 		if len(scan.CreatedResources) > 0 {
 			panic(fmt.Errorf("unexpected resources created in %s scan", scan.Type))
 		}
