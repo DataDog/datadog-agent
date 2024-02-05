@@ -7,11 +7,10 @@ import os
 import platform
 from urllib.parse import urlparse
 
-from tasks.kernel_matrix_testing.download import arch_mapping, platforms_file, vmconfig_file
-from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.stacks import create_stack, stack_exists
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
+from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_mapping, platforms_file
 
 local_arch = "local"
 
@@ -112,6 +111,21 @@ table = [
     ["debian 10 - v4.19.0", TICK, TICK],
     ["debian 11 - v5.10.0", TICK, TICK],
 ]
+
+
+def get_vmconfig_template():
+    vmconfig_file = "test/new-e2e/system-probe/config/vmconfig.json"
+
+    with open(vmconfig_file) as f:
+        data = json.load(f)
+
+    kmt_os = get_kmt_os()
+
+    for vmset in data.get("vmsets", []):
+        for disk in vmset.get("disks", []):
+            disk["target"] = disk["target"].replace("%KMTDIR%", kmt_os.kmt_dir)
+
+    return data
 
 
 def lte_414(version):
@@ -469,8 +483,7 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci, hos
     with open(platforms_file) as f:
         platforms = json.load(f)
 
-    with open(vmconfig_file) as f:
-        vmconfig_template = json.load(f)
+    vmconfig_template = get_vmconfig_template()
 
     vmsets = build_vmsets(normalized_vm_defs, sets)
 

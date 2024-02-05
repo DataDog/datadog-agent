@@ -2,7 +2,7 @@ import getpass
 import os
 import sys
 
-from invoke import Context
+from invoke.context import Context
 
 from tasks.kernel_matrix_testing.tool import Exit
 from tasks.system_probe import is_root

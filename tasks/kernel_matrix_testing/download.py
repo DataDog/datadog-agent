@@ -4,23 +4,13 @@ import platform
 import tempfile
 
 from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
+from tasks.kernel_matrix_testing.vars import arch_mapping, platforms_file
+from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
 
 try:
     import requests
 except ImportError:
     requests = None
-
-platforms_file = "test/new-e2e/system-probe/config/platforms.json"
-vmconfig_file = "test/new-e2e/system-probe/config/vmconfig.json"
-
-arch_mapping = {
-    "amd64": "x86_64",
-    "x86": "x86_64",
-    "x86_64": "x86_64",
-    "arm64": "arm64",
-    "arm": "arm64",
-    "aarch64": "arm64",
-}
 
 
 def requires_update(url_base, rootfs_dir, image):
@@ -44,8 +34,7 @@ def download_rootfs(ctx, rootfs_dir):
     with open(platforms_file) as f:
         platforms = json.load(f)
 
-    with open(vmconfig_file) as f:
-        vmconfig_template = json.load(f)
+    vmconfig_template = get_vmconfig_template()
 
     url_base = platforms["url_base"]
 

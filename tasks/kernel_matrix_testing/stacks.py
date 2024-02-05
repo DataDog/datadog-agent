@@ -2,8 +2,8 @@ import glob
 import json
 import os
 import platform
+from pathlib import Path
 
-from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.libvirt import (
     delete_domains,
@@ -15,6 +15,7 @@ from tasks.kernel_matrix_testing.libvirt import (
     resume_domains,
 )
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, info, warn
+from tasks.kernel_matrix_testing.vars import VMCONFIG
 
 try:
     import libvirt
@@ -23,6 +24,28 @@ except ImportError:
 
 X86_INSTANCE_TYPE = "m5d.metal"
 ARM_INSTANCE_TYPE = "m6gd.metal"
+
+
+def _get_active_branch_name():
+    head_dir = Path(".") / ".git" / "HEAD"
+    with head_dir.open("r") as f:
+        content = f.read().splitlines()
+
+    for line in content:
+        if line[0:4] == "ref:":
+            return line.partition("refs/heads/")[2].replace("/", "-")
+
+    raise Exit("Could not find active branch name")
+
+
+def check_and_get_stack(stack):
+    if stack is None:
+        stack = _get_active_branch_name()
+
+    if not stack.endswith("-ddvm"):
+        return f"{stack}-ddvm"
+    else:
+        return stack
 
 
 def stack_exists(stack):
