@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -99,6 +100,17 @@ func newAgent(deps dependencies) Component {
 		tagger:             deps.Tagger,
 		wg:                 sync.WaitGroup{},
 	}
+
+	// We're adding the /config endpoint from the comp side of the trace agent to avoid linking with pkg/config from
+	// the trace agent.
+	// pkg/config is not a go-module yet and pulls a large chunk of Agent code base with it. Using it within the
+	// trace-agent would largely increase the number of module pulled by OTEL when using the pkg/trace go-module.
+	if err := apiutil.CreateAndSetAuthToken(); err != nil {
+		log.Errorf("could not set auth token: %s", err)
+	} else {
+		ag.Agent.DebugServer.AddRoute("/config", deps.Config.GetConfigHandler())
+	}
+
 	deps.Lc.Append(fx.Hook{
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.

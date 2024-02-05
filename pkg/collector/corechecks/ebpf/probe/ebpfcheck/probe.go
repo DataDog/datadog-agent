@@ -613,7 +613,8 @@ func (e *entryCountBuffers) prepareFirstBatchKeys(referenceMap *ebpf.Map) {
 }
 
 func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) {
-	e.cursor, e.maxCursorSize = growBufferWithLimit(e.cursor, max(e.maxCursorSize, referenceMap.KeySize()), 0) // No limit with cursors, they are always small
+	// hash maps require at least 4 bytes for the cursor, ensure we never allocate less than that.
+	e.cursor, e.maxCursorSize = growBufferWithLimit(e.cursor, max(4, e.maxCursorSize, referenceMap.KeySize()), 0) // No limit with cursors, they are always small
 }
 
 // resetBuffers resets the buffers to nil, so that they can be garbage collected
