@@ -37,11 +37,10 @@ jobs:
               with:
                 ref: ${{ env.RELEASE_BRANCH }}
                 fetch-depth: 0
-            
-            - name: Set git user
-              uses: fregante/setup-git-user@v2
               
             - name: Create RC PR
               run: |
+                git config user.name "GitHub Actions"
+                git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
                 git fetch
                 inv -e release.create-rc
