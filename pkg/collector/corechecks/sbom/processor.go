@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	//nolint:revive // TODO(CINT) Fix revive linter
 
@@ -238,7 +237,7 @@ func (p *processor) triggerHostScan(ch chan sbom.ScanResult) {
 	log.Debugf("Triggering host SBOM refresh")
 
 	scanRequest := &host.ScanRequest{Path: "/"}
-	if hostRoot := os.Getenv("HOST_ROOT"); config.IsContainerized() && hostRoot != "" {
+	if hostRoot := os.Getenv("HOST_ROOT"); ddConfig.IsContainerized() && hostRoot != "" {
 		scanRequest.Path = hostRoot
 	}
 
