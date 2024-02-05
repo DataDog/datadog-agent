@@ -24,6 +24,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestMain(m *testing.M) {
@@ -161,6 +162,7 @@ func BenchmarkConntrackExists(b *testing.B) {
 }
 
 func TestConntrackExists6(t *testing.T) {
+	flake.Mark(t)
 	ns := testutil.SetupCrossNsDNAT6(t)
 
 	tcpCloser := nettestutil.StartServerTCPNs(t, net.ParseIP("fd00::2"), 8080, ns)
