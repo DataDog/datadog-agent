@@ -130,12 +130,7 @@ func extractTarGz(archivePath string, destinationPath string) error {
 		target := filepath.Join(destinationPath, cleanName)
 
 		// Check for zip-slip attacks
-		outPath, err := filepath.Abs(target)
-		if err != nil {
-			return fmt.Errorf("could not get absolute path for %s: %w", cleanName, err)
-		}
-		// Ensure the file is within the destination directory
-		if !strings.HasPrefix(outPath, destinationPath) {
+		if !strings.HasPrefix(target, filepath.Clean(destinationPath)+string(os.PathSeparator)) {
 			return fmt.Errorf("tar entry %s is trying to escape the destination directory", header.Name)
 		}
 
