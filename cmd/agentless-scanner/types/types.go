@@ -52,7 +52,9 @@ type TaskType string
 
 const (
 	// TaskTypeHost is the type of the scan for a host
-	TaskTypeHost TaskType = "localhost-scan"
+	TaskTypeHost TaskType = "localhost"
+	// TaskTypeAMI is the type of the scan for an AMI
+	TaskTypeAMI TaskType = "ami"
 	// TaskTypeEBS is the type of the scan for an EBS volume
 	TaskTypeEBS TaskType = "ebs-volume"
 	// TaskTypeLambda is the type of the scan for a Lambda function
@@ -109,6 +111,8 @@ const (
 	ResourceTypeLocalDir = "localdir"
 	// ResourceTypeVolume is the type of a volume
 	ResourceTypeVolume = "volume"
+	// ResourceTypeImage is the type of an image
+	ResourceTypeImage = "image"
 	// ResourceTypeSnapshot is the type of a snapshot
 	ResourceTypeSnapshot = "snapshot"
 	// ResourceTypeFunction is the type of a function
@@ -125,10 +129,15 @@ type RolesMapping map[string]*CloudID
 type ScanConfigRaw struct {
 	Type  string `json:"type"`
 	Tasks []struct {
-		Type     string   `json:"type"`
-		CloudID  string   `json:"arn"`
-		Hostname string   `json:"hostname"`
+		Type    string `json:"type"`
+		CloudID string `json:"arn"`
+
+		// Options fields: TaskTypeAMI
+		ImageID string `json:"image_id"`
+
+		// Optional fields: TaskTypeEBS
 		Actions  []string `json:"actions,omitempty"`
+		Hostname string   `json:"hostname"`
 		DiskMode string   `json:"disk_mode,omitempty"`
 	} `json:"tasks"`
 	Roles []string `json:"roles"`
@@ -150,11 +159,16 @@ type ScanTask struct {
 	StartedAt       time.Time    `json:"StartedAt"`
 	Type            TaskType     `json:"Type"`
 	CloudID         CloudID      `json:"CloudID"`
-	TargetHostname  string       `json:"Hostname"`
 	ScannerHostname string       `json:"ScannerHostname"`
-	Actions         []ScanAction `json:"Actions"`
 	Roles           RolesMapping `json:"Roles"`
-	DiskMode        DiskMode     `json:"DiskMode"`
+
+	// Optional fields - TaskTypeAMI
+	ImageID string `json:"ImageID"`
+
+	// Optional fields - TaskTypeEBS
+	TargetHostname string       `json:"Hostname"`
+	Actions        []ScanAction `json:"Actions"`
+	DiskMode       DiskMode     `json:"DiskMode"`
 
 	// Lifecycle metadata of the task
 	CreatedResources   map[CloudID]time.Time `json:"CreatedResources"`
@@ -343,6 +357,8 @@ func ParseTaskType(scanType string) (TaskType, error) {
 	switch scanType {
 	case string(TaskTypeHost):
 		return TaskTypeHost, nil
+	case string(TaskTypeAMI):
+		return TaskTypeAMI, nil
 	case string(TaskTypeEBS):
 		return TaskTypeEBS, nil
 	case string(TaskTypeLambda):
@@ -358,6 +374,8 @@ func DefaultTaskType(resourceID CloudID) (TaskType, error) {
 	switch resourceType {
 	case ResourceTypeLocalDir:
 		return TaskTypeHost, nil
+	case ResourceTypeImage:
+		return TaskTypeAMI, nil
 	case ResourceTypeSnapshot, ResourceTypeVolume:
 		return TaskTypeEBS, nil
 	case ResourceTypeFunction:

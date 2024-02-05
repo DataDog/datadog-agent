@@ -139,9 +139,7 @@ func (rt *roundtrip) RoundTrip(req *http.Request) (*http.Response, error) {
 			throttled100 = delay > 100*time.Millisecond
 			throttled1000 = delay > 1000*time.Millisecond
 			throttled5000 = delay > 5000*time.Millisecond
-			select {
-			case <-time.After(delay):
-			case <-req.Context().Done():
+			if !sleepCtx(req.Context(), delay) {
 				return nil, req.Context().Err()
 			}
 		}
