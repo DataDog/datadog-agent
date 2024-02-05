@@ -28,16 +28,27 @@ import (
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	_ "modernc.org/sqlite" // sqlite driver, used by github.com/knqyf263/go-rpmdb
 
 	"github.com/spf13/cobra"
 )
+
+const (
+	defaultWorkersCount = 15
+	defaultScannersMax  = 8 // max number of child-process scanners spawned by a worker in parallel
+)
+
+var statsd *ddogstatsd.Client
 
 var (
 	configFilePath string
@@ -78,6 +89,17 @@ func main() {
 	os.Exit(0)
 }
 
+func initStatsdClient() {
+	statsdHost := pkgconfig.GetBindHost()
+	statsdPort := pkgconfig.Datadog.GetInt("dogstatsd_port")
+	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	var err error
+	statsd, err = ddogstatsd.New(statsdAddr)
+	if err != nil {
+		log.Warnf("could not init dogstatsd client: %s", err)
+	}
+}
+
 func rootCommand() *cobra.Command {
 	var diskModeStr string
 	var defaultActionsStr []string
@@ -88,6 +110,7 @@ func rootCommand() *cobra.Command {
 		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
 		PersistentPreRunE: runWithModules(func(cmd *cobra.Command, args []string) error {
+			initStatsdClient()
 			var err error
 			diskMode, err = types.ParseDiskMode(diskModeStr)
 			if err != nil {
@@ -101,8 +124,9 @@ func rootCommand() *cobra.Command {
 		}),
 	}
 
+	cmd.AddCommand(runCommand())
 	cmd.AddCommand(runScannerCommand())
-	cmd.AddCommand(awscmd.RootCommand(&diskMode, &defaultActions, &noForkScanners))
+	cmd.AddCommand(awscmd.RootCommand(&statsd, &diskMode, &defaultActions, &noForkScanners))
 
 	pflags := cmd.PersistentFlags()
 	pflags.StringVarP(&configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
@@ -110,6 +134,72 @@ func rootCommand() *cobra.Command {
 	pflags.BoolVar(&noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
 	pflags.StringSliceVar(&defaultActionsStr, "actions", []string{string(types.ScanActionVulnsHost)}, "disable spawning a dedicated process for launching scanners")
 	return cmd
+}
+
+func runCommand() *cobra.Command {
+	var flags struct {
+		pidfilePath string
+		workers     int
+		scannersMax int
+	}
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Runs the agentless-scanner",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runCmd(flags.pidfilePath, flags.workers, flags.scannersMax, defaultActions, noForkScanners)
+		},
+	}
+	cmd.Flags().StringVarP(&flags.pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	cmd.Flags().IntVar(&flags.workers, "workers", defaultWorkersCount, "number of snapshots running in parallel")
+	cmd.Flags().IntVar(&flags.scannersMax, "scannersMax", defaultScannersMax, "maximum number of scanner processes in parallel")
+	return cmd
+}
+
+func runCmd(pidfilePath string, workers, scannersMax int, defaultActions []types.ScanAction, noForkScanners bool) error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	if pidfilePath != "" {
+		err := pidfile.WritePID(pidfilePath)
+		if err != nil {
+			return fmt.Errorf("could not write PID file, exiting: %w", err)
+		}
+		defer os.Remove(pidfilePath)
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
+	}
+
+	hostname, err := utils.GetHostnameWithContext(ctx)
+	if err != nil {
+		return fmt.Errorf("could not fetch hostname: %w", err)
+	}
+
+	scanner, err := runner.New(runner.Options{
+		Hostname:       hostname,
+		DdEnv:          pkgconfig.Datadog.GetString("env"),
+		Workers:        workers,
+		ScannersMax:    scannersMax,
+		PrintResults:   false,
+		NoFork:         noForkScanners,
+		DefaultActions: defaultActions,
+		DefaultRoles:   getDefaultRolesMapping(),
+		Statsd:         statsd,
+	})
+	if err != nil {
+		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
+	}
+	if err := scanner.CleanSlate(); err != nil {
+		log.Error(err)
+	}
+	if err := scanner.SubscribeRemoteConfig(ctx); err != nil {
+		return fmt.Errorf("could not accept configs from Remote Config: %w", err)
+	}
+	scanner.Start(ctx)
+	return nil
+}
+
+func getDefaultRolesMapping() types.RolesMapping {
+	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
+	return types.ParseRolesMapping(roles)
 }
 
 func runScannerCommand() *cobra.Command {
