@@ -77,6 +77,8 @@ tests_deb-x64-py3:
     - .linux_tests
     - .linux_x64
   needs: ["go_deps", "go_tools_deps"]
+  rules:
+    !reference [.fast_on_dev_branch]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
