@@ -17,13 +17,13 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/backoff v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/grpc v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/http v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/backoff v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/grpc v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/http v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.2
 	github.com/Masterminds/semver v1.5.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/pkg/errors v0.9.1
@@ -41,7 +41,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.2 // indirect
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
