@@ -106,8 +106,6 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotW
 			var isRateExceededError bool
 			var isVolumeNotFoundError bool
 			if errors.As(err, &aerr) {
-				// TODO: if we reach this error, we maybe could reuse a pending or
-				// very recent snapshot that was created by the scanner.
 				if aerr.ErrorCode() == "SnapshotCreationPerVolumeRateExceeded" {
 					isRateExceededError = true
 				}
@@ -137,7 +135,7 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotW
 			return types.CloudID{}, err
 		}
 
-		snapshotID, err := EC2CloudID(volumeID.Region, volumeID.AccountID, types.ResourceTypeSnapshot, *createSnapshotOutput.SnapshotId)
+		snapshotID, err := types.AWSCloudID("ec2", volumeID.Region, volumeID.AccountID, types.ResourceTypeSnapshot, *createSnapshotOutput.SnapshotId)
 		if err != nil {
 			return snapshotID, err
 		}
@@ -218,7 +216,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		if err != nil {
 			return fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotID, self.Region, err)
 		}
-		localSnapshotID, err = EC2CloudID(self.Region, snapshotID.AccountID, types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
+		localSnapshotID, err = types.AWSCloudID("ec2", self.Region, snapshotID.AccountID, types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
 		if err != nil {
 			return err
 		}
@@ -263,7 +261,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		return fmt.Errorf("could not create volume from snapshot: %w", err)
 	}
 
-	volumeID, err := EC2CloudID(localSnapshotID.Region, localSnapshotID.AccountID, types.ResourceTypeVolume, *volume.VolumeId)
+	volumeID, err := types.AWSCloudID("ec2", localSnapshotID.Region, localSnapshotID.AccountID, types.ResourceTypeVolume, *volume.VolumeId)
 	if err != nil {
 		return err
 	}
@@ -447,9 +445,4 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 	case <-ctx.Done():
 		return false
 	}
-}
-
-// EC2CloudID returns an ARN for the given EC2 resource.
-func EC2CloudID(region, accountID string, resourceType types.ResourceType, resourceName string) (types.CloudID, error) {
-	return types.ParseCloudID(fmt.Sprintf("arn:aws:ec2:%s:%s:%s/%s", region, accountID, resourceType, resourceName))
 }

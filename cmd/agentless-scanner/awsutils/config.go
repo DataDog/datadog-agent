@@ -8,8 +8,6 @@ package awsutils
 import (
 	"context"
 	"fmt"
-	"io/fs"
-	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
@@ -102,33 +100,4 @@ func GetSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 	}
 	imdsclient := imds.NewFromConfig(cfg)
 	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
-}
-
-// HumanParseARN parses an ARN string or a resource identifier string and
-// returns an cloud identifier. Helpful for CLI interface.
-func HumanParseARN(s string, expectedTypes ...types.ResourceType) (types.CloudID, error) {
-	if strings.HasPrefix(s, "arn:") {
-		return types.ParseCloudID(s, expectedTypes...)
-	}
-	self, err := GetSelfEC2InstanceIndentity(context.Background())
-	if err != nil {
-		return types.CloudID{}, err
-	}
-	partition := "aws"
-	var service string
-	if strings.HasPrefix(s, "/") && (len(s) == 1 || fs.ValidPath(s[1:])) {
-		partition = "localhost"
-	} else if strings.HasPrefix(s, "vol-") {
-		service = "ec2"
-		s = "volume/" + s
-	} else if strings.HasPrefix(s, "snap-") {
-		service = "ec2"
-		s = "snapshot/" + s
-	} else if strings.HasPrefix(s, "function:") {
-		service = "lambda"
-	} else {
-		return types.CloudID{}, fmt.Errorf("unable to parse resource: expecting a resource of types %v", expectedTypes)
-	}
-	arn := fmt.Sprintf("arn:%s:%s:%s:%s:%s", partition, service, self.Region, self.AccountID, s)
-	return types.ParseCloudID(arn, expectedTypes...)
 }

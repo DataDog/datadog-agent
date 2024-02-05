@@ -108,7 +108,11 @@ func scanCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction, n
 		Short: "Executes a scan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resourceID, err := awsutils.HumanParseARN(args[0])
+			self, err := awsutils.GetSelfEC2InstanceIndentity(context.Background())
+			if err != nil {
+				return err
+			}
+			resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAWS, self.Region, self.AccountID)
 			if err != nil {
 				return err
 			}
@@ -127,7 +131,11 @@ func snapshotCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanActio
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := ctxTerminated()
-			volumeID, err := awsutils.HumanParseARN(args[0], types.ResourceTypeVolume)
+			self, err := awsutils.GetSelfEC2InstanceIndentity(context.Background())
+			if err != nil {
+				return err
+			}
+			volumeID, err := types.HumanParseCloudID(args[0], types.CloudProviderAWS, self.Region, self.AccountID)
 			if err != nil {
 				return err
 			}
@@ -210,7 +218,11 @@ func attachCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction)
 		Short: "Attaches a snapshot or volume to the current instance",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resourceID, err := awsutils.HumanParseARN(args[0], types.ResourceTypeSnapshot, types.ResourceTypeVolume)
+			self, err := awsutils.GetSelfEC2InstanceIndentity(context.Background())
+			if err != nil {
+				return err
+			}
+			resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAWS, self.Region, self.AccountID)
 			if err != nil {
 				return err
 			}
@@ -502,7 +514,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 								// Exclude Windows.
 								continue
 							}
-							volumeID, err := awsutils.EC2CloudID(regionName, *identity.Account, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
+							volumeID, err := types.AWSCloudID("ec2", regionName, *identity.Account, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
 							if err != nil {
 								return err
 							}
