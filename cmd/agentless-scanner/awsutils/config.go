@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 
@@ -26,7 +27,6 @@ var (
 
 	globalConfigs        = make(map[confKey]*aws.Config)
 	globalConfigsMu      sync.Mutex
-	globalStatsTags      []string
 	globalLimiterOptions LimiterOptions
 )
 
@@ -37,9 +37,8 @@ type confKey struct {
 
 // InitConfig initializes the global AWS parameters for subsequent configs
 // with the given statsd client and tags.
-func InitConfig(client *ddogstatsd.Client, limiterOptions LimiterOptions, tags []string) {
+func InitConfig(client *ddogstatsd.Client, limiterOptions LimiterOptions) {
 	statsd = client
-	globalStatsTags = tags
 	globalLimiterOptions = limiterOptions
 }
 
@@ -58,8 +57,11 @@ func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) (
 		return *cfg, nil
 	}
 
+	tags := []string{
+		fmt.Sprintf("agent_version:%s", version.AgentVersion),
+	}
 	limiter := NewLimiter(globalLimiterOptions)
-	httpClient := newHTTPClientWithStats(region, assumedRole, statsd, limiter, globalStatsTags)
+	httpClient := newHTTPClientWithStats(region, assumedRole, statsd, limiter, tags)
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),
 		config.WithHTTPClient(httpClient),
@@ -84,7 +86,7 @@ func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) (
 		if err != nil {
 			return aws.Config{}, fmt.Errorf("awsconfig: could not parse caller identity arn: %w", err)
 		}
-		cfg.HTTPClient = newHTTPClientWithStats(region, &roleID, statsd, limiter, globalStatsTags)
+		cfg.HTTPClient = newHTTPClientWithStats(region, &roleID, statsd, limiter, tags)
 	}
 
 	globalConfigs[key] = &cfg

@@ -24,7 +24,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -57,9 +56,7 @@ func RootCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaultAc
 			if err := cmd.Parent().PersistentPreRunE(cmd.Parent(), args); err != nil {
 				return err
 			}
-			awsutils.InitConfig(*statsd, getAWSLimitsOptions(), []string{
-				fmt.Sprintf("agent_version:%s", version.AgentVersion),
-			})
+			awsutils.InitConfig(*statsd, getAWSLimitsOptions())
 			return nil
 		},
 	}
@@ -244,11 +241,6 @@ func ctxTerminated() context.Context {
 	return ctx
 }
 
-func getDefaultRolesMapping() types.RolesMapping {
-	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
-	return types.ParseRolesMapping(roles)
-}
-
 func scanCmd(statsd *ddogstatsd.Client, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
@@ -328,7 +320,6 @@ func offlineCmd(statsd *ddogstatsd.Client, workers int, scanType types.ScanType,
 	}
 
 	roles := getDefaultRolesMapping()
-
 	cfg, err := awsutils.GetConfig(ctx, selfRegion, roles[*identity.Account])
 	if err != nil {
 		return err
@@ -648,6 +639,13 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 	return nil
 }
 
+// TODO: copy pasted in cmd/agentless-scanner/main.go
+func getDefaultRolesMapping() types.RolesMapping {
+	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
+	return types.ParseRolesMapping(roles)
+}
+
+// TODO: copy pasted in cmd/agentless-scanner/main.go
 func getAWSLimitsOptions() awsutils.LimiterOptions {
 	return awsutils.LimiterOptions{
 		EC2Rate:          rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ec2_rate")),
