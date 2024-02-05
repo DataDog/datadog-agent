@@ -25,9 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -197,7 +199,6 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
 
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
-
 	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
 
 	// APM / trace-agent
@@ -257,7 +258,32 @@ func (ia *inventoryagent) initData() {
 
 	ia.data["feature_dynamic_instrumentation_enabled"] = getBoolSysProbe("dynamic_instrumentation.enabled")
 
+	// ECS Fargate
+	ia.fetchECSFargateAgentMetadata()
+
 	ia.refreshMetadata()
+}
+
+func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
+	// ECS Fargate agent task ARN
+	if !env.IsECSFargate() {
+		return
+	}
+	client, err := ecsmeta.V2()
+	if err != nil {
+		ia.log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+		return
+	}
+
+	// Use the task ARN as hostname
+	taskMeta, err := client.GetTask(context.Background())
+	if err != nil {
+		ia.log.Debugf("error while fetching ECS Fargate metadata V2 task: %s", err)
+		return
+	}
+
+	ia.data["ecs_fargate_task_arn"] = taskMeta.TaskARN
+	ia.data["ecs_fargate_cluster_name"] = taskMeta.ClusterName
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
