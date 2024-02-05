@@ -89,6 +89,11 @@ func (v *ec2VMSuite) SetupSuite() {
 	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")
 	v.Env().RemoteHost.ReconnectSSH()
+
+	// prefetch docker image locally
+	v.Env().RemoteHost.MustExecute("docker run curlimages/curl --version")
+	v.Env().RemoteHost.MustExecute("docker run devth/alpine-bench -V")
+	v.Env().RemoteHost.MustExecute("docker run makocchi/alpine-dig dig")
 }
 
 // BeforeTest will be called before each test
