@@ -24,7 +24,8 @@ func TestEC2VMSELinuxSuite(t *testing.T) {
 	s := &ec2VMSELinuxSuite{}
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-0339ee0a14a92573d", compos.AmazonLinux2, compos.ARM64Arch), ec2.WithInstanceType("c6g.medium"))), nil)),
+		e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(awshost.WithEC2InstanceOptions(
+			ec2.WithAMI("ami-0fe630eb857a6ec83", compos.AmazonLinux2, compos.AMD64Arch), ec2.WithInstanceType("t3.medium"))), nil)),
 	}
 
 	// Source of our kitchen CI images test/kitchen/platforms.json
