@@ -87,7 +87,6 @@ func (v *ec2VMSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 
 	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils")
-	v.Env().RemoteHost.MustExecute("sudo snap install docker")
 }
 
 // BeforeTest will be called before each test
