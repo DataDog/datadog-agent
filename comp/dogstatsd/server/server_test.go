@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -37,11 +36,10 @@ import (
 type serverDeps struct {
 	fx.In
 
-	Lc            fx.Lifecycle
-	Server        Component
 	Config        configComponent.Component
 	Log           log.Component
 	Demultiplexer demultiplexer.FakeSamplerMock
+	Server        Component
 }
 
 func fulfillDeps(t testing.TB) serverDeps {
@@ -58,8 +56,9 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
-		Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
+		demultiplexerimpl.MockModule(),
+		Module(),
 	))
 }
 
@@ -76,21 +75,20 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
-		Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
+		demultiplexerimpl.MockModule(),
+		Module(),
 	))
 }
 
 func TestNewServer(t *testing.T) {
 	cfg := make(map[string]interface{})
-
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	demux := createDemultiplexer(t)
-	requireStart(t, deps.Server, demux)
+	// demux := createDemultiplexer(t)
+	requireStart(t, deps.Server)
 
-	deps.Server.Stop()
 }
 
 func TestStopServer(t *testing.T) {
@@ -100,13 +98,12 @@ func TestStopServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	demux := createDemultiplexer(t)
-	requireStart(t, deps.Server, demux)
-	deps.Server.Stop()
+	requireStart(t, deps.Server)
 
 	// check that the port can be bound, try for 100 ms
 	address, err := net.ResolveUDPAddr("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot resolve address")
+
 	for i := 0; i < 10; i++ {
 		var conn net.Conn
 		conn, err = net.ListenUDP("udp", address)
@@ -116,6 +113,7 @@ func TestStopServer(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+
 	require.NoError(t, err, "port is not available, it should be")
 }
 
@@ -153,8 +151,7 @@ func TestUDPReceive(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	demux := deps.Demultiplexer
-	requireStart(t, deps.Server, demux)
-	defer deps.Server.Stop()
+	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
@@ -434,9 +431,8 @@ func TestUDPForward(t *testing.T) {
 
 	defer pc.Close()
 
-	demux := deps.Demultiplexer
-	requireStart(t, deps.Server, demux)
-	defer deps.Server.Stop()
+	// demux := deps.Demultiplexer
+	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
@@ -466,8 +462,7 @@ func TestHistToDist(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
 	demux := createDemultiplexer(t)
-	requireStart(t, deps.Server, demux)
-	defer deps.Server.Stop()
+	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
@@ -552,7 +547,7 @@ func TestE2EParsing(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	demux := deps.Demultiplexer
-	requireStart(t, deps.Server, demux)
+	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
@@ -565,14 +560,13 @@ func TestE2EParsing(t *testing.T) {
 	assert.Equal(t, 0, len(timedSamples))
 	demux.Reset()
 	demux.Stop(false)
-	deps.Server.Stop()
 
 	// EOL enabled
 	cfg["dogstatsd_eol_required"] = []string{"udp"}
 
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	demux = deps.Demultiplexer
-	requireStart(t, deps.Server, demux)
+	requireStart(t, deps.Server)
 
 	conn, err = net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
@@ -583,7 +577,6 @@ func TestE2EParsing(t *testing.T) {
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 1, len(samples))
 	assert.Equal(t, 0, len(timedSamples))
-	deps.Server.Stop()
 	demux.Reset()
 }
 
@@ -595,8 +588,7 @@ func TestExtraTags(t *testing.T) {
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
 	demux := createDemultiplexer(t)
-	requireStart(t, deps.Server, demux)
-	defer deps.Server.Stop()
+	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
@@ -624,8 +616,7 @@ func TestStaticTags(t *testing.T) {
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
 	demux := createDemultiplexer(t)
-	requireStart(t, deps.Server, demux)
-	defer deps.Server.Stop()
+	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
@@ -659,8 +650,8 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	samples := []metrics.MetricSample{}
 
-	demux := deps.Demultiplexer
-	requireStart(t, s, demux)
+	// demux := deps.Demultiplexer
+	requireStart(t, s)
 
 	assert.Nil(t, s.mapper)
 
@@ -770,8 +761,8 @@ dogstatsd_mapper_profiles:
 
 			cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
-			demux := deps.Demultiplexer
-			requireStart(t, s, demux)
+			// demux := deps.Demultiplexer
+			requireStart(t, s)
 
 			assert.Equal(t, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
@@ -791,7 +782,7 @@ dogstatsd_mapper_profiles:
 				sort.Strings(sample.Tags)
 			}
 			assert.Equal(t, scenario.expectedSamples, actualSamples, "Case `%s` failed. `%s` should be `%s`", scenario.name, actualSamples, scenario.expectedSamples)
-			s.Stop()
+			// s.Stop()
 		})
 	}
 }
@@ -805,9 +796,9 @@ func TestNewServerExtraTags(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
 	demux := deps.Demultiplexer
-	requireStart(t, s, demux)
+	requireStart(t, s)
 	require.Len(s.extraTags, 0, "no tags should have been read")
-	s.Stop()
+	// s.Stop()
 	demux.Stop(false)
 
 	// when the extraTags parameter isn't used, the DogStatsD server is not reading this env var
@@ -815,9 +806,9 @@ func TestNewServerExtraTags(t *testing.T) {
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
 	demux = deps.Demultiplexer
-	requireStart(t, s, demux)
+	requireStart(t, s)
 	require.Len(s.extraTags, 0, "no tags should have been read")
-	s.Stop()
+	// s.Stop()
 	demux.Stop(false)
 
 	// when the extraTags parameter isn't used, the DogStatsD server is automatically reading this env var for extra tags
@@ -825,11 +816,11 @@ func TestNewServerExtraTags(t *testing.T) {
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
 	demux = deps.Demultiplexer
-	requireStart(t, s, demux)
+	requireStart(t, s)
 	require.Len(s.extraTags, 2, "two tags should have been read")
 	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
 	require.Equal(s.extraTags[1], "hello:world", "the tag hello:world should be set")
-	s.Stop()
+	// s.Stop()
 }
 
 func TestProcessedMetricsOrigin(t *testing.T) {
@@ -842,10 +833,10 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		s := deps.Server.(*server)
 		assert := assert.New(t)
 
-		demux := deps.Demultiplexer
-		requireStart(t, s, demux)
+		// demux := deps.Demultiplexer
+		requireStart(t, s)
 
-		s.Stop()
+		// s.Stop()
 
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
@@ -922,8 +913,8 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	deps := fulfillDeps(t)
 	s := deps.Server.(*server)
 	assert := assert.New(t)
-	requireStart(t, s, deps.Demultiplexer)
-	s.Stop()
+	requireStart(t, s)
+	// s.Stop()
 
 	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	parser.dsdOriginEnabled = true
@@ -964,8 +955,8 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	s := deps.Server.(*server)
 	assert := assert.New(t)
 
-	requireStart(t, s, deps.Demultiplexer)
-	s.Stop()
+	// requireStart(t, s, deps.Demultiplexer)
+	// s.Stop()
 
 	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	parser.dsdOriginEnabled = true
@@ -1013,14 +1004,9 @@ func TestOriginOptout(t *testing.T) {
 	}
 }
 
-func requireStart(t *testing.T, s Component, demux aggregator.Demultiplexer, sd serverDeps) {
-	// err := s.start(demux)
-	// require.NoError(t, _, "cannot start DSD")
-	sd.Lc.Append(fx.Hook{
-		OnStart: s.start,
-		OnStop:  nil,
-	})
-
+func requireStart(t *testing.T, s Component) {
+	// err := s.Start(demux)
+	// require.NoError(t, err, "cannot start DSD")
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning())
 }

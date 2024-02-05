@@ -20,11 +20,13 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -193,9 +195,12 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 // TODO: (components) - remove once serverless is an FX app
 //
 //nolint:revive // TODO(AML) Fix revive linter
-// func NewServerlessServer() Component {
-// 	return newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true)
-// }
+func NewServerlessServer(deps dependencies) Component {
+
+	// start the dogstatsd server here before new:
+
+	return newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true, deps.Lc, deps.Demultiplexer)
+}
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) Component {
@@ -307,7 +312,7 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 
 	lc.Append(fx.Hook{
 		OnStart: s.start,
-		OnStop:  nil,
+		OnStop:  s.stop,
 	})
 
 	return s
@@ -453,9 +458,9 @@ func (s *server) start(context.Context) error {
 	return nil
 }
 
-func (s *server) Stop() {
+func (s *server) stop(context.Context) error {
 	if !s.IsRunning() {
-		return
+		return nil
 	}
 	close(s.stopChan)
 	for _, l := range s.listeners {
@@ -469,6 +474,8 @@ func (s *server) Stop() {
 	}
 	s.health.Deregister() //nolint:errcheck
 	s.Started = false
+
+	return nil
 }
 
 func (s *server) IsRunning() bool {

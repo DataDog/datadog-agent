@@ -37,13 +37,9 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
 	demux := deps.Demultiplexer
-<<<<<<< Updated upstream
-	_ = s.Start(demux)
-=======
 	defer demux.Stop(false)
 	// _ = s.Start(demux)
->>>>>>> Stashed changes
-	defer s.Stop()
+	// defer s.Stop()
 
 	done := make(chan struct{})
 	go func() {
@@ -91,7 +87,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 
 	demux := deps.Demultiplexer
 	// _ = s.Start(demux)
-	defer s.Stop()
+	// defer s.Stop()
 
 	done := make(chan struct{})
 	go func() {
@@ -144,7 +140,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 
 	demux := deps.Demultiplexer
 	// _ = s.Start(demux)
-	defer s.Stop()
+	// defer s.Stop()
 
 	done := make(chan struct{})
 	go func() {

@@ -22,7 +22,7 @@ type Component interface {
 	// Start(demultiplexer aggregator.Demultiplexer) error
 
 	// Stop stops the dogstatsd server
-	Stop()
+	// Stop()
 
 	// IsRunning returns true if the server is running
 	IsRunning() bool
