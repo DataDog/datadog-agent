@@ -743,7 +743,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Duration during which the host tags will be submitted with metrics.
 	// Note: this setting must be no less than minute increments.
-	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
+	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(3*float64(time.Minute)))
 
 	// EC2
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
