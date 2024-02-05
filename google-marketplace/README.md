@@ -78,6 +78,8 @@ export TAG=0.3.1 # Datadog Operator version that will be installed
 
 You may also need to customize some parameters (name, namespace, APIKey)
 
+```shell
 docker build --pull --platform linux/amd64 --build-arg TAG=$TAG --tag $REGISTRY/$APP_NAME/deployer . && docker push $REGISTRY/$APP_NAME/deployer && mpdev install \
   --deployer=$REGISTRY/$APP_NAME/deployer \
   --parameters='{"name": "datadog", "namespace": "datadog-agent", "datadog.credentials.apiKey": "<your_api_key>"}'
+```
