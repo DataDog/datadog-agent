@@ -44,14 +44,7 @@ type http2StreamKey struct {
 type http2StatusCode struct {
 	Raw_buffer         [3]uint8
 	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Finalized          bool
-}
-type http2requestMethod struct {
-	Raw_buffer         [7]uint8
-	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Length             uint8
+	Indexed_value      uint8
 	Finalized          bool
 }
 type http2Stream struct {
