@@ -5,6 +5,8 @@
 
 //go:build !linux
 
+// Package nbd defines the Network Block Device and provides the functionality
+// to start and stop the NBD server and client.
 package nbd
 
 import (
