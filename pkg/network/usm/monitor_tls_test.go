@@ -39,6 +39,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 type tlsSuite struct {
@@ -46,6 +47,7 @@ type tlsSuite struct {
 }
 
 func TestTLSSuite(t *testing.T) {
+	flake.Mark(t)
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		if !http.TLSSupported(config.New()) {
 			t.Skip("TLS not supported for this setup")
