@@ -175,7 +175,7 @@ func awsOfflineCommand() *cobra.Command {
 	cmd.Flags().IntVar(&flags.workers, "workers", 40, "number of scans running in parallel")
 	cmd.Flags().StringSliceVar(&flags.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
 	cmd.Flags().StringVar(&flags.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
-	cmd.Flags().StringVar(&flags.taskType, "task-type", string(types.TaskTypeEBS), "scan type (ebs-volume or lambda)")
+	cmd.Flags().StringVar(&flags.taskType, "task-type", string(types.TaskTypeEBS), fmt.Sprintf("scan type (%s %s or %s)", types.TaskTypeEBS, types.TaskTypeLambda, types.TaskTypeHost))
 	cmd.Flags().IntVar(&flags.maxScans, "max-scans", 0, "maximum number of scans to perform")
 	cmd.Flags().BoolVar(&flags.printResults, "print-results", false, "print scan results to stdout")
 	return cmd
