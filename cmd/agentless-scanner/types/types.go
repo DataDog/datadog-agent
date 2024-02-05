@@ -365,12 +365,12 @@ func ParseTaskType(scanType string) (TaskType, error) {
 // DefaultTaskType returns the default scan type for a resource.
 func DefaultTaskType(resourceID CloudID) (TaskType, error) {
 	resourceType := resourceID.ResourceType()
-	switch {
-	case resourceType == ResourceTypeLocalDir:
+	switch resourceType {
+	case ResourceTypeLocalDir:
 		return TaskTypeHost, nil
-	case resourceType == ResourceTypeSnapshot || resourceType == ResourceTypeVolume:
+	case ResourceTypeSnapshot, ResourceTypeVolume:
 		return TaskTypeEBS, nil
-	case resourceType == ResourceTypeFunction:
+	case ResourceTypeFunction:
 		return TaskTypeLambda, nil
 	default:
 		return "", fmt.Errorf("unsupported resource type %q for scanning", resourceType)
