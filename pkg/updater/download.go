@@ -178,6 +178,13 @@ func extractTarGzFile(targetPath string, reader io.Reader) error {
 	n, err := io.Copy(f, limitedReader)
 	if err != nil {
 		if errors.Is(err, io.EOF) && n == maxFileSize {
+			defer func() {
+				if err := os.Remove(targetPath); err != nil {
+					log.Errorf("Could not remove truncated file %q: %v", targetPath, err)
+				} else {
+					log.Debug("Removing truncated file %q", targetPath)
+				}
+			}()
 			return fmt.Errorf("content truncated: file %q is too large: %w", targetPath, err)
 		}
 		return fmt.Errorf("could not write file: %w", err)
