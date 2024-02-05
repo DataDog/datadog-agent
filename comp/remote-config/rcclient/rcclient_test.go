@@ -138,7 +138,6 @@ func TestAgentConfigCallback(t *testing.T) {
 	assert.Equal(t, model.SourceCLI, config.Datadog.GetSource("log_level"))
 }
 
-<<<<<<< HEAD
 func TestOnAPMTracingUpdate(t *testing.T) {
 	mkTemp := func(t *testing.T) func() {
 		oldPath := apmTracingFilePath
@@ -209,7 +208,8 @@ func TestOnAPMTracingUpdate(t *testing.T) {
 		assert.Equal(t, calls["missingTarget"], MissingServiceTarget)
 		assert.Equal(t, calls["badPayload"], InvalidAPMTracingPayload)
 	})
-=======
+}
+
 func TestStatusOuput(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
@@ -253,5 +253,4 @@ func TestStatusOuput(t *testing.T) {
 			test.assertFunc(t)
 		})
 	}
->>>>>>> main
 }
