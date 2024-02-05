@@ -51,6 +51,7 @@ func newProvisionerParams() *ProvisionerParams {
 	}
 }
 
+// GetProvisionerParams return ProvisionerParams from options opts setup
 func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := newProvisionerParams()
 	err := optional.ApplyOptions(params, opts)

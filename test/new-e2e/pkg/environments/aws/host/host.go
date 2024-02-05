@@ -147,8 +147,8 @@ func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[env
 	return Provisioner(mergedOpts...)
 }
 
-// HostRunFunction main provisioner work running here
-func HostRunFunction(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
+// Run main provisioner work running here
+func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
 	var err error
 	if env.AwsEnvironment != nil {
@@ -236,7 +236,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := GetProvisionerParams(opts...)
-		return HostRunFunction(ctx, env, params)
+		return Run(ctx, env, params)
 	}, params.extraConfigParams)
 
 	return provisioner

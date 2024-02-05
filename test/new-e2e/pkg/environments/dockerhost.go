@@ -50,3 +50,7 @@ func (e *DockerHost) Init(ctx e2e.Context) error {
 
 	return nil
 }
+
+func (e *DockerHost) GetFakeIntake() *components.FakeIntake {
+	return e.FakeIntake
+}
