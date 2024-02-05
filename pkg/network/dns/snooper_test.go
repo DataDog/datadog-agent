@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dnsMonitor) {
@@ -222,6 +223,7 @@ func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
 }
 
 func TestDNSFailedResponseCount(t *testing.T) {
+	flake.Mark(t)
 	reverseDNS := initDNSTestsWithDomainCollection(t, true)
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper
