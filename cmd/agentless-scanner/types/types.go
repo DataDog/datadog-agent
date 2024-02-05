@@ -125,18 +125,17 @@ type ScanConfigRaw struct {
 		CloudID  string   `json:"arn"`
 		Hostname string   `json:"hostname"`
 		Actions  []string `json:"actions,omitempty"`
+		DiskMode string   `json:"disk_mode"`
 	} `json:"tasks"`
-	Roles    []string `json:"roles"`
-	DiskMode string   `json:"disk_mode"`
+	Roles []string `json:"roles"`
 }
 
 // ScanConfig is the representation of the scan configuration after being
 // parsed and normalized.
 type ScanConfig struct {
-	Type     ConfigType
-	Tasks    []*ScanTask
-	Roles    RolesMapping
-	DiskMode DiskMode
+	Type  ConfigType
+	Tasks []*ScanTask
+	Roles RolesMapping
 }
 
 // ScanTask is the representation of a scan task that performs a scan on a
@@ -156,22 +155,6 @@ type ScanTask struct {
 	// Lifecycle metadata of the task
 	CreatedResources   map[CloudID]time.Time `json:"CreatedResources"`
 	AttachedDeviceName *string               `json:"AttachedDeviceName"`
-}
-
-// MakeScanTaskID builds a unique task ID.
-func MakeScanTaskID(s *ScanTask) string {
-	h := sha256.New()
-	createdAt, _ := s.CreatedAt.MarshalBinary()
-	h.Write(createdAt)
-	h.Write([]byte(s.Type))
-	h.Write([]byte(s.CloudID.String()))
-	h.Write([]byte(s.TargetHostname))
-	h.Write([]byte(s.ScannerHostname))
-	h.Write([]byte(s.DiskMode))
-	for _, action := range s.Actions {
-		h.Write([]byte(action))
-	}
-	return string(s.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
 }
 
 // Path returns the path to the scan task. It takes a list of names to join.
@@ -408,39 +391,47 @@ func ParseRolesMapping(roles []string) RolesMapping {
 
 // NewScanTask creates a new scan task.
 func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetHostname string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
-	var scan ScanTask
+	var cloudID CloudID
 	var err error
 	switch taskType {
 	case TaskTypeEBS:
-		scan.CloudID, err = ParseCloudID(resourceID, ResourceTypeSnapshot, ResourceTypeVolume)
+		cloudID, err = ParseCloudID(resourceID, ResourceTypeSnapshot, ResourceTypeVolume)
 	case TaskTypeHost:
-		scan.CloudID, err = ParseCloudID(resourceID, ResourceTypeLocalDir)
+		cloudID, err = ParseCloudID(resourceID, ResourceTypeLocalDir)
 	case TaskTypeLambda:
-		scan.CloudID, err = ParseCloudID(resourceID, ResourceTypeFunction)
+		cloudID, err = ParseCloudID(resourceID, ResourceTypeFunction)
 	default:
 		err = fmt.Errorf("unsupported task type %q", taskType)
 	}
 	if err != nil {
 		return nil, err
 	}
-	scan.Type = taskType
-	scan.ScannerHostname = scannerHostname
-	scan.TargetHostname = targetHostname
-	scan.Roles = roles
-	switch mode {
-	case DiskModeNBDAttach, DiskModeVolumeAttach:
-		scan.DiskMode = mode
-	case "":
-		scan.DiskMode = DiskModeNBDAttach
-	default:
-		return nil, fmt.Errorf("invalid disk mode %q", mode)
+	task := ScanTask{
+		Type:             taskType,
+		CloudID:          cloudID,
+		TargetHostname:   targetHostname,
+		ScannerHostname:  scannerHostname,
+		Roles:            roles,
+		DiskMode:         mode,
+		Actions:          actions,
+		CreatedAt:        time.Now(),
+		CreatedResources: make(map[CloudID]time.Time),
 	}
-	scan.DiskMode = mode
-	scan.Actions = actions
-	scan.CreatedAt = time.Now()
-	scan.ID = MakeScanTaskID(&scan)
-	scan.CreatedResources = make(map[CloudID]time.Time)
-	return &scan, nil
+	{
+		h := sha256.New()
+		createdAt, _ := task.CreatedAt.MarshalBinary()
+		h.Write(createdAt)
+		h.Write([]byte(task.Type))
+		h.Write([]byte(task.CloudID.String()))
+		h.Write([]byte(task.TargetHostname))
+		h.Write([]byte(task.ScannerHostname))
+		h.Write([]byte(task.DiskMode))
+		for _, action := range task.Actions {
+			h.Write([]byte(action))
+		}
+		task.ID = string(task.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
+	}
+	return &task, nil
 }
 
 // ParseScanAction parses a scan action from a string.
@@ -492,11 +483,6 @@ func UnmarshalConfig(b []byte, scannerHostname string, defaultActions []ScanActi
 		config.Roles = defaultRolesMapping
 	}
 
-	config.DiskMode, err = ParseDiskMode(configRaw.DiskMode)
-	if err != nil {
-		return nil, err
-	}
-
 	config.Tasks = make([]*ScanTask, 0, len(configRaw.Tasks))
 	for _, rawScan := range configRaw.Tasks {
 		var actions []ScanAction
@@ -512,7 +498,11 @@ func UnmarshalConfig(b []byte, scannerHostname string, defaultActions []ScanActi
 		if err != nil {
 			return nil, err
 		}
-		task, err := NewScanTask(scanType, rawScan.CloudID, scannerHostname, rawScan.Hostname, actions, config.Roles, config.DiskMode)
+		diskMode, err := ParseDiskMode(rawScan.DiskMode)
+		if err != nil {
+			return nil, err
+		}
+		task, err := NewScanTask(scanType, rawScan.CloudID, scannerHostname, rawScan.Hostname, actions, config.Roles, diskMode)
 		if err != nil {
 			return nil, err
 		}
