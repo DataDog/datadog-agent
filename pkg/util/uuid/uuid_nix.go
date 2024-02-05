@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package utils
+package uuid
 
 import (
 	gopsutilhost "github.com/shirou/gopsutil/v3/host"
@@ -15,7 +15,7 @@ import (
 )
 
 // GetUUID returns the host ID.
-func getUUID() string {
+func GetUUID() string {
 	guid, _ := cache.Get[string](
 		guidCacheKey,
 		func() (string, error) {

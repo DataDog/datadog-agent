@@ -9,7 +9,7 @@
 
 //go:build windows
 
-package utils
+package uuid
 
 import (
 	"strings"
@@ -22,7 +22,7 @@ import (
 )
 
 // GetUUID returns the machine GUID on windows; copied from gopsutil
-func getUUID() string {
+func GetUUID() string {
 	guid, _ := cache.Get[string](
 		guidCacheKey,
 		func() (string, error) {
