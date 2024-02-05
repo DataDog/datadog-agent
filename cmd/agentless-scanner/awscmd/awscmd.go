@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -43,17 +42,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var statsd *ddogstatsd.Client
-
 const (
-	defaultWorkersCount = 15
-	defaultScannersMax  = 8 // max number of child-process scanners spawned by a worker in parallel
-
 	defaultSelfRegion = "us-east-1"
 )
 
 // RootCommand returns the AWS sub-command for the agentless-scanner.
-func RootCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
+func RootCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "aws",
 		Short:        "Datadog Agentless Scanner at your service.",
@@ -63,43 +57,21 @@ func RootCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction, n
 			if err := cmd.Parent().PersistentPreRunE(cmd.Parent(), args); err != nil {
 				return err
 			}
-			initStatsdClient()
-			awsutils.InitConfig(statsd, getAWSLimitsOptions(), []string{
+			awsutils.InitConfig(*statsd, getAWSLimitsOptions(), []string{
 				fmt.Sprintf("agent_version:%s", version.AgentVersion),
 			})
 			return nil
 		},
 	}
-	cmd.AddCommand(runCommand(defaultActions, noForkScanners))
-	cmd.AddCommand(scanCommand(diskMode, defaultActions, noForkScanners))
+	cmd.AddCommand(scanCommand(statsd, diskMode, defaultActions, noForkScanners))
 	cmd.AddCommand(snapshotCommand(diskMode, defaultActions))
-	cmd.AddCommand(offlineCommand(diskMode, defaultActions, noForkScanners))
+	cmd.AddCommand(offlineCommand(statsd, diskMode, defaultActions, noForkScanners))
 	cmd.AddCommand(attachCommand(diskMode, defaultActions))
 	cmd.AddCommand(cleanupCommand())
 	return cmd
 }
 
-func runCommand(defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
-	var runParams struct {
-		pidfilePath string
-		workers     int
-		scannersMax int
-	}
-
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Runs the agentless-scanner",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCmd(runParams.pidfilePath, runParams.workers, runParams.scannersMax, *defaultActions, *noForkScanners)
-		},
-	}
-	cmd.Flags().StringVarP(&runParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-	cmd.Flags().IntVar(&runParams.workers, "workers", defaultWorkersCount, "number of snapshots running in parallel")
-	cmd.Flags().IntVar(&runParams.scannersMax, "scannersMax", defaultScannersMax, "maximum number of scanner processes in parallel")
-	return cmd
-}
-
-func scanCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
+func scanCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
 	var flags struct {
 		Hostname string
 	}
@@ -116,7 +88,7 @@ func scanCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction, n
 			if err != nil {
 				return err
 			}
-			return scanCmd(resourceID, flags.Hostname, *defaultActions, *diskMode, *noForkScanners)
+			return scanCmd(*statsd, resourceID, flags.Hostname, *defaultActions, *diskMode, *noForkScanners)
 		},
 	}
 
@@ -160,7 +132,7 @@ func snapshotCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanActio
 	return cmd
 }
 
-func offlineCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
+func offlineCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
 	var cliArgs struct {
 		workers      int
 		regions      []string
@@ -195,11 +167,10 @@ func offlineCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction
 					Values: values,
 				})
 			}
-			return offlineCmd(cliArgs.workers, types.ScanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, filters, *diskMode, *defaultActions, *noForkScanners)
+			return offlineCmd(*statsd, cliArgs.workers, types.ScanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, filters, *diskMode, *defaultActions, *noForkScanners)
 		},
 	}
 
-	cmd.Flags().IntVar(&cliArgs.workers, "workers", defaultWorkersCount, "number of scans running in parallel")
 	cmd.Flags().StringSliceVar(&cliArgs.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
 	cmd.Flags().StringVar(&cliArgs.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
 	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(types.ScanTypeEBS), "scan type (ebs-volume or lambda)")
@@ -254,17 +225,6 @@ func cleanupCommand() *cobra.Command {
 	return cmd
 }
 
-func initStatsdClient() {
-	statsdHost := pkgconfig.GetBindHost()
-	statsdPort := pkgconfig.Datadog.GetInt("dogstatsd_port")
-	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
-	var err error
-	statsd, err = ddogstatsd.New(statsdAddr)
-	if err != nil {
-		log.Warnf("could not init dogstatsd client: %s", err)
-	}
-}
-
 func ctxTerminated() context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan os.Signal, 1)
@@ -280,53 +240,12 @@ func ctxTerminated() context.Context {
 	return ctx
 }
 
-func runCmd(pidfilePath string, workers, scannersMax int, defaultActions []types.ScanAction, noForkScanners bool) error {
-	ctx := ctxTerminated()
-
-	if pidfilePath != "" {
-		err := pidfile.WritePID(pidfilePath)
-		if err != nil {
-			return fmt.Errorf("could not write PID file, exiting: %w", err)
-		}
-		defer os.Remove(pidfilePath)
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
-	}
-
-	hostname, err := utils.GetHostnameWithContext(ctx)
-	if err != nil {
-		return fmt.Errorf("could not fetch hostname: %w", err)
-	}
-
-	scanner, err := runner.New(runner.Options{
-		Hostname:       hostname,
-		DdEnv:          pkgconfig.Datadog.GetString("env"),
-		Workers:        workers,
-		ScannersMax:    scannersMax,
-		PrintResults:   false,
-		NoFork:         noForkScanners,
-		DefaultActions: defaultActions,
-		DefaultRoles:   getDefaultRolesMapping(),
-		Statsd:         statsd,
-	})
-	if err != nil {
-		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
-	}
-	if err := scanner.CleanSlate(); err != nil {
-		log.Error(err)
-	}
-	if err := scanner.SubscribeRemoteConfig(ctx); err != nil {
-		return fmt.Errorf("could not accept configs from Remote Config: %w", err)
-	}
-	scanner.Start(ctx)
-	return nil
-}
-
 func getDefaultRolesMapping() types.RolesMapping {
 	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
 	return types.ParseRolesMapping(roles)
 }
 
-func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func scanCmd(statsd *ddogstatsd.Client, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -347,7 +266,7 @@ func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.Sc
 		Hostname:       hostname,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        1,
-		ScannersMax:    defaultScannersMax,
+		ScannersMax:    8,
 		PrintResults:   true,
 		NoFork:         noForkScanners,
 		DefaultActions: actions,
@@ -368,7 +287,7 @@ func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.Sc
 	return nil
 }
 
-func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+func offlineCmd(statsd *ddogstatsd.Client, workers int, scanType types.ScanType, regions []string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	ctx := ctxTerminated()
 	defer statsd.Flush()
 
@@ -437,7 +356,7 @@ func offlineCmd(workers int, scanType types.ScanType, regions []string, maxScans
 		Hostname:       hostname,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        workers,
-		ScannersMax:    defaultScannersMax,
+		ScannersMax:    8,
 		PrintResults:   printResults,
 		NoFork:         noForkScanners,
 		DefaultActions: actions,
