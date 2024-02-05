@@ -572,8 +572,8 @@ func startAgent(
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 
-	// Register JMX Check Loader and inject dogstatsd component
-	jmx.RegisterJMXCheckLoader(server)
+	// Init JMX runner and inject dogstatsd component
+	jmx.InitRunner(server)
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)

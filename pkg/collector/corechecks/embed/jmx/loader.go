@@ -24,8 +24,7 @@ import (
 type JMXCheckLoader struct{}
 
 // NewJMXCheckLoader creates a loader for go checks
-func NewJMXCheckLoader(server dogstatsdServer.Component) (*JMXCheckLoader, error) {
-	state.runner.initRunner(server)
+func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 	return &JMXCheckLoader{}, nil
 }
 
@@ -73,10 +72,14 @@ func (jl *JMXCheckLoader) String() string {
 	return "JMX Check Loader"
 }
 
-// RegisterJMXCheckLoader explicitly registers the JMXCheckLoader and injects the dogstatsd server component
-func RegisterJMXCheckLoader(server dogstatsdServer.Component) {
+// InitRunner inits the runner and injects the dogstatsd server component
+func InitRunner(server dogstatsdServer.Component) {
+	state.runner.initRunner(server)
+}
+
+func init() {
 	factory := func(sender.SenderManager) (check.Loader, error) {
-		return NewJMXCheckLoader(server)
+		return NewJMXCheckLoader()
 	}
 
 	loaders.RegisterLoader(10, factory)
