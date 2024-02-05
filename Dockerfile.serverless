@@ -12,18 +12,19 @@ ENV GOARCH=amd64
 ENV GOOS=linux
 
 # # copy module dependencies
-# COPY go.mod .
-# COPY go.sum .
+COPY go.mod .
+COPY go.sum .
 
 # copy the project itself
 COPY . .
 
 # download dependencies
-# RUN go mod download
+RUN go mod download
+
 # Since I have replace directive I have to vendor my dependencies locally
 
 # build the serverless binary
-RUN cd cmd/serverless && GOWORK=off go build -mod vendor -ldflags="-w -X github.com/DataDog/datadog-agent/pkg/serverless/tags.currentExtensionVersion=gustavo-test -X github.com/DataDog/datadog-agent/pkg/version.agentVersionDefault=gustavo-test" -tags "serverless otlp" -o datadog-agent
+RUN cd cmd/serverless && GOWORK=off go build -a -ldflags="-w -X github.com/DataDog/datadog-agent/pkg/serverless/tags.currentExtensionVersion=gustavo-test -X github.com/DataDog/datadog-agent/pkg/version.agentVersionDefault=gustavo-test" -tags "serverless otlp" -o datadog-agent
 RUN mv cmd/serverless/datadog-agent .
 
 FROM scratch AS export-stage
