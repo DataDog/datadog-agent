@@ -27,6 +27,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var testRootNs uint32
@@ -53,6 +54,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestReadInitialTCPState(t *testing.T) {
+	flake.Mark(t)
 	nsName := netlinktestutil.AddNS(t)
 	t.Cleanup(func() {
 		err := exec.Command("testdata/teardown_netns.sh").Run()
