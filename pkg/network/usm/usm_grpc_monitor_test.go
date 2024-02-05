@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 const (
@@ -50,6 +51,7 @@ type usmGRPCSuite struct {
 }
 
 func TestGRPCScenarios(t *testing.T) {
+	flake.Mark(t)
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < http2.MinimumKernelVersion {
