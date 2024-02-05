@@ -491,7 +491,7 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 	defer s.cleanupScan(scan)
 	switch scan.Type {
 	case types.ScanTypeHost:
-		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName}, pool, s.resultsCh)
+		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName()}, pool, s.resultsCh)
 	case types.ScanTypeEBS:
 		mountpoints, err := awsutils.SetupEBS(ctx, scan, &s.waiter)
 		if err != nil {
@@ -656,7 +656,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 		defer wg.Done()
 
 		switch action {
-		case types.VulnsHost:
+		case types.ScanActionVulnsHost:
 			result := pool.launchScanner(ctx, types.ScannerOptions{
 				Scanner:   types.ScannerNameHostVulns,
 				Scan:      scan,
@@ -669,7 +669,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 				result.Vulns.Tags = nil
 			}
 			resultsCh <- result
-		case types.VulnsContainers:
+		case types.ScanActionVulnsContainers:
 			ctrResult := pool.launchScanner(ctx, types.ScannerOptions{
 				Scanner:   types.ScannerNameContainers,
 				Scan:      scan,
@@ -704,7 +704,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 					}(*ctr)
 				}
 			}
-		case types.Malware:
+		case types.ScanActionMalware:
 			resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
 				Scanner:   types.ScannerNameMalware,
 				Scan:      scan,

@@ -62,7 +62,7 @@ func NewEBSBackend(ebsclient *ebs.Client, snapshot types.CloudID) (backend.Backe
 	}
 	b := &ebsBackend{
 		ebsclient:   ebsclient,
-		snapshotID:  snapshot.ResourceName,
+		snapshotID:  snapshot.ResourceName(),
 		cache:       cache,
 		singlegroup: new(singleflight.Group),
 	}

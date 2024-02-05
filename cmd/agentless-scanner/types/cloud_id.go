@@ -1,11 +1,7 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2024-present Datadog, Inc.
-
 package types
 
 import (
+	"encoding"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -14,20 +10,51 @@ import (
 )
 
 // CloudID represents an Cloud Resource Identifier.
-// ie. an ARN for Amazon AWS resources.
+// ie. an ARN for Amazon resources.
 type CloudID struct {
-	Partition    string       `json:"Partition"`
-	Service      string       `json:"Service"`
-	Region       string       `json:"Region"`
-	AccountID    string       `json:"AccountID"`
-	ResourceType ResourceType `json:"ResourceType"`
-	ResourceName string       `json:"ResourceName"`
-	ResourceFull string       `json:"ResourceFull"`
+	Partition string
+	Service   string
+	Region    string
+	AccountID string
+	Resource  string
+
+	resourceType ResourceType
+	resourceName string
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (id *CloudID) UnmarshalText(text []byte) error {
+	v, err := ParseCloudID(string(text))
+	if err != nil {
+		return err
+	}
+	*id = v
+	return nil
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (id CloudID) MarshalText() (text []byte, err error) {
+	return []byte(id.String()), nil
+}
+
+// ResourceType returns the type of the resource.
+func (id CloudID) ResourceType() ResourceType {
+	return id.resourceType
+}
+
+// ResourceName returns the name of the resource.
+func (id CloudID) ResourceName() string {
+	return id.resourceName
 }
 
 func (id CloudID) String() string {
-	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", id.Partition, id.Service, id.Region, id.AccountID, id.ResourceFull)
+	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", id.Partition, id.Service, id.Region, id.AccountID, id.Resource)
 }
+
+var (
+	_ encoding.TextMarshaler   = CloudID{}
+	_ encoding.TextUnmarshaler = &CloudID{}
+)
 
 // ParseCloudID parses an cloud resource identifier and checks that it is of
 // the expected type.
@@ -40,26 +67,26 @@ func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 		return CloudID{}, errors.New("cloudID: invalid number of sections")
 	}
 	id := CloudID{
-		Partition:    sections[1],
-		Service:      sections[2],
-		Region:       sections[3],
-		AccountID:    sections[4],
-		ResourceFull: sections[5],
+		Partition: sections[1],
+		Service:   sections[2],
+		Region:    sections[3],
+		AccountID: sections[4],
+		Resource:  sections[5],
 	}
 	var err error
-	id.ResourceType, id.ResourceName, err = parseAWSCloudID(id)
+	id.resourceType, id.resourceName, err = parseAWSCloudID(id)
 	if err != nil {
 		return CloudID{}, err
 	}
 	isExpected := len(expectedTypes) == 0
 	for _, t := range expectedTypes {
-		if t == id.ResourceType {
+		if t == id.resourceType {
 			isExpected = true
 			break
 		}
 	}
 	if !isExpected {
-		return CloudID{}, fmt.Errorf("bad cloudID: expecting one of these resource types %v but got %s", expectedTypes, id.ResourceType)
+		return CloudID{}, fmt.Errorf("bad cloudID: expecting one of these resource types %v but got %s", expectedTypes, id.resourceType)
 	}
 	return id, nil
 }
@@ -74,7 +101,7 @@ var (
 )
 
 func parseAWSCloudID(id CloudID) (resourceType ResourceType, resourceName string, err error) {
-	resource := id.ResourceFull
+	resource := id.Resource
 	if id.Partition == "localhost" {
 		return ResourceTypeLocalDir, filepath.Join("/", resource), nil
 	}
