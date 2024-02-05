@@ -80,13 +80,12 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 		}
 		cfgResponse, err := client.ClientGetConfigs(req.Context(), &configsRequest)
 		if err != nil {
+			statusCode = http.StatusInternalServerError
 			if e, ok := status.FromError(err); ok {
 				switch e.Code() {
 				case codes.Unimplemented, codes.NotFound:
 					statusCode = http.StatusNotFound
 				}
-			} else {
-				statusCode = http.StatusInternalServerError
 			}
 			http.Error(w, err.Error(), statusCode)
 			return

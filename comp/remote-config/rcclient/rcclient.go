@@ -18,6 +18,7 @@ import (
 	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -63,10 +64,17 @@ type dependencies struct {
 	TaskListeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
-func newRemoteConfigClient(deps dependencies) (Component, error) {
+type provides struct {
+	fx.Out
+
+	Comp           Component
+	StatusProvider status.InformationProvider
+}
+
+func newRemoteConfigClient(deps dependencies) (provides, error) {
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
-		return nil, err
+		return provides{}, err
 	}
 
 	// We have to create the client in the constructor and set its name later
@@ -78,7 +86,7 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 		client.WithPollInterval(5*time.Second),
 	)
 	if err != nil {
-		return nil, err
+		return provides{}, err
 	}
 
 	rc := rcClient{
@@ -88,7 +96,10 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 		client:        c,
 	}
 
-	return rc, nil
+	return provides{
+		Comp:           rc,
+		StatusProvider: status.NewInformationProvider(rc),
+	}, nil
 }
 
 // Listen subscribes to AGENT_CONFIG configurations and start the remote config client

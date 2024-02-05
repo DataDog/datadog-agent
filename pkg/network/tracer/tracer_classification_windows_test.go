@@ -8,9 +8,7 @@
 package tracer
 
 import (
-	"net"
 	"testing"
-	"time"
 )
 
 func TestProtocolClassification(t *testing.T) {
@@ -40,11 +38,4 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 	tr := setupTracer(t, cfg)
 	params.postTracerSetup(t, params.context)
 	params.validation(t, params.context, tr)
-}
-
-// writeInput is a dummy implementation needed for the gRPC classification raw
-// payload test to build on Windows. We don't need an actual implementation
-// as the test will be skipped on Windows.
-func writeInput(net.Conn, []byte, time.Duration) error {
-	return nil
 }

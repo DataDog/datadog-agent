@@ -1,0 +1,5 @@
+{{ with .otlp }}
+  Status: {{ if .otlpStatus }}Enabled{{else}}Not enabled{{ end }}
+  Collector status: {{ .otlpCollectorStatus }}
+  {{ if .otlpCollectorStatusErr }}Error: {{ .otlpCollectorStatusErr }}{{ end }}
+{{ end }}

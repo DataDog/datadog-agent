@@ -39,6 +39,7 @@ const (
 	LanguageDetectionModule      types.ModuleName = "language_detection"
 	WindowsCrashDetectModule     types.ModuleName = "windows_crash_detection"
 	ComplianceModule             types.ModuleName = "compliance"
+	PingModule                   types.ModuleName = "ping"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -110,9 +111,8 @@ func load() (*types.Config, error) {
 
 	npmEnabled := cfg.GetBool(netNS("enabled"))
 	usmEnabled := cfg.GetBool(smNS("enabled"))
-	dsmEnabled := cfg.GetBool(dsmNS("enabled"))
 
-	if npmEnabled || usmEnabled || dsmEnabled {
+	if npmEnabled || usmEnabled {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
@@ -141,6 +141,9 @@ func load() (*types.Config, error) {
 	}
 	if cfg.GetBool("system_probe_config.language_detection.enabled") {
 		c.EnabledModules[LanguageDetectionModule] = struct{}{}
+	}
+	if cfg.GetBool(pngNS("enabled")) {
+		c.EnabledModules[PingModule] = struct{}{}
 	}
 
 	if cfg.GetBool(wcdNS("enabled")) {

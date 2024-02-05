@@ -7,13 +7,14 @@
 package snmptraps
 
 import (
+	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 )
 
 // PopulateStatus populates the status stats
 func PopulateStatus(stats map[string]interface{}) {
-	if traps.IsEnabled(config.Datadog) {
-		stats["snmpTrapsStats"] = traps.GetStatus()
+	if trapsconfig.IsEnabled(config.Datadog) {
+		stats["snmpTrapsStats"] = statusimpl.GetStatus()
 	}
 }

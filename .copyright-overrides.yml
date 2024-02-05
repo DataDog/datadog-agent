@@ -220,6 +220,11 @@ github.com/google/gnostic/extensions: Copyright 2017-2020, Google LLC.
 github.com/google/gnostic/jsonschema: Copyright 2017-2020, Google LLC.
 github.com/google/gnostic/openapiv2: Copyright 2017-2020, Google LLC.
 github.com/google/gnostic/openapiv3: Copyright 2017-2020, Google LLC.
+github.com/google/gnostic-models/compiler: Copyright 2017-2022, Google LLC.
+github.com/google/gnostic-models/extensions: Copyright 2017-2022, Google LLC
+github.com/google/gnostic-models/jsonschema: Copyright 2017-2022, Google LLC
+github.com/google/gnostic-models/openapiv2: Copyright 2017-2022, Google LLC
+github.com/google/gnostic-models/openapiv3: Copyright 2017-2022, Google LLC
 github.com/google/s2a-go: Copyright (c) 2020 Google
 github.com/google/s2a-go/fallback: Copyright (c) 2020 Google
 github.com/google/s2a-go/internal/authinfo: Copyright (c) 2020 Google

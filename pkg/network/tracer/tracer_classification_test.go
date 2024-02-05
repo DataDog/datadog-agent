@@ -44,11 +44,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/mysql"
 	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 )
 
 const (
-	defaultTimeout = 30 * time.Second
+	defaultTimeout      = 30 * time.Second
+	http2DefaultTimeout = 3 * time.Second
 )
 
 // testContext shares the context of a given test.
@@ -1657,7 +1658,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 				buf := new(bytes.Buffer)
 				framer := http2.NewFramer(buf, nil)
-				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaderFields})
 				require.NoError(t, err)
 
 				// Writing the header frames to the buffer using the Framer.
@@ -1671,7 +1672,8 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := net.Dial("tcp", ctx.targetAddress)
 				require.NoError(t, err)
 				defer c.Close()
-				require.NoError(t, writeInput(c, buf.Bytes(), time.Second))
+				_, err = c.Write(buf.Bytes())
+				require.NoError(t, err)
 			},
 			teardown: func(t *testing.T, ctx testContext) {
 				ctx.extras["server"].(*TCPServer).Shutdown()
@@ -1719,10 +1721,19 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				defer c.Close()
 
 				// Writing a magic and the settings in the same packet to socket.
-				require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
+				_, err = c.Write(usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()))
+				require.NoError(t, err)
 				buf.Reset()
+				c.SetReadDeadline(time.Now().Add(http2DefaultTimeout))
+				frameReader := http2.NewFramer(nil, c)
+				for {
+					_, err := frameReader.ReadFrame()
+					if err != nil {
+						break
+					}
+				}
 
-				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaderFields})
 				require.NoError(t, err)
 
 				// Writing the header frames to the buffer using the Framer.
@@ -1733,7 +1744,16 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					EndHeaders:    true,
 				}))
 
-				require.NoError(t, writeInput(c, buf.Bytes(), time.Second))
+				_, err = c.Write(buf.Bytes())
+				require.NoError(t, err)
+				c.SetReadDeadline(time.Now().Add(http2DefaultTimeout))
+				frameReader = http2.NewFramer(nil, c)
+				for {
+					_, err := frameReader.ReadFrame()
+					if err != nil {
+						break
+					}
+				}
 			},
 			teardown: func(t *testing.T, ctx testContext) {
 				ctx.extras["server"].(*TCPServer).Shutdown()

@@ -16,7 +16,9 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -58,6 +60,15 @@ type dependencies struct {
 	Log            logComponent.Component
 	Config         configComponent.Component
 	InventoryAgent inventoryagent.Component
+	Hostname       hostname.Component
+}
+
+type provides struct {
+	fx.Out
+
+	Comp           optional.Option[Component]
+	FlareProvider  flaretypes.Provider
+	StatusProvider statusComponent.InformationProvider
 }
 
 // agent represents the data pipeline that collects, decodes,
@@ -67,6 +78,7 @@ type agent struct {
 	log            logComponent.Component
 	config         pkgConfig.Reader
 	inventoryAgent inventoryagent.Component
+	hostname       hostname.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -85,13 +97,6 @@ type agent struct {
 	started *atomic.Bool
 }
 
-type provides struct {
-	fx.Out
-
-	Comp          optional.Option[Component]
-	FlareProvider flaretypes.Provider
-}
-
 func newLogsAgent(deps dependencies) provides {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
@@ -102,6 +107,7 @@ func newLogsAgent(deps dependencies) provides {
 			log:            deps.Log,
 			config:         deps.Config,
 			inventoryAgent: deps.InventoryAgent,
+			hostname:       deps.Hostname,
 			started:        atomic.NewBool(false),
 
 			sources:         sources.NewLogSources(),
@@ -115,13 +121,17 @@ func newLogsAgent(deps dependencies) provides {
 		})
 
 		return provides{
-			Comp:          optional.NewOption[Component](logsAgent),
-			FlareProvider: flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
+			Comp:           optional.NewOption[Component](logsAgent),
+			StatusProvider: statusComponent.NewInformationProvider(statusProvider{}),
+			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 		}
 	}
 
 	deps.Log.Info("logs-agent disabled")
-	return provides{Comp: optional.NewNoneOption[Component]()}
+	return provides{
+		Comp:           optional.NewNoneOption[Component](),
+		StatusProvider: statusComponent.NewInformationProvider(statusProvider{}),
+	}
 }
 
 func (a *agent) start(context.Context) error {
