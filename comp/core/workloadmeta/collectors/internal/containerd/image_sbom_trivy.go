@@ -49,7 +49,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	filterParams := workloadmeta.FilterParams{
 		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
 		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeSet,
+		EventType: workloadmeta.EventTypeAll,
 	}
 	imgEventsCh := c.store.Subscribe(
 		"SBOM collector",
@@ -113,12 +113,25 @@ func (c *collector) startRetryLoop(ctx context.Context, resultChan chan<- sbom.S
 	}
 }
 
+// handleUnsetEvent handles ContainerImageMetadata unset events.
+// It removes the image from the retry queue.
+func (c *collector) handleUnsetEvent(event workloadmeta.Event) {
+	if c.queue != nil && event.Entity != nil {
+		id := event.Entity.GetID()
+		c.queue.Forget(id)
+		c.queue.Done(id)
+	}
+}
+
 // handleEventBundle handles ContainerImageMetadata set events for which no SBOM generation attempt was done.
 func (c *collector) handleEventBundle(ctx context.Context, eventBundle workloadmeta.EventBundle, resultChan chan<- sbom.ScanResult) {
 	eventBundle.Acknowledge()
 	for _, event := range eventBundle.Events {
+		if event.Type == workloadmeta.EventTypeUnset {
+			c.handleUnsetEvent(event)
+			continue
+		}
 		image := event.Entity.(*workloadmeta.ContainerImageMetadata)
-
 		switch image.SBOM.Status {
 		case workloadmeta.Success:
 			log.Debugf("SBOM available for image: %s/%s (id %s) available", image.Namespace, image.Name, image.ID)
