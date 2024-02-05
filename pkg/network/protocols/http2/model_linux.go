@@ -254,7 +254,7 @@ func (tx *EbpfTx) RequestStarted() uint64 {
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (tx *EbpfTx) SetRequestMethod(m http.Method) {
+func (tx *EbpfTx) SetRequestMethod(_ http.Method) {
 	// if we set Static_table_entry to be different from 0, and no indexed value, it will default to 0 which is "UNKNOWN"
 	tx.Stream.Request_method.Static_table_entry = 1
 }
