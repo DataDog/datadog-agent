@@ -6,7 +6,6 @@
 package apm
 
 import (
-	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -26,9 +25,6 @@ type VMFakeintakeSuite struct {
 }
 
 func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
-	if !flag.Parsed() {
-		flag.Parse()
-	}
 	opts = append(opts, awshost.WithDocker())
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
