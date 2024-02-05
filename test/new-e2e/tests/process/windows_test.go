@@ -26,7 +26,6 @@ type windowsTestSuite struct {
 }
 
 func TestWindowsTestSuite(t *testing.T) {
-	t.Skip("PROCS-3644: consistent failures on process tests")
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
