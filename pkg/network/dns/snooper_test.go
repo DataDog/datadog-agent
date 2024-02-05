@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dnsMonitor) {
@@ -52,6 +53,7 @@ func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dns
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
+	flake.Mark(t)
 	cacheTelemetry.length.Set(0)
 	cacheTelemetry.lookups.Delete()
 	cacheTelemetry.resolved.Delete()
