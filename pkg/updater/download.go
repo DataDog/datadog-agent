@@ -12,17 +12,23 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	agentArchiveFileName = "agent.tar.gz"
+	maxArchiveSize       = 1 << 30 // 1GB
+	maxDecompressedSize  = 1 << 30 // 1GB
+	maxFileSize          = 1 << 30 // 1GB
+	maxFileCount         = 1000
 )
 
 // downloader is the downloader used by the updater to download packages.
@@ -62,7 +68,7 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	}
 	defer resp.Body.Close()
 	hashWriter := sha256.New()
-	reader := io.TeeReader(resp.Body, hashWriter)
+	reader := io.TeeReader(io.LimitReader(req.Body, maxArchiveSize), hashWriter)
 	archivePath := filepath.Join(tmpDir, agentArchiveFileName)
 	archiveFile, err := os.Create(archivePath)
 	if err != nil {
@@ -107,7 +113,11 @@ func extractTarGz(archivePath string, destinationPath string) error {
 		return fmt.Errorf("could not create gzip reader: %w", err)
 	}
 	defer gzr.Close()
-	tr := tar.NewReader(gzr)
+
+	// Limit the number of files and the size of the decompressed archive
+	archiveFileCount := 0
+	archiveReader := io.LimitReader(gzr, maxDecompressedSize)
+	tr := tar.NewReader(archiveReader)
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -117,17 +127,29 @@ func extractTarGz(archivePath string, destinationPath string) error {
 			return fmt.Errorf("could not read tar header: %w", err)
 		}
 		cleanName := filepath.Clean(header.Name)
-		if strings.HasPrefix(cleanName, "..") {
+		target := filepath.Join(destinationPath, cleanName)
+
+		// Check for zip-slip attacks
+		outPath, err := filepath.Abs(target)
+		if err != nil {
+			return fmt.Errorf("could not get absolute path for %s: %w", cleanName, err)
+		}
+		// Ensure the file is within the destination directory
+		if !strings.HasPrefix(outPath, destinationPath) {
 			return fmt.Errorf("tar entry %s is trying to escape the destination directory", header.Name)
 		}
-		target := filepath.Join(destinationPath, cleanName)
+
 		switch header.Typeflag {
 		case tar.TypeDir:
-			err = os.MkdirAll(target, 0755)
+			err = os.MkdirAll(target, 0o755)
 			if err != nil {
 				return fmt.Errorf("could not create directory: %w", err)
 			}
 		case tar.TypeReg:
+			archiveFileCount++
+			if archiveFileCount > maxFileCount {
+				return errors.New("archive contains too many files")
+			}
 			err = extractTarGzFile(target, tr)
 			if err != nil {
 				return err // already wrapped
@@ -143,8 +165,7 @@ func extractTarGz(archivePath string, destinationPath string) error {
 // extractTarGzFile extracts a file from a tar.gz archive.
 // It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
 func extractTarGzFile(targetPath string, reader io.Reader) error {
-	const maxFileSize = 1 << 30 // 1GB, adjust as needed
-	err := os.MkdirAll(filepath.Dir(targetPath), 0755)
+	err := os.MkdirAll(filepath.Dir(targetPath), 0o755)
 	if err != nil {
 		return fmt.Errorf("could not create directory: %w", err)
 	}
@@ -153,9 +174,12 @@ func extractTarGzFile(targetPath string, reader io.Reader) error {
 		return fmt.Errorf("could not create file: %w", err)
 	}
 	defer f.Close()
-	limitedReader := &io.LimitedReader{R: reader, N: maxFileSize}
-	_, err = io.Copy(f, limitedReader)
+	limitedReader := io.LimitReader(reader, maxFileSize)
+	n, err := io.Copy(f, limitedReader)
 	if err != nil {
+		if errors.Is(err, io.EOF) && n == maxFileSize {
+			return fmt.Errorf("content truncated: file %q is too large: %w", targetPath, err)
+		}
 		return fmt.Errorf("could not write file: %w", err)
 	}
 	return nil
