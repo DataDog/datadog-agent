@@ -174,6 +174,7 @@ DEFAULT_MODULES = {
     "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
         "comp/forwarder/orchestrator/orchestratorinterface", independent=True
     ),
+    "comp/core/hostname/hostnameinterface": GoModule("comp/core/hostname/hostnameinterface", independent=True),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
