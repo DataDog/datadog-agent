@@ -139,7 +139,7 @@ typedef struct {
     __u8 raw_buffer[HTTP2_STATUS_CODE_MAX_LEN];
     bool is_huffman_encoded;
 
-    __u8 indexed_value;
+    __u8 static_table_entry;
     bool finalized;
 } status_code_t;
 
