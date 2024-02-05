@@ -72,7 +72,7 @@ func CleanSlate(ctx context.Context, bds []devices.BlockDevice, roles types.Role
 
 	if self, err := GetSelfEC2InstanceIndentity(ctx); err == nil {
 		for _, volumeID := range attachedVolumes {
-			volumeID, err := EC2CloudID(self.Region, self.AccountID, types.ResourceTypeVolume, volumeID)
+			volumeID, err := types.AWSCloudID("ec2", self.Region, self.AccountID, types.ResourceTypeVolume, volumeID)
 			if err != nil {
 				log.Warnf("clean slate: %v", err)
 				continue
