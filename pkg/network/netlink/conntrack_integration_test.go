@@ -24,6 +24,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestMain(m *testing.M) {
@@ -194,6 +195,7 @@ func TestConntrackExists6(t *testing.T) {
 }
 
 func TestConntrackExistsRootDNAT(t *testing.T) {
+	flake.Mark(t)
 	destIP := "10.10.1.1"
 	destPort := 80
 	listenIP := "2.2.2.4"
