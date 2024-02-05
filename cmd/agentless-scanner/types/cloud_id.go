@@ -8,7 +8,8 @@ import (
 	"strings"
 )
 
-// CloudID represents an Amazon Resource Name.
+// CloudID represents an Cloud Resource Identifier.
+// ie. an ARN for Amazon AWS resources.
 type CloudID struct {
 	Partition    string       `json:"Partition"`
 	Service      string       `json:"Service"`
