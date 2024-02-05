@@ -21,14 +21,13 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unsafe"
 
-	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -305,10 +304,10 @@ func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64) error {
-	// get the updated map value so we can check if the current offset is
+func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[uint64, TracerStatus], expected *fieldValues, maxRetries *int, threshold uint64) error {
+	// get the updated map value, so we can check if the current offset is
 	// the right one
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
+	if err := mp.Lookup(&zero, t.status); err != nil {
 		return fmt.Errorf("error reading tracer_status: %v", err)
 	}
 
@@ -671,16 +670,16 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 
 	t.status.State = uint64(StateChecking)
 	// update the map with the new offset/field to check
-	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
+	if err := mp.Put(&zero, t.status); err != nil {
 		return fmt.Errorf("error updating tracer_t.status: %v", err)
 	}
 
 	return nil
 }
 
-func (t *tracerOffsetGuesser) setReadyState(mp *ebpf.Map) error {
+func (t *tracerOffsetGuesser) setReadyState(mp *maps.GenericMap[uint64, TracerStatus]) error {
 	t.status.State = uint64(StateReady)
-	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
+	if err := mp.Put(&zero, t.status); err != nil {
 		return fmt.Errorf("error updating tracer_status: %v", err)
 	}
 	return nil
@@ -710,7 +709,7 @@ func (t *tracerOffsetGuesser) flowi6EntryState() GuessWhat {
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
 func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEditor, error) {
-	mp, _, err := t.m.GetMap(probes.TracerStatusMap)
+	mp, err := maps.GetMap[uint64, TracerStatus](t.m, probes.TracerStatusMap)
 	if err != nil {
 		return nil, fmt.Errorf("unable to find map %s: %s", probes.TracerStatusMap, err)
 	}
@@ -734,8 +733,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		cProcName[i] = int8(ch)
 	}
 
-	t.guessUDPv6 = cfg.CollectUDPv6Conns
-	t.guessTCPv6 = cfg.CollectTCPv6Conns
+	t.guessTCPv6, t.guessUDPv6 = getIpv6Configuration(cfg)
 	t.status = &TracerStatus{
 		State:        uint64(StateChecking),
 		Proc:         Proc{Comm: cProcName},
@@ -744,7 +742,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	}
 
 	// if we already have the offsets, just return
-	err = mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(t.status))
+	err = mp.Lookup(&zero, t.status)
 	if err == nil && State(t.status.State) == StateReady {
 		return t.getConstantEditors(), nil
 	}
@@ -756,7 +754,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	defer eventGenerator.Close()
 
 	// initialize map
-	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
+	if err := mp.Put(&zero, t.status); err != nil {
 		return nil, fmt.Errorf("error initializing tracer_status map: %v", err)
 	}
 
@@ -828,6 +826,8 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_sk_buff_sock", Value: t.status.Offset_sk_buff_sock},
 		{Name: "offset_sk_buff_transport_header", Value: t.status.Offset_sk_buff_transport_header},
 		{Name: "offset_sk_buff_head", Value: t.status.Offset_sk_buff_head},
+		{Name: "tcpv6_enabled", Value: boolToUint64(t.guessTCPv6)},
+		{Name: "udpv6_enabled", Value: boolToUint64(t.guessUDPv6)},
 	}
 }
 
@@ -1100,65 +1100,18 @@ type tracerOffsets struct {
 	err     error
 }
 
-func boolConst(name string, value bool) manager.ConstantEditor {
-	c := manager.ConstantEditor{
-		Name:  name,
-		Value: uint64(1),
-	}
-	if !value {
-		c.Value = uint64(0)
-	}
-
-	return c
-}
-
 func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
-	fromConfig := func(c *config.Config, offsets []manager.ConstantEditor) []manager.ConstantEditor {
-		//nolint:revive // TODO(NET) Fix revive linter
-		var foundTcp, foundUdp bool
-		for o := range offsets {
-			switch offsets[o].Name {
-			case "tcpv6_enabled":
-				offsets[o] = boolConst("tcpv6_enabled", c.CollectTCPv6Conns)
-				foundTcp = true
-			case "udpv6_enabled":
-				offsets[o] = boolConst("udpv6_enabled", c.CollectUDPv6Conns)
-				foundUdp = true
-			}
-			if foundTcp && foundUdp {
-				break
-			}
-		}
-		if !foundTcp {
-			offsets = append(offsets, boolConst("tcpv6_enabled", c.CollectTCPv6Conns))
-		}
-		if !foundUdp {
-			offsets = append(offsets, boolConst("udpv6_enabled", c.CollectUDPv6Conns))
-		}
-
-		return offsets
-	}
-
 	if o.err != nil {
 		return nil, o.err
 	}
 
-	if cfg.CollectUDPv6Conns {
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return nil, err
-		}
-
-		if kv >= kernel.VersionCode(5, 18, 0) {
-			_cfg := *cfg
-			_cfg.CollectUDPv6Conns = false
-			cfg = &_cfg
-		}
-	}
+	_, udpv6Enabled := getIpv6Configuration(cfg)
+	_cfg := *cfg
+	_cfg.CollectUDPv6Conns = udpv6Enabled
+	cfg = &_cfg
 
 	if len(o.offsets) > 0 {
-		// already run
-		return fromConfig(cfg, o.offsets), o.err
+		return o.offsets, o.err
 	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
@@ -1167,9 +1120,8 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 		return nil, o.err
 	}
 	defer offsetBuf.Close()
-
 	o.offsets, o.err = RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
-	return fromConfig(cfg, o.offsets), o.err
+	return o.offsets, o.err
 }
 
 func (o *tracerOffsets) Reset() {

@@ -10,20 +10,18 @@ package ebpf
 import (
 	"sync"
 	"time"
-	"unsafe"
 
 	cebpf "github.com/cilium/ebpf"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MapCleaner is responsible for periodically sweeping an eBPF map
 // and deleting entries that satisfy a certain predicate function supplied by the user
 type MapCleaner[K any, V any] struct {
-	emap        *cebpf.Map
-	keyBatch    []K
-	valuesBatch []V
+	emap      *maps.GenericMap[K, V]
+	batchSize uint32
 
 	once sync.Once
 
@@ -42,11 +40,15 @@ func NewMapCleaner[K any, V any](emap *cebpf.Map, defaultBatchSize uint32) (*Map
 		batchSize = 1
 	}
 
+	m, err := maps.Map[K, V](emap)
+	if err != nil {
+		return nil, err
+	}
+
 	return &MapCleaner[K, V]{
-		emap:        emap,
-		keyBatch:    make([]K, batchSize),
-		valuesBatch: make([]V, batchSize),
-		done:        make(chan struct{}),
+		emap:      m,
+		batchSize: batchSize,
+		done:      make(chan struct{}),
 	}, nil
 }
 
@@ -64,10 +66,11 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, 
 	}
 
 	// Since kernel 5.6, the eBPF library supports batch operations on maps, which reduces the number of syscalls
-	// required to clean the map. We use the new batch operations if the kernel version is >= 5.6, and fallback to
+	// required to clean the map. We use the new batch operations if they are supported (we check with a feature test instead
+	// of a version comparison because some distros have backported this API), and fallback to
 	// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
 	cleaner := mc.cleanWithoutBatches
-	if version, err := kernel.HostVersion(); err == nil && version >= kernel.VersionCode(5, 6, 0) {
+	if maps.BatchAPISupported() {
 		cleaner = mc.cleanWithBatches
 	}
 
@@ -117,32 +120,22 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 	now := time.Now()
 
 	var keysToDelete []K
+	var key K
+	var val V
 	totalCount, deletedCount := 0, 0
-	var next K
-	var n int
-	for {
-		n, _ = mc.emap.BatchLookup(next, &next, mc.keyBatch, mc.valuesBatch, nil)
-		if n == 0 {
-			break
+	it := mc.emap.IterateWithBatchSize(int(mc.batchSize))
+
+	for it.Next(&key, &val) {
+		if !shouldClean(nowTS, key, val) {
+			continue
 		}
 
-		totalCount += n
-		for i := 0; i < n; i++ {
-			if !shouldClean(nowTS, mc.keyBatch[i], mc.valuesBatch[i]) {
-				continue
-			}
-			keysToDelete = append(keysToDelete, mc.keyBatch[i])
-		}
-
-		// Just a safety check to avoid an infinite loop.
-		if totalCount >= int(mc.emap.MaxEntries()) {
-			break
-		}
+		keysToDelete = append(keysToDelete, key)
 	}
 
 	var deletionError error
 	if len(keysToDelete) > 0 {
-		deletedCount, deletionError = mc.emap.BatchDelete(keysToDelete, nil)
+		deletedCount, deletionError = mc.emap.BatchDelete(keysToDelete)
 	}
 
 	elapsed := time.Since(now)
@@ -160,21 +153,21 @@ func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(no
 	now := time.Now()
 
 	var keysToDelete []K
+	var key K
+	var val V
 	totalCount, deletedCount := 0, 0
 
 	entries := mc.emap.Iterate()
-	// we resort to unsafe.Pointers because by doing so the underlying eBPF
-	// library avoids marshaling the key/value variables while traversing the map
-	for entries.Next(unsafe.Pointer(&mc.keyBatch[0]), unsafe.Pointer(&mc.valuesBatch[0])) {
+	for entries.Next(&key, &val) {
 		totalCount++
-		if !shouldClean(nowTS, mc.keyBatch[0], mc.valuesBatch[0]) {
+		if !shouldClean(nowTS, key, val) {
 			continue
 		}
-		keysToDelete = append(keysToDelete, mc.keyBatch[0])
+		keysToDelete = append(keysToDelete, key)
 	}
 
-	for _, key := range keysToDelete {
-		err := mc.emap.Delete(unsafe.Pointer(&key))
+	for _, k := range keysToDelete {
+		err := mc.emap.Delete(&k)
 		if err == nil {
 			deletedCount++
 		}

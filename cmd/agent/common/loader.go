@@ -19,49 +19,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetWorkloadmetaInit provides the InitHelper for workloadmeta so it can be injected as a Param
 // at workloadmeta comp fx injection.
 func GetWorkloadmetaInit() workloadmeta.InitHelper {
 	return workloadmeta.InitHelper(func(ctx context.Context, wm workloadmeta.Component) error {
-		var t tagger.Tagger
-		var e error
-		if config.IsCLCRunner() {
-			options, err := remote.CLCRunnerOptions()
-			if err != nil {
-				e = fmt.Errorf("unable to configure the remote tagger: %s", err)
-				t = local.NewFakeTagger()
-			} else if options.Disabled {
-				// TODO(components): log the remote tagger being disabled.
-				// wm.log.Info("remote tagger is disabled")
-				t = local.NewFakeTagger()
-			} else {
-				t = remote.NewTagger(options)
-			}
-		} else {
-			t = local.NewTagger(wm)
-		}
-
 		// SBOM scanner needs to be called here as initialization is required prior to the
 		// catalog getting instantiated and initialized.
 		sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
 		if err != nil {
-			log.Errorf("failed to create SBOM scanner: %s", err)
+			return fmt.Errorf("failed to create SBOM scanner: %s", err)
 		} else if sbomScanner != nil {
 			sbomScanner.Start(ctx)
 		}
 
-		tagger.SetDefaultTagger(t)
-		if err := tagger.Init(ctx); err != nil {
-			e = fmt.Errorf("failed to start the tagger: %s", err)
-		}
-
-		return e
+		return nil
 	})
 }
 
@@ -82,7 +55,7 @@ func LoadCollector(senderManager sender.SenderManager) collector.Collector {
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.Component, confdPath string) {
+func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.Component, wmeta workloadmeta.Component, confdPath string) {
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(path.GetDistPath(), "conf.d"),
@@ -96,7 +69,7 @@ func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.C
 	// No big concern here, but be sure to understand there is an implicit
 	// assumption about the initializtion of the tagger prior to being here.
 	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver)
+	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver, wmeta)
 
 	LoadCollector(senderManager)
 }

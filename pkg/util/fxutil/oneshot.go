@@ -7,6 +7,7 @@ package fxutil
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/fx"
 )
@@ -46,15 +47,19 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancel()
 	if err := app.Start(startCtx); err != nil {
-		return UnwrapIfErrArgumentsFailed(err)
+		return errors.Join(UnwrapIfErrArgumentsFailed(err), stopApp(app))
 	}
 
 	// call the original oneShotFunc with the args captured during app startup
 	err := delayedCall.call()
 	if err != nil {
-		return err
+		return errors.Join(err, stopApp(app))
 	}
 
+	return stopApp(app)
+}
+
+func stopApp(app *fx.App) error {
 	// stop the app
 	stopCtx, cancel := context.WithTimeout(context.Background(), app.StopTimeout())
 	defer cancel()

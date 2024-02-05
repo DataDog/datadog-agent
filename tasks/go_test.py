@@ -18,21 +18,24 @@ from typing import Dict, List
 from invoke import task
 from invoke.exceptions import Exit
 
-from .agent import integration_tests as agent_integration_tests
-from .build_tags import compute_build_tags_for_flavor
-from .cluster_agent import integration_tests as dca_integration_tests
-from .dogstatsd import integration_tests as dsd_integration_tests
-from .flavor import AgentFlavor
-from .libs.common.color import color_message
-from .libs.common.utils import get_build_flags
-from .libs.datadog_api import create_count, send_metrics
-from .libs.junit_upload_core import add_flavor_to_junitxml, produce_junit_tar
-from .modules import DEFAULT_MODULES, GoModule
-from .test_core import ModuleTestResult, process_input_args, process_module_results, test_core
-from .trace_agent import integration_tests as trace_integration_tests
+from tasks.agent import integration_tests as agent_integration_tests
+from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.cluster_agent import integration_tests as dca_integration_tests
+from tasks.dogstatsd import integration_tests as dsd_integration_tests
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import clean_nested_paths, get_build_flags
+from tasks.libs.datadog_api import create_count, send_metrics
+from tasks.libs.junit_upload_core import add_flavor_to_junitxml, produce_junit_tar
+from tasks.modules import DEFAULT_MODULES, GoModule
+from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
+from tasks.trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "coverage.out"
+TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
+GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
+WINDOWS_MAX_PACKAGES_NUMBER = 150
 
 
 class TestProfiler:
@@ -67,7 +70,7 @@ def ensure_bytes(s):
     return s
 
 
-def build_stdlib(
+def build_standard_lib(
     ctx,
     build_tags: List[str],
     cmd: str,
@@ -92,6 +95,73 @@ def build_stdlib(
     )
 
 
+class CodecovWorkaround:
+    """
+    The CodecovWorkaround class wraps the gotestsum cmd execution to fix codecov reports inaccuracy,
+    according to https://github.com/gotestyourself/gotestsum/issues/274 workaround.
+    Basically unit tests' reruns rewrite the whole coverage file, making it inaccurate.
+    We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
+    """
+
+    def __init__(self, ctx, module_path, coverage, coverage_script_template, packages, args):
+        self.ctx = ctx
+        self.module_path = module_path
+        self.coverage = coverage
+        self.coverage_script_template = coverage_script_template
+        self.packages = packages
+        self.args = args
+        self.cov_test_path_sh = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".sh"
+        self.cov_test_path_ps1 = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".ps1"
+        self.call_ps1_from_bat = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".bat"
+        self.cov_test_path = self.cov_test_path_sh if platform.system() != 'Windows' else self.cov_test_path_ps1
+
+    def __enter__(self):
+        if self.coverage:
+            coverage_script = self.coverage_script_template.format(packages=self.packages, **self.args)
+            with open(self.cov_test_path, 'w', encoding='utf-8') as f:
+                f.write(coverage_script)
+
+            with open(self.call_ps1_from_bat, 'w', encoding='utf-8') as f:
+                f.write(
+                    """@echo off
+powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
+                )
+
+            os.chmod(self.cov_test_path, 0o755)
+            os.chmod(self.call_ps1_from_bat, 0o755)
+
+        return self.cov_test_path_sh if platform.system() != 'Windows' else self.call_ps1_from_bat
+
+    def __exit__(self, *_):
+        if self.coverage:
+            # Removing the coverage script.
+            try:
+                os.remove(self.cov_test_path)
+                os.remove(self.call_ps1_from_bat)
+            except FileNotFoundError:
+                print(
+                    f"Error: Could not find the coverage script {self.cov_test_path} or {self.call_ps1_from_bat} while trying to delete it.",
+                    file=sys.stderr,
+                )
+            # Merging the unit tests reruns coverage files, keeping only the merged file.
+            files_to_delete = [
+                os.path.join(self.module_path, f)
+                for f in os.listdir(self.module_path)
+                if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")
+            ]
+            if not files_to_delete:
+                print(
+                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.' in {self.module_path}",
+                    file=sys.stderr,
+                )
+            else:
+                self.ctx.run(
+                    f"gocovmerge {' '.join(files_to_delete)} > \"{os.path.join(self.module_path, PROFILE_COV)}\""
+                )
+                for f in files_to_delete:
+                    os.remove(f)
+
+
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
@@ -103,40 +173,49 @@ def test_flavor(
     junit_tar: str,
     save_result_json: str,
     test_profiler: TestProfiler,
+    coverage: bool = False,
+    coverage_script_template: str = "",
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
     """
     args["go_build_tags"] = " ".join(build_tags)
 
-    junit_file_flag = ""
     junit_file = f"junit-out-{flavor.name}.xml"
-    if junit_tar:
-        junit_file_flag = "--junitfile " + junit_file
+    junit_file_flag = "--junitfile " + junit_file if junit_tar else ""
     args["junit_file_flag"] = junit_file_flag
 
     def command(test_results, module, module_result):
-        with ctx.cd(module.full_path()):
-            res = ctx.run(
-                cmd.format(
-                    packages=' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets), **args
-                ),
-                env=env,
-                out_stream=test_profiler,
-                warn=True,
-            )
+        module_path = module.full_path()
+        with ctx.cd(module_path):
+            packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
+            with CodecovWorkaround(
+                ctx, module_path, coverage, coverage_script_template, packages, args
+            ) as cov_test_path:
+                res = ctx.run(
+                    command=cmd.format(
+                        packages=packages,
+                        cov_test_path=cov_test_path,
+                        **args,
+                    ),
+                    env=env,
+                    out_stream=test_profiler,
+                    warn=True,
+                )
 
-        module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
+        module_result.result_json_path = os.path.join(module_path, GO_TEST_RESULT_TMP_JSON)
 
         if res.exited is None or res.exited > 0:
             module_result.failed = True
         else:
             lines = res.stdout.splitlines()
             if lines is not None and 'DONE 0 tests' in lines[-1]:
-                print(color_message("No tests were run, skipping coverage report", "orange"))
-                cov_path = os.path.join(module.full_path(), PROFILE_COV)
-                if os.path.exists(cov_path):
+                cov_path = os.path.join(module_path, PROFILE_COV)
+                print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
+                try:
                     os.remove(cov_path)
+                except FileNotFoundError as e:
+                    print(f"Couldn't remove coverage file {cov_path}\n{e}")
                 return
 
         if save_result_json:
@@ -144,7 +223,7 @@ def test_flavor(
                 json_file.write(module_file.read())
 
         if junit_tar:
-            module_result.junit_file_path = os.path.join(module.full_path(), junit_file)
+            module_result.junit_file_path = os.path.join(module_path, junit_file)
             add_flavor_to_junitxml(module_result.junit_file_path, flavor)
 
         test_results.append(module_result)
@@ -197,24 +276,6 @@ def codecov_flavor(
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
 
-def deprecating_skip_linters_flag(skip_linters):
-    """
-    We're deprecating the --skip-linters flag in the test invoke task
-
-    Displays a warning when user is running inv -e test --skip-linters
-    Also displays the command the user should run to
-    """
-    if skip_linters:
-        deprecation_msg = """Warning: the --skip-linters is deprecated for the test invoke task.
-Feel free to remove the flag when running inv -e test.
-"""
-    else:
-        deprecation_msg = """Warning: the linters were removed from the test invoke task.
-If you want to run the linters, please run inv -e lint-go instead.
-"""
-    print(deprecation_msg, file=sys.stderr)
-
-
 def sanitize_env_vars():
     """
     Sanitizes environment variables
@@ -248,12 +309,13 @@ def test(
     arch="x64",
     cache=True,
     test_run_name="",
-    skip_linters=False,
     save_result_json=None,
     rerun_fails=None,
     go_mod="mod",
     junit_tar="",
     only_modified_packages=False,
+    skip_flakes=False,
+    build_stdlib=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -269,12 +331,9 @@ def test(
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
-
     modules_results_per_phase = defaultdict(dict)
 
     sanitize_env_vars()
-
-    deprecating_skip_linters_flag(skip_linters)
 
     modules, flavors = process_input_args(module, targets, flavors)
 
@@ -302,8 +361,6 @@ def test(
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
 
-    coverprofile = f"-coverprofile={PROFILE_COV}" if coverage else ""
-
     nocache = '-count=1' if not cache else ''
 
     if save_result_json and os.path.isfile(save_result_json):
@@ -316,8 +373,28 @@ def test(
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
-    cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {test_run_arg}'
+    rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
+    gotestsum_flags = (
+        '{junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" ' + rerun_coverage_fix
+    )
+    gobuild_flags = (
+        '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
+    )
+    govet_flags = '-vet=off'
+    gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
+    cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
+    if coverage:
+        if platform.system() == 'Windows':
+            coverage_script_template = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
+go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile="$tempFile" {{packages}}
+exit $LASTEXITCODE"""
+        else:
+            coverage_script_template = f"""#!/usr/bin/env bash
+set -eu
+go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}
+"""
+    else:
+        coverage_script_template = ""
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -325,7 +402,6 @@ def test(
         "race_opt": race_opt,
         "build_cpus": build_cpus_opt,
         "covermode_opt": covermode_opt,
-        "coverprofile": coverprofile,
         "test_run_arg": test_run_arg,
         "timeout": int(timeout),
         "verbose": '-v' if verbose else '',
@@ -333,21 +409,22 @@ def test(
         # Used to print failed tests at the end of the go test command
         "json_flag": f'--jsonfile "{GO_TEST_RESULT_TMP_JSON}" ',
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
+        "skip_flakes": "--skip-flake" if skip_flakes else "",
     }
 
     # Test
     for flavor, build_tags in unit_tests_tags.items():
-        build_stdlib(
-            ctx,
-            build_tags=build_tags,
-            cmd=stdlib_build_cmd,
-            env=env,
-            args=args,
-            test_profiler=test_profiler,
-        )
+        if build_stdlib:
+            build_standard_lib(
+                ctx,
+                build_tags=build_tags,
+                cmd=stdlib_build_cmd,
+                env=env,
+                args=args,
+                test_profiler=test_profiler,
+            )
         if only_modified_packages:
-            modules = get_modified_packages(ctx)
-
+            modules = get_modified_packages(ctx, build_tags=build_tags)
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -359,6 +436,8 @@ def test(
             junit_tar=junit_tar,
             save_result_json=save_result_json,
             test_profiler=test_profiler,
+            coverage=coverage,
+            coverage_script_template=coverage_script_template,
         )
 
     # Output
@@ -451,11 +530,14 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 
 @task
-def get_modified_packages(ctx) -> List[GoModule]:
+def get_modified_packages(ctx, build_tags=None) -> List[GoModule]:
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     ]
+
+    if build_tags is None:
+        build_tags = []
 
     modules_to_test = {}
     go_mod_modified_modules = set()
@@ -494,6 +576,13 @@ def get_modified_packages(ctx) -> List[GoModule]:
         if not os.path.exists(os.path.dirname(modified_file)):
             continue
 
+        # If there are go file matching the build tags in the folder we do not try to run tests
+        res = ctx.run(
+            f"go list -tags '{' '.join(build_tags)}' ./{os.path.dirname(modified_file)}/...", hide=True, warn=True
+        )
+        if res.stderr is not None and "matched no packages" in res.stderr:
+            continue
+
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
 
         if best_module_path in modules_to_test:
@@ -504,6 +593,14 @@ def get_modified_packages(ctx) -> List[GoModule]:
                 modules_to_test[best_module_path].targets.append(relative_target)
         else:
             modules_to_test[best_module_path] = GoModule(best_module_path, targets=[relative_target])
+
+    # Clean up duplicated paths to reduce Go test cmd length
+    for module in modules_to_test:
+        modules_to_test[module].targets = clean_nested_paths(modules_to_test[module].targets)
+        if (
+            len(modules_to_test[module].targets) >= WINDOWS_MAX_PACKAGES_NUMBER
+        ):  # With more packages we can reach the limit of the command line length on Windows
+            modules_to_test[module].targets = DEFAULT_MODULES[module].targets
 
     print("Running tests for the following modules:")
     for module in modules_to_test:

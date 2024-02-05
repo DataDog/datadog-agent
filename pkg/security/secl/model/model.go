@@ -85,49 +85,9 @@ type ContainerContext struct {
 	Resolved  bool     `field:"-"`
 }
 
-// Status defines the possible status of a profile as a bitmask
-type Status uint32
-
-const (
-	// AnomalyDetection will trigger alerts each time an event is not part of the profile
-	AnomalyDetection Status = 1 << iota
-	// AutoSuppression will suppress any signal to events present on the profile
-	AutoSuppression
-	// WorkloadHardening will kill the process that triggered anomaly detection
-	WorkloadHardening
-)
-
-// IsEnabled returns true if enabled
-func (s Status) IsEnabled(option Status) bool {
-	return (s & option) != 0
-}
-
-func (s Status) String() string {
-	var options []string
-	if s.IsEnabled(AnomalyDetection) {
-		options = append(options, "anomaly_detection")
-	}
-	if s.IsEnabled(AutoSuppression) {
-		options = append(options, "auto_suppression")
-	}
-	if s.IsEnabled(WorkloadHardening) {
-		options = append(options, "workload_hardening")
-	}
-
-	var res string
-	for _, option := range options {
-		if len(res) > 0 {
-			res += ","
-		}
-		res += option
-	}
-	return res
-}
-
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
 	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
-	Status                     Status      `field:"status"`                        // SECLDoc[status] Definition:`Status of the security profile`
 	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
 	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
 	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
@@ -262,10 +222,6 @@ func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
 
 // IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
 func (e *Event) IsAnomalyDetectionEvent() bool {
-	if !e.SecurityProfileContext.Status.IsEnabled(AnomalyDetection) {
-		return false
-	}
-
 	// first, check if the current event is a kernel generated anomaly detection event
 	if e.IsKernelSpaceAnomalyDetectionEvent() {
 		return true
@@ -588,12 +544,12 @@ type ExitEvent struct {
 
 // DNSEvent represents a DNS event
 type DNSEvent struct {
-	ID    uint16 `field:"id"`                                                      // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
-	Name  string `field:"question.name,opts:length" op_override:"eval.DNSNameCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
-	Type  uint16 `field:"question.type"`                                           // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"question.class"`                                          // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"question.length"`                                         // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"question.count"`                                          // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
+	ID    uint16 `field:"id"`                                                              // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	Name  string `field:"question.name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
+	Type  uint16 `field:"question.type"`                                                   // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"question.class"`                                                  // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"question.length"`                                                 // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"question.count"`                                                  // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
 }
 
 // BaseExtraFieldHandlers handlers not hold by any field

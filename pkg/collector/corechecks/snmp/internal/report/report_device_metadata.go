@@ -33,14 +33,30 @@ const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
 
+var supportedDeviceTypes = map[string]bool{
+	"access_point":  true,
+	"firewall":      true,
+	"load_balancer": true,
+	"pdu":           true,
+	"printer":       true,
+	"router":        true,
+	"sd-wan":        true,
+	"sensor":        true,
+	"server":        true,
+	"storage":       true,
+	"switch":        true,
+	"ups":           true,
+	"wlc":           true,
+}
+
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
 	metadataStore := buildMetadataStore(config.Metadata, store)
 
-	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus)}
+	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus, pingStatus)}
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
@@ -174,8 +190,8 @@ func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values
 	return metadataStore
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus devicemetadata.DeviceStatus) devicemetadata.DeviceMetadata {
-	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version, productName, model, osName, osVersion, osHostname string
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus) devicemetadata.DeviceMetadata {
+	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version, productName, model, osName, osVersion, osHostname, deviceType string
 	if store != nil {
 		sysName = store.GetScalarAsString("device.name")
 		sysDescr = store.GetScalarAsString("device.description")
@@ -189,6 +205,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		osName = store.GetScalarAsString("device.os_name")
 		osVersion = store.GetScalarAsString("device.os_version")
 		osHostname = store.GetScalarAsString("device.os_hostname")
+		deviceType = getDeviceType(store)
 	}
 
 	// fallback to Device.Vendor for backward compatibility
@@ -210,6 +227,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		Tags:           tags,
 		Subnet:         config.ResolvedSubnetName,
 		Status:         deviceStatus,
+		PingStatus:     pingStatus,
 		SerialNumber:   serialNumber,
 		Version:        version,
 		ProductName:    productName,
@@ -217,6 +235,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		OsName:         osName,
 		OsVersion:      osVersion,
 		OsHostname:     osHostname,
+		DeviceType:     deviceType,
 	}
 }
 
@@ -226,6 +245,19 @@ func getProfileVersion(config *checkconfig.CheckConfig) uint64 {
 		profileVersion = config.ProfileDef.Version
 	}
 	return profileVersion
+}
+
+func getDeviceType(store *metadata.Store) string {
+	deviceType := strings.ToLower(store.GetScalarAsString("device.type"))
+	if deviceType == "" {
+		return "other"
+	}
+	_, isValidType := supportedDeviceTypes[deviceType]
+	if isValidType {
+		return deviceType
+	}
+	log.Warnf("Unsupported device type: %s", deviceType)
+	return "other"
 }
 
 func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []devicemetadata.InterfaceMetadata {

@@ -113,6 +113,20 @@ instances:
 		},
 	}
 
+	testMultiUsageConf = []byte(`instances:
+- password: ENC[pass1]
+  user: test
+- password: ENC[pass1]
+  user: test2
+`)
+
+	testMultiUsageConfResolved = []byte(`instances:
+- password: password1
+  user: test
+- password: password1
+  user: test2
+`)
+
 	testConfDash = []byte(`---
 some_encoded_password: ENC[pass1]
 keys_with_dash_string_value:
@@ -273,6 +287,26 @@ func TestResolveSecretError(t *testing.T) {
 
 	_, err := resolver.Resolve(testConf, "test")
 	require.NotNil(t, err)
+}
+
+func TestResolveDoestSendDuplicates(t *testing.T) {
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
+
+	// test configuration has handle "pass1" appear twice, but fetch should only get one handle
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		if len(secrets) > 1 {
+			return nil, fmt.Errorf("duplicate handles found: %v", secrets)
+		}
+		return map[string]string{
+			"pass1": "password1",
+		}, nil
+	}
+
+	// test configuration should still resolve correctly even though handle appears more than once
+	resolved, err := resolver.Resolve(testMultiUsageConf, "test")
+	require.NoError(t, err)
+	require.Equal(t, testMultiUsageConfResolved, resolved)
 }
 
 func TestResolve(t *testing.T) {
@@ -578,30 +612,33 @@ func TestResolveThenRefresh(t *testing.T) {
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "password1",
-			"pass2": "second",
+			"pass2": "update-second",
 			"pass3": "password3",
 		}, nil
 	}
 
 	// refresh the secrets and only collect newly updated keys
 	keysResolved = []string{}
-	err = resolver.Refresh()
+	output, err := resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
 	assert.Equal(t, []string{"some/second_level"}, keysResolved)
+	assert.Contains(t, output, "'pass2'")
+	assert.Contains(t, output, "'some/second_level'")
+	assert.NotContains(t, output, "update-second")
 
 	// change the secret values of the other two handles
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return map[string]string{
-			"pass1": "first",
-			"pass2": "second",
-			"pass3": "third",
+			"pass1": "update-first",
+			"pass2": "update-second",
+			"pass3": "update-third",
 		}, nil
 	}
 
 	// refresh one last time and only those two handles have updated keys
 	keysResolved = []string{}
-	err = resolver.Refresh()
+	_, err = resolver.Refresh()
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
@@ -611,7 +648,7 @@ func TestResolveThenRefresh(t *testing.T) {
 	sort.Strings(oldValues)
 	sort.Strings(newValues)
 	assert.Equal(t, []string{"", "", "", "password1", "password2", "password3"}, oldValues)
-	assert.Equal(t, []string{"first", "password1", "password2", "password3", "second", "third"}, newValues)
+	assert.Equal(t, []string{"password1", "password2", "password3", "update-first", "update-second", "update-third"}, newValues)
 }
 
 func TestRefreshAllowlist(t *testing.T) {
@@ -642,18 +679,18 @@ func TestRefreshAllowlist(t *testing.T) {
 	})
 
 	// only allow api_key to change
-	allowlistHandles = []string{"api_key"}
+	allowlistHandles = map[string]struct{}{"api_key": {}}
 
 	// Refresh means nothing changes because allowlist doesn't allow it
-	err := resolver.Refresh()
+	_, err := resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{})
 
 	// now allow the handle under scrutiny to change
-	allowlistHandles = []string{"handle"}
+	allowlistHandles = map[string]struct{}{"handle": {}}
 
 	// Refresh sees the change to the handle
-	err = resolver.Refresh()
+	_, err = resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{"second_value"})
 }
