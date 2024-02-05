@@ -13,10 +13,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 )
 
+// ScanType defines the scan type of the collector
+type ScanType string
+
+const (
+	// ContainerImageScanType defines the container image scan type
+	ContainerImageScanType ScanType = "container-image"
+	// HostScanType defines the host scan type
+	HostScanType ScanType = "host"
+)
+
 // Collector interface
 type Collector interface {
+	// Type returns the scan type of the collector
+	Type() ScanType
+	// CleanCache cleans the collector cache
 	CleanCache() error
+	// Init initializes the collector
 	Init(config.Config) error
+	// Scan performs a scan
 	Scan(context.Context, sbom.ScanRequest, sbom.ScanOptions) sbom.ScanResult
 }
 

@@ -78,6 +78,11 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbo
 	}
 }
 
+// Type returns the container image scan type
+func (c *Collector) Type() collectors.ScanType {
+	return collectors.HostScanType
+}
+
 func init() {
 	collectors.RegisterCollector(collectorName, &Collector{})
 }
