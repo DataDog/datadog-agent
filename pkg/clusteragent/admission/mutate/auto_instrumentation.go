@@ -198,7 +198,7 @@ func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string)
 	autoDetected := false
 
 	// Pinned tracing libraries in APM Instrumentation configuration
-	libsToInject := getPinnedLibraries(pod, registry)
+	libsToInject := getPinnedLibraries(registry)
 	if len(libsToInject) > 0 {
 		return libsToInject, autoDetected
 	}
@@ -217,7 +217,7 @@ func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string)
 }
 
 // getPinnedLibraries returns tracing libraries to inject as configured by apm_config.instrumentation.lib_versions
-func getPinnedLibraries(pod *corev1.Pod, registry string) []libInfo {
+func getPinnedLibraries(registry string) []libInfo {
 	libsToInject := []libInfo{}
 	var libVersion string
 
