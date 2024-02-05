@@ -91,8 +91,8 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	}
 
 	tags := strings.Join(util.GetStaticTagsSlice(context.TODO()), ",")
-	if v, ok := metricsConfigMap["tags"]; ok && tags != "" {
-		metricsConfigMap["tags"] = fmt.Sprintf("%s,%s", v, tags)
+	if tags != "" {
+		metricsConfigMap["tags"] = tags
 	}
 
 	debugConfig := readConfigSection(cfg, coreconfig.OTLPDebug)
