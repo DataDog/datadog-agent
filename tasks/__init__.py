@@ -6,6 +6,7 @@ from invoke import Collection
 
 from . import (
     agent,
+    agentless_scanner,
     bench,
     buildimages,
     cluster_agent,
@@ -15,7 +16,6 @@ from . import (
     diff,
     docker_tasks,
     dogstatsd,
-    agentless_scanner,
     emacs,
     epforwarder,
     fakeintake,
@@ -30,7 +30,6 @@ from . import (
     release,
     rtloader,
     security_agent,
-    agentless_scanner,
     selinux,
     system_probe,
     systray,
