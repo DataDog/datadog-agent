@@ -301,8 +301,9 @@ func (t *TaggerClient) globalTagBuilder(cardinality collectors.TagCardinality, t
 	}
 	t.mux.RUnlock()
 
-	// Accumulate host tags - it's ok to ignore the error here since collecting host tags is an optional setting configured by the user.
-	_ = t.defaultTagger.AccumulateTagsFor(collectors.HostEntityID, cardinality, tb)
+	if err := t.defaultTagger.AccumulateTagsFor(collectors.HostEntityID, cardinality, tb); err != nil {
+		log.Error(err.Error())
+	}
 	return t.defaultTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
 }
 
