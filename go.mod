@@ -760,7 +760,7 @@ replace sigs.k8s.io/controller-runtime v0.11.2 => sigs.k8s.io/controller-runtime
 replace github.com/cloudflare/circl v1.1.0 => github.com/cloudflare/circl v1.3.3
 
 // Fixes CVE-2023-26054, imported by trivy
-replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.11.4
+replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.11.6
 
 // Fixes a panic in trivy, see gitlab.com/cznic/libc/-/issues/25
 replace modernc.org/sqlite v1.17.3 => modernc.org/sqlite v1.19.3
