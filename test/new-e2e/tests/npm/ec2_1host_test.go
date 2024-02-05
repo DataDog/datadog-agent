@@ -86,7 +86,9 @@ func TestEC2VMSuite(t *testing.T) {
 func (v *ec2VMSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 
-	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils")
+	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
+	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")
+	v.Env().RemoteHost.ReconnectSSH()
 }
 
 // BeforeTest will be called before each test
