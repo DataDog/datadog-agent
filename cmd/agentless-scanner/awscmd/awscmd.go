@@ -130,7 +130,7 @@ func snapshotCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanActio
 }
 
 func offlineCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaultActions *[]types.ScanAction, noForkScanners *bool) *cobra.Command {
-	var cliArgs struct {
+	var flags struct {
 		workers      int
 		regions      []string
 		filters      string
@@ -142,11 +142,11 @@ func offlineCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaul
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if cliArgs.workers <= 0 {
+			if flags.workers <= 0 {
 				return fmt.Errorf("workers must be greater than 0")
 			}
 			var filters []ec2types.Filter
-			if filter := cliArgs.filters; filter != "" {
+			if filter := flags.filters; filter != "" {
 				if !strings.HasPrefix(filter, "Name=") {
 					return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
 				}
@@ -167,24 +167,27 @@ func offlineCommand(statsd **ddogstatsd.Client, diskMode *types.DiskMode, defaul
 					Values: values,
 				})
 			}
-			return offlineCmd(*statsd, cliArgs.workers, types.TaskType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, filters, *diskMode, *defaultActions, *noForkScanners)
+			scanType, err := types.ParseTaskType(flags.scanType)
+			if err != nil {
+				return err
+			}
+			return offlineCmd(*statsd, flags.workers, scanType, flags.regions, flags.maxScans, flags.printResults, filters, *diskMode, *defaultActions, *noForkScanners)
 		},
 	}
 
-	cmd.Flags().IntVar(&cliArgs.workers, "workers", 40, "number of scans running in parallel")
-	cmd.Flags().StringSliceVar(&cliArgs.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
-	cmd.Flags().StringVar(&cliArgs.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
-	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(types.TaskTypeEBS), "scan type (ebs-volume or lambda)")
-	cmd.Flags().IntVar(&cliArgs.maxScans, "max-scans", 0, "maximum number of scans to perform")
-	cmd.Flags().BoolVar(&cliArgs.printResults, "print-results", false, "print scan results to stdout")
+	cmd.Flags().IntVar(&flags.workers, "workers", 40, "number of scans running in parallel")
+	cmd.Flags().StringSliceVar(&flags.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
+	cmd.Flags().StringVar(&flags.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
+	cmd.Flags().StringVar(&flags.scanType, "scan-type", string(types.TaskTypeEBS), "scan type (ebs-volume or lambda)")
+	cmd.Flags().IntVar(&flags.maxScans, "max-scans", 0, "maximum number of scans to perform")
+	cmd.Flags().BoolVar(&flags.printResults, "print-results", false, "print scan results to stdout")
 	return cmd
 }
 
 func attachCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction) *cobra.Command {
-	var cliArgs struct {
+	var flags struct {
 		mount bool
 	}
-
 	cmd := &cobra.Command{
 		Use:   "attach <snapshot|volume>",
 		Short: "Attaches a snapshot or volume to the current instance",
@@ -198,17 +201,17 @@ func attachCommand(diskMode *types.DiskMode, defaultActions *[]types.ScanAction)
 			if err != nil {
 				return err
 			}
-			return attachCmd(resourceID, *diskMode, cliArgs.mount, *defaultActions)
+			return attachCmd(resourceID, *diskMode, flags.mount, *defaultActions)
 		},
 	}
 
-	cmd.Flags().BoolVar(&cliArgs.mount, "mount", false, "mount the nbd device")
+	cmd.Flags().BoolVar(&flags.mount, "mount", false, "mount the nbd device")
 
 	return cmd
 }
 
 func cleanupCommand() *cobra.Command {
-	var cliArgs struct {
+	var flags struct {
 		region string
 		dryRun bool
 		delay  time.Duration
@@ -217,12 +220,12 @@ func cleanupCommand() *cobra.Command {
 		Use:   "cleanup",
 		Short: "Cleanup resources created by the agentless-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cleanupCmd(cliArgs.region, cliArgs.dryRun, cliArgs.delay)
+			return cleanupCmd(flags.region, flags.dryRun, flags.delay)
 		},
 	}
-	cmd.Flags().StringVar(&cliArgs.region, "region", "us-east-1", "AWS region")
-	cmd.Flags().BoolVar(&cliArgs.dryRun, "dry-run", false, "dry run")
-	cmd.Flags().DurationVar(&cliArgs.delay, "delay", 0, "delete snapshot older than delay")
+	cmd.Flags().StringVar(&flags.region, "region", "us-east-1", "AWS region")
+	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "dry run")
+	cmd.Flags().DurationVar(&flags.delay, "delay", 0, "delete snapshot older than delay")
 	return cmd
 }
 

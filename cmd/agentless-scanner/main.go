@@ -103,9 +103,10 @@ func initStatsdClient() {
 }
 
 func rootCommand() *cobra.Command {
-	var diskModeStr string
-	var defaultActionsStr []string
-
+	var flags struct {
+		diskModeStr       string
+		defaultActionsStr []string
+	}
 	cmd := &cobra.Command{
 		Use:          "agentless-scanner [command]",
 		Short:        "Datadog Agentless Scanner at your service.",
@@ -115,11 +116,11 @@ func rootCommand() *cobra.Command {
 			initStatsdClient()
 			awsutils.InitConfig(statsd, getAWSLimitsOptions())
 			var err error
-			diskMode, err = types.ParseDiskMode(diskModeStr)
+			diskMode, err = types.ParseDiskMode(flags.diskModeStr)
 			if err != nil {
 				return err
 			}
-			defaultActions, err = types.ParseScanActions(defaultActionsStr)
+			defaultActions, err = types.ParseScanActions(flags.defaultActionsStr)
 			if err != nil {
 				return err
 			}
@@ -133,9 +134,9 @@ func rootCommand() *cobra.Command {
 
 	pflags := cmd.PersistentFlags()
 	pflags.StringVarP(&configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
-	pflags.StringVar(&diskModeStr, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s or %s", types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
+	pflags.StringVar(&flags.diskModeStr, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s or %s", types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
 	pflags.BoolVar(&noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
-	pflags.StringSliceVar(&defaultActionsStr, "actions", []string{string(types.ScanActionVulnsHost)}, "disable spawning a dedicated process for launching scanners")
+	pflags.StringSliceVar(&flags.defaultActionsStr, "actions", []string{string(types.ScanActionVulnsHost)}, "disable spawning a dedicated process for launching scanners")
 	return cmd
 }
 
