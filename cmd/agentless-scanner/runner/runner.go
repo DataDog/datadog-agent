@@ -265,7 +265,8 @@ func (s *Runner) CleanSlate() error {
 				if err := os.RemoveAll(name); err != nil {
 					log.Warnf("clean slate: could not remove directory %q", name)
 				}
-			case strings.HasPrefix(scanDir.Name(), string(types.TaskTypeEBS)):
+			case strings.HasPrefix(scanDir.Name(), string(types.TaskTypeEBS)),
+				strings.HasPrefix(scanDir.Name(), string(types.TaskTypeAMI)):
 				scanDirname := filepath.Join(types.ScansRootDir, scanDir.Name())
 				scanEntries, err := os.ReadDir(scanDirname)
 				if err != nil {
@@ -499,7 +500,15 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 	defer s.cleanupScan(scan)
 	switch scan.Type {
 	case types.TaskTypeHost:
-		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName()}, pool, s.resultsCh)
+		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName()}, pool)
+
+	case types.TaskTypeAMI:
+		mountpoints, err := awsutils.SetupAMI(ctx, scan, &s.waiter)
+		if err != nil {
+			return err
+		}
+		s.scanImage(ctx, scan, mountpoints, pool)
+
 	case types.TaskTypeEBS:
 		mountpoints, err := awsutils.SetupEBS(ctx, scan, &s.waiter)
 		if err != nil {
@@ -507,26 +516,18 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 		}
 		switch scan.DiskMode {
 		case types.DiskModeNoAttach:
-			result := pool.launchScanner(ctx, types.ScannerOptions{
-				Scanner:   types.ScannerNameHostVulnsVM,
-				Scan:      scan,
-				CreatedAt: time.Now(),
-			})
-			if result.Vulns != nil {
-				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-				result.Vulns.ID = scan.TargetHostname
-				result.Vulns.Tags = nil
-			}
-			s.resultsCh <- result
+			s.scanSnaphotNoAttach(ctx, scan, pool)
 		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
-			s.scanRootFilesystems(ctx, scan, mountpoints, pool, s.resultsCh)
+			s.scanRootFilesystems(ctx, scan, mountpoints, pool)
 		}
+
 	case types.TaskTypeLambda:
 		mountpoint, err := awsutils.SetupLambda(ctx, scan)
 		if err != nil {
 			return err
 		}
-		s.scanApplication(ctx, scan, mountpoint, pool, s.resultsCh)
+		s.scanApplication(ctx, scan, mountpoint, pool)
+
 	default:
 		return fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
@@ -682,7 +683,50 @@ func (s *Runner) sendFindings(findings []*types.ScanFinding) {
 	}
 }
 
-func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool, resultsCh chan types.ScanResult) {
+func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool) {
+	assert(scan.Type == types.TaskTypeAMI)
+
+	var wg sync.WaitGroup
+	for _, root := range roots {
+		wg.Add(1)
+		go func(root string) {
+			defer wg.Done()
+			result := pool.launchScanner(ctx, types.ScannerOptions{
+				Scanner:   types.ScannerNameHostVulns,
+				Scan:      scan,
+				Root:      root,
+				CreatedAt: time.Now(),
+			})
+			if result.Vulns != nil {
+				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
+				result.Vulns.ID = scan.ImageID
+				result.Vulns.Tags = nil
+			}
+			s.resultsCh <- result
+		}(root)
+	}
+	wg.Wait()
+}
+
+func (s *Runner) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, pool *scannersPool) {
+	assert(scan.Type == types.TaskTypeEBS)
+
+	result := pool.launchScanner(ctx, types.ScannerOptions{
+		Scanner:   types.ScannerNameHostVulnsVM,
+		Scan:      scan,
+		CreatedAt: time.Now(),
+	})
+	if result.Vulns != nil {
+		result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
+		result.Vulns.ID = scan.TargetHostname
+		result.Vulns.Tags = nil
+	}
+	s.resultsCh <- result
+}
+
+func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool) {
+	assert(scan.Type == types.TaskTypeHost || scan.Type == types.TaskTypeEBS)
+
 	var wg sync.WaitGroup
 
 	scanRoot := func(root string, action types.ScanAction) {
@@ -701,7 +745,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 				result.Vulns.ID = scan.TargetHostname
 				result.Vulns.Tags = nil
 			}
-			resultsCh <- result
+			s.resultsCh <- result
 		case types.ScanActionVulnsContainers:
 			ctrResult := pool.launchScanner(ctx, types.ScannerOptions{
 				Scanner:   types.ScannerNameContainers,
@@ -710,7 +754,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 				CreatedAt: time.Now(),
 			})
 			if ctrResult.Err != nil {
-				resultsCh <- ctrResult
+				s.resultsCh <- ctrResult
 			} else if len(ctrResult.Containers.Containers) > 0 {
 				log.Infof("%s: found %d containers on %q", scan, len(ctrResult.Containers.Containers), root)
 				runtimes := make(map[string]int64)
@@ -727,7 +771,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 					wg.Add(1)
 					go func(ctr types.Container) {
 						defer wg.Done()
-						resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
+						s.resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
 							Scanner:   types.ScannerNameContainerVulns,
 							Scan:      scan,
 							Root:      root,
@@ -738,7 +782,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 				}
 			}
 		case types.ScanActionMalware:
-			resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
+			s.resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
 				Scanner:   types.ScannerNameMalware,
 				Scan:      scan,
 				Root:      root,
@@ -760,7 +804,9 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 	}
 }
 
-func (s *Runner) scanApplication(ctx context.Context, scan *types.ScanTask, root string, pool *scannersPool, resultsCh chan types.ScanResult) {
+func (s *Runner) scanApplication(ctx context.Context, scan *types.ScanTask, root string, pool *scannersPool) {
+	assert(scan.Type == types.TaskTypeLambda)
+
 	result := pool.launchScanner(ctx, types.ScannerOptions{
 		Scanner:   types.ScannerNameAppVulns,
 		Scan:      scan,
@@ -775,7 +821,7 @@ func (s *Runner) scanApplication(ctx context.Context, scan *types.ScanTask, root
 			"service_version:TODO", // XXX
 		}
 	}
-	resultsCh <- result
+	s.resultsCh <- result
 	if err := s.Statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(time.Since(scan.StartedAt).Milliseconds()), scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -1071,4 +1117,10 @@ func nResults(result types.ScanResult) string {
 	}
 
 	return "no results"
+}
+
+func assert(b bool) {
+	if !b {
+		panic("assertion failed")
+	}
 }
