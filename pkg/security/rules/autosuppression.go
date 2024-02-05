@@ -15,10 +15,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+// EventsAutoSuppressions is a struct to hold the auto suppression stats
 type EventsAutoSuppressions struct {
 	lock    sync.RWMutex
 	enabled bool
 	stats   map[string]*atomic.Int64
+}
+
+// GetStats returns auto suppressions stats, if enabled
+func (s *EventsAutoSuppressions) GetStats() map[string]int64 {
+	if !s.enabled {
+		return nil
+	}
+
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	stats := make(map[string]int64, len(s.stats))
+	for ruleID, stat := range s.stats {
+		stats[string(ruleID)] = stat.Swap(0)
+	}
+	return stats
 }
 
 func (s *EventsAutoSuppressions) apply(ruleSet *rules.RuleSet) {
@@ -45,21 +62,6 @@ func (s *EventsAutoSuppressions) inc(ruleID string) {
 	if stat, ok := s.stats[ruleID]; ok {
 		stat.Inc()
 	}
-}
-
-func (s *EventsAutoSuppressions) GetStats() map[string]int64 {
-	if !s.enabled {
-		return nil
-	}
-
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-
-	stats := make(map[string]int64, len(s.stats))
-	for ruleID, stat := range s.stats {
-		stats[string(ruleID)] = stat.Swap(0)
-	}
-	return stats
 }
 
 func isAllowAutosuppressionRule(rule *rules.Rule) bool {
