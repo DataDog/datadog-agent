@@ -189,12 +189,6 @@ func (c *collector) stream(ctx context.Context) {
 	healthHandle := health.RegisterLiveness(componentName)
 	ctx, cancel := context.WithCancel(ctx)
 
-	defer func() {
-		if c.queue != nil {
-			c.queue.ShutDown()
-		}
-	}()
-
 	for {
 		select {
 		case <-healthHandle.C:

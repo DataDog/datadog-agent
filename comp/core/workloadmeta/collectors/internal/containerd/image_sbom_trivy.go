@@ -70,6 +70,9 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		for {
 			select {
 			case <-ctx.Done():
+				if c.queue != nil {
+					c.queue.ShutDown()
+				}
 				return
 
 			case eventBundle, ok := <-imgEventsCh:
