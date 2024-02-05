@@ -307,7 +307,6 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 		return
 	}
 	// todo: refactor for usability outside core agent (cluster agent)
-	// todo: check the VM's agent status
 
 	var senvConfigs []serviceEnvConfig
 	// Maps update IDs to their error, empty string indicates success
@@ -317,6 +316,7 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 	for id, rawConfig := range update {
 		tcu := tracingConfigUpdate{}
 		err := json.Unmarshal(rawConfig.Config, &tcu)
+		updateStatus[id] = ""
 		if err != nil {
 			pkglog.Warnf("Skipping invalid APM_TRACING remote update %s: %v, any err: %v", id, tcu, err)
 			updateStatus[id] = InvalidAPMTracingPayload
@@ -327,7 +327,6 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 			// This is an infra targeting payload
 			hostTracingEnabled = tcu.LibConfig.TracingEnabled
 			hostEnvTarget = tcu.LibConfig.Env
-			updateStatus[id] = ""
 			continue
 		}
 		if tcu.ServiceTarget == nil {
@@ -336,7 +335,6 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 			continue
 		}
 
-		updateStatus[id] = ""
 		senvConfigs = append(senvConfigs, serviceEnvConfig{
 			Service:        tcu.ServiceTarget.Service,
 			Env:            tcu.ServiceTarget.Env,
