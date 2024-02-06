@@ -45,7 +45,6 @@ jobs:
         run: |
           echo "Setting milestone $MILESTONE to PR $NUMBER."
           gh issue edit "$NUMBER" --milestone "$MILESTONE"
-          exit 0
         env:
           NUMBER: ${{ github.event.number }}
           MILESTONE: ${{ steps.current-milestone.outputs.MILESTONE }}
