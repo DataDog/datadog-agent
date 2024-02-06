@@ -306,7 +306,6 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 		}
 		return
 	}
-	// todo: refactor for usability outside core agent (cluster agent)
 
 	var senvConfigs []serviceEnvConfig
 	// Maps update IDs to their error, empty string indicates success
@@ -324,7 +323,7 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 		}
 		pkglog.Infof("Received APM_TRACING remote update %s: %v, any err: %v", id, tcu, err)
 		if tcu.InfraTarget != nil {
-			// This is an infra targeting payload
+			// This is an infra targeting payload, skip adding it to the service env config map
 			hostTracingEnabled = tcu.LibConfig.TracingEnabled
 			hostEnvTarget = tcu.LibConfig.Env
 			continue
@@ -334,14 +333,12 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 			updateStatus[id] = MissingServiceTarget
 			continue
 		}
-
 		senvConfigs = append(senvConfigs, serviceEnvConfig{
 			Service:        tcu.ServiceTarget.Service,
 			Env:            tcu.ServiceTarget.Env,
 			TracingEnabled: tcu.LibConfig.TracingEnabled,
 		})
 	}
-
 	tec := tracingEnabledConfig{
 		TracingEnabled:    hostTracingEnabled,
 		Env:               hostEnvTarget,
@@ -349,11 +346,10 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 	}
 	configFile, err := yamlv2.Marshal(tec)
 	if err != nil {
-		//TODO: do we bother sending this back? This shouldn't be possible
 		pkglog.Errorf("Failed to marshal APM_TRACING config update %v", err)
 		return
 	}
-	err = os.WriteFile(apmTracingFilePath, configFile, 0666) //TODO: are these the right permissions?
+	err = os.WriteFile(apmTracingFilePath, configFile, 0666)
 	if err != nil {
 		pkglog.Errorf("Failed to write single step config data file from APM_TRACING config: %v", err)
 		// Failed to write file, report failure for all updates
@@ -363,18 +359,19 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 				Error: FileWriteFailure,
 			})
 		}
-	} else {
-		pkglog.Debugf("Successfully wrote APM_TRACING config to %s", apmTracingFilePath)
-		// Successfully wrote file, report success/failure
-		for id, errStatus := range updateStatus {
-			applyState := state.ApplyStateAcknowledged
-			if errStatus != "" {
-				applyState = state.ApplyStateError
-			}
-			applyStateCallback(id, state.ApplyStatus{
-				State: applyState,
-				Error: errStatus,
-			})
-		}
+		return
 	}
+	pkglog.Debugf("Successfully wrote APM_TRACING config to %s", apmTracingFilePath)
+	// Successfully wrote file, report success/failure per update
+	for id, errStatus := range updateStatus {
+		applyState := state.ApplyStateAcknowledged
+		if errStatus != "" {
+			applyState = state.ApplyStateError
+		}
+		applyStateCallback(id, state.ApplyStatus{
+			State: applyState,
+			Error: errStatus,
+		})
+	}
+
 }
