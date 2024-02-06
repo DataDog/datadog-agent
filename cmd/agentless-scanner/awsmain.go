@@ -24,7 +24,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -144,7 +143,8 @@ func awsOfflineCommand() *cobra.Command {
 
 	var flags struct {
 		workers      int
-		regions      []string
+		account      string
+		region       string
 		filters      string
 		taskType     string
 		maxScans     int
@@ -168,7 +168,8 @@ func awsOfflineCommand() *cobra.Command {
 			return offlineCmd(
 				flags.workers,
 				taskType,
-				flags.regions,
+				flags.account,
+				flags.region,
 				flags.maxScans,
 				flags.printResults,
 				filters,
@@ -179,7 +180,8 @@ func awsOfflineCommand() *cobra.Command {
 	}
 
 	cmd.Flags().IntVar(&flags.workers, "workers", 40, "number of scans running in parallel")
-	cmd.Flags().StringSliceVar(&flags.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
+	cmd.Flags().StringVar(&flags.account, "account", "auto", "account id (default to the current account)")
+	cmd.Flags().StringVar(&flags.region, "regions", "auto", "list of regions to scan (default to the current region)")
 	cmd.Flags().StringVar(&flags.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
 	cmd.Flags().StringVar(&flags.taskType, "task-type", string(types.TaskTypeEBS), fmt.Sprintf("scan type (%s %s or %s)", types.TaskTypeEBS, types.TaskTypeLambda, types.TaskTypeHost))
 	cmd.Flags().IntVar(&flags.maxScans, "max-scans", 0, "maximum number of scans to perform")
@@ -294,7 +296,7 @@ func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.Sc
 	return nil
 }
 
-func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+func offlineCmd(workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	ctx := ctxTerminated()
 	defer statsd.Flush()
 
@@ -303,48 +305,17 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
-	// Retrieve instance’s region.
-	defaultCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(defaultSelfRegion))
-	if err != nil {
-		return err
-	}
-	imdsclient := imds.NewFromConfig(defaultCfg)
-	regionOutput, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
-	selfRegion := defaultSelfRegion
-	if err != nil {
-		log.Errorf("could not retrieve region from ec2 instance - using default %q: %v", selfRegion, err)
-	} else {
-		selfRegion = regionOutput.Region
-	}
-
-	stsclient := sts.NewFromConfig(defaultCfg)
-	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	self, err := awsutils.GetSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return err
 	}
 
 	roles := getDefaultRolesMapping(types.CloudProviderAWS)
-	cfg := awsutils.GetConfig(ctx, selfRegion, roles.GetRole(*identity.Account))
-	ec2client := ec2.NewFromConfig(cfg)
-	if err != nil {
-		return err
+	if regionName == "auto" {
+		regionName = self.Region
 	}
-
-	var allRegions []string
-	if len(regions) > 0 {
-		allRegions = regions
-	} else {
-		describeRegionsInput := &ec2.DescribeRegionsInput{}
-		describeRegionsOutput, err := ec2client.DescribeRegions(ctx, describeRegionsInput)
-		if err != nil {
-			return err
-		}
-		for _, region := range describeRegionsOutput.Regions {
-			if region.RegionName == nil {
-				continue
-			}
-			allRegions = append(allRegions, *region.RegionName)
-		}
+	if accountID == "auto" {
+		accountID = self.AccountID
 	}
 
 	scanner, err := runner.New(runner.Options{
@@ -367,128 +338,112 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 	}
 
 	pushEBSVolumes := func() error {
+		ec2client := ec2.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles.GetRole(accountID)))
+		if err != nil {
+			return err
+		}
+		describeInstancesInput := &ec2.DescribeInstancesInput{
+			Filters: append([]ec2types.Filter{
+				{
+					Name:   aws.String("instance-state-name"),
+					Values: []string{string(ec2types.InstanceStateNameRunning)},
+				},
+			}, filters...),
+		}
 		count := 0
-		for _, regionName := range allRegions {
-			if ctx.Err() != nil {
-				return nil
-			}
-			if regionName == "auto" {
-				regionName = selfRegion
-			}
-			ec2client := ec2.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles.GetRole(*identity.Account)))
+		for {
+			instances, err := ec2client.DescribeInstances(ctx, describeInstancesInput)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not scan region %q for EBS volumes: %w", regionName, err)
 			}
-			describeInstancesInput := &ec2.DescribeInstancesInput{
-				Filters: append([]ec2types.Filter{
-					{
-						Name:   aws.String("instance-state-name"),
-						Values: []string{string(ec2types.InstanceStateNameRunning)},
-					},
-				}, filters...),
-			}
-			for {
-				instances, err := ec2client.DescribeInstances(ctx, describeInstancesInput)
-				if err != nil {
-					return fmt.Errorf("could not scan region %q for EBS volumes: %w", regionName, err)
-				}
-				for _, reservation := range instances.Reservations {
-					for _, instance := range reservation.Instances {
-						if instance.InstanceId == nil {
+			for _, reservation := range instances.Reservations {
+				for _, instance := range reservation.Instances {
+					if instance.InstanceId == nil {
+						continue
+					}
+					if instance.State.Name != ec2types.InstanceStateNameRunning {
+						continue
+					}
+					for _, blockDeviceMapping := range instance.BlockDeviceMappings {
+						if blockDeviceMapping.DeviceName == nil {
 							continue
 						}
-						if instance.State.Name != ec2types.InstanceStateNameRunning {
+						if blockDeviceMapping.Ebs == nil {
 							continue
 						}
-						for _, blockDeviceMapping := range instance.BlockDeviceMappings {
-							if blockDeviceMapping.DeviceName == nil {
-								continue
-							}
-							if blockDeviceMapping.Ebs == nil {
-								continue
-							}
-							if *blockDeviceMapping.DeviceName != *instance.RootDeviceName {
-								continue
-							}
-							if instance.Architecture == ec2types.ArchitectureValuesX8664Mac || instance.Architecture == ec2types.ArchitectureValuesArm64Mac {
-								// Exclude macOS.
-								continue
-							}
-							if instance.Platform == "windows" {
-								// ec2types.PlatformValuesWindows incorrectly spells "Windows".
-								// Exclude Windows.
-								continue
-							}
-							if instance.PlatformDetails != nil && strings.HasPrefix(*instance.PlatformDetails, "Windows") {
-								// Exclude Windows.
-								continue
-							}
-							volumeID, err := types.AWSCloudID("ec2", regionName, *identity.Account, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
-							if err != nil {
-								return err
-							}
-							log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeID, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
-							scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.AsText(), hostname, *instance.InstanceId, actions, roles, diskMode)
-							if err != nil {
-								return err
-							}
+						if *blockDeviceMapping.DeviceName != *instance.RootDeviceName {
+							continue
+						}
+						if instance.Architecture == ec2types.ArchitectureValuesX8664Mac || instance.Architecture == ec2types.ArchitectureValuesArm64Mac {
+							// Exclude macOS.
+							continue
+						}
+						if instance.Platform == "windows" {
+							// ec2types.PlatformValuesWindows incorrectly spells "Windows".
+							// Exclude Windows.
+							continue
+						}
+						if instance.PlatformDetails != nil && strings.HasPrefix(*instance.PlatformDetails, "Windows") {
+							// Exclude Windows.
+							continue
+						}
+						volumeID, err := types.AWSCloudID("ec2", regionName, accountID, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
+						if err != nil {
+							return err
+						}
+						log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeID, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
+						scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.AsText(), hostname, *instance.InstanceId, actions, roles, diskMode)
+						if err != nil {
+							return err
+						}
 
-							config := &types.ScanConfig{Type: types.ConfigTypeAWS, Tasks: []*types.ScanTask{scan}, Roles: roles}
-							if !scanner.PushConfig(ctx, config) {
-								return nil
-							}
-							count++
-							if maxScans > 0 && count >= maxScans {
-								return nil
-							}
+						config := &types.ScanConfig{Type: types.ConfigTypeAWS, Tasks: []*types.ScanTask{scan}, Roles: roles}
+						if !scanner.PushConfig(ctx, config) {
+							return nil
+						}
+						count++
+						if maxScans > 0 && count >= maxScans {
+							return nil
 						}
 					}
 				}
-				if instances.NextToken == nil {
-					break
-				}
-				describeInstancesInput.NextToken = instances.NextToken
 			}
+			if instances.NextToken == nil {
+				break
+			}
+			describeInstancesInput.NextToken = instances.NextToken
 		}
 		return nil
 	}
 
 	pushLambdaFunctions := func() error {
+		lambdaclient := lambda.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles.GetRole(accountID)))
+		var marker *string
 		count := 0
-		for _, regionName := range regions {
-			if ctx.Err() != nil {
-				return nil
+		for {
+			functions, err := lambdaclient.ListFunctions(ctx, &lambda.ListFunctionsInput{
+				Marker: marker,
+			})
+			if err != nil {
+				return fmt.Errorf("could not scan region %q for Lambda functions: %w", regionName, err)
 			}
-			if regionName == "auto" {
-				regionName = selfRegion
-			}
-			lambdaclient := lambda.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles.GetRole(*identity.Account)))
-			var marker *string
-			for {
-				functions, err := lambdaclient.ListFunctions(ctx, &lambda.ListFunctionsInput{
-					Marker: marker,
-				})
+			for _, function := range functions.Functions {
+				scan, err := types.NewScanTask(types.TaskTypeLambda, *function.FunctionArn, hostname, "", actions, roles, diskMode)
 				if err != nil {
-					return fmt.Errorf("could not scan region %q for Lambda functions: %w", regionName, err)
+					return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
 				}
-				for _, function := range functions.Functions {
-					scan, err := types.NewScanTask(types.TaskTypeLambda, *function.FunctionArn, hostname, "", actions, roles, diskMode)
-					if err != nil {
-						return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
-					}
-					config := &types.ScanConfig{Type: types.ConfigTypeAWS, Tasks: []*types.ScanTask{scan}, Roles: roles}
-					if !scanner.PushConfig(ctx, config) {
-						return nil
-					}
-					count++
-					if maxScans > 0 && count >= maxScans {
-						return nil
-					}
+				config := &types.ScanConfig{Type: types.ConfigTypeAWS, Tasks: []*types.ScanTask{scan}, Roles: roles}
+				if !scanner.PushConfig(ctx, config) {
+					return nil
 				}
-				marker = functions.NextMarker
-				if marker == nil {
-					break
+				count++
+				if maxScans > 0 && count >= maxScans {
+					return nil
 				}
+			}
+			marker = functions.NextMarker
+			if marker == nil {
+				break
 			}
 		}
 		return nil
