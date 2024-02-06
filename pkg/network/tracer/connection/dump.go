@@ -73,15 +73,6 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		}
 		spew.Fdump(w, telemetry)
 
-	case probes.SockFDLookupArgsMap: // maps/sockfd_lookup_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
-		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.__u32'\n")
-		iter := currentMap.Iterate()
-		var key uint64
-		var value uint32
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			spew.Fdump(w, key, value)
-		}
-
 	case probes.SockByPidFDMap: // maps/sock_by_pid_fd (BPF_MAP_TYPE_HASH), key C.pid_fd_t, value uintptr // C.struct sock*
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.pid_fd_t', value: 'uintptr // C.struct sock*'\n")
 		iter := currentMap.Iterate()

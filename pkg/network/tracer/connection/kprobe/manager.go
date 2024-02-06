@@ -64,8 +64,6 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.Inet6Bind,
 	probes.InetBindRet,
 	probes.Inet6BindRet,
-	probes.SockFDLookup,
-	probes.SockFDLookupRet,
 	probes.UDPSendPage,
 	probes.UDPSendPageReturn,
 }
@@ -85,7 +83,6 @@ func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, run
 		{Name: probes.SockByPidFDMap},
 		{Name: probes.ConnectionProtocolMap},
 		{Name: probes.PidFDBySockMap},
-		{Name: probes.SockFDLookupArgsMap},
 		{Name: probes.TcpSendMsgArgsMap},
 		{Name: probes.TcpSendPageArgsMap},
 		{Name: probes.UdpSendPageArgsMap},

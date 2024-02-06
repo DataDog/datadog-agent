@@ -67,6 +67,12 @@ const (
 	// the accept syscall).
 	maxActive = 128
 	probeUID  = "http"
+
+	// SockFDLookup is the kprobe used for mapping socket FDs to kernel sock structs
+	sockFDLookup = "kprobe__sockfd_lookup_light"
+
+	// SockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
+	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
 )
 
 type ebpfProgram struct {
@@ -116,16 +122,17 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		missing, err := ddebpf.VerifyKernelFuncs("sockfd_lookup_light")
 		if err == nil && len(missing) == 0 {
+			mgr.Maps = append(mgr.Maps, &manager.Map{Name: "sockfd_lookup_args"})
 			mgr.Probes = append(mgr.Probes, []*manager.Probe{
 				{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFFuncName: probes.SockFDLookup,
+						EBPFFuncName: sockFDLookup,
 						UID:          probeUID,
 					},
 				},
 				{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFFuncName: probes.SockFDLookupRet,
+						EBPFFuncName: sockFDLookupRet,
 						UID:          probeUID,
 					},
 					KProbeMaxActive: maxActive,
