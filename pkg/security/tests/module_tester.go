@@ -28,6 +28,7 @@ import (
 
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -514,6 +515,21 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 		cb(event, rule)
 		return nil
 	})
+}
+
+//nolint:deadcode,unused
+func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
+	b, err := serializers.MarshalEvent(ev)
+	return string(b), err
+}
+
+//nolint:deadcode,unused
+func (tm *testModule) debugEvent(ev *model.Event) string {
+	b, err := tm.marshalEvent(ev)
+	if err != nil {
+		return err.Error()
+	}
+	return string(b)
 }
 
 //nolint:deadcode,unused
