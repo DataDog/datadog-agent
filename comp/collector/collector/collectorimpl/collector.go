@@ -14,7 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
+	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -33,18 +35,29 @@ type collectorImpl struct {
 	pkgcollector.Collector
 }
 
+type provides struct {
+	fx.Out
+
+	Comp         collector.Component
+	OptionalComp optional.Option[collector.Component]
+	Provider     status.InformationProvider
+}
+
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newCollector),
-		fx.Provide(func(collector collector.Component) optional.Option[collector.Component] {
-			return optional.NewOption(collector)
-		}),
 	)
 }
 
-func newCollector(deps dependencies) collector.Component {
-	return &collectorImpl{
+func newCollector(deps dependencies) provides {
+	c := &collectorImpl{
 		Collector: pkgcollector.NewCollector(deps.Demultiplexer, deps.Config.GetDuration("check_cancel_timeout"), common.GetPythonPaths()...),
+	}
+
+	return provides{
+		Comp:         c,
+		OptionalComp: optional.NewOption[collector.Component](c),
+		Provider:     status.NewInformationProvider(collectorStatus.Provider{}),
 	}
 }
