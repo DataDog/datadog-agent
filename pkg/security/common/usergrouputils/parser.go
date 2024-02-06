@@ -98,13 +98,9 @@ func readColonFile(r io.Reader, fn lineFunc, readCols int) error {
 	}
 }
 
-func parsePasswd(fs fs.FS, path string) (map[int]string, error) {
+// ParsePasswdFile parses the given user password file
+func ParsePasswdFile(file io.Reader) (map[int]string, error) {
 	users := make(map[int]string)
-	file, err := fs.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
 	if err := readColonFile(file, func(line []byte) any {
 		if bytes.Count(line, colon) < 6 {
 			return nil
@@ -124,17 +120,22 @@ func parsePasswd(fs fs.FS, path string) (map[int]string, error) {
 	}, 6); err != nil {
 		return nil, err
 	}
-
 	return users, nil
 }
 
-func parseGroup(fs fs.FS, path string) (map[int]string, error) {
-	groups := make(map[int]string)
+// ParsePasswd parses the given user password file
+func ParsePasswd(fs fs.FS, path string) (map[int]string, error) {
 	file, err := fs.Open(path)
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
+	return ParsePasswdFile(file)
+}
 
+// ParseGroupFile parses the given group file
+func ParseGroupFile(file io.Reader) (map[int]string, error) {
+	groups := make(map[int]string)
 	if err := readColonFile(file, func(line []byte) any {
 		if bytes.Count(line, colon) < 3 {
 			return nil
@@ -158,6 +159,15 @@ func parseGroup(fs fs.FS, path string) (map[int]string, error) {
 	}, 6); err != nil {
 		return nil, err
 	}
-
 	return groups, nil
+}
+
+// ParseGroup parses the given group file
+func ParseGroup(fs fs.FS, path string) (map[int]string, error) {
+	file, err := fs.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return ParseGroupFile(file)
 }

@@ -16,7 +16,7 @@ import (
 var testFS embed.FS
 
 func TestPasswdParsing(t *testing.T) {
-	users, err := parsePasswd(testFS, "passwd.sample")
+	users, err := ParsePasswd(testFS, "passwd.sample")
 	if err != nil {
 		t.Error(err)
 	}
@@ -36,7 +36,7 @@ func TestPasswdParsing(t *testing.T) {
 }
 
 func TestGroupParsing(t *testing.T) {
-	groups, err := parseGroup(testFS, "group.sample")
+	groups, err := ParseGroup(testFS, "group.sample")
 	if err != nil {
 		t.Error(err)
 	}
