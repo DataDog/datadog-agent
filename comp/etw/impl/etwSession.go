@@ -10,10 +10,11 @@ package etwimpl
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/etw"
-	"golang.org/x/sys/windows"
 	"runtime/cgo"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/comp/etw"
+	"golang.org/x/sys/windows"
 )
 
 /*
@@ -181,7 +182,7 @@ func createEtwSession(name string) (*etwSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("incorrect session name; %w", err)
 	}
-	sessionNameSize := len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName))
+	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
 	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
 	propertiesBuf := make([]byte, bufSize)
 
@@ -194,7 +195,7 @@ func createEtwSession(name string) (*etwSession, error) {
 
 	ret := windows.Errno(C.StartTraceW(
 		&s.hSession,
-		C.LPWSTR(unsafe.Pointer(&utf16SessionName[0])),
+		C.LPWSTR(unsafe.Pointer(&s.utf16name[0])),
 		pProperties,
 	))
 

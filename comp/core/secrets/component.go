@@ -23,5 +23,5 @@ type Component interface {
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
 	SubscribeToChanges(callback SecretChangeCallback)
 	// Refresh will resolve secret handles again, notifying any subscribers of changed values
-	Refresh() error
+	Refresh() (string, error)
 }

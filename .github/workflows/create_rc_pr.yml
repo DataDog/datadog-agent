@@ -2,6 +2,10 @@ name: Create RC PR
 
 on:
   workflow_dispatch:
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
     create_rc_pr:
         runs-on: ubuntu-latest
@@ -24,7 +28,19 @@ jobs:
                 pip install -r requirements.txt
                 pip install -r tasks/libs/requirements-github.txt
 
+            - name: Determine the release active branch
+              run: |
+                echo "RELEASE_BRANCH=$(inv -e release.get-active-release-branch)" >> $GITHUB_ENV
+            
+            - name: Checkout release branch
+              uses: actions/checkout@v4
+              with:
+                ref: ${{ env.RELEASE_BRANCH }}
+                fetch-depth: 0
+              
             - name: Create RC PR
               run: |
-                export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+                git config user.name "GitHub Actions"
+                git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                git fetch
                 inv -e release.create-rc

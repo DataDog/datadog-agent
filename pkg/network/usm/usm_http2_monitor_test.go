@@ -716,59 +716,50 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
-			name: "validate capability to process up to max limit filtering frames",
-			// The purpose of this test is to verify our ability to process up to HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING frames.
-			// We write the path "/aaa" for the first time with an additional 25 headers (reaching to a total of 26 headers).
-			// When we exceed the limit, we expect to lose our internal counter (because we can filter up to 25 requests),
-			// and therefore, the next time we write the request "/aaa",
-			// its internal index will not be correct, and we will not be able to find it.
+			name: "validate various status codes",
+			// The purpose of this test is to verify that we support status codes that do not appear in the static table.
 			messageBuilder: func() [][]byte {
-				const multiHeadersCount = 25
-				framer := newFramer()
-				return [][]byte{
-					framer.writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
-						Headers: multipleTestHeaders(multiHeadersCount)}).
-						writeData(t, 1, true, emptyBody).
-						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
+				statusCodes := []int{http.StatusCreated, http.StatusMultipleChoices, http.StatusUnauthorized, http.StatusGatewayTimeout}
+				const iterationsPerStatusCode = 3
+				messages := make([][]byte, 0, len(statusCodes)*iterationsPerStatusCode)
+				for statusCodeIteration, statusCode := range statusCodes {
+					for i := 0; i < iterationsPerStatusCode; i++ {
+						streamID := getStreamID(statusCodeIteration*iterationsPerStatusCode + i)
+						messages = append(messages, newFramer().
+							writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint(fmt.Sprintf("/status/%d", statusCode))}).
+							writeData(t, streamID, true, emptyBody).
+							bytes())
+					}
 				}
+				return messages
 			},
-			expectedEndpoints: nil,
-		},
-		{
-			name: "validate 300 status code",
-			// The purpose of this test is to verify that currently we do not support status code 300.
-			messageBuilder: func() [][]byte {
-				framer := newFramer()
-				return [][]byte{
-					framer.
-						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/status/300")}).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
-				}
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/201")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/300")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/401")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/504")},
+					Method: usmhttp.MethodPost,
+				}: 3,
 			},
-			expectedEndpoints: nil,
-		},
-		{
-			name: "validate 401 status code",
-			// The purpose of this test is to verify that currently we do not support status code 401.
-			messageBuilder: func() [][]byte {
-				framer := newFramer()
-				return [][]byte{
-					framer.
-						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/status/401")}).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
-				}
-			},
-			expectedEndpoints: nil,
 		},
 		{
 			name: "validate http methods",
-			// The purpose of this test is to validate that we are not supporting http2 methods different from POST and GET.
+			// The purpose of this test is to validate that we are able to capture all http methods.
 			messageBuilder: func() [][]byte {
-				httpMethods = []string{http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}
+				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
+					http.MethodPut, http.MethodPatch, http.MethodOptions, http.MethodTrace, http.MethodConnect}
+				// Currently, the methods TRACE and CONNECT are not supported by the http.Method package.
+				// Therefore, we mark those requests as incomplete and not expected to be captured.
 				framer := newFramer()
 				for i, method := range httpMethods {
 					streamID := getStreamID(i)
@@ -778,7 +769,130 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 				return [][]byte{framer.bytes()}
 			},
-			expectedEndpoints: nil,
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodGet,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodHead,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodDelete,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPut,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPatch,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodOptions,
+				}: 1,
+			},
+		},
+		{
+			name: "validate http methods huffman encoded",
+			// The purpose of this test is to validate that we are able to capture all http methods.
+			messageBuilder: func() [][]byte {
+				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
+					http.MethodPut, http.MethodPatch, http.MethodOptions, http.MethodTrace, http.MethodConnect}
+				// Currently, the methods TRACE and CONNECT are not supported by the http.Method package.
+				// Therefore, we mark those requests as incomplete and not expected to be captured.
+				framer := newFramer()
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":method")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: headerFields,
+				})
+				require.NoError(t, err, "could not create headers frame")
+				for i, method := range httpMethods {
+					huffMethod := hpack.AppendHuffmanString([]byte{}, method)
+					// we are adding 128 to the length of the huffman encoded method,
+					// as it is the representation of the huffman encoding (MSB ofo the octet is on).
+					rawMethod := append([]byte{0x43}, byte(0x80|len(huffMethod)))
+					rawMethod = append(rawMethod, huffMethod...)
+					headersFrameWithRawMethod := append(rawMethod, headersFrame...)
+					streamID := getStreamID(i)
+					framer.
+						writeRawHeaders(t, streamID, headersFrameWithRawMethod).
+						writeData(t, streamID, true, emptyBody).bytes()
+				}
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodGet,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodHead,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodDelete,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPut,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPatch,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodOptions,
+				}: 1,
+			},
+		},
+		{
+			name: "validate http methods POST and GET methods as literal",
+			// The purpose of this test is to validate that when the methods POST and GET are sent as literal fields
+			// and not indexed, we are still able to capture and process them correctly.
+			messageBuilder: func() [][]byte {
+				getMethodRaw := append([]byte{0x43, 0x03}, []byte("GET")...)
+				postMethodRaw := append([]byte{0x43, 0x04}, []byte("POST")...)
+
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":method")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: headerFields,
+				})
+				require.NoError(t, err, "could not create headers frame")
+				headersFrameWithGET := append(getMethodRaw, headersFrame...)
+				headersFrameWithPOST := append(postMethodRaw, headersFrame...)
+
+				framer := newFramer()
+				framer.
+					writeRawHeaders(t, 1, headersFrameWithGET).
+					writeData(t, 1, true, emptyBody).
+					writeRawHeaders(t, 3, headersFrameWithPOST).
+					writeData(t, 3, true, emptyBody)
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodGet,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
 		},
 		{
 			name: "validate max path length",
@@ -1183,7 +1297,14 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int) bool {
 	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
-			count := stat.Data[200].Count
+			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
+			// statusCode 0 represents an error returned from the function, which means the URL is not in the special
+			// form which contains the expected status code (form - `/status/{statusCode}`). So by default we use
+			// 200 as the status code.
+			if statusCode == 0 {
+				statusCode = 200
+			}
+			count := stat.Data[statusCode].Count
 			newKey := usmhttp.Key{
 				Path:   usmhttp.Path{Content: key.Path.Content},
 				Method: key.Method,
@@ -1262,15 +1383,6 @@ func headersWithGivenEndpoint(path string) []hpack.HeaderField {
 
 // testHeaders returns a set of header fields.
 func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(headersGenerationOptions{}) }
-
-// multipleTestHeaders returns a set of header fields, with the given number of headers.
-func multipleTestHeaders(testHeadersCount int) []hpack.HeaderField {
-	additionalHeaders := make([]hpack.HeaderField, testHeadersCount)
-	for i := 0; i < testHeadersCount; i++ {
-		additionalHeaders[i] = hpack.HeaderField{Name: fmt.Sprintf("name-%d", i), Value: fmt.Sprintf("test-%d", i)}
-	}
-	return append(testHeaders(), additionalHeaders...)
-}
 
 type headersGenerationOptions struct {
 	pathTypeValue         pathType
