@@ -95,41 +95,6 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 			return
 		}
 
-		//// POC: can we pull out target info from APM_TRACING config updates
-		//// TODO: we only want to look at CONFIRMED APM_TRACING files
-		//if len(cfgResponse.TargetFiles) > 0 {
-		//	tcu := TracingConfigUpdate{}
-		//	err := json.Unmarshal(cfgResponse.TargetFiles[0].Raw, &tcu)
-		//	if err != nil {
-		//		log.Errorf("ANDREW POC: failed to unmarshal tracing config update %v", err)
-		//	} else {
-		//		// TODO: Is this the right service or should we be looking in the tcu.LibConfig?
-		//		// TODO: how do we subscribe to a different target (us) for "host level" configuration
-		//		var senvConfigs []ServiceEnvConfig
-		//		updatedSenv := ServiceEnvKey{Service: tcu.ServiceTarget.Service, Env: tcu.ServiceTarget.Env}
-		//
-		//		servEnvMapMutex.Lock()
-		//		serviceEnvTracingEnabled[updatedSenv] = tcu.LibConfig.TracingEnabled
-		//		for senv, tracingEnabled := range serviceEnvTracingEnabled {
-		//			senvConfigs = append(senvConfigs, ServiceEnvConfig{Service: senv.Service, Env: senv.Env, TracingEnabled: tracingEnabled})
-		//		}
-		//		servEnvMapMutex.Unlock()
-		//
-		//		configFile, err := json.Marshal(TracingEnabledConfig{TracingEnabled: true, ServiceEnvConfigs: senvConfigs})
-		//		if err != nil {
-		//			panic(err) //todo: should be impossible?
-		//		}
-		//
-		//		fileLocation := "DD_SINGLE_STEP_CONFIG_DATA.json"
-		//		err = os.WriteFile(fileLocation, configFile, 0666)
-		//		if err != nil {
-		//			log.Errorf("failed to write single step config data file: %v", err)
-		//		} else {
-		//			log.Infof("WE DID ITTTTTTTTTTTTTTTTTTTTTTTTTTTTTT THE FILE WAS WRITTEN AT %s", fileLocation)
-		//		}
-		//	}
-		//}
-
 		content, err := json.Marshal(cfgResponse)
 		if err != nil {
 			statusCode = http.StatusInternalServerError
