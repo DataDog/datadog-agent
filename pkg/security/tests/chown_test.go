@@ -259,6 +259,9 @@ func TestChown(t *testing.T) {
 
 func TestChownUserGroup(t *testing.T) {
 	SkipIfNotAvailable(t)
+	if checkUserGroupAvailable() != nil {
+		t.Skip("User/group needed tools not available")
+	}
 
 	testUser := "test_user_1"
 	testUID := int32(1901)

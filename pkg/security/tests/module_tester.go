@@ -794,3 +794,20 @@ func removeGroup(group string) error {
 	cmd := exec.Command("/usr/sbin/groupdel", group)
 	return cmd.Run()
 }
+
+func checkUserGroupAvailable() error {
+	neededFiles := []string{
+		"/usr/sbin/userdel",
+		"/usr/sbin/groupdel",
+		"/usr/sbin/adduser",
+		"/usr/sbin/addgroup",
+		"/etc/passwd",
+		"/etc/group",
+	}
+	for _, file := range neededFiles {
+		if _, err := os.Stat(file); err != nil {
+			return err
+		}
+	}
+	return nil
+}
