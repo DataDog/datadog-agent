@@ -30,13 +30,14 @@ type PlatformProbe struct {
 	pm      *procmon.WinProcmon
 	onStart chan *procmon.ProcessStartNotification
 	onStop  chan *procmon.ProcessStopNotification
+	onError chan bool
 }
 
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 
-	pm, err := procmon.NewWinProcMon(p.onStart, p.onStop)
+	pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError)
 	if err != nil {
 		return err
 	}
@@ -70,22 +71,34 @@ func (p *Probe) Start() error {
 			select {
 			case <-p.ctx.Done():
 				return
+
+			case <-p.onError:
+				// in this case, we got some sort of error that the underlying
+				// subsystem can't recover from.  Need to initiate some sort of cleanup
+
 			case start := <-p.onStart:
+				var err error
 				pid := process.Pid(start.Pid)
 				if pid == 0 {
 					// TODO this shouldn't happen
 					continue
 				}
 
-				log.Debugf("Received start indication for process %v", start.Pid)
+				// CreatingPRocessId
+				// CreatingThreadId
+				// OwnerSidString
+				if start.RequiredSize > 0 {
+					// in this case, the command line and/or the image file might not be filled in
+					// depending upon how much space was needed.
 
-				ppid, err := procutil.GetParentPid(pid)
-				if err != nil {
-					log.Errorf("unable to resolve parent pid %v", err)
-					continue
+					// potential actions
+					// - just log/count the error and keep going
+					// - restart underlying procmon with larger buffer size, at least if error keeps occurring
+					log.Warnf("insufficient buffer size %v", start.RequiredSize)
+
 				}
 
-				pce, err = p.resolvers.ProcessResolver.AddNewEntry(pid, ppid, start.ImageFile, start.CmdLine)
+				pce, err = p.resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine)
 				if err != nil {
 					log.Errorf("error in resolver %v", err)
 					continue
