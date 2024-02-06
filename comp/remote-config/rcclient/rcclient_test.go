@@ -143,6 +143,7 @@ func TestOnAPMTracingUpdate(t *testing.T) {
 		oldPath := apmTracingFilePath
 		f, err := os.CreateTemp("", "test")
 		require.NoError(t, err)
+		f.Close() // This is required for windows unit tests as windows will not allow this file to be deleted while we have this handle.
 		apmTracingFilePath = f.Name()
 		return func() {
 			apmTracingFilePath = oldPath

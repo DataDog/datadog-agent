@@ -300,8 +300,11 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 	if len(update) == 0 {
 		// Empty update means revert to default behavior, so remove any existing config file
 		err := os.Remove(apmTracingFilePath)
-		if err != nil {
+		if err == nil {
 			pkglog.Infof("Removed APM_TRACING remote config file, APM injection will revert to default behavior")
+		} else if !os.IsNotExist(err) {
+			// If the file already wasn't there then it wasn't an error
+			pkglog.Errorf("Failed to remove APM_TRACING remote config file, previous APM injection behavior will continue")
 		}
 		return
 	}
