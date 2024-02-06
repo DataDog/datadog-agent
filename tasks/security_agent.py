@@ -871,8 +871,9 @@ def kitchen_prepare(ctx, windows=is_windows, skip_linters=False):
             skip_linters=skip_linters,
             windows=windows,
         )
-        
+
         return
+
     stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
     build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters)
 
