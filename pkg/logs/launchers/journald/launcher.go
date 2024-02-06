@@ -105,7 +105,7 @@ func (l *Launcher) run() {
 				l.tailers[identifier] = tailer
 			}
 
-			l.fc.SetAllJournalFiles(allJournalSources)
+			l.fc.AddToJournalFiles(allJournalSources)
 		case <-l.stop:
 			return
 		}
