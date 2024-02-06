@@ -48,7 +48,6 @@ type testOpts struct {
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
-	enableEBPFLess                             bool
 	enableFIM                                  bool // only valid on windows
 }
 
