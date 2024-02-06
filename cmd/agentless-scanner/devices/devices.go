@@ -199,6 +199,9 @@ func ListPartitions(ctx context.Context, scan *types.ScanTask, deviceName string
 	for i := 0; i < 5; i++ {
 		blockDevices, err := List(ctx, deviceName)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil, err
+			}
 			continue
 		}
 		if len(blockDevices) != 1 {

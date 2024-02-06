@@ -34,10 +34,6 @@ const (
 // volume, attaches it to the instance and returns the list of partitions that
 // were mounted.
 func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter) ([]string, error) {
-	if scan.TargetHostname == "" {
-		return nil, fmt.Errorf("ebs-volume: missing hostname")
-	}
-
 	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.CloudID)
 	ec2client := ec2.NewFromConfig(cfg)
 
@@ -46,31 +42,27 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 	switch scan.CloudID.ResourceType() {
 	case types.ResourceTypeVolume:
 		snapshotID, err = CreateSnapshot(ctx, scan, waiter, ec2client, scan.CloudID)
-		if err != nil {
-			return nil, err
-		}
 	case types.ResourceTypeSnapshot:
-		snapshotID = scan.CloudID
+		snapshotID, err = CopySnapshot(ctx, scan, waiter, ec2client, scan.CloudID)
 	default:
-		return nil, fmt.Errorf("ebs-volume: bad arn %q", scan.CloudID)
+		err = fmt.Errorf("ebs-volume: unexpected resource type for task %q: %q", scan.Type, scan.CloudID)
 	}
-
-	log.Infof("%s: start EBS scanning", scan)
+	if err != nil {
+		return nil, err
+	}
 
 	switch scan.DiskMode {
 	case types.DiskModeVolumeAttach:
-		if err := AttachSnapshotWithVolume(ctx, scan, waiter, snapshotID); err != nil {
-			return nil, err
-		}
+		err = AttachSnapshotWithVolume(ctx, scan, waiter, snapshotID)
 	case types.DiskModeNBDAttach:
-		ebsclient := ebs.NewFromConfig(cfg)
-		if err := AttachSnapshotWithNBD(ctx, scan, snapshotID, ebsclient); err != nil {
-			return nil, err
-		}
+		err = AttachSnapshotWithNBD(ctx, scan, snapshotID, ebs.NewFromConfig(cfg))
 	case types.DiskModeNoAttach:
 		return nil, nil // nothing to do. early exit.
 	default:
 		panic("unreachable")
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
@@ -156,6 +148,55 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotW
 		}
 		return snapshotID, err
 	}
+}
+
+// CopySnapshot copies an EBS snapshot.
+func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, ec2client *ec2.Client, snapshotID types.CloudID) (types.CloudID, error) {
+	// TODO: use the waiter to poll the resource
+	snapshots, err := ec2client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{
+		SnapshotIds: []string{snapshotID.ResourceName()},
+	})
+	if err != nil {
+		return types.CloudID{}, err
+	}
+	if len(snapshots.Snapshots) == 0 {
+		return types.CloudID{}, fmt.Errorf("snapshot not found: %s", snapshotID)
+	}
+
+	snapshot := snapshots.Snapshots[0]
+
+	// Fast path if the given snapshot is of our creation (with the proper tags).
+	// TODO: check that the snapshot is in another region
+	for _, tag := range snapshot.Tags {
+		if tag.Key != nil && *tag.Key == "DatadogAgentlessScanner" && tag.Value != nil && *tag.Value == "true" {
+			return snapshotID, nil
+		}
+	}
+
+	log.Debugf("%s: copying snapshot %s", scan, snapshotID)
+	copyCreatedAt := time.Now()
+	copyOutput, err := ec2client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
+		SourceRegion:      aws.String(snapshotID.Region()),
+		SourceSnapshotId:  aws.String(snapshotID.ResourceName()),
+		TagSpecifications: cloudResourceTagSpec(snapshotID.ResourceType(), scan.ScannerHostname),
+		Encrypted:         snapshot.Encrypted,
+		KmsKeyId:          snapshot.KmsKeyId,
+	})
+	if err != nil {
+		return types.CloudID{}, fmt.Errorf("copying snapshot %q: %w", snapshotID, err)
+	}
+
+	copiedSnapshotID, err := types.AWSCloudID("ec2", snapshotID.Region(), snapshotID.AccountID(), types.ResourceTypeSnapshot, *copyOutput.SnapshotId)
+	if err != nil {
+		return types.CloudID{}, err
+	}
+	scan.PushCreatedResource(copiedSnapshotID, copyCreatedAt)
+
+	// TODO: stats
+	if err := <-waiter.Wait(ctx, copiedSnapshotID, ec2client); err != nil {
+		return types.CloudID{}, fmt.Errorf("waiting for copied snapshot %q: %w", copiedSnapshotID, err)
+	}
+	return copiedSnapshotID, nil
 }
 
 // AttachSnapshotWithNBD attaches the given snapshot to the instance using a
