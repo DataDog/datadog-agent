@@ -88,7 +88,7 @@ func CleanSlate(ctx context.Context, bds []devices.BlockDevice, roles types.Role
 
 // ListResourcesForCleanup lists all AWS resources that are created by our
 // scanner.
-func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.CloudID) ([]types.CloudID, error) {
+func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole types.CloudID) ([]types.CloudID, error) {
 	cfg := GetConfig(ctx, region, assumedRole)
 	ec2client := ec2.NewFromConfig(cfg)
 	var toBeDeleted []types.CloudID
@@ -156,7 +156,7 @@ func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region s
 }
 
 // ResourcesCleanup removes all resources provided in the map.
-func ResourcesCleanup(ctx context.Context, toBeDeleted []types.CloudID, region string, assumedRole *types.CloudID) {
+func ResourcesCleanup(ctx context.Context, toBeDeleted []types.CloudID, region string, assumedRole types.CloudID) {
 	ec2client := ec2.NewFromConfig(GetConfig(ctx, region, assumedRole))
 	for _, resourceID := range toBeDeleted {
 		if err := ctx.Err(); err != nil {

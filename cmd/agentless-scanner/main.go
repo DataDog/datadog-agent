@@ -186,15 +186,21 @@ func runCmd(pidfilePath string, workers, scannersMax int, defaultActions []types
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
+	provider, err := detectCloudProvider()
+	if err != nil {
+		return fmt.Errorf("could not detect cloud provider: %w", err)
+	}
+
 	scanner, err := runner.New(runner.Options{
 		Hostname:       hostname,
+		CloudProvider:  provider,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        workers,
 		ScannersMax:    scannersMax,
 		PrintResults:   false,
 		NoFork:         noForkScanners,
 		DefaultActions: defaultActions,
-		DefaultRoles:   getDefaultRolesMapping(),
+		DefaultRoles:   getDefaultRolesMapping(provider),
 		Statsd:         statsd,
 	})
 	if err != nil {
@@ -254,8 +260,12 @@ func runScannerCmd(sock string) error {
 	return nil
 }
 
-// TODO: copy pasted from cmd/agentless-scanner/awscmd
-func getDefaultRolesMapping() types.RolesMapping {
+func getDefaultRolesMapping(provider types.CloudProvider) types.RolesMapping {
 	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
-	return types.ParseRolesMapping(roles)
+	return types.ParseRolesMapping(provider, roles)
+}
+
+func detectCloudProvider() (types.CloudProvider, error) {
+	// TODO: detect cloud provider properly
+	return types.CloudProviderAWS, nil
 }

@@ -67,7 +67,7 @@ func localScanCmd(resourceID types.CloudID, targetHostname string, actions []typ
 	if err != nil {
 		return err
 	}
-	roles := getDefaultRolesMapping()
+	roles := getDefaultRolesMapping(types.CloudProviderNone)
 	task, err := types.NewScanTask(taskType, resourceID.AsText(), hostname, targetHostname, actions, roles, diskMode)
 	if err != nil {
 		return err
@@ -75,6 +75,7 @@ func localScanCmd(resourceID types.CloudID, targetHostname string, actions []typ
 
 	scanner, err := runner.New(runner.Options{
 		Hostname:       hostname,
+		CloudProvider:  types.CloudProviderNone,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        1,
 		ScannersMax:    8,

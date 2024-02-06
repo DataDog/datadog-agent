@@ -37,24 +37,14 @@ type confKey struct {
 	region string
 }
 
-func getConfKey(region string, role *types.CloudID) confKey {
-	key := confKey{
-		region: region,
-	}
-	if role != nil {
-		key.role = *role
-	}
-	return key
-}
-
 // GetConfigFromCloudID returns an AWS Config for the given region and assumed role.
 func GetConfigFromCloudID(ctx context.Context, roles types.RolesMapping, cloudID types.CloudID) aws.Config {
 	return GetConfig(ctx, cloudID.Region(), roles.GetCloudIDRole(cloudID))
 }
 
 // GetConfig returns an AWS Config for the given region and assumed role.
-func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) aws.Config {
-	key := getConfKey(region, assumedRole)
+func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aws.Config {
+	key := confKey{assumedRole, region}
 	if cfg, ok := globalConfigs.Load(key); ok {
 		return cfg.(aws.Config)
 	}
@@ -73,34 +63,53 @@ func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) a
 		EBSGetBlockRate:  rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate")),
 		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
 	})
-	httpClient := newHTTPClientWithStats(region, assumedRole, statsd, limiter, tags)
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithHTTPClient(httpClient),
-		config.WithRegion(region))
+
+	noDelegateCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		log.Errorf("awsconfig: could not load default config: %v", err)
 		return aws.Config{}
 	}
-	stsclient := sts.NewFromConfig(cfg)
-	if assumedRole != nil {
-		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.AsText())
-		cfg.Credentials = aws.NewCredentialsCache(stsassume)
-	}
 
-	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	var delegateCfg aws.Config
+	stsclient := sts.NewFromConfig(noDelegateCfg)
+	_, err = stsclient.AssumeRole(ctx, &sts.AssumeRoleInput{
+		RoleArn: aws.String(assumedRole.AsText()),
+	})
 	if err != nil {
-		log.Errorf("awsconfig: could not assumerole %q: %v", assumedRole, err)
-	}
-	if assumedRole == nil {
-		roleID, err := types.ParseCloudID(*identity.Arn, types.ResourceTypeRole)
+		// In case we cannot assume the role they're maybe is a configuration
+		// issue on IAM. However we try and fallback on using the default role
+		// for the identity, instead of a delegate. This may be possible if
+		// the user has attached the proper permissions directly on the
+		// instance's role for instance.
+		log.Warnf("awsconfig: could not assumerole %q: %v", assumedRole, err)
+		delegateCfg = noDelegateCfg
+		identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 		if err != nil {
-			log.Errorf("awsconfig: could not parse roleID from %q: %v", *identity.Arn, err)
+			log.Errorf("awsconfig: could not get caller identity: %v", err)
 			return aws.Config{}
 		}
-		cfg.HTTPClient = newHTTPClientWithStats(region, &roleID, statsd, limiter, tags)
+		identityRole, err := types.ParseCloudID(*identity.Arn, types.ResourceTypeRole)
+		if err != nil {
+			log.Errorf("awsconfig: could not parse identity role: %v", err)
+			return aws.Config{}
+		}
+		delegateCfg.HTTPClient = newHTTPClientWithStats(region, identityRole, statsd, limiter, tags)
+		log.Warnf("awsconfig: fallbacking on default identity %q", *identity.Arn)
+	} else {
+		// We were able to check that the role is assumable, so we can use it.
+		// Everything should be properly setup.
+		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.AsText())
+		delegateCfg, err = config.LoadDefaultConfig(ctx,
+			config.WithHTTPClient(newHTTPClientWithStats(region, assumedRole, statsd, limiter, tags)),
+			config.WithRegion(region),
+			config.WithCredentialsProvider(aws.NewCredentialsCache(stsassume)))
+		if err != nil {
+			log.Errorf("awsconfig: could not load delegate config: %v", err)
+		}
 	}
-	globalConfigs.Store(key, cfg)
-	return cfg
+
+	globalConfigs.Store(key, delegateCfg)
+	return delegateCfg
 }
 
 // GetSelfEC2InstanceIndentity returns the identity of the current EC2 instance.

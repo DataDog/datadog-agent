@@ -34,11 +34,12 @@ type roundtrip struct {
 	tags      []string
 }
 
-func newHTTPClientWithStats(region string, assumedRole *types.CloudID, statsd *ddogstatsd.Client, limiter *Limiter, tags []string) *http.Client {
+func newHTTPClientWithStats(region string, assumedRole types.CloudID, statsd *ddogstatsd.Client, limiter *Limiter, tags []string) *http.Client {
 	rt := &roundtrip{
 		region:  region,
 		limiter: limiter,
 		tags:    tags,
+		role:    assumedRole,
 		statsd:  statsd,
 		transport: &http.Transport{
 			DisableKeepAlives:   false,
@@ -48,9 +49,6 @@ func newHTTPClientWithStats(region string, assumedRole *types.CloudID, statsd *d
 			MaxIdleConnsPerHost: 500,
 			TLSHandshakeTimeout: 5 * time.Second,
 		},
-	}
-	if assumedRole != nil {
-		rt.role = *assumedRole
 	}
 	return &http.Client{
 		Timeout:   10 * time.Minute,
