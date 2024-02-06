@@ -183,7 +183,7 @@ func awsOfflineCommand() *cobra.Command {
 	cmd.Flags().StringVar(&flags.account, "account", "auto", "account id (default to the current account)")
 	cmd.Flags().StringVar(&flags.region, "regions", "auto", "list of regions to scan (default to the current region)")
 	cmd.Flags().StringVar(&flags.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
-	cmd.Flags().StringVar(&flags.taskType, "task-type", string(types.TaskTypeEBS), fmt.Sprintf("scan type (%s %s or %s)", types.TaskTypeEBS, types.TaskTypeLambda, types.TaskTypeHost))
+	cmd.Flags().StringVar(&flags.taskType, "task-type", string(types.TaskTypeEBS), fmt.Sprintf("scan type (%s, %s, %s or %s)", types.TaskTypeEBS, types.TaskTypeLambda, types.TaskTypeAMI, types.TaskTypeHost))
 	cmd.Flags().IntVar(&flags.maxScans, "max-scans", 0, "maximum number of scans to perform")
 	cmd.Flags().BoolVar(&flags.printResults, "print-results", false, "print scan results to stdout")
 	return cmd
@@ -416,6 +416,56 @@ func offlineCmd(workers int, taskType types.TaskType, accountID, regionName stri
 		return nil
 	}
 
+	pushAMI := func() error {
+		count := 0
+		ec2client := ec2.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles.GetRole(accountID)))
+		if err != nil {
+			return err
+		}
+		images, err := ec2client.DescribeImages(ctx, &ec2.DescribeImagesInput{
+			Owners:  []string{"self"},
+			Filters: filters,
+		})
+		if err != nil {
+			return fmt.Errorf("could not scan region %q for AMIs: %w", regionName, err)
+		}
+		for _, image := range images.Images {
+			if image.ImageId == nil {
+				continue
+			}
+			for _, blockDeviceMapping := range image.BlockDeviceMappings {
+				if blockDeviceMapping.DeviceName == nil {
+					continue
+				}
+				if blockDeviceMapping.Ebs == nil {
+					continue
+				}
+				if *blockDeviceMapping.DeviceName != *image.RootDeviceName {
+					continue
+				}
+				snapshotID, err := types.AWSCloudID("ec2", regionName, accountID, types.ResourceTypeSnapshot, *blockDeviceMapping.Ebs.SnapshotId)
+				if err != nil {
+					return err
+				}
+				log.Debugf("%s %s %s %s", regionName, *image.ImageId, snapshotID, *blockDeviceMapping.DeviceName)
+				scan, err := types.NewScanTask(types.TaskTypeAMI, snapshotID.AsText(), hostname, *image.ImageId, actions, roles, diskMode)
+				if err != nil {
+					return err
+				}
+				config := &types.ScanConfig{Type: types.ConfigTypeAWS, Tasks: []*types.ScanTask{scan}, Roles: roles}
+				if !scanner.PushConfig(ctx, config) {
+					return nil
+				}
+				count++
+				if maxScans > 0 && count >= maxScans {
+					return nil
+				}
+				break
+			}
+		}
+		return nil
+	}
+
 	pushLambdaFunctions := func() error {
 		lambdaclient := lambda.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles.GetRole(accountID)))
 		var marker *string
@@ -452,11 +502,14 @@ func offlineCmd(workers int, taskType types.TaskType, accountID, regionName stri
 	go func() {
 		defer scanner.Stop()
 		var err error
-		if taskType == types.TaskTypeEBS {
+		switch taskType {
+		case types.TaskTypeEBS:
 			err = pushEBSVolumes()
-		} else if taskType == types.TaskTypeLambda {
+		case types.TaskTypeAMI:
+			err = pushAMI()
+		case types.TaskTypeLambda:
 			err = pushLambdaFunctions()
-		} else {
+		default:
 			panic("unreachable")
 		}
 		if err != nil {

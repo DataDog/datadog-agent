@@ -100,6 +100,7 @@ Resources:
               ec2:CreateAction:
               - CreateSnapshot
               - CreateVolume
+              - CopySnapshot
           Effect: Allow
           Resource:
           - arn:aws:ec2:*:*:volume/*
@@ -186,6 +187,19 @@ Resources:
           Effect: Allow
           Resource: '*'
           Sid: DatadogAgentlessScannerDescribeVolumes
+        - Action: ec2:DescribeImages
+          Effect: Allow
+          Resource: '*'
+          Sid: DatadogAgentlessScannerDescribeImages
+        - Action: ec2:CopySnapshot
+          Effect: Allow
+          Condition:
+            ForAllValues:StringLike:
+              aws:TagKeys: DatadogAgentlessScanner*
+            StringEquals:
+              aws:RequestTag/DatadogAgentlessScanner: 'true'
+          Resource: arn:aws:ec2:*:*:snapshot/*
+          Sid: DatadogAgentlessScannerCopySnapshot
 
   DatadogAgentlessScannerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
