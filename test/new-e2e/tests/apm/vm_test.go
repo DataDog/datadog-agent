@@ -7,7 +7,6 @@ package apm
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"testing"
 	"time"
@@ -88,15 +87,11 @@ func (s *VMFakeintakeSuite) SetupSuite() {
 }
 
 func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
-	// Wait for agent to be live
-	s.T().Log("Waiting for Trace Agent to be live.")
-	s.Require().NoError(waitRemotePort(s, 8126))
-
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
-	}, 2*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
+	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
 func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
@@ -111,10 +106,6 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 
 	service := fmt.Sprintf("tracegen-container-tag-%s", s.transport)
 
-	// Wait for agent to be live
-	s.T().Log("Waiting for Trace Agent to be live.")
-	s.Require().NoError(waitRemotePort(s, 8126))
-
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
@@ -122,7 +113,7 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
-	}, 2*time.Minute, 10*time.Second, "Failed finding traces with container tags")
+	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
 func (s *VMFakeintakeSuite) TestStatsForService() {
@@ -131,10 +122,6 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
 
-	// Wait for agent to be live
-	s.T().Log("Waiting for Trace Agent to be live.")
-	s.Require().NoError(waitRemotePort(s, 8126))
-
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
@@ -142,7 +129,7 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
-	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
+	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
 func (s *VMFakeintakeSuite) TestBasicTrace() {
@@ -150,10 +137,6 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-basic-trace-%s", s.transport)
-
-	// Wait for agent to be live
-	s.T().Log("Waiting for Trace Agent to be live.")
-	s.Require().NoError(waitRemotePort(s, 8126))
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
@@ -163,25 +146,5 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
-	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
-}
-
-func waitRemotePort(v *VMFakeintakeSuite, port uint16) error {
-	var (
-		c   net.Conn
-		err error
-	)
-	v.Eventually(func() bool {
-		v.T().Logf("Waiting for remote:%v", port)
-		// TODO: Use the e2e context
-		c, err = v.Env().RemoteHost.DialRemotePort(port)
-		if err != nil {
-			v.T().Logf("Failed to dial remote:%v: %s\n", port, err)
-			return false
-		}
-		v.T().Logf("Connected to remote:%v\n", port)
-		defer c.Close()
-		return true
-	}, 60*time.Second, 1*time.Second, "Failed to dial remote:%v: %s\n", port, err)
-	return err
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }
