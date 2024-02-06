@@ -18,7 +18,7 @@ single-machine-performance-regression_detector:
     when: always
   variables:
     SMP_VERSION: 0.12.0
-    LADING_VERSION: 0.20.4
+    LADING_VERSION: 0.20.6
     CPUS: 7
     MEMORY: "30g"
   # At present we require two artifacts to exist for the 'baseline' and the
