@@ -339,7 +339,7 @@ func (o ScannerOptions) ID() string {
 	if ctr := o.Container; ctr != nil {
 		h.Write([]byte((*ctr).String()))
 	}
-	return string(o.Scanner) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
+	return string(o.Scanner) + "-" + hex.EncodeToString(h.Sum(nil))[:8]
 }
 
 // ScanVulnsResult is the result of a vulnerability scan.
@@ -512,7 +512,7 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, target string, 
 		for _, action := range task.Actions {
 			h.Write([]byte(action))
 		}
-		task.ID = string(task.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
+		task.ID = string(task.Type) + "-" + hex.EncodeToString(h.Sum(nil))[:8]
 	}
 	return &task, nil
 }
