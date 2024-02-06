@@ -14,23 +14,22 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func testBasicTraces(c *assert.CollectT, service string, intake *components.FakeIntake, agent agentclient.Agent) {
 	traces, err := intake.Client().GetTraces()
-	require.NoError(c, err)
-	require.NotEmpty(c, traces)
+	assert.NoError(c, err)
+	assert.NotEmpty(c, traces)
 
 	trace := traces[0]
 	assert.Equal(c, agent.Hostname(), trace.HostName)
 	assert.Equal(c, "none", trace.Env)
-	require.NotEmpty(c, trace.TracerPayloads)
+	assert.NotEmpty(c, trace.TracerPayloads)
 
 	tp := trace.TracerPayloads[0]
 	assert.Equal(c, "go", tp.LanguageName)
-	require.NotEmpty(c, tp.Chunks)
-	require.NotEmpty(c, tp.Chunks[0].Spans)
+	assert.NotEmpty(c, tp.Chunks)
+	assert.NotEmpty(c, tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
 		assert.Equal(c, service, sp.Service)
