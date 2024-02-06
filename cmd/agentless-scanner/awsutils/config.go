@@ -73,7 +73,8 @@ func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aw
 	var delegateCfg aws.Config
 	stsclient := sts.NewFromConfig(noDelegateCfg)
 	_, err = stsclient.AssumeRole(ctx, &sts.AssumeRoleInput{
-		RoleArn: aws.String(assumedRole.AsText()),
+		RoleArn:         aws.String(assumedRole.AsText()),
+		RoleSessionName: aws.String("agentless-scanner"),
 	})
 	if err != nil {
 		// In case we cannot assume the role they're maybe is a configuration
