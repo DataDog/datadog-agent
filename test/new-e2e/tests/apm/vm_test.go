@@ -85,7 +85,8 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		s.T().Log(s.Env().RemoteHost.MustExecute("sudo systemctl status datadog-agent-trace"))
+		status, _ := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
+		s.T().Log(status)
 		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
 		s.T().Log(s.Env().RemoteHost.MustExecute("sudo journalctl -n1000 -xu datadog-agent-trace"))
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
@@ -109,7 +110,8 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		s.T().Log(s.Env().RemoteHost.MustExecute("sudo systemctl status datadog-agent-trace"))
+		status, _ := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
+		s.T().Log(status)
 		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
 		s.T().Log(s.Env().RemoteHost.MustExecute("sudo journalctl -n1000 -xu datadog-agent-trace"))
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
@@ -127,7 +129,8 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		s.T().Log(s.Env().RemoteHost.MustExecute("sudo systemctl status datadog-agent-trace"))
+		status, _ := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
+		s.T().Log(status)
 		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
 		s.T().Log(s.Env().RemoteHost.MustExecute("sudo journalctl -n1000 -xu datadog-agent-trace"))
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
@@ -146,7 +149,8 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		s.T().Log(s.Env().RemoteHost.MustExecute("sudo systemctl status datadog-agent-trace"))
+		status, _ := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
+		s.T().Log(status)
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
 		s.T().Log(s.Env().RemoteHost.MustExecute("sudo journalctl -n1000 -xu datadog-agent-trace"))
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
