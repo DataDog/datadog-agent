@@ -16,8 +16,6 @@
 #include "tracer/telemetry.h"
 #include "tracer/port.h"
 
-#include "protocols/sockfd.h"
-
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
 
@@ -235,8 +233,6 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
 
     // Should actually delete something only if the connection never got established
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
-
-    clear_sockfd_maps(sk);
 
     // Get network namespace id
     log_debug("fentry/tcp_close: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);

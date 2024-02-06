@@ -87,9 +87,12 @@ type ebpfProgram struct {
 	// Used for connection_protocol data expiration
 	mapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
 	buildMode  buildmode.Type
+
+	sockFDMap *ebpf.Map
+	fdSockMap *ebpf.Map
 }
 
-func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, sockFD, fdSock, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
@@ -145,10 +148,12 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
+		sockFDMap:             sockFD,
+		fdSockMap:             fdSock,
 	}
 
-	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, sockFD, bpfTelemetry)
-	goTLSSpec.Factory = newGoTLSProgramProtocolFactory(mgr, sockFD)
+	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, bpfTelemetry)
+	goTLSSpec.Factory = newGoTLSProgramProtocolFactory(mgr)
 
 	if err := program.initProtocols(c); err != nil {
 		return nil, err
@@ -376,13 +381,26 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		MaxEntries: e.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	if options.MapEditors == nil {
+		options.MapEditors = make(map[string]*ebpf.Map)
+	}
 	if e.connectionProtocolMap != nil {
-		if options.MapEditors == nil {
-			options.MapEditors = make(map[string]*ebpf.Map)
-		}
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	}
-
+	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
+		MaxEntries: e.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	if e.sockFDMap != nil {
+		options.MapEditors[probes.SockByPidFDMap] = e.sockFDMap
+	}
+	options.MapSpecEditors[probes.PidFDBySockMap] = manager.MapSpecEditor{
+		MaxEntries: e.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	if e.fdSockMap != nil {
+		options.MapEditors[probes.PidFDBySockMap] = e.fdSockMap
+	}
 	begin, end := network.EphemeralRange()
 	options.ConstantEditors = append(options.ConstantEditors,
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},

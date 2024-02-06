@@ -60,7 +60,7 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
+func NewMonitor(c *config.Config, connectionProtocolMap, sockFD, fdSock *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
@@ -70,7 +70,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		}
 	}()
 
-	mgr, err := newEBPFProgram(c, sockFD, connectionProtocolMap, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, sockFD, fdSock, connectionProtocolMap, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}

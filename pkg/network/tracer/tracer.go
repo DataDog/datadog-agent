@@ -844,9 +844,10 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry) *usm.Monitor {
 	// Shared with the USM program
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
+	fdSockMap := tracer.GetMap(probes.PidFDBySockMap)
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
-	monitor, err := usm.NewMonitor(c, connectionProtocolMap, sockFDMap, bpfTelemetry)
+	monitor, err := usm.NewMonitor(c, connectionProtocolMap, sockFDMap, fdSockMap, bpfTelemetry)
 	if err != nil {
 		log.Errorf("usm initialization failed: %s", err)
 		return nil
