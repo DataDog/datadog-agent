@@ -319,6 +319,12 @@ new-e2e-apm-dev:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
 new-e2e-apm-main:
   extends: .new_e2e_template
@@ -326,6 +332,12 @@ new-e2e-apm-main:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
