@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    This change adds journald permissions to the flare in the
+    ``logs_file_permissions.log`` file, in the form of either the
+    journald directory or a specific file if specified by the
+    agent journald configuration.
