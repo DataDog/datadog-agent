@@ -1525,3 +1525,21 @@ def _create_build_links_patterns(current_version, new_version):
     patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
 
     return patterns
+
+
+@task
+def get_active_release_branch(_ctx):
+    """
+    Determine what is the current active release branch for the Agent.
+    If release started and code freeze is in place - main branch is considered active.
+    If release started and code freeze is over - release branch is considered active.
+    """
+    gh = GithubAPI('datadog/datadog-agent')
+    latest_release = gh.latest_release()
+    version = _create_version_from_match(VERSION_RE.search(latest_release))
+    next_version = version.next_version(bump_minor=True)
+    release_branch = gh.get_branch(next_version.branch())
+    if release_branch:
+        print(f"{release_branch.name}")
+    else:
+        print("main")

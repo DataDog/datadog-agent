@@ -19,15 +19,14 @@
     - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
     - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main
-      --variables
-        IMG_VARIABLES,\
-        IMG_REGISTRIES,\
-        IMG_SOURCES,\
-        IMG_DESTINATIONS,\
-        IMG_SIGNING,\
-        APPS,\
-        BAZEL_TARGET,\
-        DDR,\
-        DDR_WORKFLOW_ID,\
-        TARGET_ENV,\
-        DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+      --variable IMG_VARIABLES
+      --variable IMG_REGISTRIES
+      --variable IMG_SOURCES
+      --variable IMG_DESTINATIONS
+      --variable IMG_SIGNING
+      --variable APPS
+      --variable BAZEL_TARGET
+      --variable DDR
+      --variable DDR_WORKFLOW_ID
+      --variable TARGET_ENV
+      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
