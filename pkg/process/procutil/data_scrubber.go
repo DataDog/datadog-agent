@@ -19,7 +19,10 @@ var (
 		"*password*", "*passwd*", "*mysql_pwd*",
 		"*access_token*", "*auth_token*",
 		"*api_key*", "*apikey*",
-		"*secret*", "*credentials*", "stripetoken"}
+		"*secret*", "*credentials*", "stripetoken",
+		// windows arguments
+		"/p", "/rp",
+	}
 )
 
 const (
@@ -70,7 +73,7 @@ func NewDefaultDataScrubber() *DataScrubber {
 // The word must contain only word characters ([a-zA-z0-9_]) or wildcards *
 func CompileStringsToRegex(words []string) []DataScrubberPattern {
 	compiledRegexps := make([]DataScrubberPattern, 0, len(words))
-	forbiddenSymbols := regexp.MustCompile("[^a-zA-Z0-9_*]")
+	forbiddenSymbols := regexp.MustCompile("[^/a-zA-Z0-9_*]")
 
 	for _, word := range words {
 		if forbiddenSymbols.MatchString(word) {
