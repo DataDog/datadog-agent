@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

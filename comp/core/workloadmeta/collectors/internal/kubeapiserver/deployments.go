@@ -35,8 +35,8 @@ func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 		(deployment.Env == "" &&
 			deployment.Version == "" &&
 			deployment.Service == "" &&
-			len(deployment.InitContainerLanguages) == 0 &&
-			len(deployment.ContainerLanguages) == 0)
+			len(deployment.InjectableLanguages.InitContainerLanguages) == 0 &&
+			len(deployment.InjectableLanguages.ContainerLanguages) == 0)
 }
 
 func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
@@ -107,10 +107,12 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   deployment.Namespace + "/" + deployment.Name, // we use the namespace/name as id to make it easier for the admission controller to retrieve the corresponding deployment
 		},
-		Env:                    deployment.Labels[ddkube.EnvTagLabelKey],
-		Service:                deployment.Labels[ddkube.ServiceTagLabelKey],
-		Version:                deployment.Labels[ddkube.VersionTagLabelKey],
-		ContainerLanguages:     containerLanguages,
-		InitContainerLanguages: initContainerLanguages,
+		Env:     deployment.Labels[ddkube.EnvTagLabelKey],
+		Service: deployment.Labels[ddkube.ServiceTagLabelKey],
+		Version: deployment.Labels[ddkube.VersionTagLabelKey],
+		InjectableLanguages: workloadmeta.Languages{
+			ContainerLanguages:     containerLanguages,
+			InitContainerLanguages: initContainerLanguages,
+		},
 	}
 }

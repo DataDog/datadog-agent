@@ -6,7 +6,7 @@ import yaml
 from invoke import MockContext, Result
 from invoke.exceptions import Exit
 
-from .. import pipeline
+from tasks import pipeline
 
 
 class TestVerifyWorkspace(unittest.TestCase):
@@ -96,7 +96,3 @@ class TestUpdateCircleCI(unittest.TestCase):
     def test_raise(self):
         with self.assertRaises(RuntimeError):
             pipeline.update_circleci_config(self.erroneous_file, "1m4g3", test_version=False)
-
-
-if __name__ == "__main__":
-    unittest.main()

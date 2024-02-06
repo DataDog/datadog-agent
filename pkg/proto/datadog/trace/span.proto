@@ -4,6 +4,21 @@ package datadog.trace;
 
 option go_package="pkg/proto/pbgo/trace";
 
+message SpanLink {
+   // @gotags: json:"trace_id" msg:"trace_id"
+   uint64 traceID = 1;                         // Required.
+   // @gotags: json:"trace_id_high" msg:"trace_id_high,omitempty"
+   uint64 traceID_high = 2;                    // Optional. The high 64 bits of a referenced trace id. 
+   // @gotags: json:"span_id" msg:"span_id"
+   uint64 spanID = 3;                          // Required.
+   // @gotags: msg:"attributes,omitempty"
+   map<string, string> attributes = 4;         // Optional. Simple mapping of keys to string values.
+   // @gotags: msg:"tracestate,omitempty"
+   string tracestate = 5;                      // Optional. W3C tracestate.
+   // @gotags: msg:"flags,omitempty"
+   uint32 flags = 6;                           // Optional. W3C trace flags. If set, the high bit (bit 31) must be set.
+}
+
 message Span {
     // service is the name of the service with which this span is associated.
     // @gotags: json:"service" msg:"service"
@@ -44,4 +59,7 @@ message Span {
     // meta_struct is a registry of structured "other" data used by, e.g., AppSec.
     // @gotags: json:"meta_struct,omitempty" msg:"meta_struct,omitempty"
     map<string, bytes> meta_struct = 13;
+    // span_links represents a collection of links, where each link defines a causal relationship between two spans.
+    // @gotags: json:"span_links,omitempty" msg:"span_links,omitempty"
+    repeated SpanLink spanLinks = 14;
 }

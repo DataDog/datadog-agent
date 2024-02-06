@@ -9,14 +9,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
 
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // Tester is a test helper for testing agent installations
@@ -113,10 +115,12 @@ func (t *Tester) TestRuntimeExpectations(tt *testing.T) {
 		t.testDefaultPythonVersion(tt)
 		if t.ExpectPython2Installed() {
 			tt.Run("switch to Python3", func(tt *testing.T) {
-				common.CheckAgentPython(tt, t.InstallTestClient, "3")
+				common.SetAgentPythonMajorVersion(tt, t.InstallTestClient, "3")
+				common.CheckAgentPython(tt, t.InstallTestClient, common.ExpectedPythonVersion3)
 			})
 			tt.Run("switch to Python2", func(tt *testing.T) {
-				common.CheckAgentPython(tt, t.InstallTestClient, "2")
+				common.SetAgentPythonMajorVersion(tt, t.InstallTestClient, "2")
+				common.CheckAgentPython(tt, t.InstallTestClient, common.ExpectedPythonVersion2)
 			})
 		}
 
@@ -214,7 +218,17 @@ func (t *Tester) testDoesNotChangeSystemFiles(tt *testing.T) bool {
 		output, err := t.host.Execute(cmd)
 		require.NoError(tt, err, "should compare system files")
 		output = strings.TrimSpace(output)
-		require.Empty(tt, output, "should not remove system files")
+		if output != "" {
+			// Log result since flake.Mark may skip the test before the assertion is run
+			tt.Logf("should not remove system files: %s", output)
+			// Since the result of this test can depend on Windows behavior unrelated to the agent,
+			// we mark it as flaky so it doesn't block PRs.
+			// See WINA-624 for investigation into better ways to perform this test.
+			// If new Windows paths must be ignored, add them to the ignorePaths list in snapshotSystemfiles.
+			flake.Mark(tt)
+			// Skipping does not remove the failed test status, so we must run the assertion after flake.Mark.
+			require.Empty(tt, output, "should not remove system files")
+		}
 	})
 }
 

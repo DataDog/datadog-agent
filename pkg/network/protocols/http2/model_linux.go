@@ -134,39 +134,111 @@ func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	}
 }
 
+// stringToHTTPMethod converts a string to an HTTP method.
+func stringToHTTPMethod(method string) (http.Method, error) {
+	switch strings.ToUpper(method) {
+	case "PUT":
+		return http.MethodPut, nil
+	case "DELETE":
+		return http.MethodDelete, nil
+	case "HEAD":
+		return http.MethodHead, nil
+	case "OPTIONS":
+		return http.MethodOptions, nil
+	case "PATCH":
+		return http.MethodPatch, nil
+	case "GET":
+		return http.MethodGet, nil
+	case "POST":
+		return http.MethodPost, nil
+	// Currently unsupported methods due to lack of support in http.Method.
+	case "CONNECT":
+		return http.MethodUnknown, nil
+	case "TRACE":
+		return http.MethodUnknown, nil
+	default:
+		return 0, fmt.Errorf("unsupported HTTP method: %s", method)
+	}
+}
+
 // Method returns the HTTP method of the transaction.
 func (tx *EbpfTx) Method() http.Method {
-	switch tx.Stream.Request_method {
+	var method string
+	var err error
+
+	// Case which the method is indexed.
+	switch tx.Stream.Request_method.Static_table_entry {
 	case GetValue:
 		return http.MethodGet
 	case PostValue:
 		return http.MethodPost
-	default:
-		return http.MethodUnknown
 	}
-}
 
-// StatusCode returns the HTTP status code of the transaction.
-func (tx *EbpfTx) StatusCode() uint16 {
-	switch tx.Stream.Response_status_code {
-	case uint16(K200Value):
-		return 200
-	case uint16(K204Value):
-		return 204
-	case uint16(K206Value):
-		return 206
-	case uint16(K400Value):
-		return 400
-	case uint16(K500Value):
-		return 500
-	default:
+	// Case which the method is literal.
+	if tx.Stream.Request_method.Is_huffman_encoded {
+		method, err = hpack.HuffmanDecodeToString(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
+		if err != nil {
+			return 0
+		}
+	} else {
+		method = string(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
+	}
+	http2Method, err := stringToHTTPMethod(method)
+	if err != nil {
 		return 0
 	}
+	return http2Method
+}
+
+// StatusCode returns the status code of the transaction.
+// If the status code is indexed, then we return the corresponding value.
+// Otherwise, f the status code is huffman encoded, then we decode it and convert it from string to int.
+// Otherwise, we convert the status code from byte array to int.
+func (tx *EbpfTx) StatusCode() uint16 {
+	if tx.Stream.Status_code.Static_table_entry != 0 {
+		switch tx.Stream.Status_code.Static_table_entry {
+		case K200Value:
+			return 200
+		case K204Value:
+			return 204
+		case K206Value:
+			return 206
+		case K400Value:
+			return 400
+		case K500Value:
+			return 500
+		default:
+			return 0
+		}
+	}
+
+	if tx.Stream.Status_code.Is_huffman_encoded {
+		// The final form of the status code is 3 characters.
+		statusCode, err := hpack.HuffmanDecodeToString(tx.Stream.Status_code.Raw_buffer[:http2RawStatusCodeMaxLength-1])
+		if err != nil {
+			return 0
+		}
+		code, err := strconv.Atoi(statusCode)
+		if err != nil {
+			return 0
+		}
+		return uint16(code)
+	}
+
+	code, err := strconv.Atoi(string(tx.Stream.Status_code.Raw_buffer[:]))
+	if err != nil {
+		return 0
+	}
+	return uint16(code)
 }
 
 // SetStatusCode sets the HTTP status code of the transaction.
 func (tx *EbpfTx) SetStatusCode(code uint16) {
-	tx.Stream.Response_status_code = code
+	val := strconv.Itoa(int(code))
+	if len(val) > http2RawStatusCodeMaxLength {
+		return
+	}
+	copy(tx.Stream.Status_code.Raw_buffer[:], val)
 }
 
 // ResponseLastSeen returns the last seen response.
@@ -186,8 +258,9 @@ func (tx *EbpfTx) RequestStarted() uint64 {
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (tx *EbpfTx) SetRequestMethod(m http.Method) {
-	tx.Stream.Request_method = uint8(m)
+func (tx *EbpfTx) SetRequestMethod(_ http.Method) {
+	// if we set Static_table_entry to be different from 0, and no indexed value, it will default to 0 which is "UNKNOWN"
+	tx.Stream.Request_method.Static_table_entry = 1
 }
 
 // StaticTags returns the static tags of the transaction.
@@ -291,7 +364,7 @@ func (t http2StreamKey) String() string {
 }
 
 // String returns a string representation of the http2 dynamic table.
-func (t http2DynamicTableEntry) String() string {
+func (t HTTP2DynamicTableEntry) String() string {
 	if t.String_len == 0 {
 		return ""
 	}

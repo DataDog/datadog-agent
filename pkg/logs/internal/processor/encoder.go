@@ -15,7 +15,7 @@ import (
 
 // Encoder turns a message into a raw byte array ready to be sent.
 type Encoder interface {
-	Encode(msg *message.Message) error
+	Encode(msg *message.Message, hostname string) error
 }
 
 // toValidUtf8 ensures all characters are UTF-8.

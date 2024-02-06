@@ -16,11 +16,24 @@ import requests
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
-from .libs.common.color import color_message
-from .libs.common.utils import REPO_PATH, bin_name, environ, get_build_flags, get_gobin, get_version_numeric_only
-from .libs.ninja_syntax import NinjaWriter
-from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
+from tasks.agent import BUNDLED_AGENTS
+from tasks.agent import build as agent_build
+from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import (
+    REPO_PATH,
+    bin_name,
+    environ,
+    get_build_flags,
+    get_common_test_args,
+    get_gobin,
+    get_version_numeric_only,
+    set_co_re_env,
+    set_runtime_comp_env,
+)
+from tasks.libs.ninja_syntax import NinjaWriter
+from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -299,6 +312,7 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
+        "pkg/ebpf/bytecode/runtime/printk_patcher_test.go": "logdebug-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
@@ -494,6 +508,7 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
+    bundle=True,
 ):
     """
     Build the system-probe
@@ -519,6 +534,7 @@ def build(
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
+        bundle=bundle,
     )
 
 
@@ -546,11 +562,26 @@ def build_sysprobe_binary(
     go_mod="mod",
     arch=CURRENT_ARCH,
     binary=BIN_PATH,
+    install_path=None,
     bundle_ebpf=False,
     strip_binary=False,
+    bundle=True,
 ):
+    if bundle and not is_windows:
+        return agent_build(
+            ctx,
+            race=race,
+            major_version=major_version,
+            python_runtimes=python_runtimes,
+            arch=arch,
+            go_mod=go_mod,
+            bundle_ebpf=bundle_ebpf,
+            bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
+        )
+
     ldflags, gcflags, env = get_build_flags(
         ctx,
+        install_path=install_path,
         major_version=major_version,
         python_runtimes=python_runtimes,
     )
@@ -560,6 +591,9 @@ def build_sysprobe_binary(
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
         ldflags += ' -s -w'
+
+    if os.path.exists(binary):
+        os.remove(binary)
 
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
@@ -625,25 +659,18 @@ def test(
         if bundle_ebpf:
             build_tags.append(BUNDLE_TAG)
 
-    args = {
-        "build_tags": ",".join(build_tags),
-        "output_params": f"-c -o {output_path}" if output_path else "",
-        "run": f"-run {run}" if run else "",
-        "failfast": "-failfast" if failfast else "",
-        "go": "go",
-        "sudo": "sudo -E " if not windows and not output_path and not is_root() else "",
-    }
+    args = get_common_test_args(build_tags, failfast)
+    args["output_params"] = f"-c -o {output_path}" if output_path else ""
+    args["run"] = f"-run {run}" if run else ""
+    args["go"] = "go"
+    args["sudo"] = "sudo -E " if not windows and not output_path and not is_root() else ""
 
     _, _, env = get_build_flags(ctx)
-    env['DD_SYSTEM_PROBE_BPF_DIR'] = EMBEDDED_SHARE_DIR
+    env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
     if runtime_compiled:
-        env['DD_ENABLE_RUNTIME_COMPILER'] = "true"
-        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
-        env['DD_ENABLE_CO_RE'] = "false"
+        set_runtime_comp_env(env)
     elif co_re:
-        env['DD_ENABLE_CO_RE'] = "true"
-        env['DD_ALLOW_RUNTIME_COMPILED_FALLBACK'] = "false"
-        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
+        set_co_re_env(env)
 
     go_root = os.getenv("GOROOT")
     if go_root:
@@ -666,6 +693,67 @@ def test(
     if len(failed_pkgs) > 0:
         print(color_message("failed packages:\n" + "\n".join(failed_pkgs), "red"))
         raise Exit(code=1, message="system-probe tests failed")
+
+
+@task(
+    help={
+        "package": "The package to test. REQUIRED ",
+        "skip_object_files": "Skip rebuilding the object files.",
+        "run": "The name of the test to run. REQUIRED",
+    }
+)
+def test_debug(
+    ctx,
+    package,
+    run,
+    bundle_ebpf=False,
+    runtime_compiled=False,
+    co_re=False,
+    skip_object_files=False,
+    windows=is_windows,
+    failfast=False,
+    kernel_release=None,
+):
+    """
+    Run delve on a specific system-probe test.
+    """
+
+    if os.getenv("GOPATH") is None:
+        raise Exit(
+            code=1,
+            message="GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to "
+            "preserve your environment",
+        )
+
+    if not skip_object_files:
+        build_object_files(
+            ctx,
+            windows=windows,
+            kernel_release=kernel_release,
+        )
+
+    build_tags = [NPM_TAG]
+    build_tags.extend(UNIT_TEST_TAGS)
+    if not windows:
+        build_tags.append(BPF_TAG)
+        if bundle_ebpf:
+            build_tags.append(BUNDLE_TAG)
+
+    args = get_common_test_args(build_tags, failfast)
+    args["run"] = run
+    args["dlv"] = "dlv"
+    args["sudo"] = "sudo -E " if not windows and not is_root() else ""
+    args["dir"] = package
+
+    _, _, env = get_build_flags(ctx)
+    env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
+    if runtime_compiled:
+        set_runtime_comp_env(env)
+    elif co_re:
+        set_co_re_env(env)
+
+    cmd = '{sudo}{dlv} test {dir} --build-flags="-mod=mod -v {failfast} -tags={build_tags}" -- -test.run {run}'
+    ctx.run(cmd.format(**args), env=env, pty=True, warn=True)
 
 
 def get_test_timeout(pkg):
@@ -1645,12 +1733,13 @@ def _test_docker_image_list():
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    images.update(
-        ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
-    )
+    images.update(["menci/archlinuxarm:base"])
 
     # Special use-case in javatls
     images.remove("${IMAGE_VERSION}")
+    # Temporary: GoTLS monitoring inside containers tests are flaky in the CI, so at the meantime, the tests are
+    # disabled, so we can skip downloading a redundant image.
+    images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
     return images
 
 

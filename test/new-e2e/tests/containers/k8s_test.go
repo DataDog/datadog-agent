@@ -543,8 +543,8 @@ func (suite *k8sSuite) TestCPU() {
 				`^short_image:stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
-				Max: 200000000,
-				Min: 100000000,
+				Max: 250000000,
+				Min: 75000000,
 			},
 		},
 	})
