@@ -185,10 +185,13 @@ func (p *WindowsProbe) setupEtw() error {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idCreate:
-			case idCreateNewFile:
-				if ca, err := parseCreateArgs(e); err == nil {
-					log.Tracef("Got create/create new file on file %s", ca.string())
+				if ca, err := parseCreateHandleArgs(e); err == nil {
+					log.Tracef("Received idCreate event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
+				}
 
+			case idCreateNewFile:
+				if ca, err := parseCreateNewFileArgs(e); err == nil {
+					log.Tracef("Received NewFile event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
 				}
 			case idCleanup:
 				fallthrough
