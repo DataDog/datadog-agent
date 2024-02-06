@@ -110,7 +110,7 @@ func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 	if strings.HasPrefix(s, "localhost:") {
 		sections := strings.SplitN(s, ":", 2)
 		if len(sections) != 2 {
-			return CloudID{}, fmt.Errorf("cloudID: invalid number of sections: %q", s)
+			return CloudID{}, fmt.Errorf("bad cloud id: invalid number of sections: %q", s)
 		}
 		p := filepath.Join("/", sections[1])
 		id = CloudID{
@@ -127,7 +127,7 @@ func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 			return CloudID{}, err
 		}
 	} else {
-		return CloudID{}, fmt.Errorf("cloudID: invalid prefix: %q", s)
+		return CloudID{}, fmt.Errorf("bad cloud id: invalid prefix: %q", s)
 	}
 	isExpected := len(expectedTypes) == 0
 	for _, t := range expectedTypes {
@@ -137,7 +137,7 @@ func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 		}
 	}
 	if !isExpected {
-		return CloudID{}, fmt.Errorf("bad cloudID: expecting one of these resource types %v but got %s", expectedTypes, id.resourceType)
+		return CloudID{}, fmt.Errorf("bad cloud id: expecting one of these resource types %v but got %s", expectedTypes, id.resourceType)
 	}
 	return id, nil
 }

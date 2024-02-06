@@ -111,8 +111,6 @@ const (
 	ResourceTypeLocalDir = "localdir"
 	// ResourceTypeVolume is the type of a volume
 	ResourceTypeVolume = "volume"
-	// ResourceTypeImage is the type of an image
-	ResourceTypeImage = "image"
 	// ResourceTypeSnapshot is the type of a snapshot
 	ResourceTypeSnapshot = "snapshot"
 	// ResourceTypeFunction is the type of a function
@@ -202,10 +200,10 @@ type ScanTask struct {
 	Roles           RolesMapping `json:"Roles"`
 
 	// Optional fields - TaskTypeAMI
-	ImageID string `json:"ImageID"`
+	TargetImageID string `json:"TargetImageID"`
 
 	// Optional fields - TaskTypeEBS
-	TargetHostname string       `json:"Hostname"`
+	TargetHostname string       `json:"TargetHostname"`
 	Actions        []ScanAction `json:"Actions"`
 	DiskMode       DiskMode     `json:"DiskMode"`
 
@@ -425,8 +423,6 @@ func DefaultTaskType(resourceID CloudID) (TaskType, error) {
 	switch resourceType {
 	case ResourceTypeLocalDir:
 		return TaskTypeHost, nil
-	case ResourceTypeImage:
-		return TaskTypeAMI, nil
 	case ResourceTypeSnapshot, ResourceTypeVolume:
 		return TaskTypeEBS, nil
 	case ResourceTypeFunction:
@@ -465,12 +461,14 @@ func ParseRolesMapping(provider CloudProvider, roles []string) RolesMapping {
 }
 
 // NewScanTask creates a new scan task.
-func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetHostname string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
+func NewScanTask(taskType TaskType, resourceID, scannerHostname, target string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
 	var cloudID CloudID
 	var err error
 	switch taskType {
 	case TaskTypeEBS:
 		cloudID, err = ParseCloudID(resourceID, ResourceTypeSnapshot, ResourceTypeVolume)
+	case TaskTypeAMI:
+		cloudID, err = ParseCloudID(resourceID, ResourceTypeSnapshot)
 	case TaskTypeHost:
 		cloudID, err = ParseCloudID(resourceID, ResourceTypeLocalDir)
 	case TaskTypeLambda:
@@ -481,10 +479,10 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetHostname 
 	if err != nil {
 		return nil, err
 	}
+
 	task := ScanTask{
 		Type:             taskType,
 		CloudID:          cloudID,
-		TargetHostname:   targetHostname,
 		ScannerHostname:  scannerHostname,
 		Roles:            roles,
 		DiskMode:         mode,
@@ -492,6 +490,14 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetHostname 
 		CreatedAt:        time.Now(),
 		CreatedResources: make(map[CloudID]time.Time),
 	}
+
+	switch taskType {
+	case TaskTypeEBS:
+		task.TargetHostname = target
+	case TaskTypeAMI:
+		task.TargetImageID = target
+	}
+
 	{
 		h := sha256.New()
 		createdAt, _ := task.CreatedAt.MarshalBinary()
@@ -499,6 +505,7 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetHostname 
 		h.Write(createdAt)
 		h.Write([]byte(task.Type))
 		h.Write([]byte(cloudID))
+		h.Write([]byte(task.TargetImageID))
 		h.Write([]byte(task.TargetHostname))
 		h.Write([]byte(task.ScannerHostname))
 		h.Write([]byte(task.DiskMode))

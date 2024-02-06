@@ -626,7 +626,7 @@ func (s *Runner) cleanupScan(scan *types.ScanTask) {
 	}
 
 	switch scan.Type {
-	case types.TaskTypeEBS:
+	case types.TaskTypeEBS, types.TaskTypeAMI:
 		for resourceID, createdAt := range scan.CreatedResources {
 			if err := awsutils.CleanupScanEBS(ctx, scan, resourceID); err != nil {
 				log.Warnf("%s: failed to cleanup EBS resource %q: %v", scan, resourceID, err)
@@ -705,7 +705,7 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 			})
 			if result.Vulns != nil {
 				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM // TODO: sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-				result.Vulns.ID = scan.ImageID
+				result.Vulns.ID = scan.TargetImageID
 				result.Vulns.Tags = nil
 			}
 			s.resultsCh <- result
