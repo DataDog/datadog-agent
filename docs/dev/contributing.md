@@ -46,7 +46,6 @@ when submitting your PR:
   * open your PR against the `main` branch.
   * for PRs from contributors with write access to the repository (for community PRs, will be done by Datadog employees):
     + set the relevant `team/` label
-    + add a milestone to your PR (by default, use the highest milestone version available, ex: `7.49.0`)
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing
 an error and don't think it's your fault, it may not be! [Join us on Slack][slack]
