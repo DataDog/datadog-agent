@@ -130,7 +130,10 @@ func New(opts Options) (*Runner, error) {
 
 // Cleanup cleans up all the resources created by the runner.
 func (s *Runner) Cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.CloudID) error {
-	toBeDeleted := awsutils.ListResourcesForCleanup(ctx, maxTTL, region, assumedRole)
+	toBeDeleted, err := awsutils.ListResourcesForCleanup(ctx, maxTTL, region, assumedRole)
+	if err != nil {
+		return err
+	}
 	awsutils.ResourcesCleanup(ctx, toBeDeleted, region, assumedRole)
 	return nil
 }
