@@ -408,7 +408,7 @@ func (s *Runner) Start(ctx context.Context) {
 				if s.regionsCleanup == nil {
 					s.regionsCleanup = make(map[string]*types.CloudID)
 				}
-				s.regionsCleanup[scan.CloudID.Region()] = scan.Roles[scan.CloudID.AccountID()]
+				s.regionsCleanup[scan.CloudID.Region()] = scan.Roles.GetCloudIDRole(scan.CloudID)
 				s.regionsCleanupMu.Unlock()
 
 				// Avoid pushing a scan that we are already performing.

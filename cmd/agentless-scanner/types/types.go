@@ -122,7 +122,31 @@ const (
 )
 
 // RolesMapping is the mapping of roles from accounts IDs to role IDs
-type RolesMapping map[string]*CloudID
+type RolesMapping struct {
+	m map[string]CloudID
+}
+
+// NewRolesMapping creates a new roles mapping from a list of roles.
+func NewRolesMapping(roles []CloudID) RolesMapping {
+	m := make(map[string]CloudID, len(roles))
+	for _, role := range roles {
+		m[role.AccountID()] = role
+	}
+	return RolesMapping{m}
+}
+
+// GetCloudIDRole returns the role for a cloud resource ID.
+func (r RolesMapping) GetCloudIDRole(id CloudID) *CloudID {
+	return r.GetRole(id.AccountID())
+}
+
+// GetRole returns the role cloud resource ID for an account ID.
+func (r RolesMapping) GetRole(accountID string) *CloudID {
+	if r, ok := r.m[accountID]; ok {
+		return &r
+	}
+	return nil
+}
 
 // ScanConfigRaw is the raw representation of the scan configuration received
 // from RC.
@@ -402,18 +426,15 @@ func ParseDiskMode(diskMode string) (DiskMode, error) {
 // ParseRolesMapping parses a list of roles into a mapping from account ID to
 // role cloud resource ID.
 func ParseRolesMapping(roles []string) RolesMapping {
-	if len(roles) == 0 {
-		return nil
-	}
-	rolesMap := make(RolesMapping, len(roles))
+	roleIDs := make([]CloudID, len(roles))
 	for _, role := range roles {
 		roleID, err := ParseCloudID(role, ResourceTypeRole)
 		if err != nil {
 			continue
 		}
-		rolesMap[roleID.AccountID()] = &roleID
+		roleIDs = append(roleIDs, roleID)
 	}
-	return rolesMap
+	return NewRolesMapping(roleIDs)
 }
 
 // NewScanTask creates a new scan task.

@@ -22,7 +22,7 @@ func SetupAMI(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 			return nil, err
 		}
 	case types.DiskModeNBDAttach:
-		ebsclient := ebs.NewFromConfig(GetConfigFromCloudID(ctx, scan, snapshotID))
+		ebsclient := ebs.NewFromConfig(GetConfigFromCloudID(ctx, scan.Roles, snapshotID))
 		if err := AttachSnapshotWithNBD(ctx, scan, snapshotID, ebsclient); err != nil {
 			return nil, err
 		}

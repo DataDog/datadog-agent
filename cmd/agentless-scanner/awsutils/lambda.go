@@ -64,7 +64,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *types.ScanTask, lambdaDir
 		}
 	}()
 
-	cfg := GetConfigFromCloudID(ctx, scan, scan.CloudID)
+	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.CloudID)
 	lambdaclient := lambda.NewFromConfig(cfg)
 	if err != nil {
 		return "", err
