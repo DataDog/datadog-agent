@@ -151,6 +151,11 @@ func stringToHTTPMethod(method string) (http.Method, error) {
 		return http.MethodGet, nil
 	case "POST":
 		return http.MethodPost, nil
+	// Currently unsupported methods due to lack of support in http.Method.
+	case "CONNECT":
+		return http.MethodUnknown, nil
+	case "TRACE":
+		return http.MethodUnknown, nil
 	default:
 		return 0, fmt.Errorf("unsupported HTTP method: %s", method)
 	}
