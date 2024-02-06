@@ -111,6 +111,16 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 		require.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
 		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
 	})
+
+	t.Run("unsupported-event-type", func(t *testing.T) {
+		// First invocation without any attack
+		chunk := runAppSec("request", invocationlifecycle.InvocationStartDetails{
+			InvokeEventRawPayload: getEventFromFile("sqs.json"),
+			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		})
+		span := chunk.Spans[0]
+		require.Equal(t, 1.0, span.Metrics["_dd.appsec.unsupported_event_type"])
+	})
 }
 
 // Helper function for reading test file

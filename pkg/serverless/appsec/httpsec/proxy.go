@@ -136,12 +136,16 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	}
 	log.Debugf("appsec: found service entry span of the currently monitored request id `%s`", currentReqId)
 
+	span := (*spanWrapper)(s)
+
 	if lp.invocationEvent == nil {
 		log.Debug("appsec: ignoring unsupported lamdba event")
+		// Add a span tag so we can tell if this was an unsupported event type.
+		// _dd.appsec.enabled:1 covers the supported case, which can only be set
+		// in this case because it involves ASM billing.
+		span.SetMetricsTag("_dd.appsec.unsupported_event_type", 1)
 		return // skip: unsupported event
 	}
-
-	span := (*spanWrapper)(s)
 
 	var ctx context
 	switch event := lp.invocationEvent.(type) {
