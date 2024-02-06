@@ -20,8 +20,10 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	netbpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -48,6 +50,21 @@ type EBPFTelemetry struct {
 	helperErrMap *maps.GenericMap[uint64, HelperErrTelemetry]
 	mapKeys      map[string]uint64
 	probeKeys    map[string]uint64
+	bpfDir       string
+}
+
+type eBPFInstrumentation struct {
+	filename  string
+	functions []string
+}
+
+var instrumentation = []eBPFInstrumentation{
+	{
+		"ebpf_instrumentation",
+		[]string{
+			"ebpf_instrumentation__trampoline_handler",
+		},
+	},
 }
 
 // NewEBPFTelemetry initializes a new EBPFTelemetry object
@@ -152,6 +169,13 @@ func (b *EBPFTelemetry) initializeHelperErrTelemetryMap() error {
 	return nil
 }
 
+func countRawBPFIns(ins *asm.Instruction) int {
+	if ins.OpCode.IsDWordLoad() {
+		return 2
+	}
+	return 1
+}
+
 func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelemetry) error {
 	const symbol = "telemetry_program_id_key"
 	newIns := asm.Mov.Reg(asm.R1, asm.R1)
@@ -186,14 +210,97 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelem
 		}
 
 		// patch telemetry helper calls
-		const ebpfTelemetryPatchCall = -1
+		const ebpfTelemetryPatchCall = -2
+		const ebpfEntryTrampolinePatchCall = -1
+		const maxTrampolineOffset = 2
 		iter := ins.Iterate()
+		var telemetryPatchSite *asm.Instruction
+		var insCount, telemetryPatchIndex int
 		for iter.Next() {
 			ins := iter.Ins
-			if !ins.IsBuiltinCall() || ins.Constant != ebpfTelemetryPatchCall {
-				continue
+			insCount += countRawBPFIns(ins)
+
+			if ins.IsBuiltinCall() && ins.Constant == ebpfTelemetryPatchCall {
+				*ins = newIns.WithMetadata(ins.Metadata)
 			}
-			*ins = newIns.WithMetadata(ins.Metadata)
+			if ins.OpCode.JumpOp() == asm.Call && ins.Constant == ebpfEntryTrampolinePatchCall && iter.Offset <= maxTrampolineOffset {
+				telemetryPatchSite = iter.Ins
+				telemetryPatchIndex = int(iter.Offset)
+			}
+		}
+
+		if telemetryPatchSite == nil {
+			log.Infof("No compiler instrumented patch site found for program %s\n", p.Name)
+			continue
+		}
+
+		trampoline := asm.Instruction{
+			OpCode: asm.OpCode(asm.JumpClass).SetJumpOp(asm.Ja),
+			Offset: int16(insCount - telemetryPatchIndex - 1),
+		}.WithMetadata(telemetryPatchSite.Metadata)
+		*telemetryPatchSite = trampoline
+
+		var instrumentationBlock []*asm.Instruction
+		var instrumentationBlockCount int
+		for _, eBPFInst := range instrumentation {
+			bpfAsset, err := netbpf.ReadEBPFTelemetryModule(bpfTelemetry.bpfDir, eBPFInst.filename)
+			if err != nil {
+				return fmt.Errorf("failed to read %s bytecode file: %w", eBPFInst.filename, err)
+			}
+
+			collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bpfAsset)
+			if err != nil {
+				return fmt.Errorf("failed to load collection spec from reader: %w", err)
+			}
+
+			for _, program := range eBPFInst.functions {
+				if _, ok := collectionSpec.Programs[program]; !ok {
+					return fmt.Errorf("no program %s present in instrumentation file %s.o", program, eBPFInst.filename)
+				}
+				iter := collectionSpec.Programs[program].Instructions.Iterate()
+				for iter.Next() {
+					ins := iter.Ins
+					// The final instruction in the instrumentation block is `exit`, which we
+					// do not want.
+					if ins.OpCode.JumpOp() == asm.Exit {
+						break
+					}
+					instrumentationBlockCount += countRawBPFIns(ins)
+
+					// The first instruction has associated func_info btf information. Since
+					// the instrumentation is not a function, the verifier will complain that the number of
+					// `func_info` objects in the BTF do not match the number of loaded programs:
+					// https://elixir.bootlin.com/linux/latest/source/kernel/bpf/verifier.c#L15035
+					// To workaround this we create a new instruction object and give it empty metadata.
+					if iter.Index == 0 {
+						newIns := asm.Instruction{
+							OpCode:   ins.OpCode,
+							Dst:      ins.Dst,
+							Src:      ins.Src,
+							Offset:   ins.Offset,
+							Constant: ins.Constant,
+						}.WithMetadata(asm.Metadata{})
+
+						instrumentationBlock = append(instrumentationBlock, &newIns)
+						continue
+					}
+
+					instrumentationBlock = append(instrumentationBlock, ins)
+				}
+			}
+		}
+
+		retJumpOffset := telemetryPatchIndex - (insCount + instrumentationBlockCount)
+
+		// absolute jump back to the telemetry patch point
+		newIns := asm.Instruction{
+			OpCode: asm.OpCode(asm.JumpClass).SetJumpOp(asm.Ja),
+			Offset: int16(retJumpOffset),
+		}
+		instrumentationBlock = append(instrumentationBlock, &newIns)
+
+		for _, ins := range instrumentationBlock {
+			p.Instructions = append(p.Instructions, *ins)
 		}
 	}
 	return nil

@@ -77,6 +77,11 @@ func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, er
 	return readModule(bpfDir, "conntrack", debug)
 }
 
+// ReadEBPFTelemetryModule from the asset file
+func ReadEBPFTelemetryModule(bpfDir, objectFile string) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, objectFile, false)
+}
+
 //nolint:revive // TODO(NET) Fix revive linter
 func GetModulesInUse() []string {
 	telemetrymu.Lock()

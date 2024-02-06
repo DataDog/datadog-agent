@@ -162,7 +162,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	// to avoid possible nil pointer dereference when accessing it via the bpfErrorsCollector pointer
 	var bpfTelemetry *ebpftelemetry.EBPFTelemetry
 
-	if eec := ebpftelemetry.NewEBPFErrorsCollector(); eec != nil {
+	if eec := ebpftelemetry.NewEBPFErrorsCollector(cfg.BPFDir); eec != nil {
 		coretelemetry.GetCompatComponent().RegisterCollector(eec)
 
 		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
