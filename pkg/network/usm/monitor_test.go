@@ -99,7 +99,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 
 			cfg := networkconfig.New()
 			cfg.EnableHTTPMonitoring = true
-			monitor, err := NewMonitor(cfg, nil, nil, nil)
+			monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
 			skipIfNotSupported(t, err)
 			require.NoError(t, err)
 			t.Cleanup(monitor.Stop)
@@ -550,7 +550,7 @@ func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 
 	startH2CServer(t)
 
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
@@ -614,7 +614,7 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 	startH2CServer(t)
 
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
@@ -758,7 +758,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				monitor, err := NewMonitor(cfg, nil, nil, nil)
+				monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
 				defer monitor.Stop()
@@ -871,7 +871,7 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor, err := NewMonitor(cfg, nil, nil, nil)
+			monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
 			require.NoError(t, err)
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
@@ -1066,7 +1066,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor, err := NewMonitor(cfg, nil, nil, nil)
+			monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
 			require.NoError(t, err)
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
@@ -1399,7 +1399,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 func newHTTPMonitorWithCfg(t *testing.T, cfg *networkconfig.Config) *Monitor {
 	cfg.EnableHTTPMonitoring = true
 
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(func() {
