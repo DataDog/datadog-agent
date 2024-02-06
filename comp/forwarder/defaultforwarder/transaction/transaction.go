@@ -174,6 +174,19 @@ const (
 	TransactionPriorityHigh Priority = iota
 )
 
+// Kind defines de kind of transaction (metrics, metadata, process, ...)
+type Kind int
+
+const (
+	Series = iota
+	Sketches
+	ServiceChecks
+	Events
+	CheckRuns
+	Metadata
+	Process
+)
+
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
@@ -202,6 +215,8 @@ type HTTPTransaction struct {
 	CompletionHandler HTTPCompletionHandler
 
 	Priority Priority
+
+	Kind Kind
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -215,6 +230,7 @@ type Transaction interface {
 	GetCreatedAt() time.Time
 	GetTarget() string
 	GetPriority() Priority
+	GetKind() Kind
 	GetEndpointName() string
 	GetPayloadSize() int
 	GetPointCount() int
@@ -259,6 +275,11 @@ func (t *HTTPTransaction) GetTarget() string {
 // GetPriority returns the priority
 func (t *HTTPTransaction) GetPriority() Priority {
 	return t.Priority
+}
+
+// GetKind returns the transaction kind
+func (t *HTTPTransaction) GetKind() Kind {
+	return t.Kind
 }
 
 // GetEndpointName returns the name of the endpoint used by the transaction

@@ -266,7 +266,9 @@ func (f *domainForwarder) State() uint32 {
 }
 
 func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
-	if f.isHA {
+	// Metadata types should always be submitted in dual-shipping fashion - no special considerations for
+	// Metadata transactions.
+	if f.isHA && t.GetKind() != transaction.Metadata {
 		if f.State() == Disabled {
 			if f.config.GetBool("ha.enabled") && f.config.GetBool("ha.failover") {
 				f.m.Lock()
