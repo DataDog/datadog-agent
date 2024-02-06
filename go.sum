@@ -134,8 +134,8 @@ github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3/go.mod h1:Qx5cxh0v+
 github.com/DataDog/datadog-api-client-go/v2 v2.13.0 h1:2c1dXSyUfum2YIVoYlqnBhV5JOG1cLSW+4jB3RrKjLc=
 github.com/DataDog/datadog-api-client-go/v2 v2.13.0/go.mod h1:kntOqXEh1SmjwSDzW/eJkr9kS7EqttvEkelglWtJRbg=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/DataDog/datadog-go/v5 v5.4.0 h1:Ea3eXUVwrVV28F/fo3Dr3aa+TL/Z7Xi6SUPKW8L99aI=
-github.com/DataDog/datadog-go/v5 v5.4.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
+github.com/DataDog/datadog-go/v5 v5.5.0 h1:G5KHeB8pWBNXT4Jtw0zAkhdxEAWSpWH00geHI6LDrKU=
+github.com/DataDog/datadog-go/v5 v5.5.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator v1.1.0 h1:cSZqKarzM66GR0T1pPPZVopz4oPm3ltcRyqJ/h/6eJg=
 github.com/DataDog/datadog-operator v1.1.0/go.mod h1:3aWOjI4EaE1jYVN6llOXygA9nasy70GCa1XnTIWNoCY=
 github.com/DataDog/ebpf-manager v0.4.0 h1:ZxOnHD9h4qrmGKEdt0TmSdDd0mRNJ+HfsG0ZH4wQaB0=
