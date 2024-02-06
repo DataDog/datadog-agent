@@ -163,6 +163,12 @@ Package forwarder implements the "forwarder" bundle
 
 Package defaultforwarder implements a component to send payloads to the backend
 
+### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
+
+*Datadog Team*: agent-metrics-logs
+
+Package eventplatform contains the logic for forwarding events to the event platform
+
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
 *Datadog Team*: agent-metrics-logs
@@ -278,6 +284,10 @@ Package collector implements the OpenTelemetry Collector component.
 *Datadog Team*: processes
 
 Package process implements the "process" bundle, providing components for the Process Agent
+
+### [comp/process/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/agent)
+
+Package agent contains a process-agent component
 
 ### [comp/process/apiserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/apiserver)
 

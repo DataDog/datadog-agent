@@ -47,6 +47,7 @@ import (
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -173,11 +174,16 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
+				eventplatformimpl.Module(),
+				fx.Provide(func() eventplatformimpl.Params {
+					params := eventplatformimpl.NewDefaultParams()
+					params.UseNoopEventPlatformForwarder = true
+					return params
+				}),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 					params := demultiplexerimpl.NewDefaultParams()
 					params.FlushInterval = 0
-					params.UseNoopEventPlatformForwarder = true
 					return params
 				}),
 
@@ -276,7 +282,7 @@ func run(
 	check.InitializeInventoryChecksContext(invChecks)
 	commonchecks.RegisterChecks(wmeta)
 
-	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(demultiplexer, secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
