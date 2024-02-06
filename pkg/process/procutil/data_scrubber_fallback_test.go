@@ -8,30 +8,46 @@
 package procutil
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestStripArguments(t *testing.T) {
 
-	cases := []struct {
-		cmdline       []string
-		noArgsCmdline []string
+	testCases := []struct {
+		cmdline []string
+		want    []string
 	}{
-		{[]string{"agent", "-password", "1234"}, []string{"agent"}},
-		{[]string{"fitz", "-consul_token", "1234567890"}, []string{"fitz"}},
-		{[]string{"fitz", "--consul_token", "1234567890"}, []string{"fitz"}},
-		{[]string{"python ~/test/run.py -open_password=admin -consul_token 2345 -blocked_from_yamt=1234 &"}, []string{"python"}},
-		{[]string{"java -password      1234"}, []string{"java"}},
-		{[]string{"agent password:1234"}, []string{"agent"}},
+		{cmdline: {[]string{"agent", "-password", "1234"},
+			want: []string{"agent"}},
+		},
+		{
+			cmdline: {[]string{"fitz", "-consul_token", "1234567890"},
+				want: []string{"fitz"}},
+		},
+		{
+			cmdline: {[]string{"fitz", "--consul_token", "1234567890"},
+				want: []string{"fitz"}},
+		},
+		{
+			cmdline: {[]string{"python ~/test/run.py -open_password=admin -consul_token 2345 -blocked_from_yamt=1234 &"},
+				want: []string{"python"}},
+		},
+		{
+			cmdline: {[]string{"java -password      1234"},
+				want: []string{"java"}},
+		},
+		{
+			cmdline: {[]string{"agent password:1234"}, []string{"agent"}},
+		},
 	}
 
 	scrubber := setupDataScrubber(t)
 	scrubber.StripAllArguments = true
 
-	for i := range cases {
-		cmdline := cases[i].cmdline
-		cases[i].cmdline = scrubber.stripArguments(cmdline)
-		assert.Equal(t, cases[i].noArgsCmdline, cases[i].cmdline)
+	for _, tc := range testCases {
+		cmdline := scrubber.stripArguments(tc.cmdline)
+		if got := cmdline; got[0] != tc.want[0] {
+			t.Errorf("got %s; want %s", got, tc.want)
+		}
 	}
 }

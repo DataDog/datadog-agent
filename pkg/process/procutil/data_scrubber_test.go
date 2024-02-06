@@ -342,7 +342,6 @@ func TestScrubberStrippingAllArgument(t *testing.T) {
 		cmdline       []string
 		parsedCmdline []string
 	}{
-
 		{[]string{"agent", "-password", "1234"}, []string{"agent"}},
 		{[]string{"agent", "--password", "1234"}, []string{"agent"}},
 		{[]string{"agent", "-password=1234"}, []string{"agent"}},
