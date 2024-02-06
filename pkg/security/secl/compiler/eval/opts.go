@@ -22,12 +22,11 @@ func (s *MacroStore) Add(macro *Macro) *MacroStore {
 
 // List lists macros
 func (s *MacroStore) List() []*Macro {
-	var macros []*Macro
-
 	if s == nil || s.Macros == nil {
-		return macros
+		return nil
 	}
 
+	macros := make([]*Macro, 0, len(s.Macros))
 	for _, macro := range s.Macros {
 		macros = append(macros, macro)
 	}
