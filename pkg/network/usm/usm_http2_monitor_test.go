@@ -1110,23 +1110,22 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// part of the message.
 			messageBuilder: func() [][]byte {
 				preFixTestHeaders, sufFixTestHeaders := splitTestHeaders(2)
-				firstPartHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+				prFixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
 					Headers: preFixTestHeaders,
 				})
 				require.NoError(t, err, "could not create headers frame")
 
-				secondPartHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+				sufFixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
 					Headers: sufFixTestHeaders,
 				})
 				require.NoError(t, err, "could not create headers frame")
 
-				// We are creating a header frame with a content-length header field that contains the payload size.
-				headersFrame := newFramer().writeRawHeaders(t, 1, false, firstPartHeadersFrame).bytes()
-				blaFrame := newFramer().writeRawContinuation(t, 1, true, secondPartHeadersFrame).bytes()
+				headersFrame := newFramer().writeRawHeaders(t, 1, false, prFixHeadersFrame).bytes()
+				continuationFrame := newFramer().writeRawContinuation(t, 1, true, sufFixHeadersFrame).bytes()
 				dataFrameSecond := newFramer().writeData(t, 1, true, emptyBody).bytes()
 
 				firstMessage := headersFrame
-				secondMessage := append(blaFrame, dataFrameSecond...)
+				secondMessage := append(continuationFrame, dataFrameSecond...)
 				return [][]byte{
 					firstMessage,
 					secondMessage,
