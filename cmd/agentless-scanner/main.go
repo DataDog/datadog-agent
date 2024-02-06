@@ -128,6 +128,7 @@ func rootCommand() *cobra.Command {
 	cmd.AddCommand(runCommand())
 	cmd.AddCommand(runScannerCommand())
 	cmd.AddCommand(awsGroupCommand(cmd))
+	cmd.AddCommand(localGroupCommand(cmd))
 
 	defaultActions := []string{
 		string(types.ScanActionVulnsHost),
