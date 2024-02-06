@@ -100,10 +100,7 @@ func awsSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cfg, err := awsutils.GetConfig(ctx, scan.CloudID.Region, nil)
-			if err != nil {
-				return err
-			}
+			cfg := awsutils.GetConfig(ctx, scan.CloudID.Region, nil)
 			var waiter awsutils.SnapshotWaiter
 			ec2client := ec2.NewFromConfig(cfg)
 			snapshotID, err := awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, scan.CloudID)
@@ -118,6 +115,32 @@ func awsSnapshotCommand() *cobra.Command {
 }
 
 func awsOfflineCommand() *cobra.Command {
+	parseFilters := func(filters string) ([]ec2types.Filter, error) {
+		var fs []ec2types.Filter
+		if filter := filters; filter != "" {
+			if !strings.HasPrefix(filter, "Name=") {
+				return nil, fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
+			}
+			filter = filter[len("Name="):]
+			split := strings.SplitN(filter, ",", 2)
+			if len(split) != 2 {
+				return nil, fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
+			}
+			name := split[0]
+			filter = split[1]
+			if !strings.HasPrefix(filter, "Values=") {
+				return nil, fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
+			}
+			filter = filter[len("Values="):]
+			values := strings.Split(filter, ",")
+			fs = append(fs, ec2types.Filter{
+				Name:   aws.String(name),
+				Values: values,
+			})
+		}
+		return fs, nil
+	}
+
 	var flags struct {
 		workers      int
 		regions      []string
@@ -133,27 +156,9 @@ func awsOfflineCommand() *cobra.Command {
 			if flags.workers <= 0 {
 				return fmt.Errorf("workers must be greater than 0")
 			}
-			var filters []ec2types.Filter
-			if filter := flags.filters; filter != "" {
-				if !strings.HasPrefix(filter, "Name=") {
-					return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
-				}
-				filter = filter[len("Name="):]
-				split := strings.SplitN(filter, ",", 2)
-				if len(split) != 2 {
-					return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
-				}
-				name := split[0]
-				filter = split[1]
-				if !strings.HasPrefix(filter, "Values=") {
-					return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
-				}
-				filter = filter[len("Values="):]
-				values := strings.Split(filter, ",")
-				filters = append(filters, ec2types.Filter{
-					Name:   aws.String(name),
-					Values: values,
-				})
+			filters, err := parseFilters(flags.filters)
+			if err != nil {
+				return err
 			}
 			taskType, err := types.ParseTaskType(flags.taskType)
 			if err != nil {
@@ -312,11 +317,7 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 
 	var identity *sts.GetCallerIdentityOutput
 	{
-		cfg, err := awsutils.GetConfig(ctx, selfRegion, nil)
-		if err != nil {
-			return err
-		}
-		stsclient := sts.NewFromConfig(cfg)
+		stsclient := sts.NewFromConfig(awsutils.GetConfig(ctx, selfRegion, nil))
 		identity, err = stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 		if err != nil {
 			return err
@@ -324,11 +325,7 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 	}
 
 	roles := getDefaultRolesMapping()
-	cfg, err := awsutils.GetConfig(ctx, selfRegion, roles[*identity.Account])
-	if err != nil {
-		return err
-	}
-
+	cfg := awsutils.GetConfig(ctx, selfRegion, roles[*identity.Account])
 	ec2client := ec2.NewFromConfig(cfg)
 	if err != nil {
 		return err
@@ -378,13 +375,7 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 			if regionName == "auto" {
 				regionName = selfRegion
 			}
-			cfg, err := awsutils.GetConfig(ctx, regionName, roles[*identity.Account])
-			if err != nil {
-				if err != nil {
-					return err
-				}
-			}
-			ec2client := ec2.NewFromConfig(cfg)
+			ec2client := ec2.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles[*identity.Account]))
 			if err != nil {
 				return err
 			}
@@ -471,11 +462,7 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 			if regionName == "auto" {
 				regionName = selfRegion
 			}
-			cfg, err := awsutils.GetConfig(ctx, regionName, roles[*identity.Account])
-			if err != nil {
-				return fmt.Errorf("could not scan region %q for Lambda functions: %w", regionName, err)
-			}
-			lambdaclient := lambda.NewFromConfig(cfg)
+			lambdaclient := lambda.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles[*identity.Account]))
 			var marker *string
 			for {
 				functions, err := lambdaclient.ListFunctions(ctx, &lambda.ListFunctionsInput{
@@ -548,9 +535,8 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	}
 	fmt.Printf("cleaning up these resources:\n")
 	for resourceType, resources := range toBeDeleted {
-		fmt.Printf("  - %s:\n", resourceType)
 		for _, resourceName := range resources {
-			fmt.Printf("    - %s\n", resourceName)
+			fmt.Printf(" - %s: %s\n", resourceType, resourceName)
 		}
 	}
 	if !dryRun {
@@ -562,11 +548,7 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaultActions []types.ScanAction) error {
 	ctx := ctxTerminated()
 
-	cfg, err := awsutils.GetConfig(ctx, resourceID.Region, nil)
-	if err != nil {
-		return err
-	}
-
+	cfg := awsutils.GetConfig(ctx, resourceID.Region, nil)
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
 

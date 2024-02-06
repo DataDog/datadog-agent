@@ -15,12 +15,6 @@ import (
 
 // SetupAMI sets up the AMI for scanning.
 func SetupAMI(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter) ([]string, error) {
-	assumedRole := scan.Roles[scan.CloudID.AccountID]
-	cfg, err := GetConfig(ctx, scan.CloudID.Region, assumedRole)
-	if err != nil {
-		return nil, err
-	}
-
 	snapshotID := scan.CloudID
 	switch scan.DiskMode {
 	case types.DiskModeVolumeAttach:
@@ -28,7 +22,7 @@ func SetupAMI(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 			return nil, err
 		}
 	case types.DiskModeNBDAttach:
-		ebsclient := ebs.NewFromConfig(cfg)
+		ebsclient := ebs.NewFromConfig(GetConfigFromCloudID(ctx, scan, snapshotID))
 		if err := AttachSnapshotWithNBD(ctx, scan, snapshotID, ebsclient); err != nil {
 			return nil, err
 		}

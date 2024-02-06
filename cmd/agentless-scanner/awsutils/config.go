@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"golang.org/x/time/rate"
 
@@ -27,7 +28,7 @@ import (
 var (
 	statsd *ddogstatsd.Client
 
-	globalConfigs   = make(map[confKey]*aws.Config)
+	globalConfigs   sync.Map
 	globalConfigsMu sync.Mutex
 )
 
@@ -36,21 +37,30 @@ type confKey struct {
 	region string
 }
 
-// GetConfig returns an AWS Config for the given region and assumed role.
-func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) (aws.Config, error) {
-	globalConfigsMu.Lock()
-	defer globalConfigsMu.Unlock()
-
+func getConfKey(region string, role *types.CloudID) confKey {
 	key := confKey{
 		region: region,
 	}
-	if assumedRole != nil {
-		key.role = *assumedRole
+	if role != nil {
+		key.role = *role
 	}
-	if cfg, ok := globalConfigs[key]; ok {
-		return *cfg, nil
+	return key
+}
+
+// GetConfigFromCloudID returns an AWS Config for the given region and assumed role.
+func GetConfigFromCloudID(ctx context.Context, scan *types.ScanTask, cloudID types.CloudID) aws.Config {
+	return GetConfig(ctx, cloudID.Region, scan.Roles[cloudID.AccountID])
+}
+
+// GetConfig returns an AWS Config for the given region and assumed role.
+func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) aws.Config {
+	key := getConfKey(region, assumedRole)
+	if cfg, ok := globalConfigs.Load(key); ok {
+		return cfg.(aws.Config)
 	}
 
+	globalConfigsMu.Lock()
+	defer globalConfigsMu.Unlock()
 	if statsd == nil {
 		statsd, _ = ddogstatsd.New("localhost:8125")
 	}
@@ -65,13 +75,12 @@ func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) (
 	})
 	httpClient := newHTTPClientWithStats(region, assumedRole, statsd, limiter, tags)
 	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(region),
 		config.WithHTTPClient(httpClient),
-	)
+		config.WithRegion(region))
 	if err != nil {
-		return aws.Config{}, fmt.Errorf("awsconfig: could not load default config: %w", err)
+		log.Errorf("awsconfig: could not load default config: %v", err)
+		return aws.Config{}
 	}
-
 	stsclient := sts.NewFromConfig(cfg)
 	if assumedRole != nil {
 		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.String())
@@ -80,19 +89,18 @@ func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) (
 
 	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
-		return aws.Config{}, fmt.Errorf("awsconfig: could not assumerole %q: %w", assumedRole, err)
+		log.Errorf("awsconfig: could not assumerole %q: %v", assumedRole, err)
 	}
-
 	if assumedRole == nil {
 		roleID, err := types.ParseCloudID(*identity.Arn, types.ResourceTypeRole)
 		if err != nil {
-			return aws.Config{}, fmt.Errorf("awsconfig: could not parse caller identity arn: %w", err)
+			log.Errorf("awsconfig: could not parse roleID from %q: %v", *identity.Arn, err)
+			return aws.Config{}
 		}
 		cfg.HTTPClient = newHTTPClientWithStats(region, &roleID, statsd, limiter, tags)
 	}
-
-	globalConfigs[key] = &cfg
-	return cfg, nil
+	globalConfigs.Store(key, cfg)
+	return cfg
 }
 
 // GetSelfEC2InstanceIndentity returns the identity of the current EC2 instance.
