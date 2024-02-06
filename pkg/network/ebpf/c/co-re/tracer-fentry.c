@@ -3,6 +3,7 @@
 #include "bpf_endian.h"
 #include "bpf_tracing.h"
 
+#include "sockfd.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "sock.h"
@@ -15,8 +16,6 @@
 #include "tracer/stats.h"
 #include "tracer/telemetry.h"
 #include "tracer/port.h"
-
-#include "protocols/sockfd.h"
 
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
@@ -606,6 +605,54 @@ int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int a
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet6_bind");
     log_debug("fexit/inet6_bind: rc=%d\n", rc);
     return sys_exit_bind(rc);
+}
+
+// this kretprobe is essentially creating:
+// * an index of pid_fd_t to a struct sock*;
+// * an index of struct sock* to pid_fd_t;
+SEC("fexit/sockfd_lookup_light")
+int BPF_PROG(sockfd_lookup_light_exit, int fd, int *err, int *fput_needed, struct socket *socket) {
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/sockfd_lookup_light");
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    // Check if have already a map entry for this pid_fd_t
+    // TODO: This lookup eliminates *4* map operations for existing entries
+    // but can reduce the accuracy of programs relying on socket FDs for
+    // processes with a lot of FD churn
+    pid_fd_t key = {
+        .pid = pid_tgid >> 32,
+        .fd = fd,
+    };
+
+    struct sock **skpp = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
+    if (skpp != NULL) {
+        return 0;
+    }
+
+    // For now let's only store information for TCP sockets
+    const struct proto_ops *proto_ops = BPF_CORE_READ(socket, ops);
+    if (!proto_ops) {
+        return 0;
+    }
+
+    enum sock_type sock_type = BPF_CORE_READ(socket, type);
+    int family = BPF_CORE_READ(proto_ops, family);
+    if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
+        return 0;
+    }
+
+    // Retrieve struct sock* pointer from struct socket*
+    struct sock *sock = BPF_CORE_READ(socket, sk);
+
+    pid_fd_t pid_fd = {
+        .pid = pid_tgid >> 32,
+        .fd = fd,
+    };
+
+    // These entries are cleaned up by tcp_close
+    bpf_map_update_with_telemetry(pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
+    bpf_map_update_with_telemetry(sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
+
+    return 0;
 }
 
 char _license[] SEC("license") = "GPL";

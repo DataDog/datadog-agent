@@ -4,7 +4,7 @@
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 
-#include "protocols/sockfd.h"
+#include "sockfd.h"
 
 #include "protocols/classification/common.h"
 
