@@ -83,7 +83,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	snmptrapsStatusImpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -209,7 +208,7 @@ func run(log log.Component,
 	statusComponent status.Component,
 ) error {
 	defer func() {
-		stopAgent(cliParams, server, demultiplexer, agentAPI)
+		stopAgent(cliParams, server, agentAPI)
 	}()
 
 	// prepare go runtime
@@ -310,9 +309,6 @@ func getSharedFxOption() fx.Option {
 			status.NewInformationProvider(endpointsStatus.Provider{}),
 		),
 		fx.Provide(func(config config.Component) status.InformationProvider {
-			return status.NewInformationProvider(snmptrapsStatusImpl.GetProvider(config))
-		}),
-		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
 		}),
 		fx.Provide(func(config config.Component) status.InformationProvider {
@@ -343,11 +339,11 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, _ workloadmeta.Component, _ tagger.Component, secretResolver secrets.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, _ tagger.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
 					// create and setup the Autoconfig instance
-					common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(demultiplexer, secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -372,7 +368,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
-		snmptraps.Bundle,
+		snmptraps.Bundle(),
 		fx.Provide(func(demultiplexer demultiplexer.Component) optional.Option[collector.Collector] {
 			return optional.NewOption(common.LoadCollector(demultiplexer))
 		}),
@@ -629,12 +625,12 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer, agentAPI)
+func StopAgentWithDefaults(server dogstatsdServer.Component, agentAPI internalAPI.Component) {
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, agentAPI)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
+func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -659,10 +655,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
-
-	if demultiplexer != nil {
-		demultiplexer.Stop(true)
-	}
 
 	gui.StopGUIServer()
 	profiler.Stop()

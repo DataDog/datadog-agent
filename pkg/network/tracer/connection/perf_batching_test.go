@@ -10,13 +10,13 @@ package connection
 import (
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
@@ -79,9 +79,9 @@ func TestGetPendingConns(t *testing.T) {
 	batch.C1.Tup.Pid = pidMax + 2
 	batch.Len = 2
 
-	cpu := 0
+	cpu := uint32(0)
 	updateBatch := func() {
-		err := manager.batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(batch))
+		err := manager.batchMap.Put(&cpu, batch)
 		require.NoError(t, err)
 	}
 	updateBatch()
@@ -134,8 +134,8 @@ func TestPerfBatchStateCleanup(t *testing.T) {
 	batch.C1.Tup.Pid = 2
 	batch.Len = 2
 
-	cpu := 0
-	err := manager.batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(batch))
+	cpu := uint32(0)
+	err := manager.batchMap.Put(&cpu, batch)
 	require.NoError(t, err)
 
 	buffer := network.NewConnectionBuffer(256, 256)
@@ -172,7 +172,9 @@ func newTestBatchManager(t *testing.T) *perfBatchManager {
 	require.NoError(t, err)
 	t.Cleanup(func() { m.Close() })
 
-	mgr, err := newPerfBatchManager(m, numTestCPUs)
+	gm, err := ebpfmaps.Map[uint32, netebpf.Batch](m)
+	require.NoError(t, err)
+	mgr, err := newPerfBatchManager(gm, numTestCPUs)
 	require.NoError(t, err)
 	return mgr
 }

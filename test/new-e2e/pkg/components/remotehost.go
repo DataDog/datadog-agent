@@ -6,8 +6,10 @@
 package components
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -146,6 +148,12 @@ func (h *RemoteHost) Remove(path string) error {
 // Returns an error if the directory does not exist.
 func (h *RemoteHost) RemoveAll(path string) error {
 	return clients.RemoveAll(h.client, path)
+}
+
+// DialRemotePort creates a connection to port on the remote host.
+func (h *RemoteHost) DialRemotePort(port uint16) (net.Conn, error) {
+	// TODO: Use e2e context (see: https://github.com/DataDog/datadog-agent/pull/22261#discussion_r1477912456)
+	return h.client.DialContext(context.Background(), "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 }
 
 // reconnectSSH recreate the SSH connection to the VM. Should be used only after VM reboot to restore the SSH connection.

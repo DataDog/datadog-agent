@@ -5,7 +5,8 @@
 
 //go:build linux_bpf
 
-package ebpf
+// Package maps contains wrappers for ebpf maps
+package maps
 
 import (
 	"errors"
