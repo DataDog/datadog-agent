@@ -63,8 +63,7 @@ apm_config.enabled: true
 	e2e.Run(t, &VMFakeintakeSuite{transport: tcp}, options...)
 }
 
-func (s *VMFakeintakeSuite) SetupSuite() {
-	s.BaseSuite.SetupSuite()
+func fixAgent(s *VMFakeintakeSuite) {
 	h := s.Env().RemoteHost
 	// Agent must be in the docker group to be able to open and
 	// read container info from the docker socket.
@@ -84,6 +83,7 @@ func (s *VMFakeintakeSuite) SetupSuite() {
 func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
+	fixAgent(s)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		status, _ := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
 		s.T().Log(status)
@@ -101,6 +101,7 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
+	fixAgent(s)
 
 	service := fmt.Sprintf("tracegen-container-tag-%s", s.transport)
 
@@ -120,6 +121,7 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 func (s *VMFakeintakeSuite) TestStatsForService() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
+	fixAgent(s)
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
 
@@ -139,6 +141,7 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 func (s *VMFakeintakeSuite) TestBasicTrace() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
+	fixAgent(s)
 
 	service := fmt.Sprintf("tracegen-basic-trace-%s", s.transport)
 
