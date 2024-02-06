@@ -22,6 +22,7 @@ import (
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
 	t := v.T()
+	t.Helper()
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -62,6 +63,7 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
 func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
 	t := v.T()
+	t.Helper()
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -109,6 +111,7 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func test1HostFakeIntakeNPMTCPUDPDNS[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
 	t := v.T()
+	t.Helper()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := FakeIntake.Client().GetConnections()
