@@ -630,7 +630,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeRawHeaders(t, streamID, headersFrame).
+						writeRawHeaders(t, streamID, true, headersFrame).
 						writeData(t, streamID, true, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -823,7 +823,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					headersFrameWithRawMethod := append(rawMethod, headersFrame...)
 					streamID := getStreamID(i)
 					framer.
-						writeRawHeaders(t, streamID, headersFrameWithRawMethod).
+						writeRawHeaders(t, streamID, true, headersFrameWithRawMethod).
 						writeData(t, streamID, true, emptyBody).bytes()
 				}
 				return [][]byte{framer.bytes()}
@@ -877,9 +877,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 				framer := newFramer()
 				framer.
-					writeRawHeaders(t, 1, headersFrameWithGET).
+					writeRawHeaders(t, 1, true, headersFrameWithGET).
 					writeData(t, 1, true, emptyBody).
-					writeRawHeaders(t, 3, headersFrameWithPOST).
+					writeRawHeaders(t, 3, true, headersFrameWithPOST).
 					writeData(t, 3, true, emptyBody)
 				return [][]byte{framer.bytes()}
 			},
@@ -923,7 +923,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				return [][]byte{
 					framer.
-						writeRawHeaders(t, 1, headersFrame).
+						writeRawHeaders(t, 1, true, headersFrame).
 						writeData(t, 1, true, emptyBody).
 						bytes(),
 				}
@@ -1102,6 +1102,37 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: usmhttp.MethodPost,
 				}: 2,
 			},
+		},
+		{
+			name: "validate CONTINUATION frame support",
+			// Testing the scenario in which part of the data frame header is sent using CONTINUATION frame.
+			// Currently, we do not support CONTINUATION frames, therefore, we expect to capture only the first
+			// part of the message.
+			messageBuilder: func() [][]byte {
+				preFixTestHeaders, sufFixTestHeaders := splitTestHeaders(2)
+				firstPartHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: preFixTestHeaders,
+				})
+				require.NoError(t, err, "could not create headers frame")
+
+				secondPartHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: sufFixTestHeaders,
+				})
+				require.NoError(t, err, "could not create headers frame")
+
+				// We are creating a header frame with a content-length header field that contains the payload size.
+				headersFrame := newFramer().writeRawHeaders(t, 1, false, firstPartHeadersFrame).bytes()
+				blaFrame := newFramer().writeRawContinuation(t, 1, true, secondPartHeadersFrame).bytes()
+				dataFrameSecond := newFramer().writeData(t, 1, true, emptyBody).bytes()
+
+				firstMessage := headersFrame
+				secondMessage := append(blaFrame, dataFrameSecond...)
+				return [][]byte{
+					firstMessage,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: nil,
 		},
 	}
 	for _, tt := range tests {
@@ -1384,6 +1415,11 @@ func headersWithGivenEndpoint(path string) []hpack.HeaderField {
 // testHeaders returns a set of header fields.
 func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(headersGenerationOptions{}) }
 
+// splitTestHeaders returns a set of header fields spited by the given index.
+func splitTestHeaders(index int) ([]hpack.HeaderField, []hpack.HeaderField) {
+	return generateTestHeaderFields(headersGenerationOptions{})[:index], generateTestHeaderFields(headersGenerationOptions{})[index:]
+}
+
 type headersGenerationOptions struct {
 	pathTypeValue         pathType
 	overrideMethod        string
@@ -1488,16 +1524,21 @@ func (f *framer) writeData(t *testing.T, streamID uint32, endStream bool, buf []
 	return f
 }
 
+func (f *framer) writeRawContinuation(t *testing.T, streamID uint32, endHeaders bool, buf []byte) *framer {
+	require.NoError(t, f.framer.WriteContinuation(streamID, endHeaders, buf), "could not write data frame")
+	return f
+}
+
 func (f *framer) writeWindowUpdate(t *testing.T, streamID uint32, increment uint32) *framer {
 	require.NoError(t, f.framer.WriteWindowUpdate(streamID, increment), "could not write window update frame")
 	return f
 }
 
-func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, headerFrames []byte) *framer {
+func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, endHeaders bool, headerFrames []byte) *framer {
 	require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
 		StreamID:      streamID,
 		BlockFragment: headerFrames,
-		EndHeaders:    true,
+		EndHeaders:    endHeaders,
 	}), "could not write header frames")
 	return f
 }
