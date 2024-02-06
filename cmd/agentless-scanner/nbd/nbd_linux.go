@@ -102,7 +102,7 @@ func StopNBDBlockDevice(ctx context.Context, deviceName string) {
 		return
 	}
 
-	log.Debugf("nbdclient: disconnecting client for device %q", bd.deviceName)
+	log.Debugf("%s: nbdclient: disconnecting client for device %q", bd.scan, bd.deviceName)
 	if err := exec.Command("nbd-client", "-d", bd.deviceName).Run(); err != nil {
 		log.Errorf("%s: nbd-client: %q disconnecting failed: %v", bd.scan, bd.deviceName, err)
 	} else {
@@ -134,7 +134,7 @@ func (bd *nbd) startClient() error {
 		"-connections", "5")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Errorf("nbd-client: %q failed: %s", bd.deviceName, string(out))
+		log.Errorf("%s: nbd-client: %q failed: %s", bd.scan, bd.deviceName, string(out))
 		return err
 	}
 	return nil
@@ -171,18 +171,18 @@ func (bd *nbd) startServer() (err error) {
 				if errors.Is(err, net.ErrClosed) {
 					return
 				}
-				log.Warnf("nbdserver: %q could not accept connection: %v", bd.deviceName, err)
+				log.Warnf("%s: nbdserver: %q could not accept connection: %v", bd.scan, bd.deviceName, err)
 			} else {
-				log.Tracef("nbdserver: client connected")
+				log.Tracef("%s: nbdserver: client connected", bd.scan)
 				addConn <- conn
 			}
 		}
 	}()
 
-	log.Debugf("nbdserver: %q accepting connections on %q", bd.deviceName, addr)
+	log.Debugf("%s: nbdserver: %q accepting connections on %q", bd.scan, bd.deviceName, addr)
 	go func() {
 		defer func() {
-			log.Debugf("nbdserver: %q closed successfully", bd.deviceName)
+			log.Debugf("%s: nbdserver: %q closed successfully", bd.scan, bd.deviceName)
 			bd.srv.Close()
 			close(bd.closed)
 		}()
@@ -196,7 +196,7 @@ func (bd *nbd) startServer() (err error) {
 				}()
 
 			case conn := <-rmvConn:
-				log.Tracef("nbdserver: %q client disconnected", bd.deviceName)
+				log.Tracef("%s: nbdserver: %q client disconnected", bd.scan, bd.deviceName)
 				delete(conns, conn)
 				conn.Close()
 				if len(conns) == 0 {
@@ -219,7 +219,7 @@ func (bd *nbd) waitServerClosed(ctx context.Context) error {
 	case <-bd.closed:
 		return nil
 	case <-ctx.Done():
-		log.Warnf("nbdserver: %q forced to close", bd.deviceName)
+		log.Warnf("%s: nbdserver: %q forced to close", bd.scan, bd.deviceName)
 		if bd.srv != nil {
 			bd.srv.Close() // forcing close of server
 		}
@@ -228,7 +228,7 @@ func (bd *nbd) waitServerClosed(ctx context.Context) error {
 }
 
 func (bd *nbd) serverHandleConn(conn net.Conn, backend backend.Backend) {
-	log.Tracef("nbdserver: %q client connected ", bd.deviceName)
+	log.Tracef("%s: nbdserver: %q client connected ", bd.scan, bd.deviceName)
 	err := server.Handle(conn,
 		[]*server.Export{
 			{
@@ -245,7 +245,7 @@ func (bd *nbd) serverHandleConn(conn net.Conn, backend backend.Backend) {
 		})
 	if err != nil {
 		if !errors.Is(err, net.ErrClosed) {
-			log.Errorf("nbdserver: %q could not handle new connection: %v", bd.deviceName, err)
+			log.Errorf("%s: nbdserver: %q could not handle new connection: %v", bd.scan, bd.deviceName, err)
 		}
 	}
 }
