@@ -36,7 +36,7 @@ func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOpt
 // TestVMFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
 func TestVMFakeintakeSuiteUDS(t *testing.T) {
 	// FIXME: fix flakiness reaching the agent then enable the test
-	t.Skip("Skipping flaky test")
+	t.Skip("Skipping flaky test - incident-25117 AIT-9390")
 
 	cfg := `
 apm_config.enabled: true
@@ -53,7 +53,7 @@ apm_config.receiver_socket: /var/run/datadog/apm.socket
 // TestVMFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestVMFakeintakeSuiteTCP(t *testing.T) {
 	// FIXME: fix flakiness reaching the agent then enable the test
-	t.Skip("Skipping flaky test")
+	t.Skip("Skipping flaky test - incident-25117 AIT-9390")
 
 	cfg := `
 apm_config.enabled: true
