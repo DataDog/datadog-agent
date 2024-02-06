@@ -7,6 +7,7 @@ package awsutils
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 func cloudResourceTagSpec(resourceType types.ResourceType, scannerHostname string) []ec2types.TagSpecification {
@@ -86,10 +88,17 @@ func CleanSlate(ctx context.Context, bds []devices.BlockDevice, roles types.Role
 
 // ListResourcesForCleanup lists all AWS resources that are created by our
 // scanner.
-func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.CloudID) map[types.ResourceType][]string {
-	ec2client := ec2.NewFromConfig(GetConfig(ctx, region, assumedRole))
-	toBeDeleted := make(map[types.ResourceType][]string)
+func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.CloudID) ([]types.CloudID, error) {
+	cfg := GetConfig(ctx, region, assumedRole)
+	ec2client := ec2.NewFromConfig(cfg)
+	var toBeDeleted []types.CloudID
 	var nextToken *string
+
+	stsclient := sts.NewFromConfig(cfg)
+	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return nil, fmt.Errorf("could not get caller identity: %w", err)
+	}
 
 	for {
 		volumes, err := ec2client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
@@ -100,10 +109,13 @@ func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region s
 			log.Warnf("could not list volumes created by agentless-scanner: %v", err)
 			break
 		}
-		for i := range volumes.Volumes {
-			if volumes.Volumes[i].State == ec2types.VolumeStateAvailable {
-				volumeID := *volumes.Volumes[i].VolumeId
-				toBeDeleted[types.ResourceTypeVolume] = append(toBeDeleted[types.ResourceTypeVolume], volumeID)
+		for _, volume := range volumes.Volumes {
+			if volume.State == ec2types.VolumeStateAvailable {
+				volumeID, err := types.AWSCloudID("ec2", region, *identity.Account, types.ResourceTypeVolume, *volume.VolumeId)
+				if err != nil {
+					return nil, err
+				}
+				toBeDeleted = append(toBeDeleted, volumeID)
 			}
 		}
 		nextToken = volumes.NextToken
@@ -121,48 +133,49 @@ func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region s
 			log.Warnf("could not list snapshots created by agentless-scanner: %v", err)
 			break
 		}
-		for i := range snapshots.Snapshots {
-			if snapshots.Snapshots[i].State != ec2types.SnapshotStateCompleted {
+		for _, snapshot := range snapshots.Snapshots {
+			if snapshot.State != ec2types.SnapshotStateCompleted {
 				continue
 			}
 			since := time.Now().Add(-maxTTL)
-			if snapshots.Snapshots[i].StartTime != nil && snapshots.Snapshots[i].StartTime.After(since) {
+			if snapshot.StartTime != nil && snapshot.StartTime.After(since) {
 				continue
 			}
-			snapshotID := *snapshots.Snapshots[i].SnapshotId
-			toBeDeleted[types.ResourceTypeSnapshot] = append(toBeDeleted[types.ResourceTypeSnapshot], snapshotID)
+			snapshotID, err := types.AWSCloudID("ec2", region, *identity.Account, types.ResourceTypeSnapshot, *snapshot.SnapshotId)
+			if err != nil {
+				return nil, err
+			}
+			toBeDeleted = append(toBeDeleted, snapshotID)
 		}
 		nextToken = snapshots.NextToken
 		if nextToken == nil {
 			break
 		}
 	}
-	return toBeDeleted
+	return toBeDeleted, nil
 }
 
 // ResourcesCleanup removes all resources provided in the map.
-func ResourcesCleanup(ctx context.Context, toBeDeleted map[types.ResourceType][]string, region string, assumedRole *types.CloudID) {
+func ResourcesCleanup(ctx context.Context, toBeDeleted []types.CloudID, region string, assumedRole *types.CloudID) {
 	ec2client := ec2.NewFromConfig(GetConfig(ctx, region, assumedRole))
-	for resourceType, resources := range toBeDeleted {
-		for _, resourceName := range resources {
-			if err := ctx.Err(); err != nil {
-				return
-			}
-			log.Infof("cleaning up resource %s/%s", resourceType, resourceName)
-			var err error
-			switch resourceType {
-			case types.ResourceTypeSnapshot:
-				_, err = ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-					SnapshotId: aws.String(resourceName),
-				})
-			case types.ResourceTypeVolume:
-				_, err = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
-					VolumeId: aws.String(resourceName),
-				})
-			}
-			if err != nil {
-				log.Errorf("could not delete resource %s/%s: %s", resourceType, resourceName, err)
-			}
+	for _, resourceID := range toBeDeleted {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+		log.Infof("cleaning up resource %q", resourceID)
+		var err error
+		switch resourceID.ResourceType() {
+		case types.ResourceTypeSnapshot:
+			_, err = ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+				SnapshotId: aws.String(resourceID.ResourceName()),
+			})
+		case types.ResourceTypeVolume:
+			_, err = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
+				VolumeId: aws.String(resourceID.ResourceName()),
+			})
+		}
+		if err != nil {
+			log.Errorf("could not delete resource %q: %s", resourceID, err)
 		}
 	}
 }

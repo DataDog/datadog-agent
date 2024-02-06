@@ -529,16 +529,17 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	}
 
 	assumedRole := getDefaultRolesMapping().GetRole(*identity.Account)
-	toBeDeleted := awsutils.ListResourcesForCleanup(ctx, delay, region, assumedRole)
+	toBeDeleted, err := awsutils.ListResourcesForCleanup(ctx, delay, region, assumedRole)
+	if err != nil {
+		return err
+	}
 	if len(toBeDeleted) == 0 {
 		fmt.Printf("no resources found to cleanup\n")
 		return nil
 	}
 	fmt.Printf("cleaning up these resources:\n")
-	for resourceType, resources := range toBeDeleted {
-		for _, resourceName := range resources {
-			fmt.Printf(" - %s: %s\n", resourceType, resourceName)
-		}
+	for _, resourceID := range toBeDeleted {
+		fmt.Printf(" - %s\n", resourceID)
 	}
 	if !dryRun {
 		awsutils.ResourcesCleanup(ctx, toBeDeleted, region, assumedRole)
