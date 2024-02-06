@@ -113,7 +113,6 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 	})
 
 	t.Run("unsupported-event-type", func(t *testing.T) {
-		// First invocation without any attack
 		chunk := runAppSec("request", invocationlifecycle.InvocationStartDetails{
 			InvokeEventRawPayload: getEventFromFile("sqs.json"),
 			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",

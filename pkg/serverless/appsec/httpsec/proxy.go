@@ -70,6 +70,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 		log.Debugf("appsec: proxy-lifecycle: Extracted event type: %v", eventType)
 	}
 
+	lp.invocationEvent = nil
 	var event interface{}
 	switch eventType {
 	default:
@@ -90,17 +91,14 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	case trigger.LambdaFunctionURLEvent:
 		event = &events.LambdaFunctionURLRequest{}
 	}
-	if lp.demux != nil {
-		serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
-	}
 
 	if err := json.Unmarshal(payloadBytes, event); err != nil {
 		log.Errorf("appsec: proxy-lifecycle: unexpected lambda event parsing error: %v", err)
 		return
 	}
 
-	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
 	lp.invocationEvent = event
+	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
@@ -145,6 +143,11 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		// in this case because it involves ASM billing.
 		span.SetMetricsTag("_dd.appsec.unsupported_event_type", 1)
 		return // skip: unsupported event
+	}
+
+	// Count ASM-supported invocations
+	if lp.demux != nil {
+		serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
 	}
 
 	var ctx context
