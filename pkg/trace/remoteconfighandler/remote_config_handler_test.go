@@ -40,7 +40,6 @@ func TestStart(t *testing.T) {
 
 	remoteClient.EXPECT().Subscribe(state.ProductAPMSampling, gomock.Any()).Times(1)
 	remoteClient.EXPECT().Subscribe(state.ProductAgentConfig, gomock.Any()).Times(1)
-
 	remoteClient.EXPECT().Start().Times(1)
 
 	h.Start()

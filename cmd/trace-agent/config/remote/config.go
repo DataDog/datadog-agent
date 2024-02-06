@@ -19,7 +19,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
-
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"

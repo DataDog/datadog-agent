@@ -130,7 +130,6 @@ func (rc rcClient) SubscribeAgentTask() {
 }
 
 func (rc rcClient) SubscribeApmTracing() {
-	rc.taskProcessed = map[string]bool{}
 	if rc.client == nil {
 		pkglog.Errorf("No remote-config client")
 		return
