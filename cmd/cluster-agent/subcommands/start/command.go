@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 
-	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"net/http"
 	"os"
 	"os/signal"
@@ -45,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
+	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"

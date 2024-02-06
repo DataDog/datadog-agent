@@ -10,6 +10,7 @@ package webhook
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -17,40 +18,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// buildAgentSidecarObjectSelectors returns the mutating webhooks object selector based on the configuration
+// Selector specifies an object label selector and a namespace label selector
+type Selector struct {
+	ObjectSelector    metav1.LabelSelector `yaml:"objectSelector,omitempty"`
+	NamespaceSelector metav1.LabelSelector `yaml:"nbjectSelector,omitempty"`
+}
+
+// buildAgentSidecarObjectSelectors returns the mutating webhooks object selectors based on the configuration
 func buildAgentSidecarObjectSelectors() (namespaceSelector, objectSelector *metav1.LabelSelector) {
 
-	// Read and parse label selectors
-	labelSelectorsJSON := config.Datadog.GetString("admission_controller.agent_sidecar.label_selectors")
+	// Read and parse selectors
+	selectorsJSON := config.Datadog.GetString("admission_controller.agent_sidecar.selectors")
 
-	var labelSelectors []map[string]string
+	var selectors []Selector
 
-	err := json.Unmarshal([]byte(labelSelectorsJSON), &labelSelectors)
+	err := json.Unmarshal([]byte(selectorsJSON), &selectors)
 	if err != nil {
-		fmt.Printf("failed to parse label selectors for admission controller agent sidecar injection webhook: %s", err)
+		fmt.Printf("failed to parse selectors for admission controller agent sidecar injection webhook: %s", err)
 		return nil, nil
 	}
 
-	// Read and parse namespace selectors
-	nsSelectorsJSON := config.Datadog.GetString("admission_controller.agent_sidecar.namespace_selectors")
-	var nsSelectors []map[string]string
-
-	err = json.Unmarshal([]byte(nsSelectorsJSON), &nsSelectors)
-	if err != nil {
-		fmt.Printf("failed to parse namespace selectors for admission controller agent sidecar injection webhook: %s", err)
-		return nil, nil
-	}
-
-	if len(labelSelectors) > 0 {
-		objectSelector = &metav1.LabelSelector{
-			MatchLabels: labelSelectors[0],
-		}
-	}
-
-	if len(nsSelectors) > 0 {
-		namespaceSelector = &metav1.LabelSelector{
-			MatchLabels: nsSelectors[0],
-		}
+	if len(selectors) > 0 {
+		namespaceSelector = &selectors[0].NamespaceSelector
+		objectSelector = &selectors[0].ObjectSelector
 	}
 
 	return namespaceSelector, objectSelector

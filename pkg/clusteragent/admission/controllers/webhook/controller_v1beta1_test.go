@@ -10,7 +10,6 @@ package webhook
 import (
 	"context"
 	"fmt"
-	admiv1 "k8s.io/api/admissionregistration/v1"
 	"reflect"
 	"testing"
 	"time"
@@ -693,7 +692,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"/agentsidecar",
 					nil,
 					nil,
-					[]admiv1.OperationType{admiv1.Create},
+					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
 				return []admiv1beta1.MutatingWebhook{podWebhook}
@@ -710,18 +709,18 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.namespace_selectors", "[{\"labelKey\": \"labelVal\"}]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"NamespaceSelector\": {\"MatchLabels\": {\"labelKey\": \"labelVal\"}}}]")
 			},
 			configFunc: func() Config { return NewConfig(true, true) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				podWebhook := webhook(
 					"datadog.webhook.agent.sidecar",
 					"/agentsidecar",
-					nil,
+					&metav1.LabelSelector{},
 					&metav1.LabelSelector{
 						MatchLabels: map[string]string{"labelKey": "labelVal"},
 					},
-					[]admiv1.OperationType{admiv1.Create},
+					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
 				return []admiv1beta1.MutatingWebhook{podWebhook}
@@ -738,21 +737,18 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.label_selectors", "[{\"labelKey1\": \"labelVal1\"}, {\"labelKey2\": \"labelVal2\"}]")
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.namespace_selectors", "[{\"labelKey1\": \"labelVal1\"}, {\"labelKey2\": \"labelVal2\"}]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"NamespaceSelector\": {\"MatchLabels\":{\"labelKey1\": \"labelVal1\"}}} , {\"ObjectSelector\": {\"MatchLabels\": {\"labelKey2\": \"labelVal2\"}}}]")
 			},
 			configFunc: func() Config { return NewConfig(true, true) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				podWebhook := webhook(
 					"datadog.webhook.agent.sidecar",
 					"/agentsidecar",
+					&metav1.LabelSelector{},
 					&metav1.LabelSelector{
 						MatchLabels: map[string]string{"labelKey1": "labelVal1"},
 					},
-					&metav1.LabelSelector{
-						MatchLabels: map[string]string{"labelKey1": "labelVal1"},
-					},
-					[]admiv1.OperationType{admiv1.Create},
+					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
 				return []admiv1beta1.MutatingWebhook{podWebhook}
