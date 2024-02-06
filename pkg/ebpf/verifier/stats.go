@@ -96,10 +96,6 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[strin
 	return stats, failedToLoad, nil
 }
 
-func programKey(specName, objFileName string) string {
-	return fmt.Sprintf("%s/Program__%s", objFileName, specName)
-}
-
 func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
 	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		kversion, err := kernel.HostVersion()
