@@ -54,7 +54,6 @@ def download_rootfs(ctx, rootfs_dir):
         if not os.path.exists(path):
             to_download.append(f)
 
-    disks_to_download = list()
     for vmset in vmconfig_template["vmsets"]:
         if vmset["arch"] != arch:
             continue
@@ -63,10 +62,12 @@ def download_rootfs(ctx, rootfs_dir):
             # Use the uncompressed disk name, avoid errors due to images being downloaded but not extracted
             d = os.path.basename(disk["target"])
             if not os.path.exists(os.path.join(rootfs_dir, d)):
-                disks_to_download.append(d)
+                if d.endswith(".xz"):
+                    d = d[: -len(".xz")]
+                to_download.append(d)
 
     # download and compare hash sums
-    present_files = list(set(file_ls) - set(to_download)) + disks_to_download
+    present_files = list(set(file_ls) - set(to_download))
     for f in present_files:
         if requires_update(url_base, rootfs_dir, f):
             debug(f"[debug] updating {f} from S3.")
@@ -84,8 +85,7 @@ def download_rootfs(ctx, rootfs_dir):
         with os.fdopen(fd, 'w') as tmp:
             for f in to_download:
                 info(f"[+] {f} needs to be downloaded")
-                xz = ".xz" if f not in disks_to_download else ""
-                filename = f"{f}{xz}"
+                filename = f"{f}.xz"
                 sum_file = f"{f}.sum"
                 # remove this file and sum
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, filename)}")
