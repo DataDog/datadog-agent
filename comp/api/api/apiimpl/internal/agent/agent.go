@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -49,7 +50,6 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -105,6 +105,7 @@ func SetupHandlers(
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
 	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
+	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
 	r.HandleFunc("/metadata/v5", func(w http.ResponseWriter, r *http.Request) { metadataPayloadV5(w, r, hostMetadata) }).Methods("GET")
 	r.HandleFunc("/metadata/inventory-checks", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvChecks(w, r, invChecks) }).Methods("GET")
@@ -254,7 +255,7 @@ func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *ht
 }
 
 func streamEventPlatform() func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(epforwarder.GetGlobalReceiver, "event platform payloads", "agent")
+	return getStreamFunc(eventplatformimpl.GetGlobalReceiver, "event platform payloads", "agent")
 }
 
 func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
@@ -450,6 +451,15 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 
 func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
 	secretResolver.GetDebugInfo(w)
+}
+
+func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
+	result, err := secretResolver.Refresh()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write([]byte(result))
 }
 
 func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {

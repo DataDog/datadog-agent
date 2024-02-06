@@ -9,107 +9,146 @@ package procutil
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestStripArguments(t *testing.T) {
 
-	cases := []struct {
-		cmdline  []string
-		expected []string
+	testCases := []struct {
+		cmdline []string
+		want    []string
 	}{
 		// Main cases samples
 		{
 			cmdline: []string{"python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 &"},
 
-			expected: []string{"python"},
+			want: []string{"python"},
 		},
 		{
 			cmdline: []string{"java -password      1234"},
 
-			expected: []string{"java"},
+			want: []string{"java"},
 		},
 		{
 			cmdline: []string{"agent password:1234"},
 
-			expected: []string{"agent"},
+			want: []string{"agent"},
 		},
 		{
 			cmdline: []string{"agent", "-password", "1234"},
 
-			expected: []string{"agent"},
+			want: []string{"agent"},
 		},
 		{
 			cmdline: []string{"C:\\Program Files\\Datadog\\agent.com"},
 
-			expected: []string{"C:\\Program Files\\Datadog\\agent.com"},
+			want: []string{"C:\\Program Files\\Datadog\\agent.com"},
 		},
 		{
 			cmdline: []string{"C:\\Program Files\\Datadog\\agent.exe check process"},
 
-			expected: []string{"C:\\Program Files\\Datadog\\agent.exe"},
+			want: []string{"C:\\Program Files\\Datadog\\agent.exe"},
 		},
 		{
 			cmdline: []string{"C:\\Program Files\\Datadog\\agent.bat", "check", "process"},
 
-			expected: []string{"C:\\Program Files\\Datadog\\agent.bat"},
+			want: []string{"C:\\Program Files\\Datadog\\agent.bat"},
 		},
 		{
 			cmdline: []string{"\"C:\\Program Files\\Datadog\\agent.cmd\" check process"},
 
-			expected: []string{"C:\\Program Files\\Datadog\\agent.cmd"},
+			want: []string{"C:\\Program Files\\Datadog\\agent.cmd"},
 		},
 		// String matching extension structure
 		{
 			cmdline: []string{"C:\\Program File\\Datexedog\\agent.exe check process"},
 
-			expected: []string{"C:\\Program File\\Datexedog\\agent.exe"},
+			want: []string{"C:\\Program File\\Datexedog\\agent.exe"},
 		},
 		// Mixed Variables
 		{
 			cmdline: []string{"C:\\Program Files\\agent.vbs check process"},
 
-			expected: []string{"C:\\Program Files\\agent.vbs"},
+			want: []string{"C:\\Program Files\\agent.vbs"},
 		},
 		{
 			cmdline: []string{"C:\\Program Files\\Datadog\\agent.js", "check", "process"},
 
-			expected: []string{"C:\\Program Files\\Datadog\\agent.js"},
+			want: []string{"C:\\Program Files\\Datadog\\agent.js"},
 		},
 		{
 			cmdline: []string{"C:\\Program Files\\Datadog\\agent.jse check process"},
 
-			expected: []string{"C:\\Program Files\\Datadog\\agent.jse"},
+			want: []string{"C:\\Program Files\\Datadog\\agent.jse"},
 		},
 		{
 			cmdline: []string{"\"C:\\Program Files\\Datadog\\agent.wsf\" check process"},
 
-			expected: []string{"C:\\Program Files\\Datadog\\agent.wsf"},
+			want: []string{"C:\\Program Files\\Datadog\\agent.wsf"},
 		},
 		{
 			cmdline: []string{"C:\\Program Files\\Datadog\\agent.wsh check process"},
 
-			expected: []string{"C:\\Program Files\\Datadog\\agent.wsh"},
+			want: []string{"C:\\Program Files\\Datadog\\agent.wsh"},
 		},
 		{
 			cmdline: []string{"\"C:\\Program Files\\Datadog\\agent.psc1\" check process"},
 
-			expected: []string{"C:\\Program Files\\Datadog\\agent.psc1"},
+			want: []string{"C:\\Program Files\\Datadog\\agent.psc1"},
 		},
 		{
 			cmdline: []string{"\"C:\\Program Files\\agent\" check process"},
 
-			expected: []string{"C:\\Program Files\\agent"},
+			want: []string{"C:\\Program Files\\agent"},
 		},
 	}
 
 	scrubber := setupDataScrubber(t)
 	scrubber.StripAllArguments = true
 
-	for i := range cases {
-		cmdline := cases[i].cmdline
-		cases[i].cmdline = scrubber.stripArguments(cmdline)
-		assert.Equal(t, cases[i].expected, cases[i].cmdline)
+	for _, tc := range testCases {
+		cmdline := scrubber.stripArguments(tc.cmdline)
+		if got := cmdline; got[0] != tc.want[0] {
+			t.Errorf("got %s; want %s", got, tc.want)
+		}
+	}
+}
+
+func TestFindEmbeddedQuotes(t *testing.T) {
+
+	testCases := []struct {
+		cmdline string
+		want    string
+	}{
+		{
+			cmdline: "\"C:\\Program Files\\Datadog\\agent.cmd\" check process ",
+			want:    "C:\\Program Files\\Datadog\\agent.cmd",
+		},
+	}
+
+	for _, tc := range testCases {
+		cmdline := findEmbeddedQuotes(tc.cmdline)
+		if got := cmdline; got[0] != tc.want[0] {
+			t.Errorf("got %s; want %s", got, tc.want)
+		}
+	}
+}
+
+func TestExtensionParser(t *testing.T) {
+
+	testCases := []struct {
+		cmdline string
+		want    string
+	}{
+		{
+			cmdline: "python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 & ",
+			want:    "python",
+		},
+	}
+
+	for _, tc := range testCases {
+		cmdline := extensionParser(tc.cmdline, winDotExec)
+		if got := cmdline; got[0] != tc.want[0] {
+			t.Errorf("got %s; want %s", got, tc.want)
+		}
 	}
 }

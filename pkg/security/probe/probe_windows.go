@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/etw"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -21,9 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"golang.org/x/sys/windows"
 )
+
+var parseUnicodeString = etwutil.ParseUnicodeString
 
 // WindowsProbe defines a Windows probe
 type WindowsProbe struct {
@@ -45,16 +52,113 @@ type WindowsProbe struct {
 	onStart       chan *procmon.ProcessStartNotification
 	onStop        chan *procmon.ProcessStopNotification
 	onError       chan bool
+
+	// ETW component for FIM
+	fileguid windows.GUID
+	regguid  windows.GUID
+	//etwcomp    etw.Component
+	fimSession etw.Session
+	fimwg      sync.WaitGroup
 }
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
-	pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError)
+
+	if !p.opts.disableProcmon {
+		pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError)
+		if err != nil {
+			return err
+		}
+		p.pm = pm
+	}
+
+	etwSessionName := "SystemProbeFIM_ETW"
+	etwcomp, err := etwimpl.NewEtw()
 	if err != nil {
 		return err
 	}
-	p.pm = pm
+	p.fimSession, err = etwcomp.NewSession(etwSessionName)
+	if err != nil {
+		return err
+	}
 
+	// provider name="Microsoft-Windows-Kernel-File" guid="{edd08927-9cc4-4e65-b970-c2560fb5c289}"
+	p.fileguid, err = windows.GUIDFromString("{edd08927-9cc4-4e65-b970-c2560fb5c289}")
+	if err != nil {
+		log.Errorf("Error converting guid %v", err)
+		return err
+	}
+
+	//<provider name="Microsoft-Windows-Kernel-Registry" guid="{70eb4f03-c1de-4f73-a051-33d13d5413bd}"
+	p.regguid, err = windows.GUIDFromString("{70eb4f03-c1de-4f73-a051-33d13d5413bd}")
+	if err != nil {
+		log.Errorf("Error converting guid %v", err)
+		return err
+	}
+
+	pidsList := make([]uint32, 0)
+
+	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
+		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
+		cfg.PIDs = pidsList
+
+		// full manifest is here https://github.com/repnz/etw-providers-docs/blob/master/Manifests-Win10-17134/Microsoft-Windows-Kernel-File.xml
+		/* the mask keywords available are
+				<keywords>
+					<keyword name="KERNEL_FILE_KEYWORD_FILENAME" message="$(string.keyword_KERNEL_FILE_KEYWORD_FILENAME)" mask="0x10"/>
+					<keyword name="KERNEL_FILE_KEYWORD_FILEIO" message="$(string.keyword_KERNEL_FILE_KEYWORD_FILEIO)" mask="0x20"/>
+					<keyword name="KERNEL_FILE_KEYWORD_OP_END" message="$(string.keyword_KERNEL_FILE_KEYWORD_OP_END)" mask="0x40"/>
+					<keyword name="KERNEL_FILE_KEYWORD_CREATE" message="$(string.keyword_KERNEL_FILE_KEYWORD_CREATE)" mask="0x80"/>
+					<keyword name="KERNEL_FILE_KEYWORD_READ" message="$(string.keyword_KERNEL_FILE_KEYWORD_READ)" mask="0x100"/>
+					<keyword name="KERNEL_FILE_KEYWORD_WRITE" message="$(string.keyword_KERNEL_FILE_KEYWORD_WRITE)" mask="0x200"/>
+					<keyword name="KERNEL_FILE_KEYWORD_DELETE_PATH" message="$(string.keyword_KERNEL_FILE_KEYWORD_DELETE_PATH)" mask="0x400"/>
+					<keyword name="KERNEL_FILE_KEYWORD_RENAME_SETLINK_PATH" message="$(string.keyword_KERNEL_FILE_KEYWORD_RENAME_SETLINK_PATH)" mask="0x800"/>
+					<keyword name="KERNEL_FILE_KEYWORD_CREATE_NEW_FILE" message="$(string.keyword_KERNEL_FILE_KEYWORD_CREATE_NEW_FILE)" mask="0x1000"/>
+		    	</keywords>
+		*/
+		// try masking on create & create_new_file
+		// given the current requirements, I think we can _probably_ just do create_new_file
+		cfg.MatchAnyKeyword = 0x10A0
+	})
+	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
+		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
+		cfg.PIDs = pidsList
+
+		// full manifest is here https://github.com/repnz/etw-providers-docs/blob/master/Manifests-Win10-17134/Microsoft-Windows-Kernel-Registry.xml
+		/* the mask keywords available are
+				 <keywords>
+					<keyword name="CloseKey" message="$(string.keyword_CloseKey)" mask="0x1"/>
+					<keyword name="QuerySecurityKey" message="$(string.keyword_QuerySecurityKey)" mask="0x2"/>
+					<keyword name="SetSecurityKey" message="$(string.keyword_SetSecurityKey)" mask="0x4"/>
+					<keyword name="EnumerateValueKey" message="$(string.keyword_EnumerateValueKey)" mask="0x10"/>
+					<keyword name="QueryMultipleValueKey" message="$(string.keyword_QueryMultipleValueKey)" mask="0x20"/>
+					<keyword name="SetInformationKey" message="$(string.keyword_SetInformationKey)" mask="0x40"/>
+					<keyword name="FlushKey" message="$(string.keyword_FlushKey)" mask="0x80"/>
+					<keyword name="SetValueKey" message="$(string.keyword_SetValueKey)" mask="0x100"/>
+					<keyword name="DeleteValueKey" message="$(string.keyword_DeleteValueKey)" mask="0x200"/>
+					<keyword name="QueryValueKey" message="$(string.keyword_QueryValueKey)" mask="0x400"/>
+					<keyword name="EnumerateKey" message="$(string.keyword_EnumerateKey)" mask="0x800"/>
+					<keyword name="CreateKey" message="$(string.keyword_CreateKey)" mask="0x1000"/>
+					<keyword name="OpenKey" message="$(string.keyword_OpenKey)" mask="0x2000"/>
+					<keyword name="DeleteKey" message="$(string.keyword_DeleteKey)" mask="0x4000"/>
+					<keyword name="QueryKey" message="$(string.keyword_QueryKey)" mask="0x8000"/>
+		    	</keywords>
+		*/
+		// try masking on create & create_new_file
+		// given the current requirements, I think we can _probably_ just do create_new_file
+		cfg.MatchAnyKeyword = 0xF7E3
+	})
+
+	err = p.fimSession.EnableProvider(p.fileguid)
+	if err != nil {
+		log.Warnf("Error enabling provider %v", err)
+		return err
+	}
+	err = p.fimSession.EnableProvider(p.regguid)
+	if err != nil {
+		log.Warnf("Error enabling provider %v", err)
+		return err
+	}
 	return nil
 }
 
@@ -65,13 +169,110 @@ func (p *WindowsProbe) Setup() error {
 
 // Stop the probe
 func (p *WindowsProbe) Stop() {
-	p.pm.Stop()
+	_ = p.fimSession.StopTracing()
+	p.fimwg.Wait()
+	if p.pm != nil {
+		p.pm.Stop()
+	}
+}
+
+func (p *WindowsProbe) setupEtw() error {
+
+	log.Info("Starting tracing...")
+	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
+		//log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
+		switch e.EventHeader.ProviderID {
+		case etw.DDGUID(p.fileguid):
+			switch e.EventHeader.EventDescriptor.ID {
+			case idCreate:
+			case idCreateNewFile:
+				if ca, err := parseCreateArgs(e); err == nil {
+					log.Tracef("Got create/create new file on file %s", ca.string())
+
+				}
+			case idCleanup:
+				fallthrough
+			case idFlush:
+				// idCleanup and idFlush can be parsed with parseCleanupArgs if necessary.
+				// don't fall through
+			case idClose:
+				if ca, err := parseCleanupArgs(e); err == nil {
+					log.Tracef("got id %v args %s", e.EventHeader.EventDescriptor.ID, ca.string())
+					delete(filePathResolver, ca.fileObject)
+				}
+			case idSetInformation:
+				fallthrough
+			case idSetDelete:
+				fallthrough
+			case idRename:
+				fallthrough
+			case idQueryInformation:
+				fallthrough
+			case idFSCTL:
+				fallthrough
+			case idRename29:
+				if sia, err := parseInformationArgs(e); err == nil {
+					log.Tracef("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia.string())
+				}
+			}
+
+		case etw.DDGUID(p.regguid):
+			switch e.EventHeader.EventDescriptor.ID {
+			case idRegCreateKey:
+				if cka, err := parseCreateRegistryKey(e); err == nil {
+					log.Tracef("Got idRegCreateKey %s", cka.string())
+				}
+			case idRegOpenKey:
+				if cka, err := parseCreateRegistryKey(e); err == nil {
+					log.Debugf("Got idRegOpenKey %s", cka.string())
+				}
+
+			case idRegDeleteKey:
+				if dka, err := parseDeleteRegistryKey(e); err == nil {
+					log.Tracef("Got idRegDeleteKey %v", dka.string())
+				}
+			case idRegFlushKey:
+				if dka, err := parseDeleteRegistryKey(e); err == nil {
+					log.Tracef("Got idRegFlushKey %v", dka.string())
+				}
+			case idRegCloseKey:
+				if dka, err := parseDeleteRegistryKey(e); err == nil {
+					log.Debugf("Got idRegCloseKey %s", dka.string())
+					delete(regPathResolver, dka.keyObject)
+				}
+			case idQuerySecurityKey:
+				if dka, err := parseDeleteRegistryKey(e); err == nil {
+					log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
+				}
+			case idSetSecurityKey:
+				if dka, err := parseDeleteRegistryKey(e); err == nil {
+					log.Tracef("Got idSetSecurityKey %v", dka.keyName)
+				}
+			case idRegSetValueKey:
+				if svk, err := parseSetValueKey(e); err == nil {
+					log.Tracef("Got idRegSetValueKey %s", svk.string())
+				}
+
+			}
+		}
+	})
+	return err
+
 }
 
 // Start processing events
 func (p *WindowsProbe) Start() error {
 
 	log.Infof("Windows probe started")
+	p.fimwg.Add(1)
+	go func() {
+		defer p.fimwg.Done()
+		err := p.setupEtw()
+		log.Infof("Done StartTracing %v", err)
+	}()
+	if p.pm == nil {
+		return nil
+	}
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -182,7 +383,10 @@ func (p *WindowsProbe) Snapshot() error {
 
 // Close the probe
 func (p *WindowsProbe) Close() error {
-	p.pm.Stop()
+	if p.pm != nil {
+		p.pm.Stop()
+	}
+
 	p.cancelFnc()
 	p.wg.Wait()
 	return nil

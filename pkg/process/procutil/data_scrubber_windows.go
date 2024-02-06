@@ -21,35 +21,27 @@ func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 
 	strCmdline := (cmdline[0] + " ")
 
-	// case 1: Uses extensionParser() to format and search the command.
-	if argLength == 1 && !strings.HasPrefix(strCmdline, "\"") {
-		strippedCmdline := extensionParser(strCmdline, winDotExec)
-		cmdline = cleanUp(strippedCmdline)
-		return cmdline
-
-	}
-	// case 2: Uses quotesFinder() to search for any existing pair of double quotes ("") existing in the string as characters and return the content between them.
-	if argLength == 1 && strings.HasPrefix(strCmdline, "\"") {
-		strippedCmdline := findEmbeddedQuotes(strCmdline)
-		cmdline = cleanUp(strippedCmdline)
-		return cmdline
-
-	}
-	// case 3: Process a cmdline with multiple strings and use extensionParser() to format and search the command.
+	// case 1: Process a cmdline with multiple strings and use extensionParser() to format and search the command.
 	if argLength > 1 && !strings.HasPrefix(strCmdline, "\"") {
 		strippedCmdline := extensionParser(strCmdline, winDotExec)
-		cmdline = cleanUp(strippedCmdline)
-		return cmdline
+
+		return []string{strings.TrimSuffix(strippedCmdline, " ")}
+	}
+
+	// case 2: Uses extensionParser() to format and search the command.
+	if argLength == 1 && !strings.HasPrefix(strCmdline, "\"") {
+		strippedCmdline := extensionParser(strCmdline, winDotExec)
+
+		return []string{strings.TrimSuffix(strippedCmdline, " ")}
 
 	}
 
-	return cmdline
-}
+	// case 3: Uses quotesFinder() to search for any existing pair of double quotes ("") existing in the string as characters and return the content between them.
 
-// remove any extra space at the end cmdline before been returned to Scrubber
-func cleanUp(strippedCmdline string) []string {
-	cmdline := []string{strings.TrimSuffix(strippedCmdline, " ")}
-	return cmdline
+	strippedCmdline := findEmbeddedQuotes(strCmdline)
+
+	return []string{strings.TrimSuffix(strippedCmdline, " ")}
+
 }
 
 // Iterate through the cmdline to identify any match with any item of winDotExec[n] and remove the characters after any occurrence.

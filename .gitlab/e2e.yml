@@ -86,7 +86,7 @@ k8s-e2e-otlp-main:
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_public_key_rsa --with-decryption --query "Parameter.Value" --out text > $E2E_PUBLIC_KEY_PATH
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key_rsa --with-decryption --query "Parameter.Value" --out text > $E2E_PRIVATE_KEY_PATH
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key_rsa --with-decryption --query "Parameter.Value" --out text > $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   variables:
@@ -319,6 +319,12 @@ new-e2e-apm-dev:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
 new-e2e-apm-main:
   extends: .new_e2e_template
@@ -326,6 +332,12 @@ new-e2e-apm-main:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
