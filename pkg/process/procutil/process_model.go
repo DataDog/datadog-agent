@@ -24,7 +24,7 @@ type Process struct {
 	Username string // (Windows only)
 	Uids     []int32
 	Gids     []int32
-
+	ProcessContext  []string
 	Stats *Stats
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
@@ -49,6 +50,10 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 		SystemInfo: sysInfo,
 	}
 
+	conf := ddconfig.MockSystemProbe(t)
+	conf.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
+	se := parser.NewServiceExtractor(conf)
+
 	return &ProcessCheck{
 		probe:             probe,
 		scrubber:          procutil.NewDefaultDataScrubber(),
@@ -57,6 +62,8 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 		sysProbeConfig:    &SysProbeConfig{},
 		checkCount:        0,
 		skipAmount:        2,
+		serviceExtractor:  se,
+		extractors:        []metadata.Extractor{se},
 	}, probe
 }
 
@@ -545,9 +552,11 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 
 func TestProcessContextCollection(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
-
-	now := time.Now().Unix()
-	proc1 := makeProcessWithCreateTime(1, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", now)
+	proc1 := makeProcessWithProcessContext(
+		1,
+		"/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh",
+		[]string{"process_context:cilium-agent-bpf-map-metrics"},
+	)
 	processesByPid := map[int32]*procutil.Process{1: proc1}
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
 		Return(processesByPid, nil)
@@ -567,5 +576,5 @@ func TestProcessContextCollection(t *testing.T) {
 	actual, err := processCheck.run(0, false)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expected, actual.Payloads())
-	
+
 }
