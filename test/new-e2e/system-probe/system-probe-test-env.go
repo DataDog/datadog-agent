@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -79,8 +80,6 @@ type TestEnv struct {
 }
 
 var (
-	customAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
-
 	ciProjectDir = getEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86    = getEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
 	sshKeyArm    = getEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
@@ -174,6 +173,19 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 	apiKey := getEnv("DD_API_KEY", "")
 	if opts.RunAgent && apiKey == "" {
 		return nil, fmt.Errorf("No API Key for datadog-agent provided")
+	}
+
+	var customAMIWorkingDir string
+	if runtime.GOOS == "linux" {
+		customAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
+	} else if runtime.GOOS == "darwin" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		customAMIWorkingDir = filepath.Join(homeDir, "kernel-version-testing")
+	} else {
+		return nil, fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
 
 	config := runner.ConfigMap{
