@@ -126,7 +126,7 @@ func (rt *roundtrip) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	limiter := rt.limiter.Get(rt.role.AccountID, rt.region, service, action)
+	limiter := rt.limiter.Get(rt.role.AccountID(), rt.region, service, action)
 	throttled100 := false
 	throttled1000 := false
 	throttled5000 := false
@@ -147,7 +147,7 @@ func (rt *roundtrip) RoundTrip(req *http.Request) (*http.Response, error) {
 	tags := append(rt.tags,
 		fmt.Sprintf("aws_region:%s", rt.region),
 		fmt.Sprintf("aws_assumed_role:%s", rt.role.ResourceName()),
-		fmt.Sprintf("aws_account_id:%s", rt.role.AccountID),
+		fmt.Sprintf("aws_account_id:%s", rt.role.AccountID()),
 		fmt.Sprintf("aws_service:%s", service),
 		fmt.Sprintf("aws_action:%s_%s", service, action),
 		fmt.Sprintf("aws_throttled_100:%t", throttled100),

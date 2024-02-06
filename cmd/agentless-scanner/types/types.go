@@ -203,7 +203,7 @@ func (s *ScanTask) String() string {
 func (s *ScanTask) Tags(rest ...string) []string {
 	return append([]string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("region:%s", s.CloudID.Region),
+		fmt.Sprintf("region:%s", s.CloudID.Region()),
 		fmt.Sprintf("type:%s", s.Type),
 	}, rest...)
 }
@@ -411,7 +411,7 @@ func ParseRolesMapping(roles []string) RolesMapping {
 		if err != nil {
 			continue
 		}
-		rolesMap[roleID.AccountID] = &roleID
+		rolesMap[roleID.AccountID()] = &roleID
 	}
 	return rolesMap
 }
@@ -533,7 +533,7 @@ func UnmarshalConfig(b []byte, scannerHostname string, defaultActions []ScanActi
 		if err != nil {
 			return nil, err
 		}
-		if config.Type == ConfigTypeAWS && task.CloudID.Provider != CloudProviderAWS {
+		if config.Type == ConfigTypeAWS && task.CloudID.Provider() != CloudProviderAWS {
 			return nil, fmt.Errorf("invalid cloud resource identifier %q: expecting cloud provider %s", rawScan.CloudID, CloudProviderAWS)
 		}
 		config.Tasks = append(config.Tasks, task)

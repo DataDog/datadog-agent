@@ -408,7 +408,7 @@ func (s *Runner) Start(ctx context.Context) {
 				if s.regionsCleanup == nil {
 					s.regionsCleanup = make(map[string]*types.CloudID)
 				}
-				s.regionsCleanup[scan.CloudID.Region] = scan.Roles[scan.CloudID.Region]
+				s.regionsCleanup[scan.CloudID.Region()] = scan.Roles[scan.CloudID.Region()]
 				s.regionsCleanupMu.Unlock()
 
 				// Avoid pushing a scan that we are already performing.
@@ -649,8 +649,8 @@ func (s *Runner) sendSBOM(result types.ScanResult) error {
 		InUse:  true,
 		DdTags: append([]string{
 			"agentless_scanner_host:" + s.Hostname,
-			"region:" + result.Scan.CloudID.Region,
-			"account_id:" + result.Scan.CloudID.AccountID,
+			"region:" + result.Scan.CloudID.Region(),
+			"account_id:" + result.Scan.CloudID.AccountID(),
 		}, vulns.Tags...),
 		GeneratedAt:        timestamppb.New(result.StartedAt),
 		GenerationDuration: convertDuration(time.Since(result.StartedAt)),

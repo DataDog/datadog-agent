@@ -130,7 +130,7 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotW
 			return types.CloudID{}, err
 		}
 
-		snapshotID, err := types.AWSCloudID("ec2", volumeID.Region, volumeID.AccountID, types.ResourceTypeSnapshot, *createSnapshotOutput.SnapshotId)
+		snapshotID, err := types.AWSCloudID("ec2", volumeID.Region(), volumeID.AccountID(), types.ResourceTypeSnapshot, *createSnapshotOutput.SnapshotId)
 		if err != nil {
 			return snapshotID, err
 		}
@@ -193,11 +193,11 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 
 	remoteEC2Client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, scan, snapshotID))
 	var localSnapshotID types.CloudID
-	if snapshotID.Region != self.Region {
+	if snapshotID.Region() != self.Region {
 		log.Debugf("%s: copying snapshot %q into %q", scan, snapshotID, self.Region)
 		copySnapshotCreatedAt := time.Now()
 		copySnapshot, err := remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
-			SourceRegion: aws.String(snapshotID.Region),
+			SourceRegion: aws.String(snapshotID.Region()),
 			// DestinationRegion: aws.String(self.Region): automatically filled by SDK
 			SourceSnapshotId:  aws.String(snapshotID.ResourceName()),
 			TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
@@ -205,7 +205,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		if err != nil {
 			return fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotID, self.Region, err)
 		}
-		localSnapshotID, err = types.AWSCloudID("ec2", self.Region, snapshotID.AccountID, types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
+		localSnapshotID, err = types.AWSCloudID("ec2", self.Region, snapshotID.AccountID(), types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
 		if err != nil {
 			return err
 		}
@@ -220,7 +220,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		localSnapshotID = snapshotID
 	}
 
-	if localSnapshotID.AccountID != "" && localSnapshotID.AccountID != self.AccountID {
+	if localSnapshotID.AccountID() != "" && localSnapshotID.AccountID() != self.AccountID {
 		_, err = remoteEC2Client.ModifySnapshotAttribute(ctx, &ec2.ModifySnapshotAttributeInput{
 			SnapshotId:    aws.String(snapshotID.ResourceName()),
 			Attribute:     ec2types.SnapshotAttributeNameCreateVolumePermission,
@@ -244,7 +244,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		return fmt.Errorf("could not create volume from snapshot: %w", err)
 	}
 
-	volumeID, err := types.AWSCloudID("ec2", localSnapshotID.Region, localSnapshotID.AccountID, types.ResourceTypeVolume, *volume.VolumeId)
+	volumeID, err := types.AWSCloudID("ec2", localSnapshotID.Region(), localSnapshotID.AccountID(), types.ResourceTypeVolume, *volume.VolumeId)
 	if err != nil {
 		return err
 	}
@@ -320,7 +320,7 @@ func CleanupScanEBS(ctx context.Context, scan *types.ScanTask, resourceID types.
 // CleanupScanSnapshot cleans up a snapshot resource.
 func CleanupScanSnapshot(ctx context.Context, maybeScan *types.ScanTask, snapshotID types.CloudID, roles types.RolesMapping) error {
 	log.Debugf("%s: deleting snapshot %q", maybeScan, snapshotID)
-	ec2client := ec2.NewFromConfig(GetConfig(ctx, snapshotID.Region, roles[snapshotID.AccountID]))
+	ec2client := ec2.NewFromConfig(GetConfig(ctx, snapshotID.Region(), roles[snapshotID.AccountID()]))
 	if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
 		SnapshotId: aws.String(snapshotID.ResourceName()),
 	}); err != nil {
@@ -332,7 +332,7 @@ func CleanupScanSnapshot(ctx context.Context, maybeScan *types.ScanTask, snapsho
 
 // CleanupScanVolume cleans up a volume resource.
 func CleanupScanVolume(ctx context.Context, maybeScan *types.ScanTask, volumeID types.CloudID, roles types.RolesMapping) error {
-	ec2client := ec2.NewFromConfig(GetConfig(ctx, volumeID.Region, roles[volumeID.AccountID]))
+	ec2client := ec2.NewFromConfig(GetConfig(ctx, volumeID.Region(), roles[volumeID.AccountID()]))
 	volumeNotFound := false
 	volumeDetached := false
 	log.Debugf("%s: detaching volume %q", maybeScan, volumeID)

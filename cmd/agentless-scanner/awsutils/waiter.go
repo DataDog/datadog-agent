@@ -31,7 +31,7 @@ type SnapshotWaiter struct {
 func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotID types.CloudID, ec2client *ec2.Client) <-chan error {
 	w.Lock()
 	defer w.Unlock()
-	region := snapshotID.Region
+	region := snapshotID.Region()
 	if w.subs == nil {
 		w.subs = make(map[string]map[string][]chan error)
 	}

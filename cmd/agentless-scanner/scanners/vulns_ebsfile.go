@@ -66,7 +66,7 @@ func LaunchTrivyHostVM(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM
 		Parallel:          1,
 		SBOMSources:       []string{},
 		DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
-		AWSRegion:         opts.SnapshotID.Region,
+		AWSRegion:         opts.SnapshotID.Region(),
 	})
 	if err != nil {
 		return nil, err
