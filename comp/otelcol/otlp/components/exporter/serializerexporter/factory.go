@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 )
 
 const (
@@ -25,12 +26,23 @@ const (
 )
 
 type factory struct {
-	s serializer.MetricSerializer
+	s          serializer.MetricSerializer
+	enricher   tagenricher
+	hostGetter sourceProviderFunc
+}
+
+type tagenricher interface {
+	SetCardinality(cardinality string) error
+	Enrich(ctx context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string
 }
 
 // NewFactory creates a new serializer exporter factory.
-func NewFactory(s serializer.MetricSerializer) exp.Factory {
-	f := &factory{s}
+func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter func(context.Context) (string, error)) exp.Factory {
+	f := &factory{
+		s:          s,
+		enricher:   enricher,
+		hostGetter: hostGetter,
+	}
 
 	return exp.NewFactory(
 		TypeStr,
@@ -50,7 +62,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSet
 		return nil, err
 	}
 
-	newExp, err := newExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg)
+	newExp, err := newExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter)
 	if err != nil {
 		return nil, err
 	}

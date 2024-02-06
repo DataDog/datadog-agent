@@ -10,18 +10,15 @@ package serializerexporter
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 var _ component.Config = (*exporterConfig)(nil)
@@ -40,7 +37,7 @@ func newDefaultConfig() component.Config {
 				InstrumentationLibraryMetadataAsTags: false,
 				InstrumentationScopeMetadataAsTags:   false,
 			},
-			TagCardinality: collectors.LowCardinalityString,
+			TagCardinality: "low",
 			HistConfig: histogramConfig{
 				Mode:             "distributions",
 				SendAggregations: false,
@@ -52,6 +49,8 @@ func newDefaultConfig() component.Config {
 			SummaryConfig: summaryConfig{
 				Mode: SummaryModeGauges,
 			},
+			APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
+			Tags:                 "",
 		},
 	}
 }
@@ -74,14 +73,15 @@ func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 // exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
 type exporter struct {
-	tr          *metrics.Translator
-	s           serializer.MetricSerializer
-	hostname    string
-	extraTags   []string
-	cardinality collectors.TagCardinality
+	tr              *metrics.Translator
+	s               serializer.MetricSerializer
+	hostGetter      sourceProviderFunc
+	extraTags       []string
+	enricher        tagenricher
+	apmReceiverAddr string
 }
 
-func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *exporterConfig) (*metrics.Translator, error) {
+func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *exporterConfig, hostGetter sourceProviderFunc) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -91,7 +91,7 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 	}
 
 	options := []metrics.TranslatorOption{
-		metrics.WithFallbackSourceProvider(sourceProviderFunc(hostname.Get)),
+		metrics.WithFallbackSourceProvider(hostGetter),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}
@@ -131,53 +131,48 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 	return metrics.NewTranslator(set, attributesTranslator, options...)
 }
 
-func newExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
+func newExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *exporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*exporter, error) {
 	// Log any warnings from unmarshaling.
 	for _, warning := range cfg.warnings {
 		set.Logger.Warn(warning)
 	}
 
-	tr, err := translatorFromConfig(set, attributesTranslator, cfg)
+	tr, err := translatorFromConfig(set, attributesTranslator, cfg, hostGetter)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
 
-	hname, err := hostname.Get(context.TODO())
+	err = enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {
 		return nil, err
 	}
-
-	cardinality, err := collectors.StringToTagCardinality(cfg.Metrics.TagCardinality)
-	if err != nil {
-		return nil, err
-	}
-
 	var extraTags []string
-
-	// if the server is running in a context where static tags are required, add those
-	// to extraTags.
-	if tags := util.GetStaticTagsSlice(context.TODO()); tags != nil {
-		extraTags = append(extraTags, tags...)
+	if cfg.Metrics.Tags != "" {
+		extraTags = strings.Split(cfg.Metrics.Tags, ",")
 	}
-
 	return &exporter{
-		tr:          tr,
-		s:           s,
-		hostname:    hname,
-		extraTags:   extraTags,
-		cardinality: cardinality,
+		tr:              tr,
+		s:               s,
+		hostGetter:      hostGetter,
+		enricher:        enricher,
+		apmReceiverAddr: cfg.Metrics.APMStatsReceiverAddr,
+		extraTags:       extraTags,
 	}, nil
 }
 
 func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
-	consumer := &serializerConsumer{cardinality: e.cardinality, extraTags: e.extraTags}
+	consumer := &serializerConsumer{enricher: e.enricher, extraTags: e.extraTags, apmReceiverAddr: e.apmReceiverAddr}
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err
 	}
+	hostname, err := e.hostGetter(ctx)
+	if err != nil {
+		return err
+	}
 
-	consumer.addTelemetryMetric(e.hostname)
-	consumer.addRuntimeTelemetryMetric(e.hostname, rmt.Languages)
+	consumer.addTelemetryMetric(hostname)
+	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
 	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
