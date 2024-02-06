@@ -7,6 +7,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -145,9 +146,10 @@ func rootCommand() *cobra.Command {
 
 func runCommand() *cobra.Command {
 	var flags struct {
-		pidfilePath string
-		workers     int
-		scannersMax int
+		cloudProvider string
+		pidfilePath   string
+		workers       int
+		scannersMax   int
 	}
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -159,16 +161,21 @@ func runCommand() *cobra.Command {
 			if flags.scannersMax <= 0 {
 				return fmt.Errorf("scanners-max must be greater than 0")
 			}
-			return runCmd(flags.pidfilePath, flags.workers, flags.scannersMax, globalFlags.defaultActions, globalFlags.noForkScanners)
+			provider, err := detectCloudProvider(flags.cloudProvider)
+			if err != nil {
+				return fmt.Errorf("could not detect cloud provider: %w", err)
+			}
+			return runCmd(provider, flags.pidfilePath, flags.workers, flags.scannersMax, globalFlags.defaultActions, globalFlags.noForkScanners)
 		},
 	}
 	cmd.Flags().StringVarP(&flags.pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	cmd.Flags().StringVar(&flags.cloudProvider, "cloud-provider", "auto", fmt.Sprintf("cloud provider to use (auto, %q or %q)", types.CloudProviderAWS, types.CloudProviderNone))
 	cmd.Flags().IntVar(&flags.workers, "workers", defaultWorkersCount, "number of snapshots running in parallel")
 	cmd.Flags().IntVar(&flags.scannersMax, "scanners-max", defaultScannersMax, "maximum number of scanner processes in parallel")
 	return cmd
 }
 
-func runCmd(pidfilePath string, workers, scannersMax int, defaultActions []types.ScanAction, noForkScanners bool) error {
+func runCmd(provider types.CloudProvider, pidfilePath string, workers, scannersMax int, defaultActions []types.ScanAction, noForkScanners bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -184,11 +191,6 @@ func runCmd(pidfilePath string, workers, scannersMax int, defaultActions []types
 	hostname, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("could not fetch hostname: %w", err)
-	}
-
-	provider, err := detectCloudProvider()
-	if err != nil {
-		return fmt.Errorf("could not detect cloud provider: %w", err)
 	}
 
 	scanner, err := runner.New(runner.Options{
@@ -265,7 +267,13 @@ func getDefaultRolesMapping(provider types.CloudProvider) types.RolesMapping {
 	return types.ParseRolesMapping(provider, roles)
 }
 
-func detectCloudProvider() (types.CloudProvider, error) {
-	// TODO: detect cloud provider properly
-	return types.CloudProviderAWS, nil
+func detectCloudProvider(s string) (types.CloudProvider, error) {
+	if s == "auto" {
+		board, err := os.ReadFile("/sys/devices/virtual/dmi/id/board_vendor")
+		if err == nil && bytes.Equal(board, []byte("Amazon EC2\n")) {
+			return types.CloudProviderAWS, nil
+		}
+		return "", fmt.Errorf("could not detect cloud provider automatically, please specify one using --cloud-provider flag")
+	}
+	return types.ParseCloudProvider(s)
 }
