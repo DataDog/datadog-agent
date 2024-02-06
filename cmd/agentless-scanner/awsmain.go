@@ -96,7 +96,8 @@ func awsSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.AsText(), "unknown", "unknown", globalFlags.defaultActions, nil, globalFlags.diskMode)
+			roles := getDefaultRolesMapping()
+			scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.AsText(), "unknown", "unknown", globalFlags.defaultActions, roles, globalFlags.diskMode)
 			if err != nil {
 				return err
 			}
@@ -325,7 +326,7 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 	}
 
 	roles := getDefaultRolesMapping()
-	cfg := awsutils.GetConfig(ctx, selfRegion, roles[*identity.Account])
+	cfg := awsutils.GetConfig(ctx, selfRegion, roles.GetRole(*identity.Account))
 	ec2client := ec2.NewFromConfig(cfg)
 	if err != nil {
 		return err
@@ -375,7 +376,7 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 			if regionName == "auto" {
 				regionName = selfRegion
 			}
-			ec2client := ec2.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles[*identity.Account]))
+			ec2client := ec2.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles.GetRole(*identity.Account)))
 			if err != nil {
 				return err
 			}
@@ -462,7 +463,7 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 			if regionName == "auto" {
 				regionName = selfRegion
 			}
-			lambdaclient := lambda.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles[*identity.Account]))
+			lambdaclient := lambda.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles.GetRole(*identity.Account)))
 			var marker *string
 			for {
 				functions, err := lambdaclient.ListFunctions(ctx, &lambda.ListFunctionsInput{
@@ -527,7 +528,7 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 		return err
 	}
 
-	assumedRole := getDefaultRolesMapping()[*identity.Account]
+	assumedRole := getDefaultRolesMapping().GetRole(*identity.Account)
 	toBeDeleted := awsutils.ListResourcesForCleanup(ctx, delay, region, assumedRole)
 	if len(toBeDeleted) == 0 {
 		fmt.Printf("no resources found to cleanup\n")
@@ -557,7 +558,8 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 		hostname = "unknown"
 	}
 
-	scan, err := types.NewScanTask(types.TaskTypeEBS, resourceID.AsText(), hostname, resourceID.ResourceName(), defaultActions, nil, mode)
+	roles := getDefaultRolesMapping()
+	scan, err := types.NewScanTask(types.TaskTypeEBS, resourceID.AsText(), hostname, resourceID.ResourceName(), defaultActions, roles, mode)
 	if err != nil {
 		return err
 	}

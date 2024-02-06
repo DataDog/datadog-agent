@@ -38,7 +38,7 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 		return nil, fmt.Errorf("ebs-volume: missing hostname")
 	}
 
-	cfg := GetConfigFromCloudID(ctx, scan, scan.CloudID)
+	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.CloudID)
 	ec2client := ec2.NewFromConfig(cfg)
 
 	var snapshotID types.CloudID
@@ -191,7 +191,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		return fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
 	}
 
-	remoteEC2Client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, scan, snapshotID))
+	remoteEC2Client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, scan.Roles, snapshotID))
 	var localSnapshotID types.CloudID
 	if snapshotID.Region() != self.Region {
 		log.Debugf("%s: copying snapshot %q into %q", scan, snapshotID, self.Region)
@@ -232,7 +232,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		}
 	}
 
-	locaEC2Client := ec2.NewFromConfig(GetConfig(ctx, self.Region, scan.Roles[self.AccountID]))
+	locaEC2Client := ec2.NewFromConfig(GetConfig(ctx, self.Region, scan.Roles.GetRole(self.AccountID)))
 	log.Debugf("%s: creating new volume for snapshot %q in az %q", scan, localSnapshotID, self.AvailabilityZone)
 	volume, err := locaEC2Client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 		VolumeType:        ec2types.VolumeTypeGp3,
@@ -320,7 +320,7 @@ func CleanupScanEBS(ctx context.Context, scan *types.ScanTask, resourceID types.
 // CleanupScanSnapshot cleans up a snapshot resource.
 func CleanupScanSnapshot(ctx context.Context, maybeScan *types.ScanTask, snapshotID types.CloudID, roles types.RolesMapping) error {
 	log.Debugf("%s: deleting snapshot %q", maybeScan, snapshotID)
-	ec2client := ec2.NewFromConfig(GetConfig(ctx, snapshotID.Region(), roles[snapshotID.AccountID()]))
+	ec2client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, roles, snapshotID))
 	if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
 		SnapshotId: aws.String(snapshotID.ResourceName()),
 	}); err != nil {
@@ -332,7 +332,7 @@ func CleanupScanSnapshot(ctx context.Context, maybeScan *types.ScanTask, snapsho
 
 // CleanupScanVolume cleans up a volume resource.
 func CleanupScanVolume(ctx context.Context, maybeScan *types.ScanTask, volumeID types.CloudID, roles types.RolesMapping) error {
-	ec2client := ec2.NewFromConfig(GetConfig(ctx, volumeID.Region(), roles[volumeID.AccountID()]))
+	ec2client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, roles, volumeID))
 	volumeNotFound := false
 	volumeDetached := false
 	log.Debugf("%s: detaching volume %q", maybeScan, volumeID)
