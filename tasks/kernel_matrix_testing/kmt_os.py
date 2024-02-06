@@ -69,7 +69,7 @@ class MacOS:
     libvirt_conf = "/opt/homebrew/etc/libvirt/libvirtd.conf"
     shared_dir = os.path.join("/", "opt", "kernel-version-testing")
     libvirt_system_dir = "/opt/homebrew/var/run/libvirt"
-    libvirt_socket = f"qemu:///session?socket={libvirt_system_dir}/libvirt-sock"
+    libvirt_socket = f"qemu:///system?socket={libvirt_system_dir}/libvirt-sock"
 
     @staticmethod
     def assert_user_in_docker_group(_):
@@ -78,6 +78,7 @@ class MacOS:
     @staticmethod
     def init_local(ctx: Context):
         ctx.run("brew install libvirt")
+        ctx.sudo("brew services start libvirt")
         ctx.run(
             f"gsed -i -E 's%(# *)?unix_sock_dir = .*%unix_sock_dir = \"{MacOS.libvirt_system_dir}\"%' {MacOS.libvirt_conf}"
         )
