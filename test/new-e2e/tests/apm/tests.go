@@ -19,27 +19,27 @@ import (
 func testBasicTraces(c *assert.CollectT, service string, intake *components.FakeIntake, agent agentclient.Agent) {
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
-	assert.NotEmpty(c, traces)
+	if assert.NotEmpty(c, traces) {
+		trace := traces[0]
+		assert.Equal(c, agent.Hostname(), trace.HostName)
+		assert.Equal(c, "none", trace.Env)
+		assert.NotEmpty(c, trace.TracerPayloads)
 
-	trace := traces[0]
-	assert.Equal(c, agent.Hostname(), trace.HostName)
-	assert.Equal(c, "none", trace.Env)
-	assert.NotEmpty(c, trace.TracerPayloads)
-
-	tp := trace.TracerPayloads[0]
-	assert.Equal(c, "go", tp.LanguageName)
-	assert.NotEmpty(c, tp.Chunks)
-	assert.NotEmpty(c, tp.Chunks[0].Spans)
-	spans := tp.Chunks[0].Spans
-	for _, sp := range spans {
-		assert.Equal(c, service, sp.Service)
-		assert.Contains(c, sp.Name, "tracegen")
-		assert.Contains(c, sp.Meta, "language")
-		assert.Equal(c, "go", sp.Meta["language"])
-		assert.Contains(c, sp.Metrics, "_sampling_priority_v1")
-		if sp.ParentID == 0 {
-			assert.Equal(c, float64(1), sp.Metrics["_dd.top_level"])
-			assert.Equal(c, float64(1), sp.Metrics["_top_level"])
+		tp := trace.TracerPayloads[0]
+		assert.Equal(c, "go", tp.LanguageName)
+		assert.NotEmpty(c, tp.Chunks)
+		assert.NotEmpty(c, tp.Chunks[0].Spans)
+		spans := tp.Chunks[0].Spans
+		for _, sp := range spans {
+			assert.Equal(c, service, sp.Service)
+			assert.Contains(c, sp.Name, "tracegen")
+			assert.Contains(c, sp.Meta, "language")
+			assert.Equal(c, "go", sp.Meta["language"])
+			assert.Contains(c, sp.Metrics, "_sampling_priority_v1")
+			if sp.ParentID == 0 {
+				assert.Equal(c, float64(1), sp.Metrics["_dd.top_level"])
+				assert.Equal(c, float64(1), sp.Metrics["_top_level"])
+			}
 		}
 	}
 }
