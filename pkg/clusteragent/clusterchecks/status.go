@@ -52,9 +52,7 @@ func populateStatus(stats map[string]interface{}) {
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		cchecks, err := GetStats()
 
-		if err != nil {
-			stats["clusterchecks"] = map[string]string{"Error": err.Error()}
-		} else {
+		if err == nil {
 			stats["clusterchecks"] = cchecks
 		}
 	}

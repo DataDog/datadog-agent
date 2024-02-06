@@ -1,7 +1,4 @@
 {{- if .clusterchecks }}
-{{- if .clusterchecks.Error }}
-  Error: .clusterchecks.Error
-{{ else }}
 {{- if .clusterchecks.Leader }}
   {{- if .clusterchecks.Active }}
   Status: Leader, serving requests
@@ -13,16 +10,14 @@
   Status: Leader, warming up
   {{- end }}
 {{- else if .clusterchecks.Follower }}
-{{- if .clusterchecks.LeaderIP }}
+  {{- if .clusterchecks.LeaderIP }}
   Status: Follower, redirecting to leader at {{ .clusterchecks.LeaderIP }}
   {{- else }}
   Status: Follower, no leader found
   {{- end }}
-{{- else }}
+  {{- else }}
   Status: unknown
 {{- end }}
-{{ end }}
-
 {{ else }}
   Not Enabled
 {{ end }}
