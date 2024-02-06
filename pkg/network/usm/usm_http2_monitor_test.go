@@ -818,7 +818,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					huffMethod := hpack.AppendHuffmanString([]byte{}, method)
 					// we are adding 128 to the length of the huffman encoded method,
 					// as it is the representation of the huffman encoding (MSB ofo the octet is on).
-					rawMethod := append([]byte{0x43}, byte(128+len(huffMethod)))
+					rawMethod := append([]byte{0x43}, byte(0x80|len(huffMethod)))
 					rawMethod = append(rawMethod, huffMethod...)
 					headersFrameWithRawMethod := append(rawMethod, headersFrame...)
 					streamID := getStreamID(i)
