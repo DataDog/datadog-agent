@@ -447,9 +447,10 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetHostname 
 	{
 		h := sha256.New()
 		createdAt, _ := task.CreatedAt.MarshalBinary()
+		cloudID, _ := task.CloudID.MarshalText()
 		h.Write(createdAt)
 		h.Write([]byte(task.Type))
-		h.Write([]byte(task.CloudID.String()))
+		h.Write([]byte(cloudID))
 		h.Write([]byte(task.TargetHostname))
 		h.Write([]byte(task.ScannerHostname))
 		h.Write([]byte(task.DiskMode))

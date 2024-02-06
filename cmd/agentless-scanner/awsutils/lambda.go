@@ -71,7 +71,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *types.ScanTask, lambdaDir
 	}
 
 	lambdaFunc, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
-		FunctionName: aws.String(scan.CloudID.String()),
+		FunctionName: aws.String(scan.CloudID.AsText()),
 	})
 	if err != nil {
 		return "", err
