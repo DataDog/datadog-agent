@@ -121,6 +121,8 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
         // TODO: Add telemetry for topic max size
         return false;
     }
+    update_topic_name_size_telemetry(kafka_tel, topic_name_size);
+
     bpf_memset(kafka_transaction->base.topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
     read_into_buffer_topic_name_parser((char *)kafka_transaction->base.topic_name, skb, offset);
     offset += topic_name_size;
