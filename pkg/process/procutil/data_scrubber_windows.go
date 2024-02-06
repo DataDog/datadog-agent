@@ -47,13 +47,9 @@ func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 // Iterate through the cmdline to identify any match with any item of winDotExec[n] and remove the characters after any occurrence.
 
 func extensionParser(cmdline string, winDotExec []string) string {
-
-	var i int
-
 	var processedCmdline string
-
 	for _, c := range winDotExec {
-		if i = strings.Index(cmdline, c+" "); i != -1 {
+		if i := strings.Index(cmdline, c+" "); i != -1 {
 			processedCmdline = cmdline[:i+len(c)]
 			return processedCmdline
 		}
