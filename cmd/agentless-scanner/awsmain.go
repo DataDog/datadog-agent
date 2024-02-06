@@ -70,7 +70,7 @@ func awsScanCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return scanCmd(resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
+			return awsScanCmd(resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
 		},
 	}
 
@@ -163,7 +163,7 @@ func awsOfflineCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return offlineCmd(
+			return awsOfflineCmd(
 				flags.workers,
 				taskType,
 				flags.account,
@@ -201,7 +201,7 @@ func awsAttachCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return attachCmd(resourceID, globalFlags.diskMode, globalFlags.defaultActions)
+			return awsAttachCmd(resourceID, globalFlags.diskMode, globalFlags.defaultActions)
 		},
 	}
 
@@ -218,7 +218,7 @@ func awsCleanupCommand() *cobra.Command {
 		Use:   "cleanup",
 		Short: "Cleanup resources created by the agentless-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cleanupCmd(flags.region, flags.dryRun, flags.delay)
+			return awsCleanupCmd(flags.region, flags.dryRun, flags.delay)
 		},
 	}
 	cmd.Flags().StringVar(&flags.region, "region", defaultSelfRegion, "AWS region")
@@ -227,22 +227,7 @@ func awsCleanupCommand() *cobra.Command {
 	return cmd
 }
 
-func ctxTerminated() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		select {
-		case sig := <-ch:
-			fmt.Fprintf(os.Stderr, "received %s signal\n", sig)
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-	return ctx
-}
-
-func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func awsScanCmd(resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -289,7 +274,7 @@ func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.Sc
 	return nil
 }
 
-func offlineCmd(workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	ctx := ctxTerminated()
 	defer statsd.Flush()
 
@@ -514,7 +499,7 @@ func offlineCmd(workers int, taskType types.TaskType, accountID, regionName stri
 	return nil
 }
 
-func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
+func awsCleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	ctx := ctxTerminated()
 
 	defaultCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
@@ -546,7 +531,7 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	return nil
 }
 
-func attachCmd(resourceID types.CloudID, mode types.DiskMode, defaultActions []types.ScanAction) error {
+func awsAttachCmd(resourceID types.CloudID, mode types.DiskMode, defaultActions []types.ScanAction) error {
 	ctx := ctxTerminated()
 
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -563,7 +548,7 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, defaultActions []t
 		return err
 	}
 	defer func() {
-		ctxcleanup, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		ctxcleanup, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		for resourceID := range scan.CreatedResources {
 			if err := awsutils.CleanupScanEBS(ctxcleanup, scan, resourceID); err != nil {
@@ -583,4 +568,19 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, defaultActions []t
 	}
 	<-ctx.Done()
 	return nil
+}
+
+func ctxTerminated() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		select {
+		case sig := <-ch:
+			fmt.Fprintf(os.Stderr, "received %s signal\n", sig)
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx
 }
