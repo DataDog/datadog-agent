@@ -96,12 +96,12 @@ func awsSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			roles := getDefaultRolesMapping()
+			roles := getDefaultRolesMapping(types.CloudProviderAWS)
 			scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.AsText(), "unknown", "unknown", globalFlags.defaultActions, roles, globalFlags.diskMode)
 			if err != nil {
 				return err
 			}
-			cfg := awsutils.GetConfig(ctx, scan.CloudID.Region(), nil)
+			cfg := awsutils.GetConfigFromCloudID(ctx, roles, scan.CloudID)
 			var waiter awsutils.SnapshotWaiter
 			ec2client := ec2.NewFromConfig(cfg)
 			snapshotID, err := awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, scan.CloudID)
@@ -226,7 +226,7 @@ func awsCleanupCommand() *cobra.Command {
 			return cleanupCmd(flags.region, flags.dryRun, flags.delay)
 		},
 	}
-	cmd.Flags().StringVar(&flags.region, "region", "us-east-1", "AWS region")
+	cmd.Flags().StringVar(&flags.region, "region", defaultSelfRegion, "AWS region")
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "dry run")
 	cmd.Flags().DurationVar(&flags.delay, "delay", 0, "delete snapshot older than delay")
 	return cmd
@@ -262,7 +262,7 @@ func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.Sc
 	if err != nil {
 		return err
 	}
-	roles := getDefaultRolesMapping()
+	roles := getDefaultRolesMapping(types.CloudProviderAWS)
 	task, err := types.NewScanTask(taskType, resourceID.AsText(), hostname, targetHostname, actions, roles, diskMode)
 	if err != nil {
 		return err
@@ -270,6 +270,7 @@ func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.Sc
 
 	scanner, err := runner.New(runner.Options{
 		Hostname:       hostname,
+		CloudProvider:  types.CloudProviderAWS,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        1,
 		ScannersMax:    8,
@@ -303,7 +304,7 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 	}
 
 	// Retrieve instance’s region.
-	defaultCfg, err := config.LoadDefaultConfig(ctx)
+	defaultCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(defaultSelfRegion))
 	if err != nil {
 		return err
 	}
@@ -316,16 +317,13 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 		selfRegion = regionOutput.Region
 	}
 
-	var identity *sts.GetCallerIdentityOutput
-	{
-		stsclient := sts.NewFromConfig(awsutils.GetConfig(ctx, selfRegion, nil))
-		identity, err = stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-		if err != nil {
-			return err
-		}
+	stsclient := sts.NewFromConfig(defaultCfg)
+	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return err
 	}
 
-	roles := getDefaultRolesMapping()
+	roles := getDefaultRolesMapping(types.CloudProviderAWS)
 	cfg := awsutils.GetConfig(ctx, selfRegion, roles.GetRole(*identity.Account))
 	ec2client := ec2.NewFromConfig(cfg)
 	if err != nil {
@@ -351,6 +349,7 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 
 	scanner, err := runner.New(runner.Options{
 		Hostname:       hostname,
+		CloudProvider:  types.CloudProviderAWS,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        workers,
 		ScannersMax:    8,
@@ -521,14 +520,13 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	if err != nil {
 		return err
 	}
-
 	stsclient := sts.NewFromConfig(defaultCfg)
 	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
 		return err
 	}
 
-	assumedRole := getDefaultRolesMapping().GetRole(*identity.Account)
+	assumedRole := getDefaultRolesMapping(types.CloudProviderAWS).GetRole(*identity.Account)
 	toBeDeleted, err := awsutils.ListResourcesForCleanup(ctx, delay, region, assumedRole)
 	if err != nil {
 		return err
@@ -550,7 +548,6 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaultActions []types.ScanAction) error {
 	ctx := ctxTerminated()
 
-	cfg := awsutils.GetConfig(ctx, resourceID.Region(), nil)
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
 
@@ -559,7 +556,8 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 		hostname = "unknown"
 	}
 
-	roles := getDefaultRolesMapping()
+	roles := getDefaultRolesMapping(types.CloudProviderAWS)
+	cfg := awsutils.GetConfigFromCloudID(ctx, roles, resourceID)
 	scan, err := types.NewScanTask(types.TaskTypeEBS, resourceID.AsText(), hostname, resourceID.ResourceName(), defaultActions, roles, mode)
 	if err != nil {
 		return err

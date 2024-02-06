@@ -66,6 +66,7 @@ type Options struct {
 	ScannersMax    int
 	PrintResults   bool
 	NoFork         bool
+	CloudProvider  types.CloudProvider
 	DefaultRoles   types.RolesMapping
 	DefaultActions []types.ScanAction
 	Statsd         *ddogstatsd.Client
@@ -82,7 +83,7 @@ type Runner struct {
 	waiter awsutils.SnapshotWaiter
 
 	regionsCleanupMu sync.Mutex
-	regionsCleanup   map[string]*types.CloudID
+	regionsCleanup   map[string]types.CloudID
 
 	scansInProgress   map[types.CloudID]struct{}
 	scansInProgressMu sync.RWMutex
@@ -95,6 +96,9 @@ type Runner struct {
 
 // New creates a new runner.
 func New(opts Options) (*Runner, error) {
+	if opts.CloudProvider == "" {
+		panic("programmer error: missing CloudProvider option")
+	}
 	if opts.Statsd == nil {
 		panic("programmer error: missing Statsd option")
 	}
@@ -129,7 +133,7 @@ func New(opts Options) (*Runner, error) {
 }
 
 // Cleanup cleans up all the resources created by the runner.
-func (s *Runner) Cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *types.CloudID) error {
+func (s *Runner) Cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole types.CloudID) error {
 	toBeDeleted, err := awsutils.ListResourcesForCleanup(ctx, maxTTL, region, assumedRole)
 	if err != nil {
 		return err
@@ -151,7 +155,7 @@ func (s *Runner) cleanupProcess(ctx context.Context) {
 
 		log.Infof("starting cleanup process")
 		s.regionsCleanupMu.Lock()
-		regionsCleanup := make(map[string]*types.CloudID, len(s.regionsCleanup))
+		regionsCleanup := make(map[string]types.CloudID, len(s.regionsCleanup))
 		for region, role := range s.regionsCleanup {
 			regionsCleanup[region] = role
 		}
@@ -183,7 +187,7 @@ func (s *Runner) SubscribeRemoteConfig(ctx context.Context) error {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
 			log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
-			config, err := types.UnmarshalConfig(rawConfig.Config, s.Hostname, s.DefaultActions, s.DefaultRoles)
+			config, err := types.UnmarshalConfig(rawConfig.Config, s.Hostname, s.CloudProvider, s.DefaultActions, s.DefaultRoles)
 			if err != nil {
 				log.Errorf("could not parse agentless-scanner task: %v", err)
 				return
@@ -409,7 +413,7 @@ func (s *Runner) Start(ctx context.Context) {
 				// will be used for cleanup process.
 				s.regionsCleanupMu.Lock()
 				if s.regionsCleanup == nil {
-					s.regionsCleanup = make(map[string]*types.CloudID)
+					s.regionsCleanup = make(map[string]types.CloudID)
 				}
 				s.regionsCleanup[scan.CloudID.Region()] = scan.Roles.GetCloudIDRole(scan.CloudID)
 				s.regionsCleanupMu.Unlock()

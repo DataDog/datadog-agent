@@ -122,7 +122,7 @@ func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 			resourceName: p,
 		}
 	} else if strings.HasPrefix(s, "arn:") {
-		id, err = parseAWSCloudID(s)
+		id, err = parseAWSARN(s)
 		if err != nil {
 			return CloudID{}, err
 		}
@@ -163,7 +163,7 @@ var (
 	functionReg     = regexp.MustCompile(`^([a-zA-Z0-9-_.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`)
 )
 
-func parseAWSCloudID(s string) (CloudID, error) {
+func parseAWSARN(s string) (CloudID, error) {
 	sections := strings.SplitN(s, ":", 6)
 	if len(sections) != 6 {
 		return CloudID{}, fmt.Errorf("bad cloud id: invalid number of sections: %q", s)
