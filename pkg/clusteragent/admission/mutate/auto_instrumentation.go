@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -75,6 +76,11 @@ const (
 
 type language string
 
+type pinnedLibraries struct {
+	libraries []libInfo
+	libsMutex *sync.Mutex
+}
+
 const (
 	java   language = "java"
 	js     language = "js"
@@ -108,6 +114,11 @@ var (
 	localLibraryInstrumentationInstallTypeEnvVar = corev1.EnvVar{
 		Name:  instrumentationInstallTypeEnvVarName,
 		Value: localLibraryInstrumentationInstallType,
+	}
+
+	pinnedLibs = pinnedLibraries{
+		libraries: nil,
+		libsMutex: &sync.Mutex{},
 	}
 )
 
@@ -218,22 +229,38 @@ func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string)
 
 // getPinnedLibraries returns tracing libraries to inject as configured by apm_config.instrumentation.lib_versions
 func getPinnedLibraries(registry string) []libInfo {
-	libsToInject := []libInfo{}
-	var libVersion string
+	// check if pinned libraries have been cached
+	pinnedLibs.libsMutex.Lock()
+	libsToInject := pinnedLibs.libraries
+	pinnedLibs.libsMutex.Unlock()
 
+	if libsToInject != nil {
+		return libsToInject
+	}
+
+	// get pinned libraries and cache them
+	var libVersion string
 	singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
+	if len(singleStepLibraryVersions) == 0 {
+		return []libInfo{}
+	}
+	libs := []libInfo{}
 
 	// If APM Instrumentation is enabled and configuration apm_config.instrumentation.lib_versions specified, inject only the libraries from the configuration
 	for lang, version := range singleStepLibraryVersions {
 		if !slices.Contains(supportedLanguages, language(lang)) {
 			log.Warnf("APM Instrumentation detected configuration for unsupported language: %s. Tracing library for %s will not be injected", lang, lang)
-		} else {
-			log.Infof("Library version %s is specified for language %s", version, lang)
-			libVersion = version
-			libsToInject = append(libsToInject, libInfo{lang: language(lang), image: libImageName(registry, language(lang), libVersion)})
+			continue
 		}
+		log.Infof("Library version %s is specified for language %s", version, lang)
+		libVersion = version
+		libs = append(libs, libInfo{lang: language(lang), image: libImageName(registry, language(lang), libVersion)})
 	}
-	return libsToInject
+	pinnedLibs.libsMutex.Lock()
+	defer pinnedLibs.libsMutex.Unlock()
+	pinnedLibs.libraries = libs
+
+	return libs
 }
 
 // getLibrariesLanguageDetection runs process language auto-detection and returns languages to inject for APM Instrumentation.

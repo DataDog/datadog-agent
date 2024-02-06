@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -494,6 +495,12 @@ func TestExtractLibInfo(t *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
 			if tt.setupConfig != nil {
 				tt.setupConfig()
+			}
+
+			// reset pinned libraries between test runs
+			pinnedLibs = pinnedLibraries{
+				libraries: nil,
+				libsMutex: &sync.Mutex{},
 			}
 			libsToInject, _ := extractLibInfo(tt.pod, tt.containerRegistry)
 			require.ElementsMatch(t, tt.expectedLibsToInject, libsToInject)
@@ -1553,6 +1560,12 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			}
 
 			fakeStoreWithDeployment(t, tt.langDetectionDeployments)
+
+			// reset pinned libraries between test runs
+			pinnedLibs = pinnedLibraries{
+				libraries: nil,
+				libsMutex: &sync.Mutex{},
+			}
 
 			err := injectAutoInstrumentation(tt.pod, "", fake.NewSimpleDynamicClient(scheme))
 			require.False(t, (err != nil) != tt.wantErr)
