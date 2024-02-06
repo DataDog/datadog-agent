@@ -119,6 +119,12 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide remote config client module
 		rcclient.Module(),
 
+		// Provide workloadmeta module
+		workloadmeta.Module(),
+
+		// Provide tagger module
+		tagger.Module(),
+
 		// Provide statsd client module
 		compstatsd.Module(),
 
