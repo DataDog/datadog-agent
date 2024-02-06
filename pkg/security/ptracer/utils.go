@@ -195,7 +195,7 @@ func getFullPathFromFilename(process *Process, filename string) (string, error) 
 }
 
 func refreshUserCache(tracer *Tracer) error {
-	file, err := os.Open("/etc/passwd")
+	file, err := os.Open(passwdPath)
 	if err != nil {
 		return err
 	}
@@ -209,7 +209,7 @@ func refreshUserCache(tracer *Tracer) error {
 }
 
 func refreshGroupCache(tracer *Tracer) error {
-	file, err := os.Open("/etc/group")
+	file, err := os.Open(groupPath)
 	if err != nil {
 		return err
 	}
@@ -237,13 +237,13 @@ func getUserFromUID(tracer *Tracer, uid int32) string {
 	}
 	// if it's the first time, or if passwd was updated, load/refresh the user cache
 	if tracer.userCache == nil {
-		tracer.lastPasswdMTime = getFileMTime("/etc/passwd")
+		tracer.lastPasswdMTime = getFileMTime(passwdPath)
 		if err := refreshUserCache(tracer); err != nil {
 			return ""
 		}
 	} else if tracer.userCacheRefreshLimiter.Allow() {
 		// refresh the cache only if the file has changed
-		mtime := getFileMTime("/etc/passwd")
+		mtime := getFileMTime(passwdPath)
 		if mtime != tracer.lastPasswdMTime {
 			if err := refreshUserCache(tracer); err != nil {
 				return ""

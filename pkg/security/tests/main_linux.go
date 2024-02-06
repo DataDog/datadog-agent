@@ -22,6 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+const (
+	fakePasswdPath = "/tmp/fake_passwd"
+	fakeGroupPath  = "/tmp/fake_group"
+)
+
 func SkipIfNotAvailable(t *testing.T) {
 	if ebpfLessEnabled {
 		if testEnvironment == DockerEnvironment {
@@ -95,6 +100,9 @@ func preTestsHook() {
 			return arg == "-trace"
 		})
 		args = append(args, "-ebpfless")
+
+		os.Setenv(ptracer.EnvPasswdPathOverride, fakePasswdPath)
+		os.Setenv(ptracer.EnvGroupPathOverride, fakeGroupPath)
 
 		envs := os.Environ()
 

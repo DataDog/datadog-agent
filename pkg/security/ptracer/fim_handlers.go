@@ -1070,10 +1070,10 @@ func handleDupRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 
 func handleRenamesRet(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	if ret := tracer.ReadRet(regs); msg.Rename != nil && ret == 0 {
-		if msg.Rename.NewFile.Filename == "/etc/passwd" {
+		if msg.Rename.NewFile.Filename == passwdPath {
 			// force the user limiter to reset
 			tracer.userCacheRefreshLimiter = rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1)
-		} else if msg.Rename.NewFile.Filename == "/etc/group" {
+		} else if msg.Rename.NewFile.Filename == groupPath {
 			// force the group limiter to reset
 			tracer.groupCacheRefreshLimiter = rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1)
 		}

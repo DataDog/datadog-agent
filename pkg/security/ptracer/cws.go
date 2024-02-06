@@ -29,6 +29,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
+const (
+	defaultPasswdPath     = "/etc/passwd"
+	defaultGroupPath      = "/etc/group"
+	EnvPasswdPathOverride = "TEST_DD_PASSWD_PATH"
+	EnvGroupPathOverride  = "TEST_DD_GROUP_PATH"
+)
+
+var (
+	passwdPath = defaultPasswdPath
+	groupPath  = defaultGroupPath
+)
+
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
 
 type shouldSendFunc func(ret int64) bool
@@ -130,6 +142,13 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 	logger := Logger{verbose}
 
 	logger.Debugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
+
+	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
+		passwdPath = path
+	}
+	if path := os.Getenv(EnvGroupPathOverride); path != "" {
+		groupPath = path
+	}
 
 	var (
 		client      net.Conn

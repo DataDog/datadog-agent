@@ -259,9 +259,6 @@ func TestChown(t *testing.T) {
 
 func TestChownUserGroup(t *testing.T) {
 	SkipIfNotAvailable(t)
-	if checkUserGroupAvailable() != nil {
-		t.Skip("User/group needed tools not available")
-	}
 
 	testUser := "test_user_1"
 	testUID := int32(1901)
@@ -296,16 +293,14 @@ func TestChownUserGroup(t *testing.T) {
 	}
 
 	// create temporary user/group
-	removeUser(testUser)   // just in case
-	removeGroup(testGroup) // just in case
-	if err := addGroup(testGroup, testGID); err != nil {
+	if err := addFakeGroup(testGroup, testGID); err != nil {
 		t.Fatal(err)
 	}
-	defer removeGroup(testGroup)
-	if err := addUser(testUser, testUID, testGID); err != nil {
+	defer removeFakeGroup()
+	if err := addFakePasswd(testUser, testUID, testGID); err != nil {
 		t.Fatal(err)
 	}
-	defer removeUser(testUser)
+	defer removeFakePasswd()
 
 	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {

@@ -18,7 +18,6 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 	"text/template"
@@ -775,39 +774,44 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 	return emconfig, secconfig, nil
 }
 
-func addUser(user string, uid, gid int32) error {
-	cmd := exec.Command("/usr/sbin/adduser", "--no-create-home", "--gid", strconv.Itoa(int(gid)), "--uid", strconv.Itoa(int(uid)), user)
-	return cmd.Run()
-}
-
-func addGroup(group string, gid int32) error {
-	cmd := exec.Command("/usr/sbin/addgroup", "--gid", strconv.Itoa(int(gid)), group)
-	return cmd.Run()
-}
-
-func removeUser(user string) error {
-	cmd := exec.Command("/usr/sbin/userdel", user)
-	return cmd.Run()
-}
-
-func removeGroup(group string) error {
-	cmd := exec.Command("/usr/sbin/groupdel", group)
-	return cmd.Run()
-}
-
-func checkUserGroupAvailable() error {
-	neededFiles := []string{
-		"/usr/sbin/userdel",
-		"/usr/sbin/groupdel",
-		"/usr/sbin/adduser",
-		"/usr/sbin/addgroup",
-		"/etc/passwd",
-		"/etc/group",
+func addFakePasswd(user string, uid, gid int32) error {
+	file, err := os.OpenFile(fakePasswdPath+"_tmp", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil
 	}
-	for _, file := range neededFiles {
-		if _, err := os.Stat(file); err != nil {
-			return err
-		}
+	defer file.Close()
+	_, err = file.WriteString("root:x:0:0:root:/root:/sbin/nologin\n")
+	if err != nil {
+		return err
 	}
-	return nil
+	_, err = file.WriteString(fmt.Sprintf("%s:x:%d:%d:%s:/home/%s:/sbin/nologin\n", user, uid, gid, user, user))
+	if err != nil {
+		return err
+	}
+	return os.Rename(fakePasswdPath+"_tmp", fakePasswdPath) // to force the cache refresh
+}
+
+func addFakeGroup(group string, gid int32) error {
+	file, err := os.OpenFile(fakeGroupPath+"_tmp", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	_, err = file.WriteString("root:x:0:\n")
+	if err != nil {
+		return err
+	}
+	_, err = file.WriteString(fmt.Sprintf("%s:x:%d:\n", group, gid))
+	if err != nil {
+		return err
+	}
+	return os.Rename(fakeGroupPath+"_tmp", fakeGroupPath) // to force the cache refresh
+}
+
+func removeFakePasswd() error {
+	return os.Remove(fakePasswdPath)
+}
+
+func removeFakeGroup() error {
+	return os.Remove(fakeGroupPath)
 }
