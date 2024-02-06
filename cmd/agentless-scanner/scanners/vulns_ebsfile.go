@@ -46,11 +46,7 @@ func (e ebsClientWithWalk) WalkSnapshotBlocks(ctx context.Context, input *ebs.Li
 
 // LaunchTrivyHostVM launches a trivy scan on a EBS volume.
 func LaunchTrivyHostVM(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
-	cfg, err := awsutils.GetConfig(ctx, opts.SnapshotID.Region, opts.Scan.Roles[opts.SnapshotID.Region])
-	if err != nil {
-		return nil, err
-	}
-	ebsclient := ebs.NewFromConfig(cfg)
+	ebsclient := ebs.NewFromConfig(awsutils.GetConfigFromCloudID(ctx, opts.Scan, *opts.SnapshotID))
 	trivyCache := newMemoryCache()
 	onlyDirs := []string{
 		"/etc/*",
