@@ -147,7 +147,10 @@ func stringToHTTPMethod(method string) (http.Method, error) {
 		return http.MethodOptions, nil
 	case "PATCH":
 		return http.MethodPatch, nil
-	// Add more cases for other HTTP methods as needed
+	case "GET":
+		return http.MethodGet, nil
+	case "POST":
+		return http.MethodPost, nil
 	default:
 		return 0, fmt.Errorf("unsupported HTTP method: %s", method)
 	}
@@ -155,30 +158,23 @@ func stringToHTTPMethod(method string) (http.Method, error) {
 
 // Method returns the HTTP method of the transaction.
 func (tx *EbpfTx) Method() http.Method {
-	if tx.Stream.Request_method.Static_table_entry != 0 {
+	var method string
+	var err error
+	if tx.Stream.Request_method.Is_huffman_encoded {
+		method, err = hpack.HuffmanDecodeToString(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
+		if err != nil {
+			return 0
+		}
+	} else {
 		switch tx.Stream.Request_method.Static_table_entry {
 		case GetValue:
 			return http.MethodGet
 		case PostValue:
 			return http.MethodPost
 		default:
-			return http.MethodUnknown
+			method = string(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
 		}
 	}
-
-	if tx.Stream.Request_method.Is_huffman_encoded {
-		method, err := hpack.HuffmanDecodeToString(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
-		if err != nil {
-			return 0
-		}
-		http2Method, err := stringToHTTPMethod(method)
-		if err != nil {
-			return 0
-		}
-		return http2Method
-	}
-
-	method := string(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
 	http2Method, err := stringToHTTPMethod(method)
 	if err != nil {
 		return 0

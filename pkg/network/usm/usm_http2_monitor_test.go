@@ -756,7 +756,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate http methods",
 			// The purpose of this test is to validate that we are able to capture all http methods.
 			messageBuilder: func() [][]byte {
-				httpMethods = []string{http.MethodHead, http.MethodDelete, http.MethodPut, http.MethodPatch, http.MethodOptions}
+				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete, http.MethodPut, http.MethodPatch, http.MethodOptions}
 				framer := newFramer()
 				for i, method := range httpMethods {
 					streamID := getStreamID(i)
@@ -767,6 +767,14 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodGet,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodHead,
