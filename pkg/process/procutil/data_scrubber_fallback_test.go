@@ -17,27 +17,29 @@ func TestStripArguments(t *testing.T) {
 		cmdline []string
 		want    []string
 	}{
-		{cmdline: {[]string{"agent", "-password", "1234"},
-			want: []string{"agent"}},
+		{
+			cmdline: []string{"agent", "-password", "1234"},
+			want:    []string{"agent"},
 		},
 		{
-			cmdline: {[]string{"fitz", "-consul_token", "1234567890"},
-				want: []string{"fitz"}},
+			cmdline: []string{"fitz", "-consul_token", "1234567890"},
+			want:    []string{"fitz"},
 		},
 		{
-			cmdline: {[]string{"fitz", "--consul_token", "1234567890"},
-				want: []string{"fitz"}},
+			cmdline: []string{"fitz", "--consul_token", "1234567890"},
+			want:    []string{"fitz"},
 		},
 		{
-			cmdline: {[]string{"python ~/test/run.py -open_password=admin -consul_token 2345 -blocked_from_yamt=1234 &"},
-				want: []string{"python"}},
+			cmdline: []string{"python ~/test/run.py -open_password=admin -consul_token 2345 -blocked_from_yamt=1234 &"},
+			want:    []string{"python"},
 		},
 		{
-			cmdline: {[]string{"java -password      1234"},
-				want: []string{"java"}},
+			cmdline: []string{"java -password      1234"},
+			want:    []string{"java"},
 		},
 		{
-			cmdline: {[]string{"agent password:1234"}, []string{"agent"}},
+			cmdline: []string{"agent password:1234"},
+			want:    []string{"agent"},
 		},
 	}
 
