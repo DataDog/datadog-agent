@@ -391,6 +391,18 @@ func (c Container) String() string {
 	return fmt.Sprintf("%s/%s/%s", c.Runtime, c.ContainerName, c.ImageRefCanonical.Reference())
 }
 
+// ParseCloudProvider parses a cloud provider from a string.
+func ParseCloudProvider(provider string) (CloudProvider, error) {
+	switch provider {
+	case string(CloudProviderNone):
+		return CloudProviderNone, nil
+	case string(CloudProviderAWS):
+		return CloudProviderAWS, nil
+	default:
+		return "", fmt.Errorf("unknown cloud provider %q", provider)
+	}
+}
+
 // ParseTaskType parses a scan type from a string.
 func ParseTaskType(scanType string) (TaskType, error) {
 	switch scanType {
