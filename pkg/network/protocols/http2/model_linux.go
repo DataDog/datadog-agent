@@ -165,20 +165,23 @@ func stringToHTTPMethod(method string) (http.Method, error) {
 func (tx *EbpfTx) Method() http.Method {
 	var method string
 	var err error
+
+	// Case which the method is indexed.
+	switch tx.Stream.Request_method.Static_table_entry {
+	case GetValue:
+		return http.MethodGet
+	case PostValue:
+		return http.MethodPost
+	}
+
+	// Case which the method is literal.
 	if tx.Stream.Request_method.Is_huffman_encoded {
 		method, err = hpack.HuffmanDecodeToString(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
 		if err != nil {
 			return 0
 		}
 	} else {
-		switch tx.Stream.Request_method.Static_table_entry {
-		case GetValue:
-			return http.MethodGet
-		case PostValue:
-			return http.MethodPost
-		default:
-			method = string(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
-		}
+		method = string(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
 	}
 	http2Method, err := stringToHTTPMethod(method)
 	if err != nil {

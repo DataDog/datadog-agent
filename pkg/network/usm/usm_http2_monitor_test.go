@@ -757,7 +757,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that we are able to capture all http methods.
 			messageBuilder: func() [][]byte {
 				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
-					http.MethodPut, http.MethodPatch, http.MethodOptions, "TRACE", "CONNECT"}
+					http.MethodPut, http.MethodPatch, http.MethodOptions, http.MethodTrace, http.MethodConnect}
 				// Currently, the methods TRACE and CONNECT are not supported by the http.Method package.
 				// Therefore, we mark those requests as incomplete and not expected to be captured.
 				framer := newFramer()
@@ -797,6 +797,100 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodOptions,
+				}: 1,
+			},
+		},
+		{
+			name: "validate http methods huffman encoded",
+			// The purpose of this test is to validate that we are able to capture all http methods.
+			messageBuilder: func() [][]byte {
+				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
+					http.MethodPut, http.MethodPatch, http.MethodOptions, http.MethodTrace, http.MethodConnect}
+				// Currently, the methods TRACE and CONNECT are not supported by the http.Method package.
+				// Therefore, we mark those requests as incomplete and not expected to be captured.
+				framer := newFramer()
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":method")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: headerFields,
+				})
+				require.NoError(t, err, "could not create headers frame")
+				for i, method := range httpMethods {
+					huffMethod := hpack.AppendHuffmanString([]byte{}, method)
+					// we are adding 128 to the length of the huffman encoded method,
+					// as it is the representation of the huffman encoding (MSB ofo the octet is on).
+					rawMethod := append([]byte{0x43}, byte(128+len(huffMethod)))
+					rawMethod = append(rawMethod, huffMethod...)
+					headersFrameWithRawMethod := append(rawMethod, headersFrame...)
+					streamID := getStreamID(i)
+					framer.
+						writeRawHeaders(t, streamID, headersFrameWithRawMethod).
+						writeData(t, streamID, true, emptyBody).bytes()
+				}
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodGet,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodHead,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodDelete,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPut,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPatch,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodOptions,
+				}: 1,
+			},
+		},
+		{
+			name: "validate http methods POST and GET methods as literal",
+			// The purpose of this test is to validate that when the methods POST and GET are sent as literal fields
+			// and not indexed, we are still able to capture and process them correctly.
+			messageBuilder: func() [][]byte {
+				getMethodRaw := append([]byte{0x43, 0x03}, []byte("GET")...)
+				postMethodRaw := append([]byte{0x43, 0x04}, []byte("POST")...)
+
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":method")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: headerFields,
+				})
+				require.NoError(t, err, "could not create headers frame")
+				headersFrameWithGET := append(getMethodRaw, headersFrame...)
+				headersFrameWithPOST := append(postMethodRaw, headersFrame...)
+
+				framer := newFramer()
+				framer.
+					writeRawHeaders(t, 1, headersFrameWithGET).
+					writeData(t, 1, true, emptyBody).
+					writeRawHeaders(t, 3, headersFrameWithPOST).
+					writeData(t, 3, true, emptyBody)
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodGet,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
 				}: 1,
 			},
 		},
