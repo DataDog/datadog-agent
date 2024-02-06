@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/runner"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -24,7 +23,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ebs"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -190,9 +188,6 @@ func awsOfflineCommand() *cobra.Command {
 }
 
 func awsAttachCommand() *cobra.Command {
-	var flags struct {
-		mount bool
-	}
 	cmd := &cobra.Command{
 		Use:   "attach <snapshot|volume>",
 		Short: "Attaches a snapshot or volume to the current instance",
@@ -206,11 +201,9 @@ func awsAttachCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return attachCmd(resourceID, globalFlags.diskMode, flags.mount, globalFlags.defaultActions)
+			return attachCmd(resourceID, globalFlags.diskMode, globalFlags.defaultActions)
 		},
 	}
-
-	cmd.Flags().BoolVar(&flags.mount, "mount", false, "mount the nbd device")
 
 	return cmd
 }
@@ -553,7 +546,7 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	return nil
 }
 
-func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaultActions []types.ScanAction) error {
+func attachCmd(resourceID types.CloudID, mode types.DiskMode, defaultActions []types.ScanAction) error {
 	ctx := ctxTerminated()
 
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -565,7 +558,6 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 	}
 
 	roles := getDefaultRolesMapping(types.CloudProviderAWS)
-	cfg := awsutils.GetConfigFromCloudID(ctx, roles, resourceID)
 	scan, err := types.NewScanTask(types.TaskTypeEBS, resourceID.AsText(), hostname, resourceID.ResourceName(), defaultActions, roles, mode)
 	if err != nil {
 		return err
@@ -581,55 +573,14 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 	}()
 
 	var waiter awsutils.SnapshotWaiter
-
-	var snapshotID types.CloudID
-	switch resourceID.ResourceType() {
-	case types.ResourceTypeVolume:
-		ec2client := ec2.NewFromConfig(cfg)
-		snapshotID, err = awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, resourceID)
-		if err != nil {
-			return err
-		}
-	case types.ResourceTypeSnapshot:
-		snapshotID = resourceID
-	default:
-		panic("unreachable")
-	}
-
-	switch mode {
-	case types.DiskModeVolumeAttach:
-		if err := awsutils.AttachSnapshotWithVolume(ctx, scan, &waiter, snapshotID); err != nil {
-			return err
-		}
-	case types.DiskModeNBDAttach:
-		ebsclient := ebs.NewFromConfig(cfg)
-		if err := awsutils.AttachSnapshotWithNBD(ctx, scan, snapshotID, ebsclient); err != nil {
-			return err
-		}
-	default:
-		panic("unreachable")
-	}
-
-	partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
+	mountpoints, err := awsutils.SetupEBS(ctx, scan, &waiter)
 	if err != nil {
-		log.Errorf("could not list partitions (device is still available on %q): %v", *scan.AttachedDeviceName, err)
-	} else {
-		for _, part := range partitions {
-			fmt.Println(part.DevicePath, part.FSType)
-		}
-		if mount {
-			mountPoints, err := devices.Mount(ctx, scan, partitions)
-			if err != nil {
-				log.Errorf("could not mount (device is still available on %q): %v", *scan.AttachedDeviceName, err)
-			} else {
-				fmt.Println()
-				for _, mountPoint := range mountPoints {
-					fmt.Println(mountPoint)
-				}
-			}
-		}
+		return err
 	}
 
+	for _, mountpoint := range mountpoints {
+		fmt.Println(mountpoint)
+	}
 	<-ctx.Done()
 	return nil
 }

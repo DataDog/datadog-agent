@@ -509,7 +509,7 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName()}, pool)
 
 	case types.TaskTypeAMI:
-		mountpoints, err := awsutils.SetupAMI(ctx, scan, &s.waiter)
+		mountpoints, err := awsutils.SetupEBS(ctx, scan, &s.waiter)
 		if err != nil {
 			return err
 		}

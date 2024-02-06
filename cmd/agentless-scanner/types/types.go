@@ -474,7 +474,7 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, target string, 
 	case TaskTypeLambda:
 		cloudID, err = ParseCloudID(resourceID, ResourceTypeFunction)
 	default:
-		err = fmt.Errorf("unsupported task type %q", taskType)
+		err = fmt.Errorf("task: unsupported type %q", taskType)
 	}
 	if err != nil {
 		return nil, err
@@ -494,8 +494,14 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, target string, 
 	switch taskType {
 	case TaskTypeEBS:
 		task.TargetHostname = target
+		if task.TargetHostname == "" {
+			return nil, fmt.Errorf("task: missing hostname")
+		}
 	case TaskTypeAMI:
 		task.TargetImageID = target
+		if task.TargetImageID == "" {
+			return nil, fmt.Errorf("task: missing image ID")
+		}
 	}
 
 	{
@@ -557,7 +563,7 @@ func UnmarshalConfig(b []byte, scannerHostname string, provider CloudProvider, d
 	case string(ConfigTypeAWS):
 		config.Type = ConfigTypeAWS
 	default:
-		return nil, fmt.Errorf("unexpected config type %q", config.Type)
+		return nil, fmt.Errorf("config: unexpected type %q", config.Type)
 	}
 
 	if len(configRaw.Roles) > 0 {
@@ -585,12 +591,26 @@ func UnmarshalConfig(b []byte, scannerHostname string, provider CloudProvider, d
 		if err != nil {
 			return nil, err
 		}
-		task, err := NewScanTask(scanType, rawScan.CloudID, scannerHostname, rawScan.Hostname, actions, config.Roles, diskMode)
+		var target string
+		switch scanType {
+		case TaskTypeEBS:
+			target = rawScan.Hostname
+		case TaskTypeAMI:
+			target = rawScan.ImageID
+		}
+		task, err := NewScanTask(scanType,
+			rawScan.CloudID,
+			scannerHostname,
+			target,
+			actions,
+			config.Roles,
+			diskMode,
+		)
 		if err != nil {
 			return nil, err
 		}
 		if config.Type == ConfigTypeAWS && task.CloudID.Provider() != CloudProviderAWS {
-			return nil, fmt.Errorf("invalid cloud resource identifier %q: expecting cloud provider %s", rawScan.CloudID, CloudProviderAWS)
+			return nil, fmt.Errorf("config: invalid cloud resource identifier %q: expecting cloud provider %s", rawScan.CloudID, CloudProviderAWS)
 		}
 		config.Tasks = append(config.Tasks, task)
 	}
