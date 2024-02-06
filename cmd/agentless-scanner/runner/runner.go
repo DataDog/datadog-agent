@@ -321,8 +321,7 @@ func (s *Runner) CleanSlate() error {
 					}
 				}
 			}
-			if strings.HasPrefix(bd.Name, "nbd") && len(bd.Children) > 0 {
-				log.Warnf("clean slate: detaching nbd device %q", bd.Name)
+			if strings.HasPrefix(bd.Name, "nbd") {
 				if err := exec.CommandContext(ctx, "nbd-client", "-d", path.Join("/dev", bd.Name)).Run(); err != nil {
 					log.Errorf("clean slate: could not detach nbd device %q: %v", bd.Name, err)
 				}
@@ -705,7 +704,7 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 				CreatedAt: time.Now(),
 			})
 			if result.Vulns != nil {
-				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
+				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM // TODO: sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
 				result.Vulns.ID = scan.ImageID
 				result.Vulns.Tags = nil
 			}

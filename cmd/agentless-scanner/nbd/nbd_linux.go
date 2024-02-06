@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 
@@ -36,8 +37,10 @@ type nbd struct {
 	scan       *types.ScanTask
 	deviceName string
 	srv        net.Listener
-	closed     chan struct{}
-	closing    chan struct{}
+
+	starting chan struct{}
+	closed   chan struct{}
+	closing  chan struct{}
 }
 
 // StartNBDBlockDevice starts the NBD server and client for the given device
@@ -47,6 +50,7 @@ func StartNBDBlockDevice(scan *types.ScanTask, deviceName string, b backend.Back
 		scan:       scan,
 		b:          b,
 		deviceName: deviceName,
+		starting:   make(chan struct{}),
 		closed:     make(chan struct{}),
 		closing:    make(chan struct{}),
 	}
@@ -58,6 +62,7 @@ func StartNBDBlockDevice(scan *types.ScanTask, deviceName string, b backend.Back
 	nbds[bd.deviceName] = bd
 	nbdsMu.Unlock()
 
+	defer close(bd.starting)
 	_, err := os.Stat(bd.deviceName)
 	if err != nil {
 		return fmt.Errorf("nbd: could not stat device %q: %w", bd.deviceName, err)
@@ -75,7 +80,9 @@ func StartNBDBlockDevice(scan *types.ScanTask, deviceName string, b backend.Back
 func StopNBDBlockDevice(ctx context.Context, deviceName string) {
 	nbdsMu.Lock()
 	bd, ok := nbds[deviceName]
-	delete(nbds, deviceName)
+	if ok {
+		delete(nbds, deviceName)
+	}
 	nbdsMu.Unlock()
 
 	if !ok {
@@ -88,16 +95,22 @@ func StopNBDBlockDevice(ctx context.Context, deviceName string) {
 		return
 	}
 
-	log.Debugf("nbdclient: disconnecting client for device %q", deviceName)
-	if err := exec.CommandContext(ctx, "nbd-client", "-d", deviceName).Run(); err != nil {
-		log.Errorf("%s: nbd-client: %q disconnecting failed: %v", bd.scan, deviceName, err)
+	select {
+	case <-bd.starting:
+	case <-time.After(5 * time.Second):
+	case <-ctx.Done():
+		return
+	}
+
+	log.Debugf("nbdclient: disconnecting client for device %q", bd.deviceName)
+	if err := exec.Command("nbd-client", "-d", bd.deviceName).Run(); err != nil {
+		log.Errorf("%s: nbd-client: %q disconnecting failed: %v", bd.scan, bd.deviceName, err)
 	} else {
-		log.Tracef("%s: nbd-client: %q disconnected", bd.scan, deviceName)
+		log.Tracef("%s: nbd-client: %q disconnected", bd.scan, bd.deviceName)
 	}
 	if err := bd.waitServerClosed(ctx); err != nil {
 		log.Errorf("%s: nbdserver: %q could not close: %v", bd.scan, deviceName, err)
 	}
-	return
 }
 
 func (bd *nbd) String() string {
