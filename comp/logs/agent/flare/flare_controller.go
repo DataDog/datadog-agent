@@ -80,9 +80,9 @@ func (fc *FlareController) SetAllFiles(files []string) {
 }
 
 // SetAllJournalFiles assigns the journalFiles parameter of FlareController
-func (fc *FlareController) SetAllJournalFiles(files []string) {
+func (fc *FlareController) AddToJournalFiles(files []string) {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
 
-	fc.journalFiles = files
+	fc.journalFiles = append(fc.journalFiles, files...)
 }
