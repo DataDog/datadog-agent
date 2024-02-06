@@ -1055,6 +1055,7 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
+    allow_failure: true
 
 
 .on_install_script_release_manual:
