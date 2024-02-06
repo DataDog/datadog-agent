@@ -348,6 +348,7 @@ workflow:
       variables:
         USE_CACHING_PROXY_PYTHON: "true"
         USE_CACHING_PROXY_RUBY: "true"
+        GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
       variables:
         USE_CACHING_PROXY_PYTHON: "true"
@@ -408,8 +409,6 @@ workflow:
 
 .on_main:
   - <<: *if_main_branch
-    variables:
-      GO_TEST_SKIP_FLAKE: "false"
 
 .on_main_manual:
   - <<: *if_main_branch
