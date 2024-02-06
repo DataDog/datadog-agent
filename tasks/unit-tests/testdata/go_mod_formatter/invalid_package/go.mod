@@ -12,8 +12,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log/
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber/
-	github.com/DataDog/datadog-agent/pkg/util/sort => ../util/sort/
-	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../util/system/socket
 )
 
 require (
