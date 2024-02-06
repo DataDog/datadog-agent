@@ -100,7 +100,7 @@ func awsSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cfg := awsutils.GetConfig(ctx, scan.CloudID.Region, nil)
+			cfg := awsutils.GetConfig(ctx, scan.CloudID.Region(), nil)
 			var waiter awsutils.SnapshotWaiter
 			ec2client := ec2.NewFromConfig(cfg)
 			snapshotID, err := awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, scan.CloudID)
@@ -548,7 +548,7 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaultActions []types.ScanAction) error {
 	ctx := ctxTerminated()
 
-	cfg := awsutils.GetConfig(ctx, resourceID.Region, nil)
+	cfg := awsutils.GetConfig(ctx, resourceID.Region(), nil)
 	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
 

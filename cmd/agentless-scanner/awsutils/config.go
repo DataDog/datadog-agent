@@ -49,7 +49,7 @@ func getConfKey(region string, role *types.CloudID) confKey {
 
 // GetConfigFromCloudID returns an AWS Config for the given region and assumed role.
 func GetConfigFromCloudID(ctx context.Context, scan *types.ScanTask, cloudID types.CloudID) aws.Config {
-	return GetConfig(ctx, cloudID.Region, scan.Roles[cloudID.AccountID])
+	return GetConfig(ctx, cloudID.Region(), scan.Roles[cloudID.AccountID()])
 }
 
 // GetConfig returns an AWS Config for the given region and assumed role.

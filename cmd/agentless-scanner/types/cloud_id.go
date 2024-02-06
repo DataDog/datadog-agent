@@ -27,15 +27,19 @@ const (
 // CloudID represents an Cloud Resource Identifier.
 // ie. an ARN for Amazon resources.
 type CloudID struct {
-	Provider  CloudProvider
-	Partition string
-	Service   string
-	Region    string
-	AccountID string
-	Resource  string
-
+	// Mandatory fields
+	provider     CloudProvider
+	region       string
+	accountID    string
+	resource     string
 	resourceType ResourceType
 	resourceName string
+
+	// CloudProviderNone
+	path string
+
+	// CloudProviderAWS
+	arn string
 }
 
 // UnmarshalText implements encoding.TextUnmarshaler.
@@ -53,6 +57,21 @@ func (id CloudID) MarshalText() (text []byte, err error) {
 	return []byte(id.String()), nil
 }
 
+// Provider returns the cloud provider of the resource.
+func (id CloudID) Provider() CloudProvider {
+	return id.provider
+}
+
+// Region return the region of the resource.
+func (id CloudID) Region() string {
+	return id.region
+}
+
+// AccountID return the account ID of the resource.
+func (id CloudID) AccountID() string {
+	return id.accountID
+}
+
 // ResourceType returns the type of the resource.
 func (id CloudID) ResourceType() ResourceType {
 	return id.resourceType
@@ -64,11 +83,11 @@ func (id CloudID) ResourceName() string {
 }
 
 func (id CloudID) String() string {
-	switch id.Provider {
+	switch id.provider {
 	case CloudProviderNone:
-		return fmt.Sprintf("%s:%s", id.Partition, id.Resource)
+		return fmt.Sprintf("localhost:%s", id.path)
 	case CloudProviderAWS:
-		return fmt.Sprintf("arn:%s:%s:%s:%s:%s", id.Partition, id.Service, id.Region, id.AccountID, id.Resource)
+		return id.arn
 	}
 	panic("unimplemented")
 }
@@ -90,26 +109,15 @@ func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 		}
 		p := filepath.Join("/", sections[1])
 		id = CloudID{
-			Provider:     CloudProviderNone,
-			Partition:    sections[0],
-			Resource:     p,
+			provider:     CloudProviderNone,
+			region:       "localhost",
+			accountID:    "localhost",
+			resource:     p,
 			resourceType: ResourceTypeLocalDir,
 			resourceName: p,
 		}
 	} else if strings.HasPrefix(s, "arn:") {
-		sections := strings.SplitN(s, ":", 6)
-		if len(sections) != 6 {
-			return CloudID{}, fmt.Errorf("cloudID: invalid number of sections: %q", s)
-		}
-		id = CloudID{
-			Provider:  CloudProviderAWS,
-			Partition: sections[1],
-			Service:   sections[2],
-			Region:    sections[3],
-			AccountID: sections[4],
-			Resource:  sections[5],
-		}
-		id.resourceType, id.resourceName, err = parseAWSCloudID(id)
+		id, err = parseAWSCloudID(s)
 		if err != nil {
 			return CloudID{}, err
 		}
@@ -150,67 +158,79 @@ var (
 	functionReg     = regexp.MustCompile(`^([a-zA-Z0-9-_.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`)
 )
 
-func parseAWSCloudID(id CloudID) (resourceType ResourceType, resourceName string, err error) {
-	resource := id.Resource
-	if !partitionReg.MatchString(id.Partition) {
-		err = fmt.Errorf("bad cloud id %q: unexpected partition", id)
-		return
+func parseAWSCloudID(s string) (CloudID, error) {
+	sections := strings.SplitN(s, ":", 6)
+	if len(sections) != 6 {
+		return CloudID{}, fmt.Errorf("bad cloud id: invalid number of sections: %q", s)
 	}
-	if id.Region != "" && !regionReg.MatchString(id.Region) {
-		err = fmt.Errorf("bad cloud id %q: unexpected region (should be empty or match %s)", id, regionReg)
-		return
+	if sections[0] != "arn" {
+		return CloudID{}, fmt.Errorf("bad cloud id: unexpected prefix %q for %q", sections[0], s)
 	}
-	if id.AccountID != "" && !accountIDReg.MatchString(id.AccountID) {
-		err = fmt.Errorf("bad cloud id %q: unexpected account ID (should match %s)", id, accountIDReg)
-		return
+	partition := sections[1]
+	service := sections[2]
+	region := sections[3]
+	accountID := sections[4]
+	resource := sections[5]
+	if !partitionReg.MatchString(partition) {
+		return CloudID{}, fmt.Errorf("bad cloud id %q: unexpected partition", s)
 	}
+	if region != "" && !regionReg.MatchString(region) {
+		return CloudID{}, fmt.Errorf("bad cloud id %q: unexpected region (should be empty or match %s)", s, regionReg)
+	}
+	if accountID != "" && !accountIDReg.MatchString(accountID) {
+		return CloudID{}, fmt.Errorf("bad cloud id %q: unexpected account ID (should match %s)", s, accountIDReg)
+	}
+	var resourceType ResourceType
+	var resourceName string
 	switch {
-	case id.Service == "ec2" && strings.HasPrefix(resource, "volume/"):
+	case service == "ec2" && strings.HasPrefix(resource, "volume/"):
 		resourceType, resourceName = ResourceTypeVolume, strings.TrimPrefix(resource, "volume/")
 		if !strings.HasPrefix(resourceName, "vol-") {
-			err = fmt.Errorf("bad cloud id %q: resource ID has wrong prefix", id)
-			return
+			return CloudID{}, fmt.Errorf("bad cloud id %q: resource ID has wrong prefix", s)
 		}
 		if !resourceNameReg.MatchString(strings.TrimPrefix(resourceName, "vol-")) {
-			err = fmt.Errorf("bad cloud id %q: resource ID has wrong format (should match %s)", id, resourceNameReg)
-			return
+			return CloudID{}, fmt.Errorf("bad cloud id %q: resource ID has wrong format (should match %s)", s, resourceNameReg)
 		}
-	case id.Service == "ec2" && strings.HasPrefix(resource, "snapshot/"):
+	case service == "ec2" && strings.HasPrefix(resource, "snapshot/"):
 		resourceType, resourceName = ResourceTypeSnapshot, strings.TrimPrefix(resource, "snapshot/")
 		if !strings.HasPrefix(resourceName, "snap-") {
-			err = fmt.Errorf("bad cloud id %q: resource ID has wrong prefix", id)
-			return
+			return CloudID{}, fmt.Errorf("bad cloud id %q: resource ID has wrong prefix", s)
 		}
 		if !resourceNameReg.MatchString(strings.TrimPrefix(resourceName, "snap-")) {
-			err = fmt.Errorf("bad cloud id %q: resource ID has wrong format (should match %s)", id, resourceNameReg)
-			return
+			return CloudID{}, fmt.Errorf("bad cloud id %q: resource ID has wrong format (should match %s)", s, resourceNameReg)
 		}
-	case id.Service == "lambda" && strings.HasPrefix(resource, "function:"):
+	case service == "lambda" && strings.HasPrefix(resource, "function:"):
 		resourceType, resourceName = ResourceTypeFunction, strings.TrimPrefix(resource, "function:")
 		if sep := strings.Index(resourceName, ":"); sep > 0 {
 			resourceName = resourceName[:sep]
 		}
 		if !functionReg.MatchString(resourceName) {
-			err = fmt.Errorf("bad cloud id %q: function name has wrong format (should match %s)", id, functionReg)
+			return CloudID{}, fmt.Errorf("bad cloud id %q: function name has wrong format (should match %s)", s, functionReg)
 		}
-	case id.Service == "sts" && strings.HasPrefix(resource, "assumed-role/"):
+	case service == "sts" && strings.HasPrefix(resource, "assumed-role/"):
 		resourceType, resourceName = ResourceTypeRole, strings.TrimPrefix(resource, "assumed-role/")
 		resourceName = strings.SplitN(resourceName, "/", 2)[0]
 		if !roleNameReg.MatchString(resourceName) {
-			err = fmt.Errorf("bad cloud id %q: role name has wrong format (should match %s)", id, roleNameReg)
-			return
+			return CloudID{}, fmt.Errorf("bad cloud id %q: role name has wrong format (should match %s)", s, roleNameReg)
 		}
-	case id.Service == "iam" && strings.HasPrefix(resource, "role/"):
+	case service == "iam" && strings.HasPrefix(resource, "role/"):
 		resourceType, resourceName = ResourceTypeRole, strings.TrimPrefix(resource, "role/")
 		if !roleNameReg.MatchString(resourceName) {
-			err = fmt.Errorf("bad cloud id %q: role name has wrong format (should match %s)", id, roleNameReg)
-			return
+			return CloudID{}, fmt.Errorf("bad cloud id %q: role name has wrong format (should match %s)", s, roleNameReg)
 		}
 	default:
-		err = fmt.Errorf("bad cloud id %q: unexpected resource type", id)
-		return
+		return CloudID{}, fmt.Errorf("bad cloud id %q: unexpected resource type", s)
 	}
-	return
+	return CloudID{
+		provider:     CloudProviderAWS,
+		region:       region,
+		accountID:    accountID,
+		resource:     resource,
+		resourceType: resourceType,
+		resourceName: resourceName,
+
+		arn: s,
+	}, nil
 }
 
 // HumanParseCloudID parses an Cloud Identifier string or a resource
