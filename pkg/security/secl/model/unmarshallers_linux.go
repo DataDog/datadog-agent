@@ -706,7 +706,10 @@ func parseSHA1Tag(data []byte) string {
 	builder.Grow(16)
 
 	for _, b := range data {
-		builder.WriteString(fmt.Sprintf("%02x", b))
+		if _, err := fmt.Fprintf(&builder, "%02x", b); err != nil {
+			// should really never happen when writing to a string.Builder
+			return ""
+		}
 	}
 	return builder.String()
 }
