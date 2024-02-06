@@ -48,7 +48,9 @@ import (
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	custommetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics/status_provider"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
+	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -148,7 +150,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(admissionpkg.Provider{}),
 					status.NewInformationProvider(endpointsStatus.Provider{}),
 					status.NewInformationProvider(autodiscoveryStatus.Provider{}),
+					status.NewInformationProvider(custommetricsStatus.Provider{}),
+					status.NewInformationProvider(clusterchecks.Provider{}),
+					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
+				// The cluster agent displays log agent informaton if "compliance_config.enabled"
+				// But it has no log agent comonent injected.
+				// What should we do?
 				statusimpl.Module(),
 			)
 		},
