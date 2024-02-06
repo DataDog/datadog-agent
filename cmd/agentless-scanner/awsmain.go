@@ -96,7 +96,7 @@ func awsSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.String(), "unknown", "unknown", globalFlags.defaultActions, nil, globalFlags.diskMode)
+			scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.AsText(), "unknown", "unknown", globalFlags.defaultActions, nil, globalFlags.diskMode)
 			if err != nil {
 				return err
 			}
@@ -262,7 +262,7 @@ func scanCmd(resourceID types.CloudID, targetHostname string, actions []types.Sc
 		return err
 	}
 	roles := getDefaultRolesMapping()
-	task, err := types.NewScanTask(taskType, resourceID.String(), hostname, targetHostname, actions, roles, diskMode)
+	task, err := types.NewScanTask(taskType, resourceID.AsText(), hostname, targetHostname, actions, roles, diskMode)
 	if err != nil {
 		return err
 	}
@@ -428,7 +428,7 @@ func offlineCmd(workers int, taskType types.TaskType, regions []string, maxScans
 								return err
 							}
 							log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeID, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
-							scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.String(), hostname, *instance.InstanceId, actions, roles, diskMode)
+							scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.AsText(), hostname, *instance.InstanceId, actions, roles, diskMode)
 							if err != nil {
 								return err
 							}
@@ -557,7 +557,7 @@ func attachCmd(resourceID types.CloudID, mode types.DiskMode, mount bool, defaul
 		hostname = "unknown"
 	}
 
-	scan, err := types.NewScanTask(types.TaskTypeEBS, resourceID.String(), hostname, resourceID.ResourceName(), defaultActions, nil, mode)
+	scan, err := types.NewScanTask(types.TaskTypeEBS, resourceID.AsText(), hostname, resourceID.ResourceName(), defaultActions, nil, mode)
 	if err != nil {
 		return err
 	}

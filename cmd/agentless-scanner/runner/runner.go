@@ -815,9 +815,9 @@ func (s *Runner) scanApplication(ctx context.Context, scan *types.ScanTask, root
 	})
 	if result.Vulns != nil {
 		result.Vulns.SourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA
-		result.Vulns.ID = scan.CloudID.String()
+		result.Vulns.ID = scan.CloudID.AsText()
 		result.Vulns.Tags = []string{
-			"runtime_id:" + scan.CloudID.String(),
+			"runtime_id:" + scan.CloudID.AsText(),
 			"service_version:TODO", // XXX
 		}
 	}

@@ -184,7 +184,7 @@ func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotID
 // new volume.
 func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, snapshotID types.CloudID) error {
 	if snapshotID.ResourceType() != types.ResourceTypeSnapshot {
-		return fmt.Errorf("expected snapshot resource: %s", snapshotID.String())
+		return fmt.Errorf("expected snapshot resource: %s", snapshotID)
 	}
 	self, err := GetSelfEC2InstanceIndentity(ctx)
 	if err != nil {

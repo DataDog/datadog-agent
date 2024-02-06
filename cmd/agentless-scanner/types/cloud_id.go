@@ -42,19 +42,15 @@ type CloudID struct {
 	arn string
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (id *CloudID) UnmarshalText(text []byte) error {
-	v, err := ParseCloudID(string(text))
-	if err != nil {
-		return err
+// AsText returns the string representation of the CloudID.
+func (id CloudID) AsText() string {
+	switch id.provider {
+	case CloudProviderNone:
+		return fmt.Sprintf("localhost:%s", id.path)
+	case CloudProviderAWS:
+		return id.arn
 	}
-	*id = v
-	return nil
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (id CloudID) MarshalText() (text []byte, err error) {
-	return []byte(id.String()), nil
+	panic("unimplemented")
 }
 
 // Provider returns the cloud provider of the resource.
@@ -83,13 +79,22 @@ func (id CloudID) ResourceName() string {
 }
 
 func (id CloudID) String() string {
-	switch id.provider {
-	case CloudProviderNone:
-		return fmt.Sprintf("localhost:%s", id.path)
-	case CloudProviderAWS:
-		return id.arn
+	return id.AsText()
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (id *CloudID) UnmarshalText(text []byte) error {
+	v, err := ParseCloudID(string(text))
+	if err != nil {
+		return err
 	}
-	panic("unimplemented")
+	*id = v
+	return nil
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (id CloudID) MarshalText() (text []byte, err error) {
+	return []byte(id.AsText()), nil
 }
 
 var (

@@ -83,7 +83,7 @@ func GetConfig(ctx context.Context, region string, assumedRole *types.CloudID) a
 	}
 	stsclient := sts.NewFromConfig(cfg)
 	if assumedRole != nil {
-		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.String())
+		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.AsText())
 		cfg.Credentials = aws.NewCredentialsCache(stsassume)
 	}
 

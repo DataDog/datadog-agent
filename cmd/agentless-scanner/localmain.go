@@ -68,8 +68,8 @@ func localScanCmd(resourceID types.CloudID, targetHostname string, actions []typ
 		return err
 	}
 	roles := getDefaultRolesMapping()
-	fmt.Println("RESOURCE %v", resourceID.String())
-	task, err := types.NewScanTask(taskType, resourceID.String(), hostname, targetHostname, actions, roles, diskMode)
+	fmt.Println("RESOURCE %v", resourceID.AsText())
+	task, err := types.NewScanTask(taskType, resourceID.AsText(), hostname, targetHostname, actions, roles, diskMode)
 	if err != nil {
 		return err
 	}
