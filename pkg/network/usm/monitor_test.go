@@ -9,6 +9,7 @@ package usm
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -35,7 +36,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -90,8 +93,17 @@ func TestMonitorProtocolFail(t *testing.T) {
 	}
 }
 
-type HTTPTestSuite struct {
+type httpTestSuite struct {
 	suite.Suite
+	isTLS bool
+}
+
+func (s *httpTestSuite) getCfg() *config.Config {
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableGoTLSSupport = s.isTLS
+	cfg.GoTLSExcludeSelf = s.isTLS
+	return cfg
 }
 
 func TestHTTP(t *testing.T) {
@@ -99,12 +111,36 @@ func TestHTTP(t *testing.T) {
 		t.Skipf("USM is not supported on %v", kv)
 	}
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		suite.Run(t, new(HTTPTestSuite))
+		for _, tc := range []struct {
+			name  string
+			isTLS bool
+		}{
+			{
+				name:  "without TLS",
+				isTLS: false,
+			},
+			{
+				name:  "with TLS",
+				isTLS: true,
+			},
+		} {
+			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			t.Run(tc.name, func(t *testing.T) {
+				suite.Run(t, &httpTestSuite{isTLS: tc.isTLS})
+			})
+		}
 	})
 }
 
-func (s *HTTPTestSuite) TestHTTPStats() {
+func (s *httpTestSuite) TestHTTPStats() {
 	t := s.T()
+
+	const serverAddr = "127.0.0.1:8080"
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddr, s.isTLS)
+	t.Cleanup(cancel)
 
 	testCases := []struct {
 		name                  string
@@ -121,18 +157,24 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			// Start an HTTP server on localhost:8080
-			serverAddr := "127.0.0.1:8080"
+			// Start an HTTP/HTTPS Server
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
+				EnableTLS:       s.isTLS,
 			})
 			t.Cleanup(srvDoneFn)
 
-			cfg := config.New()
+			// Wait for the proxy server to be ready.
+			require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+			cfg := s.getCfg()
 			cfg.EnableHTTPStatsByStatusCode = tt.aggregateByStatusCode
-			monitor := newHTTPMonitorWithCfg(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
 
-			resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
+			client := getHTTPUnixClientArray(1, unixPath)[0]
+			resp, err := client.Get(fmt.Sprintf("http://unix/%d/test", nethttp.StatusNoContent))
 			require.NoError(t, err)
 			_ = resp.Body.Close()
 			srvDoneFn()
@@ -143,7 +185,7 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 
 				for key, reqStats := range stats {
 					if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
-						currentStats := reqStats.Data[reqStats.NormalizeStatusCode(204)]
+						currentStats := reqStats.Data[reqStats.NormalizeStatusCode(nethttp.StatusNoContent)]
 						if currentStats != nil && currentStats.Count == 1 {
 							return true
 						}
@@ -158,13 +200,16 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
 // we send another request. We expect to capture the another request but not the incomplete requests.
-func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
+func (s *httpTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	t := s.T()
+	if s.isTLS {
+		t.Skip("TLS not supported for this setup")
+	}
 
 	slowServerAddr := "localhost:8080"
 	fastServerAddr := "localhost:8081"
 
-	monitor := newHTTPMonitorWithCfg(t, config.New())
+	monitor := setupUSMTLSMonitor(t, s.getCfg())
 	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
 		SlowResponse: time.Millisecond * 500, // Half a second.
 		WriteTimeout: time.Millisecond * 200,
@@ -172,7 +217,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	})
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
-	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
+	abortedRequestFn := requestGenerator(t, nil, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
 	wg := sync.WaitGroup{}
 	abortedRequests := make(chan *nethttp.Request, 100)
 	for i := 0; i < 100; i++ {
@@ -183,7 +228,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 			abortedRequests <- req
 		}()
 	}
-	fastReq := requestGenerator(t, fastServerAddr, emptyBody)()
+	fastReq := requestGenerator(t, nil, fastServerAddr, emptyBody)()
 	wg.Wait()
 	close(abortedRequests)
 	slowSrvDoneFn()
@@ -208,9 +253,12 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	require.True(t, foundFastReq)
 }
 
-func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
+func (s *httpTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	t := s.T()
-	serverAddr := "localhost:8080"
+	const serverAddr = "127.0.0.1:8080"
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddr, s.isTLS)
+	t.Cleanup(cancel)
 
 	tests := []struct {
 		name            string
@@ -239,13 +287,18 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := newHTTPMonitorWithCfg(t, config.New())
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
+				EnableTLS:       s.isTLS,
 			})
 			t.Cleanup(srvDoneFn)
-
-			requestFn := requestGenerator(t, serverAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
+			// Wait for the proxy server to be ready.
+			require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+			monitor := setupUSMTLSMonitor(t, s.getCfg())
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+			requestFn := requestGenerator(t, getHTTPUnixClientArray(1, unixPath)[0], serverAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
 			for i := 0; i < 100; i++ {
 				requests = append(requests, requestFn())
@@ -260,9 +313,12 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 // TestHTTPMonitorIntegrationSlowResponse sends a request and getting a slow response.
 // The test checks multiple scenarios regarding USM's internal timeouts and cleaning intervals, and based on the values
 // we check if we captured a request (and if we should have), or we didn't capture (and if we shouldn't have).
-func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
+func (s *httpTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	t := s.T()
-	serverAddr := "localhost:8080"
+	const serverAddr = "localhost:8080"
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddr, s.isTLS)
+	t.Cleanup(cancel)
 
 	tests := []struct {
 		name                         string
@@ -295,10 +351,13 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.New()
+			cfg := s.getCfg()
 			cfg.HTTPMapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
 			cfg.HTTPIdleConnectionTTL = time.Duration(tt.httpIdleConnectionTTLSeconds) * time.Second
-			monitor := newHTTPMonitorWithCfg(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
 			serverTimeout := slowResponseTimeout + time.Second
@@ -306,12 +365,14 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 				WriteTimeout: serverTimeout,
 				ReadTimeout:  serverTimeout,
 				SlowResponse: slowResponseTimeout,
+				EnableTLS:    s.isTLS,
 			})
 			t.Cleanup(srvDoneFn)
+			require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
-			// Create a request generator `requestGenerator(t, serverAddr, emptyBody)`, and runs it once. We save
+			// Create a request generator `requestGenerator(t, nil, serverAddr, emptyBody)`, and runs it once. We save
 			// the request for a later comparison.
-			req := requestGenerator(t, serverAddr, emptyBody)()
+			req := requestGenerator(t, getHTTPUnixClientArray(1, unixPath)[0], serverAddr, emptyBody)()
 			srvDoneFn()
 
 			// Ensure all captured transactions get sent to user-space
@@ -334,7 +395,7 @@ func testNameHelper(optionTrue, optionFalse string, value bool) string {
 // 2. Server and client do not support keep alive, and there is no NAT.
 // 3. Server and client support keep alive, and there is DNAT.
 // 4. Server and client do not support keep alive, and there is DNAT.
-func (s *HTTPTestSuite) TestSanity() {
+func (s *httpTestSuite) TestSanity() {
 	t := s.T()
 	serverAddrWithoutNAT := "localhost:8080"
 	targetAddrWithNAT := "2.2.2.2:8080"
@@ -360,21 +421,33 @@ func (s *HTTPTestSuite) TestSanity() {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			// Start the proxy server.
+			proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, tt.targetAddress, s.isTLS)
+			t.Cleanup(cancel)
+
 			for _, keepAliveEnabled := range []bool{true, false} {
 				t.Run(testNameHelper("with keep alive", "without keep alive", keepAliveEnabled), func(t *testing.T) {
-					monitor := newHTTPMonitorWithCfg(t, config.New())
+					monitor := setupUSMTLSMonitor(t, s.getCfg())
+					if s.isTLS {
+						utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+					}
 
-					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{EnableKeepAlive: keepAliveEnabled})
+					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{
+						EnableKeepAlive: keepAliveEnabled,
+						EnableTLS:       s.isTLS,
+					})
 					t.Cleanup(srvDoneFn)
 
+					client := getHTTPUnixClientArray(1, unixPath)[0]
 					// Create a request generator that will be used to randomly generate requests and send them to the server.
-					requestFn := requestGenerator(t, tt.targetAddress, emptyBody)
+					requestFn := requestGenerator(t, client, "unix", emptyBody)
 					var requests []*nethttp.Request
 					for i := 0; i < 100; i++ {
 						// Send a request to the server and save it for later comparison.
 						requests = append(requests, requestFn())
 					}
 					srvDoneFn()
+					client.CloseIdleConnections()
 
 					// Ensure USM captured all requests.
 					assertAllRequestsExists(t, monitor, requests)
@@ -385,10 +458,13 @@ func (s *HTTPTestSuite) TestSanity() {
 }
 
 // TestRSTPacketRegression checks that USM captures a request that was forcefully terminated by a RST packet.
-func (s *HTTPTestSuite) TestRSTPacketRegression() {
+func (s *httpTestSuite) TestRSTPacketRegression() {
 	t := s.T()
+	if s.isTLS {
+		t.Skip("TLS not supported for this setup")
+	}
 
-	monitor := newHTTPMonitorWithCfg(t, config.New())
+	monitor := setupUSMTLSMonitor(t, s.getCfg())
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
@@ -411,19 +487,26 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	c.Close()
 	time.Sleep(100 * time.Millisecond)
 
-	// Assert that the HTTP request was correctly handled despite its forceful termination
-	stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
-	checkRequestIncluded(t, stats, &nethttp.Request{URL: url}, true)
+
+	require.Eventually(t, func() bool {
+		// Assert that the HTTP request was correctly handled despite its forceful termination
+		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+		included, err := isRequestIncludedOnce(stats, &nethttp.Request{URL: url})
+		return err == nil && included
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 }
 
 // TestKeepAliveWithIncompleteResponseRegression checks that USM captures a request, although we initially saw a
 // response and then a request with its response.
-func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
+func (s *httpTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	t := s.T()
+	if s.isTLS {
+		t.Skip("TLS not supported for this setup")
+	}
 
-	monitor := newHTTPMonitorWithCfg(t, config.New())
+	monitor := setupUSMTLSMonitor(t, s.getCfg())
 
 	const req = "GET /200/foobar HTTP/1.1\n"
 	const rsp = "HTTP/1.1 200 OK\n"
@@ -530,21 +613,24 @@ var (
 	statusCodes         = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
 )
 
-func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *nethttp.Request {
+func requestGenerator(t *testing.T, outerClient *nethttp.Client, targetAddr string, reqBody []byte) func() *nethttp.Request {
 	var (
 		random  = rand.New(rand.NewSource(time.Now().Unix()))
 		idx     = 0
-		client  = new(nethttp.Client)
 		reqBuf  = make([]byte, 0, len(reqBody))
 		respBuf = make([]byte, 512)
 	)
 
-	// Disabling http2
-	tr := nethttp.DefaultTransport.(*nethttp.Transport).Clone()
-	tr.ForceAttemptHTTP2 = false
-	tr.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) nethttp.RoundTripper)
+	client := outerClient
+	if client == nil {
+		client = new(nethttp.Client)
+		// Disabling http2
+		tr := nethttp.DefaultTransport.(*nethttp.Transport).Clone()
+		tr.ForceAttemptHTTP2 = false
+		tr.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) nethttp.RoundTripper)
 
-	client.Transport = tr
+		client.Transport = tr
+	}
 
 	return func() *nethttp.Request {
 		idx++
@@ -631,26 +717,26 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	return occurrences
 }
 
-func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
-	cfg.EnableHTTPMonitoring = true
-
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	skipIfNotSupported(t, err)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		monitor.Stop()
-		libtelemetry.Clear()
-	})
-
-	// at this stage the test can be legitimately skipped due to missing BTF information
-	// in the context of CO-RE
-	require.NoError(t, monitor.Start())
-	return monitor
-}
-
 func skipIfNotSupported(t *testing.T, err error) {
 	notSupported := new(errNotSupported)
 	if errors.As(err, &notSupported) {
 		t.Skipf("skipping test because this kernel is not supported: %s", notSupported)
 	}
+}
+
+// getHTTPUnixClientArray creates an array of http clients over a unix socket.
+func getHTTPUnixClientArray(size int, unixPath string) []*nethttp.Client {
+	res := make([]*nethttp.Client, size)
+	for i := 0; i < size; i++ {
+		res[i] = &nethttp.Client{
+			Transport: &nethttp.Transport{
+				ForceAttemptHTTP2: false,
+				TLSNextProto:      make(map[string]func(string, *tls.Conn) nethttp.RoundTripper),
+				DialContext: func(context.Context, string, string) (net.Conn, error) {
+					return net.Dial("unix", unixPath)
+				},
+			},
+		}
+	}
+	return res
 }
