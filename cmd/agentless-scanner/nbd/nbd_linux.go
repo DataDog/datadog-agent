@@ -19,19 +19,21 @@ import (
 	"path"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jinroh/go-nbd/pkg/backend"
 	"github.com/jinroh/go-nbd/pkg/server"
 )
 
 var (
-	ebsBlockDevices   = make(map[string]*ebsBlockDevice)
-	ebsBlockDevicesMu sync.Mutex
+	nbds   = make(map[string]*nbd)
+	nbdsMu sync.Mutex
 )
 
-type ebsBlockDevice struct {
-	id         string
+type nbd struct {
 	b          backend.Backend
+	scan       *types.ScanTask
 	deviceName string
 	srv        net.Listener
 	closed     chan struct{}
@@ -40,25 +42,25 @@ type ebsBlockDevice struct {
 
 // StartNBDBlockDevice starts the NBD server and client for the given device
 // name with the provided backend.
-func StartNBDBlockDevice(id string, deviceName string, b backend.Backend) error {
-	bd := &ebsBlockDevice{
-		id:         id,
+func StartNBDBlockDevice(scan *types.ScanTask, deviceName string, b backend.Backend) error {
+	bd := &nbd{
+		scan:       scan,
 		b:          b,
 		deviceName: deviceName,
 		closed:     make(chan struct{}),
 		closing:    make(chan struct{}),
 	}
-	ebsBlockDevicesMu.Lock()
-	if _, ok := ebsBlockDevices[bd.deviceName]; ok {
-		ebsBlockDevicesMu.Unlock()
-		return fmt.Errorf("ebsblockdevice: already running nbd server for device %q", bd.deviceName)
+	nbdsMu.Lock()
+	if _, ok := nbds[bd.deviceName]; ok {
+		nbdsMu.Unlock()
+		return fmt.Errorf("nbd: already running nbd server for device %q", bd.deviceName)
 	}
-	ebsBlockDevices[bd.deviceName] = bd
-	ebsBlockDevicesMu.Unlock()
+	nbds[bd.deviceName] = bd
+	nbdsMu.Unlock()
 
 	_, err := os.Stat(bd.deviceName)
 	if err != nil {
-		return fmt.Errorf("ebsblockdevice: could not stat device %q: %w", bd.deviceName, err)
+		return fmt.Errorf("nbd: could not stat device %q: %w", bd.deviceName, err)
 	}
 	if err := bd.startServer(); err != nil {
 		return err
@@ -71,36 +73,51 @@ func StartNBDBlockDevice(id string, deviceName string, b backend.Backend) error 
 
 // StopNBDBlockDevice stops the NBD server and client for the given device name.
 func StopNBDBlockDevice(ctx context.Context, deviceName string) {
+	nbdsMu.Lock()
+	bd, ok := nbds[deviceName]
+	delete(nbds, deviceName)
+	nbdsMu.Unlock()
+
+	if !ok {
+		log.Debugf("nbdclient: disconnecting unknown client for device %q", deviceName)
+		if err := exec.CommandContext(ctx, "nbd-client", "-d", deviceName).Run(); err != nil {
+			log.Errorf("nbd-client: %q disconnecting failed: %v", deviceName, err)
+		} else {
+			log.Tracef("nbd-client: %q disconnected", deviceName)
+		}
+		return
+	}
+
 	log.Debugf("nbdclient: disconnecting client for device %q", deviceName)
 	if err := exec.CommandContext(ctx, "nbd-client", "-d", deviceName).Run(); err != nil {
-		log.Errorf("nbd-client: %q disconnecting failed: %v", deviceName, err)
+		log.Errorf("%s: nbd-client: %q disconnecting failed: %v", bd.scan, deviceName, err)
 	} else {
-		log.Tracef("nbd-client: %q disconnected", deviceName)
+		log.Tracef("%s: nbd-client: %q disconnected", bd.scan, deviceName)
 	}
-	ebsBlockDevicesMu.Lock()
-	defer ebsBlockDevicesMu.Unlock()
-	if bd, ok := ebsBlockDevices[deviceName]; ok {
-		if err := bd.waitServerClosed(ctx); err != nil {
-			log.Errorf("nbdserver: %q could not close: %v", deviceName, err)
-		}
-		delete(ebsBlockDevices, deviceName)
+	if err := bd.waitServerClosed(ctx); err != nil {
+		log.Errorf("%s: nbdserver: %q could not close: %v", bd.scan, deviceName, err)
 	}
+	return
 }
 
-func (bd *ebsBlockDevice) getSocketAddr() string {
-	return fmt.Sprintf("/tmp/nbd-%s-%s.sock", bd.id, path.Base(bd.deviceName))
+func (bd *nbd) String() string {
+	return fmt.Sprintf("nbdserver: %q", bd.deviceName)
 }
 
-func (bd *ebsBlockDevice) startClient() error {
+func (bd *nbd) getSocketAddr() string {
+	return fmt.Sprintf("/tmp/nbd-%s-%s.sock", bd.scan.ID, path.Base(bd.deviceName))
+}
+
+func (bd *nbd) startClient() error {
 	_, err := exec.LookPath("nbd-client")
 	if err != nil {
-		return fmt.Errorf("ebsblockdevice: could not locate 'nbd-client' util binary in PATH: %w", err)
+		return fmt.Errorf("nbd: could not locate 'nbd-client' util binary in PATH: %w", err)
 	}
 	addr := bd.getSocketAddr()
 	cmd := exec.CommandContext(context.Background(), "nbd-client",
 		"-readonly",
 		"-unix", addr, bd.deviceName,
-		"-name", bd.id,
+		"-name", bd.scan.ID,
 		"-connections", "5")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -110,7 +127,7 @@ func (bd *ebsBlockDevice) startClient() error {
 	return nil
 }
 
-func (bd *ebsBlockDevice) startServer() (err error) {
+func (bd *nbd) startServer() (err error) {
 	defer func() {
 		if err != nil {
 			close(bd.closed)
@@ -119,15 +136,15 @@ func (bd *ebsBlockDevice) startServer() (err error) {
 
 	addr := bd.getSocketAddr()
 	if _, err := os.Stat(addr); err == nil {
-		return fmt.Errorf("ebsblockdevice: socket %q already exists", addr)
+		return fmt.Errorf("nbd: socket %q already exists", addr)
 	}
 
 	bd.srv, err = net.Listen("unix", addr)
 	if err != nil {
-		return fmt.Errorf("ebsblockdevice: could not list to %q: %w", addr, err)
+		return fmt.Errorf("nbd: could not list to %q: %w", addr, err)
 	}
 	if err := os.Chmod(addr, 0700); err != nil {
-		return fmt.Errorf("ebsblockdevice: could not chmod %q: %w", addr, err)
+		return fmt.Errorf("nbd: could not chmod %q: %w", addr, err)
 	}
 
 	conns := make(map[net.Conn]struct{})
@@ -183,7 +200,7 @@ func (bd *ebsBlockDevice) startServer() (err error) {
 	return nil
 }
 
-func (bd *ebsBlockDevice) waitServerClosed(ctx context.Context) error {
+func (bd *nbd) waitServerClosed(ctx context.Context) error {
 	close(bd.closing)
 	select {
 	case <-bd.closed:
@@ -197,12 +214,12 @@ func (bd *ebsBlockDevice) waitServerClosed(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (bd *ebsBlockDevice) serverHandleConn(conn net.Conn, backend backend.Backend) {
+func (bd *nbd) serverHandleConn(conn net.Conn, backend backend.Backend) {
 	log.Tracef("nbdserver: %q client connected ", bd.deviceName)
 	err := server.Handle(conn,
 		[]*server.Export{
 			{
-				Name:    bd.id,
+				Name:    bd.scan.ID,
 				Backend: backend,
 			},
 		},

@@ -169,7 +169,7 @@ func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotID
 	if err != nil {
 		return err
 	}
-	if err := nbd.StartNBDBlockDevice(scan.ID, device, backend); err != nil {
+	if err := nbd.StartNBDBlockDevice(scan, device, backend); err != nil {
 		return err
 	}
 	_, err = devices.Poll(ctx, scan, device, nil)
