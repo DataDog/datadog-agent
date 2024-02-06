@@ -30,10 +30,12 @@ import (
 )
 
 const (
-	defaultPasswdPath     = "/etc/passwd"
-	defaultGroupPath      = "/etc/group"
+	defaultPasswdPath = "/etc/passwd"
+	defaultGroupPath  = "/etc/group"
+	// EnvPasswdPathOverride define the env to set to override the default passwd file path
 	EnvPasswdPathOverride = "TEST_DD_PASSWD_PATH"
-	EnvGroupPathOverride  = "TEST_DD_GROUP_PATH"
+	// EnvGroupPathOverride define the env to set to override the default group file path
+	EnvGroupPathOverride = "TEST_DD_GROUP_PATH"
 )
 
 var (
