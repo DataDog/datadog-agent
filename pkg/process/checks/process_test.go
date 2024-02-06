@@ -542,3 +542,30 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
 }
+
+func TestProcessContextCollection(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", now)
+	processesByPid := map[int32]*procutil.Process{1: proc1}
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+	first, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+	}
+
+	actual, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Payloads())
+	
+}
