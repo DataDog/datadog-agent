@@ -178,12 +178,19 @@ const (
 type Kind int
 
 const (
+	// Series is the transaction type for metrics series
 	Series = iota
+	// Sketches is the transaction type for distribution sketches
 	Sketches
+	// ServiceChecks is the transaction type for service checks
 	ServiceChecks
+	// Events is the transaction type for events
 	Events
+	// CheckRuns is the transaction type for agent check runs
 	CheckRuns
+	// Metadata is the transaction type for metadata payloads
 	Metadata
+	// Process is the transaction type for live-process monitoring payloads
 	Process
 )
 
