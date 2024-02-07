@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"context"
 
 	"github.com/coreos/go-systemd/v22/dbus"
 	"gopkg.in/yaml.v2"
@@ -180,7 +181,7 @@ func (s *defaultSystemdStats) PrivateSocketConnection(privateSocket string) (*db
 }
 
 func (s *defaultSystemdStats) SystemBusSocketConnection() (*dbus.Conn, error) {
-	return dbus.NewSystemConnectionContext()
+	return dbus.NewSystemConnectionContext(context.Background())
 }
 
 func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
@@ -188,15 +189,15 @@ func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
 }
 
 func (s *defaultSystemdStats) SystemState(c *dbus.Conn) (*dbus.Property, error) {
-	return c.SystemStateContext()
+	return c.SystemStateContext(context.Background())
 }
 
 func (s *defaultSystemdStats) ListUnits(conn *dbus.Conn) ([]dbus.UnitStatus, error) {
-	return conn.ListUnitsContext()
+	return conn.ListUnitsContext(context.Background())
 }
 
 func (s *defaultSystemdStats) GetUnitTypeProperties(c *dbus.Conn, unitName string, unitType string) (map[string]interface{}, error) {
-	return c.GetUnitTypePropertiesContext(unitName, unitType)
+	return c.GetUnitTypePropertiesContext(context.Background(), unitName, unitType)
 }
 
 func (s *defaultSystemdStats) GetVersion(c *dbus.Conn) (string, error) {
