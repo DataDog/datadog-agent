@@ -123,16 +123,16 @@ type SpanContext struct {
 
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
-	ID           string             `field:"-" event:"*"`
-	Type         uint32             `field:"-"`
-	Flags        uint32             `field:"-"`
-	TimestampRaw uint64             `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp    time.Time          `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
-	Rules        []*MatchedRule     `field:"-"`
-	Actions      []*ActionTriggered `field:"-"`
-	Origin       string             `field:"-"`
-	Suppressed   bool               `field:"-"`
-	Service      string             `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
+	ID            string         `field:"-" event:"*"`
+	Type          uint32         `field:"-"`
+	Flags         uint32         `field:"-"`
+	TimestampRaw  uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
+	Rules         []*MatchedRule `field:"-"`
+	ActionReports []ActionReport `field:"-"`
+	Origin        string         `field:"-"`
+	Suppressed    bool           `field:"-"`
+	Service       string         `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -266,9 +266,9 @@ func (e *Event) GetTags() []string {
 	return tags
 }
 
-// GetActions returns the triggred actions
-func (e *Event) GetActions() []*ActionTriggered {
-	return e.Actions
+// GetActionReports returns the triggred action reports
+func (e *Event) GetActionReports() []ActionReport {
+	return e.ActionReports
 }
 
 // GetWorkloadID returns an ID that represents the workload
@@ -328,10 +328,9 @@ type MatchedRule struct {
 	PolicyVersion string
 }
 
-// ActionTriggered defines a triggered action
-type ActionTriggered struct {
-	Name  string
-	Value string
+// ActionReport defines an action report
+type ActionReport interface {
+	ToJSON() ([]byte, error)
 }
 
 // NewMatchedRule return a new MatchedRule instance

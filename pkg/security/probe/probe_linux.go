@@ -17,6 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	defaultKillActionFlushDelay = 2 * time.Second
+)
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()
@@ -45,21 +49,13 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	return p, nil
 }
 
-type killActionTracker struct {
-	pid       uint32
-	createdAt time.Time
-	killedAt  time.Time
-	exitedAt  time.Time
-}
-
-func handleKillActions(action *rules.ActionDefinition, ev *model.Event, kill func(pid uint32, sig uint32) error) {
-
-	var pids []uint32
-
+func handleKillActions(action *rules.ActionDefinition, ev *model.Event, kill func(pid uint32, sig uint32) error) *KillActionReport {
 	entry, exists := ev.ResolveProcessCacheEntry()
 	if !exists {
-		return
+		return nil
 	}
+
+	var pids []uint32
 
 	if entry.ContainerID != "" && action.Kill.Scope == "container" {
 		pids = entry.GetContainerPIDs()
@@ -77,12 +73,19 @@ func handleKillActions(action *rules.ActionDefinition, ev *model.Event, kill fun
 		log.Debugf("requesting signal %s to be sent to %d", action.Kill.Signal, pid)
 
 		if err := kill(uint32(pid), uint32(sig)); err != nil {
-			seclog.Warnf("failed to kill process %d: %s", pid, err)
+			seclog.Debugf("failed to kill process %d: %s", pid, err)
 		}
 	}
 
-	ev.Actions = append(ev.Actions, &model.ActionTriggered{
-		Name:  rules.KillAction,
-		Value: action.Kill.Signal,
-	})
+	report := &KillActionReport{
+		Signal:     action.Kill.Signal,
+		Pid:        ev.ProcessContext.Pid,
+		CreatedAt:  ev.ProcessContext.ExecTime,
+		DetectedAt: ev.ResolveEventTime(),
+		KilledAt:   time.Now(),
+	}
+
+	ev.ActionReports = append(ev.ActionReports, report)
+
+	return report
 }
