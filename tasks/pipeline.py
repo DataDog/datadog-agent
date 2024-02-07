@@ -578,7 +578,7 @@ def changelog(ctx, new_commit_sha):
     if old_commit_sha == new_commit_sha:
         print("No new commits found, exiting")
         slack_message += no_commits_msg
-        # send_slack_message("system-probe-ops", slack_message)
+        send_slack_message("system-probe-ops-test", slack_message)
         return
 
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
@@ -623,7 +623,7 @@ def changelog(ctx, new_commit_sha):
         slack_message += empty_changelog_msg
 
     print(f"Posting message to slack: \n {slack_message}")
-    # send_slack_message("system-probe-ops", slack_message)
+    send_slack_message("system-probe-ops-test", slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
     # ctx.run(
     #     f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
