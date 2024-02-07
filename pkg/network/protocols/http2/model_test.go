@@ -85,7 +85,7 @@ func TestHTTP2Method(t *testing.T) {
 		want   http.Method
 	}{
 		{
-			name: "Sanity method test Method",
+			name: "Sanity method test",
 			Stream: http2Stream{
 				Request_method: http2requestMethod{
 					Raw_buffer:         [7]uint8{0x50, 0x55, 0x54},
