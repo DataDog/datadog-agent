@@ -4,6 +4,7 @@ include:
   - /.gitlab/shared.yml
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
+  - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
@@ -42,7 +43,6 @@ include:
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
   - /.gitlab/functional_test_junit_upload.yml
-  - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
@@ -67,6 +67,7 @@ default:
 stages:
   - .pre
   - setup
+  - internal_kubernetes_deploy
   - maintenance_jobs
   - deps_build
   - deps_fetch
@@ -105,7 +106,6 @@ stages:
   - functional_test_sysprobe
   - functional_test_cleanup
   - functional_test_junit_upload
-  - internal_kubernetes_deploy
   - post_rc_build
   - check_merge
   - notify
