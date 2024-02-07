@@ -8,6 +8,8 @@ package host
 
 import (
 	"context"
+
+	"github.com/shirou/gopsutil/v3/host"
 )
 
 // team: agent-shared-components
@@ -15,4 +17,5 @@ import (
 // Component is the component type.
 type Component interface {
 	GetPayloadAsJSON(ctx context.Context) ([]byte, error)
+	GetInformation() *host.InfoStat
 }

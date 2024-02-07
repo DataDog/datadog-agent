@@ -221,6 +221,31 @@ func FormatCheckStats(data []byte) (string, error) {
 	return b.String(), nil
 }
 
+// FormatAgentTelemetry takes a json bytestring and prints out the formatted agent telemetry template.
+func FormatAgentTelemetry(stats map[string]interface{}, renderTmplSuffix string) ([]byte, error) {
+	telemetrystats := make(map[string]interface{})
+
+	// Pluck the relevant parts of the status JSON
+	if rs, ok := stats["runnerStats"]; ok {
+		telemetrystats["RunnerStats"] = rs
+	}
+	if dsd, ok := stats["dogstatsdStats"]; ok {
+		telemetrystats["DogStatsdStats"] = dsd
+	}
+
+	var b = new(bytes.Buffer)
+	var errs []error
+	telemetryTemplate := fmt.Sprintf("/agent-telemetry-%s.tmpl", renderTmplSuffix)
+	if err := ParseTemplate(b, telemetryTemplate, telemetrystats); err != nil {
+		errs = append(errs, err)
+	}
+	if err := renderErrors(b, errs); err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
 //go:embed templates
 var templatesFS embed.FS
 

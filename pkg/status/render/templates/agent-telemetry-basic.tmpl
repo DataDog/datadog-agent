@@ -1,0 +1,18 @@
+{
+  {{- with .RunnerStats }}
+  "checks": {
+    "running_checks": {{.RunningChecks}},
+    "runs": {{.Runs}}
+  },
+  {{- end }}
+  {{- with .DogStatsdStats -}}
+  {{- $alreadyIterated := 0 }}
+  "dogstatsd": {
+  {{- range $key, $value := .}}
+    {{- if (gt $alreadyIterated 0)}},{{- end }}
+    "{{$key}}": {{$value}}
+    {{- $alreadyIterated = 1 }}
+  {{- end }}
+  }
+  {{- end }}
+}  
