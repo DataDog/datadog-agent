@@ -221,7 +221,7 @@ func (t *printkPatcherModifier) Name() string {
 }
 
 func (t *printkPatcherModifier) BeforeInit(m *ddebpf.Manager, _ *manager.Options) error {
-	m.InstructionPatcher = PatchPrintkNewline
+	m.InstructionPatchers = append(m.InstructionPatchers, PatchPrintkNewline)
 	return nil
 }
 

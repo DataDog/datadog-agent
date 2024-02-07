@@ -76,7 +76,7 @@ func TestPatchPrintkNewline(t *testing.T) {
 			},
 			MapEditors: make(map[string]*ebpf.Map),
 		}
-		mgr.InstructionPatcher = PatchPrintkNewline
+		mgr.InstructionPatchers = append(mgr.InstructionPatchers, PatchPrintkNewline)
 
 		tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
 		require.NoError(t, err)
