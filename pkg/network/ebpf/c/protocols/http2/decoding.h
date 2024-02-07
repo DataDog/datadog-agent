@@ -469,6 +469,16 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
     //  4. We failed reading any frame. Aborting.
 
     // Frame-header-remainder.
+
+    if (frame_state->header_length == HTTP2_FRAME_HEADER_SIZE) {
+        // A case where we read an interesting valid frame header in the previous call, and now we're trying to read the
+        // rest of the frame payload. But, since we already read a valid frame, we just fill it as an interesting frame,
+        // and continue to the next tail call.
+        // Copy the cached frame header to the current frame.
+        bpf_memcpy((char *)current_frame, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
+        frame_state->remainder = 0;
+        return true;
+    }
     if (frame_state->header_length > 0) {
         fix_header_frame(skb, skb_info, (char*)current_frame, frame_state);
         if (format_http2_frame_header(current_frame)) {
@@ -633,22 +643,6 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         return 0;
     }
 
-    // A case where we read an interesting valid frame header in the previous call, and now we're trying to read the
-    // rest of the frame payload. But, since we already read a valid frame, we just fill it as an interesting frame,
-    // and continue to the next tail call.
-    if (frame_state != NULL && frame_state->header_length == HTTP2_FRAME_HEADER_SIZE) {
-        // Copy the cached frame header to the current frame.
-        bpf_memcpy((char *)&current_frame, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
-        // Delete the cached frame header.
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
-        // Save the frame as an interesting frame (a.k.a, restoring the state we had in the previous call).
-        // We need to do so, as we're zeroing the iteration_value at the beginning of this function.
-        iteration_value->frames_array[0].frame = current_frame;
-        iteration_value->frames_array[0].offset = 0;
-        iteration_value->frames_count = 1;
-        // Continuing to the next tail call.
-        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
-    }
     if (!get_first_frame(skb, &dispatcher_args_copy.skb_info, frame_state, &current_frame, http2_tel)) {
         return 0;
     }
@@ -679,6 +673,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
             bpf_memcpy(new_frame_state.buf, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
         }
 
+        iteration_value->frames_count = 0;
         bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
         // Not calling the next tail call as we have nothing to process.
         return 0;

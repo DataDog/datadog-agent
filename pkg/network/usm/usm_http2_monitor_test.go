@@ -1160,7 +1160,11 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
+				telem, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS)
+				if err == nil {
+					t.Logf("telemetry: %+v", telem)
+				}
 			}
 		})
 	}
@@ -1388,6 +1392,7 @@ func writeInput(c net.Conn, timeout time.Duration, inputs ...[]byte) error {
 		if _, err := c.Write(input); err != nil {
 			return err
 		}
+		time.Sleep(time.Millisecond * 10)
 	}
 	// Since we don't know when to stop reading from the socket, we set a timeout.
 	if err := c.SetReadDeadline(time.Now().Add(timeout)); err != nil {
