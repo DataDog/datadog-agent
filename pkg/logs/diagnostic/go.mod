@@ -18,6 +18,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../util/testutils
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../util/optional

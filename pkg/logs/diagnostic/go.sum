@@ -9,8 +9,6 @@ github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0-rc.2 h1:r0oFEwVFnr7
 github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0-rc.2/go.mod h1:bXUOZOuw5eYyTwPgPodrGu2h4ziKMOHutfUaTwPhhX0=
 github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-rc.2 h1:OCnwpBOwS/BRYV0gXoDDeA926DeiSoTFyA2K8uvHU80=
 github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-rc.2/go.mod h1:YJucwMRrRdWbI1hUOyNeXS2uLT9HshHhdLD8f1qKagY=
-github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.2 h1:aeYwvAFgVyAJnuSfdAiOuEQCcs5JN1Ah0pjpcq5tlaI=
-github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.2/go.mod h1:+ViwDZ54Ox34yYqgYozTFx7xjXG/+IhhudfE1Nx/9+A=
 github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.2 h1:o7Ys6VLP6wVQULSOlTlv/N9X9l4toLUBJSE+iOdA2vo=
 github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.2/go.mod h1:X7ODRWbUGbvM07oZPDbrYzKqt8205dXjD35M9yWrMm8=
 github.com/DataDog/viper v1.12.0 h1:FufyZpZPxyszafSV5B8Q8it75IhhuJwH0T7QpT6HnD0=
