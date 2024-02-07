@@ -159,6 +159,7 @@ type Event struct {
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
 	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
+	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
 	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
@@ -558,6 +559,12 @@ func (m *Mount) GetFSType() string {
 // IsOverlayFS returns whether it is an overlay fs
 func (m *Mount) IsOverlayFS() bool {
 	return m.GetFSType() == "overlay"
+}
+
+// ChdirEvent represents a chdir event
+type ChdirEvent struct {
+	SyscallEvent
+	File FileEvent `field:"file"`
 }
 
 // OpenEvent represents an open event

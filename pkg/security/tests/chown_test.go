@@ -258,6 +258,7 @@ func TestChown(t *testing.T) {
 }
 
 func TestChownUserGroup(t *testing.T) {
+	SkipIfNotEBPFLess(t) // the user/group overrides only work with the ptracer for now
 	SkipIfNotAvailable(t)
 
 	testUser := "test_user_1"
