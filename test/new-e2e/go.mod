@@ -13,8 +13,8 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.100
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.5
-	github.com/DataDog/datadog-agent/test/fakeintake v0.51.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.6
+	github.com/DataDog/datadog-agent/test/fakeintake v0.51.0-rc.6
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
