@@ -36,15 +36,8 @@ excluded_folders = [
   'docker_daemon',                 # Agent v5 only
 ]
 
-# package names of dependencies that won't be added to the Agent Python environment
-excluded_packages = Array.new
-
-# We build these manually
-excluded_packages.push(/^confluent-kafka==/)
-
 if osx_target?
   # Temporarily exclude Aerospike until builder supports new dependency
-  excluded_packages.push(/^aerospike==/)
   excluded_folders.push('aerospike')
   excluded_folders.push('teradata')
 end
@@ -53,18 +46,6 @@ if arm_target?
   # This doesn't build on ARM
   excluded_folders.push('ibm_ace')
   excluded_folders.push('ibm_mq')
-  excluded_packages.push(/^pymqi==/)
-end
-
-# _64_bit checks the kernel arch.  On windows, the builder is 64 bit
-# even when doing a 32 bit build.  Do a specific check for the 32 bit
-# build
-if arm_target? || !_64_bit? || (windows_target? && windows_arch_i386?)
-  excluded_packages.push(/^orjson==/)
-end
-
-if linux_target?
-  excluded_packages.push(/^oracledb==/)
 end
 
 final_constraints_file = 'final_constraints-py3.txt'
