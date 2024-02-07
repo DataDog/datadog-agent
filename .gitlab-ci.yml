@@ -49,8 +49,8 @@ include:
   - /.gitlab/functional_test/common.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
-  - /.gitlab/rc_jobs/rc_kubernetes_deploy.yml
-  - /.gitlab/rc_jobs/post_rc_tasks.yml
+#  - /.gitlab/rc_jobs/rc_kubernetes_deploy.yml
+#  - /.gitlab/rc_jobs/post_rc_tasks.yml
 
 default:
   retry:
@@ -68,47 +68,47 @@ stages:
   - .pre
   - setup
   - internal_kubernetes_deploy
-#  - maintenance_jobs
-#  - deps_build
-#  - deps_fetch
-#  - source_test
-#  - source_test_stats
-#  - source_test_junit_upload
-#  - binary_build
-#  - package_deps_build
-#  - kernel_matrix_testing
-#  - integration_test
-#  - benchmarks
-#  - package_build
-#  - kitchen_deploy
-#  - e2e_pre_test
-#  - e2e_pre_test_junit_upload
-#  - kitchen_testing
-#  - kitchen_tests_upload
-#  - pkg_metrics
-#  - container_build
-#  - container_scan
-#  - check_deploy
-#  - dev_container_deploy
-#  - deploy_containers
-#  - deploy_packages
-#  - deploy_cws_instrumentation
-#  - deploy_dca
-#  - trigger_release
-#  - choco_build
-#  - choco_deploy
-#  - internal_image_deploy
-#  - install_script_testing
-#  - e2e
-#  - e2e_test_junit_upload
-#  - kitchen_cleanup
-#  - functional_test
-#  - functional_test_sysprobe
-#  - functional_test_cleanup
-#  - functional_test_junit_upload
-#  - post_rc_build
-#  - check_merge
-#  - notify
+  - maintenance_jobs
+  - deps_build
+  - deps_fetch
+  - source_test
+  - source_test_stats
+  - source_test_junit_upload
+  - binary_build
+  - package_deps_build
+  - kernel_matrix_testing
+  - integration_test
+  - benchmarks
+  - package_build
+  - kitchen_deploy
+  - e2e_pre_test
+  - e2e_pre_test_junit_upload
+  - kitchen_testing
+  - kitchen_tests_upload
+  - pkg_metrics
+  - container_build
+  - container_scan
+  - check_deploy
+  - dev_container_deploy
+  - deploy_containers
+  - deploy_packages
+  - deploy_cws_instrumentation
+  - deploy_dca
+  - trigger_release
+  - choco_build
+  - choco_deploy
+  - internal_image_deploy
+  - install_script_testing
+  - e2e
+  - e2e_test_junit_upload
+  - kitchen_cleanup
+  - functional_test
+  - functional_test_sysprobe
+  - functional_test_cleanup
+  - functional_test_junit_upload
+  - post_rc_build
+  - check_merge
+  - notify
 
 variables:
   # Directory in which we execute the omnibus build.
