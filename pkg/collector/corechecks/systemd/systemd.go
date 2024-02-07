@@ -180,7 +180,7 @@ func (s *defaultSystemdStats) PrivateSocketConnection(privateSocket string) (*db
 }
 
 func (s *defaultSystemdStats) SystemBusSocketConnection() (*dbus.Conn, error) {
-	return dbus.NewSystemConnection()
+	return dbus.NewSystemConnectionContext()
 }
 
 func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
@@ -188,15 +188,15 @@ func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
 }
 
 func (s *defaultSystemdStats) SystemState(c *dbus.Conn) (*dbus.Property, error) {
-	return c.SystemState()
+	return c.SystemStateContext()
 }
 
 func (s *defaultSystemdStats) ListUnits(conn *dbus.Conn) ([]dbus.UnitStatus, error) {
-	return conn.ListUnits()
+	return conn.ListUnitsContext()
 }
 
 func (s *defaultSystemdStats) GetUnitTypeProperties(c *dbus.Conn, unitName string, unitType string) (map[string]interface{}, error) {
-	return c.GetUnitTypeProperties(unitName, unitType)
+	return c.GetUnitTypePropertiesContext(unitName, unitType)
 }
 
 func (s *defaultSystemdStats) GetVersion(c *dbus.Conn) (string, error) {
