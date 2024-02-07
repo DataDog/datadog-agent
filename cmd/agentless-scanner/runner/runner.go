@@ -504,21 +504,35 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName()}, pool)
 
 	case types.TaskTypeAMI:
-		mountpoints, err := awsutils.SetupEBS(ctx, scan, &s.waiter)
+		if err := awsutils.SetupEBS(ctx, scan, &s.waiter); err != nil {
+			return err
+		}
+		partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
+		if err != nil {
+			return err
+		}
+		mountpoints, err := devices.Mount(ctx, scan, partitions)
 		if err != nil {
 			return err
 		}
 		s.scanImage(ctx, scan, mountpoints, pool)
 
 	case types.TaskTypeEBS:
-		mountpoints, err := awsutils.SetupEBS(ctx, scan, &s.waiter)
-		if err != nil {
+		if err := awsutils.SetupEBS(ctx, scan, &s.waiter); err != nil {
 			return err
 		}
 		switch scan.DiskMode {
 		case types.DiskModeNoAttach:
 			s.scanSnaphotNoAttach(ctx, scan, pool)
 		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
+			partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
+			if err != nil {
+				return err
+			}
+			mountpoints, err := devices.Mount(ctx, scan, partitions)
+			if err != nil {
+				return err
+			}
 			s.scanRootFilesystems(ctx, scan, mountpoints, pool)
 		}
 
@@ -535,10 +549,9 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 	return nil
 }
 
-func (s *Runner) cleanupScan(scan *types.ScanTask) {
-	ctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-	defer cancel()
-
+// CleanupScanDir cleans up the scan directory on the filesystem: mountpoints,
+// pidfiles, sockets...
+func CleanupScanDir(ctx context.Context, scan *types.ScanTask) {
 	scanRoot := scan.Path()
 
 	log.Debugf("%s: cleaning up scan data on filesystem", scan)
@@ -615,6 +628,13 @@ func (s *Runner) cleanupScan(scan *types.ScanTask) {
 			nbd.StopNBDBlockDevice(ctx, *scan.AttachedDeviceName)
 		}
 	}
+}
+
+func (s *Runner) cleanupScan(scan *types.ScanTask) {
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+	defer cancel()
+
+	CleanupScanDir(ctx, scan)
 
 	switch scan.Type {
 	case types.TaskTypeEBS, types.TaskTypeAMI:
