@@ -180,21 +180,21 @@ func (tx *EbpfTx) Method() http.Method {
 			log.Errorf("method length %d is greater than the buffer: %v and is huffman encoded: %v",
 				tx.Stream.Request_method.Length, tx.Stream.Request_method.Raw_buffer, tx.Stream.Request_method.Is_huffman_encoded)
 		}
-		return 0
+		return http.MethodUnknown
 	}
 
 	// Case which the method is literal.
 	if tx.Stream.Request_method.Is_huffman_encoded {
 		method, err = hpack.HuffmanDecodeToString(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
 		if err != nil {
-			return 0
+			return http.MethodUnknown
 		}
 	} else {
 		method = string(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
 	}
 	http2Method, err := stringToHTTPMethod(method)
 	if err != nil {
-		return 0
+		return http.MethodUnknown
 	}
 	return http2Method
 }
