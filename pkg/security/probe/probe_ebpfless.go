@@ -108,7 +108,9 @@ func copyFileAttributes(src *ebpfless.OpenSyscallMsg, dst *model.FileEvent) {
 	dst.Flags = int32(src.Flags)
 	if src.Credentials != nil {
 		dst.UID = src.Credentials.UID
+		dst.User = src.Credentials.User
 		dst.GID = src.Credentials.GID
+		dst.Group = src.Credentials.Group
 	}
 }
 
@@ -126,8 +128,12 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		if syscallMsg.Exec.Credentials != nil {
 			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
 			entry.Credentials.EUID = syscallMsg.Exec.Credentials.EUID
+			entry.Credentials.User = syscallMsg.Exec.Credentials.User
+			entry.Credentials.EUser = syscallMsg.Exec.Credentials.EUser
 			entry.Credentials.GID = syscallMsg.Exec.Credentials.GID
 			entry.Credentials.EGID = syscallMsg.Exec.Credentials.EGID
+			entry.Credentials.Group = syscallMsg.Exec.Credentials.Group
+			entry.Credentials.EGroup = syscallMsg.Exec.Credentials.EGroup
 		}
 		event.Exec.Process = &entry.Process
 		copyFileAttributes(&syscallMsg.Exec.File, &event.Exec.FileEvent)
@@ -147,21 +153,27 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		p.Resolvers.ProcessResolver.UpdateUID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID)
 		event.Type = uint32(model.SetuidEventType)
 		event.SetUID.UID = uint32(syscallMsg.SetUID.UID)
+		event.SetUID.User = syscallMsg.SetUID.User
 		event.SetUID.EUID = uint32(syscallMsg.SetUID.EUID)
+		event.SetUID.EUser = syscallMsg.SetUID.EUser
 
 	case ebpfless.SyscallTypeSetGID:
 		p.Resolvers.ProcessResolver.UpdateGID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetGID.GID, syscallMsg.SetGID.EGID)
 		event.Type = uint32(model.SetgidEventType)
 		event.SetGID.GID = uint32(syscallMsg.SetGID.GID)
+		event.SetGID.Group = syscallMsg.SetGID.Group
 		event.SetGID.EGID = uint32(syscallMsg.SetGID.EGID)
+		event.SetGID.EGroup = syscallMsg.SetGID.EGroup
 
 	case ebpfless.SyscallTypeSetFSUID:
 		event.Type = uint32(model.SetuidEventType)
 		event.SetUID.FSUID = uint32(syscallMsg.SetFSUID.FSUID)
+		event.SetUID.FSUser = syscallMsg.SetFSUID.FSUser
 
 	case ebpfless.SyscallTypeSetFSGID:
 		event.Type = uint32(model.SetgidEventType)
 		event.SetGID.FSGID = uint32(syscallMsg.SetFSGID.FSGID)
+		event.SetGID.FSGroup = syscallMsg.SetFSGID.FSGroup
 
 	case ebpfless.SyscallTypeCapset:
 		event.Type = uint32(model.CapsetEventType)
@@ -196,6 +208,43 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Utimes.Atime = time.Unix(0, int64(syscallMsg.Utimes.ATime))
 		event.Utimes.Mtime = time.Unix(0, int64(syscallMsg.Utimes.MTime))
 		copyFileAttributes(&syscallMsg.Utimes.File, &event.Utimes.File)
+
+	case ebpfless.SyscallTypeLink:
+		event.Type = uint32(model.FileLinkEventType)
+		event.Link.Retval = syscallMsg.Retval
+		copyFileAttributes(&syscallMsg.Link.Target, &event.Link.Source)
+		copyFileAttributes(&syscallMsg.Link.Link, &event.Link.Target)
+
+	case ebpfless.SyscallTypeChmod:
+		event.Type = uint32(model.FileChmodEventType)
+		event.Chmod.Retval = syscallMsg.Retval
+		event.Chmod.Mode = syscallMsg.Chmod.Mode
+		copyFileAttributes(&syscallMsg.Chmod.File, &event.Chmod.File)
+
+	case ebpfless.SyscallTypeChown:
+		event.Type = uint32(model.FileChownEventType)
+		event.Chown.Retval = syscallMsg.Retval
+		event.Chown.UID = int64(syscallMsg.Chown.UID)
+		event.Chown.User = syscallMsg.Chown.User
+		event.Chown.GID = int64(syscallMsg.Chown.GID)
+		event.Chown.Group = syscallMsg.Chown.Group
+		copyFileAttributes(&syscallMsg.Chown.File, &event.Chown.File)
+
+	case ebpfless.SyscallTypeUnloadModule:
+		event.Type = uint32(model.UnloadModuleEventType)
+		event.UnloadModule.Retval = syscallMsg.Retval
+		event.UnloadModule.Name = syscallMsg.UnloadModule.Name
+
+	case ebpfless.SyscallTypeLoadModule:
+		event.Type = uint32(model.LoadModuleEventType)
+		event.LoadModule.Retval = syscallMsg.Retval
+		event.LoadModule.Name = syscallMsg.LoadModule.Name
+		event.LoadModule.Args = syscallMsg.LoadModule.Args
+		event.LoadModule.Argv = strings.Fields(syscallMsg.LoadModule.Args)
+		event.LoadModule.LoadedFromMemory = syscallMsg.LoadModule.LoadedFromMemory
+		if !syscallMsg.LoadModule.LoadedFromMemory {
+			copyFileAttributes(&syscallMsg.LoadModule.File, &event.LoadModule.File)
+		}
 	}
 
 	// container context

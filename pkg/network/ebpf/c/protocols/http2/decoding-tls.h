@@ -120,7 +120,7 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
     // we skip it.
     if (is_path_index(index)) {
         update_path_size_telemetry(http2_tel, str_len);
-    } else if (!is_status_index(index)) {
+    } else if ((!is_status_index(index)) && (!is_method_index(index))) {
         goto end;
     }
 
@@ -314,10 +314,11 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
             if (is_method_index(current_header->index)) {
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method = current_header->index;
+                current_stream->request_method.static_table_entry = current_header->index;
+                current_stream->request_method.finalized = true;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (is_status_index(current_header->index)) {
-                current_stream->status_code.indexed_value = current_header->index;
+                current_stream->status_code.static_table_entry = current_header->index;
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
@@ -344,6 +345,12 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
+            } else if (is_method_index(dynamic_value->original_index)) {
+                current_stream->request_started = bpf_ktime_get_ns();
+                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
+                current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->request_method.length = current_header->new_dynamic_value_size;
+                current_stream->request_method.finalized = true;
             }
         } else {
             // We're in new dynamic header or new dynamic header not indexed states.
@@ -363,6 +370,12 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
+            } else if (is_method_index(current_header->original_index)) {
+                current_stream->request_started = bpf_ktime_get_ns();
+                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
+                current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->request_method.length = current_header->new_dynamic_value_size;
+                current_stream->request_method.finalized = true;
             }
         }
     }
