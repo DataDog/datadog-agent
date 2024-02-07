@@ -73,7 +73,7 @@ func TestAgentSuite(t *testing.T) {
 	)
 }
 
-func (a *agentSuite) TestOpenSignal() {
+func (a *agentSuite) Test00OpenSignal() {
 	apiClient := api.NewClient()
 
 	// Create temporary directory
@@ -161,7 +161,7 @@ func (a *agentSuite) TestOpenSignal() {
 }
 
 // TestFeatureCWSEnabled tests that the CWS activation is properly working
-func (a *agentSuite) TestFeatureCWSEnabled() {
+func (a *agentSuite) Test01FeatureCWSEnabled() {
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	a.Require().NoError(err, "could not get API key")
 	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
