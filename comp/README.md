@@ -135,8 +135,6 @@ Package serverdebug implements a component to run the dogstatsd server debug
 
 ### [comp/dogstatsd/statsd](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/statsd)
 
-*Datadog Team*: agent-shared-components
-
 Package statsd implements a component to get a statsd client.
 
 ### [comp/dogstatsd/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/status)
