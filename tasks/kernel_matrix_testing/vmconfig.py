@@ -123,7 +123,7 @@ def get_vmconfig_template():
 
     for vmset in data.get("vmsets", []):
         for disk in vmset.get("disks", []):
-            disk["target"] = disk["target"].replace("%KMTDIR%", kmt_os.kmt_dir)
+            disk["target"] = disk["target"].replace("%KMTDIR%", os.fspath(kmt_os.kmt_dir))
 
     return data
 
