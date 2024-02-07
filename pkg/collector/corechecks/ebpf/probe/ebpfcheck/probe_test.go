@@ -29,6 +29,8 @@ import (
 )
 
 func TestEBPFPerfBufferLength(t *testing.T) {
+	ebpftest.FailLogLevel(t, "trace")
+
 	err := rlimit.RemoveMemlock()
 	require.NoError(t, err)
 
