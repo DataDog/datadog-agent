@@ -264,21 +264,25 @@ func (ia *inventoryagent) initData() {
 	ia.refreshMetadata()
 }
 
+// fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
+// Times out after 5 seconds to avoid blocking the agent startup.
 func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
-	// ECS Fargate agent task ARN
+	ctx, cc := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cc()
+
 	if !env.IsECSFargate() {
 		return
 	}
 	client, err := ecsmeta.V2()
 	if err != nil {
-		ia.log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+		ia.log.Warnf("error while initializing ECS metadata V2 client: %s", err)
 		return
 	}
 
 	// Use the task ARN as hostname
-	taskMeta, err := client.GetTask(context.Background())
+	taskMeta, err := client.GetTask(ctx)
 	if err != nil {
-		ia.log.Debugf("error while fetching ECS Fargate metadata V2 task: %s", err)
+		ia.log.Warnf("error while fetching ECS Fargate metadata V2 task: %s", err)
 		return
 	}
 
