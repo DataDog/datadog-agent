@@ -31,11 +31,12 @@ func assertLogsWithRetry(t *testing.T, rh *components.RemoteHost, agentName stri
 		if strings.Contains(output, expectedLogPattern) {
 			return nil
 		}
+		fmt.Printf("\ncould not find %s in output %s\n", expectedLogPattern, output)
 		return errors.New("pattern not found")
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(retryInterval), uint64(maxRetries)))
 
 	if err != nil {
-		fmt.Println(rh.MustExecute(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName)))
+		fmt.Printf("\n%s\n", rh.MustExecute(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName)))
 	}
 	require.NoError(t, err, fmt.Sprintf("failed to find log with pattern `%s`", expectedLogPattern))
 }

@@ -47,7 +47,7 @@ func (s *sslConfigSuite) TestRemoteConfigSSLConfigMismatch() {
 	//assertLogsWithRetry(a.T(), a.Env().RemoteHost, "agent", "remote config service started", 60, 500*time.Millisecond)
 
 	// Wait until we've started querying for configs
-	assertLogsWithRetry(s.T(), s.Env().RemoteHost, "agent", "Remote Configuration does not allow skipping TLS validation by default", 120, 1*time.Second)
+	assertLogsWithRetry(s.T(), s.Env().RemoteHost, "agent", "Remote Configuration does not allow skipping TLS validation by default", 2, 120*time.Second)
 
 	// Ensure the agent remains running despite the remote config service initialization failure
 	time.Sleep(10 * time.Second)
