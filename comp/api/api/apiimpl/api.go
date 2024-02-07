@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -40,6 +41,7 @@ func Module() fxutil.Module {
 }
 
 type apiServer struct {
+	config          config.Component
 	flare           flare.Component
 	dogstatsdServer dogstatsdServer.Component
 	capture         replay.Component
@@ -57,6 +59,7 @@ type apiServer struct {
 type dependencies struct {
 	fx.In
 
+	Config          config.Component
 	Flare           flare.Component
 	DogstatsdServer dogstatsdServer.Component
 	Capture         replay.Component
@@ -75,6 +78,7 @@ var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer(deps dependencies) api.Component {
 	return &apiServer{
+		config:          deps.Config,
 		flare:           deps.Flare,
 		dogstatsdServer: deps.DogstatsdServer,
 		capture:         deps.Capture,
@@ -99,6 +103,7 @@ func (server *apiServer) StartServer(
 	senderManager sender.DiagnoseSenderManager,
 ) error {
 	return StartServers(configService,
+		server.config,
 		server.flare,
 		server.dogstatsdServer,
 		server.capture,

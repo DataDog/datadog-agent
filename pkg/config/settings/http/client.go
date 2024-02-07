@@ -44,6 +44,21 @@ func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
 	return string(r), nil
 }
 
+func (rc *runtimeSettingsHTTPClient) SubsectionConfig(key string) (string, error) {
+	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s/%s", rc.baseURL, "section", key), util.LeaveConnectionOpen)
+	if err != nil {
+		var errMap = make(map[string]string)
+		_ = json.Unmarshal(r, &errMap)
+		// If the error has been marshalled into a json object, check it and return it properly
+		if e, found := errMap["error"]; found {
+			return "", fmt.Errorf(e)
+		}
+		return "", err
+	}
+
+	return string(r), nil
+}
+
 func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingResponse, error) {
 	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, "list-runtime"), util.LeaveConnectionOpen)
 	if err != nil {
