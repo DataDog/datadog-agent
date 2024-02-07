@@ -102,9 +102,9 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		//s.logStatus()
+		s.logStatus()
 		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
-		//s.logJournal()
+		s.logJournal()
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
@@ -130,9 +130,9 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		//s.logStatus()
+		s.logStatus()
 		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
-		//s.logJournal()
+		s.logJournal()
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
@@ -142,15 +142,19 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
 
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		//s.logStatus()
+		s.logStatus()
 		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
-		//s.logJournal()
+		s.logJournal()
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
@@ -171,9 +175,9 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		//s.logStatus()
+		s.logStatus()
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
-		//s.logJournal()
+		s.logJournal()
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }
 
@@ -212,4 +216,28 @@ func waitRemotePort(v *VMFakeintakeSuite, port uint16) error {
 		return true
 	}, 60*time.Second, 1*time.Second, "Failed to dial remote:%v: %s\n%s", port, err, &statusReporter{v})
 	return err
+}
+
+func (s *VMFakeintakeSuite) logStatus() {
+	if !s.extraLogging {
+		return
+	}
+	status, err := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
+	if err != nil {
+		s.T().Log("cannot log status", err)
+		return
+	}
+	s.T().Log(status)
+}
+
+func (s *VMFakeintakeSuite) logJournal() {
+	if !s.extraLogging {
+		return
+	}
+	journal, err := s.Env().RemoteHost.Execute("sudo journalctl -n1000 -xu datadog-agent-trace")
+	if err != nil {
+		s.T().Log("cannot log journal", err)
+		return
+	}
+	s.T().Log(journal)
 }
