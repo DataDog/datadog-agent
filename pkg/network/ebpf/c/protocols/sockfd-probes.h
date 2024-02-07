@@ -13,6 +13,13 @@
 #include "sock.h"
 #include "sockfd.h"
 
+SEC("kprobe/tcp_close")
+int kprobe__tcp_close(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    clear_sockfd_maps(sk);
+    return 0;
+}
+
 SEC("kprobe/sockfd_lookup_light")
 int kprobe__sockfd_lookup_light(struct pt_regs *ctx) {
     int sockfd = (int)PT_REGS_PARM1(ctx);
