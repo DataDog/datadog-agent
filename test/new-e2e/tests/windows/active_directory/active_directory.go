@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/pulumiverse/pulumi-time/sdk/go/time"
 )
 
 const (
@@ -168,14 +167,6 @@ func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *
 			return err
 		}
 		resourceOptions = utils.MergeOptions(resourceOptions, utils.PulumiDependsOn(installForestCmd))
-
-		waitForRebootCmd, err := time.NewSleep(ctx, "wait-for-host-to-reboot", &time.SleepArgs{
-			CreateDuration: pulumi.String("30s"),
-		}, resourceOptions...)
-		if err != nil {
-			return err
-		}
-		resourceOptions = utils.MergeOptions(resourceOptions, utils.PulumiDependsOn(waitForRebootCmd))
 
 		ensureAdwsStartedCmd, err := host.OS.Runner().Command(comp.namer.ResourceName("ensure-adws-started"), &command.Args{
 			Create: pulumi.String("while (1) { try { (Get-Service ADWS -ErrorAction SilentlyContinue).WaitForStatus('Running', '00:01:00'); break; } catch { Write-Host 'Not yet ready'; Start-Sleep -Seconds 10 } }"),

@@ -2,6 +2,13 @@ package domain
 
 import (
 	"fmt"
+	"net"
+	"net/url"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
@@ -9,12 +16,6 @@ import (
 	ad "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/active_directory"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
 	"github.com/stretchr/testify/assert"
-	"net"
-	"net/url"
-	"path/filepath"
-	"strings"
-	"testing"
-	"time"
 )
 
 type testDomainSuite struct {
@@ -40,7 +41,7 @@ func TestOnDomainController(t *testing.T) {
 			ad.WithDomainName("datadogqalab.com"),
 			ad.WithDomainPassword("TestPassword1234#"),
 			ad.WithDomainUser("TestUser", "TestPassword1234#"),
-		))))
+		))), e2e.WithStackName("test-1111"))
 }
 
 func installAgentPackage(host *components.RemoteHost, agentPackage *windowsAgent.Package, args string, logfile string) (string, error) {
