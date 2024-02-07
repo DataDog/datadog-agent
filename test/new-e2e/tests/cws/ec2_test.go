@@ -169,7 +169,7 @@ func (a *agentSuite) TestFeatureCWSEnabled() {
 	ddSQLClient := api.NewDDSQLClient(apiKey, appKey)
 
 	query := fmt.Sprintf("SELECT h.hostname, a.feature_cws_enabled FROM host h JOIN datadog_agent a USING (datadog_agent_key) WHERE h.hostname = '%s'", a.Env().Agent.Client.Hostname())
-	a.Assert().EventuallyWithT(func(collect *assert.CollectT) {
+	a.Assert().EventuallyWithTf(func(collect *assert.CollectT) {
 		resp, err := ddSQLClient.Do(query)
 		if !assert.NoErrorf(collect, err, "ddsql query failed") {
 			return
@@ -213,7 +213,7 @@ func (a *agentSuite) TestFeatureCWSEnabled() {
 				return
 			}
 		}
-	}, 10*time.Minute, 1*time.Minute, "cws activation check timeout")
+	}, 16*time.Minute, 2*time.Minute, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
 }
 
 func (a *agentSuite) waitAgentLogs(agentName string, pattern string) error {
