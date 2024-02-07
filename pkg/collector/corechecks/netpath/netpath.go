@@ -581,6 +581,7 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 			//log.Infof("[netpath] tags: %s", tags)
 			//sender.Gauge("netpath.hop.duration", float64(cur.probe.RttUsec)/1000, "", CopyStrings(tags))
 			//sender.Count("netpath.hop.record", float64(1), "", CopyStrings(tags))
+			isSuccess := cur.probe.Received != nil
 
 			ip := cur.node
 			durationMs := float64(cur.probe.RttUsec) / 1000
@@ -594,13 +595,15 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 				IpAddress:        ip,
 				Host:             c.getHostname(cur.node),
 				Duration:         durationMs,
-				//Success:          hop.Success,
+				Success:          isSuccess,
 			}
 			tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
 			if err != nil {
 				return err
 			}
 
+			log.Debugf("cur node: %+v", cur)
+			log.Debugf("cur node probe: %+v", cur.probe)
 			log.Debugf("traceroute: %s", tracerouteStr)
 
 			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
@@ -610,7 +613,7 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 				IpAddress: ip,
 				Hostname:  c.getHostname(cur.node),
 				RTT:       durationMs,
-				//Success:   hop.Success,
+				Success:   isSuccess,
 			}
 			traceroutePath.Hops = append(traceroutePath.Hops, hop)
 
