@@ -167,17 +167,21 @@ func (tx *EbpfTx) Method() http.Method {
 	var err error
 
 	// Case which the method is indexed.
-	switch tx.Stream.Request_method.Static_table_entry {
-	case GetValue:
-		return http.MethodGet
-	case PostValue:
-		return http.MethodPost
+	if tx.Stream.Request_method.Static_table_entry != 0 {
+		switch tx.Stream.Request_method.Static_table_entry {
+		case GetValue:
+			return http.MethodGet
+		case PostValue:
+			return http.MethodPost
+		default:
+			return http.MethodUnknown
+		}
 	}
 
 	// if the length of the method is greater than the buffer, then we return 0.
 	if int(tx.Stream.Request_method.Length) > len(tx.Stream.Request_method.Raw_buffer) || tx.Stream.Request_method.Length == 0 {
 		if oversizedLogLimit.ShouldLog() {
-			log.Errorf("method length %d is greater than the buffer: %v and is huffman encoded: %v",
+			log.Errorf("method length %d is longer than the size buffer: %v and is huffman encoded: %v",
 				tx.Stream.Request_method.Length, tx.Stream.Request_method.Raw_buffer, tx.Stream.Request_method.Is_huffman_encoded)
 		}
 		return http.MethodUnknown

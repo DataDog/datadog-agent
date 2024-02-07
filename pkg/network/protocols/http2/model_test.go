@@ -79,49 +79,55 @@ func TestHTTP2Path(t *testing.T) {
 }
 
 func TestHTTP2Method(t *testing.T) {
-	type fields struct {
-		Stream http2Stream
-	}
 	tests := []struct {
 		name   string
-		fields fields
+		Stream http2Stream
 		want   http.Method
 	}{
 		{
-			name: "Test Method length is bigger then raw buffer size",
-			fields: fields{
-				Stream: http2Stream{
-					Request_method: http2requestMethod{
-						Raw_buffer:         [7]uint8{1, 2},
-						Is_huffman_encoded: false,
-						Static_table_entry: 0,
-						Length:             8,
-						Finalized:          false,
-					},
+			name: "Sanity method test Method",
+			Stream: http2Stream{
+				Request_method: http2requestMethod{
+					Raw_buffer:         [7]uint8{0x50, 0x55, 0x54},
+					Is_huffman_encoded: false,
+					Static_table_entry: 0,
+					Length:             3,
+					Finalized:          false,
 				},
 			},
-			want: 0,
+			want: http.MethodPut,
 		},
 		{
-			name: "Test Method length is zero",
-			fields: fields{
-				Stream: http2Stream{
-					Request_method: http2requestMethod{
-						Raw_buffer:         [7]uint8{1, 2},
-						Is_huffman_encoded: true,
-						Static_table_entry: 0,
-						Length:             0,
-						Finalized:          false,
-					},
+			name: "Test method length is bigger than raw buffer size",
+			Stream: http2Stream{
+				Request_method: http2requestMethod{
+					Raw_buffer:         [7]uint8{1, 2},
+					Is_huffman_encoded: false,
+					Static_table_entry: 0,
+					Length:             8,
+					Finalized:          false,
 				},
 			},
-			want: 0,
+			want: http.MethodUnknown,
+		},
+		{
+			name: "Test method length is zero",
+			Stream: http2Stream{
+				Request_method: http2requestMethod{
+					Raw_buffer:         [7]uint8{1, 2},
+					Is_huffman_encoded: true,
+					Static_table_entry: 0,
+					Length:             0,
+					Finalized:          false,
+				},
+			},
+			want: http.MethodUnknown,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tx := &EbpfTx{
-				Stream: tt.fields.Stream,
+				Stream: tt.Stream,
 			}
 			assert.Equalf(t, tt.want, tx.Method(), "Method()")
 		})
