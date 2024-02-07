@@ -36,6 +36,8 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
         stopItem.target = self
         restartItem = NSMenuItem(title: "Restart", action: #selector(restartAgent), keyEquivalent: "")
         restartItem.target = self
+        loginItem = NSMenuItem(title: loginStatusEnableTitle, action: #selector(loginAction), keyEquivalent: "")
+        loginItem.target = self
         exitItem = NSMenuItem(title: "Exit", action: #selector(exitGUI), keyEquivalent: "")
         exitItem.target = self
 
@@ -97,6 +99,9 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
     func run() {
         // Initialising
         agentStatus = AgentManager.status()
+        loginStatus = AgentManager.getLoginStatus()
+        setLoginItemState(state: AgentManager.checkCurrentInstallationMode())
+        updateLoginItem()
         updatingAgent = false
         agentRestart = false
         if !agentStatus {
@@ -119,6 +124,20 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
         startItem.isEnabled = !self.agentStatus
         stopItem.isEnabled = self.agentStatus
         restartItem.isEnabled = self.agentStatus
+    }
+
+    func updateLoginItem() {
+        loginItem.title = loginStatus! ? loginStatusDisableTitle : loginStatusEnableTitle
+    }
+
+    func setLoginItemState(state: Bool) {
+        self.loginItem.isEnabled = state
+    }
+
+    @objc func loginAction(_ sender: Any?) {
+        self.loginStatus = AgentManager.switchLoginStatus()
+        setLoginItemState(state: AgentManager.checkCurrentInstallationMode())
+        updateLoginItem()
     }
 
     @objc func startAgent(_ sender: Any?) {
@@ -168,6 +187,7 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
 
 class AgentManager {
     static let agentServiceName = "com.datadoghq.agent"
+    static let userAgentPlistPath: String = "~/Library/LaunchAgents/com.datadoghq.agent.plist"
     static let serviceTimeout = 10000  // time to wait for service to start/stop, in milliseconds
     static let statusCheckFrequency = 500  // time to wait between checks on the service status, in milliseconds
 
@@ -195,8 +215,15 @@ class AgentManager {
             NSLog(processInfo.stdOut)
             NSLog(processInfo.stdErr)
         }
+        
 
         checkStatusAndCall(command: command, timeout: serviceTimeout, callback: callback)
+    }
+
+    static func checkCurrentInstallationMode() -> Bool {
+        let process = bashCall(command: "test -f " + userAgentPlistPath)
+        // True : Single User mode, False : Systemwide Install
+        return process.exitCode == 0 
     }
 
     static func agentCommand(command: String) {
@@ -205,6 +232,32 @@ class AgentManager {
             NSLog(processInfo.stdOut)
             NSLog(processInfo.stdErr)
         }
+    }
+
+    static func switchLoginStatus() -> Bool {
+        let currentLoginStatus = getLoginStatus()
+        var command: String
+        if currentLoginStatus { // enabled -> disable
+            command = "/bin/launchctl unload -w " + userAgentPlistPath
+        } else { // disabled -> enable
+            command = "/bin/launchctl load -w " + userAgentPlistPath
+        }
+        let processInfo = bashCall(command: command)
+        if processInfo.exitCode != 0 {
+            NSLog(processInfo.stdOut)
+            NSLog(processInfo.stdErr)
+            return currentLoginStatus
+        }
+
+        return !currentLoginStatus
+    }
+
+    static func getLoginStatus() -> Bool {
+        let userUIDInfo = bashCall(command: "echo $UID")
+        let userUID = userUIDInfo.stdOut.replacingOccurrences(of: "\n", with: "")
+        let cmd = "print gui/" + userUID + "/" + agentServiceName
+        let processInfo = agentCustomServiceCall(command: cmd)
+        return processInfo.exitCode == 0
     }
 
     private static func checkStatusAndCall(command: String, timeout: Int, callback: @escaping (Bool) -> Void) {
@@ -228,10 +281,18 @@ class AgentManager {
         return call(launchPath: "/bin/launchctl", arguments: [command, agentServiceName])
     }
 
+    private static func agentCustomServiceCall(command: String) -> (exitCode: Int32, stdOut: String, stdErr: String) {
+        return call(launchPath: "/bin/launchctl", arguments: command.components(separatedBy: " "))
+    }
+
     private static func agentCall(command: String) -> (exitCode: Int32, stdOut: String, stdErr: String) {
         return call(launchPath: "/usr/local/bin/datadog-agent", arguments: [command])
     }
 
+    private static func bashCall(command: String) -> (exitCode: Int32, stdOut: String, stdErr: String) {
+        return call(launchPath: "/bin/bash", arguments: ["-c", command])
+    }
+    
     private static func call(launchPath: String, arguments: [String]) -> (exitCode: Int32, stdOut: String, stdErr: String) {
         let stdOutPipe = Pipe()
         let stdErrPipe = Pipe()
