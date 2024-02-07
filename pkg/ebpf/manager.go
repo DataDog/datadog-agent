@@ -12,7 +12,6 @@ import (
 	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -60,7 +59,7 @@ func NewManager(mgr *manager.Manager, modifiers ...string) *Manager {
 // two functions that will be called before and after the ebpf.Manager.InitWithOptions
 // call, and a function that will be called when the manager is stopped.
 type Modifier interface {
-	// Name returns the name of the modifier. Should be unique, although it's not enforced for now.
+	// Name returns the name of the modifier, must be unique.
 	Name() string
 
 	// BeforeInit is called before the ebpf.Manager.InitWithOptions call
@@ -72,31 +71,48 @@ type Modifier interface {
 
 // Internal state with all registered modifiers. This is populated via the
 // RegisterModifier function below by packages that want to add a modifier.
-var modifiers []Modifier
+var modifiers = make(map[string]Modifier)
 
 // RegisterModifier registers a Modifier to be run whenever a new manager is
 // initialized. This is used to add functionality to the manager, such as telemetry or
 // the newline patching
 // This should be called on init() functions of packages that want to add a modifier.
 func RegisterModifier(mod Modifier) {
-	modifiers = append(modifiers, mod)
+	if _, ok := modifiers[mod.Name()]; ok {
+		// panic so that we fail loudly and callers can correct their mistake
+		panic(fmt.Sprintf("Modifier with name %s already registered, choose another name", mod.Name()))
+	}
+	modifiers[mod.Name()] = mod
+}
+
+// UnregisterModifier removes a Modifier from the list of registered modifiers
+// This should mainly be used in tests to avoid modifying the global state
+func UnregisterModifier(modName string) {
+	delete(modifiers, modName)
 }
 
 // enabledModifiers is a shorthand to return a list of all enabled modifiers
 // for this manager
-func (m *Manager) getEnabledModifiers() []Modifier {
+func (m *Manager) getEnabledModifiers() ([]Modifier, error) {
 	var enabled []Modifier
-	for _, mod := range modifiers {
-		if slices.Contains(m.EnabledModifiers, mod.Name()) {
+	for _, modName := range m.EnabledModifiers {
+		if mod, ok := modifiers[modName]; ok {
 			enabled = append(enabled, mod)
+		} else {
+			return nil, fmt.Errorf("Modifier %s is not registered, skipping", modName)
 		}
 	}
-	return enabled
+	return enabled, nil
 }
 
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) error {
-	for _, mod := range m.getEnabledModifiers() {
+	mods, err := m.getEnabledModifiers()
+	if err != nil {
+		return err
+	}
+
+	for _, mod := range mods {
 		log.Debugf("Running %s manager modifier", mod.Name())
 		if err := mod.BeforeInit(m, opts); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod.Name(), err)
@@ -107,7 +123,7 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 		return err
 	}
 
-	for _, mod := range m.getEnabledModifiers() {
+	for _, mod := range mods {
 		log.Debugf("Running %s manager modifier", mod.Name())
 		if err := mod.AfterInit(m, opts); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod.Name(), err)
