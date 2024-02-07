@@ -122,7 +122,7 @@ func newLogsAgent(deps dependencies) provides {
 
 		return provides{
 			Comp:           optional.NewOption[Component](logsAgent),
-			StatusProvider: statusComponent.NewInformationProvider(statusProvider{}),
+			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 		}
 	}
@@ -130,7 +130,7 @@ func newLogsAgent(deps dependencies) provides {
 	deps.Log.Info("logs-agent disabled")
 	return provides{
 		Comp:           optional.NewNoneOption[Component](),
-		StatusProvider: statusComponent.NewInformationProvider(statusProvider{}),
+		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 	}
 }
 
