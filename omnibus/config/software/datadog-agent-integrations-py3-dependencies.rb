@@ -16,15 +16,12 @@ if not windows_target?
 end
 
 if linux_target?
-  dependency 'unixodbc'
-  dependency 'freetds'  # needed for SQL Server integration
+  # odbc drivers used by the SQL Server integration
+  dependency 'freetds'
   unless heroku_target?
     dependency 'msodbcsql18' # needed for SQL Server integration
   end
-  # add nfsiostat script
   dependency 'nfsiostat'
-  # add libkrb5 for all integrations supporting kerberos auth with `requests-kerberos`
-  dependency 'libkrb5'
-  # needed for glusterfs
+  # gstatus binary used by the glusterfs integration
   dependency 'gstatus'
 end

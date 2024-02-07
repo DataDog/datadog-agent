@@ -1,6 +1,7 @@
 name "cyrus-sasl"
 default_version "2.1.28"
 
+dependency "libkrb5"
 dependency "lmdb"
 
 if redhat?
