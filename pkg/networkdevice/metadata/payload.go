@@ -129,11 +129,11 @@ type NetflowExporter struct {
 }
 
 type NetworkPathHop struct {
-	TTL      int     `json:"ttl"`
-	Ip       string  `json:"ip"`
-	Hostname string  `json:"hostname"`
-	RTT      float64 `json:"rtt"`
-	Success  bool    `json:"success"`
+	TTL       int     `json:"ttl"`
+	IpAddress string  `json:"ip_address"`
+	Hostname  string  `json:"hostname"`
+	RTT       float64 `json:"rtt"`
+	Success   bool    `json:"success"`
 }
 
 type NetworkPathSource struct {
@@ -141,8 +141,8 @@ type NetworkPathSource struct {
 }
 
 type NetworkPathDestination struct {
-	Hostname string `json:"hostname"`
-	Ip       string `json:"ip"`
+	Hostname  string `json:"hostname"`
+	IpAddress string `json:"ip_address"`
 }
 
 type NetworkPath struct {
