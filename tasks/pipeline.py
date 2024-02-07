@@ -554,13 +554,12 @@ EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com":
 
 @task
 def changelog(ctx, new_commit_sha):
-    # old_commit_sha = ctx.run(
-    #     "aws ssm get-parameter --region us-east-1 --name "
-    #     "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
-    #     "\"Parameter.Value\" --out text",
-    #     hide=True,
-    # ).stdout.strip()
-    old_commit_sha = "937260ce"
+    old_commit_sha = ctx.run(
+        "aws ssm get-parameter --region us-east-1 --name "
+        "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
+        "\"Parameter.Value\" --out text",
+        hide=True,
+    ).stdout.strip()
     if not new_commit_sha:
         print("New commit sha not found, exiting")
         return
@@ -583,13 +582,13 @@ def changelog(ctx, new_commit_sha):
         return
 
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
-    commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=False).stdout.split("\n")
+    commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     owners = read_owners(".github/CODEOWNERS")
     messages = []
 
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
-        commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=False).stdout
+        commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
         title, author, author_email, files, url = parse(commit_str)
         if not is_system_probe(owners, files):
             continue
@@ -601,7 +600,7 @@ def changelog(ctx, new_commit_sha):
             author_handle = EMAIL_SLACK_ID_MAP[author_email]
         else:
             try:
-                author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=False).stdout.strip()
+                author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
             except Exception as e:
                 print(f"Failed to get slack id for {author_email}: {e}")
                 author_handle = None
