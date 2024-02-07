@@ -115,6 +115,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
+		// Provide workloadmeta and tagger module
+		workloadmeta.Module(),
+		tagger.Module(),
 
 		// Provide remote config client module
 		rcclient.Module(),
@@ -187,6 +190,11 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
 		}
 		return err
+	}
+
+	if appInitDeps.Config.GetBool("process_config.run_in_core_agent.enabled") {
+		log.Info("Running in core agent mode, exiting...")
+		return nil
 	}
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
