@@ -81,6 +81,9 @@ const (
 	inetBindRet = "inet_bind_exit"
 	// inet6BindRet traces the bind() syscall for IPv6
 	inet6BindRet = "inet6_bind_exit"
+
+	// sockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
+	sockFDLookupRet = "sockfd_lookup_light_exit"
 )
 
 var programs = map[string]struct{}{
@@ -90,6 +93,7 @@ var programs = map[string]struct{}{
 	inetBindRet:               {},
 	inetCskAcceptReturn:       {},
 	inetCskListenStop:         {},
+	sockFDLookupRet:           {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
 	tcpRecvMsgReturn:          {},
 	tcpClose:                  {},
 	tcpCloseReturn:            {},
