@@ -3,14 +3,16 @@ name 'datadog-agent-integrations-py3-dependencies'
 dependency 'pip3'
 dependency 'setuptools3'
 
-dependency 'confluent-kafka-python'
-
 if arm_target?
   # same with libffi to build the cffi wheel
   dependency 'libffi'
   # same with libxml2 and libxslt to build the lxml wheel
   dependency 'libxml2'
   dependency 'libxslt'
+end
+
+if not windows_target?
+  dependency 'cyrus-sasl'
 end
 
 if linux_target?
