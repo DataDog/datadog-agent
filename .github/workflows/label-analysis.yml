@@ -13,14 +13,20 @@ env:
   GH_REPO: ${{ github.repository }}
 
 jobs:
+  fetch-labels:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get PR labels
+        id: pr-labels
+        run: echo "LABELS=$(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name')" >> $env:GITHUB_OUTPUT
   team-label:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Check team assignment
         run: |
-          labels=$(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name')
-          for label in $labels; do
+          for label in $LABELS; do
             if [[ "$label" =~ ^qa/ ]]; then
               echo "A label to skip QA is set -- no need for team assignment"
               exit 0
@@ -32,6 +38,8 @@ jobs:
           done
           echo "PR ${{github.event.number}} requires at least one non-triage team assignment label (label starting by 'team/')"
           exit 1
+        env:
+          LABELS: ${{ steps.pr-labels.outputs.MILESTONE }}
   skip-qa:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
@@ -41,8 +49,7 @@ jobs:
           skip=0
           done=0
           noChange=0
-          labels=$(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name')
-          for label in $labels; do
+          for label in $LABELS; do
             if [[ "$label" == "qa/skip-qa" ]]; then
               skip=1
             fi
@@ -59,3 +66,5 @@ jobs:
             echo "Skip QA labels are not correct on PR ${{github.event.number}}. You must set 'qa/skip-qa' with exacly 1 justification, 'qa/done' or 'qa/no-code-change'"
             exit 1
           fi
+        env:
+          LABELS: ${{ steps.pr-labels.outputs.MILESTONE }}
