@@ -661,7 +661,10 @@ func (c *Check) getHostname(ipAddr string) string {
 	// high. Consider switching to something where there is greater control.
 	currHost := ""
 	currHostList, _ := net.LookupAddr(ipAddr)
+	log.Debugf("Reverse DNS List: %+v", currHostList)
+
 	if len(currHostList) > 0 {
+		// TODO: Reverse DNS: Do we need to handle cases with multiple DNS being returned?
 		currHost = currHostList[0]
 	} else {
 		currHost = ipAddr
