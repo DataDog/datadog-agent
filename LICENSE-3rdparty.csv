@@ -646,7 +646,6 @@ core,github.com/containerd/log,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/stargz-snapshotter/estargz,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/stargz-snapshotter/estargz/errorutil,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/ttrpc,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/typeurl,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/typeurl/v2,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containernetworking/cni/libcni,Apache-2.0,Copyright 2019 CNI authors
 core,github.com/containernetworking/cni/pkg/invoke,Apache-2.0,Copyright 2019 CNI authors
