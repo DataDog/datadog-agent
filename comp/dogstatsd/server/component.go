@@ -7,6 +7,8 @@
 package server
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -17,13 +19,6 @@ import (
 
 // Component is the component type.
 type Component interface {
-
-	// // Start starts the dogstatsd server
-	// Start(demultiplexer aggregator.Demultiplexer) error
-
-	// Stop stops the dogstatsd server
-	// Stop()
-
 	// IsRunning returns true if the server is running
 	IsRunning() bool
 
@@ -38,6 +33,12 @@ type Component interface {
 
 	// UDPLocalAddr returns the local address of the UDP statsd listener, if enabled.
 	UDPLocalAddr() string
+}
+
+// ServerlessDogstatsd is the interface for the serverless dogstatsd server.
+type ServerlessDogstatsd interface {
+	Component
+	Stop()
 }
 
 // Mock implements mock-specific methods.
@@ -55,4 +56,9 @@ func Module() fxutil.Module {
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock))
+}
+
+func (s *server) Stop() {
+	_ = s.stop(context.TODO())
+	fmt.Printf("Stopping serverless dogstatsd \n")
 }

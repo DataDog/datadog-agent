@@ -195,19 +195,29 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 // TODO: (components) - remove once serverless is an FX app
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessServer(deps dependencies) Component {
+func NewServerlessServer(deps dependencies) ServerlessDogstatsd {
 
-	// start the dogstatsd server here before new:
+	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true, deps.Demultiplexer)
 
-	return newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true, deps.Lc, deps.Demultiplexer)
+	s.start(context.TODO())
+
+	return s
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) Component {
-	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Lc, deps.Demultiplexer)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer)
+
+	deps.Lc.Append(fx.Hook{
+		OnStart: s.start,
+		OnStop:  s.stop,
+	})
+
+	return s
+
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, lc fx.Lifecycle, demux demultiplexer.Component) Component {
+func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux demultiplexer.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 
@@ -309,11 +319,6 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 			originOptOutEnabled:       cfg.GetBool("dogstatsd_origin_optout_enabled"),
 		},
 	}
-
-	lc.Append(fx.Hook{
-		OnStart: s.start,
-		OnStop:  s.stop,
-	})
 
 	return s
 }
