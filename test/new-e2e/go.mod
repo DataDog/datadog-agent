@@ -12,6 +12,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
 	github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
+	github.com/DataDog/test-infra-definitions => ../../../test-infra-definitions
 )
 
 require (
