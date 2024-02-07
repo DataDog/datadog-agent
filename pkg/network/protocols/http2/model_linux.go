@@ -176,7 +176,9 @@ func (tx *EbpfTx) Method() http.Method {
 
 	// if the length of the method is greater than the buffer, then we return 0.
 	if tx.Stream.Request_method.Length > 0 && int(tx.Stream.Request_method.Length) > len(tx.Stream.Request_method.Raw_buffer) {
-		log.Errorf("method length %d is greater than the buffer: %v", tx.Stream.Request_method.Length, tx.Stream.Request_method.Raw_buffer)
+		if oversizedLogLimit.ShouldLog() {
+			log.Errorf("method length %d is greater than the buffer: %v", tx.Stream.Request_method.Length, tx.Stream.Request_method.Raw_buffer)
+		}
 		return 0
 	}
 
