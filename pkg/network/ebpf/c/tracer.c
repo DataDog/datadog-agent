@@ -215,6 +215,8 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     if (is_protocol_classification_supported()) {
         bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     }
+
+    // tail call flush
     return 0;
 }
 

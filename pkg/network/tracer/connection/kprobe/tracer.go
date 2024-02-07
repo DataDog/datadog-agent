@@ -82,6 +82,17 @@ var (
 		},
 	}
 
+	connCloseTailCalls = []manager.TailCallRoute{
+		{
+			ProgArrayName: probes.ConnCloseProgsMap,
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.TCPConnCloseEmitBatchPre580,
+				UID:          probeUID,
+			},
+		},
+	}
+
 	// these primarily exist for mocking out in tests
 	coreTracerLoader          = loadCORETracer
 	rcTracerLoader            = loadRuntimeCompiledTracer
@@ -204,7 +215,9 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			ValueSize:  0,
 			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 		}
+		connCloseTailCalls[0].ProbeIdentificationPair.EBPFFuncName = probes.TCPConnCloseEmitBatch
 	}
+	mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, connCloseTailCalls...)
 
 	var undefinedProbes []manager.ProbeIdentificationPair
 

@@ -87,6 +87,10 @@ const (
 	// TCPCloseFlushReturn traces the return of tcp_close() system call
 	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
 
+	TCPConnCloseEmitBatch ProbeFuncName = "emit_conn_close_event_from_batch"
+
+	TCPConnCloseEmitBatchPre580 ProbeFuncName = "emit_conn_close_event_from_batch_pre_5_8_0"
+
 	// We use the following two probes for UDP sends
 
 	// IPMakeSkb traces ip_make_skb
@@ -244,4 +248,6 @@ const (
 	ClassificationProgsMap BPFMapName = "classification_progs"
 	//nolint:revive // TODO(NET) Fix revive linter
 	TCPCloseProgsMap BPFMapName = "tcp_close_progs"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ConnCloseProgsMap BPFMapName = "conn_close_progs"
 )

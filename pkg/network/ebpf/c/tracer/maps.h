@@ -132,4 +132,7 @@ BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
 // by using tail call.
 BPF_PROG_ARRAY(tcp_close_progs, 1)
 
+// This program is needed to optionally omit a call to bpf_ringbuf_output on older kernels where is doesn't exist
+BPF_PROG_ARRAY(conn_close_progs, 1)
+
 #endif

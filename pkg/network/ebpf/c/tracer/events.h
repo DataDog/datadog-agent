@@ -42,12 +42,6 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
 }
 
 static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
-    bool ringbuffers = ringbuffers_enabled();
-    if (ringbuffers) {
-        log_debug("adamk - cleanup_conn - ringbuffers_enabled: %d", ringbuffers);
-    } else {
-        log_debug("adamk - cleanup_conn - ringbuffers_disabled: %d", ringbuffers);
-    }
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
@@ -122,23 +116,31 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         return;
     }
 
-    // If we hit this section it means we had one or more interleaved tcp_close calls.
-    // We send the connection outside of a batch anyway. This is likely not as
-    // frequent of a case to cause performance issues and avoid cases where
-    // we drop whole connections, which impacts things USM connection matching.
-    if (ringbuffers) {
-        log_debug("adamk - ringbuffers_enabled - submitting single connection to ringbuffer");
-        bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn), 0);
-    } else {
-        log_debug("adamk - ringbuffers_disabled - submitting single connection to perf buffer");
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(conn));
-    }
-
     if (is_tcp) {
         increment_telemetry_count(unbatched_tcp_close);
     }
     if (is_udp) {
         increment_telemetry_count(unbatched_udp_close);
+    }
+
+    // If we hit this section it means we had one or more interleaved tcp_close calls.
+    // We send the connection outside of a batch anyway. This is likely not as
+    // frequent of a case to cause performance issues and avoid cases where
+    // we drop whole connections, which impacts things USM connection matching.
+    // if (ringbuffers_enabled()) {
+    //     bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn), 0);
+    // } else {
+    //     bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(conn));
+    // }
+    bpf_tail_call_compat(ctx, &conn_close_progs, 0);
+}
+
+static __always_inline void emit_conn_close_event(void *ctx, conn_t *conn) {
+    u32 cpu = bpf_get_smp_processor_id();
+    if (ringbuffers_enabled()) {
+        bpf_ringbuf_output(&conn_close_event, conn, sizeof(*conn), 0);
+    } else {
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
     }
 }
 
@@ -158,13 +160,29 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
         batch_ptr->len = 0;
         batch_ptr->id++;
 
+        bpf_tail_call_compat(ctx, &conn_close_progs, 0);
+
         // we cannot use the telemetry macro here because of stack size constraints
-        if (ringbuffers_enabled()) {
-            bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
-        } else {
-            bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
-        }
+        // if (ringbuffers_enabled()) {
+        //     bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
+        // } else {
+        //     bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
+        // }
     }
+}
+
+static __always_inline void emit_conn_close_event_from_batch(void *ctx, batch_t *batch) {
+    u32 cpu = bpf_get_smp_processor_id();
+    if (ringbuffers_enabled()) {
+        bpf_ringbuf_output(&conn_close_event, batch, sizeof(*batch), 0);
+    } else {
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, batch, sizeof(*batch));
+    }
+}
+
+static __always_inline void emit_conn_close_event_from_batch_pre_5_8_0(void *ctx, batch_t *batch) {
+    u32 cpu = bpf_get_smp_processor_id();
+    bpf_perf_event_output(ctx, &conn_close_event, cpu, batch, sizeof(*batch));
 }
 
 #endif // __TRACER_EVENTS_H

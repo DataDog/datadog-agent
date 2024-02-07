@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	secEbpf "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -97,10 +96,10 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		{Name: probes.TcpRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
+		{Name: probes.ConnCloseProgsMap},
 	}
 	switch handler := connCloseEventHandler.(type) {
 	case *ebpf.RingBufferHandler:
-		log.Debugf("adamk Creating ring buffer for connection close events of size %d", secEbpf.ComputeDefaultEventsRingBufferSize())
 		options := manager.RingBufferOptions{
 			RecordGetter:     handler.RecordGetter,
 			RecordHandler:    handler.RecordHandler,
