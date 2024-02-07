@@ -178,10 +178,10 @@ func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoa
 				switch field.Type() {
 				case reflect.TypeOf((*ebpf.Program)(nil)):
 					p := field.Interface().(*ebpf.Program)
+					stat, err := unmarshalStatistics(p.VerifierLog, kversion)
 					// All unassigned programs and maps are cleaned up by the ebpf loader: https://github.com/cilium/ebpf/blob/main/collection.go#L439
 					// We only need to take care to cleanup assigned programs.
-					defer p.Close()
-					stat, err := unmarshalStatistics(p.VerifierLog, kversion)
+					p.Close()
 					if err != nil {
 						return fmt.Errorf("failed to unmarshal verifier log for program %s: %w", progSpec.Name, err)
 					}
