@@ -67,7 +67,7 @@ var (
       <data name="ShareAccess" inType="win:UInt32"/>
       <data name="FileName" inType="win:UnicodeString"/>
 */
-type createArgs struct {
+type createHandleArgs struct {
 	irp              uint64            // actually a pointer
 	fileObject       fileObjectPointer // pointer
 	threadID         uint64            // actually a pointer
@@ -77,8 +77,24 @@ type createArgs struct {
 	fileName         string
 }
 
-func parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
-	ca := &createArgs{}
+type createNewFileArgs createHandleArgs
+
+/*
+The Parameters.Create.Options member is a ULONG value that describes the options that are used
+
+	when opening the handle. The high 8 bits correspond to the value of the CreateDisposition parameter
+	of ZwCreateFile, and the low 24 bits correspond to the value of the CreateOptions parameter of ZwCreateFile.
+
+The Parameters.Create.ShareAccess member is a USHORT value that describes the type of share access.
+This value corresponds to the value of the ShareAccess parameter of ZwCreateFile.
+
+The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are reserved for use
+
+	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
+	the Installable File System (IFS) documentation.
+*/
+func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
+	ca := &createHandleArgs{}
 	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		ca.irp = binary.LittleEndian.Uint64(data[0:8])
@@ -107,13 +123,28 @@ func parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
 	return ca, nil
 }
 
-func (ca *createArgs) string() string {
+func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := parseCreateHandleArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*createNewFileArgs)(ca), nil
+}
+
+// nolint: unused
+func (ca *createHandleArgs) string() string {
 	var output strings.Builder
 
 	output.WriteString("  Create TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
 	output.WriteString("         Name: " + ca.fileName + "\n")
 	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Attrs: " + strconv.FormatUint(uint64(ca.createAttributes), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
+	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
 	return output.String()
+}
+
+// nolint: unused
+func (ca *createNewFileArgs) string() string {
+	return (*createHandleArgs)(ca).string()
 }
 
 /*
@@ -173,6 +204,7 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	return sia, nil
 }
 
+// nolint: unused
 func (sia *setInformationArgs) string() string {
 	var output strings.Builder
 
@@ -207,6 +239,12 @@ type cleanupArgs struct {
 	fileName   string
 }
 
+// nolint: unused
+type closeArgs cleanupArgs
+
+// nolint: unused
+type flushArgs cleanupArgs
+
 func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	ca := &cleanupArgs{}
 	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
@@ -232,11 +270,41 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	return ca, nil
 }
 
+// nolint: unused
+func parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
+	ca, err := parseCleanupArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*closeArgs)(ca), nil
+}
+
+// nolint: unused
+func parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
+	ca, err := parseCleanupArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*flushArgs)(ca), nil
+}
+
+// nolint: unused
 func (ca *cleanupArgs) string() string {
 	var output strings.Builder
 
 	output.WriteString("  CLEANUP: TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
 	output.WriteString("           Name: " + ca.fileName + "\n")
+	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
 	return output.String()
 
+}
+
+// nolint: unused
+func (ca *closeArgs) string() string {
+	return (*cleanupArgs)(ca).string()
+}
+
+// nolint: unused
+func (fa *flushArgs) string() string {
+	return (*cleanupArgs)(fa).string()
 }

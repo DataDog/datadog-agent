@@ -15,9 +15,6 @@ import (
 
 	"go.uber.org/multierr"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -31,35 +28,12 @@ import (
 var _ otlpmetrics.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
-	cardinality collectors.TagCardinality
-	extraTags   []string
-	series      metrics.Series
-	sketches    metrics.SketchSeriesList
-	apmstats    []io.Reader
-}
-
-// enrichedTags of a given dimension.
-// In the OTLP pipeline, 'contexts' are kept within the translator and function differently than DogStatsD/check metrics.
-func (c *serializerConsumer) enrichedTags(dimensions *otlpmetrics.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(c.extraTags)+len(dimensions.Tags()))
-	enrichedTags = append(enrichedTags, c.extraTags...)
-	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-
-	entityTags, err := tagger.Tag(dimensions.OriginID(), c.cardinality)
-	if err != nil {
-		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
-	} else {
-		enrichedTags = append(enrichedTags, entityTags...)
-	}
-
-	globalTags, err := tagger.GlobalTags(c.cardinality)
-	if err != nil {
-		log.Trace(err.Error())
-	} else {
-		enrichedTags = append(enrichedTags, globalTags...)
-	}
-
-	return enrichedTags
+	enricher        tagenricher
+	extraTags       []string
+	series          metrics.Series
+	sketches        metrics.SketchSeriesList
+	apmstats        []io.Reader
+	apmReceiverAddr string
 }
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
@@ -73,10 +47,10 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	c.apmstats = append(c.apmstats, body)
 }
 
-func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, qsketch *quantile.Sketch) {
+func (c *serializerConsumer) ConsumeSketch(ctx context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, qsketch *quantile.Sketch) {
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		Name:     dimensions.Name(),
-		Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
+		Tags:     tagset.CompositeTagsFromSlice(c.enricher.Enrich(ctx, c.extraTags, dimensions)),
 		Host:     dimensions.Host(),
 		Interval: 0, // OTLP metrics do not have an interval.
 		Points: []metrics.SketchPoint{{
@@ -101,7 +75,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *
 		&metrics.Serie{
 			Name:     dimensions.Name(),
 			Points:   []metrics.Point{{Ts: float64(ts / 1e9), Value: value}},
-			Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
+			Tags:     tagset.CompositeTagsFromSlice(c.enricher.Enrich(ctx, c.extraTags, dimensions)),
 			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: 0, // OTLP metrics do not have an interval.
@@ -160,10 +134,10 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 }
 
 func (c *serializerConsumer) sendAPMStats() error {
-	addr := fmt.Sprintf("http://localhost:%s/v0.6/stats", config.Datadog.GetString("apm_config.receiver_port"))
+
 	log.Debugf("Exporting %d APM stats payloads", len(c.apmstats))
 	for _, body := range c.apmstats {
-		resp, err := http.Post(addr, "application/msgpack", body)
+		resp, err := http.Post(c.apmReceiverAddr, "application/msgpack", body)
 		if err != nil {
 			return fmt.Errorf("could not flush StatsPayload: %v", err)
 		}
