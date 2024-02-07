@@ -165,7 +165,7 @@ func StopEtw(subscriptionName string) {
 	if len(subscribers) != 0 {
 		C.StopEtwSubscription()
 		for _, s := range subs {
-			sub.OnStop()
+			s.OnStop()
 		}
 	}
 }
