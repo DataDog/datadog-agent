@@ -1021,6 +1021,12 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rmdir.Retval)
+
+	case model.FileChdirEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.Chdir.File, event),
+		}
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Mkdir.Retval)
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),

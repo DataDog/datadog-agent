@@ -98,6 +98,10 @@ int __attribute__((always_inline)) mkdir_approvers(struct syscall_cache_t *sysca
     return basename_approver(syscall, syscall->mkdir.dentry, EVENT_MKDIR);
 }
 
+int __attribute__((always_inline)) chdir_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->chdir.dentry, EVENT_CHDIR);
+}
+
 int __attribute__((always_inline)) approve_mprotect_by_vm_protection(struct syscall_cache_t *syscall) {
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&mprotect_vm_protection_approvers, &key);
