@@ -50,7 +50,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ./pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ./pkg/logs/diagnostic
-	github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils => ./pkg/logs/internal/util/testutils
 	github.com/DataDog/datadog-agent/pkg/logs/logstatus => ./pkg/logs/logstatus
 	github.com/DataDog/datadog-agent/pkg/logs/message => ./pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
@@ -59,6 +58,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ./pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
+	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ./pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics/
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
@@ -638,7 +638,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/logstatus v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.51.0-rc.2
@@ -647,6 +646,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/util/testutils v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/metrics v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.51.0-rc.2

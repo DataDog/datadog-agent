@@ -40,6 +40,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.51.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/logstatus v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.51.0-rc.2 // indirect
