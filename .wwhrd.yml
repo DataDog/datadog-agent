@@ -17,6 +17,9 @@ allowlist:
   - FreeBSD
 
 overrides:
+  # https://github.com/aquasecurity/trivy-policies/blob/main/LICENSE
+  "github.com/aquasecurity/trivy-policies/pkg/spec": MIT
+  "github.com/aquasecurity/trivy-policies/rules/specs": MIT
   # https://github.com/bmizerany/pat/blob/master/LICENSE
   "github.com/bmizerany/pat": MIT
   # https://github.com/xi2/xz/blob/master/LICENSE
