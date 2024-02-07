@@ -10,7 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../config/utils
-	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ../internal/status
+	github.com/DataDog/datadog-agent/pkg/logs/logstatus => ../logstatus
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../sources
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
@@ -40,7 +40,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.51.0-rc.2 // indirect

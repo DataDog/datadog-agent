@@ -15,8 +15,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../diagnostic
-	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ../internal/status
 	github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils => ../internal/util/testutils
+	github.com/DataDog/datadog-agent/pkg/logs/logstatus => ../logstatus
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../metrics
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../processor
@@ -67,7 +67,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-rc.2 // indirect

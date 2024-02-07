@@ -50,8 +50,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ./pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ./pkg/logs/diagnostic
-	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ./pkg/logs/internal/status
 	github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils => ./pkg/logs/internal/util/testutils
+	github.com/DataDog/datadog-agent/pkg/logs/logstatus => ./pkg/logs/logstatus
 	github.com/DataDog/datadog-agent/pkg/logs/message => ./pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ./pkg/logs/pipeline
@@ -638,8 +638,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/logstatus v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.51.0-rc.2

@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/pkg/logs/internal/status
+module github.com/DataDog/datadog-agent/pkg/logs/logstatus
 
 go 1.21
 

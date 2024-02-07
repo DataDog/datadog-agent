@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	status "github.com/DataDog/datadog-agent/pkg/logs/logstatus"
 )
 
 // ReplaceableSource is a thread safe wrapper for a LogSource that allows it to be replaced with a new one.
