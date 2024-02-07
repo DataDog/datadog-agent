@@ -369,7 +369,6 @@ require (
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/containerd/ttrpc v1.2.2 // indirect
-	github.com/containerd/typeurl v1.0.2 // indirect
 	github.com/containernetworking/plugins v1.2.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
@@ -510,7 +509,7 @@ require (
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
-	github.com/spdx/tools-golang v0.3.1-0.20230104082527-d6f58551be3f // indirect
+	github.com/spdx/tools-golang v0.5.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.1 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
@@ -685,7 +684,7 @@ require (
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.14 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.10 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.56 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.1.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.17.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.10.3 // indirect
@@ -778,7 +777,7 @@ replace sigs.k8s.io/controller-runtime v0.11.2 => sigs.k8s.io/controller-runtime
 replace github.com/cloudflare/circl v1.1.0 => github.com/cloudflare/circl v1.3.7
 
 // Fixes CVE-2023-26054, imported by trivy
-replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.11.4
+replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.12.5
 
 // Fixes a panic in trivy, see gitlab.com/cznic/libc/-/issues/25
 replace modernc.org/sqlite v1.17.3 => modernc.org/sqlite v1.19.3
