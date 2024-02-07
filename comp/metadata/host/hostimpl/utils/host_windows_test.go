@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/shirou/gopsutil/v3/host"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -45,7 +46,7 @@ func TestGetHostInfo(t *testing.T) {
 func TestGetHostInfoCache(t *testing.T) {
 	defer cache.Cache.Delete(hostInfoCacheKey)
 
-	fakeInfo := &InfoStat{Hostname: "hostname from cache"}
+	fakeInfo := &host.InfoStat{Hostname: "hostname from cache"}
 	cache.Cache.Set(hostInfoCacheKey, fakeInfo, cache.NoExpiration)
 
 	assert.Equal(t, fakeInfo, GetInformation())

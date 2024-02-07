@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
 
@@ -37,29 +38,12 @@ var (
 	procGetTickCount64 = modkernel.NewProc("GetTickCount64")
 )
 
-// InfoStat describes the host status.  This is not in the psutil but it useful.
-type InfoStat struct {
-	Hostname             string `json:"hostname"`
-	Uptime               uint64 `json:"uptime"`
-	BootTime             uint64 `json:"bootTime"`
-	Procs                uint64 `json:"procs"`           // number of processes
-	OS                   string `json:"os"`              // ex: freebsd, linux
-	Platform             string `json:"platform"`        // ex: ubuntu, linuxmint
-	PlatformFamily       string `json:"platformFamily"`  // ex: debian, rhel
-	PlatformVersion      string `json:"platformVersion"` // version of the complete OS
-	KernelVersion        string `json:"kernelVersion"`   // version of the OS kernel (if available)
-	KernelArch           string `json:"kernelArch"`
-	VirtualizationSystem string `json:"virtualizationSystem"`
-	VirtualizationRole   string `json:"virtualizationRole"` // guest or host
-	HostID               string `json:"hostid"`             // ex: uuid
-}
-
 // GetInformation returns an InfoStat object, filled in with various operating system metadata
-func GetInformation() *InfoStat {
-	info, _ := cache.Get[*InfoStat](
+func GetInformation() *host.InfoStat {
+	info, _ := cache.Get[*host.InfoStat](
 		hostInfoCacheKey,
-		func() (*InfoStat, error) {
-			info := &InfoStat{}
+		func() (*host.InfoStat, error) {
+			info := &host.InfoStat{}
 			info.Hostname, _ = os.Hostname()
 
 			upTime := time.Duration(getTickCount64()) * time.Millisecond
