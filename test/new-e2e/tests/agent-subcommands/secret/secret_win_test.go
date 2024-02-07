@@ -61,13 +61,13 @@ host_aliases:
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(config),
-				agentparams.WithFile(`C:/secret.bat`, string(secretSetupScript), true),
+				agentparams.WithFile(`C:/Users/Administrator/scripts/secret.bat`, string(secretSetupScript), true),
 				agentparams.WithFile(`C:/Users/Administator/scripts/setup_secret.ps1`, string(secretSetupScript), true),
 			),
 		),
 	)
 
-	v.Env().RemoteHost.MustExecute(`C:/Users/Administator/scripts/setup_secret.ps1 -FilePath "C:/secret.bat" -FileContent '@echo {"alias_secret": {"value": "a_super_secret_string"}}'`)
+	v.Env().RemoteHost.MustExecute(`C:/Users/Administator/scripts/setup_secret.ps1 -FilePath "C:/Users/Administator/scripts/secret.bat" -FileContent '@echo {"alias_secret": {"value": "a_super_secret_string"}}'`)
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig(config))))
 
 	output := v.Env().Agent.Client.Secret()
