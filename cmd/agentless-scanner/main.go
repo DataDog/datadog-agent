@@ -269,8 +269,14 @@ func getDefaultRolesMapping(provider types.CloudProvider) types.RolesMapping {
 
 func detectCloudProvider(s string) (types.CloudProvider, error) {
 	if s == "auto" {
-		board, err := os.ReadFile("/sys/devices/virtual/dmi/id/board_vendor")
-		if err == nil && bytes.Equal(board, []byte("Amazon EC2\n")) {
+		// Amazon EC2 T4g
+		boardVendor, err := os.ReadFile("/sys/devices/virtual/dmi/id/board_vendor")
+		if err == nil && bytes.Equal(boardVendor, []byte("Amazon EC2\n")) {
+			return types.CloudProviderAWS, nil
+		}
+		// Amazon EC2 M4
+		productVersion, err := os.ReadFile("/sys/devices/virtual/dmi/id/product_version")
+		if err == nil && bytes.Contains(productVersion, []byte("amazon")) {
 			return types.CloudProviderAWS, nil
 		}
 		return "", fmt.Errorf("could not detect cloud provider automatically, please specify one using --cloud-provider flag")
