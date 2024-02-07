@@ -7,7 +7,7 @@ from invoke.exceptions import Exit
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
 from .go import deps
-from .utils import REPO_PATH, bin_name, get_build_flags, get_root, get_version, load_release_versions
+from .utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
