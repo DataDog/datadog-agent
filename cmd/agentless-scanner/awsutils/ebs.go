@@ -128,23 +128,24 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotW
 		}
 		scan.PushCreatedResource(snapshotID, snapshotCreatedAt)
 
-		err = <-waiter.Wait(ctx, snapshotID, ec2client)
-		if err == nil {
-			snapshotDuration := time.Since(snapshotCreatedAt)
-			log.Debugf("%s: volume snapshotting of %q finished successfully %q (took %s)", scan, volumeID, snapshotID, snapshotDuration)
-			if err := statsd.Histogram("datadog.agentless_scanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), scan.Tags(), 1.0); err != nil {
-				log.Warnf("failed to send metric: %v", err)
-			}
-			if err := statsd.Histogram("datadog.agentless_scanner.snapshots.size", float64(*createSnapshotOutput.VolumeSize), scan.TagsFailure(err), 1.0); err != nil {
-				log.Warnf("failed to send metric: %v", err)
-			}
-			if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, scan.TagsSuccess(), 1.0); err != nil {
-				log.Warnf("failed to send metric: %v", err)
-			}
-		} else {
+		poll := <-waiter.Wait(ctx, snapshotID, ec2client)
+		if err := poll.Err; err != nil {
 			if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, scan.TagsFailure(err), 1.0); err != nil {
 				log.Warnf("failed to send metric: %v", err)
 			}
+			return types.CloudID{}, err
+		}
+
+		snapshotDuration := time.Since(snapshotCreatedAt)
+		log.Debugf("%s: volume snapshotting of %q finished successfully %q (took %s)", scan, volumeID, snapshotID, snapshotDuration)
+		if err := statsd.Histogram("datadog.agentless_scanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), scan.Tags(), 1.0); err != nil {
+			log.Warnf("failed to send metric: %v", err)
+		}
+		if err := statsd.Histogram("datadog.agentless_scanner.snapshots.size", float64(*createSnapshotOutput.VolumeSize), scan.TagsFailure(err), 1.0); err != nil {
+			log.Warnf("failed to send metric: %v", err)
+		}
+		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, scan.TagsSuccess(), 1.0); err != nil {
+			log.Warnf("failed to send metric: %v", err)
 		}
 		return snapshotID, err
 	}
@@ -152,27 +153,17 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotW
 
 // CopySnapshot copies an EBS snapshot.
 func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, ec2client *ec2.Client, snapshotID types.CloudID) (types.CloudID, error) {
-	// TODO: use the waiter to poll the resource
-	snapshots, err := ec2client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{
-		SnapshotIds: []string{snapshotID.ResourceName()},
-	})
+	self, err := GetSelfEC2InstanceIndentity(ctx)
 	if err != nil {
+		return types.CloudID{}, fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
+	}
+
+	poll := <-waiter.Wait(ctx, snapshotID, ec2client)
+	if err := poll.Err; err != nil {
 		return types.CloudID{}, err
 	}
-	if len(snapshots.Snapshots) == 0 {
-		return types.CloudID{}, fmt.Errorf("snapshot not found: %s", snapshotID)
-	}
 
-	snapshot := snapshots.Snapshots[0]
-
-	// Fast path if the given snapshot is of our creation (with the proper tags).
-	// TODO: check that the snapshot is in another region
-	for _, tag := range snapshot.Tags {
-		if tag.Key != nil && *tag.Key == "DatadogAgentlessScanner" && tag.Value != nil && *tag.Value == "true" {
-			return snapshotID, nil
-		}
-	}
-
+	snapshot := *poll.Snapshot
 	log.Debugf("%s: copying snapshot %s", scan, snapshotID)
 	copyCreatedAt := time.Now()
 	copyOutput, err := ec2client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
@@ -186,15 +177,27 @@ func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWai
 		return types.CloudID{}, fmt.Errorf("copying snapshot %q: %w", snapshotID, err)
 	}
 
-	copiedSnapshotID, err := types.AWSCloudID("ec2", snapshotID.Region(), snapshotID.AccountID(), types.ResourceTypeSnapshot, *copyOutput.SnapshotId)
+	copiedSnapshotID, err := types.AWSCloudID("ec2", self.Region, snapshotID.AccountID(), types.ResourceTypeSnapshot, *copyOutput.SnapshotId)
 	if err != nil {
 		return types.CloudID{}, err
 	}
 	scan.PushCreatedResource(copiedSnapshotID, copyCreatedAt)
 
-	// TODO: stats
-	if err := <-waiter.Wait(ctx, copiedSnapshotID, ec2client); err != nil {
+	poll = <-waiter.Wait(ctx, copiedSnapshotID, ec2client)
+	if err := poll.Err; err != nil {
+		if err := statsd.Count("datadog.agentless_scanner.snapshots.copies.finished", 1.0, scan.TagsFailure(err), 1.0); err != nil {
+			log.Warnf("failed to send metric: %v", err)
+		}
 		return types.CloudID{}, fmt.Errorf("waiting for copied snapshot %q: %w", copiedSnapshotID, err)
+	}
+
+	copyDuration := time.Since(copyCreatedAt)
+	log.Debugf("%s: snapshot copy of %q finished successfully %q (took %s)", scan, snapshotID, copiedSnapshotID, copyDuration)
+	if err := statsd.Histogram("datadog.agentless_scanner.snapshots.copies.duration", float64(copyDuration.Milliseconds()), scan.Tags(), 1.0); err != nil {
+		log.Warnf("failed to send metric: %v", err)
+	}
+	if err := statsd.Count("datadog.agentless_scanner.snapshots.copies.finished", 1.0, scan.TagsSuccess(), 1.0); err != nil {
+		log.Warnf("failed to send metric: %v", err)
 	}
 	return copiedSnapshotID, nil
 }
@@ -235,32 +238,15 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 	remoteEC2Client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, scan.Roles, snapshotID))
 	var localSnapshotID types.CloudID
 	if snapshotID.Region() != self.Region {
-		log.Debugf("%s: copying snapshot %q into %q", scan, snapshotID, self.Region)
-		copySnapshotCreatedAt := time.Now()
-		copySnapshot, err := remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
-			SourceRegion: aws.String(snapshotID.Region()),
-			// DestinationRegion: aws.String(self.Region): automatically filled by SDK
-			SourceSnapshotId:  aws.String(snapshotID.ResourceName()),
-			TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
-		})
-		if err != nil {
-			return fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotID, self.Region, err)
-		}
-		localSnapshotID, err = types.AWSCloudID("ec2", self.Region, snapshotID.AccountID(), types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
-		if err != nil {
-			return err
-		}
-		log.Debugf("%s: waiting for copy of snapshot %q into %q as %q", scan, snapshotID, self.Region, *copySnapshot.SnapshotId)
-		err = <-waiter.Wait(ctx, localSnapshotID, remoteEC2Client)
-		if err != nil {
-			return fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotID, self.Region, *copySnapshot.SnapshotId, err)
-		}
-		log.Debugf("%s: successfully copied snapshot %q into %q: %q", scan, snapshotID, self.Region, *copySnapshot.SnapshotId)
-		scan.PushCreatedResource(localSnapshotID, copySnapshotCreatedAt)
+		localSnapshotID, err = CopySnapshot(ctx, scan, waiter, remoteEC2Client, snapshotID)
 	} else {
 		localSnapshotID = snapshotID
 	}
+	if err != nil {
+		return err
+	}
 
+	locaEC2Client := ec2.NewFromConfig(GetConfig(ctx, self.Region, scan.Roles.GetRole(self.AccountID)))
 	if localSnapshotID.AccountID() != "" && localSnapshotID.AccountID() != self.AccountID {
 		_, err = remoteEC2Client.ModifySnapshotAttribute(ctx, &ec2.ModifySnapshotAttributeInput{
 			SnapshotId:    aws.String(snapshotID.ResourceName()),
@@ -273,7 +259,6 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		}
 	}
 
-	locaEC2Client := ec2.NewFromConfig(GetConfig(ctx, self.Region, scan.Roles.GetRole(self.AccountID)))
 	log.Debugf("%s: creating new volume for snapshot %q in az %q", scan, localSnapshotID, self.AvailabilityZone)
 	volume, err := locaEC2Client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 		VolumeType:        ec2types.VolumeTypeGp3,
