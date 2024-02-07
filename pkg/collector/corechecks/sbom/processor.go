@@ -48,7 +48,6 @@ type processor struct {
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
 	hostSBOM              bool
-	hostScanOpts          sbom.ScanOptions
 	hostname              string
 	hostCache             string
 	hostLastFullSBOM      time.Time
@@ -56,8 +55,6 @@ type processor struct {
 }
 
 func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
-	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
-	hostScanOpts.NoCache = true
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -88,7 +85,6 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 		imageUsers:            make(map[string]map[string]struct{}),
 		sbomScanner:           sbomScanner,
 		hostSBOM:              hostSBOM,
-		hostScanOpts:          hostScanOpts,
 		hostname:              hname,
 		hostHeartbeatValidity: hostHeartbeatValidity,
 	}, nil
@@ -224,24 +220,18 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	p.queue <- sbom
 }
 
-func (p *processor) triggerHostScan(ch chan sbom.ScanResult) {
+func (p *processor) triggerHostScan() {
 	if !p.hostSBOM {
 		return
 	}
-
-	if ch == nil {
-		log.Errorf("scan result channel is nil")
-		return
-	}
-
 	log.Debugf("Triggering host SBOM refresh")
 
-	scanRequest := &host.ScanRequest{Path: "/"}
+	scanRequest := host.ScanRequest{Path: "/"}
 	if hostRoot := os.Getenv("HOST_ROOT"); config.IsContainerized() && hostRoot != "" {
 		scanRequest.Path = hostRoot
 	}
 
-	if err := p.sbomScanner.Scan(scanRequest, p.hostScanOpts, ch); err != nil {
+	if err := p.sbomScanner.Scan(scanRequest); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for host: %s", err)
 		return
 	}

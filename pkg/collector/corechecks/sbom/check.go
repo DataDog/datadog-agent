@@ -20,6 +20,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -183,8 +184,11 @@ func (c *Check) Run() error {
 	// if the processor is not ready to receive the result yet. This channel should not be closed,
 	// it is sent as part of every scan request. When the main context terminates, both references will
 	// be dropped and the scanner will be garbage collected.
-	hostSbomChan := make(chan sbom.ScanResult, 1)
-	c.processor.triggerHostScan(hostSbomChan)
+	hostSbomChan := make(chan sbom.ScanResult) // default value to listen to nothing
+	if collectors.GetHostScanner() != nil && collectors.GetHostScanner().Channel() != nil {
+		hostSbomChan = collectors.GetHostScanner().Channel()
+	}
+	c.processor.triggerHostScan()
 
 	c.sendUsageMetrics()
 
@@ -208,7 +212,7 @@ func (c *Check) Run() error {
 		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 		case <-hostPeriodicRefreshTicker.C:
-			c.processor.triggerHostScan(hostSbomChan)
+			c.processor.triggerHostScan()
 		case scanResult := <-hostSbomChan:
 			c.processor.processHostScanResult(scanResult)
 		case <-metricTicker.C:
