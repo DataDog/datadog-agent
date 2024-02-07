@@ -1,6 +1,6 @@
-import unittest
-import subprocess
 import os
+import subprocess
+import unittest
 
 
 def run_mod_formatter(path, formatFile=False, allow_fail=False):

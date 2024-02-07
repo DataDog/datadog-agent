@@ -48,10 +48,10 @@ from .go import (
     generate_protobuf,
     go_fix,
     golangci_lint,
+    internal_deps_checker,
     lint_licenses,
     reset,
     tidy_all,
-    internal_deps_checker,
 )
 from .go_test import (
     codecov,
