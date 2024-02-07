@@ -47,11 +47,11 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	)
 	scanner := collectors.GetContainerdScanner()
 	if scanner == nil {
-		return fmt.Errorf("error retrieving global docker scanner")
+		return fmt.Errorf("error retrieving global containerd scanner")
 	}
 	resultChan := scanner.Channel()
 	if resultChan == nil {
-		return fmt.Errorf("error retrieving global docker scanner channel")
+		return fmt.Errorf("error retrieving global containerd scanner channel")
 	}
 	go func() {
 		for {
