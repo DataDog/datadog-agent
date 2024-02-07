@@ -60,6 +60,12 @@ const (
 	// to classify protocols and dispatch the correct handlers.
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	connectionStatesMap                    = "connection_states"
+	sockFDLookupArgsMap                    = "sockfd_lookup_args"
+	sockByPidFDMap                         = "sock_by_pid_fd"
+	pidFDBySockMap                         = "pid_fd_by_sock"
+
+	sockFDLookup    = "kprobe__sockfd_lookup_light"
+	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
 
 	tcpCloseProbe = "kprobe__tcp_close"
 
@@ -91,6 +97,9 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 			{Name: protocols.TLSDispatcherProgramsMap},
 			{Name: protocols.ProtocolDispatcherProgramsMap},
 			{Name: connectionStatesMap},
+			{Name: sockFDLookupArgsMap},
+			{Name: sockByPidFDMap},
+			{Name: pidFDBySockMap},
 		},
 		Probes: []*manager.Probe{
 			{
@@ -127,13 +136,13 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 			mgr.Probes = append(mgr.Probes, []*manager.Probe{
 				{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFFuncName: probes.SockFDLookup,
+						EBPFFuncName: sockFDLookup,
 						UID:          probeUID,
 					},
 				},
 				{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFFuncName: probes.SockFDLookupRet,
+						EBPFFuncName: sockFDLookupRet,
 						UID:          probeUID,
 					},
 					KProbeMaxActive: maxActive,
@@ -371,12 +380,20 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
+		probes.ConnectionProtocolMap: {
+			MaxEntries: e.cfg.MaxTrackedConnections,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		sockByPidFDMap: {
+			MaxEntries: e.cfg.MaxTrackedConnections,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		pidFDBySockMap: {
+			MaxEntries: e.cfg.MaxTrackedConnections,
+			EditorFlag: manager.EditMaxEntries,
+		},
 	}
 
-	options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
-		MaxEntries: e.cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
 	if e.connectionProtocolMap != nil {
 		if options.MapEditors == nil {
 			options.MapEditors = make(map[string]*ebpf.Map)
@@ -478,6 +495,32 @@ func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName s
 		iter := currentMap.Iterate()
 		var key http.ConnTuple
 		var value uint32
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+	case sockFDLookupArgsMap: // maps/sockfd_lookup_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.__u32'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		var value uint32
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case sockByPidFDMap: // maps/sock_by_pid_fd (BPF_MAP_TYPE_HASH), key C.pid_fd_t, value uintptr // C.struct sock*
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.pid_fd_t', value: 'uintptr // C.struct sock*'\n")
+		iter := currentMap.Iterate()
+		var key netebpf.PIDFD
+		var value uintptr // C.struct sock*
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case pidFDBySockMap: // maps/pid_fd_by_sock (BPF_MAP_TYPE_HASH), key uintptr // C.struct sock*, value C.pid_fd_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'uintptr // C.struct sock*', value: 'C.pid_fd_t'\n")
+		iter := currentMap.Iterate()
+		var key uintptr // C.struct sock*
+		var value netebpf.PIDFD
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
