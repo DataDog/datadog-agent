@@ -5,8 +5,8 @@
 include:
   - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
 
-#internal_kubernetes_deploy_experimental:
-#  stage: internal_kubernetes_deploy
+internal_kubernetes_deploy_experimental:
+  stage: internal_kubernetes_deploy
 #  rules:
 #  - if: $FORCE_K8S_DEPLOYMENT == "true"
 #    when: always
@@ -15,7 +15,7 @@ include:
 #  - if: $DDR != "true"
 #    when: never
 #  - !reference [.on_deploy_a7]
-#  needs:
+  needs:
 #  - job: docker_trigger_internal
 #    artifacts: false
 #  - job: docker_trigger_cluster_agent_internal
@@ -23,15 +23,15 @@ include:
 #  - job: k8s-e2e-main # Currently only require container Argo workflow
 #    artifacts: false
 #    optional: true
-#  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-#  tags: ["arch:amd64"]
-#  variables:
-#    OPTION_AUTOMATIC_ROLLOUT: "true"
-#    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh env=all-staging ${CI_COMMIT_REF_SLUG}-jmx-${CI_COMMIT_SHORT_SHA} ${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
-#    SKIP_PLAN_CHECK: "true"
-#    EXPLICIT_WORKFLOWS: "//workflows:beta_builds.agents_nightly.publish"
-#  script:
-#    - source /root/.bashrc
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    OPTION_AUTOMATIC_ROLLOUT: "true"
+    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh env=all-staging ${CI_COMMIT_REF_SLUG}-jmx-${CI_COMMIT_SHORT_SHA} ${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
+    SKIP_PLAN_CHECK: "true"
+    EXPLICIT_WORKFLOWS: "//workflows:beta_builds.agents_nightly.publish"
+  script:
+    - source /root/.bashrc
 #    - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
 #    - "inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
 #        --variable OPTION_AUTOMATIC_ROLLOUT
@@ -56,7 +56,7 @@ notify-slack:
 #      when: never
 #    - !reference [ .on_deploy_a7 ]
   tags: ["arch:amd64"]
-#  needs: ["internal_kubernetes_deploy_experimental"]
+  needs: ["internal_kubernetes_deploy_experimental"]
   script:
     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
     - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA}
