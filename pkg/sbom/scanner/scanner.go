@@ -26,8 +26,8 @@ import (
 
 const (
 	defaultScanTimeout = 30 * time.Second
-	baseBackoff        = 5 * time.Minute
-	maxBackoff         = 1 * time.Hour
+	baseBackoff        = 30 * time.Second
+	maxBackoff         = 2 * time.Minute
 )
 
 var (
@@ -37,32 +37,44 @@ var (
 type scanRequest struct {
 	sbom.ScanRequest
 	collector collectors.Collector
-	opts      sbom.ScanOptions
-	ch        chan<- sbom.ScanResult
+	img       *workloadmeta.ContainerImageMetadata
 }
 
 func (sr *scanRequest) timeOut() time.Duration {
-	if sr.opts.Timeout == 0 {
+	opts := sr.collector.Options()
+	if opts.Timeout == 0 {
 		return defaultScanTimeout
 	}
-	return sr.opts.Timeout
+	return opts.Timeout
 }
 
-func (sr *scanRequest) imgMeta() *workloadmeta.ContainerImageMetadata {
-	if imageRequest, ok := sr.ScanRequest.(sbom.ImageScanRequest); ok {
-		return imageRequest.GetImgMetadata()
+func (sr *scanRequest) imgMeta(wlm workloadmeta.Component) *workloadmeta.ContainerImageMetadata {
+	if sr.collector == nil || sr.collector.Type() != collectors.ContainerImageScanType {
+		return nil
 	}
-	return nil
+	if sr.img != nil {
+		return sr.img
+	}
+	if wlm == nil {
+		log.Debugf("workloadmeta is not initialized")
+		return nil
+	}
+	imgMeta, err := wlm.GetImage(sr.ID())
+	if err != nil {
+		return nil
+	}
+	sr.img = imgMeta
+	return sr.img
 }
 
 // sendResult sends a ScanResult to the channel associated with the scan request.
 // This function should not be blocking
 func (sr *scanRequest) sendResult(result *sbom.ScanResult) error {
 	select {
-	case sr.ch <- *result:
+	case sr.collector.Channel() <- *result:
 	default:
 		err := fmt.Errorf("failed to push scanner result for '%s' into channel", sr.ID())
-		log.Error(err)
+		_ = log.Error(err)
 		return err
 	}
 	return nil
@@ -128,19 +140,12 @@ func GetGlobalScanner() *Scanner {
 }
 
 // Scan enqueues a scan request to the scanner
-func (s *Scanner) Scan(request sbom.ScanRequest, opts sbom.ScanOptions, ch chan<- sbom.ScanResult) error {
+func (s *Scanner) Scan(request sbom.ScanRequest) error {
 	if s.scanQueue == nil {
 		return errors.New("scanner not started")
 	}
-
-	collectorName := request.Collector()
-	collector := collectors.Collectors[collectorName]
-	if collector == nil {
-		return fmt.Errorf("invalid collector '%s'", collectorName)
-	}
-	sr := &scanRequest{ScanRequest: request, collector: collector, ch: ch, opts: opts}
 	// TODO: For now the workqueue takes scan requests as
-	s.scanQueue.Add(sr)
+	s.scanQueue.Add(request)
 	return nil
 }
 
@@ -151,15 +156,11 @@ func (s *Scanner) shouldCancel(sr *scanRequest) bool {
 	if sr.collector.Type() != collectors.ContainerImageScanType {
 		return false
 	}
-	imgMeta := sr.imgMeta()
+	imgMeta := sr.imgMeta(workloadmeta.GetGlobalStore())
 	if imgMeta == nil {
 		return true
 	}
-	wlm := workloadmeta.GetGlobalStore()
-	if wlm == nil {
-		return true
-	}
-	if _, err := wlm.GetImage(imgMeta.ID); err != nil {
+	if imgMeta.SBOM != nil && imgMeta.SBOM.Status == workloadmeta.Success {
 		return true
 	}
 	return false
@@ -203,7 +204,7 @@ func (s *Scanner) startCacheCleaner(ctx context.Context) {
 			log.Debug("cleaning SBOM cache")
 			for _, collector := range collectors.Collectors {
 				if err := collector.CleanCache(); err != nil {
-					log.Warnf("could not clean SBOM cache: %v", err)
+					_ = log.Warnf("could not clean SBOM cache: %v", err)
 				}
 			}
 			s.cacheMutex.Unlock()
@@ -228,9 +229,9 @@ func (s *Scanner) startScanRequestHandler(ctx context.Context) {
 	for {
 		r, shutdown := s.scanQueue.Get()
 		if shutdown {
-			return
+			break
 		}
-		request, ok := r.(*scanRequest)
+		request, ok := r.(sbom.ScanRequest)
 		if !ok {
 			_ = log.Errorf("invalid scan request type '%T'", r)
 			s.scanQueue.Forget(r)
@@ -238,9 +239,14 @@ func (s *Scanner) startScanRequestHandler(ctx context.Context) {
 			continue
 		}
 
-		if err := s.handleScanRequest(ctx, request); err != nil {
+		sr := &scanRequest{
+			ScanRequest: request,
+			collector:   collectors.Collectors[request.Collector()],
+		}
+
+		if err := s.handleScanRequest(ctx, sr); err != nil {
 			_ = log.Errorf("failed to handle scan request: %v", err)
-			if request.collector.Type() == collectors.ContainerImageScanType {
+			if sr.collector.Type() == collectors.ContainerImageScanType {
 				s.scanQueue.AddRateLimited(request)
 			}
 			s.scanQueue.Done(request)
@@ -249,6 +255,11 @@ func (s *Scanner) startScanRequestHandler(ctx context.Context) {
 		// Forget only if the scan was successful
 		s.scanQueue.Forget(request)
 		s.scanQueue.Done(request)
+	}
+
+	// close all channels
+	for _, collector := range collectors.Collectors {
+		collector.Shutdown()
 	}
 }
 
@@ -266,8 +277,9 @@ func (s *Scanner) handleScanRequest(ctx context.Context, sr *scanRequest) (e err
 		return
 	}
 	e = s.scan(ctx, sr)
-	if sr.opts.WaitAfter != 0 {
-		t := time.NewTimer(sr.opts.WaitAfter)
+	opts := sr.collector.Options()
+	if opts.WaitAfter != 0 {
+		t := time.NewTimer(opts.WaitAfter)
 		select {
 		case <-ctx.Done():
 		case <-t.C:
@@ -280,7 +292,7 @@ func (s *Scanner) handleScanRequest(ctx context.Context, sr *scanRequest) (e err
 
 // validateScanRequest validates the scan request and returns an error if the request is invalid
 func (s *Scanner) validateScanRequest(sr *scanRequest) error {
-	err := s.enoughDiskSpace(sr.opts)
+	err := s.enoughDiskSpace(sr.collector.Options())
 	if err == nil {
 		return nil
 	}
@@ -289,7 +301,7 @@ func (s *Scanner) validateScanRequest(sr *scanRequest) error {
 	// the caller can associate the error to the given image
 	err = fmt.Errorf("failed to check current disk usage: %w", err)
 	result := sbom.ScanResult{
-		ImgMeta: sr.imgMeta(),
+		ImgMeta: sr.imgMeta(workloadmeta.GetGlobalStore()),
 		Error:   err,
 	}
 	_ = sr.sendResult(&result)
@@ -303,7 +315,7 @@ func (s *Scanner) scan(ctx context.Context, sr *scanRequest) (e error) {
 	startedAt := time.Now()
 
 	s.cacheMutex.Lock()
-	scanResult := sr.collector.Scan(scanContext, sr.ScanRequest, sr.opts)
+	scanResult := sr.collector.Scan(scanContext, sr.ScanRequest)
 	s.cacheMutex.Unlock()
 
 	generationDuration := time.Since(startedAt)

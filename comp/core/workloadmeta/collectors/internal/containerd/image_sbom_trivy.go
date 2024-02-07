@@ -10,6 +10,7 @@ package containerd
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -29,7 +30,6 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return nil
 	}
 
-	c.scanOptions = sbom.ScanOptionsFromConfig(config.Datadog, true)
 	c.sbomScanner = scanner.GetGlobalScanner()
 	if c.sbomScanner == nil {
 		return fmt.Errorf("error retrieving global SBOM scanner")
@@ -45,7 +45,14 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(&filterParams),
 	)
-	resultChan := make(chan sbom.ScanResult, 2000)
+	scanner := collectors.GetContainerdScanner()
+	if scanner == nil {
+		return fmt.Errorf("error retrieving global docker scanner")
+	}
+	resultChan := scanner.Channel()
+	if resultChan == nil {
+		return fmt.Errorf("error retrieving global docker scanner channel")
+	}
 	go func() {
 		for {
 			select {
@@ -80,26 +87,18 @@ func (c *collector) handleEventBundle(ctx context.Context, eventBundle workloadm
 			continue
 		}
 
-		if err := c.extractSBOMWithTrivy(ctx, image, resultChan); err != nil {
+		if err := c.extractSBOMWithTrivy(ctx, image.ID); err != nil {
 			log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
 		}
 	}
 }
 
 // extractSBOMWithTrivy emits a scan request to the SBOM scanner. The scan result will be sent to the resultChan.
-func (c *collector) extractSBOMWithTrivy(_ context.Context, storedImage *workloadmeta.ContainerImageMetadata, resultChan chan<- sbom.ScanResult) error {
-	containerdImage, err := c.containerdClient.Image(storedImage.Namespace, storedImage.Name)
-	if err != nil {
-		return err
+func (c *collector) extractSBOMWithTrivy(_ context.Context, imageID string) error {
+	scanRequest := containerd.ScanRequest{
+		ImageID: imageID,
 	}
-
-	scanRequest := &containerd.ScanRequest{
-		Image:            containerdImage,
-		ImageMeta:        storedImage,
-		ContainerdClient: c.containerdClient,
-		FromFilesystem:   config.Datadog.GetBool("sbom.container_image.use_mount"),
-	}
-	if err = c.sbomScanner.Scan(scanRequest, c.scanOptions, resultChan); err != nil {
+	if err := c.sbomScanner.Scan(scanRequest); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for containerd: %s", err)
 		return err
 	}

@@ -10,51 +10,47 @@ package docker
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"reflect"
 
 	"github.com/docker/docker/client"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
-const (
-	collectorName = "docker"
-)
-
 // ScanRequest defines a scan request
+// This struct should be hashable
 type ScanRequest struct {
-	ImageMeta    *workloadmeta.ContainerImageMetadata
-	DockerClient client.ImageAPIClient
-}
-
-// GetImgMetadata returns the image metadata
-func (r *ScanRequest) GetImgMetadata() *workloadmeta.ContainerImageMetadata {
-	return r.ImageMeta
+	ImageID string
 }
 
 // Collector returns the collector name
-func (r *ScanRequest) Collector() string {
-	return collectorName
+func (r ScanRequest) Collector() string {
+	return collectors.DockerCollector
 }
 
 // Type returns the scan request type
-func (r *ScanRequest) Type() string {
+func (r ScanRequest) Type() string {
 	return "daemon"
 }
 
 // ID returns the scan request ID
-func (r *ScanRequest) ID() string {
-	return r.ImageMeta.ID
+func (r ScanRequest) ID() string {
+	return r.ImageID
 }
 
 // Collector defines a collector
 type Collector struct {
 	trivyCollector *trivy.Collector
+	resChan        chan sbom.ScanResult
+	opts           *sbom.ScanOptions
+	cl             client.ImageAPIClient
+
+	closed bool
 }
 
 // CleanCache cleans the cache
@@ -73,27 +69,42 @@ func (c *Collector) Init(cfg config.Config) error {
 }
 
 // Scan performs a scan
-func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
-	dockerScanRequest, ok := request.(*ScanRequest)
+func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
+	dockerScanRequest, ok := request.(ScanRequest)
 	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
+		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.DockerCollector)}
 	}
 
-	if dockerScanRequest.ImageMeta != nil {
-		log.Infof("docker scan request [%v]: scanning image %v", dockerScanRequest.ID(), dockerScanRequest.ImageMeta.Name)
+	if c.cl == nil {
+		cl, err := docker.GetDockerUtil()
+		if err != nil {
+			return sbom.ScanResult{Error: fmt.Errorf("error creating docker client: %s", err)}
+		}
+		c.cl = cl.RawClient()
 	}
+
+	wlm := workloadmeta.GetGlobalStore()
+	if wlm == nil {
+		return sbom.ScanResult{Error: fmt.Errorf("workloadmeta store is not initialized")}
+	}
+
+	imageMeta, err := wlm.GetImage(dockerScanRequest.ID())
+	if err != nil {
+		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image id %s: %s", dockerScanRequest.ID(), err)}
+	}
+	opts := c.Options()
 
 	report, err := c.trivyCollector.ScanDockerImage(
 		ctx,
-		dockerScanRequest.ImageMeta,
-		dockerScanRequest.DockerClient,
+		imageMeta,
+		c.cl,
 		opts,
 	)
 
 	return sbom.ScanResult{
 		Error:   err,
 		Report:  report,
-		ImgMeta: dockerScanRequest.ImageMeta,
+		ImgMeta: imageMeta,
 	}
 }
 
@@ -102,6 +113,30 @@ func (c *Collector) Type() collectors.ScanType {
 	return collectors.ContainerImageScanType
 }
 
+// Channel returns the channel to send scan results
+func (c *Collector) Channel() chan sbom.ScanResult {
+	return c.resChan
+}
+
+// Options returns the collector options
+func (c *Collector) Options() sbom.ScanOptions {
+	if c.opts == nil {
+		opts := sbom.ScanOptionsFromConfig(config.Datadog, true)
+		c.opts = &opts
+	}
+	return *c.opts
+}
+
+// Shutdown shuts down the collector
+func (c *Collector) Shutdown() {
+	if c.resChan != nil && !c.closed {
+		close(c.resChan)
+	}
+	c.closed = true
+}
+
 func init() {
-	collectors.RegisterCollector(collectorName, &Collector{})
+	collectors.RegisterCollector(collectors.DockerCollector, &Collector{
+		resChan: make(chan sbom.ScanResult, 1000),
+	})
 }
