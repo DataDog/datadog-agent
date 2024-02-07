@@ -102,7 +102,8 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
     debug = "--debug" if debug_build else ""
-    res = ctx.run(f"DD_SYSTEM_PROBE_BPF_DIR='./pkg/ebpf/bytecode/build' {sudo} ./main {debug}", hide='out')
+    env = {"DD_SYSTEM_PROBE_BPF_DIR": "./pkg/ebpf/bytecode/build"}
+    res = ctx.run(f"{sudo} ./main {debug}", env=env, hide='out')
     if res.exited == 0:
         verifier_stats = cleanup_verifier_stats(json.loads(res.stdout))
     else:
