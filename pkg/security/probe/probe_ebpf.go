@@ -63,7 +63,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -1919,7 +1918,6 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 	for _, action := range rule.Definition.Actions {
 		if !action.IsAccepted(ctx) {
-
 			continue
 		}
 
@@ -1928,42 +1926,11 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
 		case action.Kill != nil:
-			var pids []uint32
-
-			entry, exists := ev.ResolveProcessCacheEntry()
-			if !exists {
-				return
-			}
-
-			if entry.ContainerID != "" && action.Kill.Scope == "container" {
-				pids = entry.GetContainerPIDs()
-			} else {
-				pids = []uint32{ev.ProcessContext.Pid}
-			}
-
-			sig := model.SignalConstants[action.Kill.Signal]
-
-			for _, pid := range pids {
-				if pid <= 1 || pid == utils.Getpid() {
-					continue
-				}
-
-				log.Debugf("requesting signal %s to be sent to %d", action.Kill.Signal, pid)
-
-				var err error
+			handleKillActions(action, ev, func(pid uint32, sig uint32) error {
 				if p.supportsBPFSendSignal {
-					err = p.killListMap.Put(uint32(pid), uint32(sig))
-				} else {
-					err = syscall.Kill(int(pid), syscall.Signal(sig))
+					return p.killListMap.Put(uint32(pid), uint32(sig))
 				}
-				if err != nil {
-					seclog.Warnf("failed to kill process %d: %s", pid, err)
-				}
-			}
-
-			ev.Actions = append(ev.Actions, &model.ActionTriggered{
-				Name:  rules.KillAction,
-				Value: action.Kill.Signal,
+				return syscall.Kill(int(pid), syscall.Signal(sig))
 			})
 		}
 	}

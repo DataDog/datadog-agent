@@ -7,7 +7,14 @@
 package probe
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewProbe instantiates a new runtime security agent probe
@@ -36,4 +43,46 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	return p, nil
+}
+
+type killActionTracker struct {
+	pid       uint32
+	createdAt time.Time
+	killedAt  time.Time
+	exitedAt  time.Time
+}
+
+func handleKillActions(action *rules.ActionDefinition, ev *model.Event, kill func(pid uint32, sig uint32) error) {
+
+	var pids []uint32
+
+	entry, exists := ev.ResolveProcessCacheEntry()
+	if !exists {
+		return
+	}
+
+	if entry.ContainerID != "" && action.Kill.Scope == "container" {
+		pids = entry.GetContainerPIDs()
+	} else {
+		pids = []uint32{ev.ProcessContext.Pid}
+	}
+
+	sig := model.SignalConstants[action.Kill.Signal]
+
+	for _, pid := range pids {
+		if pid <= 1 || pid == utils.Getpid() {
+			continue
+		}
+
+		log.Debugf("requesting signal %s to be sent to %d", action.Kill.Signal, pid)
+
+		if err := kill(uint32(pid), uint32(sig)); err != nil {
+			seclog.Warnf("failed to kill process %d: %s", pid, err)
+		}
+	}
+
+	ev.Actions = append(ev.Actions, &model.ActionTriggered{
+		Name:  rules.KillAction,
+		Value: action.Kill.Signal,
+	})
 }
