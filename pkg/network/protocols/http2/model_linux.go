@@ -174,6 +174,12 @@ func (tx *EbpfTx) Method() http.Method {
 		return http.MethodPost
 	}
 
+	// if the length of the method is greater than the buffer, then we return 0.
+	if tx.Stream.Request_method.Length > 0 && int(tx.Stream.Request_method.Length) > len(tx.Stream.Request_method.Raw_buffer) {
+		log.Errorf("method length is greater than the buffer: %d", tx.Stream.Request_method.Length)
+		return 0
+	}
+
 	// Case which the method is literal.
 	if tx.Stream.Request_method.Is_huffman_encoded {
 		method, err = hpack.HuffmanDecodeToString(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
