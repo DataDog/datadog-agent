@@ -33,7 +33,7 @@ const (
 // SetupEBS prepares the EBS volume for scanning. It creates a snapshot of the
 // volume, attaches it to the instance and returns the list of partitions that
 // were mounted.
-func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter) ([]string, error) {
+func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter) error {
 	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.CloudID)
 	ec2client := ec2.NewFromConfig(cfg)
 
@@ -48,29 +48,19 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 		err = fmt.Errorf("ebs-volume: unexpected resource type for task %q: %q", scan.Type, scan.CloudID)
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	switch scan.DiskMode {
 	case types.DiskModeVolumeAttach:
-		err = AttachSnapshotWithVolume(ctx, scan, waiter, snapshotID)
+		return AttachSnapshotWithVolume(ctx, scan, waiter, snapshotID)
 	case types.DiskModeNBDAttach:
-		err = AttachSnapshotWithNBD(ctx, scan, snapshotID, ebs.NewFromConfig(cfg))
+		return AttachSnapshotWithNBD(ctx, scan, snapshotID, ebs.NewFromConfig(cfg))
 	case types.DiskModeNoAttach:
-		return nil, nil // nothing to do. early exit.
+		return nil // nothing to do. early exit.
 	default:
 		panic("unreachable")
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
-	if err != nil {
-		return nil, err
-	}
-
-	return devices.Mount(ctx, scan, partitions)
 }
 
 // CreateSnapshot creates a snapshot of the given EBS volume and returns its Cloud Identifier.

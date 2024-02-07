@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/runner"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -550,6 +551,7 @@ func awsAttachCmd(resourceID types.CloudID, mode types.DiskMode, defaultActions 
 	defer func() {
 		ctxcleanup, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
+		runner.CleanupScanDir(ctxcleanup, scan)
 		for resourceID := range scan.CreatedResources {
 			if err := awsutils.CleanupScanEBS(ctxcleanup, scan, resourceID); err != nil {
 				log.Errorf("%s: could not cleanup resource %q: %v", scan, resourceID, err)
@@ -558,7 +560,16 @@ func awsAttachCmd(resourceID types.CloudID, mode types.DiskMode, defaultActions 
 	}()
 
 	var waiter awsutils.SnapshotWaiter
-	mountpoints, err := awsutils.SetupEBS(ctx, scan, &waiter)
+	if err := awsutils.SetupEBS(ctx, scan, &waiter); err != nil {
+		return err
+	}
+
+	partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
+	if err != nil {
+		return err
+	}
+
+	mountpoints, err := devices.Mount(ctx, scan, partitions)
 	if err != nil {
 		return err
 	}
