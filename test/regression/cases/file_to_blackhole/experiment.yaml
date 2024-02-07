@@ -1,5 +1,5 @@
 optimization_goal: cpu
-erratic: true
+erratic: false
 
 environment:
   DD_TELEMETRY_ENABLED: true
