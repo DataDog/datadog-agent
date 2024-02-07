@@ -92,7 +92,6 @@ func TestNewServer(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	// demux := createDemultiplexer(t)
 	requireStart(t, deps.Server)
 
 }
@@ -105,13 +104,10 @@ func TestStopServer(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demux)
-	s.start(context.Background())
-	// manually create the server and stop the server for this test.
-	// newServerCompat () =>
-	// start the server
-	// stop the server
+	s.Start(context.TODO())
+	requireStart(t, s)
 
-	// requireStart(t, deps.Server)
+	s.Stop()
 
 	// check that the port can be bound, try for 100 ms
 	address, err := net.ResolveUDPAddr("udp", s.UDPLocalAddr())
@@ -126,9 +122,6 @@ func TestStopServer(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	s.Stop()
-
-	time.Sleep(100 * time.Millisecond)
 	require.NoError(t, err, "port is not available, it should be")
 }
 
@@ -166,14 +159,18 @@ func TestUDPReceive(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	demux := deps.Demultiplexer
-	requireStart(t, deps.Server)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demux)
+	s.Start(context.TODO())
+	requireStart(t, s)
+	defer s.Stop()
 
-	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
+	conn, err := net.Dial("udp", s.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	time.Sleep(10 * time.Second)
 	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 0)
@@ -810,25 +807,20 @@ func TestNewServerExtraTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
-	// demux := deps.Demultiplexer
 	requireStart(t, s)
 	require.Len(s.extraTags, 0, "no tags should have been read")
-	// demux.Stop(false)
 
 	// when the extraTags parameter isn't used, the DogStatsD server is not reading this env var
 	cfg["tags"] = "hello:world"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
-	// demux = deps.Demultiplexer
 	requireStart(t, s)
 	require.Len(s.extraTags, 0, "no tags should have been read")
-	// demux.Stop(false)
 
 	// when the extraTags parameter isn't used, the DogStatsD server is automatically reading this env var for extra tags
 	cfg["dogstatsd_tags"] = "hello:world extra:tags"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
-	// demux = deps.Demultiplexer
 	requireStart(t, s)
 	require.Len(s.extraTags, 2, "two tags should have been read")
 	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
@@ -842,10 +834,13 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		cfg["dogstatsd_origin_optout_enabled"] = enabled
 
 		deps := fulfillDepsWithConfigOverride(t, cfg)
-		s := deps.Server.(*server)
-		assert := assert.New(t)
 
-		requireStart(t, s)
+		s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demux)
+		s.Start(context.TODO())
+		s.Stop()
+		// requireStart(t, s)
+
+		assert := assert.New(t)
 
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
@@ -1012,8 +1007,6 @@ func TestOriginOptout(t *testing.T) {
 }
 
 func requireStart(t *testing.T, s Component) {
-	// err := s.Start(demux)
-	// require.NoError(t, err, "cannot start DSD")
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning())
 }

@@ -8,7 +8,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -60,5 +59,4 @@ func MockModule() fxutil.Module {
 
 func (s *server) Stop() {
 	_ = s.stop(context.TODO())
-	fmt.Printf("Stopping serverless dogstatsd \n")
 }

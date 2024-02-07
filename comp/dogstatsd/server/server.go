@@ -199,7 +199,7 @@ func NewServerlessServer(deps dependencies) ServerlessDogstatsd {
 
 	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true, deps.Demultiplexer)
 
-	s.start(context.TODO())
+	s.Start(context.TODO())
 
 	return s
 }
@@ -209,7 +209,7 @@ func newServer(deps dependencies) Component {
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer)
 
 	deps.Lc.Append(fx.Hook{
-		OnStart: s.start,
+		OnStart: s.Start,
 		OnStop:  s.stop,
 	})
 
@@ -323,7 +323,7 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 	return s
 }
 
-func (s *server) start(context.Context) error {
+func (s *server) Start(context.Context) error {
 
 	// TODO: (components) - DI this into Server when Demultiplexer is made into a component
 	// s.demultiplexer = demultiplexer
