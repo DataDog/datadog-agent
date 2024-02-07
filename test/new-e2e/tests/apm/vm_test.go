@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,7 +29,6 @@ func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOpt
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
 		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
-		e2e.WithSkipDeleteOnFailure(),
 	}
 	return options
 }
@@ -40,10 +40,14 @@ apm_config.enabled: true
 apm_config.receiver_socket: /var/run/datadog/apm.socket
 `
 
-	options := vmSuiteOpts(uds, awshost.WithAgentOptions(
+	options := vmSuiteOpts(uds,
+		// Create the /var/run/datadog directory and ensure
+		// permissions are correct so the agent can create
+		// unix sockets for the UDS transport
+		awshost.WithEC2InstanceOptions(ec2.WithUserData("#!/bin/bash\nsudo mkdir -p /var/run/datadog\nsudo groupadd -r dd-agent\nsudo useradd -r -M -g dd-agent dd-agent\nsudo chown dd-agent:dd-agent /var/run/datadog")),
+
 		// Enable the UDS receiver in the trace-agent
-		agentparams.WithAgentConfig(cfg),
-	))
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(cfg)))
 	e2e.Run(t, &VMFakeintakeSuite{transport: uds}, options...)
 }
 
@@ -63,18 +67,13 @@ apm_config.enabled: true
 	e2e.Run(t, &VMFakeintakeSuite{transport: tcp}, options...)
 }
 
-func fixAgent(s *VMFakeintakeSuite) {
+func (s *VMFakeintakeSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
 	h := s.Env().RemoteHost
 	// Agent must be in the docker group to be able to open and
 	// read container info from the docker socket.
 	h.MustExecute("sudo groupadd -f -r docker")
 	h.MustExecute("sudo usermod -a -G docker dd-agent")
-
-	// Create the /var/run/datadog directory and ensure
-	// permissions are correct so the agent can create
-	// unix sockets for the UDS transport
-	h.MustExecute("sudo mkdir -p /var/run/datadog")
-	h.MustExecute("sudo chown dd-agent:dd-agent /var/run/datadog")
 
 	// Restart the agent
 	h.MustExecute("sudo systemctl restart datadog-agent")
@@ -83,7 +82,6 @@ func fixAgent(s *VMFakeintakeSuite) {
 func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
-	fixAgent(s)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		status, _ := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
 		s.T().Log(status)
@@ -101,7 +99,6 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
-	fixAgent(s)
 
 	service := fmt.Sprintf("tracegen-container-tag-%s", s.transport)
 
@@ -121,7 +118,6 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 func (s *VMFakeintakeSuite) TestStatsForService() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
-	fixAgent(s)
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
 
@@ -141,7 +137,6 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 func (s *VMFakeintakeSuite) TestBasicTrace() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
-	fixAgent(s)
 
 	service := fmt.Sprintf("tracegen-basic-trace-%s", s.transport)
 
