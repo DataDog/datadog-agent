@@ -314,12 +314,7 @@ func (s *Runner) CleanSlate() error {
 	if err == nil {
 		for _, bd := range blockDevices {
 			if strings.HasPrefix(bd.Name, "nbd") || strings.HasPrefix(bd.Serial, "vol") {
-				for _, child := range bd.GetChildrenType("lvm") {
-					log.Warnf("clean slate: detaching volume group %q for block device %q", child.Path, bd.Name)
-					if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
-						log.Errorf("clean slate: could not detach virtual group %q on block device %q from dev mapper: %v", child.Path, bd.Name, err)
-					}
-				}
+				devices.DetachLVMs(nil, bd)
 			}
 			if strings.HasPrefix(bd.Name, "nbd") {
 				if err := exec.CommandContext(ctx, "nbd-client", "-d", path.Join("/dev", bd.Name)).Run(); err != nil {
@@ -614,11 +609,7 @@ func (s *Runner) cleanupScan(scan *types.ScanTask) {
 	if scan.AttachedDeviceName != nil {
 		blockDevices, err := devices.List(ctx, *scan.AttachedDeviceName)
 		if err == nil && len(blockDevices) == 1 {
-			for _, child := range blockDevices[0].GetChildrenType("lvm") {
-				if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
-					log.Errorf("%s: could not remove logical device %q from block device %q: %v", scan, child.Path, child.Name, err)
-				}
-			}
+			devices.DetachLVMs(scan, blockDevices[0])
 		}
 		if scan.DiskMode == types.DiskModeNBDAttach {
 			nbd.StopNBDBlockDevice(ctx, *scan.AttachedDeviceName)

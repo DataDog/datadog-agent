@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,13 +68,58 @@ func StartNBDBlockDevice(scan *types.ScanTask, deviceName string, b backend.Back
 	if err != nil {
 		return fmt.Errorf("nbd: could not stat device %q: %w", bd.deviceName, err)
 	}
+
+	shutdown := make(chan struct{})
+	go func() {
+		nbdShutdown(bd.scan, bd.deviceName)
+		close(shutdown)
+	}()
+
 	if err := bd.startServer(); err != nil {
 		return err
 	}
+	<-shutdown
 	if err := bd.startClient(); err != nil {
 		return err
 	}
 	return nil
+}
+
+func nbdShutdown(maybeScan *types.ScanTask, deviceName string) bool {
+	// If the device is connected, nbd-client will exit with an exit state of
+	// 0 and print the PID of the nbd-client instance that connected it to
+	// stdout.
+	//
+	// If the device is not connected or does not exist (for example because
+	// the nbd module was not loaded), nbd-client will exit with an exit state
+	// of 1 and not print anything on stdout.
+	//
+	// If an error occurred, nbd-client will exit with an exit state of 2, and
+	// not print anything on stdout either.
+	nbdClientExists := true
+	if err := exec.Command("nbd-client", "-c", deviceName).Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			if exitErr.ExitCode() == 1 {
+				nbdClientExists = false
+			}
+		}
+	}
+
+	if nbdClientExists {
+		bd, err := devices.List(context.Background(), deviceName)
+		if err == nil && len(bd) == 1 {
+			devices.DetachLVMs(maybeScan, bd[0])
+		}
+		log.Debugf("%s: nbdclient: disconnecting client for device %q", maybeScan, deviceName)
+		if err := exec.Command("nbd-client", "-d", deviceName).Run(); err != nil {
+			log.Errorf("%s: nbd-client: %q disconnecting failed: %v", maybeScan, deviceName, err)
+		} else {
+			log.Tracef("%s: nbd-client: %q disconnected", maybeScan, deviceName)
+		}
+		return true
+	}
+	return false
 }
 
 // StopNBDBlockDevice stops the NBD server and client for the given device name.
@@ -86,12 +132,7 @@ func StopNBDBlockDevice(ctx context.Context, deviceName string) {
 	nbdsMu.Unlock()
 
 	if !ok {
-		log.Debugf("nbdclient: disconnecting unknown client for device %q", deviceName)
-		if err := exec.CommandContext(ctx, "nbd-client", "-d", deviceName).Run(); err != nil {
-			log.Errorf("nbd-client: %q disconnecting failed: %v", deviceName, err)
-		} else {
-			log.Tracef("nbd-client: %q disconnected", deviceName)
-		}
+		nbdShutdown(nil, deviceName)
 		return
 	}
 
@@ -102,12 +143,7 @@ func StopNBDBlockDevice(ctx context.Context, deviceName string) {
 		return
 	}
 
-	log.Debugf("%s: nbdclient: disconnecting client for device %q", bd.scan, bd.deviceName)
-	if err := exec.Command("nbd-client", "-d", bd.deviceName).Run(); err != nil {
-		log.Errorf("%s: nbd-client: %q disconnecting failed: %v", bd.scan, bd.deviceName, err)
-	} else {
-		log.Tracef("%s: nbd-client: %q disconnected", bd.scan, bd.deviceName)
-	}
+	nbdShutdown(bd.scan, deviceName)
 	if err := bd.waitServerClosed(ctx); err != nil {
 		log.Errorf("%s: nbdserver: %q could not close: %v", bd.scan, deviceName, err)
 	}

@@ -108,8 +108,7 @@ type BlockDevice struct {
 	Children    []*BlockDevice `json:"children"`
 }
 
-// GetChildrenType returns the children block devices of the given type.
-func (bd BlockDevice) GetChildrenType(t string) []BlockDevice {
+func (bd BlockDevice) getChildrenType(t string) []BlockDevice {
 	var bds []BlockDevice
 	bd.recurse(func(child BlockDevice) {
 		if child.Type == t {
@@ -327,6 +326,16 @@ func Umount(ctx context.Context, maybeScan *types.ScanTask, mountPoint string) {
 		return
 	}
 	log.Errorf("could not umount %s: %s: %s", mountPoint, erru, string(umountOutput))
+}
+
+// DetachLVMs detaches the logical volumes from the given block device.
+func DetachLVMs(maybeScan *types.ScanTask, bd BlockDevice) {
+	for _, child := range bd.getChildrenType("lvm") {
+		log.Infof("%s: detaching volume group %q for block device %q", maybeScan, child.Path, bd.Name)
+		if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
+			log.Errorf("%s: could not remove logical device %q from block device %q: %v", maybeScan, child.Path, child.Name, err)
+		}
+	}
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) bool {
