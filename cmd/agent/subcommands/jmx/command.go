@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -139,6 +141,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() inventorychecks.Component { return nil }),
 			fx.Provide(func() packagesigning.Component { return nil }),
 			fx.Provide(func() status.Component { return nil }),
+			fx.Provide(func() eventplatformreceiver.Component { return nil }),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
 		)

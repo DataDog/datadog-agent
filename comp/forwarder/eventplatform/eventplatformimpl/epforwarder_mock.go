@@ -23,5 +23,5 @@ func MockModule() fxutil.Module {
 }
 
 func newMockComponent(hostname hostname.Component) eventplatform.Component {
-	return optional.NewOptionPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder())
+	return optional.NewOptionPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder(hostname))
 }
