@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package domain
+package windows
 
 import (
 	"fmt"
@@ -86,13 +86,27 @@ $HashArguments = @{
 	return ps
 }
 
+func (ps *powerShellCommandBuilder) UninstallADDSDomainController(passwd string) *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, fmt.Sprintf(`
+$HashArguments = @{
+	SkipPreChecks              = $true
+    LocalAdministratorPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
+    DemoteOperationMasterRole  = $true
+	ForceRemoval               = $true
+	Force                      = $true
+}; Uninstall-ADDSDomainController
+`, passwd))
+	return ps
+}
+
 func (ps *powerShellCommandBuilder) AddActiveDirectoryUser(username, passwd string) *powerShellCommandBuilder {
 	ps.cmds = append(ps.cmds, fmt.Sprintf(`
 $HashArguments = @{
-    Name = '%s'
-    AccountPassword = (Read-Host -AsSecureString '%s')
-    Enabled = $true
-}; New-ADUser @HashArguments`, username, passwd))
+	Name = '%s'
+	AccountPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
+	Enabled = $true
+}; New-ADUser @HashArguments
+`, username, passwd))
 	return ps
 }
 
@@ -100,6 +114,21 @@ func (ps *powerShellCommandBuilder) GetMachineType() *powerShellCommandBuilder {
 	ps.cmds = append(ps.cmds, fmt.Sprintf(`
 (Get-CimInstance -ClassName Win32_OperatingSystem).ProductType
 `))
+	return ps
+}
+
+func (ps *powerShellCommandBuilder) StartService(serviceName string) *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, fmt.Sprintf(`
+Start-Service %s
+`, serviceName))
+	return ps
+}
+
+func (ps *powerShellCommandBuilder) WaitForServiceStatus(serviceName, status string) *powerShellCommandBuilder {
+	// TODO: Make timeout configurable
+	ps.cmds = append(ps.cmds, fmt.Sprintf(`
+(Get-Service %s).WaitForStatus('%s', '00:01:00')
+`, serviceName, status))
 	return ps
 }
 

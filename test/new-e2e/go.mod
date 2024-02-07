@@ -239,6 +239,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
+require github.com/pulumiverse/pulumi-time/sdk v0.0.0-20231010123146-089d7304da13
+
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.50.2 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
