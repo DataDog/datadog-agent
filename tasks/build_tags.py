@@ -206,7 +206,7 @@ build_tags = {
         "system-tests": AGENT_TAGS,
         "lint": AGENTLESS_SCANNER_TAGS.union(UNIT_TEST_TAGS),
         "unit-tests": AGENTLESS_SCANNER_TAGS.union(UNIT_TEST_TAGS),
-    }
+    },
 }
 
 

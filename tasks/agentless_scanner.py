@@ -1,28 +1,25 @@
-import datetime
 import os
 import sys
 
 from invoke import task
-from .build_tags import get_build_tags, get_default_build_tags
+from invoke.exceptions import Exit
+from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
 from .go import deps
 from .utils import load_release_versions
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 from .utils import (
     REPO_PATH,
     bin_name,
-    generate_config,
     get_build_flags,
-    get_git_branch_name,
-    get_git_commit,
-    get_go_version,
-    get_gopath,
     get_version,
 )
 
 # constants
 AGENTLESS_SCANNER_BIN_PATH = os.path.join(".", "bin", "agentless-scanner")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
+
 
 @task
 def build(
@@ -173,4 +170,3 @@ def omnibus_build(
             env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
         ctx.run(cmd.format(**args), env=env)
-
