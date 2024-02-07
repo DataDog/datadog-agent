@@ -58,5 +58,7 @@ notify-slack:
   tags: ["arch:amd64"]
   needs: ["internal_kubernetes_deploy_experimental"]
   script:
+    - SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
+    - export SDM_JWT
     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
     - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA}
