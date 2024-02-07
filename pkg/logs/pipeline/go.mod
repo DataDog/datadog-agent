@@ -15,11 +15,11 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../diagnostic
-	github.com/DataDog/datadog-agent/pkg/logs/internal/processor => ../internal/processor
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ../internal/status
 	github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils => ../internal/util/testutils
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../metrics
+	github.com/DataDog/datadog-agent/pkg/logs/processor => ../processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../status/statusinterface
@@ -48,8 +48,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/logs/internal/processor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/processor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/status/health v0.50.2

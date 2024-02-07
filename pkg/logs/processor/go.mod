@@ -1,35 +1,35 @@
-module github.com/DataDog/datadog-agent/pkg/logs/internal/processor
+module github.com/DataDog/datadog-agent/pkg/logs/processor
 
 go 1.21
 
 replace (
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface
-	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../comp/core/secrets
-	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../comp/logs/agent/config
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../collector/check/defaults
-	github.com/DataDog/datadog-agent/pkg/config/env => ../../../config/env
-	github.com/DataDog/datadog-agent/pkg/config/model => ../../../config/model
-	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../config/setup
-	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../config/utils
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../diagnostic
-	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ../../internal/status
-	github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils => ../../internal/util/testutils
-	github.com/DataDog/datadog-agent/pkg/logs/message => ../../message
-	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../metrics
-	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../sources
-	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../status/statusinterface
-	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../util/executable
-	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../util/filesystem
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../util/hostname/validate
-	github.com/DataDog/datadog-agent/pkg/util/log => ../../../util/log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../util/optional
-	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../util/pointer
-	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../util/scrubber
-	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../../util/statstracker
-	github.com/DataDog/datadog-agent/pkg/util/system => ../../../util/system
-	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../util/system/socket
-	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../util/winutil
-	github.com/DataDog/datadog-agent/pkg/version => ../../../version
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
+	github.com/DataDog/datadog-agent/pkg/config/utils => ../../config/utils
+	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../diagnostic
+	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ../internal/status
+	github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils => ../internal/util/testutils
+	github.com/DataDog/datadog-agent/pkg/logs/message => ../message
+	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../metrics
+	github.com/DataDog/datadog-agent/pkg/logs/sources => ../sources
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../status/statusinterface
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../util/optional
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../util/statstracker
+	github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../version
 )
 
 require (
