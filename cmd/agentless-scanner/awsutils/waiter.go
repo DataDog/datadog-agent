@@ -20,25 +20,33 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
+// WaitResult is the result of a snapshot creation wait.
+type WaitResult struct {
+	Err      error
+	Snapshot *ec2types.Snapshot
+}
+
+type waitSub chan WaitResult
+
 // SnapshotWaiter allows to wait for multiple snapshot creation at once.
 type SnapshotWaiter struct {
 	sync.Mutex
-	subs map[string]map[string][]chan error
+	subs map[string]map[string][]waitSub
 }
 
 // Wait waits for the given snapshot to be created and returns a channel that
 // will send an error or nil.
-func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotID types.CloudID, ec2client *ec2.Client) <-chan error {
+func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotID types.CloudID, ec2client *ec2.Client) <-chan WaitResult {
 	w.Lock()
 	defer w.Unlock()
 	region := snapshotID.Region()
 	if w.subs == nil {
-		w.subs = make(map[string]map[string][]chan error)
+		w.subs = make(map[string]map[string][]waitSub)
 	}
 	if w.subs[region] == nil {
-		w.subs[region] = make(map[string][]chan error)
+		w.subs[region] = make(map[string][]waitSub)
 	}
-	ch := make(chan error, 1)
+	ch := make(chan WaitResult, 1)
 	subs := w.subs[region]
 	subs[snapshotID.ResourceName()] = append(subs[snapshotID.ResourceName()], ch)
 	if len(subs) == 1 {
@@ -50,9 +58,9 @@ func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotID types.CloudID, ec2
 func (w *SnapshotWaiter) abort(region string, err error) {
 	w.Lock()
 	defer w.Unlock()
-	for _, chs := range w.subs[region] {
-		for _, ch := range chs {
-			ch <- err
+	for _, subs := range w.subs[region] {
+		for _, waitSub := range subs {
+			waitSub <- WaitResult{Err: err}
 		}
 	}
 	w.subs[region] = nil
@@ -131,9 +139,9 @@ func (w *SnapshotWaiter) loop(ctx context.Context, region string, ec2client *ec2
 			if errp != nil {
 				for _, ch := range subs[*snap.SnapshotId] {
 					if errp == noError {
-						ch <- nil
+						ch <- WaitResult{Snapshot: &snap}
 					} else {
-						ch <- errp
+						ch <- WaitResult{Err: errp}
 					}
 				}
 				delete(subs, *snap.SnapshotId)
