@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -296,8 +296,7 @@ func createDemuxDepsWithOrchestratorFwd(
 	eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
 	modules := fx.Options(
 		defaultforwarder.MockModule(),
-		config.MockModule(),
-		logimpl.MockModule(),
+		core.MockBundle(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorParams),
 		eventplatformimpl.Module(),

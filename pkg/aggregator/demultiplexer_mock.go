@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -20,6 +21,7 @@ import (
 type TestDeps struct {
 	fx.In
 	Log             log.Component
+	Hostname        hostname.Component
 	SharedForwarder defaultforwarder.Component
 }
 
