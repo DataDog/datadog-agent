@@ -476,7 +476,7 @@ def hacky_dev_image_build(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
         if process_agent:
-            ctx.run("inv process-agent.build")
+            ctx.run("inv process-agent.build --no-bundle")
         if trace_agent:
             ctx.run("inv trace-agent.build")
 
