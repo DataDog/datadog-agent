@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 
-	"github.com/aws/aws-sdk-go-v2/service/ebs"
+	"github.com/jinroh/go-nbd/pkg/backend"
 )
 
 // StartNBDBlockDevice starts the NBD server and client for the given device
