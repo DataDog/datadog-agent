@@ -374,7 +374,7 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 	case gosnmp.Gauge32:
 		fmt.Printf("Gauge 32: %d\n", pdu.Value.(uint))
 	case gosnmp.IPAddress:
-		fmt.Printf("IpAddress: %s\n", pdu.Value.(string))
+		fmt.Printf("Ip: %s\n", pdu.Value.(string))
 	default:
 		fmt.Printf("TYPE %d: %d\n", pdu.Type, gosnmp.ToBigInt(pdu.Value))
 	}

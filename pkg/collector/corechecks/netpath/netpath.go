@@ -140,7 +140,7 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 		return 0, err
 	}
 
-	err = c.traceRouteDublinAsPath(senderInstance, results, hname, rawTarget)
+	err = c.traceRouteDublinAsPath(senderInstance, results, hname, rawTarget, target)
 	if err != nil {
 		return 0, err
 	}
@@ -194,23 +194,24 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 
 func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
 	tr := metadata.NetworkPath{
-		TracerouteSource: "netpath_integration",
-		Format:           "path_per_event",
-
-		Timestamp:       time.Now().UnixMilli(),
-		AgentHost:       hname,
-		DestinationHost: destinationHost,
+		Timestamp: time.Now().UnixMilli(),
+		Source: metadata.NetworkPathSource{
+			AgentHostname: hname,
+		},
+		Destination: metadata.NetworkPathDestination{
+			Hostname: destinationHost,
+		},
 	}
 
 	hops := hostHops[0]
 	for _, hop := range hops {
 		ip := hop.AddressString()
-		hop := metadata.TracerouteHop{
-			TTL:       hop.TTL,
-			IpAddress: ip,
-			Host:      hop.HostOrAddressString(),
-			Duration:  hop.ElapsedTime.Seconds(),
-			Success:   hop.Success,
+		hop := metadata.NetworkPathHop{
+			TTL:      hop.TTL,
+			Ip:       ip,
+			Hostname: hop.HostOrAddressString(),
+			RTT:      hop.ElapsedTime.Seconds(),
+			Success:  hop.Success,
 		}
 		tr.Hops = append(tr.Hops, hop)
 	}
@@ -453,7 +454,7 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 	return nil
 }
 
-func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results, hname string, destinationHost string) error {
+func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results, hname string, destinationHost string, destinationIP net.IP) error {
 	var err error
 	type node struct {
 		node  string
@@ -461,12 +462,14 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 	}
 
 	traceroutePath := metadata.NetworkPath{
-		TracerouteSource: "netpath_integration",
-		Format:           "path_per_event",
-
-		Timestamp:       time.Now().UnixMilli(),
-		AgentHost:       hname,
-		DestinationHost: destinationHost,
+		Timestamp: time.Now().UnixMilli(),
+		Source: metadata.NetworkPathSource{
+			AgentHostname: hname,
+		},
+		Destination: metadata.NetworkPathDestination{
+			Hostname: destinationHost,
+			Ip:       destinationIP.String(),
+		},
 	}
 
 	pathId := uuid.New().String()
@@ -602,11 +605,11 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 
 			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 
-			hop := metadata.TracerouteHop{
-				TTL:       idx,
-				IpAddress: ip,
-				Host:      c.getHostname(cur.node),
-				Duration:  durationMs,
+			hop := metadata.NetworkPathHop{
+				TTL:      idx,
+				Ip:       ip,
+				Hostname: c.getHostname(cur.node),
+				RTT:      durationMs,
 				//Success:   hop.Success,
 			}
 			traceroutePath.Hops = append(traceroutePath.Hops, hop)

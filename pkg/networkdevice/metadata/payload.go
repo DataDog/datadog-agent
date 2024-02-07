@@ -128,17 +128,27 @@ type NetflowExporter struct {
 	FlowType  string `json:"flow_type"`
 }
 
-type TracerouteHop struct {
-	TTL       int     `json:"ttl"`
-	IpAddress string  `json:"ip_address"`
-	Host      string  `json:"host"`
-	Duration  float64 `json:"duration"`
-	Success   bool    `json:"success"`
+type NetworkPathHop struct {
+	TTL      int     `json:"ttl"`
+	Ip       string  `json:"ip"`
+	Hostname string  `json:"hostname"`
+	RTT      float64 `json:"rtt"`
+	Success  bool    `json:"success"`
+}
+
+type NetworkPathSource struct {
+	AgentHostname string `json:"agent_hostname"`
+}
+
+type NetworkPathDestination struct {
+	Hostname string `json:"hostname"`
+	Ip       string `json:"ip"`
 }
 
 type NetworkPath struct {
-	Timestamp       int64           `json:"timestamp"`
-	AgentHost       string          `json:"agent_host"`
-	DestinationHost string          `json:"destination_host"`
-	Hops            []TracerouteHop `json:"hops"`
+	Timestamp   int64                  `json:"timestamp"`
+	PathId      string                 `json:"path_id"`
+	Source      NetworkPathSource      `json:"source"`
+	Destination NetworkPathDestination `json:"destination"`
+	Hops        []NetworkPathHop       `json:"hops"`
 }
