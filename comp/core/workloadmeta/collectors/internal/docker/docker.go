@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
@@ -61,7 +60,6 @@ type collector struct {
 
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
-	scanOptions sbom.ScanOptions //nolint: unused
 }
 
 // NewCollector returns a new docker collector provider and an error
