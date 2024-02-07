@@ -8,6 +8,7 @@
 package etw
 
 import (
+	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -26,8 +27,41 @@ type Subscriber interface {
 	OnEvent(*DDEtwEventInfo)
 }
 
+type SafeSubscriberMap struct {
+	mu          sync.RWMutex
+	subscribers map[ProviderType]Subscriber
+}
+
+func (s *SafeSubscriberMap) Add(provider ProviderType, sub Subscriber) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.subscribers[provider] = sub
+}
+
+func (s *SafeSubscriberMap) Remove(provider ProviderType) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.subscribers, provider)
+}
+
+func (s *SafeSubscriberMap) Get(provider ProviderType) (Subscriber, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sub, ok := s.subscribers[provider]
+	return sub, ok
+}
+
+func (s *SafeSubscriberMap) Len() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.subscribers)
+}
+
 var (
-	subscribers = make(map[ProviderType]Subscriber)
+	safeSubscribers = &SafeSubscriberMap{
+		mu:          sync.Mutex{},
+		subscribers: make(map[ProviderType]Subscriber),
+	}
 )
 
 // ProviderType identifies an ETW provider
@@ -76,7 +110,7 @@ func isHTTPServiceSubscriptionEnabled(etwProviders ProviderType) bool {
 func etwCallbackC(eventInfo *C.DD_ETW_EVENT_INFO) {
 	switch eventInfo.provider {
 	case C.DD_ETW_TRACE_PROVIDER_HttpService:
-		if sub, ok := subscribers[EtwProviderHTTPService]; ok {
+		if sub, ok := safeSubscribers.Get(EtwProviderHTTPService); ok {
 			sub.OnEvent((*DDEtwEventInfo)(unsafe.Pointer(eventInfo)))
 		}
 	}
@@ -93,7 +127,7 @@ func etwCallbackC(eventInfo *C.DD_ETW_EVENT_INFO) {
 func StartEtw(subscriptionName string, etwProviders ProviderType, sub Subscriber) error {
 
 	if isHTTPServiceSubscriptionEnabled(etwProviders) {
-		subscribers[etwProviders] = sub
+		safeSubscribers.Add(etwProviders, sub)
 		sub.OnStart()
 	}
 
@@ -104,7 +138,7 @@ func StartEtw(subscriptionName string, etwProviders ProviderType, sub Subscriber
 		(C.ETW_EVENT_CALLBACK)(unsafe.Pointer(C.etwCallbackC)))
 
 	if isHTTPServiceSubscriptionEnabled(etwProviders) {
-		delete(subscribers, etwProviders)
+		safeSubscribers.Remove(etwProviders)
 		sub.OnStop()
 
 	}
@@ -120,10 +154,10 @@ func StartEtw(subscriptionName string, etwProviders ProviderType, sub Subscriber
 //
 // See above note about http-centrism
 func StopEtw(subscriptionName string) {
-	if len(subscribers) != 0 {
+	if safeSubscribers.Len() != 0 {
 		C.StopEtwSubscription()
 
-		if sub, ok := subscribers[EtwProviderHTTPService]; ok {
+		if sub, ok := safeSubscribers.Get(EtwProviderHTTPService); ok {
 			sub.OnStop()
 		}
 
