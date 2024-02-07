@@ -91,9 +91,9 @@ func (v *ec2VMSuite) SetupSuite() {
 	v.Env().RemoteHost.ReconnectSSH()
 
 	// prefetch docker image locally
-	v.Env().RemoteHost.MustExecute("docker run curlimages/curl --version")
-	v.Env().RemoteHost.MustExecute("docker run devth/alpine-bench -V")
-	v.Env().RemoteHost.MustExecute("docker run makocchi/alpine-dig dig")
+	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/k8m1l3p1/alpine/curler:latest")
+	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/docker/library/httpd:latest")
+	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/patrickc/troubleshoot-util:latest")
 }
 
 // BeforeTest will be called before each test
@@ -127,7 +127,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
-	v.Env().RemoteHost.MustExecute("docker run curlimages/curl curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/k8m1l3p1/alpine/curler curl " + testURL)
 
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -153,7 +153,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run devth/alpine-bench -n 600 -c 600 " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/docker/library/httpd ab -n 600 -c 600 " + testURL)
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -176,8 +176,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run curlimages/curl curl " + testURL)
-	v.Env().RemoteHost.MustExecute("docker run makocchi/alpine-dig dig @8.8.8.8 www.google.ch")
+	v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/k8m1l3p1/alpine/curler curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/patrickc/troubleshoot-util dig @8.8.8.8 www.google.ch")
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }

@@ -4,8 +4,8 @@ services:
     pid: host
     privileged: true
     ports:
-    - 80:8080/tcp
-    image: mccutchen/go-httpbin
+    - 80:80/tcp
+    image: public.ecr.aws/r3m4q3r9/pub-mirror-httpbin
     container_name: httpbin
     volumes: []
     environment: {}
