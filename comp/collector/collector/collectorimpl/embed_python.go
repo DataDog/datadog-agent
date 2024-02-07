@@ -5,7 +5,7 @@
 
 //go:build python
 
-package collector
+package collectorimpl
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"

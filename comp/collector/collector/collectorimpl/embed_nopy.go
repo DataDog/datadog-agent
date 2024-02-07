@@ -5,7 +5,7 @@
 
 //go:build !python
 
-package collector
+package collectorimpl
 
 //nolint:revive // TODO(AML) Fix revive linter
 func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
