@@ -13,7 +13,7 @@ package modifiers
 import (
 	"errors"
 
-	ebpfmanager "github.com/DataDog/ebpf-manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 
@@ -31,7 +31,7 @@ import (
 // that adds a newline to the message before calling bpf_trace_printk. In older kernels
 // this ensures that a newline is added. In newer ones it would mean that two newlines are
 // added, so this patcher removes that newline in those cases.
-func PatchPrintkNewline(m *ebpfmanager.Manager) error {
+func PatchPrintkNewline(m *manager.Manager) error {
 	kernelVersion, err := kernel.HostVersion()
 	if err != nil {
 		return err // can't detect kernel version, don't patch
@@ -220,12 +220,12 @@ func (t *printkPatcherModifier) Name() string {
 	return ddebpf.PrintkModifier
 }
 
-func (t *printkPatcherModifier) BeforeInit(m *ddebpf.Manager, _ *ebpfmanager.Options) error {
+func (t *printkPatcherModifier) BeforeInit(m *ddebpf.Manager, _ *manager.Options) error {
 	m.InstructionPatcher = PatchPrintkNewline
 	return nil
 }
 
-func (t *printkPatcherModifier) AfterInit(_ *ddebpf.Manager, _ *ebpfmanager.Options) error {
+func (t *printkPatcherModifier) AfterInit(_ *ddebpf.Manager, _ *manager.Options) error {
 	return nil
 }
 
