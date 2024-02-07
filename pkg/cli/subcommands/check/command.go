@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -162,9 +162,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				inventorychecksimpl.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
-				fx.Provide(func() optional.Option[collector.Component] {
-					return optional.NewNoneOption[collector.Component]()
-				}),
+				collectorimpl.ModuleNoneCollector(),
 				fx.Provide(func() optional.Option[logagent.Component] {
 					return optional.NewNoneOption[logagent.Component]()
 

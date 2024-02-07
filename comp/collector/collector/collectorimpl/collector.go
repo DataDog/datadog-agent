@@ -50,6 +50,13 @@ func Module() fxutil.Module {
 	)
 }
 
+// ModuleNoneCollector defines a module with a none collector and a status provider.
+func ModuleNoneCollector() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newNoneCollector),
+	)
+}
+
 func newCollector(deps dependencies) provides {
 	c := &collectorImpl{
 		Collector: pkgcollector.NewCollector(deps.Demultiplexer, deps.Config.GetDuration("check_cancel_timeout"), common.GetPythonPaths()...),
@@ -58,6 +65,13 @@ func newCollector(deps dependencies) provides {
 	return provides{
 		Comp:         c,
 		OptionalComp: optional.NewOption[collector.Component](c),
+		Provider:     status.NewInformationProvider(collectorStatus.Provider{}),
+	}
+}
+
+func newNoneCollector() provides {
+	return provides{
+		OptionalComp: optional.NewNoneOption[collector.Component](),
 		Provider:     status.NewInformationProvider(collectorStatus.Provider{}),
 	}
 }
