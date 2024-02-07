@@ -157,8 +157,8 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 		connectionProtocolMap: connectionProtocolMap,
 	}
 
-	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, sockFD, bpfTelemetry)
-	goTLSSpec.Factory = newGoTLSProgramProtocolFactory(mgr, sockFD)
+	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, bpfTelemetry)
+	goTLSSpec.Factory = newGoTLSProgramProtocolFactory(mgr)
 
 	if err := program.initProtocols(c); err != nil {
 		return nil, err
