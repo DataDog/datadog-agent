@@ -186,7 +186,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					status.Params{
 						PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
 					},
-					status.NewInformationProvider(statuscollector.Provider{}),
 				),
 				statusimpl.Module(),
 
