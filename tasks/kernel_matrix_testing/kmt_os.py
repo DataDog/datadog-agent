@@ -1,6 +1,8 @@
 import getpass
 import os
+import plistlib
 import sys
+from pathlib import Path
 
 from invoke.context import Context
 
@@ -9,11 +11,18 @@ from tasks.system_probe import is_root
 
 
 def get_home_linux():
-    return os.path.join("/", "/home", "kernel-version-testing")
+    return Path("/home/kernel-version-testing")
 
 
 def get_home_macos():
-    return os.path.join(os.path.expanduser('~'), "kernel-version-testing")
+    return Path.expanduser(Path("~/kernel-version-testing"))
+
+
+def get_homebrew_prefix():
+    # Return a fixed path. Funnily enough, you need to know the homebrew prefix (or have it loaded in $PATH)
+    # to be able to run brew --prefix and get the homebrew prefix. Because of that, it's just
+    # simpler to return the default, expected path.
+    return Path("/opt/homebrew")
 
 
 def get_kmt_os():
@@ -28,11 +37,11 @@ def get_kmt_os():
 class Linux:
     kmt_dir = get_home_linux()
     libvirt_group = "libvirt"
-    rootfs_dir = os.path.join(kmt_dir, "rootfs")
-    stacks_dir = os.path.join(kmt_dir, "stacks")
-    packages_dir = os.path.join(kmt_dir, "kernel-packages")
-    libvirt_dir = os.path.join(kmt_dir, "libvirt")
-    shared_dir = os.path.join("/", "opt", "kernel-version-testing")
+    rootfs_dir = kmt_dir / "rootfs"
+    stacks_dir = kmt_dir / "stacks"
+    packages_dir = kmt_dir / "kernel-packages"
+    libvirt_dir = kmt_dir / "libvirt"
+    shared_dir = Path("/opt/kernel-version-testing")
     libvirt_socket = "qemu:///system"
 
     qemu_conf = os.path.join("/", "etc", "libvirt", "qemu.conf")
@@ -62,14 +71,15 @@ class Linux:
 class MacOS:
     kmt_dir = get_home_macos()
     libvirt_group = "staff"
-    rootfs_dir = os.path.join(kmt_dir, "rootfs")
-    stacks_dir = os.path.join(kmt_dir, "stacks")
-    packages_dir = os.path.join(kmt_dir, "kernel-packages")
-    libvirt_dir = os.path.join(kmt_dir, "libvirt")
-    libvirt_conf = "/opt/homebrew/etc/libvirt/libvirtd.conf"
-    shared_dir = os.path.join("/", "opt", "kernel-version-testing")
-    libvirt_system_dir = "/opt/homebrew/var/run/libvirt"
+    rootfs_dir = kmt_dir / "rootfs"
+    stacks_dir = kmt_dir / "stacks"
+    packages_dir = kmt_dir / "kernel-packages"
+    libvirt_dir = kmt_dir / "libvirt"
+    libvirt_conf = get_homebrew_prefix() / "etc/libvirt/libvirtd.conf"
+    shared_dir = Path("/opt/kernel-version-testing")
+    libvirt_system_dir = get_homebrew_prefix() / "var/run/libvirt"
     libvirt_socket = f"qemu:///system?socket={libvirt_system_dir}/libvirt-sock"
+    virtlogd_conf = get_homebrew_prefix() / "etc/libvirt/virtlogd.conf"
 
     @staticmethod
     def assert_user_in_docker_group(_):
@@ -82,3 +92,46 @@ class MacOS:
         ctx.run(
             f"gsed -i -E 's%(# *)?unix_sock_dir = .*%unix_sock_dir = \"{MacOS.libvirt_system_dir}\"%' {MacOS.libvirt_conf}"
         )
+
+        # Enable logging, but only if it was commented (disabled). Do not overwrite
+        # custom settings
+        log_output_base = "2:file:/opt/homebrew/var/log/libvirt/"
+        ctx.run(
+            f"gsed -i -E 's%# *log_outputs *=.*%log_outputs = \"{log_output_base}/libvirtd.log\"%' {MacOS.libvirt_conf}"
+        )
+        ctx.run(
+            f"gsed -i -E 's%# *log_outputs *=.*%log_outputs = \"{log_output_base}/virtlogd.log\"%' {MacOS.virtlogd_conf}"
+        )
+
+        # libvirt only installs the libvirtd service, it doesn't add virtlogd. We need to create
+        # it manually and start it. It's not possible to add the service through homebrew
+        # because homebrew only supports one service per formula.
+        virtlogd_plist_path = Path("/Library/LaunchDaemons/org.libvirt.virtlogd.plist")
+
+        if not virtlogd_plist_path.exists():
+            # Generate a plist file for virtlogd so that we can manage it wiht launchctl.
+            # Values for the plist file are taken from the libvirt formula.
+            plist_data = {
+                "EnvironmentVariables": dict(PATH=os.fspath(get_homebrew_prefix() / "bin")),
+                "KeepAlive": True,
+                "Label": "org.libvirt.virtlogd",
+                "LimitLoadToSessionType": ["Aqua", "Background", "LoginWindow", "StandardIO", "System"],
+                "ProgramArguments": [
+                    os.fspath(get_homebrew_prefix() / "sbin/virtlogd"),
+                    "-f",
+                    os.fspath(MacOS.virtlogd_conf),
+                ],
+                "RunAtLoad": True,
+            }
+
+            # Allow writing the file without superuser permissions
+            ctx.sudo(f"touch {virtlogd_plist_path}")
+            ctx.sudo(f"chmod 666 {virtlogd_plist_path}")
+            with open(virtlogd_plist_path, "wb") as f:
+                plistlib.dump(plist_data, f)
+
+            # Now we can set the correct permissions and load the service
+            ctx.sudo(f"chmod 644 {virtlogd_plist_path}")
+
+        ctx.sudo("launchctl enable system/org.libvirt.virtlogd")
+        ctx.sudo("launchctl start system/org.libvirt.virtlogd")
