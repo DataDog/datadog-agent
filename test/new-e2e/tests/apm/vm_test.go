@@ -8,6 +8,7 @@ package apm
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -21,7 +22,20 @@ import (
 
 type VMFakeintakeSuite struct {
 	e2e.BaseSuite[environments.Host]
-	transport transport
+	transport    transport
+	extraLogging bool
+}
+
+// NewVMFakeintakeSuite returns a new VMFakeintakeSuite
+func NewVMFakeintakeSuite(tr transport) *VMFakeintakeSuite {
+	extraLogging := false
+	if v, found := os.LookupEnv("EXTRA_LOGGING"); found {
+		extraLogging, _ = strconv.ParseBool(v)
+	}
+	return &VMFakeintakeSuite{
+		transport:    tr,
+		extraLogging: extraLogging,
+	}
 }
 
 func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
@@ -39,16 +53,21 @@ func TestVMFakeintakeSuiteUDS(t *testing.T) {
 apm_config.enabled: true
 apm_config.receiver_socket: /var/run/datadog/apm.socket
 `
+	setupScript := `#!/bin/bash
+sudo mkdir -p /var/run/datadog
+sudo groupadd -r dd-agent
+sudo useradd -r -M -g dd-agent dd-agent
+sudo chown dd-agent:dd-agent /var/run/datadog`
 
 	options := vmSuiteOpts(uds,
 		// Create the /var/run/datadog directory and ensure
 		// permissions are correct so the agent can create
 		// unix sockets for the UDS transport
-		awshost.WithEC2InstanceOptions(ec2.WithUserData("#!/bin/bash\nsudo mkdir -p /var/run/datadog\nsudo groupadd -r dd-agent\nsudo useradd -r -M -g dd-agent dd-agent\nsudo chown dd-agent:dd-agent /var/run/datadog")),
+		awshost.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
 
 		// Enable the UDS receiver in the trace-agent
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(cfg)))
-	e2e.Run(t, &VMFakeintakeSuite{transport: uds}, options...)
+	e2e.Run(t, NewVMFakeintakeSuite(uds), options...)
 }
 
 // TestVMFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
@@ -64,7 +83,7 @@ apm_config.enabled: true
 		),
 		awshost.WithEC2InstanceOptions(),
 	)
-	e2e.Run(t, &VMFakeintakeSuite{transport: tcp}, options...)
+	e2e.Run(t, NewVMFakeintakeSuite(tcp), options...)
 }
 
 func (s *VMFakeintakeSuite) SetupSuite() {
@@ -83,10 +102,9 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		status, _ := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
-		s.T().Log(status)
+		s.logStatus()
 		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
-		s.T().Log(s.Env().RemoteHost.MustExecute("sudo journalctl -n1000 -xu datadog-agent-trace"))
+		s.logJournal()
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
@@ -108,10 +126,9 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		status, _ := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
-		s.T().Log(status)
+		s.logStatus()
 		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
-		s.T().Log(s.Env().RemoteHost.MustExecute("sudo journalctl -n1000 -xu datadog-agent-trace"))
+		s.logJournal()
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
@@ -127,10 +144,9 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		status, _ := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
-		s.T().Log(status)
+		s.logStatus()
 		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
-		s.T().Log(s.Env().RemoteHost.MustExecute("sudo journalctl -n1000 -xu datadog-agent-trace"))
+		s.logJournal()
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
@@ -147,9 +163,32 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		status, _ := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
-		s.T().Log(status)
+		s.logStatus()
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
-		s.T().Log(s.Env().RemoteHost.MustExecute("sudo journalctl -n1000 -xu datadog-agent-trace"))
+		s.logJournal()
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+}
+
+func (s *VMFakeintakeSuite) logStatus() {
+	if !s.extraLogging {
+		return
+	}
+	status, err := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
+	if err != nil {
+		s.T().Log("cannot log status", err)
+		return
+	}
+	s.T().Log(status)
+}
+
+func (s *VMFakeintakeSuite) logJournal() {
+	if !s.extraLogging {
+		return
+	}
+	journal, err := s.Env().RemoteHost.Execute("sudo journalctl -n1000 -xu datadog-agent-trace")
+	if err != nil {
+		s.T().Log("cannot log journal", err)
+		return
+	}
+	s.T().Log(journal)
 }
