@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/etw"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,12 +30,19 @@ func createTestProbe() (*WindowsProbe, error) {
 	opts := Opts{
 		disableProcmon: true,
 	}
+	cfg, err := config.NewConfig()
+	if err != nil {
+		return nil, err
+	}
+	cfg.RuntimeSecurity.FIMEnabled = true
+
 	// probe and config are provided as null.  During the tests, it is assumed
 	// that we will not access those values.
 	wp := &WindowsProbe{
-		opts: opts,
+		opts:   opts,
+		config: cfg,
 	}
-	err := wp.Init()
+	err = wp.Init()
 
 	// do not call Start(), as start assumes we can load the driver.  these tests
 	// are intended to be run without the driver needing to be present
