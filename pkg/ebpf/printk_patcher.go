@@ -214,7 +214,7 @@ type PrintkPatcherModifier struct {
 
 // BeforeInit adds the PatchPrintkNewline function to the manager
 func (t *PrintkPatcherModifier) BeforeInit(m *Manager, _ *manager.Options) error {
-	m.InstructionPatcher = PatchPrintkNewline
+	m.InstructionPatchers = append(m.InstructionPatchers, PatchPrintkNewline)
 	return nil
 }
 
