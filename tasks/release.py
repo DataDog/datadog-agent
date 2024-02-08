@@ -988,13 +988,13 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
     ctx.run("git add release.json")
     ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-    ok = try_git_command(
-        ctx, f"git commit -m 'Final updates for release.json and Go modules for {new_version} release'"
-    )
+    commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
+
+    ok = try_git_command(ctx, f"git commit -m {commit_message}")
     if not ok:
         raise Exit(
             color_message(
-                f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {final_branch} branch and then open a PR against {final_branch}.",
                 "red",
             ),
             code=1,
@@ -1161,7 +1161,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
         )
 
     create_release_pr(
-        "[release] Update release.json and Go modules for {versions_string}",
+        f"[release] Update release.json and Go modules for {versions_string}",
         current_branch,
         update_branch,
         new_final_version,
