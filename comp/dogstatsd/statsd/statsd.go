@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -85,6 +86,9 @@ func createClient(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientI
 			ddgostatsd.WithChannelMode(),
 			ddgostatsd.WithClientSideAggregation(),
 			ddgostatsd.WithExtendedClientSideAggregation(),
+			// Increase timeouts to avoid dropping packets that could have waited a bit more.
+			ddgostatsd.WithWriteTimeout(500 * time.Millisecond),
+			ddgostatsd.WithConnectTimeout(3 * time.Second),
 		},
 		options...,
 	)

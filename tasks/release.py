@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from collections import OrderedDict
 from datetime import date
 from time import sleep
@@ -13,11 +14,11 @@ from time import sleep
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from .libs.common.color import color_message
-from .libs.common.github_api import GithubAPI
-from .libs.common.gitlab import Gitlab, get_gitlab_token
-from .libs.common.user_interactions import yes_no_question
-from .libs.common.utils import (
+from tasks.libs.common.color import color_message
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
     check_clean_branch_state,
@@ -25,9 +26,9 @@ from .libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
-from .libs.version import Version
-from .modules import DEFAULT_MODULES
-from .pipeline import edit_schedule, run
+from tasks.libs.version import Version
+from tasks.modules import DEFAULT_MODULES
+from tasks.pipeline import edit_schedule, run
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -1134,7 +1135,6 @@ Make sure that milestone is open before trying again.""",
         milestone_number=milestone.number,
         labels=[
             "changelog/no-changelog",
-            "qa/skip-qa",
             "qa/no-code-change",
             "team/agent-platform",
             "team/agent-release-management",
@@ -1413,15 +1413,34 @@ def cleanup(ctx):
 
 
 @task
-def check_omnibus_branches(_):
-    for branch in ['nightly', 'nightly-a7']:
-        omnibus_ruby_version = _get_release_json_value(f'{branch}::OMNIBUS_RUBY_VERSION')
-        omnibus_software_version = _get_release_json_value(f'{branch}::OMNIBUS_SOFTWARE_VERSION')
-        version_re = re.compile(r'(\d+)\.(\d+)\.x')
-        if omnibus_ruby_version != 'datadog-5.5.0' and not version_re.match(omnibus_ruby_version):
-            raise Exit(code=1, message=f'omnibus-ruby version [{omnibus_ruby_version}] is not mergeable')
-        if omnibus_software_version != 'master' and not version_re.match(omnibus_software_version):
-            raise Exit(code=1, message=f'omnibus-software version [{omnibus_software_version}] is not mergeable')
+def check_omnibus_branches(ctx):
+    base_branch = _get_release_json_value('base_branch')
+    if base_branch == 'main':
+        omnibus_ruby_branch = 'datadog-5.5.0'
+        omnibus_software_branch = 'master'
+    else:
+        omnibus_ruby_branch = base_branch
+        omnibus_software_branch = base_branch
+
+    def _check_commit_in_repo(repo_name, branch, release_json_field):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ctx.run(
+                f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
+                hide='stdout',
+            )
+            for version in ['nightly', 'nightly-a7']:
+                commit = _get_release_json_value(f'{version}::{release_json_field}')
+                if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
+                    raise Exit(
+                        code=1,
+                        message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
+                    )
+                else:
+                    print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
+
+    _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
+    _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
+
     return True
 
 
@@ -1505,3 +1524,21 @@ def _create_build_links_patterns(current_version, new_version):
     patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
 
     return patterns
+
+
+@task
+def get_active_release_branch(_ctx):
+    """
+    Determine what is the current active release branch for the Agent.
+    If release started and code freeze is in place - main branch is considered active.
+    If release started and code freeze is over - release branch is considered active.
+    """
+    gh = GithubAPI('datadog/datadog-agent')
+    latest_release = gh.latest_release()
+    version = _create_version_from_match(VERSION_RE.search(latest_release))
+    next_version = version.next_version(bump_minor=True)
+    release_branch = gh.get_branch(next_version.branch())
+    if release_branch:
+        print(f"{release_branch.name}")
+    else:
+        print("main")

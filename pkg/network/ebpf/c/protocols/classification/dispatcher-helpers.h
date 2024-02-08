@@ -26,7 +26,7 @@ __maybe_unused static __always_inline protocol_prog_t protocol_to_program(protoc
         return PROG_KAFKA;
     default:
         if (proto != PROTOCOL_UNKNOWN) {
-            log_debug("protocol doesn't have a matching program: %d\n", proto);
+            log_debug("protocol doesn't have a matching program: %d", proto);
         }
         return PROG_UNKNOWN;
     }
@@ -75,7 +75,7 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
         *protocol = PROTOCOL_UNKNOWN;
     }
 
-    log_debug("[protocol_dispatcher_classifier]: Classified protocol as %d %d; %s\n", *protocol, size, buf);
+    log_debug("[protocol_dispatcher_classifier]: Classified protocol as %d %d; %s", *protocol, size, buf);
 }
 
 static __always_inline void dispatcher_delete_protocol_stack(conn_tuple_t *tuple, protocol_stack_t *stack) {
@@ -123,15 +123,16 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     // For more context refer to the comments in `delete_protocol_stack`
     stack->flags |= FLAG_USM_ENABLED;
 
-    // TODO: consider adding early return if `is_layer_known(stack, LAYER_ENCRYPTION)`
-
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     if (tcp_termination) {
         dispatcher_delete_protocol_stack(&skb_tup, stack);
+    } else if (is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
+        // If we have a TLS connection and we're not in the middle of a TCP termination, we can skip the packet.
+        return;
     }
 
     if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
-        log_debug("[protocol_dispatcher_entrypoint]: %p was not classified\n", skb);
+        log_debug("[protocol_dispatcher_entrypoint]: %p was not classified", skb);
         char request_fragment[CLASSIFICATION_MAX_BUFFER];
         bpf_memset(request_fragment, 0, sizeof(request_fragment));
         read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
@@ -141,7 +142,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         if (is_kafka_monitoring_enabled() && cur_fragment_protocol == PROTOCOL_UNKNOWN) {
             bpf_tail_call_compat(skb, &dispatcher_classification_progs, DISPATCHER_KAFKA_PROG);
         }
-        log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d\n", skb, cur_fragment_protocol);
+        log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d", skb, cur_fragment_protocol);
         // If there has been a change in the classification, save the new protocol.
         if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
             set_protocol(stack, cur_fragment_protocol);
@@ -153,14 +154,14 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         const u32 zero = 0;
         dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
         if (args == NULL) {
-            log_debug("dispatcher failed to save arguments for tail call\n");
+            log_debug("dispatcher failed to save arguments for tail call");
             return;
         }
         bpf_memset(args, 0, sizeof(dispatcher_arguments_t));
         bpf_memcpy(&args->tup, &skb_tup, sizeof(conn_tuple_t));
         bpf_memcpy(&args->skb_info, &skb_info, sizeof(skb_info_t));
 
-        log_debug("dispatching to protocol number: %d\n", cur_fragment_protocol);
+        log_debug("dispatching to protocol number: %d", cur_fragment_protocol);
         bpf_tail_call_compat(skb, &protocols_progs, protocol_to_program(cur_fragment_protocol));
     }
 }
@@ -189,7 +190,7 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
         const u32 zero = 0;
         dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
         if (args == NULL) {
-            log_debug("dispatcher failed to save arguments for tail call\n");
+            log_debug("dispatcher failed to save arguments for tail call");
             return;
         }
         bpf_memset(args, 0, sizeof(dispatcher_arguments_t));
@@ -197,7 +198,7 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
         bpf_memcpy(&args->skb_info, &skb_info, sizeof(skb_info_t));
 
         // dispatch if possible
-        log_debug("dispatching to protocol number: %d\n", cur_fragment_protocol);
+        log_debug("dispatching to protocol number: %d", cur_fragment_protocol);
         bpf_tail_call_compat(skb, &protocols_progs, protocol_to_program(cur_fragment_protocol));
     }
     return;

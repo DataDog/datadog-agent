@@ -846,6 +846,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		MinCollectionInterval: c.checkInterval,
 		Tags:                  c.tags,
 		AgentVersion:          c.agentVersion,
+		AgentHostname:         c.agentHostname,
 		OracleRows:            oracleRows,
 		OracleVersion:         c.dbVersion,
 	}
@@ -859,9 +860,9 @@ func (c *Check) StatementMetrics() (int, error) {
 	log.Debugf("%s Query metrics payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
-	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
+	sendMetricWithDefaultTags(c, gauge, "dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()))
 	if c.config.ExecutionPlans.Enabled {
-		sender.Gauge("dd.oracle.plan_errors.count", float64(planErrors), "", c.tags)
+		sendMetricWithDefaultTags(c, gauge, "dd.oracle.plan_errors.count", float64(planErrors))
 	}
 	sender.Commit()
 

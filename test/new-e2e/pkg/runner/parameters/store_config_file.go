@@ -37,6 +37,8 @@ type ConfigParams struct {
 	AWS       AWS    `yaml:"aws"`
 	Agent     Agent  `yaml:"agent"`
 	OutputDir string `yaml:"outputDir"`
+	Pulumi    Pulumi `yaml:"pulumi"`
+	DevMode   string `yaml:"devMode"`
 }
 
 // AWS instance contains AWS related parameters
@@ -54,6 +56,18 @@ type Agent struct {
 	APIKey              string `yaml:"apiKey"`
 	APPKey              string `yaml:"appKey"`
 	VerifyCodeSignature string `yaml:"verifyCodeSignature"`
+}
+
+// Pulumi instance contains pulumi related parameters
+type Pulumi struct {
+	// Sets the log level for Pulumi operations
+	// Be careful setting this value, as it can expose sensitive information in the logs.
+	// https://www.pulumi.com/docs/support/troubleshooting/#verbose-logging
+	LogLevel string `yaml:"logLevel"`
+	// By default pulumi logs to /tmp, and creates symlinks to the most recent log, e.g. /tmp/pulumi.INFO
+	// Set this option to true to log to stderr instead.
+	// https://www.pulumi.com/docs/support/troubleshooting/#verbose-logging
+	LogToStdErr string `yaml:"logToStdErr"`
 }
 
 var _ valueStore = &configFileValueStore{}
@@ -127,6 +141,12 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.Agent.VerifyCodeSignature
 	case OutputDir:
 		value = s.config.ConfigParams.OutputDir
+	case PulumiLogLevel:
+		value = s.config.ConfigParams.Pulumi.LogLevel
+	case PulumiLogToStdErr:
+		value = s.config.ConfigParams.Pulumi.LogToStdErr
+	case DevMode:
+		value = s.config.ConfigParams.DevMode
 	}
 
 	if value == "" {

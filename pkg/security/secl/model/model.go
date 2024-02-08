@@ -132,6 +132,7 @@ type BaseEvent struct {
 	Actions      []*ActionTriggered `field:"-"`
 	Origin       string             `field:"-"`
 	Suppressed   bool               `field:"-"`
+	Service      string             `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -270,11 +271,6 @@ func (e *Event) GetActions() []*ActionTriggered {
 	return e.Actions
 }
 
-// IsSuppressed returns true if the event is suppressed
-func (e *Event) IsSuppressed() bool {
-	return e.Suppressed
-}
-
 // GetWorkloadID returns an ID that represents the workload
 func (e *Event) GetWorkloadID() string {
 	return e.SecurityProfileContext.Name
@@ -305,9 +301,9 @@ func (e *Event) ResolveEventTime() time.Time {
 	return e.FieldHandlers.ResolveEventTime(e, &e.BaseEvent)
 }
 
-// GetProcessService uses the field handler
-func (e *Event) GetProcessService() string {
-	return e.FieldHandlers.GetProcessService(e)
+// ResolveService uses the field handler
+func (e *Event) ResolveService() string {
+	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
 }
 
 // UserSessionContext describes the user session context
@@ -544,19 +540,18 @@ type ExitEvent struct {
 
 // DNSEvent represents a DNS event
 type DNSEvent struct {
-	ID    uint16 `field:"id"`                                                      // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
-	Name  string `field:"question.name,opts:length" op_override:"eval.DNSNameCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
-	Type  uint16 `field:"question.type"`                                           // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"question.class"`                                          // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"question.length"`                                         // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"question.count"`                                          // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
+	ID    uint16 `field:"id"`                                                              // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	Name  string `field:"question.name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
+	Type  uint16 `field:"question.type"`                                                   // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"question.class"`                                                  // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"question.length"`                                                 // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"question.count"`                                                  // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
 }
 
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
-	GetProcessService(ev *Event) string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -567,9 +562,4 @@ func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCac
 // ResolveContainerContext stub implementation
 func (dfh *DefaultFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
-}
-
-// GetProcessService stub implementation
-func (dfh *DefaultFieldHandlers) GetProcessService(_ *Event) string {
-	return ""
 }

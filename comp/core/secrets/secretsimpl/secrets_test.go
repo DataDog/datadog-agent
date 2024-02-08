@@ -612,30 +612,33 @@ func TestResolveThenRefresh(t *testing.T) {
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "password1",
-			"pass2": "second",
+			"pass2": "update-second",
 			"pass3": "password3",
 		}, nil
 	}
 
 	// refresh the secrets and only collect newly updated keys
 	keysResolved = []string{}
-	err = resolver.Refresh()
+	output, err := resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
 	assert.Equal(t, []string{"some/second_level"}, keysResolved)
+	assert.Contains(t, output, "'pass2'")
+	assert.Contains(t, output, "'some/second_level'")
+	assert.NotContains(t, output, "update-second")
 
 	// change the secret values of the other two handles
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return map[string]string{
-			"pass1": "first",
-			"pass2": "second",
-			"pass3": "third",
+			"pass1": "update-first",
+			"pass2": "update-second",
+			"pass3": "update-third",
 		}, nil
 	}
 
 	// refresh one last time and only those two handles have updated keys
 	keysResolved = []string{}
-	err = resolver.Refresh()
+	_, err = resolver.Refresh()
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
@@ -645,7 +648,7 @@ func TestResolveThenRefresh(t *testing.T) {
 	sort.Strings(oldValues)
 	sort.Strings(newValues)
 	assert.Equal(t, []string{"", "", "", "password1", "password2", "password3"}, oldValues)
-	assert.Equal(t, []string{"first", "password1", "password2", "password3", "second", "third"}, newValues)
+	assert.Equal(t, []string{"password1", "password2", "password3", "update-first", "update-second", "update-third"}, newValues)
 }
 
 func TestRefreshAllowlist(t *testing.T) {
@@ -676,18 +679,18 @@ func TestRefreshAllowlist(t *testing.T) {
 	})
 
 	// only allow api_key to change
-	allowlistHandles = []string{"api_key"}
+	allowlistHandles = map[string]struct{}{"api_key": {}}
 
 	// Refresh means nothing changes because allowlist doesn't allow it
-	err := resolver.Refresh()
+	_, err := resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{})
 
 	// now allow the handle under scrutiny to change
-	allowlistHandles = []string{"handle"}
+	allowlistHandles = map[string]struct{}{"handle": {}}
 
 	// Refresh sees the change to the handle
-	err = resolver.Refresh()
+	_, err = resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{"second_value"})
 }

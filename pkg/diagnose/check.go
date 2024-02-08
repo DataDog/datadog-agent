@@ -12,25 +12,31 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func init() {
-	diagnosis.Register("check-datadog", diagnose)
+func Init(collector optional.Option[collector.Component]) {
+	diagnosis.Register("check-datadog", getDiagnose(collector))
 }
 
-func diagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
-	if diagCfg.RunningInAgentProcess && common.Coll != nil {
-		return diagnoseChecksInAgentProcess()
-	}
+func getDiagnose(collector optional.Option[collector.Component]) func(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
+	return func(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 
-	return diagnoseChecksInCLIProcess(diagCfg, senderManager)
+		if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
+			return diagnoseChecksInAgentProcess(coll)
+		}
+
+		return diagnoseChecksInCLIProcess(diagCfg, senderManager)
+	}
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
@@ -62,11 +68,11 @@ func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
+func diagnoseChecksInAgentProcess(collector collector.Component) []diagnosis.Diagnosis {
 	var diagnoses []diagnosis.Diagnosis
 
 	// get list of checks
-	checks := common.Coll.GetChecks()
+	checks := collector.GetChecks()
 
 	// get diagnoses from each
 	for _, ch := range checks {
@@ -110,12 +116,12 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 	secretResolver := secretsimpl.GetInstance()
 
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	common.LoadComponents(senderManagerInstance, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, workloadmeta.GetGlobalStore(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
-	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll, senderManagerInstance)
+	// AutoDiscovery.
+	pkgcollector.InitCheckScheduler(optional.NewNoneOption[pkgcollector.Collector](), senderManagerInstance)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))
@@ -141,7 +147,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 	var diagnoses []diagnosis.Diagnosis
 	for _, diagnoseConfig := range diagnoseConfigs {
 		checkName := diagnoseConfig.Name
-		instances := collector.GetChecksByNameForConfigs(checkName, diagnoseConfigs)
+		instances := pkgcollector.GetChecksByNameForConfigs(checkName, diagnoseConfigs)
 		for _, instance := range instances {
 			if instance.Interval() == 0 {
 				pkglog.Infof("Ignoring long running check %s", instance.String())

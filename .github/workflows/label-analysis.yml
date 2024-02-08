@@ -8,44 +8,39 @@ on:
       - main
       - "[0-9]+.[0-9]+.x"
 
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_REPO: ${{ github.repository }}
+
 jobs:
   team-label:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install dependencies
+      - name: Check team assignment
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r tasks/libs/requirements-github.txt
-      - name: Run PR check for team assignment label
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          PR_ID: ${{ github.event.pull_request.number }}
-        run: |
-          inv -e lint-teamassignment
+          labels=$(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name')
+          for label in $labels; do
+            if [[ "$label" =~ ^qa/ ]]; then
+              echo "A label to skip QA is set -- no need for team assignment"
+              exit 0
+            fi
+            if [[ "$label" =~ ^team/ && "$label" != team/triage ]]; then
+              echo "Team label found: $label"
+              exit 0
+            fi
+          done
+          echo "PR ${{github.event.number}} requires at least one non-triage team assignment label (label starting by 'team/')"
+          exit 1
   skip-qa:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install dependencies
+      - name: Check qa/[done|no-code-change] labels are not set together
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r tasks/libs/requirements-github.txt
-      - name: Run PR check for QA labels
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          PR_ID: ${{ github.event.pull_request.number }}
-        run: |
-          inv -e lint-skip-qa
+          labels=$(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name')
+          if [[ "$labels" =~ ^qa/done && "$labels" =~ ^qa/no-code-change ]]; then
+            echo "Both 'qa/done' and 'qa/no-code-change' labels are set -- only one of them should be set"
+            exit 1
+          fi
+          echo "No issue with 'qa/done' and 'qa/no-code-change' labels"

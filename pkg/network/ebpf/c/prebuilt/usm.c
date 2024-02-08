@@ -34,7 +34,7 @@ int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
 
 SEC("kprobe/tcp_sendmsg")
 int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
-    log_debug("kprobe/tcp_sendmsg: sk=%llx\n", sk);
+    log_debug("kprobe/tcp_sendmsg: sk=%llx", sk);
     // map connection tuple during SSL_do_handshake(ctx)
     map_ssl_ctx_to_sock(sk);
 
@@ -43,7 +43,7 @@ int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
 
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
-    log_debug("tracepoint/net/netif_receive_skb\n");
+    log_debug("tracepoint/net/netif_receive_skb");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
     http_batch_flush(ctx);

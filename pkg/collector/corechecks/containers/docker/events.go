@@ -13,10 +13,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -25,7 +25,7 @@ import (
 
 var (
 	dockerEvents = telemetry.NewCounterWithOpts(
-		dockerCheckName,
+		CheckName,
 		"events",
 		[]string{"action"},
 		"Number of Docker events received by the check.",
@@ -33,7 +33,7 @@ var (
 	)
 
 	emittedEvents = telemetry.NewCounterWithOpts(
-		dockerCheckName,
+		CheckName,
 		"emitted_events",
 		[]string{"type"},
 		"Number of events emitted by the check.",

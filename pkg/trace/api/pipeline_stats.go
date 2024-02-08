@@ -83,8 +83,10 @@ func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []
 		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
+			log.Debugf("Setting header X-Datadog-Container-Tags=%s for pipeline stats proxy", ctags)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
+		log.Debugf("Setting header X-Datadog-Additional-Tags=%s for pipeline stats proxy", tags)
 		metrics.Count("datadog.trace_agent.pipelines_stats", 1, nil, 1)
 	}
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
