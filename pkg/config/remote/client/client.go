@@ -327,17 +327,17 @@ func (c *Client) pollLoop() {
 	}
 
 	for {
-		interval := c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
-		if !successfulFirstRun && c.pollInterval > time.Second {
+		interval := c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
+		if !successfulFirstRun && interval > time.Second {
 			// If we never managed to contact the RC service, we want to retry faster (max every second)
 			// to get a first state as soon as possible.
 			// Some products may not start correctly without a first state.
-			interval = -c.pollInterval + time.Second
+			interval = time.Second
 		}
 		select {
 		case <-c.ctx.Done():
 			return
-		case <-time.After(c.pollInterval + interval):
+		case <-time.After(interval):
 			err := c.update()
 			if err != nil {
 				if status.Code(err) == codes.Unimplemented {
