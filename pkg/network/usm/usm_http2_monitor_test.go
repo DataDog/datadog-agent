@@ -392,7 +392,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 				if telemetry.Response_seen != tt.expectedTelemetry.Response_seen {
 					return false
 				}
-				if telemetry.Path_exceeds_frame != tt.expectedTelemetry.Path_exceeds_frame {
+				if telemetry.Literal_value_exceeds_frame != tt.expectedTelemetry.Literal_value_exceeds_frame {
 					return false
 				}
 				if telemetry.Exceeding_max_interesting_frames != tt.expectedTelemetry.Exceeding_max_interesting_frames {
