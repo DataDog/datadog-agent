@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fix recent PR #22664 which in turn fixes race condition in ETW package.
+    Fix recent PR #22664 which in turn fixes a race condition in the ETW package.
     The previous PR introduces minor error which addressed in this PR
