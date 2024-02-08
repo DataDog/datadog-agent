@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //nolint:revive // TODO(AML) Fix revive linter
-package logstatus
+package utils
 
 import (
 	"fmt"

@@ -25,9 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
-	status "github.com/DataDog/datadog-agent/pkg/logs/logstatus"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a

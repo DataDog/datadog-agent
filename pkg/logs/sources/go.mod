@@ -10,7 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../config/utils
-	github.com/DataDog/datadog-agent/pkg/logs/logstatus => ../logstatus
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../status/utils
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
@@ -27,7 +27,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/logs/logstatus v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.8.4

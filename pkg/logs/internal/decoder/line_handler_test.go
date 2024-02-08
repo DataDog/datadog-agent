@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	status "github.com/DataDog/datadog-agent/pkg/logs/logstatus"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // All valid whitespace characters

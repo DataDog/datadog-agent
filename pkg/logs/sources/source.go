@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	status "github.com/DataDog/datadog-agent/pkg/logs/logstatus"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
 )
 

@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
-	status "github.com/DataDog/datadog-agent/pkg/logs/logstatus"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // NewDecoderFromSource creates a new decoder from a log source
