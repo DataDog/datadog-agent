@@ -13,36 +13,36 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
-type hostHttpbinEnv struct {
-	environments.Host
+type dockerHostNginxEnv struct {
+	environments.DockerHost
 	// Extra Components
 	HTTPBinHost *components.RemoteHost
 }
-type ec2VMSuite struct {
-	e2e.BaseSuite[hostHttpbinEnv]
+
+type ec2VMContainerizedSuite struct {
+	e2e.BaseSuite[dockerHostNginxEnv]
 }
 
-func hostDockerHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[hostHttpbinEnv] {
-	return func(ctx *pulumi.Context, env *hostHttpbinEnv) error {
+func dockerHostHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] {
+	return func(ctx *pulumi.Context, env *dockerHostNginxEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
-		env.Host.AwsEnvironment = &awsEnv
+		env.DockerHost.AwsEnvironment = &awsEnv
 
-		opts := []awshost.ProvisionerOption{
-			awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
+		opts := []awsdocker.ProvisionerOption{
+			awsdocker.WithAgentOptions(systemProbeConfigNPMEnv()...),
 		}
-		params := awshost.GetProvisionerParams(opts...)
-		awshost.Run(ctx, &env.Host, params)
+		params := awsdocker.GetProvisionerParams(opts...)
+		awsdocker.Run(ctx, &env.DockerHost, params)
 
 		vmName := "httpbinvm"
 
@@ -72,10 +72,10 @@ func hostDockerHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[hostHttpbinEnv] {
 }
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
-func TestEC2VMSuite(t *testing.T) {
-	s := &ec2VMSuite{}
+func TestEC2VMContainerizedSuite(t *testing.T) {
+	s := &ec2VMContainerizedSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("dockerHostHttpbin", dockerHostHttpbinEnvProvisioner(), nil))}
 
 	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
@@ -83,12 +83,11 @@ func TestEC2VMSuite(t *testing.T) {
 	e2e.Run(t, s, e2eParams...)
 }
 
-func (v *ec2VMSuite) SetupSuite() {
+// SetupSuite
+func (v *ec2VMContainerizedSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 
-	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
-	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")
-	v.Env().RemoteHost.ReconnectSSH()
+	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils")
 
 	// prefetch docker image locally
 	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/k8m1l3p1/alpine/curler:latest")
@@ -97,7 +96,7 @@ func (v *ec2VMSuite) SetupSuite() {
 }
 
 // BeforeTest will be called before each test
-func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
+func (v *ec2VMContainerizedSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
 
 	// default is to reset the current state of the fakeintake aggregators
@@ -106,11 +105,11 @@ func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
-// TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
+// TestFakeIntakeNPMHostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
 // 2 tests generate the request on the host and on docker
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-func (v *ec2VMSuite) TestFakeIntakeNPM_HostRequests() {
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
@@ -119,11 +118,11 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_HostRequests() {
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
 
-// TestFakeIntakeNPM_DockerRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
+// TestFakeIntakeNPMDockerRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
 // 2 tests generate the request on the host and on docker
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-func (v *ec2VMSuite) TestFakeIntakeNPM_DockerRequests() {
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
@@ -136,7 +135,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_DockerRequests() {
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
-func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
@@ -149,7 +148,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
-func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
@@ -160,7 +159,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
-func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
@@ -172,7 +171,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
-func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections

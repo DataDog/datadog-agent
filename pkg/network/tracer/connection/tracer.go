@@ -189,8 +189,6 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 			probes.TCPRetransmitsMap:                 {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.PortBindingsMap:                   {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.UDPPortBindingsMap:                {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.SockByPidFDMap:                    {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.PidFDBySockMap:                    {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionProtocolMap:             {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionTupleToSocketSKBConnMap: {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 		},
@@ -340,7 +338,6 @@ func (t *tracer) Stop() {
 
 func (t *tracer) GetMap(name string) *ebpf.Map {
 	switch name {
-	case probes.SockByPidFDMap:
 	case probes.ConnectionProtocolMap:
 	case probes.MapErrTelemetryMap:
 	case probes.HelperErrTelemetryMap:

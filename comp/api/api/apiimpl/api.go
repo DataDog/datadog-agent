@@ -9,6 +9,8 @@ package apiimpl
 import (
 	"net"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -40,53 +42,56 @@ func Module() fxutil.Module {
 }
 
 type apiServer struct {
-	flare           flare.Component
-	dogstatsdServer dogstatsdServer.Component
-	capture         replay.Component
-	serverDebug     dogstatsddebug.Component
-	hostMetadata    host.Component
-	invAgent        inventoryagent.Component
-	demux           demultiplexer.Component
-	invHost         inventoryhost.Component
-	secretResolver  secrets.Component
-	invChecks       inventorychecks.Component
-	pkgSigning      packagesigning.Component
-	statusComponent status.Component
+	flare                 flare.Component
+	dogstatsdServer       dogstatsdServer.Component
+	capture               replay.Component
+	serverDebug           dogstatsddebug.Component
+	hostMetadata          host.Component
+	invAgent              inventoryagent.Component
+	demux                 demultiplexer.Component
+	invHost               inventoryhost.Component
+	secretResolver        secrets.Component
+	invChecks             inventorychecks.Component
+	pkgSigning            packagesigning.Component
+	statusComponent       status.Component
+	eventPlatformReceiver eventplatformreceiver.Component
 }
 
 type dependencies struct {
 	fx.In
 
-	Flare           flare.Component
-	DogstatsdServer dogstatsdServer.Component
-	Capture         replay.Component
-	ServerDebug     dogstatsddebug.Component
-	HostMetadata    host.Component
-	InvAgent        inventoryagent.Component
-	Demux           demultiplexer.Component
-	InvHost         inventoryhost.Component
-	SecretResolver  secrets.Component
-	InvChecks       inventorychecks.Component
-	PkgSigning      packagesigning.Component
-	StatusComponent status.Component
+	Flare                 flare.Component
+	DogstatsdServer       dogstatsdServer.Component
+	Capture               replay.Component
+	ServerDebug           dogstatsddebug.Component
+	HostMetadata          host.Component
+	InvAgent              inventoryagent.Component
+	Demux                 demultiplexer.Component
+	InvHost               inventoryhost.Component
+	SecretResolver        secrets.Component
+	InvChecks             inventorychecks.Component
+	PkgSigning            packagesigning.Component
+	StatusComponent       status.Component
+	EventPlatformReceiver eventplatformreceiver.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer(deps dependencies) api.Component {
 	return &apiServer{
-		flare:           deps.Flare,
-		dogstatsdServer: deps.DogstatsdServer,
-		capture:         deps.Capture,
-		serverDebug:     deps.ServerDebug,
-		hostMetadata:    deps.HostMetadata,
-		invAgent:        deps.InvAgent,
-		demux:           deps.Demux,
-		invHost:         deps.InvHost,
-		secretResolver:  deps.SecretResolver,
-		invChecks:       deps.InvChecks,
-		pkgSigning:      deps.PkgSigning,
-		statusComponent: deps.StatusComponent,
+		flare:                 deps.Flare,
+		dogstatsdServer:       deps.DogstatsdServer,
+		capture:               deps.Capture,
+		serverDebug:           deps.ServerDebug,
+		hostMetadata:          deps.HostMetadata,
+		invAgent:              deps.InvAgent,
+		demux:                 deps.Demux,
+		invHost:               deps.InvHost,
+		secretResolver:        deps.SecretResolver,
+		invChecks:             deps.InvChecks,
+		pkgSigning:            deps.PkgSigning,
+		statusComponent:       deps.StatusComponent,
+		eventPlatformReceiver: deps.EventPlatformReceiver,
 	}
 }
 
@@ -115,6 +120,7 @@ func (server *apiServer) StartServer(
 		server.invChecks,
 		server.pkgSigning,
 		server.statusComponent,
+		server.eventPlatformReceiver,
 	)
 }
 
