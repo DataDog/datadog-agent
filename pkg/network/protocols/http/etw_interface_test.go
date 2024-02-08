@@ -191,7 +191,7 @@ func TestEtwTransactions(t *testing.T) {
 
 	etw.StartReadingHttpFlows()
 
-	time.Sleep(time.Second)
+	time.Sleep(10 * time.Second)
 	for _, test := range setupTests() {
 
 		t.Run(test.name, func(t *testing.T) {
