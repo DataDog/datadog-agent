@@ -454,11 +454,6 @@ func fmtProcesses(
 			continue
 		}
 
-		var processCtx []string
-		if serviceExtractor != nil {
-			processCtx = serviceExtractor.GetServiceContext(fp.Pid)
-		}
-
 		// Hide disallow-listed args if the Scrubber is enabled
 		fp.Cmdline = scrubber.ScrubProcessCommand(fp)
 		proc := &model.Process{
@@ -475,7 +470,7 @@ func fmtProcesses(
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
-			ProcessContext:         processCtx,
+			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
 		}
 
 		if connRates != nil {
