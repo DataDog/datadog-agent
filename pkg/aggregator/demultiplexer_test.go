@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -296,11 +296,11 @@ func createDemuxDepsWithOrchestratorFwd(
 	eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
 	modules := fx.Options(
 		defaultforwarder.MockModule(),
-		config.MockModule(),
-		logimpl.MockModule(),
+		core.MockBundle(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorParams),
 		eventplatformimpl.Module(),
+		eventplatformreceiverimpl.Module(),
 		fx.Supply(eventPlatformParams),
 	)
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)

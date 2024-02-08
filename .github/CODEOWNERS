@@ -196,7 +196,7 @@
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
-/google-marketplace/                    @DataDog/container-integrations
+/google-marketplace/                    @DataDog/container-ecosystems
 
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
 # Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
@@ -221,6 +221,7 @@
 /comp/api @DataDog/agent-shared-components
 /comp/apm/etwtracer @DataDog/windows-agent
 /comp/checks @DataDog/agent-shared-components
+/comp/collector @DataDog/agent-metrics-logs
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/etw @DataDog/windows-agent
@@ -242,6 +243,7 @@
 /comp/core/tagger @DataDog/container-integrations
 /comp/core/workloadmeta @DataDog/container-integrations
 /comp/forwarder/eventplatform @DataDog/agent-metrics-logs
+/comp/forwarder/eventplatformreceiver @DataDog/agent-metrics-logs
 /comp/forwarder/orchestrator @DataDog/agent-metrics-logs
 /comp/forwarder/orchestrator/orchestratorinterface @DataDog/agent-metrics-logs
 /comp/metadata/packagesigning @DataDog/agent-platform

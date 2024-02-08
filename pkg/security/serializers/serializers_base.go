@@ -51,8 +51,6 @@ type EventContextSerializer struct {
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
 	// Origin of the event
 	Origin string `json:"origin,omitempty"`
-	// True if the event has been suppressed
-	Suppressed bool `json:"suppressed,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -219,9 +217,8 @@ func NewBaseEventSerializer(event *model.Event) *BaseEventSerializer {
 
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
-			Name:       eventType.String(),
-			Origin:     event.Origin,
-			Suppressed: event.Suppressed,
+			Name:   eventType.String(),
+			Origin: event.Origin,
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),

@@ -1314,6 +1314,7 @@ core,github.com/pjbgf/sha1cd,Apache-2.0,"Copyright 2009 The Go Authors. All righ
 core,github.com/pjbgf/sha1cd/internal,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
 core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
 core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@cheney.net>"
+core,github.com/planetscale/vtprotobuf/protohelpers,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
 core,github.com/pmezard/go-difflib/difflib,BSD-3-Clause,"Copyright (c) 2013, Patrick Mezard"
 core,github.com/power-devops/perfstat,MIT,Copyright (c) 2020 Power DevOps
 core,github.com/prometheus-community/pro-bing,MIT,Copyright 2016 Cameron Sparr and contributors | Copyright 2022 The Prometheus Authors
