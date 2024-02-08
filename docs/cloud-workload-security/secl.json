@@ -28,6 +28,11 @@
           "property_doc_link": "event-async-doc"
         },
         {
+          "name": "event.service",
+          "definition": "Service associated with the event",
+          "property_doc_link": "event-service-doc"
+        },
+        {
           "name": "event.timestamp",
           "definition": "Timestamp of the event",
           "property_doc_link": "event-timestamp-doc"
@@ -8844,6 +8849,18 @@
       "link": "event-async-doc",
       "type": "bool",
       "definition": "True if the syscall was asynchronous",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.service",
+      "link": "event-service-doc",
+      "type": "string",
+      "definition": "Service associated with the event",
       "prefixes": [
         ""
       ],

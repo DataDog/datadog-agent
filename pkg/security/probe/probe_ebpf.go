@@ -1688,7 +1688,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	}
 
 	// TODO safchain change the fields handlers
-	p.fieldHandlers = &EBPFFieldHandlers{resolvers: p.Resolvers}
+	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers}
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)

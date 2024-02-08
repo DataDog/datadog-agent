@@ -467,7 +467,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	p.fieldHandlers = &FieldHandlers{resolvers: p.Resolvers}
+	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers}
 
 	p.event = p.NewEvent()
 
