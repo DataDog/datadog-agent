@@ -421,7 +421,7 @@ func startAgent(
 	)
 
 	if jmxLoggerSetupErr != nil {
-		return fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
+		return fmt.Errorf(" Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
 	}
 
 	if flavor.GetFlavor() == flavor.IotAgent {
@@ -589,7 +589,6 @@ func startAgent(
 	// start dogstatsd
 	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
 		global.DSD = server
-		// err := server.Start(demultiplexer)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		} else {
@@ -645,7 +644,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, agentAPI 
 			pkglog.Errorf("Error shutting down expvar server: %v", err)
 		}
 	}
-	server.Stop()
 	if common.AC != nil {
 		common.AC.Stop()
 	}
