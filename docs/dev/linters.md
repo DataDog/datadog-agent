@@ -51,7 +51,7 @@ A: This could have several causes:
 
 ### About the new-from-rev golangci-lint parameter
 
-At some point we wanted to introduce the `revive` linter in th codebase. It was burdensome because enabling it made hundreds of errors appear in the CI. [We hence started using the `new-from-rev` parameter](https://github.com/DataDog/datadog-agent/blob/fcb19ce078e7969d285565beec5d374c5fd623e1/.golangci.yml#L65-L68) ([see doc](https://golangci-lint.run/usage/faq/#how-to-integrate-golangci-lint-into-large-project-with-thousands-of-issues)) to only display lints from changes made after commit `f40667d3841c6339be0d00d53e54a4a63f43f11e` (i.e when we enabled back `revive`).
+Introducing the `revive` linter in the codebase caused hundreds of errors to appear in the CI. As such, [the `new-from-rev` parameter](https://github.com/DataDog/datadog-agent/blob/fcb19ce078e7969d285565beec5d374c5fd623e1/.golangci.yml#L65-L68) was added to only display linter issues from changes made after the commit that enabled `revive`. [See the Golang documentation](https://golangci-lint.run/usage/faq/#how-to-integrate-golangci-lint-into-large-project-with-thousands-of-issues) for more information.
 
 We quickly realized [the debt that such a feature](https://github.com/golangci/golangci-lint/issues/4349) introduced:
 
