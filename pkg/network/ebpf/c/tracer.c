@@ -207,8 +207,9 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
         return 0;
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
-
-    cleanup_conn(ctx, &t, sk);
+    
+    int individual_flush_needed = 0;
+    individual_flush_needed = cleanup_conn(ctx, &t, sk);
 
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
     // so, there is no one to use the map and clean it.
@@ -217,6 +218,23 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
 
     // tail call flush
+    if (individual_flush_needed) {
+        bpf_tail_call_compat(ctx, &conn_close_individual_progs, 1);
+    }
+    return 0;
+}
+
+SEC("kprobe/tcp_close")
+int kprobe__tcp_close_interleaved_flush(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    conn_tuple_t t = {};
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    log_debug("kprobe/tcp_close: pid_tgid: %d", pid_tgid);
+    bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     return 0;
 }
 
@@ -947,8 +965,9 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
     int valid_tuple = read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP);
 
     __u16 lport = 0;
+    int individual_flush_needed = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, skp);
+        individual_flush_needed = cleanup_conn(ctx, &tup, skp);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
@@ -963,6 +982,9 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
     pb.netns = get_netns_from_sock(skp);
     pb.port = lport;
     remove_port_bind(&pb, &udp_port_bindings);
+    if (individual_flush_needed) {
+        bpf_tail_call_compat(ctx, &conn_close_individual_progs, 1);
+    }
     return 0;
 }
 

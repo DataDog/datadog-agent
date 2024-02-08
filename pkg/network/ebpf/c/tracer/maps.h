@@ -108,6 +108,11 @@ BPF_ARRAY_MAP(telemetry, telemetry_t, 1)
  */
 BPF_HASH_MAP(pending_tcp_retransmit_skb, __u64, tcp_retransmit_skb_args_t, 8192)
 
+// Used to store connections waiting to be flushed by a tail call in the tcp_close flow
+BPF_HASH_MAP(pending_individual_conn_flushes, __u64, conn_t, 8192)
+
+BPF_HASH_MAP(pending_batch_conn_flushes, __u64, batch_t, 8192)
+
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes
 BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
@@ -132,7 +137,12 @@ BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
 // by using tail call.
 BPF_PROG_ARRAY(tcp_close_progs, 1)
 
-// This program is needed to optionally omit a call to bpf_ringbuf_output on older kernels where is doesn't exist
-BPF_PROG_ARRAY(conn_close_progs, 1)
+// This program is needed to optionally omit a call to bpf_ringbuf_output on older kernels 
+// where is doesn't exist when sending tcp close batchs
+BPF_PROG_ARRAY(conn_close_batch_progs, 1)
+
+// This program is needed to optionally omit a call to bpf_ringbuf_output on older kernels 
+// where is doesn't exist when sending individual tcp close events
+BPF_PROG_ARRAY(conn_close_individual_progs, 1)
 
 #endif

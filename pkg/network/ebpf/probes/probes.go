@@ -89,7 +89,11 @@ const (
 
 	TCPConnCloseEmitBatch ProbeFuncName = "emit_conn_close_event_from_batch"
 
-	TCPConnCloseEmitBatchPre580 ProbeFuncName = "emit_conn_close_event_from_batch_pre_5_8_0"
+	TCPConnCloseEmitBatchRingBuffer ProbeFuncName = "emit_conn_close_event_from_batch_ringbuffer"
+
+	TCPConnCloseEmitEvent ProbeFuncName = "emit_conn_close_event"
+
+	TCPConnCloseEmitEventRingBuffer ProbeFuncName = "emit_conn_close_event_ringbuffer"
 
 	// We use the following two probes for UDP sends
 
@@ -249,5 +253,7 @@ const (
 	//nolint:revive // TODO(NET) Fix revive linter
 	TCPCloseProgsMap BPFMapName = "tcp_close_progs"
 	//nolint:revive // TODO(NET) Fix revive linter
-	ConnCloseProgsMap BPFMapName = "conn_close_progs"
+	ConnCloseProgsIndvMap BPFMapName = "conn_close_individual_progs"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ConnCloseProgsBatchMap BPFMapName = "conn_close_batch_progs"
 )

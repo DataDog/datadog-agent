@@ -41,9 +41,9 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 
-static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
+static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
-    // Will hold the full connection data to send through the perf or ring buffer
+    // // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
     conn_stats_ts_t *cst = NULL;
     tcp_stats_t *tst = NULL;
@@ -72,7 +72,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
     if (is_udp && !cst) {
         increment_telemetry_count(udp_dropped_conns);
-        return; // nothing to report
+        return 0; // nothing to report
     }
 
     if (cst) {
@@ -91,7 +91,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // Batch TCP closed connections before generating a perf event
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (batch_ptr == NULL) {
-        return;
+        return 0;
     }
 
     // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
@@ -99,49 +99,37 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     case 0:
         batch_ptr->c0 = conn;
         batch_ptr->len++;
-        return;
+        return 0;
     case 1:
         batch_ptr->c1 = conn;
         batch_ptr->len++;
-        return;
+        return 0;
     case 2:
         batch_ptr->c2 = conn;
         batch_ptr->len++;
-        return;
+        return 0;
     case 3:
         batch_ptr->c3 = conn;
         batch_ptr->len++;
         // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
         // in order to cope with the eBPF stack limitation of 512 bytes.
-        return;
-    }
-
-    if (is_tcp) {
-        increment_telemetry_count(unbatched_tcp_close);
-    }
-    if (is_udp) {
-        increment_telemetry_count(unbatched_udp_close);
+        return 0;
     }
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
     // We send the connection outside of a batch anyway. This is likely not as
     // frequent of a case to cause performance issues and avoid cases where
     // we drop whole connections, which impacts things USM connection matching.
-    // if (ringbuffers_enabled()) {
-    //     bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn), 0);
-    // } else {
-    //     bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(conn));
-    // }
-    bpf_tail_call_compat(ctx, &conn_close_progs, 0);
-}
-
-static __always_inline void emit_conn_close_event(void *ctx, conn_t *conn) {
-    u32 cpu = bpf_get_smp_processor_id();
-    if (ringbuffers_enabled()) {
-        bpf_ringbuf_output(&conn_close_event, conn, sizeof(*conn), 0);
-    } else {
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
+    if (is_tcp) {
+        increment_telemetry_count(unbatched_tcp_close);
     }
+    if (is_udp) {
+        increment_telemetry_count(unbatched_udp_close);
+    }
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_update_with_telemetry(pending_individual_conn_flushes, &pid_tgid, &conn, BPF_ANY);
+
+    return 1;
 }
 
 static __always_inline void flush_conn_close_if_full(void *ctx) {
@@ -160,18 +148,36 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
         batch_ptr->len = 0;
         batch_ptr->id++;
 
-        bpf_tail_call_compat(ctx, &conn_close_progs, 0);
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        bpf_map_update_with_telemetry(pending_individual_conn_flushes, &pid_tgid, &batch_copy, BPF_ANY);
+        bpf_tail_call_compat(ctx, &conn_close_batch_progs, 0);
 
         // we cannot use the telemetry macro here because of stack size constraints
-        // if (ringbuffers_enabled()) {
-        //     bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
-        // } else {
-        //     bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
-        // }
     }
 }
 
-static __always_inline void emit_conn_close_event_from_batch(void *ctx, batch_t *batch) {
+static __always_inline void emit_conn_close_event_ringbuffer(void *ctx) {
+    u32 cpu = bpf_get_smp_processor_id();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    conn_t* conn = bpf_map_lookup_elem(&pending_individual_conn_flushes, &pid_tgid);
+    if (ringbuffers_enabled()) {
+        bpf_ringbuf_output(&conn_close_event, conn, sizeof(*conn), 0);
+    } else {
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
+    }
+}
+
+static __always_inline void emit_conn_close_event(void *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    conn_t* conn = bpf_map_lookup_elem(&pending_individual_conn_flushes, &pid_tgid);
+    u32 cpu = bpf_get_smp_processor_id();
+    bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
+}
+
+static __always_inline void emit_conn_close_event_from_batch_ringbuffer(void *ctx) {
+    // todo: add telemetry here?
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    batch_t* batch = bpf_map_lookup_elem(&pending_batch_conn_flushes, &pid_tgid);
     u32 cpu = bpf_get_smp_processor_id();
     if (ringbuffers_enabled()) {
         bpf_ringbuf_output(&conn_close_event, batch, sizeof(*batch), 0);
@@ -180,7 +186,10 @@ static __always_inline void emit_conn_close_event_from_batch(void *ctx, batch_t 
     }
 }
 
-static __always_inline void emit_conn_close_event_from_batch_pre_5_8_0(void *ctx, batch_t *batch) {
+static __always_inline void emit_conn_close_event_from_batch(void *ctx) {
+    // todo: add telemetry here?
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    batch_t* batch = bpf_map_lookup_elem(&pending_batch_conn_flushes, &pid_tgid);
     u32 cpu = bpf_get_smp_processor_id();
     bpf_perf_event_output(ctx, &conn_close_event, cpu, batch, sizeof(*batch));
 }
