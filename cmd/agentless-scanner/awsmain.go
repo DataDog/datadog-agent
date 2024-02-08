@@ -95,7 +95,15 @@ func awsSnapshotCommand() *cobra.Command {
 				return err
 			}
 			roles := getDefaultRolesMapping(types.CloudProviderAWS)
-			scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.AsText(), "unknown", "unknown", globalFlags.defaultActions, roles, globalFlags.diskMode)
+			scan, err := types.NewScanTask(
+				types.TaskTypeEBS,
+				volumeID.AsText(),
+				"unknown",
+				"unknown",
+				nil,
+				globalFlags.defaultActions,
+				roles,
+				globalFlags.diskMode)
 			if err != nil {
 				return err
 			}
@@ -189,6 +197,9 @@ func awsOfflineCommand() *cobra.Command {
 }
 
 func awsAttachCommand() *cobra.Command {
+	var flags struct {
+		noMount bool
+	}
 	cmd := &cobra.Command{
 		Use:   "attach <snapshot|volume>",
 		Short: "Attaches a snapshot or volume to the current instance",
@@ -202,10 +213,10 @@ func awsAttachCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return awsAttachCmd(resourceID, globalFlags.diskMode, globalFlags.defaultActions)
+			return awsAttachCmd(resourceID, !flags.noMount, globalFlags.diskMode, globalFlags.defaultActions)
 		},
 	}
-
+	cmd.Flags().BoolVar(&flags.noMount, "no-mount", false, "mount the device")
 	return cmd
 }
 
@@ -231,26 +242,27 @@ func awsCleanupCommand() *cobra.Command {
 func awsScanCmd(resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
-	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-	defer cancel()
-
-	hostname, err := utils.GetHostnameWithContext(ctxhostname)
-	if err != nil {
-		hostname = "unknown"
-	}
-
+	scannerHostname := tryGetHostname(ctx)
 	taskType, err := types.DefaultTaskType(resourceID)
 	if err != nil {
 		return err
 	}
 	roles := getDefaultRolesMapping(types.CloudProviderAWS)
-	task, err := types.NewScanTask(taskType, resourceID.AsText(), hostname, targetHostname, actions, roles, diskMode)
+	task, err := types.NewScanTask(
+		taskType,
+		resourceID.AsText(),
+		scannerHostname,
+		targetHostname,
+		nil,
+		actions,
+		roles,
+		diskMode)
 	if err != nil {
 		return err
 	}
 
 	scanner, err := runner.New(runner.Options{
-		Hostname:       hostname,
+		Hostname:       scannerHostname,
 		CloudProvider:  types.CloudProviderAWS,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        1,
@@ -279,7 +291,7 @@ func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName s
 	ctx := ctxTerminated()
 	defer statsd.Flush()
 
-	hostname, err := utils.GetHostnameWithContext(ctx)
+	scannerHostname, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
@@ -298,7 +310,7 @@ func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName s
 	}
 
 	scanner, err := runner.New(runner.Options{
-		Hostname:       hostname,
+		Hostname:       scannerHostname,
 		CloudProvider:  types.CloudProviderAWS,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        workers,
@@ -371,13 +383,24 @@ func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName s
 							return err
 						}
 						log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeID, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
-						scan, err := types.NewScanTask(types.TaskTypeEBS, volumeID.AsText(), hostname, *instance.InstanceId, actions, roles, diskMode)
+						scan, err := types.NewScanTask(
+							types.TaskTypeEBS,
+							volumeID.AsText(),
+							scannerHostname,
+							*instance.InstanceId,
+							ec2TagsToStringTags(instance.Tags),
+							actions,
+							roles,
+							diskMode)
 						if err != nil {
 							return err
 						}
 
-						config := &types.ScanConfig{Type: types.ConfigTypeAWS, Tasks: []*types.ScanTask{scan}, Roles: roles}
-						if !scanner.PushConfig(ctx, config) {
+						if !scanner.PushConfig(ctx, &types.ScanConfig{
+							Type:  types.ConfigTypeAWS,
+							Tasks: []*types.ScanTask{scan},
+							Roles: roles,
+						}) {
 							return nil
 						}
 						count++
@@ -427,12 +450,23 @@ func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName s
 					return err
 				}
 				log.Debugf("%s %s %s %s", regionName, *image.ImageId, snapshotID, *blockDeviceMapping.DeviceName)
-				scan, err := types.NewScanTask(types.TaskTypeAMI, snapshotID.AsText(), hostname, *image.ImageId, actions, roles, diskMode)
+				scan, err := types.NewScanTask(
+					types.TaskTypeAMI,
+					snapshotID.AsText(),
+					scannerHostname,
+					*image.ImageId,
+					ec2TagsToStringTags(image.Tags),
+					actions,
+					roles,
+					diskMode)
 				if err != nil {
 					return err
 				}
-				config := &types.ScanConfig{Type: types.ConfigTypeAWS, Tasks: []*types.ScanTask{scan}, Roles: roles}
-				if !scanner.PushConfig(ctx, config) {
+				if !scanner.PushConfig(ctx, &types.ScanConfig{
+					Type:  types.ConfigTypeAWS,
+					Tasks: []*types.ScanTask{scan},
+					Roles: roles,
+				}) {
 					return nil
 				}
 				count++
@@ -457,12 +491,33 @@ func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName s
 				return fmt.Errorf("could not scan region %q for Lambda functions: %w", regionName, err)
 			}
 			for _, function := range functions.Functions {
-				scan, err := types.NewScanTask(types.TaskTypeLambda, *function.FunctionArn, hostname, "", actions, roles, diskMode)
+				fn, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
+					FunctionName: function.FunctionName,
+				})
+				if err != nil {
+					return fmt.Errorf("could not get lambda function %s: %w", *function.FunctionName, err)
+				}
+				var functionTags []string
+				for k, v := range fn.Tags {
+					functionTags = append(functionTags, fmt.Sprintf("%s:%s", k, v))
+				}
+				scan, err := types.NewScanTask(
+					types.TaskTypeLambda,
+					*function.FunctionArn,
+					scannerHostname,
+					*fn.Configuration.Version,
+					functionTags,
+					actions,
+					roles,
+					diskMode)
 				if err != nil {
 					return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
 				}
-				config := &types.ScanConfig{Type: types.ConfigTypeAWS, Tasks: []*types.ScanTask{scan}, Roles: roles}
-				if !scanner.PushConfig(ctx, config) {
+				if !scanner.PushConfig(ctx, &types.ScanConfig{
+					Type:  types.ConfigTypeAWS,
+					Tasks: []*types.ScanTask{scan},
+					Roles: roles,
+				}) {
 					return nil
 				}
 				count++
@@ -532,22 +587,24 @@ func awsCleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	return nil
 }
 
-func awsAttachCmd(resourceID types.CloudID, mode types.DiskMode, defaultActions []types.ScanAction) error {
+func awsAttachCmd(resourceID types.CloudID, mount bool, diskMode types.DiskMode, defaultActions []types.ScanAction) error {
 	ctx := ctxTerminated()
 
-	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-	defer cancel()
-
-	hostname, err := utils.GetHostnameWithContext(ctxhostname)
-	if err != nil {
-		hostname = "unknown"
-	}
-
+	scannerHostname := tryGetHostname(ctx)
 	roles := getDefaultRolesMapping(types.CloudProviderAWS)
-	scan, err := types.NewScanTask(types.TaskTypeEBS, resourceID.AsText(), hostname, resourceID.ResourceName(), defaultActions, roles, mode)
+	scan, err := types.NewScanTask(
+		types.TaskTypeEBS,
+		resourceID.AsText(),
+		scannerHostname,
+		resourceID.ResourceName(),
+		nil,
+		defaultActions,
+		roles,
+		diskMode)
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		ctxcleanup, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
@@ -569,16 +626,42 @@ func awsAttachCmd(resourceID types.CloudID, mode types.DiskMode, defaultActions 
 		return err
 	}
 
-	mountpoints, err := devices.Mount(ctx, scan, partitions)
-	if err != nil {
-		return err
+	if len(partitions) > 0 {
+		for _, part := range partitions {
+			fmt.Printf("partition\t%s\t%s\n", part.DevicePath, part.FSType)
+		}
+
+		if mount {
+			mountpoints, err := devices.Mount(ctx, scan, partitions)
+			if err != nil {
+				return err
+			}
+			for _, mountpoint := range mountpoints {
+				fmt.Printf("mountpoint\t%s", mountpoint)
+			}
+		}
+	} else {
+		fmt.Printf("no compatible partition found on %s\n", *scan.AttachedDeviceName)
 	}
 
-	for _, mountpoint := range mountpoints {
-		fmt.Println(mountpoint)
-	}
+	fmt.Println("Ctrl+C to detach the device")
 	<-ctx.Done()
 	return nil
+}
+
+func ec2TagsToStringTags(tags []ec2types.Tag) []string {
+	var tgs []string
+	for _, tag := range tags {
+		if tag.Key == nil {
+			continue
+		}
+		if tag.Value == nil {
+			tgs = append(tgs, *tag.Key)
+		} else {
+			tgs = append(tgs, fmt.Sprintf("%s:%s", *tag.Key, *tag.Value))
+		}
+	}
+	return tgs
 }
 
 func ctxTerminated() context.Context {

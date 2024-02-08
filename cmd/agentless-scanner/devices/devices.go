@@ -221,10 +221,6 @@ func ListPartitions(ctx context.Context, scan *types.ScanTask, deviceName string
 			return nil, ctx.Err()
 		}
 	}
-	if len(partitions) == 0 {
-		return nil, fmt.Errorf("could not find any btrfs, ext2, ext3, ext4 or xfs partition in %s", deviceName)
-	}
-
 	log.Debugf("%s: found %d compatible partitions for device %q", scan, len(partitions), deviceName)
 	return partitions, nil
 }

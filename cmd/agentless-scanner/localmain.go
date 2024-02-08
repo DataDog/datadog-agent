@@ -6,15 +6,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/runner"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -55,26 +51,27 @@ func localScanCommand() *cobra.Command {
 func localScanCmd(resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
-	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-	defer cancel()
-
-	hostname, err := utils.GetHostnameWithContext(ctxhostname)
-	if err != nil {
-		hostname = "unknown"
-	}
-
+	scannerHostname := tryGetHostname(ctx)
 	taskType, err := types.DefaultTaskType(resourceID)
 	if err != nil {
 		return err
 	}
 	roles := getDefaultRolesMapping(types.CloudProviderNone)
-	task, err := types.NewScanTask(taskType, resourceID.AsText(), hostname, targetHostname, actions, roles, diskMode)
+	task, err := types.NewScanTask(
+		taskType,
+		resourceID.AsText(),
+		scannerHostname,
+		targetHostname,
+		nil,
+		actions,
+		roles,
+		diskMode)
 	if err != nil {
 		return err
 	}
 
 	scanner, err := runner.New(runner.Options{
-		Hostname:       hostname,
+		Hostname:       scannerHostname,
 		CloudProvider:  types.CloudProviderNone,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        1,

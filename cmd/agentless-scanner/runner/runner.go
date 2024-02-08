@@ -659,16 +659,33 @@ func (s *Runner) sendSBOM(result types.ScanResult) error {
 	vulns := result.Vulns
 	sourceAgent := "agentless-scanner"
 
+	reservedTags := [3]string{"agentless_scanner_host", "region", "account_id"}
+	ddTags := []string{
+		"agentless_scanner_host:" + s.Hostname,
+		"region:" + result.Scan.CloudID.Region(),
+		"account_id:" + result.Scan.CloudID.AccountID(),
+	}
+
+	for _, tag := range vulns.Tags {
+		tagS := strings.SplitN(tag, ":", 2)
+		tagP := tagS[0]
+		skip := false
+		for _, reserved := range reservedTags {
+			if tagP == reserved {
+				skip = true
+			}
+		}
+		if !skip {
+			ddTags = append(ddTags, tag)
+		}
+	}
+
 	entity := &sbommodel.SBOMEntity{
-		Status: sbommodel.SBOMStatus_SUCCESS,
-		Type:   vulns.SourceType,
-		Id:     vulns.ID,
-		InUse:  true,
-		DdTags: append([]string{
-			"agentless_scanner_host:" + s.Hostname,
-			"region:" + result.Scan.CloudID.Region(),
-			"account_id:" + result.Scan.CloudID.AccountID(),
-		}, vulns.Tags...),
+		Status:             sbommodel.SBOMStatus_SUCCESS,
+		Type:               vulns.SourceType,
+		Id:                 vulns.ID,
+		InUse:              true,
+		DdTags:             ddTags,
 		GeneratedAt:        timestamppb.New(result.StartedAt),
 		GenerationDuration: convertDuration(time.Since(result.StartedAt)),
 		Hash:               "",
@@ -716,8 +733,8 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 			})
 			if result.Vulns != nil {
 				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM // TODO: sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-				result.Vulns.ID = scan.TargetImageID
-				result.Vulns.Tags = nil
+				result.Vulns.ID = scan.TargetID
+				result.Vulns.Tags = scan.TargetTags
 			}
 			s.resultsCh <- result
 		}(root)
@@ -735,8 +752,8 @@ func (s *Runner) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, 
 	})
 	if result.Vulns != nil {
 		result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-		result.Vulns.ID = scan.TargetHostname
-		result.Vulns.Tags = nil
+		result.Vulns.ID = scan.TargetID
+		result.Vulns.Tags = scan.TargetTags
 	}
 	s.resultsCh <- result
 }
@@ -759,8 +776,8 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 			})
 			if result.Vulns != nil {
 				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-				result.Vulns.ID = scan.TargetHostname
-				result.Vulns.Tags = nil
+				result.Vulns.ID = scan.TargetID
+				result.Vulns.Tags = scan.TargetTags
 			}
 			s.resultsCh <- result
 		case types.ScanActionVulnsContainers:
@@ -833,10 +850,10 @@ func (s *Runner) scanApplication(ctx context.Context, scan *types.ScanTask, root
 	if result.Vulns != nil {
 		result.Vulns.SourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA
 		result.Vulns.ID = scan.CloudID.AsText()
-		result.Vulns.Tags = []string{
+		result.Vulns.Tags = append([]string{
 			"runtime_id:" + scan.CloudID.AsText(),
-			"service_version:TODO", // XXX
-		}
+			fmt.Sprintf("service_version:%s", scan.TargetID),
+		}, scan.TargetTags...)
 	}
 	s.resultsCh <- result
 	if err := s.Statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(time.Since(scan.StartedAt).Milliseconds()), scan.Tags(), 1.0); err != nil {

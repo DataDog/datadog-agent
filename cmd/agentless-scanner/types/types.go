@@ -166,16 +166,22 @@ func (r RolesMapping) GetRole(accountID string) CloudID {
 type ScanConfigRaw struct {
 	Type  string `json:"type"`
 	Tasks []struct {
-		Type    string `json:"type"`
-		CloudID string `json:"arn"`
+		Type    string   `json:"type"`
+		CloudID string   `json:"arn"`
+		Actions []string `json:"actions"`
 
 		// Options fields: TaskTypeAMI
-		ImageID string `json:"image_id"`
+		ImageID   string   `json:"image_id,omitempty"`
+		ImageTags []string `json:"image_tags,omitempty"`
 
 		// Optional fields: TaskTypeEBS
-		Actions  []string `json:"actions,omitempty"`
-		Hostname string   `json:"hostname"`
+		Hostname string   `json:"hostname,omitempty"`
+		HostTags []string `json:"host_tags,omitempty"`
 		DiskMode string   `json:"disk_mode,omitempty"`
+
+		// Options fields: TaskTypeLambda
+		LambdaVersion string   `json:"lambda_version,omitempty"`
+		LambdaTags    []string `json:"lambda_tags,omitempty"`
 	} `json:"tasks"`
 	Roles []string `json:"roles"`
 }
@@ -197,16 +203,11 @@ type ScanTask struct {
 	Type            TaskType     `json:"Type"`
 	CloudID         CloudID      `json:"CloudID"`
 	ScannerHostname string       `json:"ScannerHostname"`
+	TargetID        string       `json:"TargetID"`
+	TargetTags      []string     `json:"TargetTags"`
+	DiskMode        DiskMode     `json:"DiskMode,omitempty"`
 	Roles           RolesMapping `json:"Roles"`
-
-	// Optional fields - TaskTypeAMI
-	TargetImageID string `json:"TargetImageID"`
-
-	// Optional fields - TaskTypeEBS
-	TargetHostname string       `json:"TargetHostname"`
-	Actions        []ScanAction `json:"Actions"`
-	DiskMode       DiskMode     `json:"DiskMode"`
-
+	Actions         []ScanAction `json:"Actions"`
 	// Lifecycle metadata of the task
 	CreatedResources   map[CloudID]time.Time `json:"CreatedResources"`
 	AttachedDeviceName *string               `json:"AttachedDeviceName"`
@@ -461,7 +462,7 @@ func ParseRolesMapping(provider CloudProvider, roles []string) RolesMapping {
 }
 
 // NewScanTask creates a new scan task.
-func NewScanTask(taskType TaskType, resourceID, scannerHostname, target string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
+func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetID string, targetTags []string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
 	var cloudID CloudID
 	var err error
 	switch taskType {
@@ -484,6 +485,8 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, target string, 
 		Type:             taskType,
 		CloudID:          cloudID,
 		ScannerHostname:  scannerHostname,
+		TargetID:         targetID,
+		TargetTags:       targetTags,
 		Roles:            roles,
 		DiskMode:         mode,
 		Actions:          actions,
@@ -492,15 +495,9 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, target string, 
 	}
 
 	switch taskType {
-	case TaskTypeEBS:
-		task.TargetHostname = target
-		if task.TargetHostname == "" {
-			return nil, fmt.Errorf("task: missing hostname")
-		}
-	case TaskTypeAMI:
-		task.TargetImageID = target
-		if task.TargetImageID == "" {
-			return nil, fmt.Errorf("task: missing image ID")
+	case TaskTypeEBS, TaskTypeAMI: // TODO: TastTypeLambda
+		if task.TargetID == "" {
+			return nil, fmt.Errorf("task: missing target ID (hostname, image ID, ...)")
 		}
 	}
 
@@ -511,8 +508,10 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, target string, 
 		h.Write(createdAt)
 		h.Write([]byte(task.Type))
 		h.Write([]byte(cloudID))
-		h.Write([]byte(task.TargetImageID))
-		h.Write([]byte(task.TargetHostname))
+		h.Write([]byte(task.TargetID))
+		for _, tag := range task.TargetTags {
+			h.Write([]byte(tag))
+		}
 		h.Write([]byte(task.ScannerHostname))
 		h.Write([]byte(task.DiskMode))
 		for _, action := range task.Actions {
@@ -591,17 +590,27 @@ func UnmarshalConfig(b []byte, scannerHostname string, provider CloudProvider, d
 		if err != nil {
 			return nil, err
 		}
-		var target string
+		var targetID string
+		var targetTags []string
 		switch scanType {
+		case TaskTypeHost:
+			targetID = rawScan.Hostname
+			targetTags = rawScan.HostTags
 		case TaskTypeEBS:
-			target = rawScan.Hostname
+			targetID = rawScan.Hostname
+			targetTags = rawScan.HostTags
 		case TaskTypeAMI:
-			target = rawScan.ImageID
+			targetID = rawScan.ImageID
+			targetTags = rawScan.ImageTags
+		case TaskTypeLambda:
+			targetID = rawScan.LambdaVersion
+			targetTags = rawScan.LambdaTags
 		}
 		task, err := NewScanTask(scanType,
 			rawScan.CloudID,
 			scannerHostname,
-			target,
+			targetID,
+			targetTags,
 			actions,
 			config.Roles,
 			diskMode,
