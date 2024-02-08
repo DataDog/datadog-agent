@@ -68,6 +68,7 @@ var (
       <data name="FileName" inType="win:UnicodeString"/>
 */
 type createHandleArgs struct {
+	etw.DDEventHeader
 	irp              uint64            // actually a pointer
 	fileObject       fileObjectPointer // pointer
 	threadID         uint64            // actually a pointer
@@ -94,7 +95,9 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	the Installable File System (IFS) documentation.
 */
 func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
-	ca := &createHandleArgs{}
+	ca := &createHandleArgs{
+		DDEventHeader: e.EventHeader,
+	}
 	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		ca.irp = binary.LittleEndian.Uint64(data[0:8])
@@ -135,7 +138,7 @@ func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
 func (ca *createHandleArgs) string() string {
 	var output strings.Builder
 
-	output.WriteString("  Create TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
+	output.WriteString("  Create PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
 	output.WriteString("         Name: " + ca.fileName + "\n")
 	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Attrs: " + strconv.FormatUint(uint64(ca.createAttributes), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
@@ -168,6 +171,7 @@ func (ca *createNewFileArgs) string() string {
 */
 
 type setInformationArgs struct {
+	etw.DDEventHeader
 	irp        uint64
 	threadID   uint64
 	fileObject fileObjectPointer
@@ -178,7 +182,9 @@ type setInformationArgs struct {
 }
 
 func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
-	sia := &setInformationArgs{}
+	sia := &setInformationArgs{
+		DDEventHeader: e.EventHeader,
+	}
 	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
 
 	if e.EventHeader.EventDescriptor.Version == 0 {
@@ -232,6 +238,7 @@ func (sia *setInformationArgs) string() string {
 */
 
 type cleanupArgs struct {
+	etw.DDEventHeader
 	irp        uint64
 	threadID   uint64
 	fileObject fileObjectPointer
@@ -246,7 +253,9 @@ type closeArgs cleanupArgs
 type flushArgs cleanupArgs
 
 func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
-	ca := &cleanupArgs{}
+	ca := &cleanupArgs{
+		DDEventHeader: e.EventHeader,
+	}
 	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
 
 	if e.EventHeader.EventDescriptor.Version == 0 {
