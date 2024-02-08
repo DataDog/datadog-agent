@@ -10,7 +10,7 @@
 // forward declaration
 static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
 static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction, struct __sk_buff* skb, __u32 offset, kafka_telemetry_t *kafka_tel);
-static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u16 size);
+static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -115,7 +115,6 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     // Skipping number of entries for now
     offset += sizeof(s32);
     READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
-    update_topic_name_size_telemetry(kafka_tel, topic_name_size);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         __sync_fetch_and_add(&kafka_tel->topic_name_exceeds_max_size, 1);
         // TODO: Add telemetry for topic max size
@@ -167,7 +166,7 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
 }
 
 // update_path_size_telemetry updates the topic name size telemetry.
-static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u16 size) {
+static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size) {
     // This line can be considered as a step function of the difference multiplied by difference.
     // step function of the difference is 0 if the difference is negative, and 1 if the difference is positive.
     // Thus, if the difference is negative, we will get 0, and if the difference is positive, we will get the difference.

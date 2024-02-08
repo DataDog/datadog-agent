@@ -40,7 +40,7 @@ typedef struct {
 typedef struct {
     __u64 topic_name_exceeds_max_size;
     // Count of topic name sizes that are divided into buckets.
-    __u16 topic_name_size_buckets[KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS + 1];
+    __u64 topic_name_size_buckets[KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS + 1];
 } kafka_telemetry_t;
 
 #endif
