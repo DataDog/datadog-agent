@@ -19,10 +19,12 @@ import (
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	smithymiddleware "github.com/aws/smithy-go/middleware"
 )
 
 var (
@@ -37,9 +39,25 @@ type confKey struct {
 	region string
 }
 
+func withDefaultOptions(options ...func(*config.LoadOptions) error) []func(*config.LoadOptions) error {
+	return append([]func(*config.LoadOptions) error{
+		config.WithAPIOptions([]func(*smithymiddleware.Stack) error{
+			middleware.AddUserAgentKeyValue("DatadogAgentlessScanner", version.AgentVersion),
+		}),
+	}, options...)
+}
+
 // GetConfigFromCloudID returns an AWS Config for the given region and assumed role.
 func GetConfigFromCloudID(ctx context.Context, roles types.RolesMapping, cloudID types.CloudID) aws.Config {
 	return GetConfig(ctx, cloudID.Region(), roles.GetCloudIDRole(cloudID))
+}
+
+// GetDefaultConfig returns the default AWS Config.
+func GetDefaultConfig(ctx context.Context, region *string) (cfg aws.Config, err error) {
+	if region != nil {
+		return config.LoadDefaultConfig(ctx, withDefaultOptions(config.WithRegion(*region))...)
+	}
+	return config.LoadDefaultConfig(ctx, withDefaultOptions()...)
 }
 
 // GetConfig returns an AWS Config for the given region and assumed role.
@@ -64,7 +82,7 @@ func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aw
 		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
 	})
 
-	noDelegateCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	noDelegateCfg, err := config.LoadDefaultConfig(ctx, withDefaultOptions(config.WithRegion(region))...)
 	if err != nil {
 		log.Errorf("awsconfig: could not load default config: %v", err)
 		return aws.Config{}
@@ -74,7 +92,7 @@ func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aw
 	stsclient := sts.NewFromConfig(noDelegateCfg)
 	_, err = stsclient.AssumeRole(ctx, &sts.AssumeRoleInput{
 		RoleArn:         aws.String(assumedRole.AsText()),
-		RoleSessionName: aws.String("agentless-scanner"),
+		RoleSessionName: aws.String("DatadogAgentlessScanner"),
 	})
 	if err != nil {
 		// In case we cannot assume the role they're maybe is a configuration
@@ -99,11 +117,13 @@ func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aw
 	} else {
 		// We were able to check that the role is assumable, so we can use it.
 		// Everything should be properly setup.
-		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.AsText())
-		delegateCfg, err = config.LoadDefaultConfig(ctx,
+		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.AsText(), func(options *stscreds.AssumeRoleOptions) {
+			options.RoleSessionName = "DatadogAgentlessScanner"
+		})
+		delegateCfg, err = config.LoadDefaultConfig(ctx, withDefaultOptions(
 			config.WithHTTPClient(newHTTPClientWithStats(region, assumedRole, statsd, limiter, tags)),
 			config.WithRegion(region),
-			config.WithCredentialsProvider(aws.NewCredentialsCache(stsassume)))
+			config.WithCredentialsProvider(aws.NewCredentialsCache(stsassume)))...)
 		if err != nil {
 			log.Errorf("awsconfig: could not load delegate config: %v", err)
 		}
@@ -116,7 +136,7 @@ func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aw
 // GetSelfEC2InstanceIndentity returns the identity of the current EC2 instance.
 func GetSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentityDocumentOutput, error) {
 	// TODO: we could cache this information instead of polling imds every time
-	cfg, err := config.LoadDefaultConfig(ctx)
+	cfg, err := GetDefaultConfig(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
