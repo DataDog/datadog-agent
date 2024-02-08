@@ -27,6 +27,14 @@ import (
 	smithymiddleware "github.com/aws/smithy-go/middleware"
 )
 
+const (
+	// DefaultSelfRegion is the default region for the self identity.
+	//
+	// TODO: we should have this as part of our configuration to be able to
+	// bootstrap ourselves in the correct region.
+	DefaultSelfRegion = "us-east-1"
+)
+
 var (
 	statsd *ddogstatsd.Client
 
@@ -39,25 +47,22 @@ type confKey struct {
 	region string
 }
 
-func withDefaultOptions(options ...func(*config.LoadOptions) error) []func(*config.LoadOptions) error {
-	return append([]func(*config.LoadOptions) error{
+func loadDefaultConfig(ctx context.Context, options ...func(*config.LoadOptions) error) aws.Config {
+	cfg, err := config.LoadDefaultConfig(ctx, append([]func(*config.LoadOptions) error{
 		config.WithAPIOptions([]func(*smithymiddleware.Stack) error{
 			middleware.AddUserAgentKeyValue("DatadogAgentlessScanner", version.AgentVersion),
 		}),
-	}, options...)
+	}, options...)...)
+	if err != nil {
+		log.Errorf("awsconfig: could not load default config: %v", err)
+		return aws.Config{}
+	}
+	return cfg
 }
 
 // GetConfigFromCloudID returns an AWS Config for the given region and assumed role.
 func GetConfigFromCloudID(ctx context.Context, roles types.RolesMapping, cloudID types.CloudID) aws.Config {
 	return GetConfig(ctx, cloudID.Region(), roles.GetCloudIDRole(cloudID))
-}
-
-// GetDefaultConfig returns the default AWS Config.
-func GetDefaultConfig(ctx context.Context, region *string) (cfg aws.Config, err error) {
-	if region != nil {
-		return config.LoadDefaultConfig(ctx, withDefaultOptions(config.WithRegion(*region))...)
-	}
-	return config.LoadDefaultConfig(ctx, withDefaultOptions()...)
 }
 
 // GetConfig returns an AWS Config for the given region and assumed role.
@@ -82,15 +87,10 @@ func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aw
 		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
 	})
 
-	noDelegateCfg, err := config.LoadDefaultConfig(ctx, withDefaultOptions(config.WithRegion(region))...)
-	if err != nil {
-		log.Errorf("awsconfig: could not load default config: %v", err)
-		return aws.Config{}
-	}
-
+	noDelegateCfg := loadDefaultConfig(ctx, config.WithRegion(region))
 	var delegateCfg aws.Config
 	stsclient := sts.NewFromConfig(noDelegateCfg)
-	_, err = stsclient.AssumeRole(ctx, &sts.AssumeRoleInput{
+	_, err := stsclient.AssumeRole(ctx, &sts.AssumeRoleInput{
 		RoleArn:         aws.String(assumedRole.AsText()),
 		RoleSessionName: aws.String("DatadogAgentlessScanner"),
 	})
@@ -120,13 +120,10 @@ func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aw
 		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.AsText(), func(options *stscreds.AssumeRoleOptions) {
 			options.RoleSessionName = "DatadogAgentlessScanner"
 		})
-		delegateCfg, err = config.LoadDefaultConfig(ctx, withDefaultOptions(
+		delegateCfg = loadDefaultConfig(ctx,
 			config.WithHTTPClient(newHTTPClientWithStats(region, assumedRole, statsd, limiter, tags)),
 			config.WithRegion(region),
-			config.WithCredentialsProvider(aws.NewCredentialsCache(stsassume)))...)
-		if err != nil {
-			log.Errorf("awsconfig: could not load delegate config: %v", err)
-		}
+			config.WithCredentialsProvider(aws.NewCredentialsCache(stsassume)))
 	}
 
 	globalConfigs.Store(key, delegateCfg)
@@ -136,10 +133,12 @@ func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aw
 // GetSelfEC2InstanceIndentity returns the identity of the current EC2 instance.
 func GetSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentityDocumentOutput, error) {
 	// TODO: we could cache this information instead of polling imds every time
-	cfg, err := GetDefaultConfig(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	imdsclient := imds.NewFromConfig(cfg)
+	imdsclient := imds.NewFromConfig(loadDefaultConfig(ctx))
 	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
+}
+
+// GetIdentity returns the identity of the current assumed role.
+func GetIdentity(ctx context.Context) (*sts.GetCallerIdentityOutput, error) {
+	stsclient := sts.NewFromConfig(loadDefaultConfig(ctx, config.WithRegion(DefaultSelfRegion)))
+	return stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 }

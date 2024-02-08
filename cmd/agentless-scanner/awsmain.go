@@ -23,19 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/spf13/cobra"
-)
-
-const (
-	defaultSelfRegion = "us-east-1"
 )
 
 func awsGroupCommand(parent *cobra.Command) *cobra.Command {
@@ -233,7 +227,7 @@ func awsCleanupCommand() *cobra.Command {
 			return awsCleanupCmd(flags.region, flags.dryRun, flags.delay)
 		},
 	}
-	cmd.Flags().StringVar(&flags.region, "region", defaultSelfRegion, "AWS region")
+	cmd.Flags().StringVar(&flags.region, "region", awsutils.DefaultSelfRegion, "AWS region")
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "dry run")
 	cmd.Flags().DurationVar(&flags.delay, "delay", 0, "delete snapshot older than delay")
 	return cmd
@@ -558,16 +552,10 @@ func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName s
 func awsCleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	ctx := ctxTerminated()
 
-	defaultCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	identity, err := awsutils.GetIdentity(ctx)
 	if err != nil {
 		return err
 	}
-	stsclient := sts.NewFromConfig(defaultCfg)
-	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-	if err != nil {
-		return err
-	}
-
 	assumedRole := getDefaultRolesMapping(types.CloudProviderAWS).GetRole(*identity.Account)
 	toBeDeleted, err := awsutils.ListResourcesForCleanup(ctx, delay, region, assumedRole)
 	if err != nil {
