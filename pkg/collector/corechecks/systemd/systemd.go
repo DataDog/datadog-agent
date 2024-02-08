@@ -8,10 +8,10 @@
 package systemd
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
-	"context"
 
 	"github.com/coreos/go-systemd/v22/dbus"
 	"gopkg.in/yaml.v2"
