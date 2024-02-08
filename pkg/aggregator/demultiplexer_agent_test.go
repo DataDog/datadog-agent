@@ -14,8 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -106,7 +105,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle())
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
@@ -155,8 +154,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 	return fxutil.Test[DemultiplexerAgentTestDeps](
 		t,
 		defaultforwarder.MockModule(),
-		config.MockModule(),
-		logimpl.MockModule(),
+		core.MockBundle(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
 	)
