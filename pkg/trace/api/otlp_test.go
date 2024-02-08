@@ -1001,8 +1001,9 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
-					"approx": 1.2,
-					"count":  2,
+					"_top_level": 1,
+					"approx":     1.2,
+					"count":      2,
 				},
 				Type: "web",
 			},
@@ -1125,8 +1126,9 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
-					"approx": 1.2,
-					"count":  2,
+					"_top_level": 1,
+					"approx":     1.2,
+					"count":      2,
 				},
 				Type: "web",
 			},
@@ -1246,6 +1248,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
+					"_top_level":                           1,
 					"approx":                               1.2,
 					"count":                                2,
 					sampler.KeySamplingRateEventExtraction: 0,
@@ -1433,8 +1436,10 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"peer.service":           "userbase",
 					"span.kind":              "server",
 				},
-				Type:    "web",
-				Metrics: map[string]float64{},
+				Type: "web",
+				Metrics: map[string]float64{
+					"_top_level": 1,
+				},
 			},
 		},
 		{
@@ -1479,8 +1484,10 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"peer.service":           "userbase",
 					"span.kind":              "server",
 				},
-				Type:    "web",
-				Metrics: map[string]float64{},
+				Type: "web",
+				Metrics: map[string]float64{
+					"_top_level": 1,
+				},
 			},
 		},
 		{
@@ -1525,8 +1532,10 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"net.peer.name":          "remotehost",
 					"span.kind":              "client",
 				},
-				Type:    "db",
-				Metrics: map[string]float64{},
+				Type: "db",
+				Metrics: map[string]float64{
+					"_dd.measured": 1,
+				},
 			},
 		},
 		{
@@ -1571,8 +1580,10 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"net.peer.name":          "remotehost",
 					"span.kind":              "client",
 				},
-				Type:    "http",
-				Metrics: map[string]float64{},
+				Type: "http",
+				Metrics: map[string]float64{
+					"_dd.measured": 1,
+				},
 			},
 		},
 		{
@@ -1615,8 +1626,10 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"net.peer.name":          "remotehost",
 					"span.kind":              "server",
 				},
-				Type:    "web",
-				Metrics: map[string]float64{},
+				Type: "web",
+				Metrics: map[string]float64{
+					"_top_level": 1,
+				},
 			},
 		},
 		{
@@ -1659,8 +1672,10 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"aws.dynamodb.table_names": "my-table",
 					"span.kind":                "server",
 				},
-				Type:    "web",
-				Metrics: map[string]float64{},
+				Type: "web",
+				Metrics: map[string]float64{
+					"_top_level": 1,
+				},
 			},
 		},
 		{
@@ -1703,8 +1718,10 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"faas.document.collection": "my-s3-bucket",
 					"span.kind":                "server",
 				},
-				Type:    "web",
-				Metrics: map[string]float64{},
+				Type: "web",
+				Metrics: map[string]float64{
+					"_top_level": 1,
+				},
 			},
 		},
 	} {
