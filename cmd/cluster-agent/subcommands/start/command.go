@@ -398,7 +398,14 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 			server := admissioncmd.NewServer()
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl, apiCl.Cl)
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl, apiCl.Cl)
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+
+			apmInstrumentationWebhook, err := mutate.NewAPMInstrumentationWebhook()
+			if err != nil {
+				pkglog.Errorf("failed to register APM Instrumentation webhook: %v", err)
+			} else {
+				server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), apmInstrumentationWebhook.InjectAutoInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+			}
+
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.agent_sidecar.endpoint"), agentsidecar.InjectAgentSidecar, apiCl.DynamicCl, apiCl.Cl)
 
 			// CWS Instrumentation webhooks
