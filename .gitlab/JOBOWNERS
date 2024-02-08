@@ -92,6 +92,7 @@ new-e2e-cws*                      @DataDog/agent-security
 new-e2e-windows-agent*            @DataDog/windows-agent
 new-e2e-orchestrator*             @DataDog/container-app
 e2e_pre_test*                     @DataDog/agent-platform
+new-e2e-remote-config*            @DataDog/remote-config
 
 # Kernel version testing
 package_dependencies*             @DataDog/ebpf-platform

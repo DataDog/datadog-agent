@@ -1057,6 +1057,18 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_rc_or_e2e_changes_or_manual:
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - pkg/config/remote/**/*
+        - comp/remote-config/**/*
+        - test/new-e2e/tests/remote-config/**/*
 
 .on_install_script_release_manual:
   - <<: *if_not_version_7
