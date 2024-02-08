@@ -338,7 +338,7 @@ def build_run_config(run, packages):
 
 
 @task
-def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key=None, verbose=True):
+def test(ctx, vms, stack=None, packages="", run=None, retry=2, run_count = 1, rebuild_deps=False, ssh_key=None, verbose=True, test_logs=False):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -358,9 +358,15 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
         json.dump(run_config, tmp)
         tmp.flush()
 
+        args = [
+            f"-packages-run-config {tmp.name}",
+            f"-retry {retry}",
+            f"-verbose" if test_logs else "",
+            f"-run-count {run_count}",
+        ]
         for d in domains:
             d.copy(ctx, f"{tmp.name}", "/tmp")
-            d.run_cmd(ctx, f"bash /micro-vm-init.sh {retry} {tmp.name}", verbose=verbose)
+            d.run_cmd(ctx, f"bash /micro-vm-init.sh {' '.join(args)}", verbose=verbose)
 
 
 @task

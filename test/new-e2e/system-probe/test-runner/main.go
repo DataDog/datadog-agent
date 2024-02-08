@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,7 +42,9 @@ type packageRunConfiguration struct {
 }
 
 type testConfig struct {
+	runCount          int
 	retryCount        int
+	verbose           bool
 	packagesRunConfig map[string]packageRunConfiguration
 }
 
@@ -107,14 +110,18 @@ func pathToPackage(path string) string {
 }
 
 func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, testConfig *testConfig) []string {
+	verbosity := "testname"
+	if testConfig.verbose {
+		verbosity = "standard-verbose"
+	}
 	args := []string{
-		"--format", "testname",
+		"--format", verbosity,
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
 		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
-		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
+		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
 	}
 
 	packagesRunConfig := testConfig.packagesRunConfig
@@ -198,6 +205,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
+		log.Printf("/go/bin/gotestsum %s", strings.Join(args, " "))
 		cmd := exec.Command("/go/bin/gotestsum", args...)
 		cmd.Env = append(cmd.Environ(), baseEnv...)
 		cmd.Dir = filepath.Dir(testsuite)
@@ -223,6 +231,8 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 func buildTestConfiguration() (*testConfig, error) {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
 	packageRunConfigPtr := flag.String("packages-run-config", "", "Configuration for controlling which tests run in a package")
+	verbose := flag.Bool("verbose", false, "if set to true verbosity level is 'standard-verbose', otherwise it is 'testname'")
+	runCount := flag.Int("run-count", 1, "number of times to run the test")
 
 	flag.Parse()
 
@@ -242,6 +252,8 @@ func buildTestConfiguration() (*testConfig, error) {
 	}
 
 	return &testConfig{
+		runCount:          *runCount,
+		verbose:           *verbose,
 		retryCount:        *retryPtr,
 		packagesRunConfig: breakdown,
 	}, nil
