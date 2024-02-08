@@ -16,7 +16,6 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -63,8 +62,7 @@ const (
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
-	config             ddconfig.Reader
-	sysprobeYamlConfig config.Reader
+	config ddconfig.Reader
 
 	probe procutil.Probe
 	// scrubber is a DataScrubber to hide command line sensitive words
