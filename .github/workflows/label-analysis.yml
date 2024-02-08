@@ -32,7 +32,7 @@ jobs:
           done
           echo "PR ${{github.event.number}} requires at least one non-triage team assignment label (label starting by 'team/')"
           exit 1
-  qa-label:
+  skip-qa:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
