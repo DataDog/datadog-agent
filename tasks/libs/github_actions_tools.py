@@ -101,6 +101,8 @@ def follow_workflow_run(run):
 
     minutes = 0
     failures = 0
+    # Wait time (in minutes) between two queries of the workflow status
+    interval = 5
     MAX_FAILURES = 5
     while True:
         # Do not fail outright for temporary failures
@@ -123,13 +125,13 @@ def follow_workflow_run(run):
         if status == "completed":
             return conclusion, run_url
         else:
-            print(f"Workflow still running... ({minutes}m)")
+            print(f"Workflow still running... ({minutes*interval}m)")
             # For some unknown reason, in Gitlab these lines do not get flushed, leading to not being
             # able to see where's the job at in the logs. The following line forces the flush.
             sys.stdout.flush()
 
-        minutes += 1
-        sleep(60)
+        minutes += interval
+        sleep(60 * interval)
 
 
 def print_workflow_conclusion(conclusion, workflow_uri):
