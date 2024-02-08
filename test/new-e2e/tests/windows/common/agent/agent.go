@@ -8,6 +8,7 @@ package agent
 
 import (
 	"fmt"
+	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"strings"
 	"testing"
 
@@ -16,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

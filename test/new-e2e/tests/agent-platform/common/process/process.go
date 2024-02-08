@@ -8,9 +8,9 @@ package process
 
 import (
 	"fmt"
+	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 

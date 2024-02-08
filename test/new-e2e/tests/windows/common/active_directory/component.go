@@ -6,7 +6,7 @@
 package active_directory
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/powershell"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/namer"
 	infraComponents "github.com/DataDog/test-infra-definitions/components"
