@@ -141,6 +141,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() inventorychecks.Component { return nil }),
 			fx.Provide(func() packagesigning.Component { return nil }),
 			fx.Provide(func() status.Component { return nil }),
+			fx.Provide(func() optional.Option[collector.Component] { return optional.NewNoneOption[collector.Component]() }),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
 		)
