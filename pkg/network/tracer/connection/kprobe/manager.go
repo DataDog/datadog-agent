@@ -9,7 +9,6 @@ package kprobe
 
 import (
 	"os"
-	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -17,12 +16,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-)
-
-const (
-	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
-	maxActive = 128
 )
 
 var mainProbes = []probes.ProbeFuncName{
@@ -110,9 +103,6 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ru
 				EBPFFuncName: funcName,
 				UID:          probeUID,
 			},
-		}
-		if strings.HasPrefix(funcName, "kretprobe") {
-			p.KProbeMaxActive = maxActive
 		}
 		mgr.Probes = append(mgr.Probes, p)
 	}
