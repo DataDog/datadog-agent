@@ -3,6 +3,7 @@ import os
 import platform
 import re
 import tempfile
+import shutil
 from glob import glob
 from pathlib import Path
 
@@ -270,10 +271,62 @@ def full_arch(arch):
 
 
 @task
-def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, rebuild_deps=False, packages="", verbose=True):
+def build_dependencies(ctx, layout_file, source_dir, ci=False, stack=None):
+    root = os.path.join(source_dir, "kmt-deps")
+    deps_dir = os.path.join(root, "dependencies")
+    if not ci:
+        if stack is None:
+            raise Exit("no stack name provided")
+        deps_dir = os.path.join(root, stack, "dependencies")
+        # in the CI we can rely on gotestsum being present
+        download_gotestsum(ctx)
+
+    if os.path.exists(deps_dir):
+        shutil.rmtree(deps_dir)
+
+    Path(deps_dir).mkdir(parents=True)
+
+    with open(layout_file) as f:
+        deps_layout = json.load(f)
+    with ctx.cd(deps_dir):
+        for new_dirs in deps_layout["layout"]:
+            ctx.run(f"mkdir -p {new_dirs}")
+
+    for source in deps_layout["copy"]:
+        target = deps_layout["copy"][source]
+        ctx.run(f"cp {os.path.join(source_dir, source)} {os.path.join(deps_dir, target)}")
+
+    exec_context = lambda ctx, command, directory: docker_exec(ctx, command, run_dir=f"/datadog-agent/{directory}")
+    if ci:
+        exec_context = lambda ctx, command, directory: ctx.run(f"cd {os.path.join(source_dir, directory)} && {command}")
+    for build in deps_layout["build"]:
+        directory = deps_layout["build"][build]["directory"]
+        command = deps_layout["build"][build]["command"]
+        artifact = os.path.join(source_dir, deps_layout["build"][build]["artifact"])
+        exec_context(ctx, command, directory)
+        ctx.run(f"cp {artifact} {deps_dir}")
+
+    if not ci:
+        system_probe_tests = os.path.join(root, stack, "system-probe-tests")
+        test_pkgs = os.path.join(source_dir, "test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
+        ctx.run(f"rm -rf {system_probe_tests} && mkdir -p {system_probe_tests}")
+        ctx.run(f"cp -R {test_pkgs} {system_probe_tests}")
+
+    archive_name = f"dependencies-{platform.machine()}.tar.gz"
+    with ctx.cd(os.path.join(root, stack)):
+        ctx.run(f"tar czvf {archive_name} dependencies")
+
+
+def is_root():
+    return os.getuid() == 0
+
+@task
+def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, full_rebuild=False, packages="", verbose=True):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+    build_from_scratch = full_rebuild or (not os.path.exists(f"kmt-deps/{stack}"))
 
     if vms == "":
         raise Exit("No vms specified to sync with")
@@ -284,13 +337,11 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, rebuild_deps=False, p
     if not compiler_running(ctx):
         start_compiler(ctx)
 
-    download_gotestsum(ctx)
-
     infra = build_infrastructure(stack, ssh_key)
     domains = filter_target_domains(vms, infra)
 
     constrain_pkgs = ""
-    if not rebuild_deps:
+    if not build_from_scratch:
         constrain_pkgs = f"--packages={packages}"
 
     docker_exec(
@@ -298,26 +349,24 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, rebuild_deps=False, p
         f"git config --global --add safe.directory /datadog-agent && inv -e system-probe.kitchen-prepare --ci {constrain_pkgs}",
         run_dir="/datadog-agent",
     )
-    if rebuild_deps:
-        docker_exec(
-            ctx,
-            f"./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
-            run_dir="/datadog-agent",
-        )
-        target_instances = list()
-        for d in domains:
-            target_instances.append(d.instance)
+
+    target_instances = list()
+    for d in domains:
+        target_instances.append(d.instance)
+
+    if build_from_scratch:
+        build_dependencies(ctx, "test/new-e2e/system-probe/test-runner/files/system-probe-dependencies.json", "./", stack=stack)
 
         for instance in target_instances:
             instance.copy_to_all_vms(ctx, f"kmt-deps/{stack}/dependencies-{full_arch(instance.arch)}.tar.gz")
 
         for d in domains:
             d.run_cmd(ctx, f"/root/fetch_dependencies.sh {platform.machine()}", allow_fail=True, verbose=verbose)
-            d.copy(
-                ctx,
-                "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg",
-                "/opt/system-probe-tests",
-            )
+
+    for instance in target_instances:
+        instance.copy_to_all_vms(ctx, f"kmt-deps/{stack}/system-probe-tests")
+    sudo = "sudo" if not is_root() else ""
+    ctx.run(f"{sudo} chown root:root -R /opt/kernel-version-testing/system-probe-tests")
 
 
 def build_run_config(run, packages):
@@ -338,12 +387,12 @@ def build_run_config(run, packages):
 
 
 @task
-def test(ctx, vms, stack=None, packages="", run=None, retry=2, run_count = 1, rebuild_deps=False, ssh_key=None, verbose=True, test_logs=False):
+def test(ctx, vms, stack=None, packages="", run=None, retry=2, run_count = 1, full_rebuild=False, ssh_key=None, verbose=True, test_logs=False):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, rebuild_deps=rebuild_deps, packages=packages)
+    prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, full_rebuild=full_rebuild, packages=packages)
 
     infra = build_infrastructure(stack, ssh_key)
     domains = filter_target_domains(vms, infra)
@@ -370,7 +419,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, run_count = 1, re
 
 
 @task
-def build(ctx, vms, stack=None, ssh_key=None, rebuild_deps=False, verbose=True):
+def build(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, verbose=True):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -380,7 +429,7 @@ def build(ctx, vms, stack=None, ssh_key=None, rebuild_deps=False, verbose=True):
 
     infra = build_infrastructure(stack, ssh_key)
     domains = filter_target_domains(vms, infra)
-    if rebuild_deps:
+    if full_rebuild:
         docker_exec(
             ctx,
             f"./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
