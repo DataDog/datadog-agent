@@ -342,9 +342,8 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 current_stream->status_code.finalized = true;
             }  else if (is_method_index(dynamic_value->original_index)) {
                 current_stream->request_started = bpf_ktime_get_ns();
-                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
-                current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
+                current_stream->request_method.dynamic_table_entry = current_header->index;
+                current_stream->request_method.tuple_flipped = flipped;
                 current_stream->request_method.finalized = true;
             }
         } else {
@@ -367,9 +366,8 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 current_stream->status_code.finalized = true;
             } else if (is_method_index(current_header->original_index)) {
                 current_stream->request_started = bpf_ktime_get_ns();
-                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
-                current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
+                current_stream->request_method.dynamic_table_entry = current_header->index;
+                current_stream->request_method.tuple_flipped = flipped;
                 current_stream->request_method.finalized = true;
             }
 

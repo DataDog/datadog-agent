@@ -154,20 +154,11 @@ typedef struct {
 } interesting_value_t;
 
 typedef struct {
-    __u8 raw_buffer[HTTP2_METHOD_MAX_LEN];
-    bool is_huffman_encoded;
-
-    __u8 static_table_entry;
-    __u8 length;
-    bool finalized;
-} method_t;
-
-typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
 
     interesting_value_t status_code;
-    method_t request_method;
+    interesting_value_t request_method;
     interesting_value_t path;
     bool request_end_of_stream;
 } http2_stream_t;

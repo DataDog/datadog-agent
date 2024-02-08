@@ -46,21 +46,14 @@ type http2InterestingValue struct {
 	Tuple_flipped       bool
 	Pad_cgo_0           [1]byte
 }
-type http2requestMethod struct {
-	Raw_buffer         [7]uint8
-	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Length             uint8
-	Finalized          bool
-}
 type http2Stream struct {
 	Response_last_seen    uint64
 	Request_started       uint64
 	Status_code           http2InterestingValue
-	Request_method        http2requestMethod
+	Request_method        http2InterestingValue
 	Path                  http2InterestingValue
 	Request_end_of_stream bool
-	Pad_cgo_0             [3]byte
+	Pad_cgo_0             [7]byte
 }
 type http2DynamicTableValue struct {
 	Key                HTTP2DynamicTableIndex
