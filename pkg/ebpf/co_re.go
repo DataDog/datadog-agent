@@ -108,7 +108,7 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result ebpftelemetry
 
 	// capacity should match number of tags
 	tags := make([]string, 0, 6)
-	tags = append(tags, platform, platformVersion, kernelVersion, arch, assetName)
+	tags = append(tags, platform.String(), platformVersion, kernelVersion, arch, assetName)
 	if ebpftelemetry.BTFResult(result) < ebpftelemetry.BtfNotFound {
 		switch ebpftelemetry.BTFResult(result) {
 		case ebpftelemetry.SuccessCustomBTF:

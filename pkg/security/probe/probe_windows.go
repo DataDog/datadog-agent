@@ -71,6 +71,16 @@ func (p *WindowsProbe) Init() error {
 		}
 		p.pm = pm
 	}
+	return p.initEtwFIM()
+}
+
+func (p *WindowsProbe) initEtwFIM() error {
+
+	if !p.config.RuntimeSecurity.FIMEnabled {
+		return nil
+	}
+	// log at Warning right now because it's not expected to be enabled
+	log.Warnf("Enabling FIM processing")
 
 	etwSessionName := "SystemProbeFIM_ETW"
 	etwcomp, err := etwimpl.NewEtw()
@@ -169,8 +179,10 @@ func (p *WindowsProbe) Setup() error {
 
 // Stop the probe
 func (p *WindowsProbe) Stop() {
-	_ = p.fimSession.StopTracing()
-	p.fimwg.Wait()
+	if p.fimSession != nil {
+		_ = p.fimSession.StopTracing()
+		p.fimwg.Wait()
+	}
 	if p.pm != nil {
 		p.pm.Stop()
 	}
@@ -267,12 +279,16 @@ func (p *WindowsProbe) setupEtw() error {
 func (p *WindowsProbe) Start() error {
 
 	log.Infof("Windows probe started")
-	p.fimwg.Add(1)
-	go func() {
-		defer p.fimwg.Done()
-		err := p.setupEtw()
-		log.Infof("Done StartTracing %v", err)
-	}()
+	if p.fimSession != nil {
+		// log at Warning right now because it's not expected to be enabled
+		log.Warnf("Enabling FIM processing")
+		p.fimwg.Add(1)
+		go func() {
+			defer p.fimwg.Done()
+			err := p.setupEtw()
+			log.Infof("Done StartTracing %v", err)
+		}()
+	}
 	if p.pm == nil {
 		return nil
 	}
