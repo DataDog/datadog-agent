@@ -8,7 +8,7 @@
 // Package modifiers contains functions that modify the behavior of the manager
 // This package is separated because the test code for some of the modifiers (e.g., printk_patcher_test.go)
 // imports code from pkg/ebpf, causing import loops.
-package modifiers
+package ebpf
 
 import (
 	"errors"
@@ -16,8 +16,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -217,18 +215,18 @@ type printkPatcherModifier struct {
 }
 
 func (t *printkPatcherModifier) Name() string {
-	return ddebpf.PrintkModifier
+	return PrintkModifier
 }
 
-func (t *printkPatcherModifier) BeforeInit(m *ddebpf.Manager, _ *manager.Options) error {
+func (t *printkPatcherModifier) BeforeInit(m *Manager, _ *manager.Options) error {
 	m.InstructionPatcher = PatchPrintkNewline
 	return nil
 }
 
-func (t *printkPatcherModifier) AfterInit(_ *ddebpf.Manager, _ *manager.Options) error {
+func (t *printkPatcherModifier) AfterInit(_ *Manager, _ *manager.Options) error {
 	return nil
 }
 
 func init() {
-	ddebpf.RegisterModifier(&printkPatcherModifier{})
+	RegisterModifier(&printkPatcherModifier{})
 }

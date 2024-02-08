@@ -269,6 +269,21 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
         ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
 
+def ninja_test_ebpf_programs(nw, build_dir):
+    ebpf_bpf_dir = os.path.join("pkg", "ebpf")
+    ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
+    test_flags = "-g -DDEBUG=1"
+
+    test_programs = ["logdebug-test"]
+
+    for prog in test_programs:
+        infile = os.path.join(ebpf_c_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
+        ninja_ebpf_program(
+            nw, infile, outfile, {"flags": test_flags}
+        )  # All test ebpf programs are just for testing, so we always build them with debug symbols
+
+
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
@@ -312,7 +327,6 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
-        "pkg/ebpf/modifiers/printk_patcher_test.go": "logdebug-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
@@ -485,6 +499,7 @@ def ninja_generate(
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
             ninja_define_co_re_compiler(nw)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
+            ninja_test_ebpf_programs(nw, build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
