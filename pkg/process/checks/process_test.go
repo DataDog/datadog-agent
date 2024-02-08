@@ -52,7 +52,7 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 
 	conf := ddconfig.MockSystemProbe(t)
 	conf.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
-	se := parser.NewServiceExtractor(conf)
+	serviceExtractor := parser.NewServiceExtractor(conf)
 
 	return &ProcessCheck{
 		probe:             probe,
@@ -62,8 +62,8 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 		sysProbeConfig:    &SysProbeConfig{},
 		checkCount:        0,
 		skipAmount:        2,
-		serviceExtractor:  se,
-		extractors:        []metadata.Extractor{se},
+		serviceExtractor:  serviceExtractor,
+		extractors:        []metadata.Extractor{serviceExtractor},
 	}, probe
 }
 
@@ -426,8 +426,8 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 
 	var disallowList []*regexp.Regexp
-	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false, ex)
+	serviceExtractor := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false, serviceExtractor)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
