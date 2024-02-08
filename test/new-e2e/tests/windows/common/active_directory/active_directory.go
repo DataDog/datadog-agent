@@ -7,12 +7,14 @@ package active_directory
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/test-infra-definitions/common/config"
 )
 
 type ActiveDirectoryEnv struct {
 	DomainControllerHost *components.RemoteHost
 	DomainController     *RemoteActiveDirectory
 	FakeIntake           *components.FakeIntake
+	Environment          *config.CommonEnvironment
 }
 
 // RemoteActiveDirectory represents an Active Directory domain setup on a remote host

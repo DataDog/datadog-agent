@@ -38,6 +38,8 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[ActiveDirectory
 			return err
 		}
 
+		env.Environment = awsEnv.CommonEnvironment
+
 		// JL: should the ec2 VM be customizable by the user?
 		vm, err := ec2.NewVM(awsEnv, params.name, ec2.WithOS(os.WindowsDefault))
 		if err != nil {

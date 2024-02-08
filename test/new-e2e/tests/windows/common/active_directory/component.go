@@ -6,7 +6,7 @@
 package active_directory
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/powershell"
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/namer"
 	infraComponents "github.com/DataDog/test-infra-definitions/components"
@@ -48,7 +48,7 @@ func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *
 		comp.host = host
 
 		installForestCmd, err := host.OS.Runner().Command(comp.namer.ResourceName("install-forest"), &command.Args{
-			Create: pulumi.String(windows.PsHost().
+			Create: pulumi.String(powershell.PsHost().
 				AddActiveDirectoryDomainServicesWindowsFeature().
 				ImportActiveDirectoryDomainServicesModule().
 				InstallADDSForest(params.DomainName, params.DomainPassword).
@@ -84,7 +84,7 @@ func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *
 		}
 
 		if len(params.DomainUsers) > 0 {
-			cmdHost := windows.PsHost()
+			cmdHost := powershell.PsHost()
 			for _, user := range params.DomainUsers {
 				cmdHost.AddActiveDirectoryUser(user.Username, user.Password)
 			}
