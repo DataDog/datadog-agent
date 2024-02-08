@@ -32,5 +32,5 @@ cancel-prev-pipelines:
     - chmod +x smp
     - inv pipeline.auto-cancel-previous-pipelines
   variables:
-    SMP_VERSION: 0.11.0
+    SMP_VERSION: 0.12.0
 
