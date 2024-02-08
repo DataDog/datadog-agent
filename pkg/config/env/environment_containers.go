@@ -182,11 +182,11 @@ func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 	}
 }
 
-func detectCloudRun(features FeatureMap, cfg model.Reader) {
-	if cfg.GetBool("cloud_run") {
-		features[CloudRun] = struct{}{}
-	}
-}
+//func detectCloudRun(features FeatureMap, cfg model.Reader) {
+//	if cfg.GetBool("cloud_run") {
+//		features[CloudRun] = struct{}{}
+//	}
+//}
 
 func detectCloudFoundry(features FeatureMap, cfg model.Reader) {
 	if cfg.GetBool("cloud_foundry") {
