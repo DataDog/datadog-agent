@@ -8,10 +8,13 @@
 package ebpfcheck
 
 import (
+	"encoding/binary"
 	"fmt"
+	"math"
 	"os"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/perf"
@@ -397,4 +400,156 @@ func TestHashMapNumberOfEntriesWithMultipleBatch(t *testing.T) {
 	require.Equal(t, int64(filledEntries), num)
 	require.Equal(t, uint32(len(buffers.keys)), buffers.keysBufferSizeLimit)
 	require.Equal(t, uint32(len(buffers.values)), buffers.valuesBufferSizeLimit)
+}
+
+func TestHashMapNumberOfEntriesNoMemoryCorruption(t *testing.T) {
+	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
+
+	testInner := func(t *testing.T, mapType ebpf.MapType, filledEntries uint32, maxEntries uint32, keySize uint32, valueSize uint32, keysLimit uint32, valuesLimit uint32) {
+		var innerMapSpec *ebpf.MapSpec
+		buffers := entryCountBuffers{
+			keysBufferSizeLimit:   keysLimit,
+			valuesBufferSizeLimit: valuesLimit,
+		}
+
+		m, err := ebpf.NewMap(&ebpf.MapSpec{
+			Type:       mapType,
+			MaxEntries: maxEntries,
+			KeySize:    keySize,
+			ValueSize:  valueSize,
+			InnerMap:   innerMapSpec,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = m.Close() })
+
+		keys := make([]byte, keySize)
+		values := make([]byte, valueSize)
+
+		for i := uint32(0); i < filledEntries; i++ {
+			for j := uint32(0); j < valueSize; j++ {
+				values[j] = byte(i)
+			}
+			// Build the keys in a way that makes them unique no matter the key size
+			if keySize < 4 {
+				for j := uint32(0); j < keySize; j++ {
+					keys[j] = byte(i)
+				}
+			} else {
+				binary.LittleEndian.PutUint32(keys, i)
+			}
+
+			if mapType == ebpf.HashOfMaps {
+				innerMap, err := ebpf.NewMap(innerMapSpec)
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = innerMap.Close() })
+				require.NoError(t, m.Put(&keys, innerMap))
+			} else {
+				require.NoError(t, m.Put(&keys, &values))
+			}
+		}
+
+		// Preallocate all the buffers
+		buffers.tryEnsureSizeForFullBatch(m)
+		buffers.prepareFirstBatchKeys(m)
+
+		// Utility function to get a byte at a certain offset in a slice, in an unsafe manner
+		unsafeIndex := func(slice []byte, index int) *byte {
+			return (*byte)(unsafe.Pointer(uintptr(unsafe.Pointer(&slice[0])) + uintptr(index)))
+		}
+
+		// Grow the buffers more, add a magic number to that new part, we will verify if it's overwritten
+		extraBytes := 10
+		magicNumber := byte(0x42)
+		addMargin := func(slice []byte) []byte {
+			// Increase the capacity and not the length, the code uses length to calculate batch sizes so we need to keep it the same
+			// in order to check if it's writing beyond that.
+			newBuffer := make([]byte, len(slice), len(slice)+extraBytes)
+			for i := 0; i < extraBytes; i++ {
+				*unsafeIndex(newBuffer, len(slice)+i) = magicNumber
+			}
+			return newBuffer
+		}
+
+		validateMargin := func(t *testing.T) {
+			for i := 0; i < extraBytes; i++ {
+				require.Equal(t, magicNumber, *unsafeIndex(buffers.keys, len(buffers.keys)+i), "invalid magic byte at %d (%d bytes after the allocated keys buffer)", i+len(buffers.keys)-extraBytes, i)
+				require.Equal(t, magicNumber, *unsafeIndex(buffers.values, len(buffers.values)+i), "invalid magic byte at %d (%d bytes after the allocated values buffer)", i+len(buffers.values)-extraBytes, i)
+				require.Equal(t, magicNumber, *unsafeIndex(buffers.cursor, len(buffers.cursor)+i), "invalid magic byte at %d (%d bytes after the allocated cursor buffer)", i+len(buffers.cursor)-extraBytes, i)
+			}
+		}
+
+		buffers.keys = addMargin(buffers.keys)
+		buffers.values = addMargin(buffers.values)
+		buffers.cursor = addMargin(buffers.cursor)
+		validateMargin(t)
+
+		if maps.BatchAPISupported() && mapType != ebpf.HashOfMaps {
+			t.Run("BatchAPI", func(t *testing.T) {
+				num, err := hashMapNumberOfEntriesWithBatch(m, &buffers, 3)
+				require.NoError(t, err)
+				require.Equal(t, int64(filledEntries), num)
+				validateMargin(t)
+			})
+		}
+
+		t.Run("Iteration", func(t *testing.T) {
+			num, err := hashMapNumberOfEntriesWithIteration(m, &buffers, 3)
+			require.NoError(t, err)
+			require.Equal(t, int64(filledEntries), num)
+			validateMargin(t)
+		})
+
+		// Test the complete function just in case
+		require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m, &buffers, 3))
+		validateMargin(t)
+	}
+
+	mapTypes := []ebpf.MapType{ebpf.Hash}
+	mapSizes := []uint32{50, 10000}
+	filledPercentages := []uint32{0, 10, 50, 100}
+	keySizes := []uint32{1, 4, 16, 128, 256}
+	valueSizes := []uint32{1, 4, 16, 256, 512}
+	keyLimits := []uint32{0, 8192}
+	valuesLimit := []uint32{0, 8192}
+
+	for _, mapType := range mapTypes {
+		t.Run(mapType.String(), func(t *testing.T) {
+			for _, maxEntries := range mapSizes {
+				for _, filledPercentage := range filledPercentages {
+					for _, keySize := range keySizes {
+						for _, valueSize := range valueSizes {
+							for _, keyLimit := range keyLimits {
+								for _, valueLimit := range valuesLimit {
+									if (keyLimit == 0 && valueLimit != 0) || (keyLimit != 0 && valueLimit == 0) || (keyLimit > 0 && keyLimit < keySize) || (valueLimit > 0 && valueLimit < valueSize) {
+										// Skip cases that don't make sense due to the limits
+										continue
+									}
+
+									// Do not test cases where the number of keys would exceed the maximum number of keys possible with the given key size
+									maxNumKeys := math.Pow(2, float64(keySize*8.0))
+									if float64(maxEntries*filledPercentage/100) > maxNumKeys {
+										continue
+									}
+
+									if keyLimit == 0 && valueLimit == 0 {
+										// ensure that the batch size is not too small
+										batchSize := min(keyLimit/keySize, valueLimit/valueSize)
+										if batchSize < 8 {
+											continue
+										}
+									}
+
+									t.Run(fmt.Sprintf("%dMaxEntries/%dPercFilled/%dKeySize/%dValueSize/%dKeyLimit/%dValueLimit", maxEntries, filledPercentage, keySize, valueSize, keyLimit, valueLimit), func(t *testing.T) {
+										testInner(t, mapType, maxEntries*filledPercentage/100, maxEntries, keySize, valueSize, keyLimit, valueLimit)
+									})
+								}
+							}
+						}
+					}
+				}
+			}
+		})
+	}
 }
