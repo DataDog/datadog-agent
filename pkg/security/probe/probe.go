@@ -258,7 +258,7 @@ func (p *Probe) GetEventTags(containerID string) []string {
 
 // GetService returns the service name from the process tree
 func (p *Probe) GetService(ev *model.Event) string {
-	if service := ev.FieldHandlers.GetProcessService(ev); service != "" {
+	if service := ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent); service != "" {
 		return service
 	}
 	return p.Config.RuntimeSecurity.HostServiceName

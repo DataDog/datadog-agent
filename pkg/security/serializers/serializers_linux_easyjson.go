@@ -3406,6 +3406,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 				}
 				in.Delim(']')
 			}
+		case "event_in_profile":
+			out.EventInProfile = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -3445,6 +3447,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 			}
 			out.RawByte(']')
 		}
+	}
+	{
+		const prefix string = ",\"event_in_profile\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.EventInProfile))
 	}
 	out.RawByte('}')
 }
