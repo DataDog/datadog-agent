@@ -25,6 +25,7 @@ func TestEC2VMSELinuxSuite(t *testing.T) {
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(awshost.WithEC2InstanceOptions(
+			// RHEL9
 			ec2.WithAMI("ami-0fe630eb857a6ec83", compos.AmazonLinux2, compos.AMD64Arch), ec2.WithInstanceType("t3.medium"))), nil)),
 	}
 
@@ -58,9 +59,9 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.Env().RemoteHost.ReconnectSSH()
 
 	// prefetch docker image locally
-	v.Env().RemoteHost.MustExecute("docker run curlimages/curl --version")
-	v.Env().RemoteHost.MustExecute("docker run devth/alpine-bench -V")
-	v.Env().RemoteHost.MustExecute("docker run makocchi/alpine-dig dig")
+	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/k8m1l3p1/alpine/curler:latest")
+	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/docker/library/httpd:latest")
+	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/patrickc/troubleshoot-util:latest")
 }
 
 // TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
@@ -84,7 +85,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM() {
 		v.beforeTest("TestEC2VMSELinuxSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
 		// generate a connection
-		v.Env().RemoteHost.MustExecute("docker run curlimages/curl curl " + testURL)
+		v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/k8m1l3p1/alpine/curler curl " + testURL)
 
 		test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 	})
@@ -111,7 +112,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_600cnx_bucket() {
 		v.beforeTest("TestEC2VMSELinuxSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
 		// generate connections
-		v.Env().RemoteHost.MustExecute("docker run devth/alpine-bench -n 600 -c 600 " + testURL)
+		v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/docker/library/httpd ab -n 600 -c 600 " + testURL)
 
 		test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 	})
@@ -137,8 +138,8 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		v.beforeTest("TestEC2VMSELinuxSuite", t.Name()) // workaround as suite doesn't call BeforeTest before each sub tests
 
 		// generate connections
-		v.Env().RemoteHost.MustExecute("docker run curlimages/curl curl " + testURL)
-		v.Env().RemoteHost.MustExecute("docker run makocchi/alpine-dig dig @8.8.8.8 www.google.ch")
+		v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/k8m1l3p1/alpine/curler curl " + testURL)
+		v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/patrickc/troubleshoot-util dig @8.8.8.8 www.google.ch")
 
 		test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 	})
