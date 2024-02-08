@@ -258,7 +258,7 @@ func initMisc(deps miscDeps) error {
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 
-	// TODO(components): still unclear how the initialization of workoadmeta
+	// TODO(components): still unclear how the initialization of workloadmeta
 	//                   store and tagger should be performed.
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
