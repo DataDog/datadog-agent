@@ -12,5 +12,9 @@ The language detection patcher subscribes to workloadmeta events. When it receiv
   - Extracts the `detected_languages` and `injectable_languages` from the entity data
   - Constructs the annotations patch
   - Patches the owner resource with language annotations (i.e. deployment, statefulset, etc.)
+
+For more information about the language detection and library injection feature, refer to [this] document.
+
+[this]: https://github.com/DataDog/datadog-agent/blob/main/pkg/languagedetection/util/README.md
 */
 package languagedetection
