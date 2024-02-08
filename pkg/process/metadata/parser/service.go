@@ -74,6 +74,19 @@ func NewServiceExtractor(sysProbeConfig ddconfig.Reader) *ServiceExtractor {
 	}
 }
 
+func NewServiceExtractorTrue(sysProbeConfig ddconfig.Reader) *ServiceExtractor {
+	var (
+		enabled               = true
+		useWindowsServiceName = sysProbeConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+	)
+	return &ServiceExtractor{
+		enabled:               enabled,
+		useWindowsServiceName: useWindowsServiceName,
+		serviceByPID:          make(map[int32]*serviceMetadata),
+		scmReader:             newSCMReader(),
+	}
+}
+
 //nolint:revive // TODO(PROC) Fix revive linter
 func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	if !d.enabled {
