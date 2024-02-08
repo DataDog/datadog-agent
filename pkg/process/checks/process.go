@@ -150,7 +150,8 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.initConnRates()
 
-	p.serviceExtractor = parser.NewServiceExtractorTrue(p.config)
+	p.serviceExtractor = parser.NewServiceExtractor(p.config)
+	p.serviceExtractor.Enable(true)
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
 	if !oneShot && workloadmeta.Enabled(p.config) {
