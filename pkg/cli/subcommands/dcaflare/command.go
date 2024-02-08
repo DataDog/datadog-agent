@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type cliParams struct {
@@ -150,7 +152,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	return pdata, nil
 }
 
-func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Component) error {
+func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Component, collector optional.Option[collector.Component]) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
 		profile flare.ProfileData
@@ -209,7 +211,7 @@ func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Compo
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseSenderManager)
+		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseSenderManager, collector)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

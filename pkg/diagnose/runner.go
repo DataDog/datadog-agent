@@ -14,8 +14,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	_ "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity" // no direct calls to connectivity but there is a callback
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
@@ -246,7 +249,7 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManag
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
+func ListStdOut(w io.Writer, diagCfg diagnosis.Config, collector optional.Option[collector.Component]) {
 	if w != color.Output {
 		color.NoColor = true
 	}
@@ -333,7 +336,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 }
 
 // Run runs diagnoses.
-func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) ([]diagnosis.Diagnoses, error) {
+func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component]) ([]diagnosis.Diagnoses, error) {
 
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
@@ -353,21 +356,21 @@ func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) (
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) error {
+func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component]) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	diagnoses, err := Run(diagCfg, senderManager)
+	diagnoses, err := Run(diagCfg, senderManager, collector)
 	if err != nil && !diagCfg.RunLocal {
 		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 
 		// attempt to do so locally
 		diagCfg.RunLocal = true
-		diagnoses, err = Run(diagCfg, senderManager)
+		diagnoses, err = Run(diagCfg, senderManager, collector)
 	}
 
 	if err != nil {

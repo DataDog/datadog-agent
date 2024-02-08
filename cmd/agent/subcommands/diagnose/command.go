@@ -67,8 +67,6 @@ type payloadName string
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	pkgdiagnose.Init(optional.NewNoneOption[collector.Component]())
-
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
@@ -98,6 +96,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						NoInstance: !cliParams.runLocal,
 					}
 				}),
+				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				workloadmeta.OptionalModule(),
 				tagger.OptionalModule(),
 				diagnosesendermanagerimpl.Module(),
@@ -231,7 +230,8 @@ This command print the package-signing metadata payload. This payload is used by
 func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
 	_ optional.Option[workloadmeta.Component],
-	_ optional.Option[tagger.Component]) error {
+	_ optional.Option[tagger.Component],
+	collector optional.Option[collector.Component]) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
@@ -241,12 +241,12 @@ func cmdDiagnose(cliParams *cliParams,
 
 	// Is it List command
 	if cliParams.listSuites {
-		pkgdiagnose.ListStdOut(color.Output, diagCfg)
+		pkgdiagnose.ListStdOut(color.Output, diagCfg, collector)
 		return nil
 	}
 
 	// Run command
-	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager)
+	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager, collector)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future

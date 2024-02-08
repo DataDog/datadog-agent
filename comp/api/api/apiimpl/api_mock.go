@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -44,6 +45,7 @@ func (mock *mockAPIServer) StartServer(
 	_ tagger.Component,
 	_ optional.Option[logsAgent.Component],
 	_ sender.DiagnoseSenderManager,
+	_ optional.Option[collector.Component],
 ) error {
 	return nil
 }

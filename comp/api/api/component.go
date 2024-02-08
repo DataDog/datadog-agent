@@ -9,6 +9,7 @@ package api
 import (
 	"net"
 
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -32,6 +33,7 @@ type Component interface {
 		tagger tagger.Component,
 		logsAgent optional.Option[logsAgent.Component],
 		senderManager sender.DiagnoseSenderManager,
+		collector optional.Option[collector.Component],
 	) error
 	StopServer()
 	ServerAddress() *net.TCPAddr
