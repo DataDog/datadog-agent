@@ -124,6 +124,7 @@ type SecurityProfileManager struct {
 	resolvers           *resolvers.EBPFResolvers
 	providers           []Provider
 	activityDumpManager ActivityDumpManager
+	eventTypes          []model.EventType
 
 	manager                    *manager.Manager
 	securityProfileMap         *ebpf.Map
@@ -159,10 +160,24 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		return nil, fmt.Errorf("secprofs_syscalls map not found")
 	}
 
+	eventTypesSlices := [][]model.EventType{config.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes, config.RuntimeSecurity.AnomalyDetectionEventTypes}
+	eventTypesUniq := map[model.EventType]struct{}{}
+	for _, eventTypes := range eventTypesSlices {
+		for _, eventType := range eventTypes {
+			eventTypesUniq[eventType] = struct{}{}
+		}
+	}
+
+	eventTypes := make([]model.EventType, 0, len(eventTypesUniq))
+	for eventType := range eventTypesUniq {
+		eventTypes = append(eventTypes, eventType)
+	}
+
 	m := &SecurityProfileManager{
 		config:                     config,
 		statsdClient:               statsdClient,
 		manager:                    manager,
+		eventTypes:                 eventTypes,
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
 		resolvers:                  resolvers,
@@ -302,7 +317,7 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			m.cacheMiss.Inc()
 
 			// create a new entry
-			profile = NewSecurityProfile(workload.WorkloadSelector, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
+			profile = NewSecurityProfile(workload.WorkloadSelector, m.eventTypes, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
 			m.profiles[workload.WorkloadSelector] = profile
 
 			// notify the providers that we're interested in a new workload selector
@@ -460,7 +475,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	profile, ok := m.profiles[selector]
 	if !ok {
 		// this was likely a short-lived workload, cache the profile in case this workload comes back
-		profile = NewSecurityProfile(selector, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
+		profile = NewSecurityProfile(selector, m.eventTypes, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
 	}
 
 	if profile.Version == newProfile.Version {

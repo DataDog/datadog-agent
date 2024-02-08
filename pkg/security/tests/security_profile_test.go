@@ -232,6 +232,8 @@ func TestAnomalyDetection(t *testing.T) {
 		enableSecurityProfile:                   true,
 		securityProfileDir:                      outputDir,
 		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec", "dns"},
 		anomalyDetectionMinimumStablePeriodExec: time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  time.Second,
 		anomalyDetectionWarmupPeriod:            time.Second,
@@ -418,6 +420,8 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		enableSecurityProfile:                   true,
 		securityProfileDir:                      outputDir,
 		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec", "dns"},
 		anomalyDetectionMinimumStablePeriodExec: 0,
 		anomalyDetectionMinimumStablePeriodDNS:  0,
 		anomalyDetectionWarmupPeriod:            3 * time.Second,
@@ -500,7 +504,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer testDockerInstance1.stop()
+	defer testDockerInstance2.stop()
 
 	t.Run("anomaly-detection-warmup-2", func(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
@@ -590,6 +594,8 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		enableSecurityProfile:                   true,
 		securityProfileDir:                      outputDir,
 		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec", "dns"},
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  10 * time.Second,
 		anomalyDetectionWarmupPeriod:            10 * time.Second,
@@ -800,6 +806,8 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		enableSecurityProfile:                   true,
 		securityProfileDir:                      outputDir,
 		securityProfileWatchDir:                 true,
+		enableAutoSuppression:                   true,
+		autoSuppressionEventTypes:               []string{"exec", "dns"},
 		anomalyDetectionMinimumStablePeriodExec: reinsertPeriod,
 		anomalyDetectionMinimumStablePeriodDNS:  reinsertPeriod,
 		anomalyDetectionWarmupPeriod:            reinsertPeriod,
