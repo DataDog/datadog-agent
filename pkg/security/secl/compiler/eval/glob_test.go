@@ -222,4 +222,8 @@ func TestGlobMatches(t *testing.T) {
 	if glob, _ := NewGlob("/*", false); !glob.Matches("/httpd") {
 		t.Error("should contain the filename")
 	}
+
+	if glob, _ := NewGlob("/sys/fs/cgroup/*", false); !glob.Matches("/sys/fs/cgroup/") {
+		t.Error("should contain the filename")
+	}
 }

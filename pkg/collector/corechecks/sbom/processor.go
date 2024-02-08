@@ -17,12 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	//nolint:revive // TODO(CINT) Fix revive linter
+
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -81,7 +81,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 				return
 			}
 
-			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerSBOM)
+			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerSBOM)
 		}),
 		workloadmetaStore:     workloadmetaStore,
 		imageRepoDigests:      make(map[string]string),
@@ -237,7 +237,7 @@ func (p *processor) triggerHostScan(ch chan sbom.ScanResult) {
 	log.Debugf("Triggering host SBOM refresh")
 
 	scanRequest := &host.ScanRequest{Path: "/"}
-	if hostRoot := os.Getenv("HOST_ROOT"); config.IsContainerized() && hostRoot != "" {
+	if hostRoot := os.Getenv("HOST_ROOT"); ddConfig.IsContainerized() && hostRoot != "" {
 		scanRequest.Path = hostRoot
 	}
 

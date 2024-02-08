@@ -46,7 +46,6 @@ type Event interface {
 	GetTags() []string
 	GetType() string
 	GetActions() []*model.ActionTriggered
-	IsSuppressed() bool
 }
 
 // EventSender defines an event sender
