@@ -11,22 +11,14 @@ from subprocess import check_output
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_default_build_tags
-from .go import run_golangci_lint
-from .libs.ninja_syntax import NinjaWriter
-from .process_agent import TempDir
-from .system_probe import (
-    CURRENT_ARCH,
-    build_cws_object_files,
-    check_for_ninja,
-    ninja_define_ebpf_compiler,
-    ninja_define_exe_compiler,
-)
-from .test import environ
-from .utils import (
+from tasks.agent import build as agent_build
+from tasks.agent import generate_config
+from tasks.build_tags import get_default_build_tags
+from tasks.go import run_golangci_lint
+from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    generate_config,
+    environ,
     get_build_flags,
     get_git_branch_name,
     get_git_commit,
@@ -34,7 +26,18 @@ from .utils import (
     get_gopath,
     get_version,
 )
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from tasks.libs.ninja_syntax import NinjaWriter
+from tasks.process_agent import TempDir
+from tasks.system_probe import (
+    CURRENT_ARCH,
+    build_cws_object_files,
+    check_for_ninja,
+    ninja_define_ebpf_compiler,
+    ninja_define_exe_compiler,
+)
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
+
+is_windows = sys.platform == "win32"
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
@@ -50,6 +53,7 @@ def build(
     build_tags,
     race=False,
     incremental_build=True,
+    install_path=None,
     major_version='7',
     # arch is never used here; we keep it to have a
     # consistent CLI on the build task for all agents.
@@ -57,13 +61,22 @@ def build(
     go_mod="mod",
     skip_assets=False,
     static=False,
+    bundle=True,
 ):
     """
     Build the security agent
     """
+    if bundle and sys.platform != "win32":
+        return agent_build(
+            ctx,
+            install_path=install_path,
+            race=race,
+            arch=arch,
+            go_mod=go_mod,
+        )
+
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
 
-    # TODO use pkg/version for this
     main = "main."
     ld_vars = {
         "Version": get_version(ctx, major_version=major_version),
@@ -90,11 +103,11 @@ def build(
         )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(
-        build="security-agent"
-    )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
+    build_tags += get_default_build_tags(build="security-agent")
 
-    # TODO static option
+    if os.path.exists(BIN_PATH):
+        os.remove(BIN_PATH)
+
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/security-agent'
 
@@ -111,6 +124,10 @@ def build(
 
     ctx.run(cmd.format(**args), env=env)
 
+    render_config(ctx, env=env, skip_assets=skip_assets)
+
+
+def render_config(ctx, env, skip_assets=False):
     if not skip_assets:
         dist_folder = os.path.join(BIN_DIR, "agent", "dist")
         generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
@@ -181,6 +198,24 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
         cmd = 'sudo -E PATH={path} ' + cmd
 
     args = {
+        "testsuite": testsuite,
+        "verbose_opt": "-test.v" if verbose else "",
+        "testflags": testflags,
+        "path": os.environ['PATH'],
+    }
+
+    ctx.run(cmd.format(**args))
+
+
+@task
+def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
+    cmd = '{testsuite} -trace {verbose_opt} {testflags}'
+
+    if os.getuid() != 0:
+        cmd = 'sudo -E PATH={path} ' + cmd
+
+    args = {
+        "cws_instrumentation": cws_instrumentation,
         "testsuite": testsuite,
         "verbose_opt": "-test.v" if verbose else "",
         "testflags": testflags,
@@ -326,6 +361,7 @@ def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
 def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
+    srcpath='pkg/security/tests',
     arch=CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
@@ -335,17 +371,18 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     kernel_release=None,
+    windows=False,
     debug=False,
 ):
-    build_cws_object_files(
-        ctx,
-        major_version=major_version,
-        arch=arch,
-        kernel_release=kernel_release,
-        debug=debug,
-    )
-
-    build_embed_syscall_tester(ctx)
+    if not windows:
+        build_cws_object_files(
+            ctx,
+            major_version=major_version,
+            arch=arch,
+            kernel_release=kernel_release,
+            debug=debug,
+        )
+        build_embed_syscall_tester(ctx)
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
@@ -354,18 +391,19 @@ def build_functional_tests(
         env["GOARCH"] = "386"
 
     build_tags = build_tags.split(",")
-    build_tags.append("linux_bpf")
-    build_tags.append("trivy")
-    build_tags.append("containerd")
+    if not windows:
+        build_tags.append("linux_bpf")
+        build_tags.append("trivy")
+        build_tags.append("containerd")
 
-    if bundle_ebpf:
-        build_tags.append("ebpf_bindata")
+        if bundle_ebpf:
+            build_tags.append("ebpf_bindata")
 
     if static:
         build_tags.extend(["osusergo", "netgo"])
 
     if not skip_linters:
-        targets = ['./pkg/security/tests']
+        targets = [srcpath]
         results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags, arch=arch)
         for result in results:
             # golangci exits with status 1 when it finds an issue
@@ -378,7 +416,7 @@ def build_functional_tests(
 
     build_tags = ",".join(build_tags)
     cmd = 'go test -mod=mod -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
-    cmd += '{build_flags} {repo_path}/pkg/security/tests'
+    cmd += '{build_flags} {repo_path}/{src_path}'
 
     args = {
         "output": output,
@@ -387,6 +425,7 @@ def build_functional_tests(
         "build_flags": build_flags,
         "build_tags": build_tags,
         "repo_path": REPO_PATH,
+        "src_path": srcpath,
     }
 
     ctx.run(cmd.format(**args), env=env)
@@ -476,6 +515,40 @@ def functional_tests(
         verbose=verbose,
         testflags=testflags,
         fentry=fentry,
+    )
+
+
+@task
+def ebpfless_functional_tests(
+    ctx,
+    verbose=False,
+    race=False,
+    arch=CURRENT_ARCH,
+    major_version='7',
+    output='pkg/security/tests/testsuite',
+    bundle_ebpf=True,
+    testflags='',
+    skip_linters=False,
+    kernel_release=None,
+    cws_instrumentation='bin/cws-instrumentation/cws-instrumentation',
+):
+    build_functional_tests(
+        ctx,
+        arch=arch,
+        major_version=major_version,
+        output=output,
+        bundle_ebpf=bundle_ebpf,
+        skip_linters=skip_linters,
+        race=race,
+        kernel_release=kernel_release,
+    )
+
+    run_ebpfless_functional_tests(
+        ctx,
+        cws_instrumentation,
+        testsuite=output,
+        verbose=verbose,
+        testflags=testflags,
     )
 
 
@@ -708,7 +781,7 @@ def generate_cws_proto(ctx):
 
 
 def get_git_dirty_files():
-    dirty_stats = check_output(["git", "status", "--porcelain=v1", "untracked-files=no"]).decode('utf-8')
+    dirty_stats = check_output(["git", "status", "--porcelain=v1", "--untracked-files=no"]).decode('utf-8')
     paths = []
 
     # see https://git-scm.com/docs/git-status#_short_format for format documentation
@@ -758,24 +831,49 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx, skip_linters=False):
+def kitchen_prepare(ctx, windows=is_windows, skip_linters=False):
     """
     Compile test suite for kitchen
     """
 
-    # Clean up previous build
-    if os.path.exists(KITCHEN_ARTIFACT_DIR):
-        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
+    out_binary = "testsuite"
+    race = True
+    if windows:
+        out_binary = "testsuite.exe"
+        race = False
 
-    testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "testsuite")
+    testsuite_out_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "tests")
+    # Clean up previous build
+    if os.path.exists(testsuite_out_dir):
+        shutil.rmtree(testsuite_out_dir)
+
+    testsuite_out_path = os.path.join(testsuite_out_dir, out_binary)
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
-        race=True,
+        race=race,
         debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,
+        windows=windows,
     )
+    if windows:
+        # build the ETW tests binary also
+        testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "etw", out_binary)
+        srcpath = 'pkg/security/probe'
+        build_functional_tests(
+            ctx,
+            output=testsuite_out_path,
+            srcpath=srcpath,
+            bundle_ebpf=False,
+            race=race,
+            debug=True,
+            skip_linters=skip_linters,
+            windows=windows,
+        )
+
+        return
+
     stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
     build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters)
 

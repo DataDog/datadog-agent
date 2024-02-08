@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(ASC) Fix revive linter
+// Package hostname provides utilities to detect the hostname of the host.
 package hostname
 
 import (
@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
@@ -34,10 +35,7 @@ var (
 )
 
 // Data contains hostname and the hostname provider
-type Data struct {
-	Hostname string
-	Provider string
-}
+type Data = hostnameinterface.Data
 
 func fromConfig(ctx context.Context, _ string) (string, error) {
 	configName := config.Datadog.GetString("hostname")
@@ -83,8 +81,7 @@ func fromGCE(ctx context.Context, _ string) (string, error) {
 	return gceGetHostname(ctx)
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func fromAzure(ctx context.Context, currentHostname string) (string, error) {
+func fromAzure(ctx context.Context, _ string) (string, error) {
 	return azureGetHostname(ctx)
 }
 

@@ -9,6 +9,7 @@ package hostimpl
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/fx"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -63,9 +65,10 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp             hostComp.Component
-	MetadataProvider runnerimpl.Provider
-	FlareProvider    flaretypes.Provider
+	Comp                 hostComp.Component
+	MetadataProvider     runnerimpl.Provider
+	FlareProvider        flaretypes.Provider
+	StatusHeaderProvider status.HeaderInformationProvider
 }
 
 func newHostProvider(deps dependencies) provides {
@@ -98,9 +101,10 @@ func newHostProvider(deps dependencies) provides {
 		serializer:      deps.Serializer,
 	}
 	return provides{
-		Comp:             &h,
-		MetadataProvider: runnerimpl.NewProvider(h.collect),
-		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
+		Comp:                 &h,
+		MetadataProvider:     runnerimpl.NewProvider(h.collect),
+		FlareProvider:        flaretypes.NewProvider(h.fillFlare),
+		StatusHeaderProvider: status.NewHeaderInformationProvider(&h),
 	}
 }
 
@@ -117,5 +121,5 @@ func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
 }
 
 func (h *host) fillFlare(fb flaretypes.FlareBuilder) error {
-	return fb.AddFileFromFunc("metadata_v5.json", func() ([]byte, error) { return h.GetPayloadAsJSON(context.Background()) })
+	return fb.AddFileFromFunc(filepath.Join("metadata", "host.json"), func() ([]byte, error) { return h.GetPayloadAsJSON(context.Background()) })
 }

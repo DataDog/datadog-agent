@@ -12,15 +12,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.uber.org/fx"
 )
 
 type dependencies struct {
@@ -30,6 +32,13 @@ type dependencies struct {
 	Demultiplexer demultiplexer.Component
 	Forwarder     forwarder.Component
 	Hostname      hostname.Component
+}
+
+type provides struct {
+	fx.Out
+
+	Comp           Component
+	StatusProvider status.InformationProvider
 }
 
 // NetflowServerStatus represents the status of the server including details about
@@ -59,11 +68,11 @@ var (
 )
 
 // newServer configures a netflow server.
-func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
+func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 	conf := deps.Config.Get()
 	sender, err := deps.Demultiplexer.GetDefaultSender()
 	if err != nil {
-		return nil, err
+		return provides{}, err
 	}
 	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger)
 
@@ -77,7 +86,13 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	globalServer = server
 	globalServerMu.Unlock()
 
+	var statusProvider status.Provider
+
+	statusProvider = status.NoopProvider{}
+
 	if conf.Enabled {
+		statusProvider = Provider{}
+
 		// netflow is enabled, so start the server
 		lc.Append(fx.Hook{
 			OnStart: func(ctx context.Context) error {
@@ -91,7 +106,10 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 			},
 		})
 	}
-	return server, nil
+	return provides{
+		Comp:           server,
+		StatusProvider: status.NewInformationProvider(statusProvider),
+	}, nil
 }
 
 // Server manages netflow listeners.

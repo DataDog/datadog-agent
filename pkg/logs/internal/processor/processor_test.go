@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -279,6 +280,26 @@ func TestTruncate(t *testing.T) {
 	msg := newMessage([]byte("hello"), source, "")
 	_ = p.applyRedactingRules(msg)
 	assert.Equal(t, []byte("hello"), msg.GetContent())
+}
+
+func TestGetHostnameLambda(t *testing.T) {
+	p := &Processor{}
+	m := message.NewMessage([]byte("hello"), nil, "", 0)
+	m.ServerlessExtra = message.ServerlessExtra{
+		Lambda: &message.Lambda{
+			ARN: "testHostName",
+		},
+	}
+	assert.Equal(t, "testHostName", p.GetHostname(m))
+}
+
+func TestGetHostname(t *testing.T) {
+	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
+	p := &Processor{
+		hostname: hostnameComponent,
+	}
+	m := message.NewMessage([]byte("hello"), nil, "", 0)
+	assert.Equal(t, "testHostnameFromEnvVar", p.GetHostname(m))
 }
 
 // helpers

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package run is the run system-probe subcommand
 package run
 
 import (
@@ -11,8 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	_ "net/http/pprof"
+	_ "net/http/pprof" // activate pprof profiling
 	"os"
 	"os/signal"
 	"os/user"
@@ -41,7 +40,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -131,14 +130,14 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 	sigpipeCh := make(chan os.Signal, 1)
 	signal.Notify(sigpipeCh, syscall.SIGPIPE)
 	go func() {
-		//nolint:revive // TODO(EBPF) Fix revive linter
+		//nolint:revive
 		for range sigpipeCh {
-			// do nothing
+			// intentionally drain channel
 		}
 	}()
 
 	if err := startSystemProbe(cliParams, log, statsd, telemetry, sysprobeconfig, rcclient); err != nil {
-		if err == ErrNotEnabled {
+		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 			// http://supervisord.org/subprocess.html#process-states
@@ -161,48 +160,10 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error, error) {
 	errChan := make(chan error)
 
-	// run startSystemProbe in an app, so that the log and config components get initialized
+	// run startSystemProbe in the background
 	go func() {
-		err := fxutil.OneShot(
-			func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
-				defer StopSystemProbeWithDefaults()
-				err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, statsd, telemetry, sysprobeconfig, rcclient)
-				if err != nil {
-					return err
-				}
-
-				// notify outer that startAgent finished
-				errChan <- err
-				// wait for context
-				ctx := <-ctxChan
-
-				// Wait for stop signal
-				select {
-				case <-signals.Stopper:
-					log.Info("Received stop command, shutting down...")
-				case <-signals.ErrorStopper:
-					_ = log.Critical("The Agent has encountered an error, shutting down...")
-				case <-ctx.Done():
-					log.Info("Received stop from service manager, shutting down...")
-				}
-
-				return nil
-			},
-			// no config file path specification in this situation
-			fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
-			fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
-			fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-			rcclient.Module(),
-			config.Module(),
-			telemetry.Module(),
-			compstatsd.Module(),
-			sysprobeconfigimpl.Module(),
-			// use system-probe config instead of agent config for logging
-			fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-				return logimpl.NewLogger(lc, params, sysprobeconfig)
-			}),
-		)
-		// notify caller that fx.OneShot is done
+		err := runSystemProbe(ctxChan, errChan)
+		// notify main routine that this is done, so cleanup can happen
 		errChan <- err
 	}()
 
@@ -215,6 +176,48 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 	// startSystemProbe succeeded. provide errChan to caller so they can wait for fxutil.OneShot to stop
 	return errChan, nil
+}
+
+func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
+	return fxutil.OneShot(
+		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
+			defer StopSystemProbeWithDefaults()
+			err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, statsd, telemetry, sysprobeconfig, rcclient)
+			if err != nil {
+				return err
+			}
+
+			// notify outer that startAgent finished
+			errChan <- err
+			// wait for context
+			ctx := <-ctxChan
+
+			// Wait for stop signal
+			select {
+			case <-signals.Stopper:
+				log.Info("Received stop command, shutting down...")
+			case <-signals.ErrorStopper:
+				_ = log.Critical("The Agent has encountered an error, shutting down...")
+			case <-ctx.Done():
+				log.Info("Received stop from service manager, shutting down...")
+			}
+
+			return nil
+		},
+		// no config file path specification in this situation
+		fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
+		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
+		fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		rcclient.Module(),
+		config.Module(),
+		telemetry.Module(),
+		compstatsd.Module(),
+		sysprobeconfigimpl.Module(),
+		// use system-probe config instead of agent config for logging
+		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+			return logimpl.NewLogger(lc, params, sysprobeconfig)
+		}),
+	)
 }
 
 // StopSystemProbeWithDefaults is a temporary way for other packages to use stopAgent.
@@ -288,8 +291,8 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
-			telemetry.RegisterCollector(ebpf.NewDebugFsStatCollector())
-			if pc := ebpf.NewPerfUsageCollector(); pc != nil {
+			telemetry.RegisterCollector(ebpftelemetry.NewDebugFsStatCollector())
+			if pc := ebpftelemetry.NewPerfUsageCollector(); pc != nil {
 				telemetry.RegisterCollector(pc)
 			}
 		}

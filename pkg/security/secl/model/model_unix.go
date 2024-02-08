@@ -142,7 +142,7 @@ type Event struct {
 	Async bool `field:"event.async,handler:ResolveAsync" event:"*"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
 	// context
-	SpanContext    SpanContext    `field:"-" json:"-"`
+	SpanContext    SpanContext    `field:"-"`
 	NetworkContext NetworkContext `field:"network" event:"dns"`
 
 	// fim events
@@ -159,6 +159,7 @@ type Event struct {
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
 	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
+	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
 	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
@@ -186,16 +187,16 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
 	// internal usage
-	Umount           UmountEvent           `field:"-" json:"-"`
-	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-"`
-	MountReleased    MountReleasedEvent    `field:"-" json:"-"`
-	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-"`
-	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
-	VethPair         VethPairEvent         `field:"-" json:"-"`
-	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-"`
+	Umount           UmountEvent           `field:"-"`
+	InvalidateDentry InvalidateDentryEvent `field:"-"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
+	MountReleased    MountReleasedEvent    `field:"-"`
+	CgroupTracing    CgroupTracingEvent    `field:"-"`
+	NetDevice        NetDeviceEvent        `field:"-"`
+	VethPair         VethPairEvent         `field:"-"`
+	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
 	// used for ebpfless
-	NSID uint64 `field:"-" json:"-"`
+	NSID uint64 `field:"-"`
 }
 
 // SetPathResolutionError sets the Event.pathResolutionError
@@ -334,9 +335,9 @@ type Process struct {
 	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
-	ForkTime time.Time `field:"fork_time,opts:getters_only" json:"-"`
-	ExitTime time.Time `field:"exit_time,opts:getters_only" json:"-"`
-	ExecTime time.Time `field:"exec_time,opts:getters_only" json:"-"`
+	ForkTime time.Time `field:"fork_time,opts:getters_only"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only"`
 
 	// TODO: merge with ExecTime
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
@@ -349,11 +350,11 @@ type Process struct {
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
-	ArgsID uint32 `field:"-" json:"-"`
-	EnvsID uint32 `field:"-" json:"-"`
+	ArgsID uint32 `field:"-"`
+	EnvsID uint32 `field:"-"`
 
-	ArgsEntry *ArgsEntry `field:"-" json:"-"`
-	EnvsEntry *EnvsEntry `field:"-" json:"-"`
+	ArgsEntry *ArgsEntry `field:"-"`
+	EnvsEntry *EnvsEntry `field:"-"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
 	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100"`                                                                                                                   // SECLDoc[argv0] Definition:`First argument of the process`
@@ -368,18 +369,18 @@ type Process struct {
 	ArgvScrubbed []string `field:"argv_scrubbed,handler:ResolveProcessArgvScrubbed,weight:500,opts:getters_only"`
 
 	// symlink to the process binary
-	SymlinkPathnameStr [MaxSymlinks]string `field:"-" json:"-"`
-	SymlinkBasenameStr string              `field:"-" json:"-"`
+	SymlinkPathnameStr [MaxSymlinks]string `field:"-"`
+	SymlinkBasenameStr string              `field:"-"`
 
 	// cache version
-	ScrubbedArgvResolved bool           `field:"-" json:"-"`
-	Variables            eval.Variables `field:"-" json:"-"`
+	ScrubbedArgvResolved bool           `field:"-"`
+	Variables            eval.Variables `field:"-"`
 
 	IsThread        bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
 	IsExecChild     bool `field:"-"`         // Indicates whether the process is an exec child of its parent
 	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
 
-	Source uint64 `field:"-" json:"-"`
+	Source uint64 `field:"-"`
 
 	// lineage
 	hasValidLineage *bool `field:"-"`
@@ -406,8 +407,8 @@ type FileFields struct {
 
 	InUpperLayer bool `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer"` // SECLDoc[in_upper_layer] Definition:`Indicator of the file layer, for example, in an OverlayFS`
 
-	NLink uint32 `field:"-" json:"-"`
-	Flags int32  `field:"-" json:"-"`
+	NLink uint32 `field:"-"`
+	Flags int32  `field:"-"`
 }
 
 // Equals compares two FileFields
@@ -444,7 +445,7 @@ type FileEvent struct {
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
-	PathResolutionError error `field:"-" json:"-"`
+	PathResolutionError error `field:"-"`
 
 	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
 	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
@@ -454,8 +455,8 @@ type FileEvent struct {
 	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad,weight:999"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
 
 	// used to mark as already resolved, can be used in case of empty path
-	IsPathnameStrResolved bool `field:"-" json:"-"`
-	IsBasenameStrResolved bool `field:"-" json:"-"`
+	IsPathnameStrResolved bool `field:"-"`
+	IsBasenameStrResolved bool `field:"-"`
 }
 
 // Equals compare two FileEvent
@@ -560,6 +561,12 @@ func (m *Mount) IsOverlayFS() bool {
 	return m.GetFSType() == "overlay"
 }
 
+// ChdirEvent represents a chdir event
+type ChdirEvent struct {
+	SyscallEvent
+	File FileEvent `field:"file"`
+}
+
 // OpenEvent represents an open event
 type OpenEvent struct {
 	SyscallEvent
@@ -582,8 +589,8 @@ const (
 
 // SELinuxEvent represents a selinux event
 type SELinuxEvent struct {
-	File            FileEvent        `field:"-" json:"-"`
-	EventKind       SELinuxEventKind `field:"-" json:"-"`
+	File            FileEvent        `field:"-"`
+	EventKind       SELinuxEventKind `field:"-"`
 	BoolName        string           `field:"bool.name,handler:ResolveSELinuxBoolName"` // SECLDoc[bool.name] Definition:`SELinux boolean name`
 	BoolChangeValue string           `field:"bool.state"`                               // SECLDoc[bool.state] Definition:`SELinux boolean new value`
 	BoolCommitValue bool             `field:"bool_commit.state"`                        // SECLDoc[bool_commit.state] Definition:`Indicator of a SELinux boolean commit operation`
@@ -643,7 +650,7 @@ type SetXAttrEvent struct {
 	Namespace string    `field:"file.destination.namespace,handler:ResolveXAttrNamespace"` // SECLDoc[file.destination.namespace] Definition:`Namespace of the extended attribute`
 	Name      string    `field:"file.destination.name,handler:ResolveXAttrName"`           // SECLDoc[file.destination.name] Definition:`Name of the extended attribute`
 
-	NameRaw [200]byte `field:"-" json:"-"`
+	NameRaw [200]byte `field:"-"`
 }
 
 // SyscallEvent contains common fields for all the event
@@ -668,8 +675,8 @@ type UmountEvent struct {
 type UtimesEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	Atime time.Time `field:"-" json:"-"`
-	Mtime time.Time `field:"-" json:"-"`
+	Atime time.Time `field:"-"`
+	Mtime time.Time `field:"-"`
 }
 
 // BPFEvent represents a BPF event
@@ -683,14 +690,14 @@ type BPFEvent struct {
 
 // BPFMap represents a BPF map
 type BPFMap struct {
-	ID   uint32 `field:"-" json:"-"` // ID of the eBPF map
-	Type uint32 `field:"type"`       // SECLDoc[type] Definition:`Type of the eBPF map` Constants:`BPF map types`
-	Name string `field:"name"`       // SECLDoc[name] Definition:`Name of the eBPF map (added in 7.35)`
+	ID   uint32 `field:"-"`    // ID of the eBPF map
+	Type uint32 `field:"type"` // SECLDoc[type] Definition:`Type of the eBPF map` Constants:`BPF map types`
+	Name string `field:"name"` // SECLDoc[name] Definition:`Name of the eBPF map (added in 7.35)`
 }
 
 // BPFProgram represents a BPF program
 type BPFProgram struct {
-	ID         uint32   `field:"-" json:"-"`  // ID of the eBPF program
+	ID         uint32   `field:"-"`           // ID of the eBPF program
 	Type       uint32   `field:"type"`        // SECLDoc[type] Definition:`Type of the eBPF program` Constants:`BPF program types`
 	AttachType uint32   `field:"attach_type"` // SECLDoc[attach_type] Definition:`Attach type of the eBPF program` Constants:`BPF attach types`
 	Helpers    []uint32 `field:"helpers"`     // SECLDoc[helpers] Definition:`eBPF helpers used by the eBPF program (added in 7.35)` Constants:`BPF helper functions`
@@ -703,8 +710,8 @@ type PTraceEvent struct {
 	SyscallEvent
 
 	Request uint32          `field:"request"` // SECLDoc[request] Definition:`ptrace request` Constants:`Ptrace constants`
-	PID     uint32          `field:"-" json:"-"`
-	Address uint64          `field:"-" json:"-"`
+	PID     uint32          `field:"-"`
+	Address uint64          `field:"-"`
 	Tracee  *ProcessContext `field:"tracee"` // process context of the tracee
 }
 
@@ -713,9 +720,9 @@ type MMapEvent struct {
 	SyscallEvent
 
 	File       FileEvent `field:"file"`
-	Addr       uint64    `field:"-" json:"-"`
-	Offset     uint64    `field:"-" json:"-"`
-	Len        uint32    `field:"-" json:"-"`
+	Addr       uint64    `field:"-"`
+	Offset     uint64    `field:"-"`
+	Len        uint32    `field:"-"`
 	Protection int       `field:"protection"` // SECLDoc[protection] Definition:`memory segment protection` Constants:`Protection constants`
 	Flags      int       `field:"flags"`      // SECLDoc[flags] Definition:`memory segment flags` Constants:`MMap flags`
 }
@@ -724,8 +731,8 @@ type MMapEvent struct {
 type MProtectEvent struct {
 	SyscallEvent
 
-	VMStart       uint64 `field:"-" json:"-"`
-	VMEnd         uint64 `field:"-" json:"-"`
+	VMStart       uint64 `field:"-"`
+	VMEnd         uint64 `field:"-"`
 	VMProtection  int    `field:"vm_protection"`  // SECLDoc[vm_protection] Definition:`initial memory segment protection` Constants:`Virtual Memory flags`
 	ReqProtection int    `field:"req_protection"` // SECLDoc[req_protection] Definition:`new memory segment protection` Constants:`Virtual Memory flags`
 }
@@ -793,7 +800,7 @@ func (adlc *ActivityDumpLoadConfig) SetTimeout(duration time.Duration) {
 
 // NetworkDeviceContext represents the network device context of a network event
 type NetworkDeviceContext struct {
-	NetNS   uint32 `field:"-" json:"-"`
+	NetNS   uint32 `field:"-"`
 	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`interface ifindex`
 	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`interface ifname`
 }

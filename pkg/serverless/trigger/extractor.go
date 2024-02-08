@@ -6,13 +6,14 @@
 package trigger
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	json "github.com/json-iterator/go"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 )
 
 // GetAWSPartitionByRegion parses an AWS region and returns an AWS partition

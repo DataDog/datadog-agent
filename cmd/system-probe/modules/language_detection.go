@@ -17,20 +17,24 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	languageDetectionProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// LanguageDetectionModule is the language detection module factory
 var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
 		return &languageDetectionModule{
 			languageDetector: privileged.NewLanguageDetector(),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return false
 	},
 }
 

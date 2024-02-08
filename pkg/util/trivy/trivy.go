@@ -209,6 +209,8 @@ func (c *Collector) CleanCache() error {
 	return nil
 }
 
+// getCache returns the cache with the cache Cleaner. It should initializes the cache
+// only once to avoid blocking the CLI with the `flock` file system.
 func (c *Collector) getCache() (cache.Cache, CacheCleaner, error) {
 	var err error
 	c.cacheInitialized.Do(func() {
@@ -310,8 +312,14 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata) (*types.Report, error) {
-	if imgMeta != nil {
-		artifactReference, err := artifact.Inspect(ctx) // called by the scanner as well
+	// The cacheCleaner can be nil if `getCache` is not called previously. At the moment, we initialize the cache
+	// in the `scanImage`, which is not called in the `ScanImageFromFilesystem` method.
+	// Filesystem scans use a memory cache that is not returned by the cacheProvider.
+	// Todo: refactor the cache initialization to avoid this.
+	if imgMeta != nil && c.cacheCleaner != nil {
+		// The artifact reference is only needed to clean up the blobs after the scan.
+		// It is re-generated from cached partial results during the scan.
+		artifactReference, err := artifact.Inspect(ctx)
 		if err != nil {
 			return nil, err
 		}

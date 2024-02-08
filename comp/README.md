@@ -56,6 +56,16 @@ Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 
 Package winregistry implements the Windows Registry check
 
+## [comp/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/collector) (Component Bundle)
+
+*Datadog Team*: agent-metrics-logs
+
+Package collector defines the collector bundle.
+
+### [comp/collector/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/collector/collector)
+
+Package collector defines the collector component.
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -76,6 +86,10 @@ Package flare implements a component to generate flares from the agent.
 
 Package hostname exposes hostname.Get() as a component.
 
+### [comp/core/hostname/hostnameinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface)
+
+Package hostnameinterface describes the interface for hostname methods
+
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/log)
 
 Package log implements a component to handle logging internal to the agent.
@@ -84,12 +98,22 @@ Package log implements a component to handle logging internal to the agent.
 
 Package secrets decodes secret values by invoking the configured executable command
 
+### [comp/core/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/status)
+
+Package status displays information about the agent.
+
 ### [comp/core/sysprobeconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/sysprobeconfig)
 
 *Datadog Team*: ebpf-platform
 
 Package sysprobeconfig implements a component to handle system-probe configuration.  This
 component temporarily wraps pkg/config.
+
+### [comp/core/tagger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/tagger)
+
+*Datadog Team*: container-integrations
+
+Package tagger provides the tagger component for the Datadog Agent
 
 ### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/telemetry)
 
@@ -121,9 +145,11 @@ Package serverdebug implements a component to run the dogstatsd server debug
 
 ### [comp/dogstatsd/statsd](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/statsd)
 
-*Datadog Team*: agent-shared-components
-
 Package statsd implements a component to get a statsd client.
+
+### [comp/dogstatsd/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/status)
+
+Package status implements the core status component information provider interface
 
 ## [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw) (Component Bundle)
 
@@ -143,13 +169,25 @@ Package forwarder implements the "forwarder" bundle
 
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder)
 
-Package defaultForwarder implements a component to send payloads to the backend
+Package defaultforwarder implements a component to send payloads to the backend
+
+### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
+
+*Datadog Team*: agent-metrics-logs
+
+Package eventplatform contains the logic for forwarding events to the event platform
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
 *Datadog Team*: agent-metrics-logs
 
 Package orchestrator implements the orchestrator forwarder component.
+
+### [comp/forwarder/orchestrator/orchestratorinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface)
+
+*Datadog Team*: agent-metrics-logs
+
+Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 
 ## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection) (Component Bundle)
 
@@ -193,6 +231,12 @@ Package inventorychecks implements a component to generate the 'check_metadata' 
 ### [comp/metadata/inventoryhost](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryhost)
 
 Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
+
+### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
+
+*Datadog Team*: agent-platform
+
+Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/resources)
 
@@ -249,6 +293,10 @@ Package collector implements the OpenTelemetry Collector component.
 
 Package process implements the "process" bundle, providing components for the Process Agent
 
+### [comp/process/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/agent)
+
+Package agent contains a process-agent component
+
 ### [comp/process/apiserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/apiserver)
 
 Package apiserver initializes the api server that powers many subcommands.
@@ -301,6 +349,10 @@ Package rtcontainercheck implements a component to handle realtime Container dat
 
 Package runner implements a component to run data collection checks in the Process Agent.
 
+### [comp/process/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/status)
+
+Package status implements the core status component information provider interface
+
 ### [comp/process/submitter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/submitter)
 
 Package submitter implements a component to submit collected data in the Process Agent to
@@ -315,6 +367,47 @@ Package remoteconfig defines the fx options for the Bundle
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 
 
+
+## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package snmptraps implements the a server that listens for SNMP trap data
+and sends it to the backend.
+
+### [comp/snmptraps/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/config)
+
+Package config implements the configuration type for the traps server and
+a component that provides it.
+
+### [comp/snmptraps/formatter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/formatter)
+
+Package formatter provides a component for formatting SNMP traps.
+
+### [comp/snmptraps/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/forwarder)
+
+Package forwarder defines a component that receives trap data from the
+listener component, formats it properly, and sends it to the backend.
+
+### [comp/snmptraps/listener](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/listener)
+
+Package listener implements a component that listens for SNMP messages,
+parses them, and publishes messages on a channel.
+
+### [comp/snmptraps/oidresolver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver)
+
+Package oidresolver resolves OIDs
+
+### [comp/snmptraps/server](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/server)
+
+Package server implements a component that runs the traps server.
+It listens for SNMP trap messages on a configured port, parses and
+reformats them, and sends the resulting data to the backend.
+
+### [comp/snmptraps/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps/status)
+
+Package status exposes the expvars we use for status tracking to the
+component system.
 
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/systray) (Component Bundle)
 
@@ -340,3 +433,7 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 Package config implements a component to handle trace-agent configuration.  This
 component temporarily wraps pkg/trace/config.
+
+### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
+
+Package status implements the core status component information provider interface

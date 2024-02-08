@@ -75,17 +75,18 @@ shared_examples "passes" do |bundle, env|
 
       testsuite_args = ["-status-metrics", "-loglevel=debug", "-test.v", "-test.count=1"]
       if bundle == "docker"
-        testsuite_args.concat(["--env", "docker"])
+        testsuite_args.concat(["-env", "docker"])
         gotestsum_test2json_cmd.concat(["docker", "exec", "-e", "DD_SYSTEM_PROBE_BPF_DIR=#{final_env["DD_SYSTEM_PROBE_BPF_DIR"]}",
           "docker-testsuite"])
         output_line_tag = "d"
+      elsif bundle == "ad"
+        testsuite_args.concat(["-test.run", "TestActivityDump"])
+        output_line_tag = "ad"
+      elsif bundle == "ebpfless"
+        testsuite_args.concat(["-trace"])
+        output_line_tag = "el"
       else
         output_line_tag = "h"
-
-        if bundle == "ad"
-          testsuite_args.concat(["-test.run", "TestActivityDump"])
-          output_line_tag = "ad"
-        end
       end
 
       gotestsum_test2json_cmd.concat([testsuite_file_path])
@@ -149,6 +150,11 @@ describe "security-agent" do
         "DD_TESTS_RUNTIME_COMPILED"=>"1",
       }
       include_examples "passes", "ad", env
+    end
+  when "ebpfless"
+    context 'ebpfless functional tests' do
+      env = {}
+      include_examples "passes", "ebpfless", env
     end
   else
     raise "no CWS platform provided"

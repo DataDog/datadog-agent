@@ -13,10 +13,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -24,10 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -140,6 +142,14 @@ var (
 		[]string{"shard"}, "Count the number of dogstatsd contexts in the aggregator")
 	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
+	tlmDogstatsdContextsBytesByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
+		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
+	tlmChecksContexts = telemetry.NewGauge("aggregator", "checks_contexts",
+		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
+	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
+		[]string{"shard", "metric_type"}, "Count the number of checks contexts in the check aggregator, by metric type")
+	tlmChecksContextsBytesByMtype = telemetry.NewGauge("aggregator", "checks_contexts_bytes_by_mtype",
+		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -225,7 +235,7 @@ type BufferedAggregator struct {
 	mu                     sync.Mutex // to protect the checkSamplers field
 	flushMutex             sync.Mutex // to start multiple flushes in parallel
 	serializer             serializer.MetricSerializer
-	eventPlatformForwarder epforwarder.EventPlatformForwarder
+	eventPlatformForwarder eventplatform.Component
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -257,7 +267,7 @@ func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInPar
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -372,11 +382,12 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan 
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (agg *BufferedAggregator) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
-	if agg.eventPlatformForwarder == nil {
+func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error) {
+	forwarder, found := agg.eventPlatformForwarder.Get()
+	if !found {
 		return nil, errors.New("event platform forwarder not initialized")
 	}
-	return agg.eventPlatformForwarder, nil
+	return forwarder, nil
 }
 
 func (agg *BufferedAggregator) registerSender(id checkid.ID) error {
@@ -425,12 +436,13 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 }
 
 func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatformEvent) error {
-	if agg.eventPlatformForwarder == nil {
+	forwarder, found := agg.eventPlatformForwarder.Get()
+	if !found {
 		return errors.New("event platform forwarder not initialized")
 	}
 	m := message.NewMessage(event.rawEvent, nil, "", 0)
 	// eventPlatformForwarder is threadsafe so no locking needed here
-	return agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
+	return forwarder.SendEventPlatformEvent(m, event.eventType)
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
@@ -649,7 +661,11 @@ func (agg *BufferedAggregator) GetEvents() event.Events {
 // GetEventPlatformEvents grabs the event platform events from the queue and clears them.
 // Note that this works only if using the 'noop' event platform forwarder
 func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Message {
-	return agg.eventPlatformForwarder.Purge()
+	forwarder, found := agg.eventPlatformForwarder.Get()
+	if !found {
+		return nil
+	}
+	return forwarder.Purge()
 }
 
 func (agg *BufferedAggregator) sendEvents(start time.Time, events event.Events) {
@@ -908,7 +924,9 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 	agg.checkSamplers[id] = newCheckSampler(
 		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
 		config.Datadog.GetBool("check_sampler_expire_metrics"),
+		config.Datadog.GetBool("check_sampler_context_metrics"),
 		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
 		agg.tagsStore,
+		id,
 	)
 }

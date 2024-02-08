@@ -2135,6 +2135,8 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 		keepNull                      bool
 		keepBoolean                   bool
 		keepPositionalParameter       bool
+		keepTrailingSemicolon         bool
+		keepIdentifierQuotation       bool
 		metadata                      SQLMetadata
 	}{
 		{
@@ -2344,6 +2346,36 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Procedures: []string{},
 			},
 		},
+		{
+			name:                  "normalization with keep trailing semicolon",
+			query:                 "SELECT * FROM users WHERE id = 1 AND name = 'test';",
+			expected:              "SELECT * FROM users WHERE id = ? AND name = ?;",
+			keepTrailingSemicolon: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                    "normalization with keep identifier quotation",
+			query:                   `SELECT * FROM "users" WHERE id = 1 AND name = 'test'`,
+			expected:                `SELECT * FROM "users" WHERE id = ? AND name = ?`,
+			keepIdentifierQuotation: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2362,6 +2394,8 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 					KeepBoolean:                   tt.keepBoolean,
 					KeepPositionalParameter:       tt.keepPositionalParameter,
 					RemoveSpaceBetweenParentheses: tt.removeSpaceBetweenParentheses,
+					KeepTrailingSemicolon:         tt.keepTrailingSemicolon,
+					KeepIdentifierQuotation:       tt.keepIdentifierQuotation,
 				},
 			}).ObfuscateSQLString(tt.query)
 			require.NoError(t, err)

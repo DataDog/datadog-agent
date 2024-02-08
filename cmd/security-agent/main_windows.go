@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -36,9 +37,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -103,14 +104,12 @@ func (s *service) Run(svcctx context.Context) error {
 		dogstatsd.ClientBundle,
 		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
-		demultiplexer.Module(),
+		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-		fx.Provide(func() demultiplexer.Params {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.UseEventPlatformForwarder = false
-			return demultiplexer.Params{Options: opts}
-		}),
+		eventplatformimpl.Module(),
+		fx.Supply(eventplatformimpl.NewDisabledParams()),
+		fx.Supply(demultiplexerimpl.NewDefaultParams()),
 
 		// workloadmeta setup
 		collectors.GetCatalog(),

@@ -7,3 +7,10 @@ workflow_type: speculative
 speculative_max_depth: 3
 wait_for_check_timeout_in_minutes: 240
 gitlab_jobs_retry_enable: true
+---
+schema-version: v1
+kind: buildimpactanalysis
+team: ci-interfaces
+preprocess: true
+enabled_strategies:
+  - go_strategy

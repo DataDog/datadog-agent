@@ -77,3 +77,13 @@ func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
 	}
 	return getProcessService(entry)
 }
+
+// ResolveProcessCmdLineScrubbed returns a scrubbed version of the cmdline
+func (fh *FieldHandlers) ResolveProcessCmdLineScrubbed(_ *model.Event, e *model.Process) string {
+	return fh.resolvers.ProcessResolver.GetProcessCmdLineScrubbed(e)
+}
+
+// ResolveUser resolves the user name
+func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) string {
+	return fh.resolvers.UserGroupResolver.GetUser(process.OwnerSidString)
+}

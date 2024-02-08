@@ -21,7 +21,7 @@ func TestOrphanEntries(t *testing.T) {
 	t.Run("orphan entries can be joined even after flushing", func(t *testing.T) {
 		now := time.Now()
 		tel := NewTelemetry("http")
-		buffer := newIncompleteBuffer(config.New(), tel)
+		buffer := NewIncompleteBuffer(config.New(), tel)
 		request := &EbpfEvent{
 			Http: EbpfTx{
 				Request_fragment: requestFragment([]byte("GET /foo/bar")),
@@ -54,7 +54,8 @@ func TestOrphanEntries(t *testing.T) {
 
 	t.Run("orphan entries are not kept indefinitely", func(t *testing.T) {
 		tel := NewTelemetry("http")
-		buffer := newIncompleteBuffer(config.New(), tel)
+		// Temporary cast until we introduce a HTTP2 dedicated implementation for incompleteBuffer.
+		buffer := NewIncompleteBuffer(config.New(), tel).(*incompleteBuffer)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
 		request := &EbpfEvent{

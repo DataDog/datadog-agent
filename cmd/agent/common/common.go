@@ -16,12 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -29,9 +26,6 @@ import (
 var (
 	// AC is the global object orchestrating checks' loading and running
 	AC *autodiscovery.AutoConfig
-
-	// Coll is the global collector instance
-	Coll collector.Collector
 
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server
@@ -53,9 +47,7 @@ func GetPythonPaths() []string {
 }
 
 // GetVersion returns the version of the agent in a http response json
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func GetVersion(w http.ResponseWriter, r *http.Request) {
+func GetVersion(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.Agent()
 	j, _ := json.Marshal(av)
@@ -70,22 +62,4 @@ func NewSettingsClient() (settings.Client, error) {
 	}
 	hc := util.GetClient(false)
 	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port")), "agent"), nil
-}
-
-// NewRemoteConfigService returns a new remote configuration service
-func NewRemoteConfigService(hostname string) (*remoteconfig.Service, error) {
-	apiKey := config.Datadog.GetString("api_key")
-	if config.Datadog.IsSet("remote_configuration.api_key") {
-		apiKey = config.Datadog.GetString("remote_configuration.api_key")
-	}
-	apiKey = configUtils.SanitizeAPIKey(apiKey)
-	baseRawURL := configUtils.GetMainEndpoint(config.Datadog, "https://config.", "remote_configuration.rc_dd_url")
-	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(config.Datadog)
-
-	configService, err := remoteconfig.NewService(config.Datadog, apiKey, baseRawURL, hostname, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
-	}
-
-	return configService, nil
 }

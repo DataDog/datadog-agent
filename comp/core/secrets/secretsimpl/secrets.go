@@ -12,12 +12,16 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"go.uber.org/fx"
+	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -46,11 +50,22 @@ func Module() fxutil.Module {
 		fx.Provide(newSecretResolverProvider))
 }
 
+type secretContext struct {
+	// origin is the configuration name where a handle was found
+	origin string
+	// path is the key associated with the secret in the YAML configuration,
+	// represented as a list of field names
+	// Example: in this yaml: '{"service": {"token": "ENC[my_token]"}}', ['service', 'token'] is the path and 'my_token' is the handle.
+	path []string
+}
+
 type handleToContext map[string][]secretContext
 
 type secretResolver struct {
 	enabled bool
+	lock    sync.Mutex
 	cache   map[string]string
+
 	// list of handles and where they were found
 	origin handleToContext
 
@@ -61,6 +76,11 @@ type secretResolver struct {
 	removeTrailingLinebreak bool
 	// responseMaxSize defines max size of the JSON output from a secrets reader backend
 	responseMaxSize int
+	// refresh secrets at a regular interval
+	refreshInterval time.Duration
+	ticker          *time.Ticker
+	// subscriptions want to be notified about changes to the secrets
+	subscriptions []secrets.SecretChangeCallback
 
 	// can be overridden for testing purposes
 	commandHookFunc func(string) ([]byte, error)
@@ -69,17 +89,6 @@ type secretResolver struct {
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
-
-//go:embed info.tmpl
-var secretInfoTmpl string
-
-type secretContext struct {
-	// origin is the configuration name where a handle was found
-	origin string
-	// yamlPath is the key associated to the secret in the YAML configuration.
-	// Example: in this yaml: '{"token": "ENC[token 1]"}', 'token' is the yamlPath and 'token 1' is the handle.
-	yamlPath string
-}
 
 // TODO: (components) Hack to maintain a singleton reference to the secrets Component
 //
@@ -138,17 +147,21 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func (r *secretResolver) registerSecretOrigin(handle string, origin string, yamlPath []string) {
-	path := strings.Join(yamlPath, "/")
+func (r *secretResolver) registerSecretOrigin(handle string, origin string, path []string) {
 	for _, info := range r.origin[handle] {
-		if info.origin == origin && info.yamlPath == path {
+		if info.origin == origin && slices.Equal(info.path, path) {
 			// The secret was used twice in the same configuration under the same key: nothing to do
 			return
 		}
 	}
 
-	if len(yamlPath) != 0 {
-		lastElem := yamlPath[len(yamlPath)-1:]
+	if len(path) != 0 {
+		lastElem := path[len(path)-1:]
+		// work around a bug in the scrubber: if the last element looks like an
+		// index into a slice, remove it and use the element before
+		if _, err := strconv.Atoi(lastElem[0]); err == nil && len(path) >= 2 {
+			lastElem = path[len(path)-2 : len(path)-1]
+		}
 		if r.scrubHookFunc != nil {
 			// hook used only for tests
 			r.scrubHookFunc(lastElem)
@@ -157,16 +170,20 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, yaml
 		}
 	}
 
+	// clone the path to take ownership of it, otherwise callers may
+	// modify the original object and corrupt data in the origin map
+	path = slices.Clone(path)
+
 	r.origin[handle] = append(
 		r.origin[handle],
 		secretContext{
-			origin:   origin,
-			yamlPath: path,
+			origin: origin,
+			path:   path,
 		})
 }
 
 // Configure initializes the executable command and other options of the secrets component
-func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize int, groupExecPerm, removeLinebreak bool) {
+func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize, refreshInterval int, groupExecPerm, removeLinebreak bool) {
 	if !r.enabled {
 		return
 	}
@@ -180,6 +197,7 @@ func (r *secretResolver) Configure(command string, arguments []string, timeout, 
 	if r.responseMaxSize == 0 {
 		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
 	}
+	r.refreshInterval = time.Duration(refreshInterval) * time.Second
 	r.commandAllowGroupExec = groupExecPerm
 	r.removeTrailingLinebreak = removeLinebreak
 	if r.commandAllowGroupExec {
@@ -196,20 +214,36 @@ func isEnc(str string) (bool, string) {
 	return false, ""
 }
 
-// Resolve replaces all encrypted secrets in data by executing "secret_backend_command" once if all secrets aren't
+func (r *secretResolver) startRefreshRoutine() {
+	if r.ticker != nil || r.refreshInterval == 0 {
+		return
+	}
+	r.ticker = time.NewTicker(r.refreshInterval)
+	go func() {
+		for {
+			<-r.ticker.C
+			if _, err := r.Refresh(); err != nil {
+				log.Info(err)
+			}
+		}
+	}()
+}
+
+// SubscribeToChanges adds this callback to the list that get notified when secrets are resolved or refreshed
+func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	r.startRefreshRoutine()
+	r.subscriptions = append(r.subscriptions, cb)
+}
+
+// Resolve replaces all encoded secrets in data by executing "secret_backend_command" once if all secrets aren't
 // present in the cache.
 func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
-	return r.resolve(data, origin, nil)
-}
+	r.lock.Lock()
+	defer r.lock.Unlock()
 
-// ResolveWithCallback resolves the secrets in the given yaml data calling the callback with the YAML path of
-// the secret handle and its value
-func (r *secretResolver) ResolveWithCallback(data []byte, origin string, cb secrets.ResolveCallback) error {
-	_, err := r.resolve(data, origin, cb)
-	return err
-}
-
-func (r *secretResolver) resolve(data []byte, origin string, notifyCb secrets.ResolveCallback) ([]byte, error) {
 	if !r.enabled {
 		log.Infof("Agent secrets is disabled by caller")
 		return nil, nil
@@ -226,25 +260,32 @@ func (r *secretResolver) resolve(data []byte, origin string, notifyCb secrets.Re
 
 	// First we collect all new handles in the config
 	newHandles := []string{}
-	haveSecret := false
+	foundSecrets := map[string]struct{}{}
 
 	w := &walker{
-		resolver: func(yamlPath []string, value string) (string, error) {
+		resolver: func(path []string, value string) (string, error) {
 			if ok, handle := isEnc(value); ok {
-				haveSecret = true
 				// Check if we already know this secret
-				if secret, ok := r.cache[handle]; ok {
+				if secretValue, ok := r.cache[handle]; ok {
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
 					// keep track of place where a handle was found
-					r.registerSecretOrigin(handle, origin, yamlPath)
-					return secret, nil
+					r.registerSecretOrigin(handle, origin, path)
+					// notify subscriptions
+					for _, sub := range r.subscriptions {
+						sub(handle, origin, path, secretValue, secretValue)
+					}
+					foundSecrets[handle] = struct{}{}
+					return secretValue, nil
 				}
-				newHandles = append(newHandles, handle)
+				// only add handle to newHandles list if it wasn't seen yet
+				if _, ok := foundSecrets[handle]; !ok {
+					newHandles = append(newHandles, handle)
+				}
+				foundSecrets[handle] = struct{}{}
 				return value, nil
 			}
 			return value, nil
 		},
-		notifier: notifyCb,
 	}
 
 	if err := w.walk(&config); err != nil {
@@ -252,31 +293,31 @@ func (r *secretResolver) resolve(data []byte, origin string, notifyCb secrets.Re
 	}
 
 	// the configuration does not contain any secrets
-	if !haveSecret {
+	if len(foundSecrets) == 0 {
 		return data, nil
 	}
 
 	// check if any new secrets need to be fetch
 	if len(newHandles) != 0 {
-		var secrets map[string]string
+		var secretResponse map[string]string
 		var err error
 		if r.fetchHookFunc != nil {
 			// hook used only for tests
-			secrets, err = r.fetchHookFunc(newHandles)
+			secretResponse, err = r.fetchHookFunc(newHandles)
 		} else {
-			secrets, err = r.fetchSecret(newHandles)
+			secretResponse, err = r.fetchSecret(newHandles)
 		}
 		if err != nil {
 			return nil, err
 		}
 
-		w.resolver = func(yamlPath []string, value string) (string, error) {
+		w.resolver = func(path []string, value string) (string, error) {
 			if ok, handle := isEnc(value); ok {
-				if secret, ok := secrets[handle]; ok {
+				if secretValue, ok := secretResponse[handle]; ok {
 					log.Debugf("Secret '%s' was successfully resolved", handle)
 					// keep track of place where a handle was found
-					r.registerSecretOrigin(handle, origin, yamlPath)
-					return secret, nil
+					r.registerSecretOrigin(handle, origin, path)
+					return secretValue, nil
 				}
 
 				// This should never happen since fetchSecret will return an error if not every handle have
@@ -290,6 +331,9 @@ func (r *secretResolver) resolve(data []byte, origin string, notifyCb secrets.Re
 		if err := w.walk(&config); err != nil {
 			return nil, err
 		}
+
+		// for Resolving secrets, always send notifications
+		r.processSecretResponse(secretResponse, false)
 	}
 
 	finalConfig, err := yaml.Marshal(config)
@@ -299,6 +343,98 @@ func (r *secretResolver) resolve(data []byte, origin string, notifyCb secrets.Re
 	return finalConfig, nil
 }
 
+// allowlistHandles restricts what config settings may be updated
+// tests can override this to exercise functionality: by setting this to nil, allow all handles
+// NOTE: Related feature to `authorizedConfigPathsCore` in `comp/api/api/apiimpl/internal/config/endpoint.go`
+var allowlistHandles = map[string]struct{}{"api_key": {}}
+
+func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool) secretRefreshInfo {
+	var handleInfoList []handleInfo
+
+	// notify subscriptions about the changes to secrets
+	for handle, secretValue := range secretResponse {
+		// if allowlist is enabled and the handle is not contained in it, skip it
+		if useAllowlist && allowlistHandles != nil {
+			if _, ok := allowlistHandles[handle]; !ok {
+				continue
+			}
+		}
+		oldValue := r.cache[handle]
+		// if value hasn't changed, don't send notifications
+		if oldValue == secretValue {
+			continue
+		}
+		places := make([]handlePlace, 0, len(r.origin[handle]))
+		for _, secretCtx := range r.origin[handle] {
+			for _, sub := range r.subscriptions {
+				sub(handle, secretCtx.origin, secretCtx.path, oldValue, secretValue)
+				places = append(places, handlePlace{Context: secretCtx.origin, Path: strings.Join(secretCtx.path, "/")})
+			}
+		}
+		handleInfoList = append(handleInfoList, handleInfo{Name: handle, Places: places})
+	}
+	// add results to the cache
+	for handle, secretValue := range secretResponse {
+		r.cache[handle] = secretValue
+	}
+	// return info about the handles sorted by their name
+	sort.Slice(handleInfoList, func(i, j int) bool {
+		return handleInfoList[i].Name < handleInfoList[j].Name
+	})
+	return secretRefreshInfo{Handles: handleInfoList}
+}
+
+// Refresh the secrets after they have been Resolved by fetching them from the backend again
+func (r *secretResolver) Refresh() (string, error) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	// get handles from the cache that match the allowlist
+	newHandles := maps.Keys(r.cache)
+	if allowlistHandles != nil {
+		filteredHandles := make([]string, 0, len(newHandles))
+		for _, handle := range newHandles {
+			if _, ok := allowlistHandles[handle]; ok {
+				filteredHandles = append(filteredHandles, handle)
+			}
+		}
+		newHandles = filteredHandles
+	}
+	if len(newHandles) == 0 {
+		return "", nil
+	}
+
+	log.Infof("Refreshing secrets for %d handles", len(newHandles))
+
+	var secretResponse map[string]string
+	var err error
+	if r.fetchHookFunc != nil {
+		// hook used only for tests
+		secretResponse, err = r.fetchHookFunc(newHandles)
+	} else {
+		secretResponse, err = r.fetchSecret(newHandles)
+	}
+	if err != nil {
+		return "", err
+	}
+
+	// when Refreshing secrets, only update what the allowlist allows by passing `true`
+	refreshResult := r.processSecretResponse(secretResponse, true)
+
+	// render a report
+	t := template.New("secret_refresh")
+	t, err = t.Parse(secretRefreshTmpl)
+	if err != nil {
+		return "", err
+	}
+	b := new(strings.Builder)
+	err = t.Execute(b, refreshResult)
+	if err != nil {
+		return "", err
+	}
+	return b.String(), nil
+}
+
 type secretInfo struct {
 	Executable                   string
 	ExecutablePermissions        string
@@ -306,6 +442,26 @@ type secretInfo struct {
 	ExecutablePermissionsError   string
 	Handles                      map[string][][]string
 }
+
+type secretRefreshInfo struct {
+	Handles []handleInfo
+}
+
+type handleInfo struct {
+	Name   string
+	Places []handlePlace
+}
+
+type handlePlace struct {
+	Context string
+	Path    string
+}
+
+//go:embed info.tmpl
+var secretInfoTmpl string
+
+//go:embed refresh.tmpl
+var secretRefreshTmpl string
 
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
 func (r *secretResolver) GetDebugInfo(w io.Writer) {
@@ -360,7 +516,7 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 		contexts := r.origin[handle]
 		details := [][]string{}
 		for _, context := range contexts {
-			details = append(details, []string{context.origin, context.yamlPath})
+			details = append(details, []string{context.origin, strings.Join(context.path, "/")})
 		}
 		info.Handles[handle] = details
 	}

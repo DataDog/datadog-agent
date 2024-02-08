@@ -25,7 +25,7 @@ type dummyCollector struct {
 	err             error
 }
 
-func (d *dummyCollector) constructor(priority uint8, runtimes ...Runtime) (CollectorMetadata, error) {
+func (d *dummyCollector) constructor(priority uint8, runtimes ...RuntimeMetadata) (CollectorMetadata, error) {
 	metadata := CollectorMetadata{
 		ID:         d.id,
 		Collectors: make(CollectorCatalog),

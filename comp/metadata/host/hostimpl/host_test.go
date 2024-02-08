@@ -6,6 +6,8 @@
 package hostimpl
 
 import (
+	"bytes"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
@@ -84,4 +87,72 @@ func TestNewHostProviderInvalidCustomInterval(t *testing.T) {
 	)
 
 	assert.Equal(t, defaultCollectInterval, ret.Comp.(*host).collectInterval)
+}
+
+func TestFlareProvider(t *testing.T) {
+	ret := newHostProvider(
+		fxutil.Test[dependencies](
+			t,
+			logimpl.MockModule(),
+			config.MockModule(),
+			resourcesimpl.MockModule(),
+			fx.Replace(resources.MockParams{Data: nil}),
+			fx.Provide(func() serializer.MetricSerializer { return nil }),
+		),
+	)
+
+	hostProvider := ret.Comp.(*host)
+	fbMock := flarehelpers.NewFlareBuilderMock(t, false)
+	hostProvider.fillFlare(fbMock.Fb)
+
+	fbMock.AssertFileExists(filepath.Join("metadata", "host.json"))
+}
+
+func TestStatusHeaderProvider(t *testing.T) {
+	ret := newHostProvider(
+		fxutil.Test[dependencies](
+			t,
+			logimpl.MockModule(),
+			config.MockModule(),
+			resourcesimpl.MockModule(),
+			fx.Replace(resources.MockParams{Data: nil}),
+			fx.Provide(func() serializer.MetricSerializer { return nil }),
+		),
+	)
+
+	headerStatusProvider := ret.StatusHeaderProvider.Provider
+
+	tests := []struct {
+		name       string
+		assertFunc func(t *testing.T)
+	}{
+		{"JSON", func(t *testing.T) {
+			stats := make(map[string]interface{})
+			headerStatusProvider.JSON(false, stats)
+
+			assert.NotEmpty(t, stats)
+		}},
+		{"Text", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := headerStatusProvider.Text(false, b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+		{"HTML", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := headerStatusProvider.HTML(false, b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.assertFunc(t)
+		})
+	}
 }

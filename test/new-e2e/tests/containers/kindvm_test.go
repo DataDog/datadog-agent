@@ -7,19 +7,16 @@ package containers
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path"
+	"encoding/json"
 	"testing"
 
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/kindvm"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -41,32 +38,36 @@ func (suite *kindSuite) SetupSuite() {
 		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false, nil)
 	if !suite.Assert().NoError(err) {
 		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
 		suite.Require().NoError(err)
 		suite.T().Log(dumpKindClusterState(ctx, stackName))
 		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
-			infra.GetStackManager().DeleteStack(ctx, "kind-cluster")
+			infra.GetStackManager().DeleteStack(ctx, "kind-cluster", nil)
 		}
 		suite.T().FailNow()
 	}
 
-	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
-	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
-	suite.KubeClusterName = stackOutput.Outputs["kube-cluster-name"].Value.(string)
-	suite.AgentLinuxHelmInstallName = stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string)
-	suite.AgentWindowsHelmInstallName = "none"
+	var fakeintake components.FakeIntake
+	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-kind"].Value)
+	suite.Require().NoError(err)
+	suite.Require().NoError(fakeintake.Import(fiSerialized, &fakeintake))
+	suite.Require().NoError(fakeintake.Init(suite))
+	suite.Fakeintake = fakeintake.Client()
 
-	kubeconfig := stackOutput.Outputs["kubeconfig"].Value.(string)
-
-	kubeconfigFile := path.Join(suite.T().TempDir(), "kubeconfig")
-	suite.Require().NoError(os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600))
-
-	suite.K8sConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfigFile)
+	var kubeCluster components.KubernetesCluster
+	kubeSerialized, err := json.Marshal(stackOutput.Outputs["dd-Cluster-kind"].Value)
+	suite.Require().NoError(err)
+	suite.Require().NoError(kubeCluster.Import(kubeSerialized, &kubeCluster))
+	suite.Require().NoError(kubeCluster.Init(suite))
+	suite.KubeClusterName = kubeCluster.ClusterName
+	suite.K8sClient = kubeCluster.Client()
+	suite.K8sConfig, err = clientcmd.RESTConfigFromKubeConfig([]byte(kubeCluster.KubeConfig))
 	suite.Require().NoError(err)
 
-	suite.K8sClient = kubernetes.NewForConfigOrDie(suite.K8sConfig)
+	suite.AgentLinuxHelmInstallName = stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string)
+	suite.AgentWindowsHelmInstallName = "none"
 
 	suite.k8sSuite.SetupSuite()
 }
@@ -93,7 +94,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^component:(?:|apiserver)$`,
 				`^container_id:`,
 				`^container_name:kube-apiserver$`,
-				`^display_container_name:kube-apiserver_kube-apiserver-kind-control-plane$`,
+				`^display_container_name:kube-apiserver_kube-apiserver-.*-control-plane$`,
 				`^dry_run:$`,
 				`^group:`,
 				`^image_id:`,
@@ -103,7 +104,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^kube_namespace:kube-system$`,
 				`^kube_priority_class:system-node-critical$`,
 				`^kube_qos:Burstable$`,
-				`^pod_name:kube-apiserver-kind-control-plane$`,
+				`^pod_name:kube-apiserver-.*-control-plane$`,
 				`^pod_phase:running$`,
 				`^resource:`,
 				`^scope:(?:|cluster|namespace|resource)$`,
@@ -124,7 +125,7 @@ func (suite *kindSuite) TestControlPlane() {
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:kube-controller-manager$`,
-				`^display_container_name:kube-controller-manager_kube-controller-manager-kind-control-plane$`,
+				`^display_container_name:kube-controller-manager_kube-controller-manager-.*-control-plane$`,
 				`^image_id:`,
 				`^image_name:registry.k8s.io/kube-controller-manager$`,
 				`^image_tag:v1\.`,
@@ -132,7 +133,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^kube_namespace:kube-system$`,
 				`^kube_priority_class:system-node-critical$`,
 				`^kube_qos:Burstable$`,
-				`^pod_name:kube-controller-manager-kind-control-plane$`,
+				`^pod_name:kube-controller-manager-.*-control-plane$`,
 				`^pod_phase:running$`,
 				`^queue:`,
 				`^short_image:kube-controller-manager$`,
@@ -149,7 +150,7 @@ func (suite *kindSuite) TestControlPlane() {
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:kube-scheduler$`,
-				`^display_container_name:kube-scheduler_kube-scheduler-kind-control-plane$`,
+				`^display_container_name:kube-scheduler_kube-scheduler-.*-control-plane$`,
 				`^image_id:`,
 				`^image_name:registry.k8s.io/kube-scheduler$`,
 				`^image_tag:v1\.`,
@@ -157,7 +158,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^kube_namespace:kube-system$`,
 				`^kube_priority_class:system-node-critical$`,
 				`^kube_qos:Burstable$`,
-				`^pod_name:kube-scheduler-kind-control-plane$`,
+				`^pod_name:kube-scheduler-.*-control-plane$`,
 				`^pod_phase:running$`,
 				`^profile:default-scheduler$`,
 				`^result:(?:scheduled|unschedulable|error)$`,

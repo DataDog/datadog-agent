@@ -5,8 +5,8 @@ import subprocess
 from collections import defaultdict
 from typing import Dict
 
-from .common.gitlab import Gitlab, get_gitlab_token
-from .types import FailedJobs, Test
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.types import FailedJobs, Test
 
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
 DEFAULT_JIRA_PROJECT = "AGNTR"
@@ -16,6 +16,7 @@ GITHUB_SLACK_MAP = {
     "@datadog/agent-platform": DEFAULT_SLACK_CHANNEL,
     "@datadog/documentation": DEFAULT_SLACK_CHANNEL,
     "@datadog/container-integrations": "#container-integrations",
+    "@datadog/container-ecosystems": "#container-ecosystems",
     "@datadog/platform-integrations": "#platform-integrations-ops",
     "@datadog/agent-security": "#security-and-compliance-agent-ops",
     "@datadog/agent-apm": "#apm-agent",
@@ -27,6 +28,7 @@ GITHUB_SLACK_MAP = {
     "@datadog/metrics-aggregation": "#metrics-aggregation",
     "@datadog/serverless": "#serverless-agent",
     "@datadog/remote-config": "#remote-config-monitoring",
+    "@datadog/fleet": "#fleet-automation",
     "@datadog/agent-all": "#datadog-agent-pipelines",
     "@datadog/ebpf-platform": "#ebpf-platform-ops",
     "@datadog/networks": "#network-performance-monitoring",
@@ -49,6 +51,7 @@ GITHUB_JIRA_MAP = {
     "@datadog/agent-platform": "APL",
     "@datadog/documentation": "DOCS",
     "@datadog/container-integrations": "CONTINT",
+    "@datadog/container-ecosystems": "CECO",
     "@datadog/platform-integrations": "PLINT",
     "@datadog/agent-security": "SEC",
     "@datadog/agent-apm": "AIT",
@@ -60,6 +63,7 @@ GITHUB_JIRA_MAP = {
     "@datadog/metrics-aggregation": "AGGR",
     "@datadog/serverless": "SVLS",
     "@datadog/remote-config": "RC",
+    "@datadog/fleet": "RC",
     "@datadog/agent-all": DEFAULT_JIRA_PROJECT,
     "@datadog/ebpf-platform": "EBPF",
     "@datadog/networks": "NPM",

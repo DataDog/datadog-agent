@@ -50,7 +50,7 @@ func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 
 // Releasable represents an object than can be released
 type Releasable struct {
-	onReleaseCallback func() `field:"-" json:"-"`
+	onReleaseCallback func() `field:"-"`
 }
 
 // CallReleaseCallback calls the on-release callback
@@ -85,49 +85,9 @@ type ContainerContext struct {
 	Resolved  bool     `field:"-"`
 }
 
-// Status defines the possible status of a profile as a bitmask
-type Status uint32
-
-const (
-	// AnomalyDetection will trigger alerts each time an event is not part of the profile
-	AnomalyDetection Status = 1 << iota
-	// AutoSuppression will suppress any signal to events present on the profile
-	AutoSuppression
-	// WorkloadHardening will kill the process that triggered anomaly detection
-	WorkloadHardening
-)
-
-// IsEnabled returns true if enabled
-func (s Status) IsEnabled(option Status) bool {
-	return (s & option) != 0
-}
-
-func (s Status) String() string {
-	var options []string
-	if s.IsEnabled(AnomalyDetection) {
-		options = append(options, "anomaly_detection")
-	}
-	if s.IsEnabled(AutoSuppression) {
-		options = append(options, "auto_suppression")
-	}
-	if s.IsEnabled(WorkloadHardening) {
-		options = append(options, "workload_hardening")
-	}
-
-	var res string
-	for _, option := range options {
-		if len(res) > 0 {
-			res += ","
-		}
-		res += option
-	}
-	return res
-}
-
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
 	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
-	Status                     Status      `field:"status"`                        // SECLDoc[status] Definition:`Status of the security profile`
 	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
 	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
 	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
@@ -157,19 +117,21 @@ type NetworkContext struct {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64 `field:"_" json:"-"`
-	TraceID uint64 `field:"_" json:"-"`
+	SpanID  uint64 `field:"_"`
+	TraceID uint64 `field:"_"`
 }
 
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
-	ID           string         `field:"-" event:"*"`
-	Type         uint32         `field:"-"`
-	Flags        uint32         `field:"-"`
-	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp    time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
-	Rules        []*MatchedRule `field:"-"`
-	Origin       string         `field:"-"`
+	ID           string             `field:"-" event:"*"`
+	Type         uint32             `field:"-"`
+	Flags        uint32             `field:"-"`
+	TimestampRaw uint64             `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp    time.Time          `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
+	Rules        []*MatchedRule     `field:"-"`
+	Actions      []*ActionTriggered `field:"-"`
+	Origin       string             `field:"-"`
+	Suppressed   bool               `field:"-"`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -177,14 +139,14 @@ type BaseEvent struct {
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
-	PIDContext        PIDContext         `field:"-" json:"-"`
-	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
+	PIDContext        PIDContext         `field:"-"`
+	ProcessCacheEntry *ProcessCacheEntry `field:"-"`
 
 	// mark event with having error
-	Error error `field:"-" json:"-"`
+	Error error `field:"-"`
 
 	// field resolution
-	FieldHandlers FieldHandlers `field:"-" json:"-"`
+	FieldHandlers FieldHandlers `field:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -260,10 +222,6 @@ func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
 
 // IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
 func (e *Event) IsAnomalyDetectionEvent() bool {
-	if !e.SecurityProfileContext.Status.IsEnabled(AnomalyDetection) {
-		return false
-	}
-
 	// first, check if the current event is a kernel generated anomaly detection event
 	if e.IsKernelSpaceAnomalyDetectionEvent() {
 		return true
@@ -307,6 +265,11 @@ func (e *Event) GetTags() []string {
 	return tags
 }
 
+// GetActions returns the triggred actions
+func (e *Event) GetActions() []*ActionTriggered {
+	return e.Actions
+}
+
 // GetWorkloadID returns an ID that represents the workload
 func (e *Event) GetWorkloadID() string {
 	return e.SecurityProfileContext.Name
@@ -345,9 +308,9 @@ func (e *Event) GetProcessService() string {
 // UserSessionContext describes the user session context
 // Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {
-	ID          uint64           `field:"-" json:"-"`
-	SessionType usersession.Type `field:"-" json:"-"`
-	Resolved    bool             `field:"-" json:"-"`
+	ID          uint64           `field:"-"`
+	SessionType usersession.Type `field:"-"`
+	Resolved    bool             `field:"-"`
 	// Kubernetes User Session context
 	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
 	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
@@ -362,6 +325,12 @@ type MatchedRule struct {
 	RuleTags      map[string]string
 	PolicyName    string
 	PolicyVersion string
+}
+
+// ActionTriggered defines a triggered action
+type ActionTriggered struct {
+	Name  string
+	Value string
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -426,6 +395,8 @@ const (
 	EventTypeNotConfigured
 	// HashWasRateLimited means that the hash will be tried again later, it was rate limited
 	HashWasRateLimited
+	// HashFailed means that the hashing failed
+	HashFailed
 	// MaxHashState is used for initializations
 	MaxHashState
 )
@@ -440,6 +411,8 @@ const (
 	SHA256
 	// MD5 is used to identify a MD5 hash
 	MD5
+	// SSDEEP is used to identify a SSDEEP hash
+	SSDEEP
 	// MaxHashAlgorithm is used for initializations
 	MaxHashAlgorithm
 )
@@ -452,6 +425,8 @@ func (ha HashAlgorithm) String() string {
 		return "sha256"
 	case MD5:
 		return "md5"
+	case SSDEEP:
+		return "ssdeep"
 	default:
 		return ""
 	}
@@ -463,9 +438,9 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                     `field:"-" json:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
-	releaseCb func()                     `field:"-" json:"-"`
+	refCount  uint64                     `field:"-"`
+	onRelease func(_ *ProcessCacheEntry) `field:"-"`
+	releaseCb func()                     `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -564,12 +539,12 @@ type ExitEvent struct {
 
 // DNSEvent represents a DNS event
 type DNSEvent struct {
-	ID    uint16 `field:"id" json:"-"`                                             // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
-	Name  string `field:"question.name,opts:length" op_override:"eval.DNSNameCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
-	Type  uint16 `field:"question.type"`                                           // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"question.class"`                                          // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"question.length"`                                         // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"question.count"`                                          // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
+	ID    uint16 `field:"id"`                                                              // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	Name  string `field:"question.name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
+	Type  uint16 `field:"question.type"`                                                   // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"question.class"`                                                  // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"question.length"`                                                 // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"question.count"`                                                  // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
 }
 
 // BaseExtraFieldHandlers handlers not hold by any field

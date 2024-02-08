@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
@@ -94,6 +95,8 @@ func (fc *FakeEventConsumer) Copy(incomingEvent *model.Event) any {
 }
 
 func TestEventMonitor(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	var fc *FakeEventConsumer
 	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
 		disableRuntimeSecurity: true,
@@ -123,7 +126,7 @@ func TestEventMonitor(t *testing.T) {
 			}
 
 			return errors.New("event not received")
-		}, retry.Delay(200), retry.Attempts(10))
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
 		assert.Nil(t, err)
 	})
 
@@ -141,7 +144,7 @@ func TestEventMonitor(t *testing.T) {
 			}
 
 			return errors.New("event not received")
-		}, retry.Delay(200), retry.Attempts(10))
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
 		assert.Nil(t, err)
 	})
 }

@@ -13,7 +13,6 @@ import (
 	"net"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
@@ -126,6 +126,7 @@ func (o offsetT) String() string {
 }
 
 func TestOffsetGuess(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", testOffsetGuess)
 }
 
@@ -156,6 +157,7 @@ func testOffsetGuess(t *testing.T) {
 	consts := map[offsetT]uint64{}
 	for _, c := range _consts {
 		value := c.Value.(uint64)
+		t.Logf("Guessed offset %v with value %v", c.Name, value)
 		switch c.Name {
 		case "offset_saddr":
 			consts[offsetSaddr] = value
@@ -271,7 +273,7 @@ func testOffsetGuess(t *testing.T) {
 	_, err = unix.GetsockoptByte(int(f.Fd()), unix.IPPROTO_TCP, unix.TCP_INFO)
 	require.NoError(t, err)
 
-	mp, _, err := mgr.GetMap("offsets")
+	mp, err := maps.GetMap[offsetT, uint64](mgr, "offsets")
 	require.NoError(t, err)
 
 	kv, err := kernel.HostVersion()
@@ -294,8 +296,9 @@ func testOffsetGuess(t *testing.T) {
 		var offset uint64
 		//nolint:revive // TODO(NET) Fix revive linter
 		var name offsetT = o
-		require.NoError(t, mp.Lookup(unsafe.Pointer(&name), unsafe.Pointer(&offset)))
+		require.NoError(t, mp.Lookup(&name, &offset))
 		assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
+		t.Logf("offset %s expected: %d guessed: %d", o, offset, consts[o])
 	}
 }
 

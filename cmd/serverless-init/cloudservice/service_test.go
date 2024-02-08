@@ -6,6 +6,7 @@
 package cloudservice
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,4 +20,9 @@ func TestGetCloudServiceType(t *testing.T) {
 
 	t.Setenv(serviceNameEnvVar, "test-name")
 	assert.Equal(t, "cloudrun", GetCloudServiceType().GetOrigin())
+
+	os.Unsetenv(ContainerAppNameEnvVar)
+	os.Unsetenv(serviceNameEnvVar)
+	t.Setenv(RunZip, "false")
+	assert.Equal(t, "appservice", GetCloudServiceType().GetOrigin())
 }

@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/gopsutil/cpu"
+	"github.com/shirou/gopsutil/v3/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -120,7 +120,7 @@ func TestBasicProcessMessages(t *testing.T) {
 				disallowList = append(disallowList, regexp.MustCompile(s))
 			}
 
-			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, nil)
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, nil, false)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, procs, tc.containers, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
@@ -231,7 +231,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			sysInfo := &model.SystemInfo{}
 			hostInfo := &HostInfo{SystemInfo: sysInfo}
 
-			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, nil)
+			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, nil, false)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, processes, ctrs, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)

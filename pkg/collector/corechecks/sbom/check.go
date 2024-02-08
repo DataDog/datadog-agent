@@ -11,7 +11,7 @@ import (
 	"errors"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -19,17 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	checkName    = "sbom"
+	// CheckName is the name of the check
+	CheckName    = "sbom"
 	metricPeriod = 15 * time.Minute
 )
-
-func init() {
-	core.RegisterCheck(checkName, CheckFactory)
-}
 
 // Config holds the container_image check configuration
 type Config struct {
@@ -113,15 +112,16 @@ type Check struct {
 	stopCh            chan struct{}
 }
 
-// CheckFactory registers the sbom check
-func CheckFactory() check.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
-		// TODO)components): stop using global and rely instead on injected workloadmeta component.
-		workloadmetaStore: workloadmeta.GetGlobalStore(),
-		instance:          &Config{},
-		stopCh:            make(chan struct{}),
-	}
+// Factory returns a new check factory
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &Check{
+			CheckBase:         core.NewCheckBase(CheckName),
+			workloadmetaStore: store,
+			instance:          &Config{},
+			stopCh:            make(chan struct{}),
+		}
+	})
 }
 
 // Configure parses the check configuration and initializes the sbom check
@@ -174,13 +174,17 @@ func (c *Check) Run() error {
 	}
 
 	imgEventsCh := c.workloadmetaStore.Subscribe(
-		checkName,
+		CheckName,
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(&filterParams),
 	)
 
-	// Trigger an initial scan on host
-	c.processor.processHostRefresh()
+	// Trigger an initial scan on host. This channel is buffered to avoid blocking the scanner
+	// if the processor is not ready to receive the result yet. This channel should not be closed,
+	// it is sent as part of every scan request. When the main context terminates, both references will
+	// be dropped and the scanner will be garbage collected.
+	hostSbomChan := make(chan sbom.ScanResult, 1)
+	c.processor.triggerHostScan(hostSbomChan)
 
 	c.sendUsageMetrics()
 
@@ -193,18 +197,23 @@ func (c *Check) Run() error {
 	metricTicker := time.NewTicker(metricPeriod)
 	defer metricTicker.Stop()
 
+	defer c.processor.stop()
 	for {
 		select {
-		case eventBundle := <-imgEventsCh:
+		case eventBundle, ok := <-imgEventsCh:
+			if !ok {
+				return nil
+			}
 			c.processor.processContainerImagesEvents(eventBundle)
 		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 		case <-hostPeriodicRefreshTicker.C:
-			c.processor.processHostRefresh()
+			c.processor.triggerHostScan(hostSbomChan)
+		case scanResult := <-hostSbomChan:
+			c.processor.processHostScanResult(scanResult)
 		case <-metricTicker.C:
 			c.sendUsageMetrics()
 		case <-c.stopCh:
-			c.processor.stop()
 			return nil
 		}
 	}

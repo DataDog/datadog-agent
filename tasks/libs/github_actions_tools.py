@@ -9,9 +9,9 @@ from time import sleep
 
 from invoke.exceptions import Exit
 
-from ..utils import DEFAULT_BRANCH
-from .common.color import color_message
-from .common.github_api import GithubAPI
+from tasks.libs.common.color import color_message
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.utils import DEFAULT_BRANCH
 
 
 def trigger_macos_workflow(
@@ -107,9 +107,10 @@ def follow_workflow_run(run):
         try:
             github = GithubAPI('DataDog/datadog-agent-macos-build')
             run = github.workflow_run(run.id)
-        except GithubException:
+        except GithubException as e:
             failures += 1
             print(f"Workflow run not found, retrying in 15 seconds (failure {failures}/{MAX_FAILURES})")
+            print("Error: ", e)
             if failures == MAX_FAILURES:
                 raise Exit(code=1)
             sleep(15)

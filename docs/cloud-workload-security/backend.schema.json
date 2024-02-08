@@ -209,6 +209,10 @@
         "origin": {
           "type": "string",
           "description": "Origin of the event"
+        },
+        "suppressed": {
+          "type": "boolean",
+          "description": "True if the event has been suppressed"
         }
       },
       "additionalProperties": false,
@@ -1182,10 +1186,6 @@
           "type": "string",
           "description": "Name of the security profile"
         },
-        "status": {
-          "type": "string",
-          "description": "Status defines in which state the security profile was when the event was triggered"
-        },
         "version": {
           "type": "string",
           "description": "Version of the profile in use"
@@ -1202,7 +1202,6 @@
       "type": "object",
       "required": [
         "name",
-        "status",
         "version",
         "tags"
       ],

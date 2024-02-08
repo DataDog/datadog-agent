@@ -23,8 +23,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -45,11 +46,11 @@ var (
 )
 
 // Adds the specific handlers for /checks/ endpoints
-func checkHandler(r *mux.Router) {
+func checkHandler(r *mux.Router, collector collector.Component) {
 	r.HandleFunc("/running", http.HandlerFunc(sendRunningChecks)).Methods("POST")
-	r.HandleFunc("/run/{name}", http.HandlerFunc(runCheck)).Methods("POST")
+	r.HandleFunc("/run/{name}", http.HandlerFunc(runCheckHandler(collector))).Methods("POST")
 	r.HandleFunc("/run/{name}/once", http.HandlerFunc(runCheckOnce)).Methods("POST")
-	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheck)).Methods("POST")
+	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheckHandler(collector))).Methods("POST")
 	r.HandleFunc("/getConfig/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/getConfig/{checkFolder}/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
@@ -61,9 +62,7 @@ func checkHandler(r *mux.Router) {
 }
 
 // Sends a list of all the current running checks
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func sendRunningChecks(w http.ResponseWriter, r *http.Request) {
+func sendRunningChecks(w http.ResponseWriter, _ *http.Request) {
 	html, e := renderRunningChecks()
 	if e != nil {
 		w.Write([]byte("Error generating status html: " + e.Error()))
@@ -75,17 +74,17 @@ func sendRunningChecks(w http.ResponseWriter, r *http.Request) {
 }
 
 // Schedules a specific check
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func runCheck(w http.ResponseWriter, r *http.Request) {
-	// Fetch the desired check
-	name := mux.Vars(r)["name"]
-	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
+func runCheckHandler(collector collector.Component) func(_ http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Fetch the desired check
+		name := mux.Vars(r)["name"]
+		instances := pkgcollector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
 
-	for _, ch := range instances {
-		common.Coll.RunCheck(ch) //nolint:errcheck
+		for _, ch := range instances {
+			collector.RunCheck(ch) //nolint:errcheck
+		}
+		log.Infof("Scheduled new check: " + name)
 	}
-	log.Infof("Scheduled new check: " + name)
 }
 
 // Runs a specified check once
@@ -93,7 +92,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 	response := make(map[string]string)
 	// Fetch the desired check
 	name := mux.Vars(r)["name"]
-	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
+	instances := pkgcollector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
 	if len(instances) == 0 {
 		html, e := renderError(name)
 		if e != nil {
@@ -144,24 +143,26 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 }
 
 // Reloads a running check
-func reloadCheck(w http.ResponseWriter, r *http.Request) {
-	name := html.EscapeString(mux.Vars(r)["name"])
-	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
-	if len(instances) == 0 {
-		log.Errorf("Can't reload " + name + ": check has no new instances.")
-		w.Write([]byte("Can't reload " + name + ": check has no new instances"))
-		return
-	}
+func reloadCheckHandler(collector collector.Component) func(_ http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := html.EscapeString(mux.Vars(r)["name"])
+		instances := pkgcollector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
+		if len(instances) == 0 {
+			log.Errorf("Can't reload " + name + ": check has no new instances.")
+			w.Write([]byte("Can't reload " + name + ": check has no new instances"))
+			return
+		}
 
-	killed, e := common.Coll.ReloadAllCheckInstances(name, instances)
-	if e != nil {
-		log.Errorf("Error reloading check: " + e.Error())
-		w.Write([]byte("Error reloading check: " + e.Error()))
-		return
-	}
+		killed, e := collector.ReloadAllCheckInstances(name, instances)
+		if e != nil {
+			log.Errorf("Error reloading check: " + e.Error())
+			w.Write([]byte("Error reloading check: " + e.Error()))
+			return
+		}
 
-	log.Infof("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
-	fmt.Fprintf(w, "Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
+		log.Infof("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
+		fmt.Fprintf(w, "Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
+	}
 }
 
 func getPathComponentFromRequest(vars map[string]string, name string, allowEmpty bool) (string, error) {
@@ -342,9 +343,7 @@ func getWheelsChecks() ([]string, error) {
 }
 
 // Sends a list containing the names of all the checks
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func listChecks(w http.ResponseWriter, r *http.Request) {
+func listChecks(w http.ResponseWriter, _ *http.Request) {
 	integrations := []string{}
 	for _, path := range checkPaths {
 		files, err := os.ReadDir(path)
@@ -423,9 +422,7 @@ func getConfigsInPath(path string) ([]string, error) {
 }
 
 // Sends a list containing the names of all the config files
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func listConfigs(w http.ResponseWriter, r *http.Request) {
+func listConfigs(w http.ResponseWriter, _ *http.Request) {
 	filenames := []string{}
 	for _, path := range configPaths {
 

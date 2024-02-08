@@ -447,8 +447,6 @@ type MountEventSerializer struct {
 type SecurityProfileContextSerializer struct {
 	// Name of the security profile
 	Name string `json:"name"`
-	// Status defines in which state the security profile was when the event was triggered
-	Status string `json:"status"`
 	// Version of the profile in use
 	Version string `json:"version"`
 	// List of tags associated to this profile
@@ -921,7 +919,6 @@ func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *Secur
 	return &SecurityProfileContextSerializer{
 		Name:    e.Name,
 		Version: e.Version,
-		Status:  e.Status.String(),
 		Tags:    tags,
 	}
 }
@@ -1024,6 +1021,12 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rmdir.Retval)
+
+	case model.FileChdirEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.Chdir.File, event),
+		}
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Mkdir.Retval)
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),

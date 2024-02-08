@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"runtime"
 	"sync"
 	"syscall"
@@ -194,7 +195,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.DNS = t.reverseDNS.Resolve(ips)
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
 	conns.HTTP = delta.HTTP
-	conns.DNSStats = delta.DNSStats
 	return conns, nil
 }
 
@@ -239,8 +239,8 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // DebugEBPFMaps is not implemented on this OS for Tracer
 //
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
-	return "", ebpf.ErrNotImplemented
+func (t *Tracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
+	return ebpf.ErrNotImplemented
 }
 
 // DebugCachedConntrack is not implemented on this OS for Tracer

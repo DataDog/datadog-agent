@@ -8,10 +8,12 @@
 package python
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"time"
 	"unsafe"
@@ -79,14 +81,14 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 		class:         class,
 		interval:      defaults.DefaultCheckInterval,
 		lastWarnings:  []error{},
-		telemetry:     utils.IsCheckTelemetryEnabled(name),
+		telemetry:     utils.IsCheckTelemetryEnabled(name, config.Datadog),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
 	return pyCheck, nil
 }
 
-func (c *PythonCheck) runCheck(commitMetrics bool) error {
+func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	// Lock the GIL and release it at the end of the run
 	gstate, err := newStickyLock()
 	if err != nil {
@@ -121,6 +123,16 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 		return nil
 	}
 	return errors.New(checkErrStr)
+}
+
+func (c *PythonCheck) runCheck(commitMetrics bool) error {
+	ctx := context.Background()
+	var err error
+	idStr := string(c.id)
+	pprof.Do(ctx, pprof.Labels("check_id", idStr), func(ctx context.Context) {
+		err = c.runCheckImpl(commitMetrics)
+	})
+	return err
 }
 
 // Run a Python check
@@ -327,9 +339,8 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 	} else {
 		s.FinalizeCheckServiceTag()
+		s.SetNoIndex(commonOptions.NoIndex)
 	}
-
-	s.SetNoIndex(commonOptions.NoIndex)
 
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)

@@ -17,13 +17,13 @@ import (
 // see both directions of traffic
 type incompleteBuffer struct{}
 
-//nolint:revive // TODO(WKIT) Fix revive linter
-func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuffer {
+// NewIncompleteBuffer returns a new incompleteBuffer instance
+func NewIncompleteBuffer(*config.Config, *Telemetry) IncompleteBuffer {
 	return &incompleteBuffer{}
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (b *incompleteBuffer) Add(tx Transaction) {}
+func (b *incompleteBuffer) Add(Transaction) {}
 
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (b *incompleteBuffer) Flush(now time.Time) []Transaction { return nil }
+func (b *incompleteBuffer) Flush(time.Time) []Transaction { return nil }

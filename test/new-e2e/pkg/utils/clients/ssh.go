@@ -23,37 +23,37 @@ import (
 )
 
 // GetSSHClient returns an ssh Client for the specified host
-func GetSSHClient(user, host string, privateKey, privateKeyPassphrase []byte, retryInterval time.Duration, maxRetries uint64) (client *ssh.Client, session *ssh.Session, err error) {
+func GetSSHClient(user, host string, privateKey, privateKeyPassphrase []byte, retryInterval time.Duration, maxRetries uint64) (client *ssh.Client, err error) {
 	err = backoff.Retry(func() error {
-		client, session, err = getSSHClient(user, host, privateKey, privateKeyPassphrase)
+		client, err = getSSHClient(user, host, privateKey, privateKeyPassphrase)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(retryInterval), maxRetries))
 
 	return
 }
 
-func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*ssh.Client, *ssh.Session, error) {
+func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*ssh.Client, error) {
 	var auth ssh.AuthMethod
 
-	if privateKey != nil {
+	if len(privateKey) > 0 {
 		var privateKeyAuth ssh.Signer
 		var err error
 
-		if privateKeyPassphrase != nil {
+		if len(privateKeyPassphrase) > 0 {
 			privateKeyAuth, err = ssh.ParsePrivateKeyWithPassphrase(privateKey, privateKeyPassphrase)
 		} else {
 			privateKeyAuth, err = ssh.ParsePrivateKey(privateKey)
 		}
 
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		auth = ssh.PublicKeys(privateKeyAuth)
 	} else {
 		// Use the ssh agent
 		conn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
 		if err != nil {
-			return nil, nil, fmt.Errorf("no ssh key provided and cannot connect to the ssh agent: %v", err)
+			return nil, fmt.Errorf("no ssh key provided and cannot connect to the ssh agent: %v", err)
 		}
 		defer conn.Close()
 		sshAgent := agent.NewClient(conn)
@@ -68,16 +68,20 @@ func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*
 
 	client, err := ssh.Dial("tcp", host, sshConfig)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	session, err := client.NewSession()
 	if err != nil {
 		client.Close()
-		return nil, nil, err
+		return nil, err
+	}
+	err = session.Close()
+	if err != nil {
+		return nil, err
 	}
 
-	return client, session, nil
+	return client, nil
 }
 
 // ExecuteCommand creates a session on an ssh client and runs a command.
@@ -85,7 +89,7 @@ func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*
 func ExecuteCommand(client *ssh.Client, command string) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create session: %v", err)
 	}
 
 	stdout, err := session.CombinedOutput(command)
@@ -95,7 +99,6 @@ func ExecuteCommand(client *ssh.Client, command string) (string, error) {
 
 // CopyFile create a sftp session and copy a single file to the remote host through SSH
 func CopyFile(client *ssh.Client, src string, dst string) error {
-
 	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
 		return err
@@ -107,7 +110,6 @@ func CopyFile(client *ssh.Client, src string, dst string) error {
 
 // CopyFolder create a sftp session and copy a folder to remote host through SSH
 func CopyFolder(client *ssh.Client, srcFolder string, dstFolder string) error {
-
 	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
 		return err
@@ -117,8 +119,33 @@ func CopyFolder(client *ssh.Client, srcFolder string, dstFolder string) error {
 	return copyFolder(sftpClient, srcFolder, dstFolder)
 }
 
-func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) error {
+// GetFile create a sftp session and copy a single file from the remote host through SSH
+func GetFile(client *ssh.Client, src string, dst string) error {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return err
+	}
+	defer sftpClient.Close()
 
+	// remote
+	fsrc, err := sftpClient.Open(src)
+	if err != nil {
+		return err
+	}
+	defer fsrc.Close()
+
+	// local
+	fdst, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer fdst.Close()
+
+	_, err = fsrc.WriteTo(fdst)
+	return err
+}
+
+func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) error {
 	folderContent, err := os.ReadDir(srcFolder)
 	if err != nil {
 		return err
@@ -145,7 +172,6 @@ func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) err
 }
 
 func copyFile(sftpClient *sftp.Client, src string, dst string) error {
-
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -162,7 +188,6 @@ func copyFile(sftpClient *sftp.Client, src string, dst string) error {
 		return err
 	}
 	return nil
-
 }
 
 // FileExists create a sftp session to and returns true if the file exists and is a regular file
@@ -218,9 +243,61 @@ func WriteFile(client *ssh.Client, path string, content []byte) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer f.Close()
 
 	reader := bytes.NewReader(content)
 	return io.Copy(f, reader)
+}
+
+// AppendFile append content to the file and returns the number of bytes appened and error if any
+func AppendFile(client *ssh.Client, os, path string, content []byte) (int64, error) {
+	if os == "linux" {
+		return appendWithSudo(client, path, content)
+	}
+	return appendWithSftp(client, path, content)
+
+}
+
+// appendWithSudo appends content to the file using sudo tee for Linux environment
+func appendWithSudo(client *ssh.Client, path string, content []byte) (int64, error) {
+	cmd := fmt.Sprintf("echo '%s' | sudo tee -a %s", string(content), path)
+	session, err := client.NewSession()
+	if err != nil {
+		return 0, err
+	}
+	defer session.Close()
+
+	var b bytes.Buffer
+	session.Stdout = &b
+	if err := session.Run(cmd); err != nil {
+		return 0, err
+	}
+
+	return int64(len(content)), nil
+}
+
+// appendWithSftp appends content to the file using sftp for Windows environment
+func appendWithSftp(client *ssh.Client, path string, content []byte) (int64, error) {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return 0, err
+	}
+	defer sftpClient.Close()
+
+	// Open the file in append mode and create it if it doesn't exist
+	f, err := sftpClient.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	reader := bytes.NewReader(content)
+	written, err := io.Copy(f, reader)
+	if err != nil {
+		return 0, err
+	}
+
+	return written, nil
 }
 
 // ReadDir returns list of directory entries in path

@@ -90,7 +90,7 @@ type Agent struct {
 	// Used to synchronize on a clean exit
 	ctx context.Context
 
-	firstSpanOnce sync.Once
+	firstSpanMap sync.Map
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -131,6 +131,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
+	timing.Start(metrics.Client)
+	defer timing.Stop()
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.Concentrator,
@@ -224,20 +226,15 @@ func (a *Agent) loop() {
 func (a *Agent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
-	if a.conf.InAzureAppServices {
-		for k, v := range traceutil.GetAppServicesTags() {
-			traceutil.SetMeta(root, k, v)
-		}
-	}
 }
 
-// setFirstTraceTags sets additional tags on the first trace ever processed by the agent,
-// so that we can see that the customer has successfully onboarded onto APM.
+// setFirstTraceTags sets additional tags on the first trace for each service processed by the agent,
+// so that we can see that the service has successfully onboarded onto APM.
 func (a *Agent) setFirstTraceTags(root *pb.Span) {
-	if a.conf == nil || a.conf.InstallSignature.InstallType == "" || root == nil {
+	if a.conf == nil || a.conf.InstallSignature.InstallID == "" || root == nil {
 		return
 	}
-	a.firstSpanOnce.Do(func() {
+	if _, alreadySeenService := a.firstSpanMap.LoadOrStore(root.Service, true); !alreadySeenService {
 		// The install time and type can also be set on the trace by the tracer,
 		// in which case we do not want the agent to overwrite them.
 		if _, ok := traceutil.GetMeta(root, tagInstallID); !ok {
@@ -249,7 +246,7 @@ func (a *Agent) setFirstTraceTags(root *pb.Span) {
 		if _, ok := traceutil.GetMeta(root, tagInstallTime); !ok {
 			traceutil.SetMeta(root, tagInstallTime, strconv.FormatInt(a.conf.InstallSignature.InstallTime, 10))
 		}
-	})
+	}
 }
 
 // Process is the default work unit that receives a trace, transforms it and
@@ -314,11 +311,6 @@ func (a *Agent) Process(p *api.Payload) {
 				} else {
 					traceutil.SetMeta(span, k, v)
 				}
-			}
-			if a.conf.InAzureAppServices {
-				appServicesTags := traceutil.GetAppServicesTags()
-				traceutil.SetMeta(span, "aas.site.name", appServicesTags["aas.site.name"])
-				traceutil.SetMeta(span, "aas.site.type", appServicesTags["aas.site.type"])
 			}
 			if a.ModifySpan != nil {
 				a.ModifySpan(chunk, span)

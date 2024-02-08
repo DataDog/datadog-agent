@@ -19,6 +19,7 @@ import (
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -39,7 +40,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Long:  `The Datadog trace-agent aggregates, samples, and forwards traces to datadog submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.GlobalParams = globalParamsGetter()
-			return runTraceAgent(cliParams, cliParams.ConfPath)
+			return runTraceAgentCommand(cliParams, cliParams.ConfPath)
 		},
 	}
 
@@ -58,7 +59,7 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	setOSSpecificParamFlags(cmd, cliParams)
 }
 
-func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
+func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
@@ -82,6 +83,13 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		}),
 		workloadmeta.Module(),
 		statsd.Module(),
+		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
+			if coreConfig.GetBool("apm_config.remote_tagger") {
+				return tagger.NewNodeRemoteTaggerParamsWithFallback()
+			}
+			return tagger.NewTaggerParams()
+		}),
+		tagger.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),

@@ -8,9 +8,9 @@ from time import sleep, time
 
 import boto3
 
-from ..utils import DEFAULT_BRANCH
-from .common.color import color_message
-from .common.user_interactions import yes_no_question
+from tasks.libs.common.color import color_message
+from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import DEFAULT_BRANCH
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
@@ -154,12 +154,15 @@ def trigger_agent_pipeline(
     deploy=False,
     all_builds=False,
     kitchen_tests=False,
+    e2e_tests=False,
+    rc_build=False,
     rc_k8s_deployments=False,
 ):
     """
     Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
     - run a pipeline with all builds (by default, a pipeline only runs a subset of all available builds),
     - run a pipeline with all kitchen tests,
+    - run a pipeline with all end-to-end tests,
     - run a deploy pipeline (includes all builds & kitchen tests + uploads artifacts to staging repositories);
     """
     args = {}
@@ -181,6 +184,11 @@ def trigger_agent_pipeline(
     else:
         args["RUN_KITCHEN_TESTS"] = "false"
 
+    # End to end tests can be selectively enabled, or disabled on pipelines where they're
+    # enabled by default (default branch and deploy pipelines).
+    if e2e_tests:
+        args["RUN_E2E_TESTS"] = "true"
+
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6
 
@@ -189,6 +197,9 @@ def trigger_agent_pipeline(
 
     if branch is not None:
         args["BUCKET_BRANCH"] = branch
+
+    if rc_build:
+        args["RC_BUILD"] = "true"
 
     if rc_k8s_deployments:
         args["RC_K8S_DEPLOYMENTS"] = "true"

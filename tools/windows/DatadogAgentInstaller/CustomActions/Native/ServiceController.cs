@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Security.AccessControl;
 using System.ServiceProcess;
 using System.Threading;
 using System.Threading.Tasks;
@@ -65,6 +66,18 @@ namespace Datadog.CustomActions.Native
             {
                 throw new Win32Exception($"ChangeServiceConfig({serviceName}) failed");
             }
+        }
+
+        public CommonSecurityDescriptor GetAccessSecurity(string serviceName)
+        {
+            var svc = new System.ServiceProcess.ServiceController(serviceName);
+            return Win32NativeMethods.QueryServiceObjectSecurity(svc.ServiceHandle, SecurityInfos.DiscretionaryAcl);
+        }
+
+        public void SetAccessSecurity(string serviceName, CommonSecurityDescriptor securityDescriptor)
+        {
+            var svc = new System.ServiceProcess.ServiceController(serviceName);
+            Win32NativeMethods.SetServiceObjectSecurity(svc.ServiceHandle, SecurityInfos.DiscretionaryAcl, securityDescriptor);
         }
 
         private async Task<ServiceControllerStatus> WaitForStatusChange(System.ServiceProcess.ServiceController svc, ServiceControllerStatus state, TimeSpan timeout)

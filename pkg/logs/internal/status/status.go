@@ -95,3 +95,20 @@ func (s *LogStatus) Dump() string {
 	}
 	return fmt.Sprintf("&LogStatus{status: %s, err: %#v}", status, s.err)
 }
+
+// String returns a human readable representation of the status.
+func (s *LogStatus) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	switch s.status {
+	case isPending:
+		return "pending"
+	case isSuccess:
+		return "success"
+	case isError:
+		return "error"
+	default:
+		return fmt.Sprintf("unknown status: %d", s.status)
+	}
+}
