@@ -306,7 +306,7 @@ func (c *Client) startFn() {
 // pollLoop should never be called manually and only be called via the client's `sync.Once`
 // structure in startFn.
 func (c *Client) pollLoop() {
-	successfulFirstRun := true
+	successfulFirstRun := false
 	// First run
 	err := c.update()
 	if err != nil {
@@ -323,7 +323,8 @@ func (c *Client) pollLoop() {
 		// As some clients may start before the core-agent server is up, we log the first error
 		// as an Info log as the race is expected. If the error persists, we log with error logs
 		log.Infof("retrying the first update of remote-config state (%v)", err)
-		successfulFirstRun = false
+	} else {
+		successfulFirstRun = true
 	}
 
 	for {
