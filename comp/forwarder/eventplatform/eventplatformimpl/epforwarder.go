@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	aggsender "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -226,7 +225,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 }
 
 // Diagnose enumerates known epforwarder pipelines and endpoints to test each of them connectivity
-func Diagnose(_ diagnosis.Config, _ aggsender.DiagnoseSenderManager) []diagnosis.Diagnosis {
+func Diagnose() []diagnosis.Diagnosis {
 	var diagnoses []diagnosis.Diagnosis
 
 	for _, desc := range passthroughPipelineDescs {

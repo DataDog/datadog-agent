@@ -12,12 +12,11 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // DiagnoseMetadataAutodiscoveryConnectivity diagnoses the auto discovery connectivity
-func DiagnoseMetadataAutodiscoveryConnectivity(_ diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
+func DiagnoseMetadataAutodiscoveryConnectivity() []diagnosis.Diagnosis {
 	if len(diagnosis.MetadataAvailCatalog) == 0 {
 		return nil
 	}

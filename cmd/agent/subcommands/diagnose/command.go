@@ -241,7 +241,7 @@ func cmdDiagnose(cliParams *cliParams,
 
 	// Is it List command
 	if cliParams.listSuites {
-		pkgdiagnose.ListStdOut(color.Output, diagCfg, collector)
+		pkgdiagnose.ListStdOut(color.Output, diagCfg, senderManager, collector)
 		return nil
 	}
 

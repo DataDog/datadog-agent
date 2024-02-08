@@ -218,8 +218,8 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config, suites []diagn
 	return sortedFilteredSuites, nil
 }
 
-func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
-	diagnoses := ds.Diagnose(diagCfg, senderManager)
+func getSuiteDiagnoses(ds diagnosis.Suite) []diagnosis.Diagnosis {
+	diagnoses := ds.Diagnose()
 
 	// validate each diagnoses
 	for i, d := range diagnoses {
@@ -250,14 +250,14 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManag
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func ListStdOut(w io.Writer, diagCfg diagnosis.Config, collector optional.Option[collector.Component]) {
+func ListStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component]) {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "Diagnose suites ...\n")
 
-	sortedSuites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getSuites(collector))
+	sortedSuites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getSuites(diagCfg, senderManager, collector))
 	if err != nil {
 		fmt.Fprintf(w, "Failed to get list of diagnose suites. Validate your command line options. Error: %s\n", err.Error())
 		return
@@ -272,7 +272,7 @@ func ListStdOut(w io.Writer, diagCfg diagnosis.Config, collector optional.Option
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, suites []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
 	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, suites)
 	if err != nil {
 		return nil, err
@@ -281,7 +281,7 @@ func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, senderManager send
 	var suitesDiagnoses []diagnosis.Diagnoses
 	for _, ds := range suites {
 		// Run particular diagnose
-		diagnoses := getSuiteDiagnoses(ds, diagCfg, senderManager)
+		diagnoses := getSuiteDiagnoses(ds)
 		if len(diagnoses) > 0 {
 			suitesDiagnoses = append(suitesDiagnoses, diagnosis.Diagnoses{
 				SuiteName:      ds.SuitName,
@@ -345,7 +345,7 @@ func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, c
 	}
 
 	// Collect local diagnoses
-	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, senderManager, getSuites(collector))
+	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites(diagCfg, senderManager, collector))
 	if err != nil {
 		return nil, err
 	}
@@ -405,11 +405,11 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.Diagn
 	return nil
 }
 
-func getSuites(collector optional.Option[collector.Component]) []diagnosis.Suite {
+func getSuites(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component]) []diagnosis.Suite {
 	catalog := diagnosis.NewCatalog()
 
-	catalog.Register("check-datadog", getDiagnose(collector))
-	catalog.Register("connectivity-datadog-core-endpoints", connectivity.Diagnose)
+	catalog.Register("check-datadog", func() []diagnosis.Diagnosis { return getDiagnose(diagCfg, senderManager, collector) })
+	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
 	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
 	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
 
