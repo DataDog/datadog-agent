@@ -131,7 +131,6 @@ type BaseEvent struct {
 	Rules         []*MatchedRule `field:"-"`
 	ActionReports []ActionReport `field:"-"`
 	Origin        string         `field:"-"`
-	Suppressed    bool           `field:"-"`
 	Service       string         `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
 
 	// context shared with all events
