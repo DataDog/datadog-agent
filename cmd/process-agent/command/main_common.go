@@ -241,6 +241,7 @@ type miscDeps struct {
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
+	Logger       logComponent.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -248,12 +249,12 @@ type miscDeps struct {
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
 	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
-		log.Criticalf("Error configuring statsd: %s", err)
+		deps.Logger.Criticalf("Error configuring statsd: %s", err)
 		return err
 	}
 
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
-		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
@@ -267,7 +268,7 @@ func initMisc(deps miscDeps) error {
 
 			err := manager.ConfigureAutoExit(startCtx, deps.Config)
 			if err != nil {
-				log.Criticalf("Unable to configure auto-exit, err: %w", err)
+				deps.Logger.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
 			}
 
