@@ -413,62 +413,95 @@ func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName s
 	}
 
 	pushAMI := func() error {
-		count := 0
 		ec2client := ec2.NewFromConfig(awsutils.GetConfig(ctx, regionName, roles.GetRole(accountID)))
 		if err != nil {
 			return err
 		}
-		images, err := ec2client.DescribeImages(ctx, &ec2.DescribeImagesInput{
-			Owners:  []string{"self"},
-			Filters: filters,
-		})
-		if err != nil {
-			return fmt.Errorf("could not scan region %q for AMIs: %w", regionName, err)
+		describeInstancesInput := &ec2.DescribeInstancesInput{
+			Filters: append([]ec2types.Filter{
+				{
+					Name:   aws.String("instance-state-name"),
+					Values: []string{string(ec2types.InstanceStateNameRunning)},
+				},
+			}, filters...),
 		}
-		for _, image := range images.Images {
-			if image.ImageId == nil {
-				continue
+		count := 0
+		for {
+			instances, err := ec2client.DescribeInstances(ctx, describeInstancesInput)
+			if err != nil {
+				return fmt.Errorf("could not scan region %q for instances: %w", regionName, err)
 			}
-			for _, blockDeviceMapping := range image.BlockDeviceMappings {
-				if blockDeviceMapping.DeviceName == nil {
-					continue
+			for _, reservation := range instances.Reservations {
+				var imageIDS []string
+				for _, instance := range reservation.Instances {
+					if instance.InstanceId == nil {
+						continue
+					}
+					if instance.State.Name != ec2types.InstanceStateNameRunning {
+						continue
+					}
+					if imageID := instance.ImageId; imageID != nil {
+						imageIDS = append(imageIDS, *imageID)
+					}
 				}
-				if blockDeviceMapping.Ebs == nil {
-					continue
+				if len(imageIDS) > 0 {
+					images, err := ec2client.DescribeImages(ctx, &ec2.DescribeImagesInput{
+						ImageIds: imageIDS,
+						Owners:   []string{"self"},
+					})
+					if err != nil {
+						return fmt.Errorf("could not scan region %q for AMIs: %w", regionName, err)
+					}
+					for _, image := range images.Images {
+						if image.ImageId == nil {
+							continue
+						}
+						for _, blockDeviceMapping := range image.BlockDeviceMappings {
+							if blockDeviceMapping.DeviceName == nil {
+								continue
+							}
+							if blockDeviceMapping.Ebs == nil {
+								continue
+							}
+							if *blockDeviceMapping.DeviceName != *image.RootDeviceName {
+								continue
+							}
+							snapshotID, err := types.AWSCloudID("ec2", regionName, accountID, types.ResourceTypeSnapshot, *blockDeviceMapping.Ebs.SnapshotId)
+							if err != nil {
+								return err
+							}
+							log.Debugf("%s %s %s %s %s", regionName, *image.ImageId, snapshotID, *blockDeviceMapping.DeviceName, *image.OwnerId)
+							scan, err := types.NewScanTask(
+								types.TaskTypeAMI,
+								snapshotID.AsText(),
+								scannerHostname,
+								*image.ImageId,
+								ec2TagsToStringTags(image.Tags),
+								actions,
+								roles,
+								diskMode)
+							if err != nil {
+								return err
+							}
+							if !scanner.PushConfig(ctx, &types.ScanConfig{
+								Type:  types.ConfigTypeAWS,
+								Tasks: []*types.ScanTask{scan},
+								Roles: roles,
+							}) {
+								return nil
+							}
+							count++
+							if maxScans > 0 && count >= maxScans {
+								return nil
+							}
+						}
+					}
 				}
-				if *blockDeviceMapping.DeviceName != *image.RootDeviceName {
-					continue
-				}
-				snapshotID, err := types.AWSCloudID("ec2", regionName, accountID, types.ResourceTypeSnapshot, *blockDeviceMapping.Ebs.SnapshotId)
-				if err != nil {
-					return err
-				}
-				log.Debugf("%s %s %s %s", regionName, *image.ImageId, snapshotID, *blockDeviceMapping.DeviceName)
-				scan, err := types.NewScanTask(
-					types.TaskTypeAMI,
-					snapshotID.AsText(),
-					scannerHostname,
-					*image.ImageId,
-					ec2TagsToStringTags(image.Tags),
-					actions,
-					roles,
-					diskMode)
-				if err != nil {
-					return err
-				}
-				if !scanner.PushConfig(ctx, &types.ScanConfig{
-					Type:  types.ConfigTypeAWS,
-					Tasks: []*types.ScanTask{scan},
-					Roles: roles,
-				}) {
-					return nil
-				}
-				count++
-				if maxScans > 0 && count >= maxScans {
-					return nil
-				}
+			}
+			if instances.NextToken == nil {
 				break
 			}
+			describeInstancesInput.NextToken = instances.NextToken
 		}
 		return nil
 	}
