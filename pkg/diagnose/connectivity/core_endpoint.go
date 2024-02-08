@@ -29,17 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func init() {
-	diagnosis.Register("connectivity-datadog-core-endpoints", diagnose)
-}
-
 func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
 	datadogConfig := config.Datadog
 	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config", datadogConfig)
 	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
 }
 
-func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+func Diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 
 	// Create domain resolvers
 	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)

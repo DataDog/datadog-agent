@@ -24,10 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func Init(collector optional.Option[collector.Component]) {
-	diagnosis.Register("check-datadog", getDiagnose(collector))
-}
-
 func getDiagnose(collector optional.Option[collector.Component]) func(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 	return func(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 

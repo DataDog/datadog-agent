@@ -225,12 +225,8 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	}
 }
 
-func init() {
-	diagnosis.Register("connectivity-datadog-event-platform", diagnose)
-}
-
-// Enumerate known epforwarder pipelines and endpoints to test each of them connectivity
-func diagnose(_ diagnosis.Config, _ aggsender.DiagnoseSenderManager) []diagnosis.Diagnosis {
+// Diagnose enumerates known epforwarder pipelines and endpoints to test each of them connectivity
+func Diagnose(_ diagnosis.Config, _ aggsender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 	var diagnoses []diagnosis.Diagnosis
 
 	for _, desc := range passthroughPipelineDescs {
