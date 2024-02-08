@@ -191,6 +191,11 @@ func TestEtwTransactions(t *testing.T) {
 
 	etw.StartReadingHttpFlows()
 
+	/*
+	 * This is a bit kludgy, but we need to wait for the ETW provider to start.  Empirically, it
+	 * takes "some time" for the provider to start sending messages, which leads to some raciness
+	 * if we're looking for very specific messages.
+	 */
 	time.Sleep(10 * time.Second)
 	for _, test := range setupTests() {
 
