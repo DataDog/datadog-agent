@@ -9,9 +9,7 @@ import (
 	"fmt"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"strings"
 )
 
@@ -24,25 +22,26 @@ const (
 
 // SupportedBaseOwners is the set of owner resource types supported by language detection
 // Currently only deployments are supported
+// For KindReplicaset, we use the parent deployment
 var SupportedBaseOwners = map[string]struct{}{
 	KindDeployment: {},
 }
 
 // NamespacedOwnerReference defines an owner reference bound to a namespace
 type NamespacedOwnerReference struct {
-	metav1.OwnerReference
-	Namespace string
+	Name       string
+	APIVersion string
+	Kind       string
+	Namespace  string
 }
 
 // NewNamespacedOwnerReference returns a new namespaced owner reference
 func NewNamespacedOwnerReference(apiVersion string, kind string, name string, namespace string) NamespacedOwnerReference {
 	return NamespacedOwnerReference{
-		OwnerReference: metav1.OwnerReference{
-			APIVersion: apiVersion,
-			Kind:       kind,
-			Name:       name,
-		},
-		Namespace: namespace,
+		APIVersion: apiVersion,
+		Kind:       kind,
+		Name:       name,
+		Namespace:  namespace,
 	}
 }
 
@@ -53,25 +52,20 @@ func GetNamespacedBaseOwnerReference(podDetails *pbgo.PodLanguageDetails) Namesp
 	ownerref := podDetails.Ownerref
 	kind := ownerref.Kind
 	name := ownerref.Name
-	uid := ownerref.Id
 
 	// This should be included in the KubeOwnerInfo by the client.
 	// For now, it is hard-coded, and we support apps/v1 strictly
 	apiVersion := "apps/v1"
-
 	if kind == KindReplicaset {
 		kind = KindDeployment
 		name = kubernetes.ParseDeploymentForReplicaSet(name)
 	}
 
 	return NamespacedOwnerReference{
-		OwnerReference: metav1.OwnerReference{
-			APIVersion: apiVersion,
-			Kind:       kind,
-			Name:       name,
-			UID:        types.UID(uid),
-		},
-		Namespace: podDetails.Namespace,
+		APIVersion: apiVersion,
+		Kind:       kind,
+		Name:       name,
+		Namespace:  podDetails.Namespace,
 	}
 }
 

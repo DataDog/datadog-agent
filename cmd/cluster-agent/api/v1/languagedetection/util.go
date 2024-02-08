@@ -16,6 +16,9 @@ import (
 	"sync"
 )
 
+// containersLanguageWithDirtyFlag encapsulates containers languages along with a dirty flag
+// The dirty flag is used to know if the containers languages are flushed to workload metadata store or not.
+// The dirty flag is reset when languages are flushed to workload metadata store.
 type containersLanguageWithDirtyFlag struct {
 	languages langUtil.ContainersLanguages
 	dirty     bool
@@ -35,6 +38,17 @@ func newContainersLanguageWithDirtyFlag() *containersLanguageWithDirtyFlag {
 ////////////////////////////////
 
 // OwnersLanguages maps a namespaced owner (kubernetes resource) to containers languages
+// This is mainly used as a preliminary storage for detected languages of kubernetes resources prior to storing
+// languages in workload meta store.
+//
+// It is needed in order to:
+//   - control what to store in workload metadata store based on detected languages TTL and last detection time
+//   - avoid flakiness in the set of detected languages during the rollout of a kubernetes resource;
+//     during rollout the handler may, depending on the deployment size for example, receive different languages
+//     based on whether the source pod has been rolled out yet or not, which can cause flakiness in the set of detected languages.
+//
+// Components using OwnersLanguages should only invoke the mergeAndFlush method, which is thread-safe.
+// Other methods are not thread-safe; they are supposed to be invoked only within mergeAndFlush.
 type OwnersLanguages struct {
 	containersLanguages map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag
 	mutex               sync.Mutex
@@ -47,6 +61,9 @@ func newOwnersLanguages() *OwnersLanguages {
 	}
 }
 
+// getOrInitialize returns the containers languages for a specific namespaced owner, initialising it if it doesn't already
+// exist.
+// This method is not thread-safe.
 func (ownersLanguages *OwnersLanguages) getOrInitialize(reference langUtil.NamespacedOwnerReference) *containersLanguageWithDirtyFlag {
 	_, found := ownersLanguages.containersLanguages[reference]
 	if !found {
@@ -56,21 +73,22 @@ func (ownersLanguages *OwnersLanguages) getOrInitialize(reference langUtil.Names
 	return containersLanguages
 }
 
+// merge merges another owners languages instance data with the current containers languages.
+// This method is not thread-safe.
 func (ownersLanguages *OwnersLanguages) merge(other *OwnersLanguages) {
-	ownersLanguages.mutex.Lock()
-	defer ownersLanguages.mutex.Unlock()
-
 	for owner, containersLanguages := range other.containersLanguages {
-		if len(containersLanguages.languages) > 0 {
-			ownersLanguages.getOrInitialize(owner).languages.Merge(containersLanguages.languages)
+		langsWithDirtyFlag := ownersLanguages.getOrInitialize(owner)
+		if modified := langsWithDirtyFlag.languages.Merge(containersLanguages.languages); modified {
+			langsWithDirtyFlag.dirty = true
 		}
 	}
 }
 
-func (ownersLanguages *OwnersLanguages) clean(wlm workloadmeta.Component) error {
-	ownersLanguages.mutex.Lock()
-	defer ownersLanguages.mutex.Unlock()
-	pushErrors := make([]error, 0, len(ownersLanguages.containersLanguages))
+// flush flushes to workloadmeta store containers languages that have dirty flag set to true, and then resets
+// dirty flag to false.
+// This method is not thread-safe.
+func (ownersLanguages *OwnersLanguages) flush(wlm workloadmeta.Component) error {
+	pushErrors := make([]error, 0)
 
 	for owner, containersLanguages := range ownersLanguages.containersLanguages {
 
@@ -101,6 +119,19 @@ func (ownersLanguages *OwnersLanguages) clean(wlm workloadmeta.Component) error 
 	return errors.Join(pushErrors...)
 }
 
+// mergeAndFlush merges the current containers languages for all owners with owners containers languages
+// passed as an argument. It then flushes the containers languages having a set dirty flag to workloadmeta store
+// and resets dirty flags to false.
+// This method is thread-safe, and it serves as the unique entrypoint to instances of this type.
+func (ownersLanguages *OwnersLanguages) mergeAndFlush(other *OwnersLanguages, wlm workloadmeta.Component) error {
+	ownersLanguages.mutex.Lock()
+	defer ownersLanguages.mutex.Unlock()
+
+	ownersLanguages.merge(other)
+
+	return ownersLanguages.flush(wlm)
+}
+
 ////////////////////////////////
 //                            //
 //           Utils            //
@@ -123,7 +154,7 @@ func generatePushEvent(owner langUtil.NamespacedOwnerReference, languages langUt
 					Kind: workloadmeta.KindKubernetesDeployment,
 					ID:   fmt.Sprintf("%s/%s", owner.Namespace, owner.Name),
 				},
-				DetectedLanguages: languages,
+				DetectedLanguages: languages.DeepCopy(),
 			},
 		}
 	default:
@@ -166,13 +197,11 @@ func getOwnersLanguages(requestData *pbgo.ParentLanguageAnnotationRequest) *Owne
 	for _, podDetail := range podDetails {
 		namespacedOwnerRef := langUtil.GetNamespacedBaseOwnerReference(podDetail)
 
-		_, found := langUtil.SupportedBaseOwners[namespacedOwnerRef.Kind]
-		if found {
-
+		if _, found := langUtil.SupportedBaseOwners[namespacedOwnerRef.Kind]; found {
 			containersLanguages := *getContainersLanguagesFromPodDetail(podDetail)
-
-			if len(containersLanguages) > 0 {
-				ownersContainersLanguages.getOrInitialize(namespacedOwnerRef).languages.Merge(containersLanguages)
+			langsWithDirtyFlag := ownersContainersLanguages.getOrInitialize(namespacedOwnerRef)
+			if modified := langsWithDirtyFlag.languages.Merge(containersLanguages); modified {
+				langsWithDirtyFlag.dirty = true
 			}
 		}
 	}

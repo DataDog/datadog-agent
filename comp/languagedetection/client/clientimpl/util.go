@@ -41,6 +41,7 @@ type podInfo struct {
 }
 
 func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
+	containersDetails, initContainersDetails := p.containerInfo.ToProto()
 	return &pbgo.PodLanguageDetails{
 		Name:      podName,
 		Namespace: p.namespace,
@@ -49,7 +50,8 @@ func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
 			Name: p.ownerRef.Name,
 			Kind: p.ownerRef.Kind,
 		},
-		ContainerDetails: p.containerInfo.ToProto(),
+		ContainerDetails:     containersDetails,
+		InitContainerDetails: initContainersDetails,
 	}
 }
 

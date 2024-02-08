@@ -54,24 +54,15 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 	}
 }
 
-// LanguagePatcherSingleton represents a singleton language detection patcher object
-type LanguagePatcherSingleton struct {
+var (
 	patcher             *languagePatcher
 	languagePatcherOnce sync.Once
-}
-
-// package level singleton instance
-var singletonInstance = &LanguagePatcherSingleton{}
-
-// GetLanguagePatcherSingleton returns a singleton instance of the patcher service
-func GetLanguagePatcherSingleton() *LanguagePatcherSingleton {
-	return singletonInstance
-}
+)
 
 // Start initializes and starts the language detection patcher
-func (lps *LanguagePatcherSingleton) Start(ctx context.Context, store workloadmeta.Component, logger log.Component) error {
+func Start(ctx context.Context, store workloadmeta.Component, logger log.Component) error {
 
-	if lps.patcher != nil {
+	if patcher != nil {
 		return fmt.Errorf("can't start language detection patcher twice")
 	}
 
@@ -85,20 +76,20 @@ func (lps *LanguagePatcherSingleton) Start(ctx context.Context, store workloadme
 		return err
 	}
 
-	lps.languagePatcherOnce.Do(func() {
+	languagePatcherOnce.Do(func() {
 		logger.Info("Starting language detection patcher")
-		lps.patcher = newLanguagePatcher(ctx, store, logger, apiCl)
-		go lps.patcher.run()
+		patcher = newLanguagePatcher(ctx, store, logger, apiCl)
+		go patcher.run()
 	})
 
 	return nil
 }
 
 // Stop stops the language detection patcher
-func (lps *LanguagePatcherSingleton) Stop() {
-	if lps.patcher != nil {
-		lps.patcher.cancel()
-		lps.patcher = nil
+func Stop() {
+	if patcher != nil {
+		patcher.cancel()
+		patcher = nil
 	}
 }
 
@@ -110,6 +101,8 @@ func (lp *languagePatcher) run() {
 			// Currently only deployments are supported
 			workloadmeta.KindKubernetesDeployment,
 		},
+		// We use SourceAll in order to receive the complete entity data instead of partial data
+		// Using a specific source would include only fields populated by that specific source
 		Source:    workloadmeta.SourceAll,
 		EventType: workloadmeta.EventTypeAll,
 	}
@@ -236,6 +229,7 @@ func (lp *languagePatcher) patchOwner(namespacedOwnerRef *langUtil.NamespacedOwn
 	if retryErr != nil {
 		FailedPatches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace)
 		lp.logger.Errorf("failed to update owner: %v", retryErr)
+		return
 	}
 
 	SuccessPatches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace)

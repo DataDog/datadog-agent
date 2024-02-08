@@ -134,12 +134,15 @@ func TestClientSend(t *testing.T) {
 
 	// wait that the mock dca client processes the message
 	req := <-respCh
+
+	containerDetails, initContainerDetails := podInfo.containerInfo.ToProto()
 	assert.Equal(t, &pbgo.ParentLanguageAnnotationRequest{
 		PodDetails: []*pbgo.PodLanguageDetails{
 			{
-				Name:             podName,
-				Namespace:        podInfo.namespace,
-				ContainerDetails: podInfo.containerInfo.ToProto(),
+				Name:                 podName,
+				Namespace:            podInfo.namespace,
+				ContainerDetails:     containerDetails,
+				InitContainerDetails: initContainerDetails,
 				Ownerref: &pbgo.KubeOwnerInfo{
 					Name: "dummyrs",
 					Kind: "replicaset",
@@ -188,12 +191,15 @@ func TestClientSendFreshPods(t *testing.T) {
 	client.freshlyUpdatedPods = map[string]struct{}{"nginx": {}}
 
 	freshData = client.getFreshBatchProto()
-	assert.Equal(t, &pbgo.ParentLanguageAnnotationRequest{
+
+	containerDetails, initContainerDetails := podInfo.containerInfo.ToProto()
+	expectedFreshData := &pbgo.ParentLanguageAnnotationRequest{
 		PodDetails: []*pbgo.PodLanguageDetails{
 			{
-				Name:             podName,
-				Namespace:        podInfo.namespace,
-				ContainerDetails: podInfo.containerInfo.ToProto(),
+				Name:                 podName,
+				Namespace:            podInfo.namespace,
+				ContainerDetails:     containerDetails,
+				InitContainerDetails: initContainerDetails,
 				Ownerref: &pbgo.KubeOwnerInfo{
 					Name: "dummyrs",
 					Kind: "replicaset",
@@ -201,7 +207,9 @@ func TestClientSendFreshPods(t *testing.T) {
 				},
 			},
 		},
-	}, freshData)
+	}
+
+	assert.Equal(t, expectedFreshData, freshData)
 	// make sure we didn't touch the current batch
 	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
 }

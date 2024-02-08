@@ -62,26 +62,26 @@ func TestContainersLanguagesMerge(t *testing.T) {
 		{
 			name:               "merge non-empty other container to empty self",
 			containerLanguages: make(ContainersLanguages),
-			other:              map[Container]LanguageSet{*NewContainer("some-container"): {"java": struct{}{}}},
-			expectedAfterMerge: map[Container]LanguageSet{*NewContainer("some-container"): {"java": struct{}{}}},
+			other:              ContainersLanguages{*NewContainer("some-container"): {"java": struct{}{}}},
+			expectedAfterMerge: ContainersLanguages{*NewContainer("some-container"): {"java": struct{}{}}},
 		},
 		{
 			name:               "merge empty other container to non-empty self",
-			containerLanguages: map[Container]LanguageSet{*NewContainer("some-container"): {"java": struct{}{}}},
+			containerLanguages: ContainersLanguages{*NewContainer("some-container"): {"java": struct{}{}}},
 			other:              make(ContainersLanguages),
-			expectedAfterMerge: map[Container]LanguageSet{*NewContainer("some-container"): {"java": struct{}{}}},
+			expectedAfterMerge: ContainersLanguages{*NewContainer("some-container"): {"java": struct{}{}}},
 		},
 		{
 			name: "merge non-empty other container to non-empty self",
-			containerLanguages: map[Container]LanguageSet{
+			containerLanguages: ContainersLanguages{
 				*NewContainer("some-container"):          {"java": struct{}{}},
 				*NewInitContainer("some-init-container"): {"go": struct{}{}},
 			},
-			other: map[Container]LanguageSet{
+			other: ContainersLanguages{
 				*NewContainer("some-other-container"): {"ruby": struct{}{}},
 				*NewContainer("some-container"):       {"cpp": struct{}{}, "java": struct{}{}},
 			},
-			expectedAfterMerge: map[Container]LanguageSet{
+			expectedAfterMerge: ContainersLanguages{
 				*NewContainer("some-other-container"):    {"ruby": struct{}{}},
 				*NewContainer("some-container"):          {"cpp": struct{}{}, "java": struct{}{}},
 				*NewInitContainer("some-init-container"): {"go": struct{}{}},

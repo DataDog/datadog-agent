@@ -77,9 +77,9 @@ func TestOwnersLanguagesGetOrInitialise(t *testing.T) {
 }
 
 func TestOwnersLanguagesMerge(t *testing.T) {
-	mockNamespacedOwnerRef := langUtil.NewNamespacedOwnerReference("api-version", "deployment", "some-uid", "some-ns")
-	otherMockNamespacedOwnerRef := langUtil.NewNamespacedOwnerReference("api-version", "statefulset", "some-uid", "some-ns")
-	cleanMockNamespacedOwnerRef := langUtil.NewNamespacedOwnerReference("api-version", "daemonset", "some-uid", "some-ns")
+	mockNamespacedOwnerRef := langUtil.NewNamespacedOwnerReference("api-version", "deployment", "some-name", "some-ns")
+	otherMockNamespacedOwnerRef := langUtil.NewNamespacedOwnerReference("api-version", "statefulset", "some-name", "some-ns")
+	cleanMockNamespacedOwnerRef := langUtil.NewNamespacedOwnerReference("api-version", "daemonset", "some-name", "some-ns")
 
 	tests := []struct {
 		name               string
@@ -208,7 +208,7 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 								"cpp": {},
 							},
 						},
-						dirty: false,
+						dirty: true,
 					},
 					cleanMockNamespacedOwnerRef: {
 						languages: langUtil.ContainersLanguages{
@@ -241,7 +241,7 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 	}
 }
 
-func TestOwnersLanguagesClean(t *testing.T) {
+func TestOwnersLanguagesFlush(t *testing.T) {
 	mockSupportedOwnerA := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentA", "ns")
 	mockSupportedOwnerB := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentB", "ns")
 	mockUnsupportedOwner := langUtil.NewNamespacedOwnerReference("api-version", "Daemonset", "some-name", "ns")
@@ -279,8 +279,8 @@ func TestOwnersLanguagesClean(t *testing.T) {
 		workloadmeta.MockModuleV2(),
 	))
 
-	err := ownersLanguages.clean(mockStore)
-	assert.NoErrorf(t, err, "clean operation should not return an error")
+	err := ownersLanguages.flush(mockStore)
+	assert.NoErrorf(t, err, "flush operation should not return an error")
 
 	// Assertion: deploymentA is added to the store with the correct detected languages
 	// Reason: deploymentA has detected languages with dirty flag set to true
@@ -333,7 +333,7 @@ func TestOwnersLanguagesClean(t *testing.T) {
 	}
 
 	// clean owners languages
-	err = ownersLanguages.clean(mockStore)
+	err = ownersLanguages.flush(mockStore)
 	assert.Errorf(t, err, "clean operation should return an error due to unsupported resource kind")
 
 	// Assert that deploymentB is not added to the store with the correct languages
@@ -356,6 +356,102 @@ func TestOwnersLanguagesClean(t *testing.T) {
 	assert.False(t, ownersLanguages.containersLanguages[mockSupportedOwnerB].dirty, "deploymentB dirty flag should be reset to false")
 	assert.False(t, ownersLanguages.containersLanguages[mockSupportedOwnerB].dirty, "daemonset dirty flag should not be reset to false")
 
+}
+
+func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
+	mockSupportedOwnerA := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentA", "ns")
+
+	ownersLanguages := OwnersLanguages{
+		containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
+			mockSupportedOwnerA: {
+				languages: langUtil.ContainersLanguages{
+					*langUtil.NewContainer("python-container"): {
+						"python": {},
+					},
+				},
+				dirty: true,
+			},
+		},
+	}
+
+	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+
+	err := ownersLanguages.flush(mockStore)
+	assert.NoErrorf(t, err, "flush operation should not return an error")
+
+	// Assertion: deploymentA is added to the store with the correct detected languages
+	// Reason: deploymentA has detected languages with dirty flag set to true
+	assert.Eventuallyf(t,
+		func() bool {
+			deploymentA, err := mockStore.GetKubernetesDeployment("ns/deploymentA")
+			if err != nil {
+				return false
+			}
+
+			return deploymentA.DetectedLanguages.EqualTo(langUtil.ContainersLanguages{
+				*langUtil.NewContainer("python-container"): {
+					"python": struct{}{},
+				},
+			})
+
+		},
+		2*time.Second,
+		100*time.Millisecond,
+		"Should find deploymentA in workloadmeta store with the correct languages")
+
+	mockOwnersLanguagesFromRequest := OwnersLanguages{
+		containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
+			mockSupportedOwnerA: {
+				languages: langUtil.ContainersLanguages{
+					*langUtil.NewContainer("python-container"): {
+						"python": {},
+					},
+					*langUtil.NewContainer("ruby-container"): {
+						"ruby": {},
+					},
+				},
+				dirty: true,
+			},
+		},
+	}
+
+	// Assertion: dirty flags of flushed languages are reset to false
+	assert.False(t, ownersLanguages.containersLanguages[mockSupportedOwnerA].dirty, "deploymentA dirty flag should be reset to false")
+
+	err = ownersLanguages.mergeAndFlush(&mockOwnersLanguagesFromRequest, mockStore)
+	assert.NoErrorf(t, err, "mergeAndFlush operation should not return an error")
+
+	// Assertion: deploymentA is found in store with the correct detected languages
+	// Reason: deploymentA has detected languages with dirty flag set to true
+	assert.Eventuallyf(t,
+		func() bool {
+			deploymentA, err := mockStore.GetKubernetesDeployment("ns/deploymentA")
+			if err != nil {
+				return false
+			}
+
+			fmt.Println(deploymentA.DetectedLanguages)
+
+			return deploymentA.DetectedLanguages.EqualTo(langUtil.ContainersLanguages{
+				*langUtil.NewContainer("python-container"): {
+					"python": struct{}{},
+				},
+				*langUtil.NewContainer("ruby-container"): {
+					"ruby": struct{}{},
+				},
+			})
+
+		},
+		2*time.Second,
+		100*time.Millisecond,
+		"Should find deploymentA in workloadmeta store with the correct languages")
+
+	// Assertion: dirty flags of flushed languages are reset to false
+	assert.False(t, ownersLanguages.containersLanguages[mockSupportedOwnerA].dirty, "deploymentA dirty flag should be reset to false")
 }
 
 ////////////////////////////////
@@ -516,6 +612,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Kind: "ReplicaSet",
 			Name: "dummyrs-2-2342347",
+			Id:   "some-uid",
 		},
 	}
 

@@ -350,7 +350,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}
 
 	if pkgconfig.Datadog.GetBool("language_detection.enabled") {
-		if err = languagedetection.GetLanguagePatcherSingleton().Start(mainCtx, wmeta, log); err != nil {
+		if err = languagedetection.Start(mainCtx, wmeta, log); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
 	}

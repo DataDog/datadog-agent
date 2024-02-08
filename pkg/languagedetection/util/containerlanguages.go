@@ -8,6 +8,7 @@ package util
 import (
 	"fmt"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"maps"
 	"reflect"
 	"sort"
 	"strings"
@@ -50,37 +51,59 @@ func NewInitContainer(containerName string) *Container {
 // ContainersLanguages handles mapping containers to language sets
 type ContainersLanguages map[Container]LanguageSet
 
+// DeepCopy returns a copy of the containers languages map
+func (c ContainersLanguages) DeepCopy() ContainersLanguages {
+	cCopy := make(ContainersLanguages)
+
+	for container, langSet := range c {
+		cCopy[container] = maps.Clone(langSet)
+	}
+
+	return cCopy
+}
+
 // GetOrInitialize returns the language set of a container if it exists, or initializes it otherwise
 func (c ContainersLanguages) GetOrInitialize(container Container) *LanguageSet {
-	_, found := c[container]
-	if !found {
-		c[container] = make(LanguageSet)
+	if _, found := c[container]; !found {
+		c[container] = LanguageSet{}
 	}
 	languageSet := c[container]
 	return &languageSet
 }
 
 // Merge merges another containers languages object to the current object
-func (c ContainersLanguages) Merge(other ContainersLanguages) {
-	if len(other) == 0 {
-		return
-	}
-
+// Returns true if languages were modified after merge, and false otherwise
+func (c ContainersLanguages) Merge(other ContainersLanguages) bool {
+	modified := false
 	for container, languageSet := range other {
-		c.GetOrInitialize(container).Merge(languageSet)
+		if c.GetOrInitialize(container).Merge(languageSet) {
+			modified = true
+		}
 	}
+	return modified
 }
 
-// ToProto returns a proto message ContainerLanguageDetails
-func (c ContainersLanguages) ToProto() []*pbgo.ContainerLanguageDetails {
-	res := make([]*pbgo.ContainerLanguageDetails, 0, len(c))
+// ToProto returns two proto messages ContainerLanguageDetails
+// The first one contains standard containers
+// The second one contains init containers
+func (c ContainersLanguages) ToProto() (containersDetailsProto, initContainersDetailsProto []*pbgo.ContainerLanguageDetails) {
+	containersDetailsProto = make([]*pbgo.ContainerLanguageDetails, 0, len(c))
+	initContainersDetailsProto = make([]*pbgo.ContainerLanguageDetails, 0, len(c))
 	for container, languageSet := range c {
-		res = append(res, &pbgo.ContainerLanguageDetails{
-			ContainerName: container.Name,
-			Languages:     languageSet.ToProto(),
-		})
+		if container.Init {
+			initContainersDetailsProto = append(initContainersDetailsProto, &pbgo.ContainerLanguageDetails{
+				ContainerName: container.Name,
+				Languages:     languageSet.ToProto(),
+			})
+		} else {
+			containersDetailsProto = append(containersDetailsProto, &pbgo.ContainerLanguageDetails{
+				ContainerName: container.Name,
+				Languages:     languageSet.ToProto(),
+			})
+		}
+
 	}
-	return res
+	return containersDetailsProto, initContainersDetailsProto
 }
 
 // EqualTo checks if current ContainersLanguages object has identical content

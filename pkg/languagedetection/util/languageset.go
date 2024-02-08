@@ -43,14 +43,19 @@ func (s LanguageSet) Remove(language Language) {
 }
 
 // Merge merges another language set with the current language set
-func (s LanguageSet) Merge(other LanguageSet) {
+// returns true if the set has changed after merge, and false otherwise
+func (s LanguageSet) Merge(other LanguageSet) bool {
 	if len(other) == 0 {
-		return
+		return false
 	}
 
+	sizeBeforeMerge := len(s)
 	for language := range other {
 		s.Add(language)
 	}
+	sizeAfterMerge := len(s)
+
+	return sizeBeforeMerge < sizeAfterMerge
 }
 
 // EqualTo determines if the current languageset has the same languages

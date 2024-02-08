@@ -21,7 +21,7 @@ var (
 		subsystem,
 		"ok_response",
 		[]string{},
-		"Tracks the number the request was processed successfully",
+		"Tracks the number of times request processing succeeds",
 		commonOpts,
 	)
 

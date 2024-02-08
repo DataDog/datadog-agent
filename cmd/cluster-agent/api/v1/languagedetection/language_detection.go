@@ -5,7 +5,6 @@
 
 //go:build kubeapiserver
 
-// Package languagedetection defines and implements the language detection handler endpoint
 package languagedetection
 
 import (
@@ -86,12 +85,10 @@ func leaderHandler(w http.ResponseWriter, r *http.Request, wlm workloadmeta.Comp
 	}
 
 	ownersLanguagesFromRequest := getOwnersLanguages(requestData)
-	ownersLanguages := loadOwnersLanguages()
-	ownersLanguages.merge(ownersLanguagesFromRequest)
 
-	err = ownersLanguages.clean(wlm)
+	err = loadOwnersLanguages().mergeAndFlush(ownersLanguagesFromRequest, wlm)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to store some (or all) languages in workloadmeta store: %s", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("failed to store some (or all) languages in workloadmeta store: %s", err), http.StatusInternalServerError)
 		ErrorResponses.Inc()
 		return
 	}
