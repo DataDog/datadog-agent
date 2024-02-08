@@ -390,7 +390,7 @@ func GetTestSpan() *pb.Span {
 		},
 	}
 	trace := pb.Trace{span}
-	traceutil.ComputeTopLevel(trace)
+	traceutil.ComputeTopLevel(trace, false)
 	return trace[0]
 }
 

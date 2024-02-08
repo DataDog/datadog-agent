@@ -70,6 +70,7 @@ func setupOTLPEnvironmentVariables(config pkgconfigmodel.Config) {
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.include_metadata")
 
 	// Traces settings
+	config.BindEnv("otlp_config.traces.compute_top_level_by_span_kind")
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
 	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
 	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,

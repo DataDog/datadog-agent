@@ -521,10 +521,10 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 
 	spanKind := spanKindName(in.Kind())
-	if spanKind == "server" || spanKind == "consumer" {
+	if o.conf.OTLPReceiver.ComputeTopLevelBySpanKind && (spanKind == "server" || spanKind == "consumer") {
 		traceutil.SetTopLevel(span, true)
 	}
-	if spanKind == "client" || spanKind == "producer" {
+	if o.conf.OTLPReceiver.ComputeTopLevelBySpanKind && (spanKind == "client" || spanKind == "producer") {
 		traceutil.SetMeasured(span, true)
 	}
 

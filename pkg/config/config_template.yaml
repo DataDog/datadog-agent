@@ -4040,6 +4040,15 @@ api_key:
     #
     # enabled: true
 
+    ## @param compute_top_level_by_span_kind - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_TRACES_COMPUTE_TOP_LEVEL_BY_SPAN_KIND - boolean - optional - default: true
+    ## [BETA] Enables new logic to improve top-level spans identification in OTLP ingest.
+    ## If set to true, root spans and spans with a server or consumer `span.kind` will be marked as top-level.
+    ## Additionally, spans with a client or producer `span.kind` will have status computed.
+    ## If set to false, this new logic will be disabled and OTel spans may be misidentified as top-level.
+    #
+    # compute_top_level_by_span_kind: true
+
     ## @param span_name_as_resource_name - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME - boolean - optional - default: false
     ## If set to true the OpenTelemetry span name will used in the Datadog resource name.

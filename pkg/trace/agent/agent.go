@@ -327,7 +327,7 @@ func (a *Agent) Process(p *api.Payload) {
 		if !p.ClientComputedTopLevel {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
 			// which is not thread-safe while samplers and Concentrator might modify it too.
-			traceutil.ComputeTopLevel(chunk.Spans)
+			traceutil.ComputeTopLevel(chunk.Spans, a.conf.OTLPReceiver.ComputeTopLevelBySpanKind)
 		}
 
 		a.setPayloadAttributes(p, root, chunk)

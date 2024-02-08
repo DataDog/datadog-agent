@@ -25,7 +25,7 @@ func TestTopLevelTypical(t *testing.T) {
 		&pb.Span{TraceID: 1, SpanID: 5, ParentID: 1, Service: "mcnulty", Type: ""},
 	}
 
-	ComputeTopLevel(tr)
+	ComputeTopLevel(tr, false)
 
 	assert.True(HasTopLevel(tr[0]), "root span should be top-level")
 	assert.False(HasTopLevel(tr[1]), "main service, and not a root span, not top-level")
@@ -69,7 +69,7 @@ func TestTopLevelSingle(t *testing.T) {
 		&pb.Span{TraceID: 1, SpanID: 1, ParentID: 0, Service: "mcnulty", Type: "web"},
 	}
 
-	ComputeTopLevel(tr)
+	ComputeTopLevel(tr, false)
 
 	assert.True(HasTopLevel(tr[0]), "root span should be top-level")
 }
@@ -79,7 +79,7 @@ func TestTopLevelEmpty(t *testing.T) {
 
 	tr := pb.Trace{}
 
-	ComputeTopLevel(tr)
+	ComputeTopLevel(tr, false)
 
 	assert.Equal(0, len(tr), "trace should still be empty")
 }
@@ -95,7 +95,7 @@ func TestTopLevelOneService(t *testing.T) {
 		&pb.Span{TraceID: 1, SpanID: 5, ParentID: 1, Service: "mcnulty", Type: "web"},
 	}
 
-	ComputeTopLevel(tr)
+	ComputeTopLevel(tr, false)
 
 	assert.False(HasTopLevel(tr[0]), "just a sub-span, not top-level")
 	assert.False(HasTopLevel(tr[1]), "just a sub-span, not top-level")
@@ -117,7 +117,7 @@ func TestTopLevelLocalRoot(t *testing.T) {
 		&pb.Span{TraceID: 1, SpanID: 7, ParentID: 4, Service: "redis", Type: "redis"},
 	}
 
-	ComputeTopLevel(tr)
+	ComputeTopLevel(tr, false)
 
 	assert.True(HasTopLevel(tr[0]), "root span should be top-level")
 	assert.False(HasTopLevel(tr[1]), "main service, and not a root span, not top-level")
@@ -136,7 +136,7 @@ func TestTopLevelWithTag(t *testing.T) {
 		&pb.Span{TraceID: 1, SpanID: 2, ParentID: 1, Service: "mcnulty", Type: "web", Metrics: map[string]float64{"custom": 42}},
 	}
 
-	ComputeTopLevel(tr)
+	ComputeTopLevel(tr, false)
 
 	t.Logf("%v\n", tr[1].Metrics)
 

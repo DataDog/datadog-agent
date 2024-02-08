@@ -202,7 +202,7 @@ func TestTracerHostname(t *testing.T) {
 	spans := []*pb.Span{
 		testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil),
 	}
-	traceutil.ComputeTopLevel(spans)
+	traceutil.ComputeTopLevel(spans, false)
 	testTrace := toProcessedTrace(spans, "none", "tracer-hostname")
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, "")
@@ -227,7 +227,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		testSpan(now, 1, 0, 1, 0, "A1", "resource1", 0, nil),
 	}
 
-	traceutil.ComputeTopLevel(spans)
+	traceutil.ComputeTopLevel(spans, false)
 	testTrace := toProcessedTrace(spans, "none", "")
 
 	t.Run("cold", func(t *testing.T) {
@@ -347,7 +347,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 		testSpan(now, 1, 0, 1, 0, "A1", "resource1", 0, nil),
 	}
 
-	traceutil.ComputeTopLevel(spans)
+	traceutil.ComputeTopLevel(spans, false)
 	testTrace := toProcessedTrace(spans, "none", "")
 
 	t.Run("ok", func(t *testing.T) {
@@ -540,7 +540,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	}
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
 
-	traceutil.ComputeTopLevel(spans)
+	traceutil.ComputeTopLevel(spans, false)
 	testTrace := toProcessedTrace(spans, "none", "")
 
 	c.addNow(testTrace, "")
@@ -591,7 +591,7 @@ func generateDistribution(t *testing.T, now time.Time, generator func(i int) int
 	for i := 0; i < 100; i++ {
 		spans = append(spans, testSpan(now, uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0, nil))
 	}
-	traceutil.ComputeTopLevel(spans)
+	traceutil.ComputeTopLevel(spans, false)
 	c.addNow(toProcessedTrace(spans, "none", ""), "")
 	stats := c.flushNow(now.UnixNano()+c.bsize*int64(c.bufferLen), false)
 	expectedFlushedTs := alignedNow
@@ -638,7 +638,7 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	span := testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)
 	span.Metrics = map[string]float64{"_dd.partial_version": 830604}
 	spans := []*pb.Span{span}
-	traceutil.ComputeTopLevel(spans)
+	traceutil.ComputeTopLevel(spans, false)
 
 	// we only have one top level but partial. We expect to ignore it when calculating stats
 	testTrace := toProcessedTrace(spans, "none", "tracer-hostname")
@@ -655,7 +655,7 @@ func TestForceFlush(t *testing.T) {
 	now := time.Now()
 
 	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)}
-	traceutil.ComputeTopLevel(spans)
+	traceutil.ComputeTopLevel(spans, false)
 	testTrace := toProcessedTrace(spans, "none", "")
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, "")
@@ -700,7 +700,7 @@ func TestPeerTags(t *testing.T) {
 	}
 	t.Run("not configured", func(t *testing.T) {
 		spans := []*pb.Span{sp, sp2}
-		traceutil.ComputeTopLevel(spans)
+		traceutil.ComputeTopLevel(spans, false)
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
 		c.addNow(testTrace, "")
@@ -712,7 +712,7 @@ func TestPeerTags(t *testing.T) {
 	})
 	t.Run("configured", func(t *testing.T) {
 		spans := []*pb.Span{sp, sp2}
-		traceutil.ComputeTopLevel(spans)
+		traceutil.ComputeTopLevel(spans, false)
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
 		c.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
@@ -777,7 +777,7 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 	}
 	t.Run("disabled", func(t *testing.T) {
 		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
-		traceutil.ComputeTopLevel(spans)
+		traceutil.ComputeTopLevel(spans, false)
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
 		c.addNow(testTrace, "")
@@ -795,7 +795,7 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 	})
 	t.Run("enabled", func(t *testing.T) {
 		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
-		traceutil.ComputeTopLevel(spans)
+		traceutil.ComputeTopLevel(spans, false)
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
 		c.computeStatsBySpanKind = true

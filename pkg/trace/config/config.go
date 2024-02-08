@@ -51,6 +51,11 @@ type OTLP struct {
 	// If unset (or 0), the receiver will be off.
 	GRPCPort int `mapstructure:"grpc_port"`
 
+	// ComputeTopLevelBySpanKind specifies whether top-level spans should be identified by span kind.
+	// If enabled, root spans and spans with a server or consumer `span.kind` will be marked as top-level.
+	// Additionally, spans with a client or producer `span.kind` will have status computed.
+	ComputeTopLevelBySpanKind bool `mapstructure:"compute_top_level_by_span_kind"`
+
 	// SpanNameRemappings is the map of datadog span names and preferred name to map to. This can be used to
 	// automatically map Datadog Span Operation Names to an updated value. All entries should be key/value pairs.
 	SpanNameRemappings map[string]string `mapstructure:"span_name_remappings"`
