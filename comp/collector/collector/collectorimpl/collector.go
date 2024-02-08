@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	pkgCollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
@@ -113,19 +114,8 @@ func newCollector(deps dependencies) *collectorImpl {
 		checkInstances:     int64(0),
 		cancelCheckTimeout: deps.Config.GetDuration("check_cancel_timeout"),
 	}
-	pyVer, pyHome, pyPath := pySetup(common.GetPythonPaths()...)
 
-	// print the Python info if the interpreter was embedded
-	if pyVer != "" {
-		c.log.Infof("Embedding Python %s", pyVer)
-		c.log.Debugf("Python Home: %s", pyHome)
-		c.log.Debugf("Python path: %s", pyPath)
-	}
-
-	// Prepare python environment if necessary
-	if err := pyPrepareEnv(); err != nil {
-		c.log.Errorf("Unable to perform additional configuration of the python environment: %v", err)
-	}
+	pkgCollector.InitPython(common.GetPythonPaths()...)
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: c.start,

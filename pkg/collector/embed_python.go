@@ -5,13 +5,30 @@
 
 //go:build python
 
-package collectorimpl
+package collector
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// InitPython sets up the Python environment
+func InitPython(paths ...string) {
+	pyVer, pyHome, pyPath := pySetup(paths...)
+
+	// print the Python info if the interpreter was embedded
+	if pyVer != "" {
+		log.Infof("Embedding Python %s", pyVer)
+		log.Debugf("Python Home: %s", pyHome)
+		log.Debugf("Python path: %s", pyPath)
+	}
+
+	// Prepare python environment if necessary
+	if err := pyPrepareEnv(); err != nil {
+		log.Errorf("Unable to perform additional configuration of the python environment: %v", err)
+	}
+}
 
 func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 	if err := python.Initialize(paths...); err != nil {
