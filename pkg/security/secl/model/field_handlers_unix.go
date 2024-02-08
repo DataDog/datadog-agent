@@ -207,6 +207,19 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "bind":
 	case "bpf":
 	case "capset":
+	case "chdir":
+		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chdir.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chdir.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chdir.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Chdir.File)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chdir.File)
+		}
 	case "chmod":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chmod.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chmod.File.FileFields)

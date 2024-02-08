@@ -159,6 +159,7 @@ variables:
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
+  BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
@@ -348,6 +349,7 @@ workflow:
       variables:
         USE_CACHING_PROXY_PYTHON: "true"
         USE_CACHING_PROXY_RUBY: "true"
+        GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
       variables:
         USE_CACHING_PROXY_PYTHON: "true"
@@ -408,8 +410,6 @@ workflow:
 
 .on_main:
   - <<: *if_main_branch
-    variables:
-      GO_TEST_SKIP_FLAKE: "false"
 
 .on_main_manual:
   - <<: *if_main_branch
@@ -1055,6 +1055,7 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
+    allow_failure: true
 
 
 .on_install_script_release_manual:
@@ -1085,9 +1086,11 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_main_and_no_skip_e2e:
+.on_main_or_rc_and_no_skip_e2e:
   - <<: *if_not_e2e
     when: never
+  - <<: *if_tagged_commit
+    when: on_success
   - <<: *if_main_branch
     when: on_success
 

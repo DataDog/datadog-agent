@@ -8,6 +8,10 @@ on:
       - main
       - "[0-9]+.[0-9]+.x"
 
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_REPO: ${{ github.repository }}
+
 jobs:
   team-label:
     if: github.triggering_actor != 'dd-devflow[bot]'
@@ -15,7 +19,7 @@ jobs:
     steps:
       - name: Check team assignment
         run: |
-          labels="${{join(github.event.pull_request.labels.*.name, ' ')}}"
+          labels=$(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name')
           for label in $labels; do
             if [[ "$label" =~ ^qa/ ]]; then
               echo "A label to skip QA is set -- no need for team assignment"

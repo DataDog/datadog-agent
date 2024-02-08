@@ -56,6 +56,16 @@ Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 
 Package winregistry implements the Windows Registry check
 
+## [comp/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/collector) (Component Bundle)
+
+*Datadog Team*: agent-metrics-logs
+
+Package collector defines the collector bundle.
+
+### [comp/collector/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/collector/collector)
+
+Package collector defines the collector component.
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -135,8 +145,6 @@ Package serverdebug implements a component to run the dogstatsd server debug
 
 ### [comp/dogstatsd/statsd](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/statsd)
 
-*Datadog Team*: agent-shared-components
-
 Package statsd implements a component to get a statsd client.
 
 ### [comp/dogstatsd/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/status)
@@ -162,6 +170,12 @@ Package forwarder implements the "forwarder" bundle
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder)
 
 Package defaultforwarder implements a component to send payloads to the backend
+
+### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
+
+*Datadog Team*: agent-metrics-logs
+
+Package eventplatform contains the logic for forwarding events to the event platform
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 

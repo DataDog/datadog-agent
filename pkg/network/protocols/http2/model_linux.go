@@ -134,16 +134,73 @@ func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	}
 }
 
+// stringToHTTPMethod converts a string to an HTTP method.
+func stringToHTTPMethod(method string) (http.Method, error) {
+	switch strings.ToUpper(method) {
+	case "PUT":
+		return http.MethodPut, nil
+	case "DELETE":
+		return http.MethodDelete, nil
+	case "HEAD":
+		return http.MethodHead, nil
+	case "OPTIONS":
+		return http.MethodOptions, nil
+	case "PATCH":
+		return http.MethodPatch, nil
+	case "GET":
+		return http.MethodGet, nil
+	case "POST":
+		return http.MethodPost, nil
+	// Currently unsupported methods due to lack of support in http.Method.
+	case "CONNECT":
+		return http.MethodUnknown, nil
+	case "TRACE":
+		return http.MethodUnknown, nil
+	default:
+		return 0, fmt.Errorf("unsupported HTTP method: %s", method)
+	}
+}
+
 // Method returns the HTTP method of the transaction.
 func (tx *EbpfTx) Method() http.Method {
-	switch tx.Stream.Request_method {
-	case GetValue:
-		return http.MethodGet
-	case PostValue:
-		return http.MethodPost
-	default:
+	var method string
+	var err error
+
+	// Case which the method is indexed.
+	if tx.Stream.Request_method.Static_table_entry != 0 {
+		switch tx.Stream.Request_method.Static_table_entry {
+		case GetValue:
+			return http.MethodGet
+		case PostValue:
+			return http.MethodPost
+		default:
+			return http.MethodUnknown
+		}
+	}
+
+	// if the length of the method is greater than the buffer, then we return 0.
+	if int(tx.Stream.Request_method.Length) > len(tx.Stream.Request_method.Raw_buffer) || tx.Stream.Request_method.Length == 0 {
+		if oversizedLogLimit.ShouldLog() {
+			log.Errorf("method length %d is longer than the size buffer: %v and is huffman encoded: %v",
+				tx.Stream.Request_method.Length, tx.Stream.Request_method.Raw_buffer, tx.Stream.Request_method.Is_huffman_encoded)
+		}
 		return http.MethodUnknown
 	}
+
+	// Case which the method is literal.
+	if tx.Stream.Request_method.Is_huffman_encoded {
+		method, err = hpack.HuffmanDecodeToString(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
+		if err != nil {
+			return http.MethodUnknown
+		}
+	} else {
+		method = string(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
+	}
+	http2Method, err := stringToHTTPMethod(method)
+	if err != nil {
+		return http.MethodUnknown
+	}
+	return http2Method
 }
 
 // StatusCode returns the status code of the transaction.
@@ -170,7 +227,7 @@ func (tx *EbpfTx) StatusCode() uint16 {
 
 	if tx.Stream.Status_code.Is_huffman_encoded {
 		// The final form of the status code is 3 characters.
-		statusCode, err := hpack.HuffmanDecodeToString(tx.Stream.Status_code.Raw_buffer[:2])
+		statusCode, err := hpack.HuffmanDecodeToString(tx.Stream.Status_code.Raw_buffer[:http2RawStatusCodeMaxLength-1])
 		if err != nil {
 			return 0
 		}
@@ -214,8 +271,9 @@ func (tx *EbpfTx) RequestStarted() uint64 {
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (tx *EbpfTx) SetRequestMethod(m http.Method) {
-	tx.Stream.Request_method = uint8(m)
+func (tx *EbpfTx) SetRequestMethod(_ http.Method) {
+	// if we set Static_table_entry to be different from 0, and no indexed value, it will default to 0 which is "UNKNOWN"
+	tx.Stream.Request_method.Static_table_entry = 1
 }
 
 // StaticTags returns the static tags of the transaction.

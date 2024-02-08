@@ -16,6 +16,9 @@ import (
 type Opts struct {
 	// StatsdClient to be used for probe stats
 	StatsdClient statsd.ClientInterface
+
+	// this option for test purposes only; should never be true in main code
+	disableProcmon bool
 }
 
 func (o *Opts) normalize() {
