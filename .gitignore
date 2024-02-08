@@ -211,3 +211,5 @@ test/fakeintake/build/*
 !test/workload-checks/**
 
 kmt-deps/
+test/new-e2e/system-probe/test-json-review/test-json-review
+test/new-e2e/system-probe/test-runner/test-runner
