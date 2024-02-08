@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/docker/docker/api/types/container"
 )
 
 const (
@@ -155,7 +156,7 @@ func (d *DockerCheck) Run() error {
 		d.collectContainerSizeCounter = (d.collectContainerSizeCounter + 1) % d.instance.CollectContainerSizeFreq
 	}
 
-	rawContainerList, err := du.RawContainerList(context.TODO(), dockerTypes.ContainerListOptions{All: true, Size: collectContainerSize})
+	rawContainerList, err := du.RawContainerList(context.TODO(), container.ListOptions{All: true, Size: collectContainerSize})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
 		_ = d.Warnf("Error collecting containers: %s", err)

@@ -46,7 +46,7 @@ func (d *DockerUtil) openEventChannel(ctx context.Context, since, until time.Tim
 func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Message, filter *containers.Filter) (*ContainerEvent, error) {
 	// Type filtering
 	// Filtering out prune events as well as they don't have a container name
-	if msg.Type != events.ContainerEventType || msg.Action == "prune" {
+	if msg.Type != events.ContainerEventType || msg.Action == events.ActionPrune {
 		return nil, nil
 	}
 
@@ -78,10 +78,22 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 	}
 
 	action := msg.Action
-
-	// Fix the "exec_start: /bin/sh -c true" case
-	if strings.Contains(action, ":") {
-		action = strings.SplitN(action, ":", 2)[0]
+	// Some actions are prefixed then followed `: <string>`.
+	// Extract the prefix from the action here
+	// Example: "exec_start: /bin/sh -c true" case
+	for _, v := range []events.Action{
+		events.ActionExecDie,
+		events.ActionExecStart,
+		events.ActionExecDetach,
+		events.ActionExecCreate,
+		events.ActionHealthStatusRunning,
+		events.ActionHealthStatusHealthy,
+		events.ActionHealthStatusUnhealthy,
+	} {
+		if strings.HasPrefix(string(action), string(v)) {
+			action = v
+			break
+		}
 	}
 
 	event := &ContainerEvent{
@@ -114,7 +126,7 @@ func (d *DockerUtil) processImageEvent(msg events.Message) *ImageEvent {
 // It returns the latest event timestamp in the slice for the user to store and pass again in the next call.
 func (d *DockerUtil) LatestContainerEvents(ctx context.Context, since time.Time, filter *containers.Filter) ([]*ContainerEvent, time.Time, error) {
 	var containerEvents []*ContainerEvent
-	filters := map[string]string{"type": events.ContainerEventType}
+	filters := map[string]string{"type": string(events.ContainerEventType)}
 
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
