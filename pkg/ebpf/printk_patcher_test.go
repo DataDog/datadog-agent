@@ -26,9 +26,6 @@ import (
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
 
-//go:generate $GOPATH/bin/include_headers pkg/ebpf/testdata/c/runtime/logdebug-test.c pkg/ebpf/bytecode/build/runtime/logdebug-test.c pkg/ebpf/c pkg/network/ebpf/c/runtime pkg/network/ebpf/c
-//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/logdebug-test.c pkg/ebpf/bytecode/runtime/logdebug-test.go runtime
-
 func TestPatchPrintkNewline(t *testing.T) {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()
 	require.NoError(t, err)
