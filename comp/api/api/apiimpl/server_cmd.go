@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
+
 	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -75,6 +77,7 @@ func startCMDServer(
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
+	eventPlatformReceiver eventplatformreceiver.Component,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	cmdListener, err = getListener(cmdAddr)
@@ -154,6 +157,7 @@ func startCMDServer(
 				pkgSigning,
 				statusComponent,
 				collector,
+				eventPlatformReceiver,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)

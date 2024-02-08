@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -84,6 +84,7 @@ func SetupHandlers(
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
+	eventPlatformReceiver eventplatformreceiver.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -91,7 +92,7 @@ func SetupHandlers(
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
-	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
+	r.HandleFunc("/stream-event-platform", streamEventPlatform(eventPlatformReceiver)).Methods("POST")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
@@ -253,14 +254,19 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 }
 
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(logsAgent.GetMessageReceiver, "logs", "logs agent")
+	return getStreamFunc(func() messageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
 }
 
-func streamEventPlatform() func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(eventplatformimpl.GetGlobalReceiver, "event platform payloads", "agent")
+func streamEventPlatform(eventPlatformReceiver eventplatformreceiver.Component) func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(func() messageReceiver { return eventPlatformReceiver }, "event platform payloads", "agent")
 }
 
-func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
+type messageReceiver interface {
+	SetEnabled(e bool) bool
+	Filter(filters *diagnostic.Filters, done <-chan struct{}) <-chan string
+}
+
+func getStreamFunc(messageReceiverFunc func() messageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Infof("Got a request to stream %s.", streamType)
 		w.Header().Set("Transfer-Encoding", "chunked")
