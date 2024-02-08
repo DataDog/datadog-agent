@@ -17,7 +17,6 @@ import (
 
 	"go.uber.org/fx"
 
-	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -70,7 +69,7 @@ type dependencies struct {
 
 	Lc fx.Lifecycle
 
-	Demultiplexer demultiplexer.Component
+	Demultiplexer aggregator.Demultiplexer
 
 	Log    logComponent.Component
 	Config configComponent.Component
@@ -195,13 +194,16 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 // TODO: (components) - remove once serverless is an FX app
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessServer(deps dependencies) ServerlessDogstatsd {
+func NewServerlessServer(demux aggregator.Demultiplexer) (ServerlessDogstatsd, error) {
 
-	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true, deps.Demultiplexer)
+	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true, demux)
 
-	s.Start(context.TODO())
+	err := s.start(context.TODO())
+	if err != nil {
+		return nil, err
+	}
 
-	return s
+	return s, nil
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
@@ -209,7 +211,7 @@ func newServer(deps dependencies) Component {
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer)
 
 	deps.Lc.Append(fx.Hook{
-		OnStart: s.Start,
+		OnStart: s.start,
 		OnStop:  s.stop,
 	})
 
@@ -217,7 +219,7 @@ func newServer(deps dependencies) Component {
 
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux demultiplexer.Component) *server {
+func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 
@@ -323,7 +325,7 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 	return s
 }
 
-func (s *server) Start(context.Context) error {
+func (s *server) start(context.Context) error {
 
 	// TODO: (components) - DI this into Server when Demultiplexer is made into a component
 	// s.demultiplexer = demultiplexer

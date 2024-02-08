@@ -41,7 +41,6 @@ type serverDeps struct {
 	Config        configComponent.Component
 	Log           log.Component
 	Demultiplexer demultiplexer.FakeSamplerMock
-	Demux         demultiplexer.Component
 	Replay        replay.Component
 	Debug         serverdebug.Component
 
@@ -63,7 +62,6 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		demultiplexerimpl.MockModule(),
 		Module(),
 	))
 }
@@ -82,7 +80,6 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		demultiplexerimpl.MockModule(),
 		Module(),
 	))
 }
@@ -103,11 +100,11 @@ func TestStopServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demux)
-	s.Start(context.TODO())
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer)
+	s.start(context.TODO())
 	requireStart(t, s)
 
-	s.Stop()
+	s.stop(context.TODO())
 
 	// check that the port can be bound, try for 100 ms
 	address, err := net.ResolveUDPAddr("udp", s.UDPLocalAddr())
@@ -159,12 +156,8 @@ func TestUDPReceive(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	demux := deps.Demultiplexer
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demux)
-	s.Start(context.TODO())
-	requireStart(t, s)
-	defer s.Stop()
 
-	conn, err := net.Dial("udp", s.UDPLocalAddr())
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -473,7 +466,6 @@ func TestHistToDist(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	// demux := createDemultiplexer(t)
 	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
@@ -599,7 +591,7 @@ func TestExtraTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	demux := createDemultiplexer(t)
+	demux := deps.Demultiplexer
 	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
@@ -627,7 +619,7 @@ func TestStaticTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	demux := createDemultiplexer(t)
+	demux := deps.Demultiplexer
 	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
@@ -834,13 +826,13 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		cfg["dogstatsd_origin_optout_enabled"] = enabled
 
 		deps := fulfillDepsWithConfigOverride(t, cfg)
-
-		s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demux)
-		s.Start(context.TODO())
-		s.Stop()
-		// requireStart(t, s)
-
+		s := deps.Server.(*server)
 		assert := assert.New(t)
+
+		s.start(context.TODO())
+		requireStart(t, s)
+
+		s.Stop()
 
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
