@@ -21,7 +21,7 @@ build do
     "--enable-elf-shlibs"
   ]
   configure(*configure_options, prefix: "#{install_dir}/embedded/temp_dir", :env => env)
-  command "make", :env => env
+  command "make -j #{workers}", :env => env
 
   # Move libcom_err files directly
   copy "lib/et/libcom_err.so.2.1", "#{install_dir}/embedded/lib/"
