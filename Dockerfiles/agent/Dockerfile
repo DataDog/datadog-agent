@@ -188,6 +188,9 @@ RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
+# Fix ownership with 100:0 so both dd-agent and root can run s6-chown without errors
+RUN sed -i 's/root/100:0/g' /etc/s6/init/init-stage2-fixattrs.txt
+
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
 # Add Debian snapshot date for debugging
