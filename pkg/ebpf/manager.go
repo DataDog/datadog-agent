@@ -50,6 +50,13 @@ func NewManager(mgr *manager.Manager, modifiers ...Modifier) *Manager {
 // add functionality to the ebpf.Manager. It exposes a name to identify the modifier,
 // two functions that will be called before and after the ebpf.Manager.InitWithOptions
 // call, and a function that will be called when the manager is stopped.
+// Note regarding internal state of the modifier: if the modifier is added to the list of modifiers
+// enabled by default (pkg/ebpf/ebpf.go:registerDefaultModifiers), all managers with those default modifiers
+// will share the same instance of the modifier. On the other hand, if the modifier is added to a specific
+// manager, it can have its own instance of the modifier, unless the caller explicitly uses the same modifier
+// instance with different managers. In other words, if the modifier is to have any internal state specific to
+// each manager, it should not be added to the list of default modifiers, and developers using it
+// should be aware of this behavior.
 type Modifier interface {
 	// BeforeInit is called before the ebpf.Manager.InitWithOptions call
 	BeforeInit(*Manager, *manager.Options) error
