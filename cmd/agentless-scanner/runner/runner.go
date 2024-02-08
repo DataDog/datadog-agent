@@ -501,6 +501,7 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 	defer s.cleanupScan(scan)
 	switch scan.Type {
 	case types.TaskTypeHost:
+		assert(s.CloudProvider == types.CloudProviderNone)
 		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName()}, pool)
 
 	case types.TaskTypeAMI:

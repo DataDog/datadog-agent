@@ -196,11 +196,11 @@ func ListPartitions(ctx context.Context, scan *types.ScanTask, deviceName string
 
 	var partitions []Partition
 	for i := 0; i < 5; i++ {
+		if !sleepCtx(ctx, 100*time.Millisecond) {
+			return nil, ctx.Err()
+		}
 		blockDevices, err := List(ctx, deviceName)
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return nil, err
-			}
 			continue
 		}
 		if len(blockDevices) != 1 {
@@ -216,9 +216,6 @@ func ListPartitions(ctx context.Context, scan *types.ScanTask, deviceName string
 		}
 		if len(partitions) > 0 {
 			break
-		}
-		if !sleepCtx(ctx, 100*time.Millisecond) {
-			return nil, ctx.Err()
 		}
 	}
 	log.Debugf("%s: found %d compatible partitions for device %q", scan, len(partitions), deviceName)
