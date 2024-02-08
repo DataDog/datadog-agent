@@ -281,7 +281,6 @@ func (c *Client) Subscribe(product string, fn func(update map[string]state.RawCo
 	}
 
 	c.listeners[product] = append(c.listeners[product], fn)
-	fn(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
 }
 
 // GetConfigs returns the current configs applied of a product.
@@ -307,9 +306,34 @@ func (c *Client) startFn() {
 // pollLoop should never be called manually and only be called via the client's `sync.Once`
 // structure in startFn.
 func (c *Client) pollLoop() {
-	successfulFirstRun := false
+	successfulFirstRun := true
+	// First run
+	err := c.update()
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			// Remote Configuration is disabled as the server isn't initialized
+			//
+			// As this is not a transient error (that would be codes.Unavailable),
+			// stop the client: it shouldn't keep contacting a server that doesn't
+			// exist.
+			log.Debugf("remote configuration isn't enabled, disabling client")
+			return
+		}
+
+		// As some clients may start before the core-agent server is up, we log the first error
+		// as a debug log as the race is expected. If the error persists, we log with error logs
+		log.Infof("retrying the first update of remote-config state (%v)", err)
+		successfulFirstRun = false
+	}
+
 	for {
 		interval := c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
+		if !successfulFirstRun && c.pollInterval > time.Second {
+			// If we never managed to contact the RC service, we want to retry faster (max every second)
+			// to get a first state as soon as possible.
+			// Some products may not start correctly without a first state.
+			interval = -c.pollInterval + time.Second
+		}
 		select {
 		case <-c.ctx.Done():
 			return
