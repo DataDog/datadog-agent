@@ -817,10 +817,8 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 
 	if restarts >= maxRestarts {
 		return -1, fmt.Errorf("the iteration got restarted too many times (%d, limit is %d) for map %s (%d entries)", restarts, maxRestarts, mp.String(), mp.MaxEntries())
-	} else {
-		return -1, fmt.Errorf("the iteration looped too many times (found %d elements already) for map %s (%d entries)", totalCount, mp.String(), mp.MaxEntries())
 	}
-
+	return -1, fmt.Errorf("the iteration looped too many times (found %d elements already) for map %s (%d entries)", totalCount, mp.String(), mp.MaxEntries())
 }
 
 func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffers, maxRestarts int) (int64, error) {
