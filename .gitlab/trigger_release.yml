@@ -21,7 +21,20 @@
     - source /root/.bashrc
     - export RELEASE_VERSION=$(inv agent.version --major-version 7 --url-safe --omnibus-format)-1
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
-    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "main" --variables "ACTION,AUTO_RELEASE,BUILD_PIPELINE_ID,RELEASE_PRODUCT,RELEASE_VERSION,TARGET_REPO,TARGET_REPO_BRANCH"
+    - 'inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "main"
+      --variable ACTION
+      --variable AUTO_RELEASE
+      --variable BUILD_PIPELINE_ID
+      --variable RELEASE_PRODUCT
+      --variable RELEASE_VERSION
+      --variable TARGET_REPO
+      --variable TARGET_REPO_BRANCH
+      --variable APPS
+      --variable BAZEL_TARGET
+      --variable DDR
+      --variable DDR_WORKFLOW_ID
+      --variable TARGET_ENV
+      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS'
   dependencies: []
 
 trigger_auto_staging_release:

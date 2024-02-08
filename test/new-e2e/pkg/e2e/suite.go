@@ -227,7 +227,7 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		o(&bs.params)
 	}
 
-	if bs.params.devMode && !runner.GetProfile().AllowDevMode() {
+	if !runner.GetProfile().AllowDevMode() {
 		bs.params.devMode = false
 	}
 
@@ -429,11 +429,28 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
-	// Do the initial provisioning
 	// In `SetupSuite` we cannot fail as `TearDownSuite` will not be called otherwise.
 	// Meaning that stack clean up may not be called.
-	// We should `reconcileEnv` here, but currently removed for this reason.
-	// Provisioning is done in `BeforeTest` instead, the first test will support the provisioning time and failures.
+	// We do implement an explicit recover to handle this manuallay.
+	defer func() {
+		err := recover()
+		if err == nil {
+			return
+		}
+
+		bs.T().Logf("Caught panic in SetupSuite, err: %v. Will try to TearDownSuite", err)
+		bs.firstFailTest = "Initial provisioiningin SetupSuite" // This is required to handle skipDeleteOnFailure
+		bs.TearDownSuite()
+
+		// As we need to call `recover` to know if there was a panic, we wrap and forward the original panic to,
+		// once again, stop the execution of the test suite.
+		panic(fmt.Errorf("Forward panic in SetupSuite after TearDownSuite, err was: %v", err))
+	}()
+
+	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
+		// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
+		panic(err)
+	}
 }
 
 // BeforeTest is executed right before the test starts and receives the suite and test names as input.
@@ -489,16 +506,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	ctx, cancel := bs.providerContext(deleteTimeout)
 	defer cancel()
 
-	atLeastOneFailure := false
 	for id, provisioner := range bs.originalProvisioners {
 		if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
 			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
-			atLeastOneFailure = true
 		}
-	}
-
-	if atLeastOneFailure {
-		bs.T().Fail()
 	}
 }
 
@@ -506,7 +517,13 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 // Unfortunately, we cannot use `s Suite[Env]` as Go is not able to match it with a struct
 // However it's able to verify the same constraint on T
 func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
-	options = append(options, WithDevMode())
+	devMode, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.DevMode, false)
+	if err != nil {
+		t.Logf("Unable to get DevMode value, DevMode will be disabled, error: %v", err)
+	} else if devMode {
+		options = append(options, WithDevMode())
+	}
+
 	s.init(options, s)
 	suite.Run(t, s)
 }

@@ -16,12 +16,12 @@ import requests
 from invoke import task
 from invoke.exceptions import Exit
 
-from .agent import BUNDLED_AGENTS
-from .agent import build as agent_build
-from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
-from .flavor import AgentFlavor
-from .libs.common.color import color_message
-from .libs.common.utils import (
+from tasks.agent import BUNDLED_AGENTS
+from tasks.agent import build as agent_build
+from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     environ,
@@ -32,8 +32,8 @@ from .libs.common.utils import (
     set_co_re_env,
     set_runtime_comp_env,
 )
-from .libs.ninja_syntax import NinjaWriter
-from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
+from tasks.libs.ninja_syntax import NinjaWriter
+from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -312,6 +312,7 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
+        "pkg/ebpf/bytecode/runtime/printk_patcher_test.go": "logdebug-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
@@ -574,6 +575,7 @@ def build_sysprobe_binary(
             python_runtimes=python_runtimes,
             arch=arch,
             go_mod=go_mod,
+            bundle_ebpf=bundle_ebpf,
             bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
         )
 
@@ -1477,18 +1479,6 @@ def is_bpftool_compatible(ctx):
         return False
 
 
-@contextlib.contextmanager
-def tempdir():
-    """
-    Helper to create a temp directory and clean it
-    """
-    dirpath = tempfile.mkdtemp()
-    try:
-        yield dirpath
-    finally:
-        shutil.rmtree(dirpath)
-
-
 def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
     btf_dir = "/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf"
 
@@ -1614,6 +1604,69 @@ def generate_minimized_btfs(
 
 
 @task
+def process_btfhub_archive(ctx, branch="main"):
+    """
+    process btfhub-archive repo to only select BTF tarball files of a single architecture
+    :param ctx: invoke context
+    :param branch: branch of DataDog/btfhub-archive to clone
+    """
+    output_dir = os.getcwd()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        with ctx.cd(temp_dir):
+            ctx.run(f"git clone --depth=1 -b {branch} https://github.com/DataDog/btfhub-archive.git")
+            with ctx.cd("btfhub-archive"):
+                # iterate over all top-level directories, which are platforms (amzn, ubuntu, etc.)
+                with os.scandir(ctx.cwd) as pit:
+                    for pdir in pit:
+                        if not pdir.is_dir() or pdir.name.startswith("."):
+                            continue
+
+                        # iterate over second-level directories, which are release versions (2, 20.04, etc.)
+                        with os.scandir(pdir.path) as rit:
+                            for rdir in rit:
+                                if not rdir.is_dir() or rdir.is_symlink():
+                                    continue
+
+                                # iterate over arch directories
+                                with os.scandir(rdir.path) as ait:
+                                    for adir in ait:
+                                        if not adir.is_dir() or adir.name not in {"x86_64", "arm64"}:
+                                            continue
+
+                                        src_dir = adir.path
+                                        # list BTF .tar.xz files in arch dir
+                                        btf_files = os.listdir(src_dir)
+                                        for file in btf_files:
+                                            if not file.endswith(".tar.xz"):
+                                                continue
+                                            src_file = os.path.join(src_dir, file)
+
+                                            # remove release and arch from destination
+                                            btfs_dir = os.path.join(temp_dir, f"btfs-{adir.name}")
+                                            dst_dir = os.path.join(btfs_dir, pdir.name)
+                                            # ubuntu retains release version
+                                            if pdir.name == "ubuntu":
+                                                dst_dir = os.path.join(btfs_dir, pdir.name, rdir.name)
+
+                                            os.makedirs(dst_dir, exist_ok=True)
+                                            dst_file = os.path.join(dst_dir, file)
+                                            if os.path.exists(dst_file):
+                                                raise Exit(message=f"{dst_file} already exists")
+                                            shutil.move(src_file, os.path.join(dst_dir, file))
+
+        # generate both tarballs
+        for arch in ["x86_64", "arm64"]:
+            btfs_dir = os.path.join(temp_dir, f"btfs-{arch}")
+            output_path = os.path.join(output_dir, f"btfs-{arch}.tar.gz")
+            # at least one file needs to be moved for directory to exist
+            if os.path.exists(btfs_dir):
+                with ctx.cd(temp_dir):
+                    # gzip ends up being much faster than xz, for roughly the same output file size
+                    # include btfs-$ARCH as prefix for all paths
+                    ctx.run(f"tar -czf {output_path} btfs-{arch}")
+
+
+@task
 def generate_event_monitor_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
@@ -1731,12 +1784,13 @@ def _test_docker_image_list():
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    images.update(
-        ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
-    )
+    images.update(["menci/archlinuxarm:base"])
 
     # Special use-case in javatls
     images.remove("${IMAGE_VERSION}")
+    # Temporary: GoTLS monitoring inside containers tests are flaky in the CI, so at the meantime, the tests are
+    # disabled, so we can skip downloading a redundant image.
+    images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
     return images
 
 

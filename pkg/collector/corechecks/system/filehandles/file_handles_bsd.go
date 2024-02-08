@@ -14,12 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // For testing purpose
 var getInt64 = sysctl.GetInt64
 
-const fileHandlesCheckName = "file_handle"
+// CheckName is the name of the check
+const CheckName = "file_handle"
 
 type fhCheck struct {
 	core.CheckBase
@@ -60,12 +62,13 @@ func (c *fhCheck) Configure(senderManager sender.SenderManager, integrationConfi
 	return err
 }
 
-func fhFactory() check.Check {
-	return &fhCheck{
-		CheckBase: core.NewCheckBase(fileHandlesCheckName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(fileHandlesCheckName, fhFactory)
+func newCheck() check.Check {
+	return &fhCheck{
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }

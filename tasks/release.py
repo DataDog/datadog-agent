@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from collections import OrderedDict
 from datetime import date
 from time import sleep
@@ -13,11 +14,11 @@ from time import sleep
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from .libs.common.color import color_message
-from .libs.common.github_api import GithubAPI
-from .libs.common.gitlab import Gitlab, get_gitlab_token
-from .libs.common.user_interactions import yes_no_question
-from .libs.common.utils import (
+from tasks.libs.common.color import color_message
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
     check_clean_branch_state,
@@ -25,9 +26,9 @@ from .libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
-from .libs.version import Version
-from .modules import DEFAULT_MODULES
-from .pipeline import edit_schedule, run
+from tasks.libs.version import Version
+from tasks.modules import DEFAULT_MODULES
+from tasks.pipeline import edit_schedule, run
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -65,7 +66,7 @@ def add_prelude(ctx, version):
         )
 
     ctx.run(f"git add {new_releasenote}")
-    print("\nCommit this with:")
+    print("\nIf not run as part of finish task, commit this with:")
     print(f"git commit -m \"Add prelude for {version} release\"")
 
 
@@ -91,7 +92,7 @@ def add_dca_prelude(ctx, agent7_version, agent6_version=""):
         )
 
     ctx.run(f"git add {new_releasenote}")
-    print("\nCommit this with:")
+    print("\nIf not run as part of finish task, commit this with:")
     print(f"git commit -m \"Add prelude for {agent7_version} release\"")
 
 
@@ -944,7 +945,7 @@ def try_git_command(ctx, git_command):
 
 
 @task
-def finish(ctx, major_versions="6,7"):
+def finish(ctx, major_versions="6,7", upstream="origin"):
     """
     Updates the release entry in the release.json file for the new version.
 
@@ -970,6 +971,72 @@ def finish(ctx, major_versions="6,7"):
 
     # Update internal module dependencies
     update_modules(ctx, str(new_version))
+
+    # Step 3: branch out, commit change, push branch
+
+    final_branch = f"{new_version}-final"
+
+    print(color_message(f"Branching out to {final_branch}", "bold"))
+    ctx.run(f"git checkout -b {final_branch}")
+
+    print(color_message("Committing release.json and Go modules updates", "bold"))
+    print(
+        color_message(
+            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+        )
+    )
+    ctx.run("git add release.json")
+    ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
+
+    commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
+
+    ok = try_git_command(ctx, f"git commit -m {commit_message}")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {final_branch} branch and then open a PR against {final_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # Step 4: add release changelog preludes
+    print(color_message("Adding Agent release changelog prelude", "bold"))
+    add_prelude(ctx, new_version)
+
+    print(color_message("Adding DCA release changelog prelude", "bold"))
+    add_dca_prelude(ctx, new_version)
+
+    ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # Step 5: push branch and create PR
+
+    print(color_message("Pushing new branch to the upstream repository", "bold"))
+    res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
+    if res.exited is None or res.exited > 0:
+        raise Exit(
+            color_message(
+                f"Could not push branch {final_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {final_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    create_release_pr(
+        "Final updates for release.json and Go modules for {new_version} release + preludes",
+        current_branch,
+        final_branch,
+        new_version,
+    )
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
@@ -1046,21 +1113,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
-    milestone_name = str(new_final_version)
-
-    milestone = github.get_milestone_by_name(milestone_name)
-
-    if not milestone or not milestone.number:
-        raise Exit(
-            color_message(
-                f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
-Make sure that milestone is open before trying again.""",
-                "red",
-            ),
-            code=1,
-        )
-
     # Step 1: Update release entries
 
     print(color_message("Updating release entries", "bold"))
@@ -1108,15 +1160,39 @@ Make sure that milestone is open before trying again.""",
             code=1,
         )
 
+    create_release_pr(
+        f"[release] Update release.json and Go modules for {versions_string}",
+        current_branch,
+        update_branch,
+        new_final_version,
+    )
+
+
+def create_release_pr(title, base_branch, target_branch, version):
     print(color_message("Creating PR", "bold"))
 
-    # Step 4: create PR
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
+
+    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
+    milestone_name = str(version)
+
+    milestone = github.get_milestone_by_name(milestone_name)
+
+    if not milestone or not milestone.number:
+        raise Exit(
+            color_message(
+                f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
+Make sure that milestone is open before trying again.""",
+                "red",
+            ),
+            code=1,
+        )
 
     pr = github.create_pr(
-        pr_title=f"[release] Update release.json and Go modules for {versions_string}",
+        pr_title=title,
         pr_body="",
-        base_branch=current_branch,
-        target_branch=update_branch,
+        base_branch=base_branch,
+        target_branch=target_branch,
     )
 
     if not pr:
@@ -1127,14 +1203,11 @@ Make sure that milestone is open before trying again.""",
 
     print(color_message(f"Created PR #{pr.number}", "bold"))
 
-    # Step 5: add milestone and labels to PR
-
     updated_pr = github.update_pr(
         pull_number=pr.number,
         milestone_number=milestone.number,
         labels=[
             "changelog/no-changelog",
-            "qa/skip-qa",
             "qa/no-code-change",
             "team/agent-platform",
             "team/agent-release-management",
@@ -1149,9 +1222,7 @@ Make sure that milestone is open before trying again.""",
         )
 
     print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
-    print(
-        color_message(f"Done preparing RC {versions_string}. The PR is available here: {updated_pr.html_url}", "bold")
-    )
+    print(color_message(f"Done preparing release PR. The PR is available here: {updated_pr.html_url}", "bold"))
 
 
 @task
@@ -1413,15 +1484,34 @@ def cleanup(ctx):
 
 
 @task
-def check_omnibus_branches(_):
-    for branch in ['nightly', 'nightly-a7']:
-        omnibus_ruby_version = _get_release_json_value(f'{branch}::OMNIBUS_RUBY_VERSION')
-        omnibus_software_version = _get_release_json_value(f'{branch}::OMNIBUS_SOFTWARE_VERSION')
-        version_re = re.compile(r'(\d+)\.(\d+)\.x')
-        if omnibus_ruby_version != 'datadog-5.5.0' and not version_re.match(omnibus_ruby_version):
-            raise Exit(code=1, message=f'omnibus-ruby version [{omnibus_ruby_version}] is not mergeable')
-        if omnibus_software_version != 'master' and not version_re.match(omnibus_software_version):
-            raise Exit(code=1, message=f'omnibus-software version [{omnibus_software_version}] is not mergeable')
+def check_omnibus_branches(ctx):
+    base_branch = _get_release_json_value('base_branch')
+    if base_branch == 'main':
+        omnibus_ruby_branch = 'datadog-5.5.0'
+        omnibus_software_branch = 'master'
+    else:
+        omnibus_ruby_branch = base_branch
+        omnibus_software_branch = base_branch
+
+    def _check_commit_in_repo(repo_name, branch, release_json_field):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ctx.run(
+                f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
+                hide='stdout',
+            )
+            for version in ['nightly', 'nightly-a7']:
+                commit = _get_release_json_value(f'{version}::{release_json_field}')
+                if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
+                    raise Exit(
+                        code=1,
+                        message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
+                    )
+                else:
+                    print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
+
+    _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
+    _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
+
     return True
 
 
@@ -1505,3 +1595,21 @@ def _create_build_links_patterns(current_version, new_version):
     patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
 
     return patterns
+
+
+@task
+def get_active_release_branch(_ctx):
+    """
+    Determine what is the current active release branch for the Agent.
+    If release started and code freeze is in place - main branch is considered active.
+    If release started and code freeze is over - release branch is considered active.
+    """
+    gh = GithubAPI('datadog/datadog-agent')
+    latest_release = gh.latest_release()
+    version = _create_version_from_match(VERSION_RE.search(latest_release))
+    next_version = version.next_version(bump_minor=True)
+    release_branch = gh.get_branch(next_version.branch())
+    if release_branch:
+        print(f"{release_branch.name}")
+    else:
+        print("main")

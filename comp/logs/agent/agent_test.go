@@ -8,6 +8,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -96,6 +97,8 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*agent, *s
 	sources := sources.NewLogSources()
 	services := service.NewServices()
 
+	suite.configOverrides["logs_enabled"] = true
+
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
 		core.MockBundle(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
@@ -156,7 +159,7 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	server := http.NewTestServer(200)
+	server := http.NewTestServer(200, coreConfig.Datadog)
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
@@ -203,6 +206,89 @@ func (suite *AgentTestSuite) TestGetPipelineProvider() {
 	agent.Start()
 
 	assert.NotNil(suite.T(), agent.GetPipelineProvider())
+}
+
+func (suite *AgentTestSuite) TestStatusProvider() {
+	tests := []struct {
+		name     string
+		enabled  bool
+		expected interface{}
+	}{
+		{
+			"logs enabled",
+			true,
+			NewStatusProvider(),
+		},
+		{
+			"logs disabled",
+			false,
+			NewStatusProvider(),
+		},
+	}
+
+	for _, test := range tests {
+		suite.T().Run(test.name, func(*testing.T) {
+			suite.configOverrides["logs_enabled"] = test.enabled
+
+			deps := fxutil.Test[dependencies](suite.T(), fx.Options(
+				core.MockBundle(),
+				fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
+				inventoryagentimpl.MockModule(),
+			))
+
+			provides := newLogsAgent(deps)
+
+			assert.IsType(suite.T(), test.expected, provides.StatusProvider.Provider)
+		})
+	}
+}
+
+func (suite *AgentTestSuite) TestStatusOut() {
+	suite.configOverrides["logs_enabled"] = true
+
+	deps := fxutil.Test[dependencies](suite.T(), fx.Options(
+		core.MockBundle(),
+		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
+		inventoryagentimpl.MockModule(),
+	))
+
+	provides := newLogsAgent(deps)
+
+	headerProvider := provides.StatusProvider.Provider
+
+	tests := []struct {
+		name       string
+		assertFunc func(t *testing.T)
+	}{
+		{"JSON", func(t *testing.T) {
+			stats := make(map[string]interface{})
+			headerProvider.JSON(false, stats)
+
+			assert.NotEmpty(t, stats)
+		}},
+		{"Text", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := headerProvider.Text(false, b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+		{"HTML", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := headerProvider.HTML(false, b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+	}
+
+	for _, test := range tests {
+		suite.T().Run(test.name, func(t *testing.T) {
+			test.assertFunc(suite.T())
+		})
+	}
 }
 
 func TestAgentTestSuite(t *testing.T) {

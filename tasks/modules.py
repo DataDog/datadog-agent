@@ -164,6 +164,7 @@ DEFAULT_MODULES = {
     "pkg/metrics": GoModule("pkg/metrics", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
+    "comp/core/hostname/hostnameinterface": GoModule("comp/core/hostname/hostnameinterface", independent=True),
     "comp/core/config": GoModule("comp/core/config", independent=True),
     "comp/core/log": GoModule("comp/core/log", independent=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
@@ -171,6 +172,12 @@ DEFAULT_MODULES = {
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True),
+    "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
+        "comp/forwarder/orchestrator/orchestratorinterface", independent=True
+    ),
+    "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
+    ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
@@ -179,6 +186,7 @@ DEFAULT_MODULES = {
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True),
     "pkg/config/logs": GoModule("pkg/config/logs", independent=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
+    "pkg/serializer": GoModule("pkg/serializer", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
@@ -203,6 +211,7 @@ DEFAULT_MODULES = {
     "pkg/util/sort": GoModule("pkg/util/sort", independent=True),
     "pkg/util/optional": GoModule("pkg/util/optional", independent=True),
     "pkg/util/statstracker": GoModule("pkg/util/statstracker", independent=True),
+    "pkg/util/system": GoModule("pkg/util/system", independent=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True),

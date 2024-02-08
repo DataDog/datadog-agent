@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -718,6 +719,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
+	case model.FileChdirEventType:
+		if _, err = event.Chdir.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode chdir event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
 	case model.FileChmodEventType:
 		if _, err = event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -1265,7 +1271,7 @@ func (p *EBPFProbe) Close() error {
 	p.wg.Wait()
 
 	ebpfcheck.RemoveNameMappings(p.Manager)
-	commonebpf.UnregisterTelemetry(p.Manager)
+	ebpftelemetry.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
 		return err
@@ -1682,7 +1688,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	}
 
 	// TODO safchain change the fields handlers
-	p.fieldHandlers = &EBPFFieldHandlers{resolvers: p.Resolvers}
+	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers}
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
