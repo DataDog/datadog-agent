@@ -61,6 +61,13 @@ type WindowsProbe struct {
 	fimwg      sync.WaitGroup
 }
 
+/*
+ * callback function for every etw notification, after it's been parsed.
+ * pid is provided for testing purposes, to allow filtering on pid.  it is
+ * not expected to be used at runtime
+ */
+type etwCallback func(n interface{}, pid uint32)
+
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
 
@@ -71,6 +78,16 @@ func (p *WindowsProbe) Init() error {
 		}
 		p.pm = pm
 	}
+	return p.initEtwFIM()
+}
+
+func (p *WindowsProbe) initEtwFIM() error {
+
+	if !p.config.RuntimeSecurity.FIMEnabled {
+		return nil
+	}
+	// log at Warning right now because it's not expected to be enabled
+	log.Warnf("Enabling FIM processing")
 
 	etwSessionName := "SystemProbeFIM_ETW"
 	etwcomp, err := etwimpl.NewEtw()
@@ -169,14 +186,16 @@ func (p *WindowsProbe) Setup() error {
 
 // Stop the probe
 func (p *WindowsProbe) Stop() {
-	_ = p.fimSession.StopTracing()
-	p.fimwg.Wait()
+	if p.fimSession != nil {
+		_ = p.fimSession.StopTracing()
+		p.fimwg.Wait()
+	}
 	if p.pm != nil {
 		p.pm.Stop()
 	}
 }
 
-func (p *WindowsProbe) setupEtw() error {
+func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
@@ -187,21 +206,29 @@ func (p *WindowsProbe) setupEtw() error {
 			case idCreate:
 				if ca, err := parseCreateHandleArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
+					ecb(ca, e.EventHeader.ProcessID)
 				}
 
 			case idCreateNewFile:
 				if ca, err := parseCreateNewFileArgs(e); err == nil {
-					log.Tracef("Received NewFile event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
+					ecb(ca, e.EventHeader.ProcessID)
 				}
 			case idCleanup:
-				fallthrough
-			case idFlush:
-				// idCleanup and idFlush can be parsed with parseCleanupArgs if necessary.
-				// don't fall through
-			case idClose:
 				if ca, err := parseCleanupArgs(e); err == nil {
-					log.Tracef("got id %v args %s", e.EventHeader.EventDescriptor.ID, ca.string())
-					delete(filePathResolver, ca.fileObject)
+					ecb(ca, e.EventHeader.ProcessID)
+				}
+
+			case idClose:
+				if ca, err := parseCloseArgs(e); err == nil {
+					//fmt.Printf("Received Close event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
+					ecb(ca, e.EventHeader.ProcessID)
+					if e.EventHeader.EventDescriptor.ID == idClose {
+						delete(filePathResolver, ca.fileObject)
+					}
+				}
+			case idFlush:
+				if fa, err := parseFlushArgs(e); err == nil {
+					ecb(fa, e.EventHeader.ProcessID)
 				}
 			case idSetInformation:
 				fallthrough
@@ -224,6 +251,7 @@ func (p *WindowsProbe) setupEtw() error {
 			case idRegCreateKey:
 				if cka, err := parseCreateRegistryKey(e); err == nil {
 					log.Tracef("Got idRegCreateKey %s", cka.string())
+					ecb(cka, e.EventHeader.ProcessID)
 				}
 			case idRegOpenKey:
 				if cka, err := parseCreateRegistryKey(e); err == nil {
@@ -267,12 +295,29 @@ func (p *WindowsProbe) setupEtw() error {
 func (p *WindowsProbe) Start() error {
 
 	log.Infof("Windows probe started")
-	p.fimwg.Add(1)
-	go func() {
-		defer p.fimwg.Done()
-		err := p.setupEtw()
-		log.Infof("Done StartTracing %v", err)
-	}()
+	if p.fimSession != nil {
+		// log at Warning right now because it's not expected to be enabled
+		log.Warnf("Enabling FIM processing")
+		p.fimwg.Add(1)
+
+		go func() {
+			defer p.fimwg.Done()
+			err := p.setupEtw(func(n interface{}, pid uint32) {
+				// pid will most likely be ignored here.
+
+				// handle incoming events here
+
+				// each event will come in as a different type
+				// parse it with
+				switch n.(type) {
+				case *createKeyArgs:
+					// do something
+				}
+				// etc.
+			})
+			log.Infof("Done StartTracing %v", err)
+		}()
+	}
 	if p.pm == nil {
 		return nil
 	}
@@ -422,7 +467,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	p.fieldHandlers = &FieldHandlers{resolvers: p.Resolvers}
+	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers}
 
 	p.event = p.NewEvent()
 
