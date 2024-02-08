@@ -132,6 +132,7 @@ type BaseEvent struct {
 	Actions      []*ActionTriggered `field:"-"`
 	Origin       string             `field:"-"`
 	Suppressed   bool               `field:"-"`
+	Service      string             `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -300,9 +301,9 @@ func (e *Event) ResolveEventTime() time.Time {
 	return e.FieldHandlers.ResolveEventTime(e, &e.BaseEvent)
 }
 
-// GetProcessService uses the field handler
-func (e *Event) GetProcessService() string {
-	return e.FieldHandlers.GetProcessService(e)
+// ResolveService uses the field handler
+func (e *Event) ResolveService() string {
+	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
 }
 
 // UserSessionContext describes the user session context
@@ -551,7 +552,6 @@ type DNSEvent struct {
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
-	GetProcessService(ev *Event) string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -562,9 +562,4 @@ func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCac
 // ResolveContainerContext stub implementation
 func (dfh *DefaultFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
-}
-
-// GetProcessService stub implementation
-func (dfh *DefaultFieldHandlers) GetProcessService(_ *Event) string {
-	return ""
 }
