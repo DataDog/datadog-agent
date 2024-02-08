@@ -62,14 +62,6 @@ func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb 
 	return globalTagger.AccumulateTagsFor(entity, cardinality, tb)
 }
 
-// GetEntityHash is an interface function that queries taggerclient singleton
-func GetEntityHash(entity string, cardinality collectors.TagCardinality) string {
-	if globalTagger != nil {
-		return globalTagger.GetEntityHash(entity, cardinality)
-	}
-	return ""
-}
-
 // StandardTags is an interface function that queries taggerclient singleton
 func StandardTags(entity string) ([]string, error) {
 	if globalTagger == nil {
