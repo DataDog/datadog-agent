@@ -19,4 +19,6 @@ fixes:
       }
     ```
     Moving forward, configurations that attempt to use hybrid setups—combining adv2 for check specification
-    while also employing `adv1` for `ignore_autodiscovery_tags`—are no longer supported.
+    while also employing `adv1` for `ignore_autodiscovery_tags`—are no longer supported by default.
+    Users should set the configuration parameter `cluster_checks.support_hybrid_ignore_ad_tags` to `true`
+    to enable this behavior.

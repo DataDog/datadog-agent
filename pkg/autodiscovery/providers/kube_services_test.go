@@ -10,6 +10,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
@@ -31,6 +33,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 		name        string
 		service     *v1.Service
 		expectedOut []integration.Config
+		hybrid      bool
 	}{
 		{
 			name:        "nil input",
@@ -159,10 +162,86 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "adv2 check with adv1 ignore_autodiscovery_tags in hybrid mode",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID("test"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.checks": `{
+							"http_check": {
+								"instances": [
+									{
+										"name": "My service",
+										"url": "http://%%host%%",
+										"timeout": 1
+									}
+								]
+							}
+						}`,
+						"ad.datadoghq.com/service.ignore_autodiscovery_tags": "true",
+					},
+					Name:      "svc",
+					Namespace: "ns",
+				},
+			},
+			expectedOut: []integration.Config{
+				{
+					Name:                    "http_check",
+					ADIdentifiers:           []string{"kube_service://ns/svc"},
+					InitConfig:              integration.Data("{}"),
+					Instances:               []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:            true,
+					Source:                  "kube_services:kube_service://ns/svc",
+					IgnoreAutodiscoveryTags: true,
+				},
+			},
+			hybrid: true,
+		},
+		{
+			name: "adv2 check with adv1 ignore_autodiscovery_tags in non hybrid mode",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID("test"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.checks": `{
+							"http_check": {
+								"instances": [
+									{
+										"name": "My service",
+										"url": "http://%%host%%",
+										"timeout": 1
+									}
+								]
+							}
+						}`,
+						"ad.datadoghq.com/service.ignore_autodiscovery_tags": "true",
+					},
+					Name:      "svc",
+					Namespace: "ns",
+				},
+			},
+			expectedOut: []integration.Config{
+				{
+					Name:                    "http_check",
+					ADIdentifiers:           []string{"kube_service://ns/svc"},
+					InitConfig:              integration.Data("{}"),
+					Instances:               []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:            true,
+					Source:                  "kube_services:kube_service://ns/svc",
+					IgnoreAutodiscoveryTags: false,
+				},
+			},
+		},
 	} {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			if tc.hybrid {
+				cfg.SetWithoutSource("cluster_checks.support_hybrid_ignore_ad_tags", true)
+			}
+
 			provider := KubeServiceConfigProvider{}
-			cfgs, _ := provider.parseServiceAnnotations([]*v1.Service{tc.service})
+			cfgs, _ := provider.parseServiceAnnotations([]*v1.Service{tc.service}, cfg)
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})
 	}
