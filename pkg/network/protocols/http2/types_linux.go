@@ -74,7 +74,7 @@ type HTTP2Telemetry struct {
 	Response_seen                    uint64
 	End_of_stream                    uint64
 	End_of_stream_rst                uint64
-	Path_exceeds_frame               uint64
+	Literal_value_exceeds_frame      uint64
 	Exceeding_max_interesting_frames uint64
 	Exceeding_max_frames_to_filter   uint64
 	Path_size_bucket                 [8]uint64

@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -98,6 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 				eventplatformimpl.Module(),
 				fx.Supply(eventplatformimpl.NewDisabledParams()),
+				eventplatformreceiverimpl.Module(),
 				fx.Supply(demultiplexerimpl.NewDefaultParams()),
 				// workloadmeta setup
 				collectors.GetCatalog(),

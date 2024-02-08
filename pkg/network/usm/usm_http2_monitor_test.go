@@ -392,7 +392,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 				if telemetry.Response_seen != tt.expectedTelemetry.Response_seen {
 					return false
 				}
-				if telemetry.Path_exceeds_frame != tt.expectedTelemetry.Path_exceeds_frame {
+				if telemetry.Literal_value_exceeds_frame != tt.expectedTelemetry.Literal_value_exceeds_frame {
 					return false
 				}
 				if telemetry.Exceeding_max_interesting_frames != tt.expectedTelemetry.Exceeding_max_interesting_frames {
@@ -1160,7 +1160,14 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
+				if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS); err == nil {
+					tlsMarker := ""
+					if s.isTLS {
+						tlsMarker = "tls "
+					}
+					t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
+				}
 			}
 		})
 	}
@@ -1384,9 +1391,17 @@ func getHTTP2UnixClientArray(size int, unixPath string) []*http.Client {
 // Presently, the timeout is configured to one second for all readings.
 // In case of encountered issues, increasing this duration might be necessary.
 func writeInput(c net.Conn, timeout time.Duration, inputs ...[]byte) error {
-	for _, input := range inputs {
+	for i, input := range inputs {
 		if _, err := c.Write(input); err != nil {
 			return err
+		}
+		if i != len(inputs)-1 {
+			// As long as we're not at the last message, we want to wait a bit before sending the next message.
+			// as we've seen that Go's implementation can "merge" messages together, so having a small delay
+			// between messages help us avoid this issue.
+			// There is no purpose for the delay after the last message, as the use case of "merging" messages cannot
+			// happen in this case.
+			time.Sleep(time.Millisecond * 10)
 		}
 	}
 	// Since we don't know when to stop reading from the socket, we set a timeout.
