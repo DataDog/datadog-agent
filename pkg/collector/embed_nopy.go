@@ -8,4 +8,4 @@
 package collector
 
 // InitPython is a no-op when the build tag is not set
-func InitPython(paths ...string) {}
+func InitPython(_ ...string) {}
