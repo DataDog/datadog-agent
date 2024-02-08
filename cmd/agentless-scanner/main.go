@@ -262,6 +262,16 @@ func runScannerCmd(sock string) error {
 	return nil
 }
 
+func tryGetHostname(ctx context.Context) string {
+	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	hostname, err := utils.GetHostnameWithContext(ctxhostname)
+	if err != nil {
+		return "unknown"
+	}
+	return hostname
+}
+
 func getDefaultRolesMapping(provider types.CloudProvider) types.RolesMapping {
 	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
 	return types.ParseRolesMapping(provider, roles)
