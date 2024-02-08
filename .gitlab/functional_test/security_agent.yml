@@ -176,6 +176,8 @@ kitchen_test_security_agent_windows_x64:
     - .kitchen_test_security_agent
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
+  rules:
+    !reference [.on_security_agent_changes_or_manual]
   stage: functional_test
   needs: [ "tests_windows_secagent_x64" ]
   variables:
