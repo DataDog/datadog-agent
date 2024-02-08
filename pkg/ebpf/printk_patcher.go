@@ -5,9 +5,6 @@
 
 //go:build linux_bpf
 
-// Package modifiers contains functions that modify the behavior of the manager
-// This package is separated because the test code for some of the modifiers (e.g., printk_patcher_test.go)
-// imports code from pkg/ebpf, causing import loops.
 package ebpf
 
 import (
@@ -211,22 +208,17 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 	return numPatches, errors.Join(errs...)
 }
 
-type printkPatcherModifier struct {
+// PrintkPatcherModifier adds an InstructionPatcher to the manager that removes the newline character from log_debug calls if needed
+type PrintkPatcherModifier struct {
 }
 
-func (t *printkPatcherModifier) Name() string {
-	return PrintkModifier
-}
-
-func (t *printkPatcherModifier) BeforeInit(m *Manager, _ *manager.Options) error {
+// BeforeInit adds the PatchPrintkNewline function to the manager
+func (t *PrintkPatcherModifier) BeforeInit(m *Manager, _ *manager.Options) error {
 	m.InstructionPatcher = PatchPrintkNewline
 	return nil
 }
 
-func (t *printkPatcherModifier) AfterInit(_ *Manager, _ *manager.Options) error {
+// AfterInit is a no-op for this modifier
+func (t *PrintkPatcherModifier) AfterInit(_ *Manager, _ *manager.Options) error {
 	return nil
-}
-
-func init() {
-	RegisterModifier(&printkPatcherModifier{})
 }
