@@ -260,24 +260,25 @@ func (dt *DynamicTable) launchPerfHandlerProcessor() error {
 	return nil
 }
 
-func (dt *DynamicTable) resolveValue(connTuple netebpf.ConnTuple, index uint64) (string, bool) {
+func (dt *DynamicTable) resolveValue(connTuple netebpf.ConnTuple, index uint64, temporary bool) (string, bool) {
 	dt.mux.RLock()
 	defer dt.mux.RUnlock()
 
-	cyclicMap, ok := dt.datastore[connTuple]
-	if ok {
-		return cyclicMap.Get(index)
-	}
-
-	cyclicMap, ok = dt.temporaryDatastore[connTuple]
-	if ok {
-		value, ok := cyclicMap.Pop(index)
+	if temporary {
+		cyclicMap, ok := dt.temporaryDatastore[connTuple]
 		if ok {
-			dt.temporaryDatastoreSize.Dec()
-			return value, ok
+			value, ok := cyclicMap.Pop(index)
+			if ok {
+				dt.temporaryDatastoreSize.Dec()
+				return value, ok
+			}
+		}
+	} else {
+		cyclicMap, ok := dt.datastore[connTuple]
+		if ok {
+			return cyclicMap.Get(index)
 		}
 	}
-
 	return "", false
 }
 

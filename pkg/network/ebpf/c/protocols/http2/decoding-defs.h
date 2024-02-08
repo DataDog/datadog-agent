@@ -49,7 +49,7 @@
 // Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
 // For request - those are method, path. For response - status code.
 // Thus differentiating between the limits can allow reducing code size.
-#define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 2
+//#define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 2
 
 // Maximum size for the path buffer.
 #define HTTP2_MAX_PATH_LEN 160
@@ -140,7 +140,8 @@ typedef struct {
 #define HTTP2_METHOD_MAX_LEN 7
 
 typedef struct {
-    __u32 dynamic_table_entry;
+    __u64 dynamic_table_entry;
+    bool temporary;
     __u8 static_table_entry;
     bool finalized;
     bool tuple_flipped;
@@ -160,22 +161,6 @@ typedef struct {
     conn_tuple_t tuple;
     http2_stream_t stream;
 } http2_event_t;
-
-typedef enum {
-    kStaticHeader = 0,
-    kExistingDynamicHeader = 1,
-    kNewDynamicHeader = 2,
-    kNewDynamicHeaderNotIndexed = 3,
-} __attribute__((packed)) http2_header_type_t;
-
-typedef struct {
-    __u32 original_index;
-    __u32 index;
-    __u32 new_dynamic_value_offset;
-    __u32 new_dynamic_value_size;
-    http2_header_type_t type;
-    bool is_huffman_encoded;
-} http2_header_t;
 
 typedef struct {
     http2_frame_t frame;

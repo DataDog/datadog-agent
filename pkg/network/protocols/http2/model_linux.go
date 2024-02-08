@@ -192,7 +192,7 @@ func (tx *ebpfTXWrapper) resolvePath() bool {
 			Metadata: tup.Metadata,
 		}
 	}
-	path, exists := tx.dynamicTable.resolveValue(tup, uint64(tx.Stream.Path.Dynamic_table_entry))
+	path, exists := tx.dynamicTable.resolveValue(tup, uint64(tx.Stream.Path.Dynamic_table_entry), tx.Stream.Path.Temporary)
 	if !exists {
 		return false
 	}
@@ -247,7 +247,7 @@ func (tx *ebpfTXWrapper) resolveStatusCode() bool {
 			Metadata: tup.Metadata,
 		}
 	}
-	stringStatusCode, exists := tx.dynamicTable.resolveValue(tup, uint64(tx.Stream.Status_code.Dynamic_table_entry))
+	stringStatusCode, exists := tx.dynamicTable.resolveValue(tup, uint64(tx.Stream.Status_code.Dynamic_table_entry), tx.Stream.Status_code.Temporary)
 	if !exists {
 		return false
 	}
@@ -294,7 +294,7 @@ func (tx *ebpfTXWrapper) resolveMethod() bool {
 			Metadata: tup.Metadata,
 		}
 	}
-	stringMethod, exists := tx.dynamicTable.resolveValue(tup, uint64(tx.Stream.Request_method.Dynamic_table_entry))
+	stringMethod, exists := tx.dynamicTable.resolveValue(tup, uint64(tx.Stream.Request_method.Dynamic_table_entry), tx.Stream.Request_method.Temporary)
 	if !exists {
 		return false
 	}

@@ -33,11 +33,12 @@ type http2StreamKey struct {
 	Pad_cgo_0 [4]byte
 }
 type http2InterestingValue struct {
-	Dynamic_table_entry uint32
+	Dynamic_table_entry uint64
+	Temporary           bool
 	Static_table_entry  uint8
 	Finalized           bool
 	Tuple_flipped       bool
-	Pad_cgo_0           [1]byte
+	Pad_cgo_0           [4]byte
 }
 type http2Stream struct {
 	Response_last_seen    uint64

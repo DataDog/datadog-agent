@@ -91,7 +91,8 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
-static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header) {
+static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, __u64 index, __u64 global_dynamic_counter, http2_telemetry_t *http2_tel, bool save_header, bool flipped) {
+    u32 cpu = bpf_get_smp_processor_id();
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -112,21 +113,17 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    // Path headers in HTTP2 that are not "/" or "/index.html"  are represented
-    // with an indexed name, literal value, reusing the index 4 and 5 in the
-    // static table. A different index means that the header is not a path, so
-    // we skip it.
+    interesting_value_t *val;
     if (is_path_index(index)) {
         update_path_size_telemetry(http2_tel, str_len);
-    } else if ((!is_status_index(index)) && (!is_method_index(index))) {
-        goto end;
-    }
-
-    // We skip if:
-    // - The string is too big
-    // - This is not a path
-    // - We won't be able to store the header info
-    if (headers_to_process == NULL) {
+        val = &current_stream->path;
+        bpf_printk("guy1 %d", global_dynamic_counter - 1);
+    } else if (is_status_index(index)) {
+        val = &current_stream->status_code;
+    } else if (is_method_index(index)) {
+        current_stream->request_started = bpf_ktime_get_ns();
+        val = &current_stream->request_method;
+    } else {
         goto end;
     }
 
@@ -135,20 +132,21 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    if (save_header) {
-        headers_to_process->index = global_dynamic_counter - 1;
-        headers_to_process->type = kNewDynamicHeader;
-    } else {
-        headers_to_process->type = kNewDynamicHeaderNotIndexed;
-    }
-    headers_to_process->original_index = index;
-    headers_to_process->new_dynamic_value_offset = skb_info->data_off;
-    headers_to_process->new_dynamic_value_size = str_len;
-    headers_to_process->is_huffman_encoded = is_huffman_encoded;
-    // If the string len (`str_len`) is in the range of [0, HTTP2_MAX_PATH_LEN], and we don't exceed packet boundaries
-    // (skb_info->data_off + str_len <= skb_info->data_end) and the index is kIndexPath, then we have a path header,
-    // and we're increasing the counter. In any other case, we're not increasing the counter.
-    *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN);
+    dynamic_table_value->key.index = global_dynamic_counter - 1;
+    val->dynamic_table_entry = dynamic_table_value->key.index;
+    val->temporary = !save_header;
+    val->tuple_flipped = flipped;
+    val->finalized = true;
+
+    // We're in new dynamic header or new dynamic header not indexed states.
+    read_into_buffer_path(dynamic_table_value->buf, skb, skb_info->data_off);
+    // Send dynamic value over a per-event to the user mode.
+    dynamic_table_value->string_len = str_len;
+    dynamic_table_value->is_huffman_encoded = is_huffman_encoded;
+    dynamic_table_value->temporary = !save_header;
+    bpf_perf_event_output(skb, &http2_dynamic_table_perf_buffer, cpu, dynamic_table_value, sizeof(dynamic_table_value_t));
+    bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &index, BPF_ANY);
+
 end:
     skb_info->data_off += str_len;
     return true;
@@ -181,10 +179,8 @@ static __always_inline void handle_dynamic_table_update(struct __sk_buff *skb, s
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
+static __always_inline void filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, __u32 frame_length, http2_telemetry_t *http2_tel, bool flipped) {
     __u8 current_ch;
-    __u8 interesting_headers = 0;
-    http2_header_t *current_header;
     const __u32 frame_end = skb_info->data_off + frame_length;
     const __u32 end = frame_end < skb_info->data_end + 1 ? frame_end : skb_info->data_end + 1;
     bool is_indexed = false;
@@ -194,7 +190,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
 
     __u64 *global_dynamic_counter = get_dynamic_counter(tup);
     if (global_dynamic_counter == NULL) {
-        return 0;
+        return;
     }
 
     handle_dynamic_table_update(skb, skb_info);
@@ -225,16 +221,11 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             break;
         }
 
-        current_header = NULL;
-        if (interesting_headers < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING) {
-            current_header = &headers_to_process[interesting_headers];
-        }
-
         if (is_indexed) {
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers);
+            parse_field_indexed(current_stream, &dynamic_table_value->key, index, *global_dynamic_counter, http2_tel, flipped);
             continue;
         }
         // Increment the global dynamic counter for each literal header field.
@@ -243,7 +234,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // 6.2.1 Literal Header Field with Incremental Indexing
         // top two bits are 11
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!parse_field_literal(skb, skb_info, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal)) {
+        if (!parse_field_literal(skb, skb_info, current_stream, dynamic_table_value, index, *global_dynamic_counter, http2_tel, is_literal, flipped)) {
             break;
         }
     }
@@ -290,103 +281,103 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         }
     }
 
-    return interesting_headers;
+    return;
 }
 
 // process_headers processes the headers that were filtered in filter_relevant_headers,
 // looking for requests path, status code, and method.
-static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_value_t *dynamic_table_value, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel, bool flipped) {
-    u32 cpu = bpf_get_smp_processor_id();
-    http2_header_t *current_header;
-
-#pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
-    for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
-        if (iteration >= interesting_headers) {
-            break;
-        }
-
-        current_header = &headers_to_process[iteration];
-
-        if (current_header->type == kStaticHeader) {
-            if (is_method_index(current_header->index)) {
-                // TODO: mark request
-               current_stream->request_started = bpf_ktime_get_ns();
-               current_stream->request_method.static_table_entry = current_header->index;
-               current_stream->request_method.finalized = true;
-                __sync_fetch_and_add(&http2_tel->request_seen, 1);
-            } else if (is_status_index(current_header->index)) {
-                current_stream->status_code.static_table_entry = current_header->index;
-                current_stream->status_code.finalized = true;
-                __sync_fetch_and_add(&http2_tel->response_seen, 1);
-            } else {
-                current_stream->path.static_table_entry = current_header->index;
-                current_stream->path.finalized = true;
-            }
-            continue;
-        }
-
-        dynamic_table_value->key.index = current_header->index;
-        if (current_header->type == kExistingDynamicHeader) {
-            __u32 *original_index = bpf_map_lookup_elem(&http2_dynamic_table, &dynamic_table_value->key);
-            if (original_index == NULL) {
-                break;
-            }
-            if (is_path_index(*original_index)) {
-                current_stream->path.dynamic_table_entry = current_header->index;
-                current_stream->path.tuple_flipped = flipped;
-                current_stream->path.finalized = true;
-            } else if (is_status_index(*original_index)) {
-                current_stream->status_code.dynamic_table_entry = current_header->index;
-                current_stream->status_code.tuple_flipped = flipped;
-                current_stream->status_code.finalized = true;
-            }  else if (is_method_index(*original_index)) {
-                current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method.dynamic_table_entry = current_header->index;
-                current_stream->request_method.tuple_flipped = flipped;
-                current_stream->request_method.finalized = true;
-            }
-        } else {
-            if (is_path_index(current_header->original_index)) {
-                current_stream->path.dynamic_table_entry = current_header->index;
-                current_stream->path.tuple_flipped = flipped;
-                current_stream->path.finalized = true;
-            } else if (is_status_index(current_header->original_index)) {
-                current_stream->status_code.dynamic_table_entry = current_header->index;
-                current_stream->status_code.tuple_flipped = flipped;
-                current_stream->status_code.finalized = true;
-            } else if (is_method_index(current_header->original_index)) {
-                current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method.dynamic_table_entry = current_header->index;
-                current_stream->request_method.tuple_flipped = flipped;
-                current_stream->request_method.finalized = true;
-            }
-
-            // create the new dynamic value which will be added to the internal table.
-            read_into_buffer_path(dynamic_table_value->buf, skb, current_header->new_dynamic_value_offset);
-            // Send dynamic value over a per-event to the user mode.
-            dynamic_table_value->string_len = current_header->new_dynamic_value_size;
-            dynamic_table_value->is_huffman_encoded = current_header->is_huffman_encoded;
-            dynamic_table_value->temporary = current_header->type != kNewDynamicHeader;
-            bpf_perf_event_output(skb, &http2_dynamic_table_perf_buffer, cpu, dynamic_table_value, sizeof(dynamic_table_value_t));
-            // If the value is indexed - add it to the dynamic table.
-            bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &current_header->original_index, BPF_ANY);
-        }
-    }
-}
-
-static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_value_t *dynamic_table_value, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel, bool flipped) {
-    const __u32 zero = 0;
-
-    // Allocating an array of headers, to hold all interesting headers from the frame.
-    http2_header_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
-    if (headers_to_process == NULL) {
-        return;
-    }
-    bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
-
-    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, &dynamic_table_value->key, headers_to_process, current_frame_header->length, http2_tel);
-    process_headers(skb, dynamic_table_value, current_stream, headers_to_process, interesting_headers, http2_tel, flipped);
-}
+//static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_value_t *dynamic_table_value, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel, bool flipped) {
+//    u32 cpu = bpf_get_smp_processor_id();
+//    http2_header_t *current_header;
+//
+//#pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
+//    for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
+//        if (iteration >= interesting_headers) {
+//            break;
+//        }
+//
+//        current_header = &headers_to_process[iteration];
+//
+//        if (current_header->type == kStaticHeader) {
+//            if (is_method_index(current_header->index)) {
+//                // TODO: mark request
+//               current_stream->request_started = bpf_ktime_get_ns();
+//               current_stream->request_method.static_table_entry = current_header->index;
+//               current_stream->request_method.finalized = true;
+//                __sync_fetch_and_add(&http2_tel->request_seen, 1);
+//            } else if (is_status_index(current_header->index)) {
+//                current_stream->status_code.static_table_entry = current_header->index;
+//                current_stream->status_code.finalized = true;
+//                __sync_fetch_and_add(&http2_tel->response_seen, 1);
+//            } else {
+//                current_stream->path.static_table_entry = current_header->index;
+//                current_stream->path.finalized = true;
+//            }
+//            continue;
+//        }
+//
+//        dynamic_table_value->key.index = current_header->index;
+//        if (current_header->type == kExistingDynamicHeader) {
+//            __u32 *original_index = bpf_map_lookup_elem(&http2_dynamic_table, &dynamic_table_value->key);
+//            if (original_index == NULL) {
+//                break;
+//            }
+//            if (is_path_index(*original_index)) {
+//                current_stream->path.dynamic_table_entry = current_header->index;
+//                current_stream->path.tuple_flipped = flipped;
+//                current_stream->path.finalized = true;
+//            } else if (is_status_index(*original_index)) {
+//                current_stream->status_code.dynamic_table_entry = current_header->index;
+//                current_stream->status_code.tuple_flipped = flipped;
+//                current_stream->status_code.finalized = true;
+//            }  else if (is_method_index(*original_index)) {
+//                current_stream->request_started = bpf_ktime_get_ns();
+//                current_stream->request_method.dynamic_table_entry = current_header->index;
+//                current_stream->request_method.tuple_flipped = flipped;
+//                current_stream->request_method.finalized = true;
+//            }
+//        } else {
+//            if (is_path_index(current_header->original_index)) {
+//                current_stream->path.dynamic_table_entry = current_header->index;
+//                current_stream->path.tuple_flipped = flipped;
+//                current_stream->path.finalized = true;
+//            } else if (is_status_index(current_header->original_index)) {
+//                current_stream->status_code.dynamic_table_entry = current_header->index;
+//                current_stream->status_code.tuple_flipped = flipped;
+//                current_stream->status_code.finalized = true;
+//            } else if (is_method_index(current_header->original_index)) {
+//                current_stream->request_started = bpf_ktime_get_ns();
+//                current_stream->request_method.dynamic_table_entry = current_header->index;
+//                current_stream->request_method.tuple_flipped = flipped;
+//                current_stream->request_method.finalized = true;
+//            }
+//
+//            // create the new dynamic value which will be added to the internal table.
+//            read_into_buffer_path(dynamic_table_value->buf, skb, current_header->new_dynamic_value_offset);
+//            // Send dynamic value over a per-event to the user mode.
+//            dynamic_table_value->string_len = current_header->new_dynamic_value_size;
+//            dynamic_table_value->is_huffman_encoded = current_header->is_huffman_encoded;
+//            dynamic_table_value->temporary = current_header->type != kNewDynamicHeader;
+//            bpf_perf_event_output(skb, &http2_dynamic_table_perf_buffer, cpu, dynamic_table_value, sizeof(dynamic_table_value_t));
+//            // If the value is indexed - add it to the dynamic table.
+//            bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &current_header->original_index, BPF_ANY);
+//        }
+//    }
+//}
+//
+//static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_value_t *dynamic_table_value, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel, bool flipped) {
+//    const __u32 zero = 0;
+//
+//    // Allocating an array of headers, to hold all interesting headers from the frame.
+//    http2_header_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
+//    if (headers_to_process == NULL) {
+//        return;
+//    }
+//    bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
+//
+//    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, &dynamic_table_value->key, headers_to_process, current_frame_header->length, http2_tel);
+//    process_headers(skb, dynamic_table_value, current_stream, headers_to_process, interesting_headers, http2_tel, flipped);
+//}
 
 // skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
 // of an HTTP2 connection, and skip it if present.
@@ -812,6 +803,8 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 
     http2_stream_t *current_stream = NULL;
 
+//    char buf[HTTP2_MAX_PATH_LEN] = {0};
+
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
@@ -834,7 +827,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
             continue;
         }
         dispatcher_args_copy.skb_info.data_off = current_frame.offset;
-        process_headers_frame(skb, current_stream, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, dynamic_table_value, &current_frame.frame, http2_tel, flipped);
+        filter_relevant_headers(skb, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, current_stream, dynamic_table_value, current_frame.frame.length, http2_tel, flipped);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&

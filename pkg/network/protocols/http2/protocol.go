@@ -90,9 +90,9 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: tlsHTTP2IterationsTable,
 		},
-		{
-			Name: "http2_headers_to_process",
-		},
+		//{
+		//	Name: "http2_headers_to_process",
+		//},
 		{
 			Name: "http2_frames_to_process",
 		},

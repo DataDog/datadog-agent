@@ -45,13 +45,8 @@ static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key
         return http2_stream_ptr;
     }
 
-    const __u32 zero = 0;
-    http2_stream_ptr = bpf_map_lookup_elem(&http2_stream_heap, &zero);
-    if (http2_stream_ptr == NULL) {
-        return NULL;
-    }
-    bpf_memset(http2_stream_ptr, 0, sizeof(http2_stream_t));
-    bpf_map_update_elem(&http2_in_flight, http2_stream_key, http2_stream_ptr, BPF_NOEXIST);
+    http2_stream_t empty = {0};
+    bpf_map_update_elem(&http2_in_flight, http2_stream_key, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
 }
 
@@ -63,29 +58,50 @@ static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
 }
 
 // parse_field_indexed parses fully-indexed headers.
-static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
-    if (headers_to_process == NULL) {
+static __always_inline void parse_field_indexed(http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, __u8 index, __u64 global_dynamic_counter, http2_telemetry_t *http2_tel, bool flipped) {
+    if (is_method_index(index)) {
+       current_stream->request_started = bpf_ktime_get_ns();
+       current_stream->request_method.static_table_entry = index;
+       current_stream->request_method.finalized = true;
+        __sync_fetch_and_add(&http2_tel->request_seen, 1);
+    } else if (is_status_index(index)) {
+        current_stream->status_code.static_table_entry = index;
+        current_stream->status_code.finalized = true;
+        __sync_fetch_and_add(&http2_tel->response_seen, 1);
+    } else if (is_path_index(index)) {
+        current_stream->path.static_table_entry = index;
+        current_stream->path.finalized = true;
+    } else if (is_static_table_entry(index)) {
+        // Static but not interesting.
         return;
     }
 
-    // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
-    if (is_static_table_entry(index)) {
-        headers_to_process->index = index;
-        headers_to_process->type = kStaticHeader;
-        *interesting_headers_counter += is_interesting_static_entry(index);
-        return;
-    }
+    // The index is not from the static table, so it is from the dynamic table. We need to check if it is an interesting
+    // header.
 
     // We change the index to match our internal dynamic table implementation index.
     // Our internal indexes start from 1, so we subtract 61 in order to match the given index.
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
+    __u32 *original_index = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
+    if (original_index == NULL) {
+        // Not interesting.
+        return;
+    }
 
-    headers_to_process->index = dynamic_index->index;
-    headers_to_process->type = kExistingDynamicHeader;
-    // If the entry exists, increase the counter. If the entry is missing, then we won't increase the counter.
-    // This is a simple trick to spare if-clause, to reduce pressure on the complexity of the program.
-    *interesting_headers_counter += bpf_map_lookup_elem(&http2_dynamic_table, &dynamic_index->index) != NULL;
-    return;
+    interesting_value_t *val;
+    if (is_path_index(*original_index)) {
+        val = &current_stream->path;
+    } else if (is_status_index(*original_index)) {
+        val = &current_stream->status_code;
+    } else if (is_method_index(*original_index)) {
+        current_stream->request_started = bpf_ktime_get_ns();
+        val = &current_stream->request_method;
+    } else {
+        return;
+    }
+    val->dynamic_table_entry = dynamic_index->index;
+    val->tuple_flipped = flipped;
+    val->finalized = true;
 }
 
 // update_path_size_telemetry updates the path size telemetry.
