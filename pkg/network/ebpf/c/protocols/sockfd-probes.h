@@ -25,7 +25,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
         return 0;
     }
 
-    // Copy map value to stack before re-using it (needed for Kernel older kernels)
+    // Copy map value to stack before re-using it (needed for older kernels)
     pid_fd_t pid_fd_copy = {};
     bpf_memcpy(&pid_fd_copy, pid_fd, sizeof(pid_fd_t));
     pid_fd = &pid_fd_copy;
