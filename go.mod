@@ -237,8 +237,8 @@ require (
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver v1.12.1
 	go.opentelemetry.io/collector v0.91.0 // indirect
-	go.opentelemetry.io/collector/component v0.91.0
-	go.opentelemetry.io/collector/confmap v0.91.0
+	go.opentelemetry.io/collector/component v0.92.0
+	go.opentelemetry.io/collector/confmap v0.92.0
 	go.opentelemetry.io/collector/exporter v0.91.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.91.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.91.0
@@ -729,7 +729,7 @@ require (
 	go.opentelemetry.io/collector/config/confighttp v0.91.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v0.91.0 // indirect
 	go.opentelemetry.io/collector/config/configopaque v0.91.0 // indirect
-	go.opentelemetry.io/collector/config/configtelemetry v0.91.0 // indirect
+	go.opentelemetry.io/collector/config/configtelemetry v0.92.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v0.91.0 // indirect
 	go.opentelemetry.io/collector/config/internal v0.91.0 // indirect
 	go.opentelemetry.io/collector/connector v0.91.0 // indirect
