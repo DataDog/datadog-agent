@@ -696,7 +696,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		image   string
 		lang    language
 		wantErr bool
-		wantCpu string
+		wantCPU string
 		wantMem string
 	}{
 		{
@@ -707,7 +707,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			wantErr: false,
 			cpu:     "100m",
 			mem:     "500",
-			wantCpu: "100m",
+			wantCPU: "100m",
 			wantMem: "500",
 		},
 		{
@@ -718,7 +718,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCpu: "100m",
+			wantCPU: "100m",
 			wantMem: "500",
 		},
 		{
@@ -728,7 +728,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCpu: "200m",
+			wantCPU: "200m",
 			wantMem: "20Mi",
 		},
 		{
@@ -738,7 +738,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCpu: "10m",
+			wantCPU: "10m",
 			wantMem: "512Mi",
 		},
 		{
@@ -748,7 +748,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: true,
-			wantCpu: "10m",
+			wantCPU: "10m",
 			wantMem: "20Mi",
 		},
 	}
@@ -772,8 +772,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.cpu != "" {
 				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
 				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
-				require.Equal(t, tt.wantCpu, req.String())
-				require.Equal(t, tt.wantCpu, lim.String())
+				require.Equal(t, tt.wantCPU, req.String())
+				require.Equal(t, tt.wantCPU, lim.String())
 			}
 			if tt.mem != "" {
 				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
