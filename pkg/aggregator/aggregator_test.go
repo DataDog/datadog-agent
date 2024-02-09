@@ -17,10 +17,11 @@ import (
 	"time"
 
 	// 3p
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -681,11 +682,13 @@ func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map
 
 type aggregatorDeps struct {
 	TestDeps
-	Demultiplexer *AgentDemultiplexer
+	Demultiplexer    *AgentDemultiplexer
+	OrchestratorFwd  orchestratorforwarder.Component
+	EventPlatformFwd eventplatform.Component
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

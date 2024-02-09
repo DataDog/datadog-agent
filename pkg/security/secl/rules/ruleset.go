@@ -207,7 +207,7 @@ func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*Macro
 func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, macroDef *MacroDefinition) (*eval.Macro, error) {
 	var err error
 
-	if macro := rs.evalOpts.MacroStore.Get(macroDef.ID); macro != nil {
+	if rs.evalOpts.MacroStore.Contains(macroDef.ID) {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: ErrDefinitionIDConflict}
 	}
 
