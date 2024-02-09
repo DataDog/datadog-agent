@@ -10,13 +10,14 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 // Metadata is a type that represents a metadata payload
 type MetadataPayload struct {
-	inventoryagentimpl.Payload
+	Hostname      string                 `json:"hostname"`
+	Timestamp     int64                  `json:"timestamp"`
+	Metadata      map[string]interface{} `json:"agent_metadata"`
 	collectedTime time.Time
 }
 
@@ -46,10 +47,12 @@ func ParseMetadataPayload(payload api.Payload) (metadataPayloads []*MetadataPayl
 		return nil, err
 	}
 
-	var metadata inventoryagentimpl.Payload
-	json.Unmarshal(enflated, &metadata)
+	var metadataPayload = &MetadataPayload{
+		collectedTime: payload.Timestamp,
+	}
+	json.Unmarshal(enflated, metadataPayload)
 
-	return []*MetadataPayload{{Payload: metadata, collectedTime: payload.Timestamp}}, nil
+	return []*MetadataPayload{metadataPayload}, nil
 }
 
 // MetadataAggregator is a type that represents a metadata aggregator
