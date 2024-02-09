@@ -1767,6 +1767,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		config.GetInt("secret_refresh_interval"),
 		config.GetBool("secret_backend_command_allow_group_exec_perm"),
 		config.GetBool("secret_backend_remove_trailing_line_break"),
+		filepath.Join(config.GetString("run_path"), "refresh-audit.json"),
 	)
 
 	if config.GetString("secret_backend_command") != "" {

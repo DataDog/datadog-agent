@@ -34,7 +34,7 @@ type MockSecretResolver struct {
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
 
-func (m *MockSecretResolver) Configure(_ string, _ []string, _, _, _ int, _, _ bool) {}
+func (m *MockSecretResolver) Configure(_ string, _ []string, _, _, _ int, _, _ bool, _ string) {}
 
 func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
 

@@ -79,6 +79,8 @@ type secretResolver struct {
 	// refresh secrets at a regular interval
 	refreshInterval time.Duration
 	ticker          *time.Ticker
+	// filename to write audit records to
+	auditFilename string
 	// subscriptions want to be notified about changes to the secrets
 	subscriptions []secrets.SecretChangeCallback
 
@@ -183,7 +185,7 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, path
 }
 
 // Configure initializes the executable command and other options of the secrets component
-func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize, refreshInterval int, groupExecPerm, removeLinebreak bool) {
+func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize, refreshInterval int, groupExecPerm, removeLinebreak bool, auditFilename string) {
 	if !r.enabled {
 		return
 	}
@@ -203,6 +205,7 @@ func (r *secretResolver) Configure(command string, arguments []string, timeout, 
 	if r.commandAllowGroupExec {
 		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
 	}
+	r.auditFilename = auditFilename
 }
 
 func isEnc(str string) (bool, string) {
@@ -420,6 +423,12 @@ func (r *secretResolver) Refresh() (string, error) {
 
 	// when Refreshing secrets, only update what the allowlist allows by passing `true`
 	refreshResult := r.processSecretResponse(secretResponse, true)
+	// add the results to the audit file, if filename is non-empty
+	if r.auditFilename != "" {
+		if err := AddToRefreshAuditFile(r.auditFilename, secretResponse, r.origin); err != nil {
+			return "", err
+		}
+	}
 
 	// render a report
 	t := template.New("secret_refresh")
