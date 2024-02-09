@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (functionaltests && amd64) || (stresstests && amd64)
+//go:build linux && ((functionaltests && amd64) || (stresstests && amd64))
 
+// Package tests holds tests related files
 package tests
 
 import "syscall"

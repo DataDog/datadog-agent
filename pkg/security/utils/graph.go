@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package utils holds utils related files
 package utils
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
+	"text/template"
 	"unsafe"
 )
 
@@ -32,8 +35,18 @@ type Edge struct {
 // Graph describes a dot graph
 type Graph struct {
 	Title string
-	Nodes map[GraphID]Node
-	Edges []Edge
+	Nodes map[GraphID]*Node
+	Edges []*Edge
+}
+
+// EncodeDOT encodes an activity dump in the DOT format
+func (g *Graph) EncodeDOT(tmpl string) (*bytes.Buffer, error) {
+	t := template.Must(template.New("tmpl").Parse(tmpl))
+	raw := new(bytes.Buffer)
+	if err := t.Execute(raw, g); err != nil {
+		return nil, err
+	}
+	return raw, nil
 }
 
 // GraphID represents an ID used in a graph, combination of NodeIDs

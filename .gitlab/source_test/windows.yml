@@ -1,10 +1,11 @@
 ---
 .tests_windows_base:
   stage: source_test
-  needs: ["go_deps", "go_tools_deps", "build_vcpkg_deps"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  before_script:
-    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
@@ -24,16 +25,19 @@
       -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
-      -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      -e TEST_OUTPUT_FILE=${TEST_OUTPUT_FILE}
+      -e EXTRA_OPTS="${EXTRA_OPTS}"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  variables:
+    TEST_OUTPUT_FILE: test_output.json
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
-      - test_output.json
+      - $TEST_OUTPUT_FILE
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
@@ -45,9 +49,13 @@
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    # Previously this job required only 8Gb of memory but since Go 1.20 it requires more to avoid being OOM killed.
+    # Each Windows VM has 32Gb of memory and contains 3 runners that can run one job at a time each (so a maximum of 3 simultaneous jobs per VM).
+    # Windows jobs are using either 8Gb or 16Gb of memory so we can limit memory to 16Gb on this job because even if we decided to limit to 10Gb for instance,
+    # it would leave 6Gb free but we could not fit another job with these 6Gb remaining.
     - >
       docker run --rm
-      -m 8192M
+      -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
@@ -63,8 +71,93 @@ tests_windows-x64:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
 
+tests_windows-x64-fast:
+  extends: .tests_windows_base
+  variables:
+    PYTHON_RUNTIMES: 3
+    ARCH: "x64"
+    EXTRA_OPTS: "--only-modified-packages"
+    TEST_OUTPUT_FILE: test_output_fast.json
+  allow_failure: true
+
 lint_windows-x64:
   extends: .lint_windows_base
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  variables:
+    PYTHON_RUNTIMES: 3
+    ARCH: "x64"
+
+
+.tests_windows_sysprobe:
+  stage: source_test
+  needs: ["go_deps"]
+  tags: [ "runner:windows-docker", "windowsversion:1809" ]
+  script:
+    - $ErrorActionPreference = "Stop"
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - !reference [.setup_python_mirror_win]
+    - >
+      docker run --rm
+      -m 16384M
+      -v "$(Get-Location):c:\mnt"
+      -e AWS_NETWORKING=true
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e SIGN_WINDOWS_DD_WCS=true
+      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
+      -e GOMODCACHE="c:\modcache"
+      -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      c:\mnt\tasks\winbuildscripts\sysprobe.bat
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  artifacts:
+    when: always
+    paths:
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+
+.tests_windows_secagent:
+  stage: source_test
+  needs: ["go_deps"]
+  tags: [ "runner:windows-docker", "windowsversion:1809" ]
+  script:
+    - $ErrorActionPreference = "Stop"
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - !reference [.setup_python_mirror_win]
+    - >
+      docker run --rm
+      -m 16384M
+      -v "$(Get-Location):c:\mnt"
+      -e AWS_NETWORKING=true
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e SIGN_WINDOWS_DD_WCS=true
+      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
+      -e GOMODCACHE="c:\modcache"
+      -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      c:\mnt\tasks\winbuildscripts\secagent.bat
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  artifacts:
+    when: always
+    paths:
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
+
+tests_windows_sysprobe_x64:
+  extends: .tests_windows_sysprobe
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  variables:
+    PYTHON_RUNTIMES: 3
+    ARCH: "x64"
+
+tests_windows_secagent_x64:
+  extends: .tests_windows_secagent
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"

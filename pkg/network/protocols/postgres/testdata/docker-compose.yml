@@ -1,5 +1,5 @@
 version: '3.1'
-
+name: postgres
 services:
   postgres:
    image: postgres:15-alpine

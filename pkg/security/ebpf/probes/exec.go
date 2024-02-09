@@ -5,9 +5,12 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
-import manager "github.com/DataDog/ebpf-manager"
+import (
+	manager "github.com/DataDog/ebpf-manager"
+)
 
 func getExecProbes(fentry bool) []*manager.Probe {
 	var execProbes = []*manager.Probe{
@@ -44,6 +47,18 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_kernel_thread",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_user_mode_thread",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_cgroup_procs_write",
 			},
 		},
@@ -62,19 +77,19 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_setup_new_exec_interp",
+				EBPFFuncName: "hook_setup_new_exec_interp",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID + "_a",
-				EBPFFuncName: "kprobe_setup_new_exec_args_envs",
+				EBPFFuncName: "hook_setup_new_exec_args_envs",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_setup_arg_pages",
+				EBPFFuncName: "hook_setup_arg_pages",
 			},
 		},
 		{
@@ -101,41 +116,36 @@ func getExecProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_do_coredump",
 			},
 		},
-	}
-
-	if !fentry {
-		execProbes = append(execProbes, []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_prepare_binprm",
-				},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_prepare_binprm",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_do_fork",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_do_fork",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook__do_fork",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook__do_fork",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_cgroup_tasks_write",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_cgroup_tasks_write",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_cgroup1_tasks_write",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_cgroup1_tasks_write",
 			},
-		}...)
+		},
 	}
 
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
@@ -143,47 +153,19 @@ func getExecProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "execve",
-	}, Entry)...)
+	}, fentry, EntryAndExit)...)
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "execveat",
-	}, Entry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fork",
-	}, Entry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "vfork",
-	}, Entry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "clone",
-	}, Entry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "clone3",
-	}, Entry)...)
+	}, fentry, EntryAndExit)...)
 
 	for _, name := range []string{
 		"setuid",
 		"setuid16",
 		"setgid",
 		"setgid16",
-		"seteuid",
-		"seteuid16",
-		"setegid",
-		"setegid16",
 		"setfsuid",
 		"setfsuid16",
 		"setfsgid",
@@ -198,12 +180,14 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		"setresgid16",
 		"capset",
 	} {
+		flags := EntryAndExit
+
 		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID: SecurityAgentUID,
 			},
 			SyscallFuncName: name,
-		}, EntryAndExit)...)
+		}, fentry, flags)...)
 	}
 
 	return execProbes
@@ -215,21 +199,21 @@ func getExecTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecGetEnvsOffsetKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_get_envs_offset",
+				EBPFFuncName: "tail_call_target_get_envs_offset",
 			},
 		},
 		{
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecParseArgsEnvsSplitKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_parse_args_envs_split",
+				EBPFFuncName: "tail_call_target_parse_args_envs_split",
 			},
 		},
 		{
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecParseArgsEnvsKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_parse_args_envs",
+				EBPFFuncName: "tail_call_target_parse_args_envs",
 			},
 		},
 	}

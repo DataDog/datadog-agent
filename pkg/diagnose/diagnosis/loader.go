@@ -3,23 +3,112 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package diagnosis contains types used by the "agent diagnose" command.
 package diagnosis
 
-import "github.com/DataDog/datadog-agent/pkg/util/log"
+import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
-// Catalog holds available diagnosis for detection and usage
-type Catalog map[string]Diagnosis
+// --------------------------------
+// Diagnose (Metadata availability subcommand)
 
-// DefaultCatalog holds every compiled-in diagnosis
-var DefaultCatalog = make(Catalog)
+// MetadataAvailDiagnose represents a function to fetch the metadata availability
+type MetadataAvailDiagnose func() error
 
-// Register a diagnosis that will be called on diagnose
-func Register(name string, d Diagnosis) {
-	if _, ok := DefaultCatalog[name]; ok {
+// MetadataAvailDiagnoseCatalog is a set of MetadataAvailDiagnose functions
+type MetadataAvailDiagnoseCatalog map[string]MetadataAvailDiagnose
+
+// MetadataAvailCatalog is a set of MetadataAvailDiagnose functions
+var MetadataAvailCatalog = make(MetadataAvailDiagnoseCatalog)
+
+// RegisterMetadataAvail adds a MetadataAvailDiagnose
+func RegisterMetadataAvail(name string, d MetadataAvailDiagnose) {
+	if _, ok := MetadataAvailCatalog[name]; ok {
 		log.Warnf("Diagnosis %s already registered, overriding it", name)
 	}
-	DefaultCatalog[name] = d
+	MetadataAvailCatalog[name] = d
 }
 
-// Diagnosis should return an error to report its health
-type Diagnosis func() error
+// --------------------------------
+// Diagnose (all subcommand)
+
+// Diagnose interface function
+type Diagnose func(Config, sender.DiagnoseSenderManager) []Diagnosis
+
+// Catalog is a global list of registered Diagnose functions
+var Catalog = make([]Suite, 0)
+
+// Suite contains the Diagnose suite information
+type Suite struct {
+	SuitName string
+	Diagnose Diagnose
+}
+
+// Config contains the Diagnose configuration
+type Config struct {
+	Verbose               bool
+	RunLocal              bool
+	RunningInAgentProcess bool
+	Include               []string
+	Exclude               []string
+}
+
+// Result contains the result of the diagnosis
+type Result int
+
+// Use explicit constant instead of iota because the same numbers are used
+// in Python/CGO calls.
+// Change here needs to be reflected in
+//    datadog-agent\rtloader\include\rtloader_types.h
+//    integrations-core\datadog_checks_base\datadog_checks\base\utils\diagnose.py
+
+// Diagnosis results
+const (
+	DiagnosisSuccess         Result = 0
+	DiagnosisFail            Result = 1
+	DiagnosisWarning         Result = 2
+	DiagnosisUnexpectedError        = 3
+	DiagnosisResultMIN              = DiagnosisSuccess
+	DiagnosisResultMAX              = DiagnosisUnexpectedError
+)
+
+// Diagnosis contains the results of the diagnosis
+type Diagnosis struct {
+	// --------------------------
+	// required fields
+
+	// run-time (pass, fail etc)
+	Result Result
+	// static-time (meta typically)
+	Name string
+	// run-time (actual diagnosis consumable by a user)
+	Diagnosis string
+
+	// --------------------------
+	// optional fields
+
+	// static-time (meta typically)
+	Category string `json:",omitempty"`
+	// static-time (meta typically, description of what being tested)
+	Description string
+	// run-time (what can be done of what docs need to be consulted to address the issue)
+	Remediation string
+	// run-time
+	RawError string
+}
+
+// Diagnoses is a collection of Diagnosis
+type Diagnoses struct {
+	SuiteName      string
+	SuiteDiagnoses []Diagnosis
+}
+
+// Register registers the given Diagnose function
+func Register(suiteName string, diagnose Diagnose) {
+	Catalog = append(Catalog, Suite{
+		SuitName: suiteName,
+		Diagnose: diagnose,
+	})
+}

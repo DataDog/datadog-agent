@@ -6,23 +6,12 @@
 package telemetry
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 // Gauge tracks the value of one health metric of the Agent.
 type Gauge interface {
-	// Set stores the value for the given tags.
-	Set(value float64, tagsValue ...string)
-	// Inc increments the Gauge value.
-	Inc(tagsValue ...string)
-	// Dec decrements the Gauge value.
-	Dec(tagsValue ...string)
-	// Add adds the value to the Gauge value.
-	Add(value float64, tagsValue ...string)
-	// Sub subtracts the value to the Gauge value.
-	Sub(value float64, tagsValue ...string)
-	// Delete deletes the value for the Gauge with the given tags.
-	Delete(tagsValue ...string)
+	telemetryComponent.Gauge
 }
 
 // NewGauge creates a Gauge with default options for telemetry purpose.
@@ -34,18 +23,5 @@ func NewGauge(subsystem, name string, tags []string, help string) Gauge {
 // NewGaugeWithOpts creates a Gauge with the given options for telemetry purpose.
 // See NewGauge()
 func NewGaugeWithOpts(subsystem, name string, tags []string, help string, opts Options) Gauge {
-	name = opts.NameWithSeparator(subsystem, name)
-
-	g := &promGauge{
-		pg: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Subsystem: subsystem,
-				Name:      name,
-				Help:      help,
-			},
-			tags,
-		),
-	}
-	telemetryRegistry.MustRegister(g.pg)
-	return g
+	return telemetryComponent.GetCompatComponent().NewGaugeWithOpts(subsystem, name, tags, help, telemetryComponent.Options(opts))
 }

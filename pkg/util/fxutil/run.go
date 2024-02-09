@@ -7,6 +7,7 @@ package fxutil
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/fx"
 )
@@ -16,24 +17,27 @@ import (
 // This differs from fx.App#Run in that it returns errors instead of exiting
 // the process.
 func Run(opts ...fx.Option) error {
+	if fxAppTestOverride != nil {
+		return fxAppTestOverride(func() {}, opts)
+	}
+
 	opts = append(opts, FxLoggingOption())
+	// Temporarily increase timeout for all fxutil.Run calls until we can better characterize our
+	// start time requirements. Prepend to opts so individual calls can override the timeout.
+	opts = append(
+		[]fx.Option{TemporaryAppTimeouts()},
+		opts...,
+	)
 	app := fx.New(opts...)
 
 	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancel()
 
 	if err := app.Start(startCtx); err != nil {
-		return UnwrapIfErrArgumentsFailed(err)
+		return errors.Join(UnwrapIfErrArgumentsFailed(err), stopApp(app))
 	}
 
-	_ = <-app.Done()
+	<-app.Done()
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), app.StopTimeout())
-	defer cancel()
-
-	if err := app.Stop(stopCtx); err != nil {
-		return err
-	}
-
-	return nil
+	return stopApp(app)
 }

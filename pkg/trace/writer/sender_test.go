@@ -7,7 +7,6 @@ package writer
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +18,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -60,12 +58,13 @@ func TestSender(t *testing.T) {
 		cfg := config.New()
 		cfg.ConnectionResetInterval = 0
 		return &senderConfig{
-			client:    cfg.NewHTTPClient(),
-			url:       url,
-			maxConns:  climit,
-			maxQueued: 40,
-			apiKey:    testAPIKey,
-			userAgent: "testUserAgent",
+			client:     cfg.NewHTTPClient(),
+			url:        url,
+			maxConns:   climit,
+			maxQueued:  40,
+			maxRetries: 4,
+			apiKey:     testAPIKey,
+			userAgent:  "testUserAgent",
 		}
 	}
 
@@ -105,36 +104,6 @@ func TestSender(t *testing.T) {
 		assert.Equal(climit*2, server.Accepted(), "accepted")
 		assert.Equal(0, server.Retried(), "retry")
 		assert.Equal(0, server.Failed(), "failed")
-	})
-
-	t.Run("Push", func(t *testing.T) {
-		s := &sender{
-			cfg:      &senderConfig{},
-			queue:    make(chan *payload, 4),
-			inflight: atomic.NewInt32(0),
-			attempt:  atomic.NewInt32(0),
-		}
-		p := func(n string) *payload {
-			return &payload{
-				body:    bytes.NewBufferString(n),
-				retries: atomic.NewInt32(0),
-			}
-		}
-
-		s.Push(p("1"))
-		s.Push(p("2"))
-		s.Push(p("3"))
-		s.Push(p("4"))
-		s.Push(p("5"))
-		s.Push(p("6"))
-		s.Push(p("7"))
-		s.Push(p("8"))
-
-		assert.Equal(t, p("5"), <-s.queue)
-		assert.Equal(t, p("6"), <-s.queue)
-		assert.Equal(t, p("7"), <-s.queue)
-		assert.Equal(t, p("8"), <-s.queue)
-		assert.Empty(t, s.queue)
 	})
 
 	t.Run("failed", func(t *testing.T) {
@@ -238,7 +207,6 @@ func TestSender(t *testing.T) {
 			assert.True(retried[i].bytes > len("|503,503,200"))
 			assert.Equal(`server responded with "503 Service Unavailable"`, retried[i].err.(*retriableError).err.Error())
 			assert.Equal(1, retried[i].count)
-			assert.True(retried[i].connectionFill > 0 && retried[i].connectionFill < 1, fmt.Sprintf("%f", retried[i].connectionFill))
 			assert.True(time.Since(start)-retried[i].duration < time.Second)
 		}
 
@@ -248,7 +216,6 @@ func TestSender(t *testing.T) {
 			assert.True(sent[i].bytes > len("|403"))
 			assert.NoError(sent[i].err)
 			assert.Equal(1, sent[i].count)
-			assert.True(sent[i].connectionFill > 0 && sent[i].connectionFill < 1, fmt.Sprintf("%f", sent[i].connectionFill))
 			assert.True(time.Since(start)-sent[i].duration < time.Second)
 		}
 
@@ -258,7 +225,6 @@ func TestSender(t *testing.T) {
 			assert.True(failed[i].bytes > len("|403"))
 			assert.Equal("403 Forbidden", failed[i].err.Error())
 			assert.Equal(1, failed[i].count)
-			assert.True(failed[i].connectionFill > 0 && failed[i].connectionFill < 1, fmt.Sprintf("%f", failed[i].connectionFill))
 			assert.True(time.Since(start)-failed[i].duration < time.Second)
 		}
 	})

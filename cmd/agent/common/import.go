@@ -53,7 +53,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 
 	// setup the configuration system
 	config.Datadog.AddConfigPath(newConfigDir)
-	_, err = config.Load()
+	_, err = config.LoadWithoutSecret()
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
@@ -74,9 +74,9 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	files, err := os.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintln(color.Output,
-				fmt.Sprintf("%s does not exist, no config files to import.",
-					color.BlueString(filepath.Join(oldConfigDir, "conf.d"))),
+			fmt.Fprintf(color.Output,
+				"%s does not exist, no config files to import.\n",
+				color.BlueString(filepath.Join(oldConfigDir, "conf.d")),
 			)
 		} else {
 			return fmt.Errorf("unable to list config files from %s: %v", oldConfigDir, err)
@@ -102,9 +102,9 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			continue
 		} else if f.Name() == "docker.yaml" {
 			// if people upgrade from a very old version of the agent who ship the old docker check.
-			fmt.Fprintln(
+			fmt.Fprintf(
 				color.Output,
-				fmt.Sprintf("Ignoring %s, old docker check has been deprecated.", color.YellowString(src)),
+				"Ignoring %s, old docker check has been deprecated.\n", color.YellowString(src),
 			)
 			continue
 		} else if f.Name() == "kubernetes.yaml" {
@@ -119,12 +119,11 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 		}
 
-		fmt.Fprintln(
+		fmt.Fprintf(
 			color.Output,
-			fmt.Sprintf("Copied %s over the new %s directory",
-				color.BlueString("conf.d/"+f.Name()),
-				color.BlueString(checkName+dirExt),
-			),
+			"Copied %s over the new %s directory\n",
+			color.BlueString("conf.d/"+f.Name()),
+			color.BlueString(checkName+dirExt),
 		)
 	}
 
@@ -149,22 +148,21 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		return fmt.Errorf("unable to write config to %s: %v", datadogYamlPath, err)
 	}
 
-	fmt.Fprintln(
+	fmt.Fprintf(
 		color.Output,
-		fmt.Sprintf("%s imported the contents of %s into %s",
-			color.GreenString("Success:"),
-			datadogConfPath,
-			datadogYamlPath,
-		),
+		"%s imported the contents of %s into %s\n",
+		color.GreenString("Success:"),
+		datadogConfPath,
+		datadogYamlPath,
 	)
 
 	// move existing config templates to the new auto_conf directory
 	autoConfFiles, err := os.ReadDir(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintln(color.Output,
-				fmt.Sprintf("%s does not exist, no auto_conf files to import.",
-					color.BlueString(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))),
+			fmt.Fprintf(color.Output,
+				"%s does not exist, no auto_conf files to import.\n",
+				color.BlueString(filepath.Join(oldConfigDir, "conf.d", "auto_conf")),
 			)
 		} else {
 			return fmt.Errorf("unable to list auto_conf files from %s: %v", oldConfigDir, err)
@@ -198,12 +196,11 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			continue
 		}
 
-		fmt.Fprintln(
+		fmt.Fprintf(
 			color.Output,
-			fmt.Sprintf("Copied %s over the new %s directory",
-				color.BlueString("auto_conf/"+f.Name()),
-				color.BlueString(checkName+dirExt),
-			),
+			"Copied %s over the new %s directory\n",
+			color.BlueString("auto_conf/"+f.Name()),
+			color.BlueString(checkName+dirExt),
 		)
 	}
 

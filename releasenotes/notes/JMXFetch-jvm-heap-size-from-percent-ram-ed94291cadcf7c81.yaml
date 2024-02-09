@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    When `jmx_use_container_support` is enabled you can use `jmx_max_ram_percentage` to set a maximum JVM heap size based off a percentage of the total container memory.

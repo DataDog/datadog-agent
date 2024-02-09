@@ -1,12 +1,14 @@
 import os
 import sys
 
-from invoke import task
+from invoke import Exit, task
 
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .flavor import AgentFlavor
-from .go import deps
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
+from tasks.agent import build as agent_build
+from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.go import deps
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
 
@@ -19,33 +21,51 @@ def build(
     build_include=None,
     build_exclude=None,
     flavor=AgentFlavor.base.name,
+    install_path=None,
     major_version='7',
     python_runtimes='3',
     arch="x64",
     go_mod="mod",
+    bundle=False,
 ):
     """
     Build the trace agent.
     """
 
+    if bundle:
+        return agent_build(
+            ctx,
+            race=race,
+            arch=arch,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            flavor=flavor,
+            major_version=major_version,
+            python_runtimes=python_runtimes,
+            go_mod=go_mod,
+        )
+
     flavor = AgentFlavor[flavor]
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+    )
 
     # generate windows resources
     if sys.platform == 'win32':
-        windres_target = "pe-x86-64"
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        maj_ver, min_ver, patch_ver = ver.split(".")
-
-        ctx.run(
-            f"windmc --target {windres_target}  -r cmd/trace-agent/windows_resources cmd/trace-agent/windows_resources/trace-agent-msg.mc"
-        )
-        ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/trace-agent/windows_resources/trace-agent.rc --target {windres_target} -O coff -o cmd/trace-agent/rsrc.syso"
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/trace-agent/windows/resources/trace-agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/trace-agent/rsrc.syso",
         )
 
     build_include = (
@@ -79,6 +99,9 @@ def integration_tests(ctx, install_deps=False, race=False, go_mod="mod"):
     """
     Run integration tests for trace agent
     """
+    if sys.platform == 'win32':
+        raise Exit(message='trace-agent integration tests are not supported on Windows', code=0)
+
     if install_deps:
         deps(ctx)
 
@@ -90,42 +113,6 @@ def integration_tests(ctx, install_deps=False, race=False, go_mod="mod"):
 
 
 @task
-def cross_compile(ctx, tag=""):
-    """
-    Cross-compiles the trace-agent binaries. Use the "--tag=X" argument to specify build tag.
-    """
-    if not tag:
-        print("Argument --tag=<version> is required.")
-        return
-
-    print(f"Building tag {tag}...")
-
-    env = {
-        "V": tag,
-    }
-
-    ctx.run("git checkout $V", env=env)
-    ctx.run("mkdir -p ./bin/trace-agent/$V", env=env)
-    ctx.run("go generate -mod=mod ./pkg/trace/info", env=env)
-    ctx.run("go get -u github.com/karalabe/xgo")
-    ctx.run(
-        "xgo -dest=bin/trace-agent/$V -go=1.11 -out=trace-agent-$V -targets=windows-6.1/amd64,linux/amd64,darwin-10.11/amd64 ./cmd/trace-agent",
-        env=env,
-    )
-    ctx.run(
-        "mv ./bin/trace-agent/$V/trace-agent-$V-windows-6.1-amd64.exe ./bin/trace-agent/$V/trace-agent-$V-windows-amd64.exe",
-        env=env,
-    )
-    ctx.run(
-        "mv ./bin/trace-agent/$V/trace-agent-$V-darwin-10.11-amd64 ./bin/trace-agent/$V/trace-agent-$V-darwin-amd64 ",
-        env=env,
-    )
-    ctx.run("git checkout -")
-
-    print(f"Done! Binaries are located in ./bin/trace-agent/{tag}")
-
-
-@task
 def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
     """
     Runs the benchmarks. Use "--bench=X" to specify benchmarks to run. Use the "--output=X" argument to specify where to output results.
@@ -134,4 +121,4 @@ def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
         print("Argument --bench=<bench_regex> is required.")
         return
     with ctx.cd("./pkg/trace"):
-        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 10 -benchtime 2s ./... | tee {output}")
+        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}")

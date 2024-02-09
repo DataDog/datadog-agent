@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -12,12 +13,14 @@ import (
 	"os/exec"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type FakeEventConsumer struct {
@@ -66,7 +69,13 @@ func (fc *FakeEventConsumer) GetExecCount() int {
 	return fc.exec
 }
 
-func (fc *FakeEventConsumer) HandleEvent(event *model.Event) {
+func (fc *FakeEventConsumer) HandleEvent(incomingEvent any) {
+	event, ok := incomingEvent.(*model.Event)
+	if !ok {
+		log.Error("Event is not a security model event")
+		return
+	}
+
 	fc.Lock()
 	defer fc.Unlock()
 
@@ -80,15 +89,22 @@ func (fc *FakeEventConsumer) HandleEvent(event *model.Event) {
 	}
 }
 
+// Copy is no-op function used to satisfy the EventHandler interface
+func (fc *FakeEventConsumer) Copy(incomingEvent *model.Event) any {
+	return incomingEvent
+}
+
 func TestEventMonitor(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	var fc *FakeEventConsumer
-	test, err := newTestModule(t, nil, nil, testOpts{
+	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
 		disableRuntimeSecurity: true,
 		preStartCallback: func(test *testModule) {
 			fc = NewFakeEventConsumer(test.eventMonitor)
 			test.eventMonitor.RegisterEventConsumer(fc)
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +126,7 @@ func TestEventMonitor(t *testing.T) {
 			}
 
 			return errors.New("event not received")
-		}, retry.Delay(200), retry.Attempts(10))
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
 		assert.Nil(t, err)
 	})
 
@@ -128,7 +144,7 @@ func TestEventMonitor(t *testing.T) {
 			}
 
 			return errors.New("event not received")
-		}, retry.Delay(200), retry.Attempts(10))
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
 		assert.Nil(t, err)
 	})
 }

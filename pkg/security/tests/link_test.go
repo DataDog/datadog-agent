@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -23,12 +24,14 @@ import (
 )
 
 func TestLink(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `link.file.path == "{{.Root}}/test-link" && link.file.destination.path == "{{.Root}}/test2-link" && link.file.uid == 98 && link.file.gid == 99 && link.file.destination.uid == 98 && link.file.destination.gid == 99`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +58,7 @@ func TestLink(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
-			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
+			assertInode(t, getInode(t, testNewFile), event.Link.Source.Inode)
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
 			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
 			assertNearTime(t, event.Link.Source.MTime)
@@ -83,7 +86,7 @@ func TestLink(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
-			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
+			assertInode(t, getInode(t, testNewFile), event.Link.Source.Inode)
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
 			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
 			assertNearTime(t, event.Link.Source.MTime)
@@ -103,6 +106,7 @@ func TestLink(t *testing.T) {
 	})
 
 	t.Run("io_uring", func(t *testing.T) {
+		SkipIfNotAvailable(t)
 		iour, err := iouring.New(1)
 		if err != nil {
 			if errors.Is(err, unix.ENOTSUP) {

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -24,6 +25,9 @@ var (
 	udpPackets             = expvar.Int{}
 	udpBytes               = expvar.Int{}
 )
+
+// RandomPortName is the value for dogstatsd_port setting that indicates that the server should allocate a random unique port.
+const RandomPortName = "__random__" // this would be zero if zero wasn't used already to disable udp support.
 
 func init() {
 	udpExpvars.Set("PacketReadingErrors", &udpPacketReadingErrors)
@@ -41,18 +45,24 @@ type UDPListener struct {
 	packetAssembler *packets.Assembler
 	buffer          []byte
 	trafficCapture  replay.Component // Currently ignored
+	listenWg        sync.WaitGroup
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDPListener, error) {
 	var err error
 	var url string
 
+	port := cfg.GetString("dogstatsd_port")
+	if port == RandomPortName {
+		port = "0"
+	}
+
 	if cfg.GetBool("dogstatsd_non_local_traffic") {
 		// Listen to all network interfaces
-		url = fmt.Sprintf(":%d", cfg.GetInt("dogstatsd_port"))
+		url = fmt.Sprintf(":%s", port)
 	} else {
-		url = net.JoinHostPort(config.GetBindHostFromConfig(cfg), cfg.GetString("dogstatsd_port"))
+		url = net.JoinHostPort(config.GetBindHostFromConfig(cfg), port)
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", url)
@@ -75,7 +85,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	flushTimeout := cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
-	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
+	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut, "udp")
 	packetAssembler := packets.NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager, packets.UDP)
 
 	listener := &UDPListener{
@@ -89,8 +99,22 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	return listener, nil
 }
 
+// LocalAddr returns the local network address of the listener.
+func (l *UDPListener) LocalAddr() string {
+	return l.conn.LocalAddr().String()
+}
+
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDPListener) Listen() {
+	l.listenWg.Add(1)
+
+	go func() {
+		defer l.listenWg.Done()
+		l.listen()
+	}()
+}
+
+func (l *UDPListener) listen() {
 	var t1, t2 time.Time
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
@@ -118,7 +142,7 @@ func (l *UDPListener) Listen() {
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp")
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp", "udp", "udp")
 	}
 }
 
@@ -127,4 +151,5 @@ func (l *UDPListener) Stop() {
 	l.packetAssembler.Close()
 	l.packetsBuffer.Close()
 	l.conn.Close()
+	l.listenWg.Wait()
 }

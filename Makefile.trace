@@ -22,13 +22,12 @@ install:
 
 ci:
 	# task used by CI
-	go get -u github.com/mgechev/revive
-	revive -set_exit_status=1 ./cmd/trace-agent ./internal/filters ./internal/api ./internal/test ./internal/info ./internal/quantile ./internal/obfuscate ./internal/sampler ./internal/metrics ./internal/watchdog ./internal/writer ./internal/flags ./internal/osutil
 	go install ./cmd/trace-agent
 	go test -v -race ./...
 
 windows:
 	# pre-packages resources needed for the windows release
-	windmc --target pe-x86-64 -r cmd/trace-agent/windows_resources cmd/trace-agent/windows_resources/trace-agent-msg.mc
-	windres --define MAJ_VER=$(VERSION_MAJOR) --define MIN_VER=$(VERSION_MINOR) --define PATCH_VER=$(VERSION_PATCH) -i cmd/trace-agent/windows_resources/trace-agent.rc --target=pe-x86-64 -O coff -o cmd/trace-agent/rsrc.syso
+	windmc --target pe-x86-64 -r pkg/util/winutil/messagestrings -h pkg/util/winutil/messagestrings pkg/util/winutil/messagestrings/messagestrings.mc
+	windres -i pkg/util/winutil/messagestrings/messagestrings.rc --target=pe-x86-64 -O coff -o pkg/util/winutil/messagestrings/rsrc.syso
+	windres --define MAJ_VER=$(VERSION_MAJOR) --define MIN_VER=$(VERSION_MINOR) --define PATCH_VER=$(VERSION_PATCH) -i cmd/trace-agent/windows/resources/trace-agent.rc --target=pe-x86-64 -O coff -o cmd/trace-agent/rsrc.syso
 

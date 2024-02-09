@@ -6,6 +6,7 @@
 package devicecheck
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -21,16 +22,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
-	sess := session.CreateMockSession()
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
@@ -46,6 +52,8 @@ collect_topology: false
 profiles:
  f5-big-ip:
    definition_file: f5-big-ip.yaml
+ another-profile:
+   definition_file: another_profile.yaml
 `)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
@@ -61,243 +69,48 @@ profiles:
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 
-	sysObjectIDPacket := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.3.6.1.2.1.1.2.0",
-				Type:  gosnmp.ObjectIdentifier,
-				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
-			},
-		},
-	}
-
-	packets := []gosnmp.SnmpPacket{
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.2.3.4.5",
-					Type:  gosnmp.NoSuchObject,
-					Value: nil,
-				},
-				{
-					Name:  "1.3.6.1.2.1.1.1.0",
-					Type:  gosnmp.OctetString,
-					Value: []byte("my_desc"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.1.2.0",
-					Type:  gosnmp.ObjectIdentifier,
-					Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
-				},
-				{
-					Name:  "1.3.6.1.2.1.1.3.0",
-					Type:  gosnmp.TimeTicks,
-					Value: 20,
-				},
-				{
-					Name:  "1.3.6.1.2.1.1.5.0",
-					Type:  gosnmp.OctetString,
-					Value: []byte("foo_sys_name"),
-				},
-			},
-		},
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.2.3.4.5",
-					Type:  gosnmp.NoSuchObject,
-					Value: nil,
-				},
-			},
-		},
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
-					Type:  gosnmp.Integer,
-					Value: 30,
-				},
-				{
-					Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.999.0",
-					Type:  gosnmp.NoSuchObject,
-					Value: nil,
-				},
-			},
-		},
-	}
-
-	bulkPackets := []gosnmp.SnmpPacket{
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.13.1",
-					Type:  gosnmp.Integer,
-					Value: 131,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.14.1",
-					Type:  gosnmp.Integer,
-					Value: 141,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.6.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte{00, 00, 00, 00, 00, 01},
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.7.1",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.8.1",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.13.2",
-					Type:  gosnmp.Integer,
-					Value: 132,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.14.2",
-					Type:  gosnmp.Integer,
-					Value: 142,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.6.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte{00, 00, 00, 00, 00, 01},
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.7.2",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.8.2",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				}},
-		},
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte("nameRow1"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte("descRow1"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.1",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.1",
-					Type:  gosnmp.IPAddress,
-					Value: "255.255.255.0",
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte("nameRow2"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte("descRow2"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.2",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.2",
-					Type:  gosnmp.IPAddress,
-					Value: "255.255.255.0",
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-			},
-		},
-	}
-
-	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
-	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
-	sess.On("Get", []string{
-		"1.2.3.4.5",
-		"1.3.6.1.2.1.1.1.0",
-		"1.3.6.1.2.1.1.2.0",
-		"1.3.6.1.2.1.1.3.0",
-		"1.3.6.1.2.1.1.5.0",
-	}).Return(&packets[0], nil)
-	sess.On("Get", []string{
-		"1.2.3.4.5.0",
-	}).Return(&packets[1], nil)
-	sess.On("Get", []string{
-		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
-		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
-		"1.3.6.1.4.1.3375.2.1.3.3.3.0",
-	}).Return(&packets[2], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18", "1.3.6.1.2.1.4.20.1.2", "1.3.6.1.2.1.4.20.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
+	(sess.
+		SetStr("1.3.6.1.2.1.1.1.0", "my_desc").
+		SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").
+		SetTime("1.3.6.1.2.1.1.3.0", 20).
+		SetStr("1.3.6.1.2.1.1.5.0", "foo_sys_name").
+		SetInt("1.3.6.1.2.1.2.2.1.13.1", 131).
+		SetInt("1.3.6.1.2.1.2.2.1.14.1", 141).
+		SetByte("1.3.6.1.2.1.2.2.1.6.1", []byte{00, 00, 00, 00, 00, 01}).
+		SetInt("1.3.6.1.2.1.2.2.1.7.1", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.8.1", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.13.2", 132).
+		SetInt("1.3.6.1.2.1.2.2.1.14.2", 142).
+		SetByte("1.3.6.1.2.1.2.2.1.6.2", []byte{00, 00, 00, 00, 00, 01}).
+		SetInt("1.3.6.1.2.1.2.2.1.7.2", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.8.2", 1).
+		SetStr("1.3.6.1.2.1.31.1.1.1.1.1", "nameRow1").
+		SetStr("1.3.6.1.2.1.31.1.1.1.18.1", "descRow1").
+		SetInt("1.3.6.1.2.1.4.20.1.2.10.0.0.1", 1).
+		SetIP("1.3.6.1.2.1.4.20.1.3.10.0.0.1", "255.255.255.0").
+		SetStr("1.3.6.1.2.1.31.1.1.1.1.2", "nameRow2").
+		SetStr("1.3.6.1.2.1.31.1.1.1.18.2", "descRow2").
+		SetInt("1.3.6.1.2.1.4.20.1.2.10.0.0.2", 1).
+		SetIP("1.3.6.1.2.1.4.20.1.3.10.0.0.2", "255.255.255.0").
+		// f5-specific sysStatMemoryTotal
+		SetInt("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", 30).
+		// Fake metric specific to another_profile
+		SetInt("1.3.6.1.2.1.1.999.0", 100))
 
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
-		"static_tag:from_profile_root", "some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
+	snmpTags := []string{
+		"snmp_device:1.2.3.4",
+		"snmp_profile:f5-big-ip",
+		"device_vendor:f5",
+		"snmp_host:foo_sys_name",
+		"static_tag:from_profile_root",
+		"some_tag:some_tag_value",
+		"prefix:f",
+		"suffix:oo_sys_name"}
 	telemetryTags := append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
 	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
 	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
@@ -307,30 +120,124 @@ profiles:
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(71), "", row2Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
-	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
 
-	assert.Equal(t, false, deviceCk.config.AutodetectProfile)
+	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
+	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
+	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.sysStatMemoryTotal", []string{"unknown_symbol:100"})
 
-	// Make sure we don't auto detect and add metrics twice if we already did that previously
-	firstRunMetrics := deviceCk.config.Metrics
-	firstRunMetricsTags := deviceCk.config.MetricTags
+	// f5 has 5 metrics, 2 tags
+	assert.Len(t, deviceCk.config.Metrics, 5)
+	assert.Len(t, deviceCk.config.MetricTags, 2)
+
+	sender.ResetCalls()
+
+	// Switch device sysobjid
+	sess.SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.32473.1.1")
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	assert.Len(t, deviceCk.config.Metrics, len(firstRunMetrics))
-	assert.Len(t, deviceCk.config.MetricTags, len(firstRunMetricsTags))
+	snmpTags = []string{
+		"device_namespace:default",
+		"snmp_device:1.2.3.4",
+		"snmp_profile:another-profile",
+		"unknown_symbol:100"}
+	telemetryTags = append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
+	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
+	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
+	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.anotherMetric", []string{"some_tag:some_tag_value"})
+
+	// Check that we replaced the metrics, instead of just adding to them
+	assert.Len(t, deviceCk.config.Metrics, 2)
+	assert.Len(t, deviceCk.config.MetricTags, 2)
+}
+
+func TestProfileDetectionPreservesGlobals(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateFakeSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_topology: false
+use_global_metrics: true
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+ f5-big-ip:
+   definition_file: f5-big-ip.yaml
+ another_profile:
+   definition_file: another_profile.yaml
+global_metrics:
+  - symbol:
+    name: fake.global.metric
+    OID: 1.2.3.4.5
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender.SetupAcceptAll()
+
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
+
+	sess.
+		SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").
+		SetInt("1.2.3.4.5", 12345).
+		// f5-specific sysStatMemoryTotal
+		SetInt("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", 30).
+		// Fake metric specific to another_profile
+		SetInt("1.3.6.1.2.1.1.999.0", 100)
+
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	sender.AssertMetric(t, "Gauge", "snmp.fake.global.metric", float64(12345), "", []string{"snmp_profile:f5-big-ip"})
+	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", []string{"snmp_profile:f5-big-ip"})
+	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
+
+	// Switch device sysobjid
+	sender.ResetCalls()
+	sess.SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.32473.1.1")
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	sender.AssertMetric(t, "Gauge", "snmp.fake.global.metric", float64(12345), "", []string{"snmp_profile:another_profile"})
+	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", []string{"snmp_profile:another_profile"})
+	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
+
 }
 
 func TestDetectMetricsToCollect(t *testing.T) {
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "detectmetr.d"))
-	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
+	timeNow = common.MockTimeNow
+	defer func() { timeNow = time.Now }()
 
-	sess := session.CreateMockSession()
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "detectmetr.d"))
+	config.Datadog.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+
+	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
@@ -340,6 +247,7 @@ func TestDetectMetricsToCollect(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: public
 experimental_detect_metrics_enabled: true
+experimental_detect_metrics_refresh_interval: 10
 collect_topology: false
 `)
 	// language=yaml
@@ -358,279 +266,37 @@ collect_topology: false
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 
-	sysObjectIDPacket := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.3.6.1.2.1.1.2.0",
-				Type:  gosnmp.ObjectIdentifier,
-				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
-			},
-		},
-	}
-
-	packets := []gosnmp.SnmpPacket{
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.2.1.1.1.0",
-					Type:  gosnmp.OctetString,
-					Value: []byte("my_desc"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.1.2.0",
-					Type:  gosnmp.ObjectIdentifier,
-					Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
-				},
-				{
-					Name:  "1.3.6.1.2.1.1.3.0",
-					Type:  gosnmp.TimeTicks,
-					Value: 20,
-				},
-				{
-					Name:  "1.3.6.1.2.1.1.5.0",
-					Type:  gosnmp.OctetString,
-					Value: []byte("foo_sys_name"),
-				},
-				{
-					Name:  "1.3.6.1.4.1.318.1.1.1.11.1.1.0",
-					Type:  gosnmp.OctetString,
-					Value: []byte("1010"),
-				},
-			},
-		},
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
-					Type:  gosnmp.Integer,
-					Value: 30,
-				},
-			},
-		},
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.2.3.4.5",
-					Type:  gosnmp.NoSuchObject,
-					Value: nil,
-				},
-			},
-		},
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.999.0",
-					Type:  gosnmp.NoSuchObject,
-					Value: nil,
-				},
-			},
-		},
-	}
-
-	bulkPackets := []gosnmp.SnmpPacket{
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.13.1",
-					Type:  gosnmp.Integer,
-					Value: 131,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.14.1",
-					Type:  gosnmp.Integer,
-					Value: 141,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.2.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte(`desc1`),
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.6.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte{00, 00, 00, 00, 00, 01},
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.7.1",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.13.2",
-					Type:  gosnmp.Integer,
-					Value: 132,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.14.2",
-					Type:  gosnmp.Integer,
-					Value: 142,
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.6.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte{00, 00, 00, 00, 00, 01},
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.2.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte(`desc2`),
-				},
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.7.2",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				}},
-		},
-		{
-			Variables: []gosnmp.SnmpPDU{
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.8.1",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte("nameRow1"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
-					Type:  gosnmp.OctetString,
-					Value: []byte("descRow1"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.1",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.1",
-					Type:  gosnmp.IPAddress,
-					Value: "255.255.255.0",
-				},
-
-				{
-					Name:  "1.3.6.1.2.1.2.2.1.8.2",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte("nameRow2"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
-					Type:  gosnmp.OctetString,
-					Value: []byte("descRow2"),
-				},
-				{
-					Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.2",
-					Type:  gosnmp.Integer,
-					Value: 1,
-				},
-				{
-					Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.2",
-					Type:  gosnmp.IPAddress,
-					Value: "255.255.255.0",
-				},
-
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-				{
-					Name:  "9", // exit table
-					Type:  gosnmp.Integer,
-					Value: 999,
-				},
-			},
-		},
-	}
-
-	//sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
-	sess.On("GetNext", []string{"1.0"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.1.1.0", gosnmp.OctetString, []byte(`mydesc`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.1.1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.1.2.0"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.1.3.0", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.1.3.0"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.1.5.0", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.1.5.0"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.2.2.1.6.1", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.7"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.2.2.1.7.1", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.8"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.2.2.1.8.1", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.9"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.2.2.1.13.1", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.14"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.2.2.1.14.1", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.15"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.31.1.1.1.1.1", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.31.1.1.1.1.2"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.31.1.1.1.18.1", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.31.1.1.1.19"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.318.1.1.1.11.1.1.0", gosnmp.OctetString, []byte(`1010`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.4.1.318.1.1.1.11.1.1.0"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.1.2.1.44.999.0", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.999.0"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.3.3.3.0", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.4.1.3375.2.1.3.3.3.0"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.3.3.3.0", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.4.1.3375.2.1.3.3.4.0"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.3.3.4.0", gosnmp.EndOfMibView, []byte(`123`)), nil)
-	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
-	sess.On("Get", []string{
-		"1.3.6.1.2.1.1.1.0",
-		"1.3.6.1.2.1.1.2.0",
-		"1.3.6.1.2.1.1.3.0",
-		"1.3.6.1.2.1.1.5.0",
-		"1.3.6.1.4.1.318.1.1.1.11.1.1.0",
-	}).Return(&packets[0], nil)
-	sess.On("Get", []string{
-		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
-	}).Return(&packets[1], nil)
-	sess.On("Get", []string{
-		"1.2.3.4.5.0",
-	}).Return(&packets[2], nil)
-	sess.On("Get", []string{
-		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
-	}).Return(&packets[3], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18", "1.3.6.1.2.1.4.20.1.2", "1.3.6.1.2.1.4.20.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
+	sess.
+		SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").
+		SetTime("1.3.6.1.2.1.1.3.0", 20).
+		SetStr("1.3.6.1.2.1.1.1.0", "my_desc").
+		SetStr("1.3.6.1.2.1.1.5.0", "foo_sys_name").
+		SetStr("1.3.6.1.4.1.318.1.1.1.11.1.1.0", "1010").
+		SetInt("1.3.6.1.2.1.2.2.1.13.1", 131).
+		SetInt("1.3.6.1.2.1.2.2.1.14.1", 141).
+		SetStr("1.3.6.1.2.1.2.2.1.2.1", `desc1`).
+		SetByte("1.3.6.1.2.1.2.2.1.6.1", []byte{00, 00, 00, 00, 00, 01}).
+		SetInt("1.3.6.1.2.1.2.2.1.7.1", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.13.2", 132).
+		SetInt("1.3.6.1.2.1.2.2.1.14.2", 142).
+		SetByte("1.3.6.1.2.1.2.2.1.6.2", []byte{00, 00, 00, 00, 00, 01}).
+		SetStr("1.3.6.1.2.1.2.2.1.2.2", `desc2`).
+		SetInt("1.3.6.1.2.1.2.2.1.7.2", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.8.1", 1).
+		SetStr("1.3.6.1.2.1.31.1.1.1.1.1", "nameRow1").
+		SetStr("1.3.6.1.2.1.31.1.1.1.18.1", "descRow1").
+		SetInt("1.3.6.1.2.1.4.20.1.2.10.0.0.1", 1).
+		SetIP("1.3.6.1.2.1.4.20.1.3.10.0.0.1", "255.255.255.0").
+		SetInt("1.3.6.1.2.1.2.2.1.8.2", 1).
+		SetStr("1.3.6.1.2.1.31.1.1.1.1.2", "nameRow2").
+		SetStr("1.3.6.1.2.1.31.1.1.1.18.2", "descRow2").
+		SetInt("1.3.6.1.2.1.4.20.1.2.10.0.0.2", 1).
+		SetIP("1.3.6.1.2.1.4.20.1.3.10.0.0.2", "255.255.255.0")
 
 	savedAutodetectMetricsTime := deviceCk.nextAutodetectMetrics
-	err = deviceCk.Run(time.Now())
+	err = deviceCk.Run(timeNow())
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
@@ -643,7 +309,7 @@ collect_topology: false
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(71), "", row2Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
-	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
+	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
@@ -651,63 +317,72 @@ collect_topology: false
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
 
 	expectedNextAutodetectMetricsTime := savedAutodetectMetricsTime.Add(time.Duration(deviceCk.config.DetectMetricsRefreshInterval) * time.Second)
-	assert.WithinDuration(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics, 3*time.Second)
+	assert.WithinDuration(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics, time.Second)
 
-	// Make sure we don't auto detect and add metrics twice if we already did that previously
-	firstRunMetrics := deviceCk.config.Metrics
-	firstRunMetricsTags := deviceCk.config.MetricTags
-	err = deviceCk.Run(time.Now())
-	assert.Nil(t, err)
-
-	expectedMetrics := []checkconfig.MetricsConfig{
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "OnLine"}},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
+	expectedMetrics := []profiledefinition.MetricsConfig{
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: profiledefinition.MetricsConfigOption{Placement: 1, MetricSuffix: "OnLine"}},
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: profiledefinition.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
 		{
-			MetricType: checkconfig.ProfileMetricTypeMonotonicCount,
-			Symbols: []checkconfig.SymbolConfig{
+			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
+			MIB:        "IF-MIB",
+			Table: profiledefinition.SymbolConfig{
+				OID:  "1.3.6.1.2.1.2.2",
+				Name: "ifTable",
+			},
+			Symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
-			MetricTags: []checkconfig.MetricTagConfig{
-				{Tag: "interface", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+			MetricTags: []profiledefinition.MetricTagConfig{
+				{Tag: "interface", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: checkconfig.ProfileMetricTypeGauge},
 	}
 
-	expectedMetricTags := []checkconfig.MetricTagConfig{
-		{Tag: "snmp_host2", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+	expectedMetricTags := []profiledefinition.MetricTagConfig{
+		{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 		{
-			OID:   "1.3.6.1.2.1.1.5.0",
-			Name:  "sysName",
-			Match: "(\\w)(\\w+)",
+			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+			Match:  "(\\w)(\\w+)",
 			Tags: map[string]string{
 				"prefix":   "\\1",
 				"suffix":   "\\2",
 				"some_tag": "some_tag_value",
 			},
 		},
-		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
-	checkconfig.ValidateEnrichMetrics(expectedMetrics)
-	checkconfig.ValidateEnrichMetricTags(expectedMetricTags)
+	configvalidation.ValidateEnrichMetrics(expectedMetrics)
+	configvalidation.ValidateEnrichMetricTags(expectedMetricTags)
 
-	fmt.Printf("Actual Metrics   : %+v\n", deviceCk.config.Metrics)
-	fmt.Printf("Expected Metrics : %+v\n", expectedMetrics)
 	assert.ElementsMatch(t, deviceCk.config.Metrics, expectedMetrics)
 
-	fmt.Printf("Actual MetricTags   : %+v\n", deviceCk.config.MetricTags)
-	fmt.Printf("Expected MetricTags : %+v\n", expectedMetricTags)
 	assert.ElementsMatch(t, deviceCk.config.MetricTags, expectedMetricTags)
 
-	assert.Equal(t, 5, len(deviceCk.config.Metrics))
-	assert.Equal(t, 3, len(deviceCk.config.MetricTags))
-	assert.Len(t, deviceCk.config.Metrics, len(firstRunMetrics))
-	assert.Len(t, deviceCk.config.MetricTags, len(firstRunMetricsTags))
+	// Add a new metric and make sure it is added but nothing else is re-added
+	sess.SetInt("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", 30)
+	sender.ResetCalls()
+	timeNow = func() time.Time {
+		return common.MockTimeNow().Add(time.Second * 100)
+	}
+
+	err = deviceCk.Run(timeNow())
+	assert.Nil(t, err)
+
+	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
+
+	expectedMetrics = append(expectedMetrics, profiledefinition.MetricsConfig{
+		MIB:        "F5-BIGIP-SYSTEM-MIB",
+		Symbol:     profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
+		MetricType: profiledefinition.ProfileMetricTypeGauge,
+	})
+	assert.ElementsMatch(t, expectedMetrics, deviceCk.config.Metrics)
+	assert.ElementsMatch(t, expectedMetricTags, deviceCk.config.MetricTags)
+
 }
 
 func TestDetectMetricsToCollect_detectMetricsToMonitor_nextAutodetectMetrics(t *testing.T) {
@@ -740,7 +415,7 @@ profiles:
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
-	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 	sess.On("GetNext", []string{"1.0"}).Return(session.CreateGetNextPacket("9999", gosnmp.EndOfMibView, nil), nil)
 
 	deviceCk.detectMetricsToMonitor(sess)
@@ -772,7 +447,7 @@ profiles:
 }
 
 func TestDeviceCheck_Hostname(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -792,18 +467,18 @@ community_string: public
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	// without hostname
-	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", []string{"snmp_device:1.2.3.4"})
 
 	// with hostname
-	deviceCk.SetSender(report.NewMetricSender(sender, "device:123", nil))
+	deviceCk.SetSender(report.NewMetricSender(sender, "device:123", nil, report.MakeInterfaceBandwidthState()))
 	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4"})
 }
 
 func TestDeviceCheck_GetHostname(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -860,7 +535,7 @@ community_string: public
 }
 
 func TestDynamicTagsAreSaved(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -892,7 +567,7 @@ profiles:
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 
 	sysObjectIDPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -1141,7 +816,7 @@ profiles:
 	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
 	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 1., "", snmpTags)
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 0., "", snmpTags)
-	assert.Equal(t, false, deviceCk.config.AutodetectProfile)
+
 	sender.ResetCalls()
 	sess.ConnectErr = fmt.Errorf("some error")
 	err = deviceCk.Run(time.Now())
@@ -1153,7 +828,7 @@ profiles:
 }
 
 func TestRun_sessionCloseError(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sess.CloseErr = fmt.Errorf("close error")
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1186,7 +861,7 @@ profiles:
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
 	sender.SetupAcceptAll()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{},
@@ -1201,7 +876,7 @@ profiles:
 }
 
 func TestDeviceCheck_detectAvailableMetrics(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1226,7 +901,7 @@ community_string: public
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
 	sender.SetupAcceptAll()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("GetNext", []string{"1.3.6.1.2.1.1.2.0"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.1.5.0", gosnmp.OctetString, []byte(`123`)), nil)
@@ -1238,43 +913,336 @@ community_string: public
 
 	metricsConfigs, metricTagConfigs := deviceCk.detectAvailableMetrics()
 
-	expectedMetricsConfigs := []checkconfig.MetricsConfig{
+	expectedMetricsConfigs := []profiledefinition.MetricsConfig{
 		{
-			Symbol:     checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
-			MetricType: checkconfig.ProfileMetricTypeGauge,
+			MIB:        "F5-BIGIP-SYSTEM-MIB",
+			Symbol:     profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
+			MetricType: profiledefinition.ProfileMetricTypeGauge,
 		},
 		{
-			MetricType: checkconfig.ProfileMetricTypeMonotonicCount,
-			Symbols: []checkconfig.SymbolConfig{
+			MIB: "IF-MIB",
+			Table: profiledefinition.SymbolConfig{
+				OID:  "1.3.6.1.2.1.2.2",
+				Name: "ifTable",
+			},
+			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
+			Symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
-			MetricTags: []checkconfig.MetricTagConfig{
-				{Tag: "interface", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+			MetricTags: []profiledefinition.MetricTagConfig{
+				{Tag: "interface", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
 	}
 	assert.ElementsMatch(t, expectedMetricsConfigs, metricsConfigs)
 
-	expectedMetricsTagConfigs := []checkconfig.MetricTagConfig{
+	expectedMetricsTagConfigs := []profiledefinition.MetricTagConfig{
 		{
-			OID:   "1.3.6.1.2.1.1.5.0",
-			Name:  "sysName",
-			Match: "(\\w)(\\w+)",
+			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+			Match:  "(\\w)(\\w+)",
 			Tags: map[string]string{
 				"some_tag": "some_tag_value",
 				"prefix":   "\\1",
 				"suffix":   "\\2",
 			},
 		},
-		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-		{Tag: "snmp_host2", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
 
-	checkconfig.ValidateEnrichMetricTags(expectedMetricsTagConfigs)
+	configvalidation.ValidateEnrichMetricTags(expectedMetricsTagConfigs)
 
 	assert.ElementsMatch(t, expectedMetricsTagConfigs, metricTagConfigs)
+}
+
+func TestDeviceCheck_WithPing(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateFakeSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_topology: false
+ping:
+  enabled: true
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+ f5-big-ip:
+   definition_file: f5-big-ip.yaml
+ another-profile:
+   definition_file: another_profile.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	assert.Nil(t, err)
+
+	// override pinger with mock pinger
+	mp := pinger.NewMockPinger(&pinger.Result{
+		CanConnect: true,
+		PacketLoss: 0.57,
+		AvgRtt:     4 * time.Millisecond,
+	}, nil)
+	deviceCk.devicePinger = mp
+
+	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
+
+	(sess.
+		SetStr("1.3.6.1.2.1.1.1.0", "my_desc").
+		SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").
+		SetTime("1.3.6.1.2.1.1.3.0", 20).
+		SetStr("1.3.6.1.2.1.1.5.0", "foo_sys_name").
+		SetInt("1.3.6.1.2.1.2.2.1.13.1", 131).
+		SetInt("1.3.6.1.2.1.2.2.1.14.1", 141).
+		SetByte("1.3.6.1.2.1.2.2.1.6.1", []byte{00, 00, 00, 00, 00, 01}).
+		SetInt("1.3.6.1.2.1.2.2.1.7.1", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.8.1", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.13.2", 132).
+		SetInt("1.3.6.1.2.1.2.2.1.14.2", 142).
+		SetByte("1.3.6.1.2.1.2.2.1.6.2", []byte{00, 00, 00, 00, 00, 01}).
+		SetInt("1.3.6.1.2.1.2.2.1.7.2", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.8.2", 1).
+		SetStr("1.3.6.1.2.1.31.1.1.1.1.1", "nameRow1").
+		SetStr("1.3.6.1.2.1.31.1.1.1.18.1", "descRow1").
+		SetInt("1.3.6.1.2.1.4.20.1.2.10.0.0.1", 1).
+		SetIP("1.3.6.1.2.1.4.20.1.3.10.0.0.1", "255.255.255.0").
+		SetStr("1.3.6.1.2.1.31.1.1.1.1.2", "nameRow2").
+		SetStr("1.3.6.1.2.1.31.1.1.1.18.2", "descRow2").
+		SetInt("1.3.6.1.2.1.4.20.1.2.10.0.0.2", 1).
+		SetIP("1.3.6.1.2.1.4.20.1.3.10.0.0.2", "255.255.255.0").
+		// f5-specific sysStatMemoryTotal
+		SetInt("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", 30).
+		// Fake metric specific to another_profile
+		SetInt("1.3.6.1.2.1.1.999.0", 100))
+
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	snmpTags := []string{
+		"snmp_device:1.2.3.4",
+		"snmp_profile:f5-big-ip",
+		"device_vendor:f5",
+		"snmp_host:foo_sys_name",
+		"static_tag:from_profile_root",
+		"some_tag:some_tag_value",
+		"prefix:f",
+		"suffix:oo_sys_name"}
+	telemetryTags := append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
+	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
+	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(71), "", row2Tags)
+	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
+	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
+
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
+
+	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
+	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
+	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.sysStatMemoryTotal", []string{"unknown_symbol:100"})
+
+	// f5 has 5 metrics, 2 tags
+	assert.Len(t, deviceCk.config.Metrics, 5)
+	assert.Len(t, deviceCk.config.MetricTags, 2)
+
+	sender.ResetCalls()
+
+	// Switch device sysobjid
+	sess.SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.32473.1.1")
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	snmpTags = []string{
+		"device_namespace:default",
+		"snmp_device:1.2.3.4",
+		"snmp_profile:another-profile",
+		"unknown_symbol:100"}
+	telemetryTags = append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
+	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
+	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
+	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.anotherMetric", []string{"some_tag:some_tag_value"})
+
+	// Check that we replaced the metrics, instead of just adding to them
+	assert.Len(t, deviceCk.config.Metrics, 2)
+	assert.Len(t, deviceCk.config.MetricTags, 2)
+
+	// Assert Ping Metrics
+	sender.AssertMetric(t, "Gauge", pingReachableMetric, float64(1), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", pingAvgRttMetric, 4, "", snmpTags)
+	sender.AssertMetric(t, "Gauge", pingPacketLoss, 0.57, "", snmpTags)
+}
+
+func TestDeviceCheck_WithFailingPing(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateFakeSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_topology: false
+ping:
+  enabled: true
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+ f5-big-ip:
+   definition_file: f5-big-ip.yaml
+ another-profile:
+   definition_file: another_profile.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	assert.Nil(t, err)
+
+	// override pinger with mock pinger
+	mp := pinger.NewMockPinger(nil, errors.New("test error"))
+	deviceCk.devicePinger = mp
+
+	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
+
+	(sess.
+		SetStr("1.3.6.1.2.1.1.1.0", "my_desc").
+		SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").
+		SetTime("1.3.6.1.2.1.1.3.0", 20).
+		SetStr("1.3.6.1.2.1.1.5.0", "foo_sys_name").
+		SetInt("1.3.6.1.2.1.2.2.1.13.1", 131).
+		SetInt("1.3.6.1.2.1.2.2.1.14.1", 141).
+		SetByte("1.3.6.1.2.1.2.2.1.6.1", []byte{00, 00, 00, 00, 00, 01}).
+		SetInt("1.3.6.1.2.1.2.2.1.7.1", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.8.1", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.13.2", 132).
+		SetInt("1.3.6.1.2.1.2.2.1.14.2", 142).
+		SetByte("1.3.6.1.2.1.2.2.1.6.2", []byte{00, 00, 00, 00, 00, 01}).
+		SetInt("1.3.6.1.2.1.2.2.1.7.2", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.8.2", 1).
+		SetStr("1.3.6.1.2.1.31.1.1.1.1.1", "nameRow1").
+		SetStr("1.3.6.1.2.1.31.1.1.1.18.1", "descRow1").
+		SetInt("1.3.6.1.2.1.4.20.1.2.10.0.0.1", 1).
+		SetIP("1.3.6.1.2.1.4.20.1.3.10.0.0.1", "255.255.255.0").
+		SetStr("1.3.6.1.2.1.31.1.1.1.1.2", "nameRow2").
+		SetStr("1.3.6.1.2.1.31.1.1.1.18.2", "descRow2").
+		SetInt("1.3.6.1.2.1.4.20.1.2.10.0.0.2", 1).
+		SetIP("1.3.6.1.2.1.4.20.1.3.10.0.0.2", "255.255.255.0").
+		// f5-specific sysStatMemoryTotal
+		SetInt("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", 30).
+		// Fake metric specific to another_profile
+		SetInt("1.3.6.1.2.1.1.999.0", 100))
+
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	snmpTags := []string{
+		"snmp_device:1.2.3.4",
+		"snmp_profile:f5-big-ip",
+		"device_vendor:f5",
+		"snmp_host:foo_sys_name",
+		"static_tag:from_profile_root",
+		"some_tag:some_tag_value",
+		"prefix:f",
+		"suffix:oo_sys_name"}
+	telemetryTags := append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
+	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
+	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(71), "", row2Tags)
+	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
+	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
+
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
+
+	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
+	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
+	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.sysStatMemoryTotal", []string{"unknown_symbol:100"})
+
+	// f5 has 5 metrics, 2 tags
+	assert.Len(t, deviceCk.config.Metrics, 5)
+	assert.Len(t, deviceCk.config.MetricTags, 2)
+
+	sender.ResetCalls()
+
+	// Switch device sysobjid
+	sess.SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.32473.1.1")
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	snmpTags = []string{
+		"device_namespace:default",
+		"snmp_device:1.2.3.4",
+		"snmp_profile:another-profile",
+		"unknown_symbol:100"}
+	telemetryTags = append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
+	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
+	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
+	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.anotherMetric", []string{"some_tag:some_tag_value"})
+
+	// Check that we replaced the metrics, instead of just adding to them
+	assert.Len(t, deviceCk.config.Metrics, 2)
+	assert.Len(t, deviceCk.config.MetricTags, 2)
+
+	// Assert Ping Metrics not sent
+	sender.AssertNotCalled(t, "Gauge", pingReachableMetric, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "Gauge", pingAvgRttMetric, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "Gauge", pingPacketLoss, mock.Anything, mock.Anything, mock.Anything)
 }

@@ -28,54 +28,14 @@
           "property_doc_link": "event-async-doc"
         },
         {
+          "name": "event.service",
+          "definition": "Service associated with the event",
+          "property_doc_link": "event-service-doc"
+        },
+        {
           "name": "event.timestamp",
           "definition": "Timestamp of the event",
           "property_doc_link": "event-timestamp-doc"
-        },
-        {
-          "name": "network.destination.ip",
-          "definition": "IP address",
-          "property_doc_link": "common-ipportcontext-ip-doc"
-        },
-        {
-          "name": "network.destination.port",
-          "definition": "Port number",
-          "property_doc_link": "common-ipportcontext-port-doc"
-        },
-        {
-          "name": "network.device.ifindex",
-          "definition": "interface ifindex",
-          "property_doc_link": "network-device-ifindex-doc"
-        },
-        {
-          "name": "network.device.ifname",
-          "definition": "interface ifname",
-          "property_doc_link": "network-device-ifname-doc"
-        },
-        {
-          "name": "network.l3_protocol",
-          "definition": "l3 protocol of the network packet",
-          "property_doc_link": "network-l3_protocol-doc"
-        },
-        {
-          "name": "network.l4_protocol",
-          "definition": "l4 protocol of the network packet",
-          "property_doc_link": "network-l4_protocol-doc"
-        },
-        {
-          "name": "network.size",
-          "definition": "size in bytes of the network packet",
-          "property_doc_link": "network-size-doc"
-        },
-        {
-          "name": "network.source.ip",
-          "definition": "IP address",
-          "property_doc_link": "common-ipportcontext-ip-doc"
-        },
-        {
-          "name": "network.source.port",
-          "definition": "Port number",
-          "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
           "name": "process.ancestors.args",
@@ -169,7 +129,7 @@
         },
         {
           "name": "process.ancestors.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -209,7 +169,7 @@
         },
         {
           "name": "process.ancestors.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -299,7 +259,7 @@
         },
         {
           "name": "process.ancestors.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -339,7 +299,7 @@
         },
         {
           "name": "process.ancestors.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -438,6 +398,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.ancestors.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "process.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -529,7 +504,7 @@
         },
         {
           "name": "process.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -569,7 +544,7 @@
         },
         {
           "name": "process.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -659,7 +634,7 @@
         },
         {
           "name": "process.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -699,7 +674,7 @@
         },
         {
           "name": "process.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -859,7 +834,7 @@
         },
         {
           "name": "process.parent.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -899,7 +874,7 @@
         },
         {
           "name": "process.parent.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -989,7 +964,7 @@
         },
         {
           "name": "process.parent.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -1029,7 +1004,7 @@
         },
         {
           "name": "process.parent.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -1128,6 +1103,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.parent.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.parent.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "process.parent.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "process.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -1156,6 +1146,21 @@
           "name": "process.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "process.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "process.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -1164,7 +1169,7 @@
       "definition": "A bind was executed",
       "type": "Network",
       "from_agent_version": "7.37",
-      "experimental": true,
+      "experimental": false,
       "properties": [
         {
           "name": "bind.addr.family",
@@ -1262,6 +1267,120 @@
       ]
     },
     {
+      "name": "chdir",
+      "definition": "A process changed the current directory",
+      "type": "File",
+      "from_agent_version": "7.52",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "chdir.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "chdir.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "chdir.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "chdir.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "chdir.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "chdir.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "chdir.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "chdir.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "chdir.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "chdir.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "chdir.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "chdir.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "chdir.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chdir.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "chdir.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "chdir.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "chdir.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "chdir.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "chdir.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "chdir.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "chdir.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "chmod",
       "definition": "A file’s permissions were changed",
       "type": "File",
@@ -1270,7 +1389,7 @@
       "properties": [
         {
           "name": "chmod.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -1320,7 +1439,7 @@
         },
         {
           "name": "chmod.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -1394,7 +1513,7 @@
       "properties": [
         {
           "name": "chown.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -1454,7 +1573,7 @@
         },
         {
           "name": "chown.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -1560,6 +1679,51 @@
           "name": "dns.question.type",
           "definition": "a two octet code which specifies the DNS question type",
           "property_doc_link": "dns-question-type-doc"
+        },
+        {
+          "name": "network.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.device.ifindex",
+          "definition": "interface ifindex",
+          "property_doc_link": "network-device-ifindex-doc"
+        },
+        {
+          "name": "network.device.ifname",
+          "definition": "interface ifname",
+          "property_doc_link": "network-device-ifname-doc"
+        },
+        {
+          "name": "network.l3_protocol",
+          "definition": "l3 protocol of the network packet",
+          "property_doc_link": "network-l3_protocol-doc"
+        },
+        {
+          "name": "network.l4_protocol",
+          "definition": "l4 protocol of the network packet",
+          "property_doc_link": "network-l4_protocol-doc"
+        },
+        {
+          "name": "network.size",
+          "definition": "size in bytes of the network packet",
+          "property_doc_link": "network-size-doc"
+        },
+        {
+          "name": "network.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
         }
       ]
     },
@@ -1662,7 +1826,7 @@
         },
         {
           "name": "exec.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -1702,7 +1866,7 @@
         },
         {
           "name": "exec.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -1792,7 +1956,7 @@
         },
         {
           "name": "exec.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -1832,7 +1996,7 @@
         },
         {
           "name": "exec.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -1929,6 +2093,21 @@
           "name": "exec.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -2041,7 +2220,7 @@
         },
         {
           "name": "exit.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2081,7 +2260,7 @@
         },
         {
           "name": "exit.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2171,7 +2350,7 @@
         },
         {
           "name": "exit.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2211,7 +2390,7 @@
         },
         {
           "name": "exit.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2308,6 +2487,21 @@
           "name": "exit.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -2320,12 +2514,12 @@
       "properties": [
         {
           "name": "link.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
           "name": "link.file.destination.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2365,7 +2559,7 @@
         },
         {
           "name": "link.file.destination.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2460,7 +2654,7 @@
         },
         {
           "name": "link.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2549,7 +2743,7 @@
         },
         {
           "name": "load_module.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2589,7 +2783,7 @@
         },
         {
           "name": "load_module.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2673,7 +2867,7 @@
       "properties": [
         {
           "name": "mkdir.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2723,7 +2917,7 @@
         },
         {
           "name": "mkdir.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2797,7 +2991,7 @@
       "properties": [
         {
           "name": "mmap.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2837,7 +3031,7 @@
         },
         {
           "name": "mmap.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2935,6 +3129,11 @@
           "property_doc_link": "common-syscallevent-retval-doc"
         },
         {
+          "name": "mount.root.path",
+          "definition": "Root path of the mount",
+          "property_doc_link": "mount-root-path-doc"
+        },
+        {
           "name": "mount.source.path",
           "definition": "Source path of a bind mount",
           "property_doc_link": "mount-source-path-doc"
@@ -2974,7 +3173,7 @@
       "properties": [
         {
           "name": "open.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3019,7 +3218,7 @@
         },
         {
           "name": "open.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3198,7 +3397,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3238,7 +3437,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3328,7 +3527,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3368,7 +3567,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3467,6 +3666,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "ptrace.tracee.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -3558,7 +3772,7 @@
         },
         {
           "name": "ptrace.tracee.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3598,7 +3812,7 @@
         },
         {
           "name": "ptrace.tracee.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3688,7 +3902,7 @@
         },
         {
           "name": "ptrace.tracee.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3728,7 +3942,7 @@
         },
         {
           "name": "ptrace.tracee.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3888,7 +4102,7 @@
         },
         {
           "name": "ptrace.tracee.parent.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3928,7 +4142,7 @@
         },
         {
           "name": "ptrace.tracee.parent.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4018,7 +4232,7 @@
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4058,7 +4272,7 @@
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4157,6 +4371,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.parent.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "ptrace.tracee.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -4185,6 +4414,21 @@
           "name": "ptrace.tracee.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -4197,7 +4441,7 @@
       "properties": [
         {
           "name": "removexattr.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4247,7 +4491,7 @@
         },
         {
           "name": "removexattr.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4321,12 +4565,12 @@
       "properties": [
         {
           "name": "rename.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
           "name": "rename.file.destination.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4366,7 +4610,7 @@
         },
         {
           "name": "rename.file.destination.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4461,7 +4705,7 @@
         },
         {
           "name": "rename.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4535,7 +4779,7 @@
       "properties": [
         {
           "name": "rmdir.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4575,7 +4819,7 @@
         },
         {
           "name": "rmdir.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4756,7 +5000,7 @@
       "properties": [
         {
           "name": "setxattr.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4806,7 +5050,7 @@
         },
         {
           "name": "setxattr.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4980,7 +5224,7 @@
         },
         {
           "name": "signal.target.ancestors.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5020,7 +5264,7 @@
         },
         {
           "name": "signal.target.ancestors.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5110,7 +5354,7 @@
         },
         {
           "name": "signal.target.ancestors.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5150,7 +5394,7 @@
         },
         {
           "name": "signal.target.ancestors.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5249,6 +5493,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.ancestors.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "signal.target.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -5340,7 +5599,7 @@
         },
         {
           "name": "signal.target.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5380,7 +5639,7 @@
         },
         {
           "name": "signal.target.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5470,7 +5729,7 @@
         },
         {
           "name": "signal.target.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5510,7 +5769,7 @@
         },
         {
           "name": "signal.target.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5670,7 +5929,7 @@
         },
         {
           "name": "signal.target.parent.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5710,7 +5969,7 @@
         },
         {
           "name": "signal.target.parent.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5800,7 +6059,7 @@
         },
         {
           "name": "signal.target.parent.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5840,7 +6099,7 @@
         },
         {
           "name": "signal.target.parent.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5939,6 +6198,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.parent.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "signal.target.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -5969,6 +6243,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "signal.target.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "signal.type",
           "definition": "Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)",
           "property_doc_link": "signal-type-doc"
@@ -5984,7 +6273,7 @@
       "properties": [
         {
           "name": "splice.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -6024,7 +6313,7 @@
         },
         {
           "name": "splice.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -6108,7 +6397,7 @@
       "properties": [
         {
           "name": "unlink.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -6148,7 +6437,7 @@
         },
         {
           "name": "unlink.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -6246,7 +6535,7 @@
       "properties": [
         {
           "name": "utimes.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -6286,7 +6575,7 @@
         },
         {
           "name": "utimes.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -6557,8 +6846,9 @@
       "name": "*.change_time",
       "link": "common-filefields-change_time-doc",
       "type": "int",
-      "definition": "Change time of the file",
+      "definition": "Change time (ctime) of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -6854,6 +7144,7 @@
       "type": "string",
       "definition": "File's filesystem",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7013,6 +7304,7 @@
       "type": "int",
       "definition": "GID of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7084,6 +7376,7 @@
       "type": "string",
       "definition": "Group of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7133,6 +7426,7 @@
       "type": "string",
       "definition": "[Experimental] List of cryptographic hashes computed for this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7182,6 +7476,7 @@
       "type": "bool",
       "definition": "Indicator of the file layer, for example, in an OverlayFS",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7231,6 +7526,7 @@
       "type": "int",
       "definition": "Inode of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7333,11 +7629,79 @@
       "examples": []
     },
     {
+      "name": "*.k8s_groups",
+      "link": "common-usersessioncontext-k8s_groups-doc",
+      "type": "string",
+      "definition": "Kubernetes groups of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.k8s_uid",
+      "link": "common-usersessioncontext-k8s_uid-doc",
+      "type": "string",
+      "definition": "Kubernetes UID of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.k8s_username",
+      "link": "common-usersessioncontext-k8s_username-doc",
+      "type": "string",
+      "definition": "Kubernetes username of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.length",
       "link": "common-string-length-doc",
       "type": "int",
       "definition": "Length of the corresponding string",
       "prefixes": [
+        "chdir.file.name",
+        "chdir.file.path",
         "chmod.file.name",
         "chmod.file.path",
         "chown.file.name",
@@ -7426,6 +7790,7 @@
       "type": "int",
       "definition": "Mode of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7473,8 +7838,9 @@
       "name": "*.modification_time",
       "link": "common-filefields-modification_time-doc",
       "type": "int",
-      "definition": "Modification time of the file",
+      "definition": "Modification time (mtime) of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7524,6 +7890,7 @@
       "type": "int",
       "definition": "Mount ID of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7573,6 +7940,7 @@
       "type": "string",
       "definition": "File's basename",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7627,6 +7995,7 @@
       "type": "string",
       "definition": "[Experimental] Name of the package that provided this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7676,6 +8045,7 @@
       "type": "string",
       "definition": "[Experimental] Full version of the source package of the package that provided this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7725,6 +8095,7 @@
       "type": "string",
       "definition": "[Experimental] Full version of the package that provided this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7774,6 +8145,7 @@
       "type": "string",
       "definition": "File's path",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7892,6 +8264,7 @@
       "prefixes": [
         "bind",
         "bpf",
+        "chdir",
         "chmod",
         "chown",
         "link",
@@ -7922,6 +8295,7 @@
       "type": "int",
       "definition": "Rights of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8037,6 +8411,7 @@
       "type": "int",
       "definition": "UID of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8113,6 +8488,7 @@
       "type": "string",
       "definition": "User of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8481,6 +8857,18 @@
       "examples": []
     },
     {
+      "name": "event.service",
+      "link": "event-service-doc",
+      "type": "string",
+      "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "event.timestamp",
       "link": "event-timestamp-doc",
       "type": "int",
@@ -8641,6 +9029,18 @@
       "link": "mount-mountpoint-path-doc",
       "type": "string",
       "definition": "Path of the mount point",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.root.path",
+      "link": "mount-root-path-doc",
+      "type": "string",
+      "definition": "Root path of the mount",
       "prefixes": [
         "mount"
       ],
@@ -10289,6 +10689,21 @@
         },
         {
           "name": "BPF_PROG_TYPE_SK_LOOKUP",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Boolean constants",
+      "link": "boolean-constants",
+      "description": "Boolean constants are the supported boolean constants.",
+      "all": [
+        {
+          "name": "true",
+          "architecture": "all"
+        },
+        {
+          "name": "false",
           "architecture": "all"
         }
       ]
@@ -12736,21 +13151,6 @@
         {
           "name": "PTRACE_POKEMTETAGS",
           "architecture": "arm64"
-        }
-      ]
-    },
-    {
-      "name": "SecL constants",
-      "link": "secl-constants",
-      "description": "SecL constants are the supported generic SecL constants.",
-      "all": [
-        {
-          "name": "true",
-          "architecture": "all"
-        },
-        {
-          "name": "false",
-          "architecture": "all"
         }
       ]
     },

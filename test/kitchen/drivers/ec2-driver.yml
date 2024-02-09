@@ -8,8 +8,8 @@ provisioner:
   <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
   download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
   product_version: 14.15.6
-  <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "arm64" %>
-  # There is no arm64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
+  <% elsif (ENV['KITCHEN_PLATFORM'] == "amazonlinux" || ENV['KITCHEN_PLATFORM'] == "suse") && ENV['KITCHEN_ARCH'] == "arm64" %>
+  # There is no arm64 distribution of Chef 14 for Amazon Linux 2022 nor SLES 15. Use the CentOS package instead
   download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.aarch64.rpm
   product_version: 14.15.6
   <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "x86_64" %>
@@ -36,6 +36,14 @@ driver:
   security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] %>
   <% else %>
   security_group_ids: [ "sg-7fedd80a","sg-46506837" ]
+  <% end %>
+  # Fix an edge case where IMDSv2 doesn't work for this specific ubuntu AMI
+  # Using this AMI with any other (e.g : KITCHEN_OSVERS: ubuntu-16-04-4.4,ubuntu-18-04) will use IMDSv2 and fail.
+  <% if ENV['KITCHEN_OSVERS'] != "ubuntu-16-04-4.4" %>
+  metadata_options:
+    http_tokens: required
+    http_put_response_hop_limit: 1
+    instance_metadata_tags: enabled
   <% end %>
   region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
@@ -78,6 +86,7 @@ platforms:
       al2022 = platform_name.include?("amazonlinux2022")
       al2023 = platform_name.include?("amazonlinux2023")
       fedora = platform_name.include?("fedora")
+      rocky = platform_name.include?("rocky")
 
       if windows
         windows_platforms << platform_name
@@ -103,6 +112,12 @@ platforms:
       enable_cws: <%= ENV['KITCHEN_CWS'] == "true" && cws_supported_platforms.include?(platform[0]) %>
     <% if ENV["KITCHEN_CWS_PLATFORM"] %>
     cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
+    <% end %>
+    <% if ENV["DOCKER_REGISTRY_LOGIN"] && ENV["DOCKER_REGISTRY_PASSWORD"] %>
+    docker:
+      registry: <%= ENV["DOCKER_REGISTRY_URL"] %>
+      username: <%= ENV["DOCKER_REGISTRY_LOGIN"] %>
+      password: <%%= ENV["DOCKER_REGISTRY_PASSWORD"] %>
     <% end %>
   <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
   provisioner:
@@ -172,6 +187,7 @@ platforms:
     downloads:
       "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
       "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
+      "/tmp/kitchen/rspec.xml": kitchen-rspec-<%= platform_name %>.xml
 
   transport:
     <% if windows %>
@@ -187,6 +203,9 @@ platforms:
     # The AWS EC2 driver doesn't recognize Amazon Linux 2022 yet,
     # therefore it doesn't know that it needs to use ec2-user.
     username: ec2-user
+    <% end %>
+    <% if rocky %>
+    username: rocky
     <% end %>
     <% if ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
     ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>

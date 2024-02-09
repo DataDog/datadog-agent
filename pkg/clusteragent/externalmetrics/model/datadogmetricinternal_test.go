@@ -29,20 +29,26 @@ var (
 
 func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 	templatedTags = templatedTagsStub
+	currentTime := time.Now()
 	tests := []struct {
 		name                  string
 		ddmInternal           *DatadogMetricInternal
 		new                   datadoghq.DatadogMetric
 		expectedQuery         string
 		expectedResolvedQuery *string
+		expectedTimewindow    time.Duration
 		expectedMaxAge        time.Duration
 		expectedAlwaysActive  bool
+		expectedRetries       int
+		expectedRetryAfter    time.Time
 	}{
 		{
 			name: "same query",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
 			new: datadoghq.DatadogMetric{
 				Spec: datadoghq.DatadogMetricSpec{
@@ -52,12 +58,16 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
 			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
 		},
 		{
 			name: "same query - annotation on",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
 			new: datadoghq.DatadogMetric{
 				ObjectMeta: v1.ObjectMeta{
@@ -72,12 +82,16 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
 			expectedAlwaysActive:  true,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
 		},
 		{
 			name: "same query - annotation off",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
 			new: datadoghq.DatadogMetric{
 				ObjectMeta: v1.ObjectMeta{
@@ -92,12 +106,16 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
 			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
 		},
 		{
 			name: "new query, no templating",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
 			new: datadoghq.DatadogMetric{
 				Spec: datadoghq.DatadogMetricSpec{
@@ -107,12 +125,16 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         simpleQueryWithRollup,
 			expectedResolvedQuery: &simpleQueryWithRollup,
 			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
 		},
 		{
 			name: "same query, nil ResolvedQuery",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: nil,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
 			new: datadoghq.DatadogMetric{
 				Spec: datadoghq.DatadogMetricSpec{
@@ -122,12 +144,16 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
 			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
 		},
 		{
 			name: "new templated query",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
 			new: datadoghq.DatadogMetric{
 				Spec: datadoghq.DatadogMetricSpec{
@@ -137,12 +163,16 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         templatedQuery,
 			expectedResolvedQuery: &resolvedQuery,
 			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
 		},
 		{
 			name: "cannot resolve query",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
 			new: datadoghq.DatadogMetric{
 				Spec: datadoghq.DatadogMetricSpec{
@@ -152,6 +182,8 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         invalidTemplatedQuery,
 			expectedResolvedQuery: nil,
 			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
 		},
 		{
 			name: "new max age",
@@ -159,6 +191,8 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 				MaxAge:        5 * time.Second,
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
 			new: datadoghq.DatadogMetric{
 				Spec: datadoghq.DatadogMetricSpec{
@@ -170,6 +204,8 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
 			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
 		},
 		{
 			name: "same max age",
@@ -177,6 +213,8 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 				MaxAge:        5 * time.Second,
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
 			new: datadoghq.DatadogMetric{
 				Spec: datadoghq.DatadogMetricSpec{
@@ -188,6 +226,8 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
 			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
 		},
 		{
 			name: "deleted max age",
@@ -195,6 +235,8 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 				MaxAge:        5 * time.Second,
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
 			new: datadoghq.DatadogMetric{
 				Spec: datadoghq.DatadogMetricSpec{
@@ -205,6 +247,72 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
 			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
+		},
+		{
+			name: "new time window",
+			ddmInternal: &DatadogMetricInternal{
+				TimeWindow:    time.Duration(5 * time.Second),
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
+			},
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					TimeWindow: v1.Duration{Duration: 10 * time.Second},
+					Query:      simpleQuery,
+				},
+			},
+			expectedTimewindow:    10 * time.Second,
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
+		},
+		{
+			name: "same time window",
+			ddmInternal: &DatadogMetricInternal{
+				TimeWindow:    time.Duration(5 * time.Second),
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
+			},
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					TimeWindow: v1.Duration{Duration: 5 * time.Second},
+					Query:      simpleQuery,
+				},
+			},
+			expectedTimewindow:    5 * time.Second,
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
+		},
+		{
+			name: "deleted time window",
+			ddmInternal: &DatadogMetricInternal{
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
+			},
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					Query: simpleQuery,
+				},
+			},
+			expectedTimewindow:    0,
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
 		},
 	}
 	for _, tt := range tests {

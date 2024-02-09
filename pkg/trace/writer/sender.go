@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(APM) Fix revive linter
 package writer
 
 import (
@@ -23,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 )
 
@@ -43,13 +45,14 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			os.Exit(1)
 		}
 		senders[i] = newSender(&senderConfig{
-			client:    cfg.NewHTTPClient(),
-			maxConns:  int(maxConns),
-			maxQueued: qsize,
-			url:       url,
-			apiKey:    endpoint.APIKey,
-			recorder:  r,
-			userAgent: fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+			client:     cfg.NewHTTPClient(),
+			maxConns:   int(maxConns),
+			maxQueued:  qsize,
+			maxRetries: cfg.MaxSenderRetries,
+			url:        url,
+			apiKey:     endpoint.APIKey,
+			recorder:   r,
+			userAgent:  fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
 		})
 	}
 	return senders
@@ -124,6 +127,9 @@ type senderConfig struct {
 	// maxQueued specifies the maximum number of payloads allowed in the queue.
 	// When it is surpassed, oldest items get dropped to make room for new ones.
 	maxQueued int
+	// maxRetries specifies the maximum number of times a payload submission to
+	// intake will be retried before being dropped.
+	maxRetries int
 	// recorder specifies the eventRecorder to use when reporting events occurring
 	// in the sender.
 	recorder eventRecorder
@@ -136,10 +142,10 @@ type senderConfig struct {
 type sender struct {
 	cfg *senderConfig
 
-	queue    chan *payload // payload queue
-	climit   chan struct{} // semaphore for limiting concurrent connections
-	inflight *atomic.Int32 // inflight payloads
-	attempt  *atomic.Int32 // active retry attempt
+	queue      chan *payload // payload queue
+	inflight   *atomic.Int32 // inflight payloads
+	attempt    *atomic.Int32 // active retry attempt
+	maxRetries int32
 
 	mu     sync.RWMutex // guards closed
 	closed bool         // closed reports if the loop is stopped
@@ -148,13 +154,15 @@ type sender struct {
 // newSender returns a new sender based on the given config cfg.
 func newSender(cfg *senderConfig) *sender {
 	s := sender{
-		cfg:      cfg,
-		queue:    make(chan *payload, cfg.maxQueued),
-		climit:   make(chan struct{}, cfg.maxConns),
-		inflight: atomic.NewInt32(0),
-		attempt:  atomic.NewInt32(0),
+		cfg:        cfg,
+		queue:      make(chan *payload, cfg.maxQueued),
+		inflight:   atomic.NewInt32(0),
+		attempt:    atomic.NewInt32(0),
+		maxRetries: int32(cfg.maxRetries),
 	}
-	go s.loop()
+	for i := 0; i < cfg.maxConns; i++ {
+		go s.loop()
+	}
 	return &s
 }
 
@@ -162,11 +170,7 @@ func newSender(cfg *senderConfig) *sender {
 func (s *sender) loop() {
 	for p := range s.queue {
 		s.backoff()
-		s.climit <- struct{}{}
-		go func(p *payload) {
-			defer func() { <-s.climit }()
-			s.sendPayload(p)
-		}(p)
+		s.sendPayload(p)
 	}
 }
 
@@ -210,27 +214,19 @@ outer:
 
 // Push pushes p onto the sender's queue, to be written to the destination.
 func (s *sender) Push(p *payload) {
-	for {
-		select {
-		case s.queue <- p:
-			// ok
-			s.inflight.Inc()
-			return
-		default:
-			// drop the oldest item in the queue to make room
-			select {
-			case p := <-s.queue:
-				s.releasePayload(p, eventTypeDropped, &eventData{
-					bytes: p.body.Len(),
-					count: 1,
-				})
-			default:
-				// the queue got drained; not very likely to happen, but
-				// we shouldn't risk a deadlock
-				continue
-			}
-		}
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
+		return
 	}
+	s.mu.RUnlock()
+	select {
+	case s.queue <- p:
+	default:
+		metrics.Count("datadog.trace_agent.sender.push_blocked", 1, nil, 1)
+		s.queue <- p
+	}
+	s.inflight.Inc()
 }
 
 // sendPayload sends the payload p to the destination URL.
@@ -248,12 +244,16 @@ func (s *sender) sendPayload(p *payload) {
 		duration: time.Since(start),
 		err:      err,
 	}
+	if err != nil {
+		log.Tracef("Error submitting payload: %v\n", err)
+	}
 	switch err.(type) {
 	case *retriableError:
 		// request failed again, but can be retried
 		s.mu.RLock()
 		defer s.mu.RUnlock()
 		if s.closed {
+			s.releasePayload(p, eventTypeDropped, stats)
 			// sender is stopped
 			return
 		}
@@ -265,11 +265,18 @@ func (s *sender) sendPayload(p *payload) {
 			// e.g. attempts 4, 8, 16, etc.
 			log.Warnf("Retried payload %d times: %s", r, err.Error())
 		}
+		if p.retries.Load() >= s.maxRetries {
+			log.Warnf("Dropping Payload after %d retries.\n", p.retries.Load())
+			// queue is full; since this is the oldest payload, we drop it
+			s.releasePayload(p, eventTypeDropped, stats)
+			return
+		}
 		select {
 		case s.queue <- p:
 			s.recordEvent(eventTypeRetry, stats)
 			return
-		default:
+		case <-time.After(10 * time.Millisecond):
+			log.Warnf("Sender queue full. Failed payload dropped after only %d retries.\n", p.retries.Load())
 			// queue is full; since this is the oldest payload, we drop it
 			s.releasePayload(p, eventTypeDropped, stats)
 		}
@@ -279,7 +286,7 @@ func (s *sender) sendPayload(p *payload) {
 		for {
 			// interlock with other sends to avoid setting the same value
 			attempt := s.attempt.Load()
-			if s.attempt.CAS(attempt, attempt/2) {
+			if s.attempt.CompareAndSwap(attempt, attempt/2) {
 				break
 			}
 		}
@@ -318,7 +325,7 @@ func (s *sender) recordEvent(t eventType, data *eventData) {
 		return
 	}
 	data.host = s.cfg.url.Hostname()
-	data.connectionFill = float64(len(s.climit)) / float64(cap(s.climit))
+	data.connectionFill = float64(s.inflight.Load())
 	data.queueFill = float64(len(s.queue)) / float64(cap(s.queue))
 	s.cfg.recorder.recordEvent(t, data)
 }

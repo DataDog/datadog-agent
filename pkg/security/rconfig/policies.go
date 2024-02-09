@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rconfig holds rconfig related files
 package rconfig
 
 import (
@@ -15,7 +16,9 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/skydive-project/go-debouncer"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -32,7 +35,7 @@ const (
 type RCPolicyProvider struct {
 	sync.RWMutex
 
-	client               *remote.Client
+	client               *client.Client
 	onNewPoliciesReadyCb func()
 	lastDefaults         map[string]state.RawConfig
 	lastCustoms          map[string]state.RawConfig
@@ -45,10 +48,20 @@ var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 func NewRCPolicyProvider() (*RCPolicyProvider, error) {
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse agent version: %v", err)
+		return nil, fmt.Errorf("failed to parse agent version: %w", err)
 	}
 
-	c, err := remote.NewUnverifiedGRPCClient(agentName, agentVersion.String(), []data.Product{data.ProductCWSDD, data.ProductCWSCustom}, securityAgentRCPollInterval)
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ipc address: %w", err)
+	}
+
+	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+		client.WithAgent(agentName, agentVersion.String()),
+		client.WithProducts([]data.Product{data.ProductCWSDD, data.ProductCWSCustom}),
+		client.WithPollInterval(securityAgentRCPollInterval),
+		client.WithDirectorRootOverride(config.Datadog.GetString("remote_configuration.director_root")),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -73,8 +86,12 @@ func (r *RCPolicyProvider) Start() {
 	r.client.Start()
 }
 
-func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig) {
+func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 	r.Lock()
+	if len(r.lastDefaults) == 0 && len(configs) == 0 {
+		r.Unlock()
+		return
+	}
 	r.lastDefaults = configs
 	r.Unlock()
 
@@ -83,8 +100,12 @@ func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.Raw
 	r.debouncer.Call()
 }
 
-func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawConfig) {
+func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 	r.Lock()
+	if len(r.lastCustoms) == 0 && len(configs) == 0 {
+		r.Unlock()
+		return
+	}
 	r.lastCustoms = configs
 	r.Unlock()
 
@@ -112,7 +133,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	load := func(id string, cfg []byte) {
 		reader := bytes.NewReader(cfg)
 
-		policy, err := rules.LoadPolicy(id, "remote-config", reader, macroFilters, ruleFilters)
+		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, reader, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {
@@ -152,6 +173,7 @@ func (r *RCPolicyProvider) Close() error {
 	return nil
 }
 
+// Type returns the type of this policy provider
 func (r *RCPolicyProvider) Type() string {
-	return PolicyProviderType
+	return rules.PolicyProviderTypeRC
 }

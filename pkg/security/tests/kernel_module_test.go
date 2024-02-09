@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -15,11 +16,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -46,11 +49,7 @@ func uncompressModule(xzModulePath string) error {
 
 func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 	var wasCompressed bool
-	var buf unix.Utsname
-	if err := unix.Uname(&buf); err != nil {
-		t.Skipf("uname failed: %v", err)
-	}
-	release, err := model.UnmarshalString(buf.Release[:], 65)
+	release, err := kernel.Release()
 	if err != nil {
 		t.Skipf("couldn't parse uname release: %v", err)
 	}
@@ -100,7 +99,67 @@ func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 	return modulePath, wasCompressed
 }
 
+func TestKworker(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping kernel module test in docker")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_load_module_kworker",
+			Expression: `load_module.name == "xt_LED" && process.is_kworker`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	_ = unix.DeleteModule("xt_LED", 0)
+
+	cmd := exec.Command("modprobe", "xt_LED")
+	if err := cmd.Run(); err != nil {
+		t.Skip("required kernel module not available")
+	}
+
+	defer func() {
+		cmd := exec.Command("iptables", "-D", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
+		if err := cmd.Run(); err != nil {
+			t.Error(err)
+		}
+
+		if err := retry.Do(func() error { return unix.DeleteModule("xt_LED", 0) }); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	test.WaitSignal(t, func() error {
+		if err := unix.DeleteModule("xt_LED", 0); err != nil {
+			return err
+		}
+
+		cmd := exec.Command("iptables", "-A", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
+		if err := cmd.Run(); err != nil {
+			return err
+		}
+
+		return nil
+	}, func(event *model.Event, r *rules.Rule) {
+		assert.Equal(t, "test_load_module_kworker", r.ID, "invalid rule triggered")
+	})
+}
+
 func TestLoadModule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if os.Getenv("CI") == "true" {
+		t.Skip("TestLoadModule is known to be flaky")
+	}
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
 	}
@@ -132,24 +191,20 @@ func TestLoadModule(t *testing.T) {
 			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.file.path == "%s" && load_module.loaded_from_memory == false && load_module.args == "" && !process.is_kworker`, testModuleName, modulePath),
 		},
 		{
-			ID:         "test_load_module_kworker",
-			Expression: `load_module.name == "xt_LED" && process.is_kworker`,
-		},
-		{
 			ID:         "test_load_module_with_params",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["toto=1"]`, testModuleName),
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["cifs_max_pending=2"]`, testModuleName),
 		},
 		{
 			ID:         "test_load_module_with_truncated_params",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["Lorem"]`, testModuleName),
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in [r"CIFSMaxBufSize=.*"]`, testModuleName),
 		},
 		{
 			ID:         "test_load_module_with_params_from_memory",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["toto=5"] && load_module.loaded_from_memory == true`, testModuleName),
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["cifs_min_rcv=6"] && load_module.loaded_from_memory == true`, testModuleName),
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,34 +257,6 @@ func TestLoadModule(t *testing.T) {
 		})
 	})
 
-	t.Run("kworker", func(t *testing.T) {
-		_ = unix.DeleteModule("xt_LED", 0)
-
-		cmd := exec.Command("modprobe", "xt_LED")
-		if err := cmd.Run(); err != nil {
-			t.Skip("required kernel module not available")
-		}
-
-		defer func() {
-			cmd := exec.Command("iptables", "-D", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
-			_ = cmd.Run()
-			_ = unix.DeleteModule("xt_LED", 0)
-		}()
-
-		test.WaitSignal(t, func() error {
-			_ = unix.DeleteModule("xt_LED", 0)
-
-			cmd := exec.Command("iptables", "-A", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
-			if err := cmd.Run(); err != nil {
-				return err
-			}
-
-			return nil
-		}, func(event *model.Event, r *rules.Rule) {
-			assert.Equal(t, "test_load_module_kworker", r.ID, "invalid rule triggered")
-		})
-	})
-
 	t.Run("load_module_with_params", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			f, err := os.Open(modulePath)
@@ -238,13 +265,13 @@ func TestLoadModule(t *testing.T) {
 			}
 			defer f.Close()
 
-			if err = unix.FinitModule(int(f.Fd()), "toto=1 toto=2 toto=3", 0); err != nil {
+			if err = unix.FinitModule(int(f.Fd()), "cifs_max_pending=2 cifs_min_small=2", 0); err != nil {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_with_params", r.ID, "wrong rule triggered")
-			assertFieldEqual(t, event, "load_module.args", "toto=1 toto=2 toto=3")
+			assertFieldEqual(t, event, "load_module.args", "cifs_max_pending=2 cifs_min_small=2")
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
 			assertFieldEqual(t, event, "load_module.args_truncated", false)
 			test.validateLoadModuleSchema(t, event)
@@ -258,14 +285,14 @@ func TestLoadModule(t *testing.T) {
 				return fmt.Errorf("couldn't load module content: %w", err)
 			}
 
-			if err = unix.InitModule(module, "toto=5"); err != nil {
+			if err = unix.InitModule(module, "cifs_min_rcv=6"); err != nil {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_with_params_from_memory", r.ID, "wrong rule triggered")
-			assertFieldEqual(t, event, "load_module.argv", []string{"toto=5"})
+			assertFieldEqual(t, event, "load_module.argv", []string{"cifs_min_rcv=6"})
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", true)
 			assertFieldEqual(t, event, "load_module.args_truncated", false)
 			test.validateLoadModuleSchema(t, event)
@@ -273,21 +300,27 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("load_module_with_truncated_params", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+		var args []string
+		for i := 0; i != 10; i++ {
+			args = append(args, fmt.Sprintf("CIFSMaxBufSize=%d", 8192+i))
+		}
+
 		test.WaitSignal(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't load module content: %w", err)
 			}
 
-			if err = unix.InitModule(module, "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis in luctus quam. Nam purus risus, varius non massa bibendum, sollicitudin"); err != nil {
+			if err = unix.InitModule(module, strings.Join(args, " ")); err != nil {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_with_truncated_params", r.ID, "wrong rule triggered")
-			assertFieldEqual(t, event, "load_module.argv", []string{"Lorem", "ipsum", "dolor", "sit", "amet,", "consectetur", "adipiscing", "elit.", "Duis", "in", "luctus", "quam.", "Nam", "purus", "risus,", "varius", "non", "massa", "bibendum,"})
-			assertFieldEqual(t, event, "load_module.args", "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis in luctus quam. Nam purus risus, varius non massa bibendum,")
+			assertFieldEqual(t, event, "load_module.argv", args[0:6])
+			assertFieldEqual(t, event, "load_module.args", strings.Join(args[0:6], " "))
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", true)
 			assertFieldEqual(t, event, "load_module.args_truncated", true)
 			test.validateLoadModuleSchema(t, event)
@@ -296,6 +329,8 @@ func TestLoadModule(t *testing.T) {
 }
 
 func TestUnloadModule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
 	}
@@ -324,7 +359,7 @@ func TestUnloadModule(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

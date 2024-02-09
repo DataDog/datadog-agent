@@ -17,25 +17,12 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/http/httpproxy"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/net/http/httpproxy"
 )
 
 var (
-	// NoProxyIgnoredWarningMap map containing URL's who will ignore the proxy in the future
-	NoProxyIgnoredWarningMap = make(map[string]bool)
-
-	// NoProxyUsedInFuture map containing URL's that will use a proxy in the future
-	NoProxyUsedInFuture = make(map[string]bool)
-
-	// NoProxyChanged map containing URL's whos proxy behavior will change in the future
-	NoProxyChanged = make(map[string]bool)
-
-	// NoProxyMapMutex Lock for all no proxy maps
-	NoProxyMapMutex = sync.Mutex{}
-
 	keyLogWriterInit sync.Once
 	keyLogWriter     io.Writer
 )
@@ -47,20 +34,11 @@ func logSafeURLString(url *url.URL) string {
 	return url.Scheme + "://" + url.Host
 }
 
-func warnOnce(warnMap map[string]bool, key string, format string, params ...interface{}) {
-	NoProxyMapMutex.Lock()
-	defer NoProxyMapMutex.Unlock()
-	if _, ok := warnMap[key]; !ok {
-		warnMap[key] = true
-		log.Warnf(format, params...)
-	}
-}
-
 // minTLSVersionFromConfig determines the minimum TLS version defined by the given
 // config, accounting for defaults and deprecated configuration parameters.
 //
 // The returned result is one of the `tls.VersionTLSxxx` constants.
-func minTLSVersionFromConfig(cfg config.Config) uint16 {
+func minTLSVersionFromConfig(cfg pkgconfigmodel.Reader) uint16 {
 	var min uint16
 	minTLSVersion := cfg.GetString("min_tls_version")
 	switch strings.ToLower(minTLSVersion) {
@@ -82,12 +60,12 @@ func minTLSVersionFromConfig(cfg config.Config) uint16 {
 }
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
-func CreateHTTPTransport() *http.Transport {
+func CreateHTTPTransport(cfg pkgconfigmodel.Reader) *http.Transport {
 	// It’s OK to reuse the same file for all the http.Transport objects we create
 	// because all the writes to that file are protected by a global mutex.
 	// See https://github.com/golang/go/blob/go1.17.3/src/crypto/tls/common.go#L1316-L1318
 	keyLogWriterInit.Do(func() {
-		sslKeyLogFile := config.Datadog.GetString("sslkeylogfile")
+		sslKeyLogFile := cfg.GetString("sslkeylogfile")
 		if sslKeyLogFile != "" {
 			var err error
 			keyLogWriter, err = os.OpenFile(sslKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
@@ -99,10 +77,10 @@ func CreateHTTPTransport() *http.Transport {
 
 	tlsConfig := &tls.Config{
 		KeyLogWriter:       keyLogWriter,
-		InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
+		InsecureSkipVerify: cfg.GetBool("skip_ssl_validation"),
 	}
 
-	tlsConfig.MinVersion = minTLSVersionFromConfig(config.Datadog)
+	tlsConfig.MinVersion = minTLSVersionFromConfig(cfg)
 
 	// Most of the following timeouts are a copy of Golang http.DefaultTransport
 	// They are mostly used to act as safeguards in case we forget to add a general
@@ -127,8 +105,8 @@ func CreateHTTPTransport() *http.Transport {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	if proxies := config.Datadog.GetProxies(); proxies != nil {
-		transport.Proxy = GetProxyTransportFunc(proxies)
+	if proxies := cfg.GetProxies(); proxies != nil {
+		transport.Proxy = GetProxyTransportFunc(proxies, cfg)
 	}
 
 	return transport
@@ -136,15 +114,14 @@ func CreateHTTPTransport() *http.Transport {
 
 // GetProxyTransportFunc return a proxy function for a http.Transport that
 // would return the right proxy depending on the configuration.
-func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error) {
-
+func GetProxyTransportFunc(p *pkgconfigmodel.Proxy, cfg pkgconfigmodel.Reader) func(*http.Request) (*url.URL, error) {
 	proxyConfig := &httpproxy.Config{
 		HTTPProxy:  p.HTTP,
 		HTTPSProxy: p.HTTPS,
 		NoProxy:    strings.Join(p.NoProxy, ","),
 	}
 
-	if config.Datadog.GetBool("no_proxy_nonexact_match") {
+	if cfg.GetBool("no_proxy_nonexact_match") {
 		return func(r *http.Request) (*url.URL, error) {
 			return proxyConfig.ProxyFunc()(r.URL)
 		}
@@ -205,7 +182,7 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 
 		// Print a warning if the url would ignore the proxy when no_proxy_nonexact_match is true
 		if url != nil && newURL == nil {
-			warnOnce(NoProxyIgnoredWarningMap, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
+			warnOnce(noProxyIgnoredWarningMap, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
 			return url, err
 		}
 
@@ -218,13 +195,13 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 
 		// Print a warning if the url does not use the proxy - but will for some reason when no_proxy_nonexact_match is true
 		if url == nil && newURL != nil {
-			warnOnce(NoProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s does not use a proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, logSafeURLString(newURL))
+			warnOnce(noProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s does not use a proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, logSafeURLString(newURL))
 			return url, err
 		}
 
 		// Print a warning if the url uses the proxy and still will when no_proxy_nonexact_match is true but for some reason is different
 		if url.String() != newURLString {
-			warnOnce(NoProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), logSafeURLString(newURL))
+			warnOnce(noProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), logSafeURLString(newURL))
 			return url, err
 		}
 

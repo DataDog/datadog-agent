@@ -23,11 +23,11 @@ int __attribute__((always_inline)) trace__sys_unlink(u8 async, int flags) {
     return 0;
 }
 
-SYSCALL_KPROBE0(unlink) {
+HOOK_SYSCALL_ENTRY0(unlink) {
     return trace__sys_unlink(SYNC_SYSCALL, 0);
 }
 
-SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
+HOOK_SYSCALL_ENTRY3(unlinkat, int, dirfd, const char*, filename, int, flags) {
     return trace__sys_unlink(SYNC_SYSCALL, flags);
 }
 
@@ -40,9 +40,8 @@ int hook_do_unlinkat(ctx_t *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/vfs_unlink")
-int kprobe_vfs_unlink(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_unlink")
+int hook_vfs_unlink(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
         return 0;
@@ -52,18 +51,18 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    struct dentry *dentry = (struct dentry *) CTX_PARM2(ctx);
     // change the register based on the value of vfs_unlink_dentry_position
     if (get_vfs_unlink_dentry_position() == VFS_ARG_POSITION3) {
         // prevent the verifier from whining
         bpf_probe_read(&dentry, sizeof(dentry), &dentry);
-        dentry = (struct dentry *) PT_REGS_PARM3(ctx);
+        dentry = (struct dentry *) CTX_PARM3(ctx);
     }
 
     // we resolve all the information before the file is actually removed
     syscall->unlink.dentry = dentry;
     set_file_inode(dentry, &syscall->unlink.file, 1);
-    fill_file_metadata(dentry, &syscall->unlink.file.metadata);
+    fill_file(dentry, &syscall->unlink.file);
 
     if (filter_syscall(syscall, unlink_approvers)) {
         return mark_as_discarded(syscall);
@@ -81,7 +80,7 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_UNLINK);
@@ -89,9 +88,8 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/dr_unlink_callback")
-int __attribute__((always_inline)) kprobe_dr_unlink_callback(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("dr_unlink_callback")
+int tail_call_target_dr_unlink_callback(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
         return 0;
@@ -160,23 +158,20 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     return 0;
 }
 
-SEC("kretprobe/do_unlinkat")
-int kretprobe_do_unlinkat(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_EXIT("do_unlinkat")
+int rethook_do_unlinkat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 2);
     return sys_unlink_ret(ctx, retval);
 }
 
-int __attribute__((always_inline)) kprobe_sys_unlink_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(unlink) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_unlink_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(unlink) {
-    return kprobe_sys_unlink_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(unlinkat) {
-    return kprobe_sys_unlink_ret(ctx);
+HOOK_SYSCALL_EXIT(unlinkat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_unlink_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_unlink_exit")

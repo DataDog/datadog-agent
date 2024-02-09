@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -18,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	activitydump "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,8 @@ import (
 var testActivityDumpCleanupPeriod = 15 * time.Second
 
 func TestActivityDumps(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -34,7 +37,7 @@ func TestActivityDumps(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -42,7 +45,7 @@ func TestActivityDumps(t *testing.T) {
 
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -52,7 +55,7 @@ func TestActivityDumps(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +111,6 @@ func TestActivityDumps(t *testing.T) {
 			if node.Process.Pid < node.Process.PPid {
 				t.Errorf("PID < PPID")
 			}
-			assert.Equal(t, false, node.Process.IsThread)
 			assert.Equal(t, uint64(0), node.Process.SpanID)
 			assert.Equal(t, uint64(0), node.Process.TraceID)
 			assert.Equal(t, "", node.Process.TTYName)

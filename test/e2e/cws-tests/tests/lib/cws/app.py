@@ -35,10 +35,14 @@ from retry.api import retry_call
 
 
 def get_app_log(api_client, query):
+    # ensures that we are filtering the logs from the e2e runs and not
+    # other agents from people doing QA
+    query = f"app:agent-e2e-tests host:k8s-e2e-tests-control-plane {query}"
+
     api_instance = logs_api.LogsApi(api_client)
     body = LogsListRequest(
         filter=LogsQueryFilter(
-            _from="now-15m",
+            _from="now-10m",
             indexes=["*"],
             query=query,
             to="now",
@@ -198,3 +202,25 @@ class App(common.App):
             for policy in policies["policies"]:
                 if "rules_ignored" in policy:
                     test_case.assertEqual(len(policy["rules_ignored"]), 0)
+
+    def __find_policy(self, policies, policy_source, policy_name):
+        found = False
+        if "policies" in policies:
+            for policy in policies["policies"]:
+                if "source" in policy and "name" in policy:
+                    if policy["source"] == policy_source and policy["name"] == policy_name:
+                        found = True
+                        break
+        return found
+
+    def check_policy_found(self, test_case, policies, policy_source, policy_name):
+        test_case.assertTrue(
+            self.__find_policy(policies, policy_source, policy_name),
+            msg=f"should find policy in log (source:{policy_source} name:{policy_name})",
+        )
+
+    def check_policy_not_found(self, test_case, policies, policy_source, policy_name):
+        test_case.assertFalse(
+            self.__find_policy(policies, policy_source, policy_name),
+            msg=f"shouldn't find policy in log (source:{policy_source} name:{policy_name})",
+        )

@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -39,11 +39,12 @@ type ContainerListener struct {
 func NewContainerListener(Config) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
-	f := workloadmeta.NewFilter(
-		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		workloadmeta.SourceRuntime,
-		workloadmeta.EventTypeAll,
-	)
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
+		Source:    workloadmeta.SourceRuntime,
+		EventType: workloadmeta.EventTypeAll,
+	}
+	f := workloadmeta.NewFilter(&filterParams)
 
 	var err error
 	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.createContainerService)
@@ -59,9 +60,9 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	var annotations map[string]string
 	var pod *workloadmeta.KubernetesPod
 	if findKubernetesInLabels(container.Labels) {
-		kube_pod, err := l.Store().GetKubernetesPodForContainer(container.ID)
+		kubePod, err := l.Store().GetKubernetesPodForContainer(container.ID)
 		if err == nil {
-			pod = kube_pod
+			pod = kubePod
 			annotations = pod.Annotations
 		} else {
 			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
@@ -86,7 +87,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
 		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
-		if time.Now().Sub(finishedAt) > excludeAge {
+		if time.Since(finishedAt) > excludeAge {
 			log.Debugf("container %q not running for too long, skipping", container.ID)
 			return
 		}

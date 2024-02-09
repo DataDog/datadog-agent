@@ -2,14 +2,14 @@ name "pip3"
 
 # The version of pip used must be at least equal to the one bundled with the Python version we use
 # Python 3.9.17 bundles pip 23.0.1
-default_version "23.0.1"
+default_version "23.3.1"
 
 skip_transitive_dependency_licensing true
 
 dependency "python3"
 
 source :url => "https://github.com/pypa/pip/archive/#{version}.tar.gz",
-       :sha256 => "8544443b6810cf1e41306f44218449524d579f4f801b6b16e46f7cabe64de155",
+       :sha256 => "4192f1ed5f8f1e01557d8c02ffd845c64d4a4567e0864ca78b74b0b5456c0f62",
        :extract => :seven_zip
 
 relative_path "pip-#{version}"

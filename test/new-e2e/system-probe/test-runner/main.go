@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-// +build !windows
+//go:build linux
 
+// Package main is the test-runner tool which runs the system-probe tests
 package main
 
 import (
-	"errors"
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -18,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -25,31 +28,33 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const matchAllPackages = "*"
+
 func init() {
 	color.NoColor = false
 }
 
-type TestConfig struct {
-	retry           int
-	includePackages []string
-	excludePackages []string
+type packageRunConfiguration struct {
+	RunOnly []string `json:"run-only"`
+	Skip    []string
+	Exclude bool
+}
+
+type testConfig struct {
+	retryCount        int
+	packagesRunConfig map[string]packageRunConfiguration
 }
 
 const (
-	Testsuite   = "testsuite"
-	TestDirRoot = "/opt/system-probe-tests"
-	GoTestSum   = "/go/bin/gotestsum"
-
-	// The directory format is <name>-<attempt>*
-	XMLDir       = "junit-%d"
-	JSONDir      = "pkgjson-%d"
-	JSONOutDir   = "testjson-%d"
-	CIVisibility = "/ci-visibility"
+	testDirRoot  = "/opt/kernel-version-testing/system-probe-tests"
+	ciVisibility = "/ci-visibility"
 )
 
-var BaseEnv = map[string]interface{}{
-	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join(TestDirRoot, "pkg/ebpf/bytecode/build"),
-	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join(TestDirRoot, "pkg/network/protocols/tls/java"),
+var baseEnv = []string{
+	"GITLAB_CI=true", // force color output support to be detected
+	"GOVERSION=" + runtime.Version(),
+	"DD_SYSTEM_PROBE_BPF_DIR=" + filepath.Join(testDirRoot, "pkg/ebpf/bytecode/build"),
+	"DD_SYSTEM_PROBE_JAVA_DIR=" + filepath.Join(testDirRoot, "pkg/network/protocols/tls/java"),
 }
 
 var timeouts = map[*regexp.Regexp]time.Duration{
@@ -68,12 +73,6 @@ func getTimeout(pkg string) time.Duration {
 		}
 	}
 	return to
-}
-
-func pathEmbedded(fullPath, embedded string) bool {
-	normalized := fmt.Sprintf("/%s/", strings.Trim(embedded, "/"))
-
-	return strings.Contains(fullPath, normalized)
 }
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
@@ -102,56 +101,44 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 	return matches, nil
 }
 
-func generatePackageName(file string) string {
-	pkg, _ := filepath.Rel(TestDirRoot, filepath.Dir(file))
-	return pkg
+func pathToPackage(path string) string {
+	dir, _ := filepath.Rel(testDirRoot, filepath.Dir(path))
+	return dir
 }
 
-func buildCommandArgs(junitPath string, jsonPath string, file string) []string {
-	pkg := generatePackageName(file)
-	junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
-	xmlpath := filepath.Join(
-		junitPath,
-		fmt.Sprintf("%s.xml", junitfilePrefix),
-	)
-	jsonpath := filepath.Join(
-		jsonPath,
-		fmt.Sprintf("%s.json", junitfilePrefix),
-	)
+func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, testConfig *testConfig) []string {
 	args := []string{
-		"--format", "dots",
+		"--format", "testname",
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
+		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
+		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
 		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
+	}
+
+	packagesRunConfig := testConfig.packagesRunConfig
+	if config, ok := packagesRunConfig[pkg]; ok && config.RunOnly != nil {
+		args = append(args, "-test.run", strings.Join(config.RunOnly, "|"))
+	}
+	if config, ok := packagesRunConfig[pkg]; ok && config.Skip != nil {
+		args = append(args, "-test.skip", strings.Join(config.Skip, "|"))
 	}
 
 	return args
 }
 
-func mergeEnv(env ...map[string]interface{}) []string {
-	var mergedEnv []string
-
-	for _, e := range env {
-		for key, element := range e {
-			mergedEnv = append(mergedEnv, fmt.Sprintf("%s=%s", key, fmt.Sprint(element)))
-		}
-	}
-
-	return mergedEnv
-}
-
 // concatenateJsons combines all the test json output files into a single file.
 func concatenateJsons(indir, outdir string) error {
-	testJsonFile := filepath.Join(outdir, "out.json")
+	testJSONFile := filepath.Join(outdir, "out.json")
 	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
 	if err != nil {
 		return fmt.Errorf("json glob: %s", err)
 	}
 
-	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
+	f, err := os.OpenFile(testJSONFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 	if err != nil {
-		return fmt.Errorf("open %s: %s", testJsonFile, err)
+		return fmt.Errorf("open %s: %s", testJSONFile, err)
 	}
 	defer f.Close()
 
@@ -170,103 +157,158 @@ func concatenateJsons(indir, outdir string) error {
 	return nil
 }
 
-func getCIVisibilityDir(dir string, attempt int) string {
-	return filepath.Join(CIVisibility, fmt.Sprintf(dir, attempt))
-}
-
-func buildCIVisibilityDirs(attempt int) error {
-	dirs := []string{
-		getCIVisibilityDir(XMLDir, attempt),
-		getCIVisibilityDir(JSONDir, attempt),
-		getCIVisibilityDir(JSONOutDir, attempt),
+func createDir(d string) error {
+	if err := os.MkdirAll(d, 0o777); err != nil {
+		return fmt.Errorf("failed to create directory %s", d)
 	}
-
-	for _, d := range dirs {
-		if err := os.RemoveAll(d); err != nil {
-			return fmt.Errorf("failed to remove contents of %s: %w", d, err)
-		}
-		if err := os.MkdirAll(d, 0o777); err != nil {
-			return fmt.Errorf("failed to create directory %s", d)
-		}
-	}
-
 	return nil
 }
 
-func testPass(testConfig *TestConfig, attempt int) (bool, error) {
-	var retry bool
+func testPass(testConfig *testConfig, props map[string]string) error {
+	testsuites, err := glob(testDirRoot, "testsuite", func(path string) bool {
+		dir := pathToPackage(path)
 
-	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
-		dir, _ := filepath.Rel(TestDirRoot, filepath.Dir(path))
-		for _, p := range testConfig.excludePackages {
-			if dir == p {
-				return false
-			}
-		}
-		if len(testConfig.includePackages) != 0 {
-			for _, p := range testConfig.includePackages {
-				if dir == p {
-					return true
-				}
-			}
-
-			return false
+		if config, ok := testConfig.packagesRunConfig[dir]; ok {
+			return !config.Exclude
 		}
 
-		return true
+		if config, ok := testConfig.packagesRunConfig[matchAllPackages]; ok {
+			return !config.Exclude
+		}
+
+		return false
 	})
 	if err != nil {
-		return false, fmt.Errorf("test glob: %s", err)
+		return fmt.Errorf("test glob: %s", err)
 	}
 
-	if err := buildCIVisibilityDirs(attempt); err != nil {
-		return false, err
+	jsonDir := filepath.Join(ciVisibility, "pkgjson")
+	jsonOutDir := filepath.Join(ciVisibility, "testjson")
+	xmlDir := filepath.Join(ciVisibility, "junit")
+	for _, d := range []string{jsonDir, jsonOutDir, xmlDir} {
+		if err := createDir(d); err != nil {
+			return err
+		}
 	}
 
-	for _, file := range matches {
-		args := buildCommandArgs(
-			getCIVisibilityDir(XMLDir, attempt),
-			getCIVisibilityDir(JSONDir, attempt),
-			file,
-		)
-		cmd := exec.Command(GoTestSum, args...)
+	for _, testsuite := range testsuites {
+		pkg := pathToPackage(testsuite)
+		junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
+		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
+		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
+		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
-		cmd.Env = append(cmd.Environ(), mergeEnv(BaseEnv)...)
-		cmd.Dir = filepath.Dir(file)
+		cmd := exec.Command("/go/bin/gotestsum", args...)
+		cmd.Env = append(cmd.Environ(), baseEnv...)
+		cmd.Dir = filepath.Dir(testsuite)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
 			// log but do not return error
-			retry = true
-			fmt.Fprintf(os.Stderr, "cmd run %s: %s", file, err)
+			fmt.Fprintf(os.Stderr, "cmd run %s: %s", testsuite, err)
+		}
+
+		if err := addProperties(xmlpath, props); err != nil {
+			return fmt.Errorf("xml add props: %s", err)
 		}
 	}
 
-	if err := concatenateJsons(
-		getCIVisibilityDir(JSONDir, attempt),
-		getCIVisibilityDir(JSONOutDir, attempt),
-	); err != nil {
-		return false, fmt.Errorf("concat json: %s", err)
+	if err := concatenateJsons(jsonDir, jsonOutDir); err != nil {
+		return fmt.Errorf("concat json: %s", err)
 	}
-	return retry, nil
+	return nil
 }
 
-func fixAssetPermissions() error {
-	matches, err := glob(TestDirRoot, `.*\.o`, func(path string) bool {
-		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
-	})
-	if err != nil {
-		return fmt.Errorf("glob assets: %s", err)
-	}
+func buildTestConfiguration() (*testConfig, error) {
+	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
+	packageRunConfigPtr := flag.String("packages-run-config", "", "Configuration for controlling which tests run in a package")
 
-	for _, file := range matches {
-		if err := os.Chown(file, 0, 0); err != nil {
-			return fmt.Errorf("chown %s: %s", file, err)
+	flag.Parse()
+
+	breakdown := make(map[string]packageRunConfiguration)
+	if *packageRunConfigPtr != "" {
+		configData, err := os.ReadFile(*packageRunConfigPtr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
+		fmt.Printf("Runner under configuration: %s\n", configData)
+
+		dec := json.NewDecoder(bytes.NewReader(configData))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&breakdown); err != nil {
+			return nil, err
 		}
 	}
 
-	return nil
+	return &testConfig{
+		retryCount:        *retryPtr,
+		packagesRunConfig: breakdown,
+	}, nil
+}
+
+func readOSRelease() (map[string]string, error) {
+	f, err := os.Open("/etc/os-release")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	keyvals := make(map[string]string)
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		// output contents for visibility
+		fmt.Println(scanner.Text())
+		k, v, found := bytes.Cut(scanner.Bytes(), []byte{'='})
+		if found {
+			keyvals[string(k)] = strings.Trim(string(v), "\"")
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return keyvals, nil
+}
+
+func getProps() (map[string]string, error) {
+	osrHash, err := readOSRelease()
+	if err != nil {
+		return nil, fmt.Errorf("os-release: %s", err)
+	}
+	osname := fmt.Sprintf("%s-%s", osrHash["ID"], osrHash["VERSION_ID"])
+	var u unix.Utsname
+	if err := unix.Uname(&u); err != nil {
+		return nil, fmt.Errorf("uname: %w", err)
+	}
+	arch, release := unix.ByteSliceToString(u.Machine[:]), unix.ByteSliceToString(u.Release[:])
+	fmt.Printf("arch: %s\nrelease: %s\n", arch, release)
+	return map[string]string{
+		"dd_tags[os.platform]":     "linux",
+		"dd_tags[os.name]":         osname,
+		"dd_tags[os.architecture]": arch,
+		"dd_tags[os.version]":      release,
+	}, nil
+}
+
+func run() error {
+	props, err := getProps()
+	if err != nil {
+		return fmt.Errorf("props: %s", err)
+	}
+
+	testConfig, err := buildTestConfiguration()
+	if err != nil {
+		return fmt.Errorf("failed to build test configuration: %w", err)
+	}
+
+	if err := os.RemoveAll(ciVisibility); err != nil {
+		return fmt.Errorf("failed to remove contents of %s: %w", ciVisibility, err)
+	}
+	if err := createDir(ciVisibility); err != nil {
+		return err
+	}
+
+	return testPass(testConfig, props)
 }
 
 func main() {
@@ -274,68 +316,4 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s\n", color.RedString(err.Error()))
 		os.Exit(1)
 	}
-}
-
-func buildTestConfiguration() *TestConfig {
-	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
-	packagesPtr := flag.String("include-packages", "", "Comma separated list of packages to test")
-	excludePackagesPtr := flag.String("exclude-packages", "", "Comma separated list of packages to exclude")
-
-	flag.Parse()
-
-	packagesLs := []string{}
-	excludeLs := []string{}
-
-	if *packagesPtr != "" {
-		packagesLs = strings.Split(*packagesPtr, ",")
-	}
-	if *excludePackagesPtr != "" {
-		excludeLs = strings.Split(*excludePackagesPtr, ",")
-	}
-
-	return &TestConfig{
-		retry:           *retryPtr,
-		includePackages: packagesLs,
-		excludePackages: excludeLs,
-	}
-}
-
-func printHeader(str string) {
-	magentaString := color.New(color.FgMagenta, color.Bold).Add(color.Underline)
-	fmt.Println()
-	magentaString.Println(str)
-}
-
-func run() error {
-	var err error
-	var uname unix.Utsname
-
-	testConfig := buildTestConfiguration()
-
-	if err := unix.Uname(&uname); err != nil {
-		return fmt.Errorf("error calling uname: %w", err)
-	}
-	fmt.Printf("running on: %s\n", unix.ByteSliceToString(uname.Release[:]))
-	if err := fixAssetPermissions(); err != nil {
-		return err
-	}
-
-	if err := os.RemoveAll(CIVisibility); err != nil {
-		return fmt.Errorf("failed to remove contents of %s: %w", CIVisibility, err)
-	}
-	if _, err := os.Stat(CIVisibility); errors.Is(err, fs.ErrNotExist) {
-		if err := os.MkdirAll(CIVisibility, 0o777); err != nil {
-			return fmt.Errorf("failed to create directory %s", CIVisibility)
-		}
-	}
-
-	for i := 1; i <= testConfig.retry; i++ {
-		printHeader(fmt.Sprintf("Test attempt %d", i))
-		retry, err := testPass(testConfig, i)
-		if !retry || err != nil {
-			break
-		}
-	}
-
-	return err
 }

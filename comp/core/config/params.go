@@ -7,9 +7,9 @@ package config
 
 // Params defines the parameters for the config component.
 type Params struct {
-	// confFilePath is the path at which to look for configuration, usually
+	// ConfFilePath is the path at which to look for configuration, usually
 	// given by the --cfgpath command-line flag.
-	confFilePath string
+	ConfFilePath string
 
 	// configName is the root of the name of the configuration file.  The
 	// comp/core/config component will search for a file with this name
@@ -24,10 +24,6 @@ type Params struct {
 	// configLoadSecurityAgent determines whether to read the config from
 	// SecurityAgentConfigFilePaths or from ConfFilePath.
 	configLoadSecurityAgent bool
-
-	// ConfigLoadSecrets determines whether secrets in the configuration file
-	// should be evaluated.  This is typically false for one-shot commands.
-	configLoadSecrets bool
 
 	// configMissingOK determines whether it is a fatal error if the config
 	// file does not exist.
@@ -53,20 +49,10 @@ func NewParams(defaultConfPath string, options ...func(*Params)) Params {
 	return params
 }
 
-// NewAgentParamsWithSecrets creates a new instance of Params using secrets for the Agent.
-func NewAgentParamsWithSecrets(confFilePath string, options ...func(*Params)) Params {
-	return newAgentParams(confFilePath, true, options...)
-}
-
-// NewAgentParamsWithoutSecrets creates a new instance of Params without using secrets for the Agent.
-func NewAgentParamsWithoutSecrets(confFilePath string, options ...func(*Params)) Params {
-	return newAgentParams(confFilePath, false, options...)
-}
-
-func newAgentParams(confFilePath string, configLoadSecrets bool, options ...func(*Params)) Params {
+// NewAgentParams creates a new instance of Params for the Agent.
+func NewAgentParams(confFilePath string, options ...func(*Params)) Params {
 	params := NewParams(DefaultConfPath, options...)
-	params.confFilePath = confFilePath
-	params.configLoadSecrets = configLoadSecrets
+	params.ConfFilePath = confFilePath
 	return params
 }
 
@@ -76,88 +62,68 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 
 	// By default, we load datadog.yaml and then merge security-agent.yaml
 	if len(securityAgentConfigFilePaths) > 0 {
-		params.confFilePath = securityAgentConfigFilePaths[0]                  // Default: datadog.yaml
+		params.ConfFilePath = securityAgentConfigFilePaths[0]                  // Default: datadog.yaml
 		params.securityAgentConfigFilePaths = securityAgentConfigFilePaths[1:] // Default: security-agent.yaml
 	}
 	params.configLoadSecurityAgent = true
-
-	params.configLoadSecrets = true
 	params.configMissingOK = false
 	return params
 }
 
+// NewClusterAgentParams returns a new Params struct for the cluster agent
 func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Params {
 	params := NewParams(DefaultConfPath, options...)
-	params.confFilePath = configFilePath
+	params.ConfFilePath = configFilePath
 	params.configName = "datadog-cluster"
 	return params
 }
 
+// WithConfigName returns an option which sets the config name
 func WithConfigName(name string) func(*Params) {
 	return func(b *Params) {
 		b.configName = name
 	}
 }
 
+// WithConfigMissingOK returns an option which sets configMissingOK
 func WithConfigMissingOK(v bool) func(*Params) {
 	return func(b *Params) {
 		b.configMissingOK = v
 	}
 }
 
+// WithIgnoreErrors returns an option which sets ignoreErrors
 func WithIgnoreErrors(v bool) func(*Params) {
 	return func(b *Params) {
 		b.ignoreErrors = v
 	}
 }
 
+// WithSecurityAgentConfigFilePaths returns an option which sets securityAgentConfigFilePaths
 func WithSecurityAgentConfigFilePaths(securityAgentConfigFilePaths []string) func(*Params) {
 	return func(b *Params) {
 		b.securityAgentConfigFilePaths = securityAgentConfigFilePaths
 	}
 }
 
+// WithConfigLoadSecurityAgent returns an option which sets configLoadSecurityAgent
 func WithConfigLoadSecurityAgent(configLoadSecurityAgent bool) func(*Params) {
 	return func(b *Params) {
 		b.configLoadSecurityAgent = configLoadSecurityAgent
 	}
 }
 
+// WithConfFilePath returns an option which sets ConfFilePath
 func WithConfFilePath(confFilePath string) func(*Params) {
 	return func(b *Params) {
-		b.confFilePath = confFilePath
-	}
-}
-
-func WithConfigLoadSecrets(configLoadSecrets bool) func(*Params) {
-	return func(b *Params) {
-		b.configLoadSecrets = configLoadSecrets
+		b.ConfFilePath = confFilePath
 	}
 }
 
 // These functions are used in unit tests.
 
-// ConfigLoadSecrets determines whether secrets in the configuration file
-// should be evaluated.  This is typically false for one-shot commands.
-func (p Params) ConfigLoadSecrets() bool {
-	return p.configLoadSecrets
-}
-
 // ConfigMissingOK determines whether it is a fatal error if the config
 // file does not exist.
 func (p Params) ConfigMissingOK() bool {
 	return p.configMissingOK
-}
-
-// MockParams defines the parameter for the mock config.
-// It is designed to be used with `fx.Replace` which replaces the default
-// empty value of `MockParams`.
-//
-//	fx.Replace(configComponent.MockParams{Overrides: overrides})
-type MockParams struct {
-	// Overrides is a parameter used to override values of the config
-	Overrides map[string]interface{}
-
-	// The initial config state as a yaml string
-	ConfigYaml string
 }

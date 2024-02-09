@@ -41,7 +41,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             next_key.mount_id = 0;
         }
 
-        if (input->discarder_type && i <= 3) {
+        if (input->discarder_type && input->iteration == 1 && i <= 3) {
             params->discarder.path_key.ino = key.ino;
             params->discarder.path_key.mount_id = key.mount_id;
             params->discarder.is_leaf = i == 0;
@@ -93,42 +93,47 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     return DR_MAX_ITERATION_DEPTH;
 }
 
-#define dentry_resolver_kern(ctx, progs_map, callbacks_map, dentry_resolver_kern_key)                                  \
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);                                                         \
-    if (!syscall)                                                                                                      \
-        return 0;                                                                                                      \
-                                                                                                                       \
-    syscall->resolver.iteration++;                                                                                     \
-    syscall->resolver.ret = resolve_dentry_tail_call(ctx, &syscall->resolver);                                         \
-                                                                                                                       \
-    if (syscall->resolver.ret > 0) {                                                                                   \
-        if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {                        \
-            bpf_tail_call_compat(ctx, progs_map, dentry_resolver_kern_key);                                            \
-        }                                                                                                              \
-                                                                                                                       \
-        syscall->resolver.ret += DR_MAX_ITERATION_DEPTH * (syscall->resolver.iteration - 1);                           \
-    }                                                                                                                  \
-                                                                                                                       \
-    if (syscall->resolver.callback >= 0) {                                                                             \
-        bpf_tail_call_compat(ctx, callbacks_map, syscall->resolver.callback);                                          \
-    }                                                                                                                  \
+void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, int dr_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
+    if (!syscall)
+        return;
 
-// fentry blocked by: tail call
-SEC("kprobe/dentry_resolver_kern")
-int kprobe_dentry_resolver_kern(struct pt_regs *ctx) {
-    dentry_resolver_kern(ctx, &dentry_resolver_kprobe_progs, &dentry_resolver_kprobe_callbacks, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
-    return 0;
+    syscall->resolver.iteration++;
+    syscall->resolver.ret = resolve_dentry_tail_call(ctx, &syscall->resolver);
+
+    if (syscall->resolver.ret > 0) {
+        if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {
+            tail_call_dr_progs(ctx, dr_type, DR_DENTRY_RESOLVER_KERN_KEY);
+        }
+
+        syscall->resolver.ret += DR_MAX_ITERATION_DEPTH * (syscall->resolver.iteration - 1);
+    }
+
+    if (syscall->resolver.callback >= 0) {
+        switch (dr_type) {
+        case DR_KPROBE_OR_FENTRY:
+            bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_callbacks, syscall->resolver.callback);
+            break;
+        case DR_TRACEPOINT:
+            bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_callbacks, syscall->resolver.callback);
+            break;
+        }
+    }
 }
 
 SEC("tracepoint/dentry_resolver_kern")
 int tracepoint_dentry_resolver_kern(void *ctx) {
-    dentry_resolver_kern(ctx, &dentry_resolver_tracepoint_progs, &dentry_resolver_tracepoint_callbacks, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
+    dentry_resolver_kern(ctx, DR_TRACEPOINT);
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/dentry_resolver_erpc_write_user")
-int kprobe_dentry_resolver_erpc_write_user(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("dentry_resolver_kern")
+int tail_call_target_dentry_resolver_kern(ctx_t *ctx) {
+    dentry_resolver_kern(ctx, DR_KPROBE_OR_FENTRY);
+    return 0;
+}
+
+int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, int dr_type) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;
@@ -192,7 +197,7 @@ int kprobe_dentry_resolver_erpc_write_user(struct pt_regs *ctx) {
         }
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
-        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_ERPC_KEY);
+        tail_call_dr_progs(ctx, dr_type, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
     }
 
@@ -201,9 +206,12 @@ exit:
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/dentry_resolver_erpc_mmap")
-int kprobe_dentry_resolver_erpc_mmap(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("dentry_resolver_erpc_write_user")
+int tail_call_target_dentry_resolver_erpc_write_user(ctx_t *ctx) {
+    return dentry_resolver_erpc_write_user(ctx, DR_KPROBE_OR_FENTRY);
+}
+
+int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_type) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;
@@ -274,7 +282,7 @@ int kprobe_dentry_resolver_erpc_mmap(struct pt_regs *ctx) {
         }
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
-        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_ERPC_KEY);
+        tail_call_dr_progs(ctx, dr_type, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
     }
 
@@ -283,198 +291,14 @@ exit:
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/dentry_resolver_segment_erpc_write_user")
-int kprobe_dentry_resolver_segment_erpc_write_user(struct pt_regs *ctx) {
-    u32 key = 0;
-    u32 resolution_err = 0;
-
-    struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
-    if (state == NULL) {
-        return 0;
-    }
-
-    // resolve segment and write in buffer
-    struct path_key_t path_key = state->key;
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
-    if (map_value == NULL) {
-        resolution_err = DR_ERPC_CACHE_MISS;
-        goto exit;
-    }
-
-    if (map_value->len + sizeof(key) > state->buffer_size) {
-        // make sure we do not write outside of the provided buffer
-        resolution_err = DR_ERPC_BUFFER_SIZE;
-        goto exit;
-    }
-
-    int ret = bpf_probe_write_user((void *) state->userspace_buffer, &state->key, sizeof(state->key));
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-    ret = bpf_probe_write_user((void *) state->userspace_buffer + offsetof(struct path_key_t, path_id), &state->challenge, sizeof(state->challenge));
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-    ret = bpf_probe_write_user((void *) state->userspace_buffer + sizeof(state->key), map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-exit:
-    monitor_resolution_err(resolution_err);
-    return 0;
+TAIL_CALL_TARGET("dentry_resolver_erpc_mmap")
+int tail_call_target_dentry_resolver_erpc_mmap(ctx_t *ctx) {
+    return dentry_resolver_erpc_mmap(ctx, DR_KPROBE_OR_FENTRY);
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/dentry_resolver_segment_erpc_mmap")
-int kprobe_dentry_resolver_segment_erpc_mmap(struct pt_regs *ctx) {
-    u32 key = 0;
-    u32 resolution_err = 0;
-    char *mmapped_userspace_buffer = NULL;
 
-    struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
-    if (state == NULL) {
-        return 0;
-    }
-
-    mmapped_userspace_buffer = bpf_map_lookup_elem(&dr_erpc_buffer, &key);
-    if (mmapped_userspace_buffer == NULL) {
-        return DR_ERPC_UNKNOWN_ERROR;
-    }
-
-    // resolve segment and write in buffer
-    struct path_key_t path_key = state->key;
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
-    if (map_value == NULL) {
-        resolution_err = DR_ERPC_CACHE_MISS;
-        goto exit;
-    }
-
-    if (map_value->len + sizeof(key) > state->buffer_size) {
-        // make sure we do not write outside of the provided buffer
-        resolution_err = DR_ERPC_BUFFER_SIZE;
-        goto exit;
-    }
-
-    int ret = bpf_probe_read((void *) mmapped_userspace_buffer, sizeof(state->key), &state->key);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-    ret = bpf_probe_read((void *) mmapped_userspace_buffer + (offsetof(struct path_key_t, path_id) & 0x7FFF), sizeof(state->challenge), &state->challenge);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-    ret = bpf_probe_read((void *) mmapped_userspace_buffer + (sizeof(state->key) & 0x7FFF), DR_MAX_SEGMENT_LENGTH + 1, map_value->name);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-exit:
-    monitor_resolution_err(resolution_err);
-    return 0;
-}
-
-// fentry blocked by: tail call
-SEC("kprobe/dentry_resolver_parent_erpc_write_user")
-int kprobe_dentry_resolver_parent_erpc_write_user(struct pt_regs *ctx) {
-    u32 key = 0;
-    u32 resolution_err = 0;
-
-    struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
-    if (state == NULL) {
-        return 0;
-    }
-
-    // resolve segment and write in buffer
-    struct path_key_t path_key = state->key;
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
-    if (map_value == NULL) {
-        resolution_err = DR_ERPC_CACHE_MISS;
-        goto exit;
-    }
-
-    if (sizeof(map_value->parent) > state->buffer_size) {
-        // make sure we do not write outside of the provided buffer
-        resolution_err = DR_ERPC_BUFFER_SIZE;
-        goto exit;
-    }
-
-    int ret = bpf_probe_write_user((void *) state->userspace_buffer, &map_value->parent, sizeof(map_value->parent));
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-    ret = bpf_probe_write_user((void *) state->userspace_buffer + offsetof(struct path_key_t, path_id), &state->challenge, sizeof(state->challenge));
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-exit:
-    monitor_resolution_err(resolution_err);
-    return 0;
-}
-
-// fentry blocked by: tail call
-SEC("kprobe/dentry_resolver_parent_erpc_mmap")
-int kprobe_dentry_resolver_parent_erpc_mmap(struct pt_regs *ctx) {
-    u32 key = 0;
-    u32 resolution_err = 0;
-    char *mmapped_userspace_buffer = NULL;
-
-    struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
-    if (state == NULL) {
-        return 0;
-    }
-
-    mmapped_userspace_buffer = bpf_map_lookup_elem(&dr_erpc_buffer, &key);
-    if (mmapped_userspace_buffer == NULL) {
-        return DR_ERPC_UNKNOWN_ERROR;
-    }
-
-    // resolve segment and write in buffer
-    struct path_key_t path_key = state->key;
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
-    if (map_value == NULL) {
-        resolution_err = DR_ERPC_CACHE_MISS;
-        goto exit;
-    }
-
-    if (sizeof(map_value->parent) > state->buffer_size) {
-        // make sure we do not write outside of the provided buffer
-        resolution_err = DR_ERPC_BUFFER_SIZE;
-        goto exit;
-    }
-
-    int ret = bpf_probe_read((void *) mmapped_userspace_buffer, sizeof(map_value->parent), &map_value->parent);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-    ret = bpf_probe_read((void *) mmapped_userspace_buffer + (offsetof(struct path_key_t, path_id) & 0x7FFF), sizeof(state->challenge), &state->challenge);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-exit:
-    monitor_resolution_err(resolution_err);
-    return 0;
-}
-
-// fentry blocked by: tail call
-SEC("kprobe/dentry_resolver_ad_filter")
-int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("dentry_resolver_ad_filter")
+int tail_call_target_dentry_resolver_ad_filter(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall) {
         return 0;
@@ -484,7 +308,7 @@ int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
-    bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
+    tail_call_dr_progs(ctx, DR_KPROBE_OR_FENTRY, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
@@ -499,7 +323,7 @@ int tracepoint_dentry_resolver_ad_filter(void *ctx) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
-    bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
+    tail_call_dr_progs(ctx, DR_TRACEPOINT, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 

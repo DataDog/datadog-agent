@@ -10,20 +10,95 @@ package oracle
 import (
 	"fmt"
 	"log"
-	"testing"
 
+	//"log"
+	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+func runStatementMetrics(c *Check, t *testing.T) {
+	c.statementsLastRun = time.Now().Add(-48 * time.Hour)
+	count, err := c.StatementMetrics()
+	assert.NoError(t, err, "failed to run query metrics")
+	assert.NotEmpty(t, count, "No statements processed in query metrics")
+}
+
+func initCheckReal(t *testing.T) Check {
+	c := Check{}
+
+	rawInstanceConfig := []byte(fmt.Sprintf(`
+server: %s
+port: %d
+username: %s
+password: %s
+service_name: %s
+dbm: true
+query_metrics:
+  trackers:
+    - contains_text:
+      - begin null;
+    - contains_text:
+      - dual
+`, HOST, PORT, USER, PASSWORD, SERVICE_NAME))
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	require.NoError(t, err)
+
+	assert.Equal(t, c.config.InstanceConfig.Server, HOST)
+	assert.Equal(t, c.config.InstanceConfig.Port, PORT)
+	assert.Equal(t, c.config.InstanceConfig.Username, USER)
+	assert.Equal(t, c.config.InstanceConfig.Password, PASSWORD)
+	assert.Equal(t, c.config.InstanceConfig.ServiceName, SERVICE_NAME)
+
+	return c
+}
+
+func TestQueryMetrics(t *testing.T) {
+	c := initCheckReal(t)
+
+	var n int
+	var err error
+	err = c.Run()
+	assert.NoError(t, err, "statement check run")
+
+	testStatement := "begin null; end;"
+	for i := 1; i <= 2; i++ {
+		_, err = c.db.Exec(testStatement)
+		assert.NoError(t, err, "failed to execute the test statement")
+
+		for j := 1; j <= 10; j++ {
+			err = getWrapper(&c, &n, fmt.Sprintf("select %d from dual", j))
+			assert.NoError(t, err, "failed to execute the test query")
+		}
+		runStatementMetrics(&c, t)
+	}
+
+	var statementExecutions float64
+	var queryExecutions float64
+	for _, r := range c.lastOracleRows {
+		if r.SQLText == testStatement {
+			statementExecutions = r.Executions
+		} else if r.SQLText == "select ? from dual" {
+			queryExecutions = r.Executions
+		}
+	}
+	assert.Equal(t, float64(1), statementExecutions, "PL/SQL execution not captured")
+	assert.Equal(t, float64(10), queryExecutions)
+}
+
 func TestUInt64Binding(t *testing.T) {
-	initAndStartAgentDemultiplexer()
 
 	chk.dbmEnabled = true
 	chk.config.QueryMetrics.Enabled = true
 
-	chk.config.InstanceConfig.InstantClient = false
+	chk.config.InstanceConfig.OracleClient = false
 
 	type RowsStruct struct {
 		N                      int    `db:"N"`
@@ -39,7 +114,7 @@ func TestUInt64Binding(t *testing.T) {
 		var driver string
 		if tnsAlias == "" {
 			driver = common.GoOra
-			chk.config.InstanceConfig.InstantClient = false
+			chk.config.InstanceConfig.OracleClient = false
 		} else {
 			driver = common.Godror
 		}
@@ -49,29 +124,15 @@ func TestUInt64Binding(t *testing.T) {
 
 		m := make(map[string]int)
 		m["2267897546238586672"] = 1
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
 
-		statementMetrics, err := GetStatementsMetricsForKeys(&chk, "force_matching_signature", "AND force_matching_signature != 0", chk.statementsFilter.ForceMatchingSignatures)
-		assert.NoError(t, err, "running GetStatementsMetricsForKeys with %s driver", driver)
-		assert.Lenf(t, statementMetrics, 1, "test query metrics captured with %s driver", driver)
 		err = chk.db.Get(&r, "select force_matching_signature, sql_text from v$sqlstats where sql_text like '%t111%'") // force_matching_signature=17202440635181618732
 		assert.NoError(t, err, "running statement with large force_matching_signature with %s driver", driver)
-
-		m = make(map[string]int)
-		m["17202440635181618732"] = 1
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
-		assert.Lenf(t, statementMetrics, 1, "test query metrics for uint64 overflow with %s driver", driver)
-
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
-		n, err := chk.StatementMetrics()
-		assert.NoError(t, err, "query metrics with %s driver", driver)
-		assert.Equal(t, 1, n, "total query metrics captured with %s driver", driver)
 
 		slice := []any{"17202440635181618732"}
 		var retValue int
 		err = chk.db.Get(&retValue, "SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (:1)", slice...)
 		if err != nil {
-			log.Fatalf("row error with driver %s %s", driver, err)
+			//log.Fatalf("%S row error with driver %s %s", chk.logPrompt, driver, err)
 			return
 		}
 		assert.Equal(t, 1, retValue, "Testing IN slice uint64 overflow with driver %s", driver)
@@ -92,25 +153,9 @@ func TestUInt64Binding(t *testing.T) {
 			err = rows.Scan(&retValue)
 
 			if err != nil {
-				log.Fatalf("scan error %s", err)
+				log.Fatalf("%s scan error %s", chk.logPrompt, err)
 			}
 			assert.Equalf(t, retValue, 1, "IN uint64 with %s driver", driver)
 		}
-	}
-}
-
-func TestStatementMetrics(t *testing.T) {
-	initAndStartAgentDemultiplexer()
-	chk.config.QueryMetrics.IncludeDatadogQueries = true
-	var retValue int
-	for i := 1; i <= 2; i++ {
-		err := chk.db.Get(&retValue, "SELECT /* DD */ 1 FROM dual")
-		if err != nil {
-			log.Fatalf("row error %s", err)
-			return
-		}
-		chk.SampleSession()
-		_, err = chk.StatementMetrics()
-		assert.NoErrorf(t, err, "statement metrics check failed")
 	}
 }

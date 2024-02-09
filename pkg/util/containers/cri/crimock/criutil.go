@@ -5,6 +5,7 @@
 
 //go:build cri
 
+// Package crimock implements a mock Container Runtime Interface (CRI) client.
 package crimock
 
 import (

@@ -12,14 +12,14 @@ import (
 	"expvar"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	configProvider  = "configuration"
-	fargateProvider = "fargate"
+	configProvider  = hostnameinterface.ConfigProvider
+	fargateProvider = hostnameinterface.FargateProvider
 )
 
 var (
@@ -122,11 +122,6 @@ var providerCatalog = []provider{
 	},
 }
 
-// FromConfiguration returns true if the hostname was found through the configuration file
-func (h Data) FromConfiguration() bool {
-	return h.Provider == configProvider
-}
-
 func saveHostname(cacheHostnameKey string, hostname string, providerName string) Data {
 	data := Data{
 		Hostname: hostname,
@@ -138,7 +133,6 @@ func saveHostname(cacheHostnameKey string, hostname string, providerName string)
 	// in the status page.
 	if providerName != "" && providerName != fargateProvider {
 		hostnameProvider.Set(providerName)
-		inventories.SetAgentMetadata(inventories.AgentHostnameSource, providerName)
 	}
 	return data
 }

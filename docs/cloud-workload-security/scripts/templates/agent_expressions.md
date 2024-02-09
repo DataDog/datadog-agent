@@ -1,23 +1,23 @@
 ---
 title: Creating Custom Agent Rules
 kind: documentation
-description: "Agent expression attributes and operators for Cloud Workload Security Rules"
+description: "Agent expression attributes and operators for CSM Threats Rules"
 disable_edit: true
 further_reading:
 - link: "/security/cloud_workload_security/getting_started/"
   tag: "Documentation"
-  text: "Get started with Datadog Cloud Workload Security"
+  text: "Get started with Datadog CSM Threats"
 ---
 
 {{ warning_message }}
 
 ## Agent expression syntax
-Cloud Workload Security (CWS) first evaluates activity within the Datadog Agent against Agent expressions to decide what activity to collect. This portion of a CWS rule is called the Agent expression. Agent expressions use Datadog's Security Language (SECL). The standard format of a SECL expression is as follows:
+Cloud Security Management Threats (CSM Threats) first evaluates activity within the Datadog Agent against Agent expressions to decide what activity to collect. This portion of a CSM Threats rule is called the Agent expression. Agent expressions use Datadog's Security Language (SECL). The standard format of a SECL expression is as follows:
 
 {% raw %}
 {{< code-block lang="javascript" >}}
 {% endraw %}
-<event-type>.<event-attribute> <operator> <value> <event-attribute> ...
+<event-type>.<event-attribute> <operator> <value> [<operator> <event-type>.<event-attribute>] ...
 {% raw %}
 {{< /code-block >}}
 {% endraw %}
@@ -26,7 +26,7 @@ Using this format, an example rule looks like this:
 {% raw %}
 {{< code-block lang="javascript" >}}
 {% endraw %}
-open.file.path == "/etc/shadow" && file.path not in ["/usr/sbin/vipw"]
+open.file.path == "/etc/shadow" && process.file.path not in ["/usr/sbin/vipw"]
 {% raw %}
 {{< /code-block >}}
 {% endraw %}
@@ -118,7 +118,7 @@ Such rules can be written as follows:
 
 {% raw %}
 {{< code-block lang="javascript" >}}
-dns.question.name == "example.com" && network.destination.ip in ["192.168.1.25", "10.0.0.0/24"]
+dns.question.name == "example.com" && network.destination.ip in [192.168.1.25, 10.0.0.0/24]
 
 {{< /code-block >}}
 {% endraw %}
@@ -127,7 +127,7 @@ dns.question.name == "example.com" && network.destination.ip in ["192.168.1.25",
 Helpers exist in SECL that enable users to write advanced rules without needing to rely on generic techniques such as regex.
 
 ### Command line arguments
-The *args_flags* and *args_options* are helpers to ease the writing of CWS rules based on command line arguments.
+The *args_flags* and *args_options* are helpers to ease the writing of CSM Threats rules based on command line arguments.
 
 *args_flags* is used to catch arguments that start with either one or two hyphen characters but do not accept any associated value.
 
@@ -140,7 +140,7 @@ Examples:
 
 Examples:
 * `T=8` and `width=8` both are in *args_options* for the command `ls -T 8 --width=8`
-* `exec.args_options ~= [ “s=.*\’” ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
+* `exec.args_options in [ r"s=.*\\" ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
 
 ### File rights
 

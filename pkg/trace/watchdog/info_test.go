@@ -51,7 +51,7 @@ func TestCPUHigh(t *testing.T) {
 			runtime.GC()
 
 			done := make(chan struct{}, 1)
-			_, _ = CPU(time.Now())
+			CPU(time.Now())
 			globalCurrentInfo.cacheDelay = testDuration
 			for i := 0; i < tc.n; i++ {
 				go func() {
@@ -110,9 +110,7 @@ func doTestMemHigh(t *testing.T, n int) {
 		a[0] = 1
 		a[n-1] = 1
 		data <- a
-		select {
-		case <-done:
-		}
+		<-done
 	}()
 	time.Sleep(testDuration)
 	m := Mem()

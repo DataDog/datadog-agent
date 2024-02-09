@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -181,6 +182,13 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			Key:           uint32(model.UnloadModuleEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "tracepoint_handle_sys_delete_module_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.FileChdirEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint_handle_sys_chdir_exit",
 			},
 		},
 	}

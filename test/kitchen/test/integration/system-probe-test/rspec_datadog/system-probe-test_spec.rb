@@ -12,7 +12,7 @@ GOLANG_TEST_FAILURE = /FAIL:/
 TIMEOUTS = {
   "pkg/network/protocols/http$" => "15m",
   "pkg/network/tracer$" => "55m",
-  "pkg/network/usm$" => "30m",
+  "pkg/network/usm$" => "55m",
 }
 
 DEFAULT_TIMEOUT = "10m"
@@ -69,7 +69,9 @@ describe "system-probe" do
     final_env = {
       "DD_SYSTEM_PROBE_BPF_DIR"=>"#{tests_dir}/pkg/ebpf/bytecode/build",
       "DD_SYSTEM_PROBE_JAVA_DIR"=>"#{tests_dir}/pkg/network/protocols/tls/java",
-      "GOVERSION"=>"unknown"
+      "GOVERSION"=>"unknown",
+      # force color support to be detected
+      "GITLAB_CI"=>"true",
     }
     junitfile = pkg.gsub("/","-") + ".xml"
 
@@ -81,6 +83,8 @@ describe "system-probe" do
           "--format", "dots",
           "--junitfile", xmlpath,
           "--jsonfile", "/tmp/pkgjson/#{pkg.gsub("/","-")}.json",
+          "--rerun-fails=2",
+          "--rerun-fails-max-failures=100",
           "--raw-command", "--",
           "/go/bin/test2json", "-t", "-p", pkg, f, "-test.v", "-test.count=1", "-test.timeout=#{get_timeout(pkg)}"
         ]

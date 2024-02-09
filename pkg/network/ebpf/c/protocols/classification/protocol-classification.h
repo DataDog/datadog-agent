@@ -14,6 +14,8 @@
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/classification/usm-context.h"
 #include "protocols/classification/routing.h"
+#include "protocols/grpc/defs.h"
+#include "protocols/grpc/helpers.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/kafka/kafka-classification.h"
@@ -64,6 +66,28 @@ static __always_inline bool is_protocol_classification_supported() {
     return val > 0;
 }
 
+// updates the the protocol stack and adds the current layer to the routing skip list
+static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
+    set_protocol(stack, proto);
+    usm_ctx->routing_skip_layers |= proto;
+}
+
+// Check if the connections is used for gRPC traffic.
+static __always_inline void classify_grpc(usm_context_t *usm_ctx, protocol_stack_t *protocol_stack, struct __sk_buff *skb, skb_info_t *skb_info) {
+    grpc_status_t status = is_grpc(skb, skb_info);
+    if (status == PAYLOAD_UNDETERMINED) {
+        return;
+    }
+
+    if (status == PAYLOAD_GRPC) {
+        update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_GRPC);
+    }
+
+    // Whether the traffic is gRPC or not, we can mark the stack as fully
+    // classified now.
+    mark_as_fully_classified(protocol_stack);
+}
+
 // Checks if a given buffer is http, http2, gRPC.
 static __always_inline protocol_t classify_applayer_protocols(const char *buf, __u32 size) {
     if (is_http(buf, size)) {
@@ -109,12 +133,6 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
     return PROTOCOL_UNKNOWN;
 }
 
-// updates the the protocol stack and adds the current layer to the routing skip list
-static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
-    set_protocol(stack, proto);
-    usm_ctx->routing_skip_layers |= proto;
-}
-
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
 __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};
@@ -126,7 +144,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // We support non empty TCP payloads for classification at the moment.
-    if (!is_tcp(&skb_tup) || is_payload_empty(skb, &skb_info)) {
+    if (!is_tcp(&skb_tup) || is_payload_empty(&skb_info)) {
         return;
     }
 
@@ -157,15 +175,23 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // If application-layer is known we don't bother to check for HTTP protocols and skip to the next layers
-    if (is_protocol_layer_known(protocol_stack, LAYER_APPLICATION)) {
+    protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
+    if (app_layer_proto != PROTOCOL_UNKNOWN && app_layer_proto != PROTOCOL_HTTP2) {
         goto next_program;
     }
 
-    protocol_t cur_fragment_protocol = classify_applayer_protocols(buffer, usm_ctx->buffer.size);
-    if (cur_fragment_protocol) {
-        update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
-        // this is mostly an optimization *for now* since we won't be classifying
-        // any other protocols if we have detected HTTP traffic
+    if (app_layer_proto == PROTOCOL_UNKNOWN) {
+        app_layer_proto =  classify_applayer_protocols(buffer, usm_ctx->buffer.size);
+    }
+
+    if (app_layer_proto != PROTOCOL_UNKNOWN) {
+        update_protocol_information(usm_ctx, protocol_stack, app_layer_proto);
+
+        if (app_layer_proto == PROTOCOL_HTTP2) {
+            // If we found HTTP2, then we try to classify its content.
+            goto next_program;
+        }
+
         mark_as_fully_classified(protocol_stack);
         return;
     }
@@ -216,6 +242,27 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
     update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
  next_program:
+    classification_next_program(skb, usm_ctx);
+}
+
+__maybe_unused static __always_inline void protocol_classifier_entrypoint_grpc(struct __sk_buff *skb) {
+    usm_context_t *usm_ctx = usm_context(skb);
+    if (!usm_ctx) {
+        return;
+    }
+
+    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
+    if (!protocol_stack) {
+        return;
+    }
+
+    // The GRPC classification program can be called without a prior
+    // classification of HTTP2, which is a precondition.
+    protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
+    if (app_layer_proto == PROTOCOL_HTTP2) {
+        classify_grpc(usm_ctx, protocol_stack, skb, &usm_ctx->skb_info);
+    }
+
     classification_next_program(skb, usm_ctx);
 }
 

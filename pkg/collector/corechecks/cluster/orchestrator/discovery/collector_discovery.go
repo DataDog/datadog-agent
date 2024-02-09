@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver && orchestrator
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package discovery
 
 import (
@@ -44,7 +45,6 @@ func NewAPIServerDiscoveryProvider() *APIServerDiscoveryProvider {
 // Discover returns collectors to enable based on information exposed by the API server.
 func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInventory) ([]collectors.Collector, error) {
 	groups, resources, err := GetServerGroupsAndResources()
-
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error
 		return nil, nil, err
 	}
 
-	groups, resources, err := client.DiscoveryCl.ServerGroupsAndResources()
+	groups, resources, err := client.Cl.Discovery().ServerGroupsAndResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, nil, err
@@ -84,7 +84,7 @@ func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error
 		// even though it might be incomplete due to discovery failures on other
 		// groups.
 		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-			log.Warnf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr)
+			log.Warnc(fmt.Sprintf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr), orchestrator.ExtraLogContext...)
 		}
 	}
 	return groups, resources, nil

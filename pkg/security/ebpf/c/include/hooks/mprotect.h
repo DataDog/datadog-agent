@@ -6,7 +6,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE0(mprotect) {
+HOOK_SYSCALL_ENTRY0(mprotect) {
     struct policy_t policy = fetch_policy(EVENT_MPROTECT);
     if (is_discarded_by_process(policy.mode, EVENT_MPROTECT)) {
         return 0;
@@ -46,7 +46,7 @@ int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
     }
 
     if (filter_syscall(syscall, mprotect_approvers)) {
-        return discard_syscall(syscall);
+        return 0;
     }
 
     struct mprotect_event_t event = {
@@ -64,8 +64,8 @@ int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(mprotect) {
-    return sys_mprotect_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(mprotect) {
+    return sys_mprotect_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 SEC("tracepoint/handle_sys_mprotect_exit")

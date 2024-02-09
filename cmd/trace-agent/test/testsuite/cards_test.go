@@ -14,8 +14,8 @@ import (
 	vmsgp "github.com/vmihailenco/msgpack/v4"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 

@@ -16,6 +16,7 @@ import (
 	osq "github.com/openshift/api/quota/v1"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,13 +30,13 @@ func TestReportClusterQuotas(t *testing.T) {
 	require.Len(t, list.Items, 1)
 
 	prevClusterName := config.Datadog.GetString("cluster_name")
-	config.Datadog.Set("cluster_name", "test-cluster-name")
-	defer config.Datadog.Set("cluster_name", prevClusterName)
+	config.Datadog.SetWithoutSource("cluster_name", "test-cluster-name")
+	defer config.Datadog.SetWithoutSource("cluster_name", prevClusterName)
 
 	instanceCfg := []byte("")
 	initCfg := []byte("")
-	kubeASCheck := KubernetesASFactory().(*KubeASCheck)
-	err = kubeASCheck.Configure(integration.FakeConfigHash, instanceCfg, initCfg, "test")
+	kubeASCheck := newCheck().(*KubeASCheck)
+	err = kubeASCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())

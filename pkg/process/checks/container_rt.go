@@ -11,7 +11,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -21,7 +21,7 @@ const (
 )
 
 // NewRTContainerCheck returns an instance of the RTContainerCheck.
-func NewRTContainerCheck(config ddconfig.ConfigReader) *RTContainerCheck {
+func NewRTContainerCheck(config ddconfig.Reader) *RTContainerCheck {
 	return &RTContainerCheck{
 		config: config,
 	}
@@ -31,16 +31,16 @@ func NewRTContainerCheck(config ddconfig.ConfigReader) *RTContainerCheck {
 type RTContainerCheck struct {
 	maxBatchSize      int
 	hostInfo          *HostInfo
-	containerProvider util.ContainerProvider
-	lastRates         map[string]*util.ContainerRateMetrics
-	config            ddconfig.ConfigReader
+	containerProvider proccontainers.ContainerProvider
+	lastRates         map[string]*proccontainers.ContainerRateMetrics
+	config            ddconfig.Reader
 }
 
 // Init initializes a RTContainerCheck instance.
-func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
+func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	r.maxBatchSize = getMaxBatchSize(r.config)
 	r.hostInfo = hostInfo
-	r.containerProvider = util.GetSharedContainerProvider()
+	r.containerProvider = proccontainers.GetSharedContainerProvider()
 	return nil
 }
 
@@ -68,7 +68,7 @@ func (r *RTContainerCheck) ShouldSaveLastRun() bool { return true }
 func (r *RTContainerCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	var err error
 	var containers []*model.Container
-	var lastRates map[string]*util.ContainerRateMetrics
+	var lastRates map[string]*proccontainers.ContainerRateMetrics
 	containers, lastRates, _, err = r.containerProvider.GetContainers(cacheValidityRT, r.lastRates)
 	if err == nil {
 		r.lastRates = lastRates
@@ -134,6 +134,7 @@ func convertToContainerStat(container *model.Container) *model.ContainerStat {
 		TotalPct:     container.TotalPct,
 		CpuUsageNs:   container.CpuUsageNs,
 		CpuLimit:     container.CpuLimit,
+		CpuRequest:   container.CpuRequest,
 		MemUsage:     container.MemUsage,
 		MemRss:       container.MemRss,
 		MemCache:     container.MemCache,

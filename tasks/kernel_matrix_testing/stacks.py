@@ -1,35 +1,44 @@
-import getpass
+import glob
 import json
 import os
 
-from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
-from .libvirt import delete_domains, delete_networks, delete_pools, delete_volumes, pause_domains, resume_domains
-from .tool import Exit, ask, error, info, warn
+from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
+from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.libvirt import (
+    delete_domains,
+    delete_networks,
+    delete_pools,
+    delete_volumes,
+    pause_domains,
+    resource_in_stack,
+    resume_domains,
+)
+from tasks.kernel_matrix_testing.tool import Exit, ask, error, info, warn
 
 try:
     import libvirt
 except ImportError:
     libvirt = None
 
-X86_INSTANCE_TYPE = "m5.metal"
-ARM_INSTANCE_TYPE = "m6g.metal"
+X86_INSTANCE_TYPE = "m5d.metal"
+ARM_INSTANCE_TYPE = "m6gd.metal"
 
 
 def stack_exists(stack):
-    return os.path.exists(f"{KMT_STACKS_DIR}/{stack}")
+    return os.path.exists(f"{get_kmt_os().stacks_dir}/{stack}")
 
 
 def vm_config_exists(stack):
-    return os.path.exists(f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}")
+    return os.path.exists(f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}")
 
 
-def create_stack(ctx, stack=None, branch=False):
-    if not os.path.exists(f"{KMT_STACKS_DIR}"):
+def create_stack(ctx, stack=None):
+    if not os.path.exists(f"{get_kmt_os().stacks_dir}"):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
 
-    stack = check_and_get_stack(stack, branch)
+    stack = check_and_get_stack(stack)
 
-    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     if os.path.exists(stack_dir):
         raise Exit(f"Stack {stack} already exists")
 
@@ -37,12 +46,28 @@ def create_stack(ctx, stack=None, branch=False):
 
 
 def find_ssh_key(ssh_key):
-    user = getpass.getuser()
-    ssh_key_file = f"/home/{user}/.ssh/{ssh_key}.pem"
-    if not os.path.exists(ssh_key_file):
-        raise Exit(f"Could not find file for ssh key {ssh_key}. Looked for {ssh_key_file}")
+    possible_paths = [f"~/.ssh/{ssh_key}", f"~/.ssh/{ssh_key}.pem"]
 
-    return ssh_key_file
+    # Try direct files
+    for path in possible_paths:
+        if os.path.exists(os.path.expanduser(path)):
+            return path
+
+    # Ok, no file found with that name. However, maybe we can identify the key by the key name
+    # that's present in the corresponding pub files
+
+    for pubkey in glob.glob(os.path.expanduser("~/.ssh/*.pub")):
+        privkey = pubkey[:-4]
+        possible_paths.append(privkey)  # Keep track of paths we've checked
+
+        with open(pubkey, "r") as f:
+            parts = f.read().split()
+
+            # Public keys have three "words": key type, public key, name
+            if len(parts) == 3 and parts[2] == ssh_key:
+                return privkey
+
+    raise Exit(f"Could not find file for ssh key {ssh_key}. Looked in {possible_paths}")
 
 
 def remote_vms_in_config(vmconfig):
@@ -76,17 +101,49 @@ def ask_for_ssh():
     )
 
 
-def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
-    stack = check_and_get_stack(stack, branch)
+def kvm_ok(ctx):
+    ctx.run("kvm-ok")
+    info("[+] Kvm available on system")
+
+
+def check_user_in_group(ctx, group):
+    ctx.run(f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)")
+    info(f"[+] User '{os.getlogin()}' in group '{group}'")
+
+
+def check_user_in_kvm(ctx):
+    check_user_in_group(ctx, "kvm")
+
+
+def check_user_in_libvirt(ctx):
+    check_user_in_group(ctx, "libvirt")
+
+
+def check_libvirt_sock_perms():
+    read_libvirt_sock()
+    write_libvirt_sock()
+    info(f"[+] User '{os.getlogin()}' has read/write permissions on libvirt sock")
+
+
+def check_env(ctx):
+    kvm_ok(ctx)
+    check_user_in_kvm(ctx)
+    check_user_in_libvirt(ctx)
+    check_libvirt_sock_perms()
+
+
+def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
     if not vm_config_exists(stack):
         raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'inv kmt.gen-config --help'")
 
-    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     vm_config = f"{stack_dir}/{VMCONFIG}"
 
+    ssh_key.rstrip(".pem")
     if ssh_key != "":
         ssh_key_file = find_ssh_key(ssh_key)
         ssh_add_cmd = f"ssh-add -l | grep {ssh_key} || ssh-add {ssh_key_file}"
@@ -110,14 +167,19 @@ def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
     prefix = ""
     local = ""
     if remote_vms_in_config(vm_config):
-        prefix = "aws-vault exec sandbox-account-admin --"
+        prefix = "aws-vault exec sso-sandbox-account-admin --"
 
     if local_vms_in_config(vm_config):
+        check_env(ctx)
         local = "--local"
+
+    provision = ""
+    if remote_vms_in_config(vm_config):
+        provision = "--provision"
 
     env_vars = ' '.join(env)
     ctx.run(
-        f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} {local}"
+        f"{env_vars} {prefix} inv -e system-probe.start-microvms {provision} --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} {local}"
     )
 
     info(f"[+] Stack {stack} successfully setup")
@@ -132,7 +194,7 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
 
     ctx.run(ssh_add_cmd)
 
-    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     env = [
         "PULUMI_CONFIG_PASSPHRASE=1234",
         f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
@@ -143,7 +205,7 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
     vm_config = f"{stack_dir}/{VMCONFIG}"
     prefix = ""
     if remote_vms_in_config(vm_config):
-        prefix = "aws-vault exec sandbox-account-admin --"
+        prefix = "aws-vault exec sso-sandbox-account-admin --"
 
     env_vars = ' '.join(env)
     ctx.run(
@@ -157,7 +219,7 @@ def is_ec2_ip_entry(entry):
 
 def ec2_instance_ids(ctx, ip_list):
     ip_addresses = ','.join(ip_list)
-    list_instances_cmd = f"aws-vault exec sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
+    list_instances_cmd = f"aws-vault exec sso-sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
 
     res = ctx.run(list_instances_cmd, warn=True)
     if not res.ok:
@@ -168,7 +230,7 @@ def ec2_instance_ids(ctx, ip_list):
 
 
 def destroy_ec2_instances(ctx, stack):
-    stack_output = os.path.join(KMT_STACKS_DIR, stack, "stack.outputs")
+    stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     if not os.path.exists(stack_output):
         warn(f"[-] File {stack_output} not found")
         return
@@ -183,13 +245,21 @@ def destroy_ec2_instances(ctx, stack):
 
         ips.append(o.split(' ')[1])
 
+    if len(ips) == 0:
+        info("[+] No ec2 instance to terminate in stack")
+        return
+
     instance_ids = ec2_instance_ids(ctx, ips)
     if len(instance_ids) == 0:
         return
 
+    if len(instance_ids) > 2:
+        error(f"CAREFUL! More than two instance ids returned. Something is wrong: {instance_ids}")
+        raise Exit("Too many instance_ids")
+
     ids = ' '.join(instance_ids)
     res = ctx.run(
-        f"aws-vault exec sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
+        f"aws-vault exec sso-sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
     )
     if not res.ok:
         error(f"[-] Failed to terminate instances {ids}. Use console to terminate instances")
@@ -199,44 +269,71 @@ def destroy_ec2_instances(ctx, stack):
     return
 
 
+def remove_pool_directory(ctx, stack):
+    pools_dir = os.path.join(get_kmt_os().libvirt_dir, "pools")
+    for _, dirs, _ in os.walk(pools_dir):
+        for d in dirs:
+            if resource_in_stack(stack, d):
+                rm_path = os.path.join(pools_dir, d)
+                ctx.run(f"sudo rm -r '{rm_path}'", hide=True)
+                info(f"[+] Removed libvirt pool directory {rm_path}")
+
+
 def destroy_stack_force(ctx, stack):
-    conn = libvirt.open("qemu:///system")
-    delete_domains(conn, stack)
-    delete_volumes(conn, stack)
-    delete_pools(conn, stack)
-    delete_networks(conn, stack)
-    conn.close()
+    stack_dir = os.path.join(get_kmt_os().stacks_dir, stack)
+    vm_config = os.path.join(stack_dir, VMCONFIG)
+
+    if local_vms_in_config(vm_config):
+        conn = libvirt.open("qemu:///system")
+        if not conn:
+            raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
+        delete_domains(conn, stack)
+        delete_volumes(conn, stack)
+        delete_pools(conn, stack)
+        remove_pool_directory(ctx, stack)
+        delete_networks(conn, stack)
+        conn.close()
 
     destroy_ec2_instances(ctx, stack)
 
     # Find a better solution for this
     pulumi_stack_name = ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
         warn=True,
         hide=True,
     ).stdout.strip()
+
+    if pulumi_stack_name == "":
+        return
+
+    ctx.run(
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ../test-infra-definitions -s {pulumi_stack_name}",
+        warn=True,
+        hide=True,
+    )
     ctx.run(
         f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {pulumi_stack_name}",
         warn=True,
+        hide=True,
     )
 
 
-def destroy_stack(ctx, stack, branch, force, ssh_key):
-    stack = check_and_get_stack(stack, branch)
+def destroy_stack(ctx, stack, pulumi, ssh_key):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
     info(f"[*] Destroying stack {stack}")
-    if force:
-        destroy_stack_force(ctx, stack)
-    else:
+    if pulumi:
         destroy_stack_pulumi(ctx, stack, ssh_key)
+    else:
+        destroy_stack_force(ctx, stack)
 
-    ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
+    ctx.run(f"rm -r {get_kmt_os().stacks_dir}/{stack}")
 
 
-def pause_stack(stack=None, branch=False):
-    stack = check_and_get_stack(stack, branch)
+def pause_stack(stack=None):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
     conn = libvirt.open("qemu:///system")
@@ -244,10 +341,49 @@ def pause_stack(stack=None, branch=False):
     conn.close()
 
 
-def resume_stack(stack=None, branch=False):
-    stack = check_and_get_stack(stack, branch)
+def resume_stack(stack=None):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
     conn = libvirt.open("qemu:///system")
     resume_domains(conn, stack)
+    conn.close()
+
+
+def read_libvirt_sock():
+    conn = libvirt.open("qemu:///system")
+    if not conn:
+        raise Exit("read_libvirt_sock: Failed to open connection to qemu:///system")
+    conn.listAllDomains()
+    conn.close()
+
+
+testPoolXML = """
+<pool type="dir">
+  <name>mypool</name>
+  <uuid>8c79f996-cb2a-d24d-9822-ac7547ab2d01</uuid>
+  <capacity unit="bytes">100</capacity>
+  <allocation unit="bytes">100</allocation>
+  <available unit="bytes">100</available>
+  <source>
+  </source>
+  <target>
+    <path>/tmp</path>
+    <permissions>
+      <mode>0755</mode>
+      <owner>-1</owner>
+      <group>-1</group>
+    </permissions>
+  </target>
+</pool>"""
+
+
+def write_libvirt_sock():
+    conn = libvirt.open("qemu:///system")
+    if not conn:
+        raise Exit("write_libvirt_sock: Failed to open connection to qemu:///system")
+    pool = conn.storagePoolDefineXML(testPoolXML, 0)
+    if not pool:
+        raise Exit("write_libvirt_sock: Failed to create StoragePool object.")
+    pool.undefine()
     conn.close()

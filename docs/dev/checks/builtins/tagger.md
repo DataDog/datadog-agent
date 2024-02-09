@@ -2,10 +2,10 @@
 
 > **This module is intended for internal use and should never be imported directly.**
 > Checks should use the methods exposed by the `AgentCheck` class instead, see
-> [dedicated docs](https://datadog-checks-base.readthedocs.io/en/latest/) for
+> [dedicated docs](https://datadoghq.dev/integrations-core/base/about/) for
 > more details.
 
-The module exposes [tagger](/pkg/tagger) functionalities to Python integrations.
+The module exposes [tagger](/comp/core/tagger) functionalities to Python integrations.
 
 ## Implementation
 

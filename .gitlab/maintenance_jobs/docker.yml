@@ -1,9 +1,6 @@
 ---
-# FIXME: our current Gitlab version doesn't support importing a file more than once
-# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
-# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
-# include:
-#   - /.gitlab/docker_common/publish_job_templates.yml
+include:
+  - /.gitlab/docker_common/publish_job_templates.yml
 
 #
 # Use these steps to revert the latest tags to a previous release
@@ -59,7 +56,7 @@ delete_docker_tag:
     !reference [.on_main_manual]
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
-  tags: ["runner:docker"]
+  tags: ["arch:amd64"]
   dependencies: []
   variables:
     IMAGE: ""  # image name, for example "agent"

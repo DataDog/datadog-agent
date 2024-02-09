@@ -1,0 +1,29 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The command line arguments to the Datadog Agent Trace Agent ``trace-agent``
+    have changed from single-dash arguments to double-dash arguments.
+    For example, ``-config`` must now be provided as ``--config``.
+    Additionally, subcommands have been added, these may be listed with the
+    ``--help`` switch. For backward-compatibility reasons the old CLI arguments
+    will still work in the foreseeable future but may be removed in future versions.
+deprecations:
+  - |
+    The command line arguments to the Datadog Agent Trace Agent ``trace-agent``
+    have changed from single-dash arguments to double-dash arguments.
+    For example, ``-config`` must now be provided as ``--config``. For backward-
+    compatibility reasons the old CLI arguments will still work in the foreseeable
+    future but may be removed in future versions.
+other:
+  - |
+    Please note that significant changes have been introduced to the Datadog Trace
+    Agent for this release. Though these changes should not alter user-facing agent
+    behavior beyond the CLI changes described above, please reach out to support
+    should you experience any unexpected behavior.

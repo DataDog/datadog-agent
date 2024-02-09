@@ -34,7 +34,7 @@ func (ss SSBytes) Search(x []byte) int {
 		return bytes.Compare(ss[i], x) >= 0
 	})
 
-	if i < len(ss) && bytes.Compare(ss[i], x) == 0 {
+	if i < len(ss) && bytes.Equal(ss[i], x) {
 		return i
 	}
 

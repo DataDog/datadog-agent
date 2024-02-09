@@ -5,8 +5,6 @@
 
 package model
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-
 // EventType describes the type of an event sent from the kernel
 type EventType uint32
 
@@ -35,6 +33,8 @@ const (
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
 	FileRemoveXAttrEventType
+	// FileChdirEventType chdir event
+	FileChdirEventType
 	// FileMountEventType Mount event
 	FileMountEventType
 	// FileUmountEventType Umount event
@@ -104,7 +104,7 @@ const (
 	FirstDiscarderEventType = FileOpenEventType
 
 	// LastDiscarderEventType last event that accepts discarders
-	LastDiscarderEventType = FileRemoveXAttrEventType
+	LastDiscarderEventType = FileChdirEventType
 
 	// LastApproverEventType is the last event that accepts approvers
 	LastApproverEventType = SpliceEventType
@@ -115,6 +115,8 @@ const (
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
 	CustomRulesetLoadedEventType
+	// CustomHeartbeatEventType is the custom event used to report a heartbeat event
+	CustomHeartbeatEventType
 	// CustomForkBombEventType is the custom event used to report the detection of a fork bomb
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
@@ -153,6 +155,8 @@ func (t EventType) String() string {
 		return "setxattr"
 	case FileRemoveXAttrEventType:
 		return "removexattr"
+	case FileChdirEventType:
+		return "chdir"
 	case ForkEventType:
 		return "fork"
 	case ExecEventType:
@@ -221,53 +225,4 @@ func (t EventType) String() string {
 	default:
 		return "unknown"
 	}
-}
-
-// ParseEvalEventType convert a eval.EventType (string) to its uint64 representation
-// the current algorithm is not efficient but allows us to reduce the number of conversion functions
-func ParseEvalEventType(eventType eval.EventType) EventType {
-	for i := uint64(0); i != uint64(MaxAllEventType); i++ {
-		if EventType(i).String() == eventType {
-			return EventType(i)
-		}
-	}
-
-	return UnknownEventType
-}
-
-var (
-	eventTypeStrings = map[string]EventType{}
-)
-
-func init() {
-	var eventType EventType
-	for i := uint64(0); i != uint64(MaxKernelEventType); i++ {
-		eventType = EventType(i)
-		eventTypeStrings[eventType.String()] = eventType
-	}
-}
-
-// ParseEventTypeStringSlice converts a string list to a list of event types
-func ParseEventTypeStringSlice(eventTypes []string) []EventType {
-	var output []EventType
-	for _, eventTypeStr := range eventTypes {
-		if eventType := eventTypeStrings[eventTypeStr]; eventType != UnknownEventType {
-			output = append(output, eventType)
-		}
-	}
-	return output
-}
-
-// ParseHashAlgorithmStringSlice converts a string list to a list of hash algorithms
-func ParseHashAlgorithmStringSlice(algorithms []string) []HashAlgorithm {
-	var output []HashAlgorithm
-	for _, hashAlgorithm := range algorithms {
-		for i := HashAlgorithm(0); i < MaxHashAlgorithm; i++ {
-			if i.String() == hashAlgorithm {
-				output = append(output, i)
-				break
-			}
-		}
-	}
-	return output
 }

@@ -5,38 +5,38 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// rmdirProbes holds the list of probes used to track file rmdir events
-var rmdirProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_inode_rmdir",
+func getRmdirProbe(fentry bool) []*manager.Probe {
+	var rmdirProbes = []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_security_inode_rmdir",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_do_rmdir",
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_do_rmdir",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_do_rmdir",
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_do_rmdir",
+			},
 		},
-	},
-}
+	}
 
-func getRmdirProbe() []*manager.Probe {
 	rmdirProbes = append(rmdirProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "rmdir",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	return rmdirProbes
 }

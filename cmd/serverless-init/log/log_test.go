@@ -9,89 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestCustomWriterUnbuffered(t *testing.T) {
-	// Custom writer should pass-through buffering behaviour of target process
-	testContent := []byte("log line\nlog line\n")
-	config := &Config{
-		channel:   make(chan *config.ChannelMessage, 2),
-		isEnabled: true,
-	}
-	cw := &CustomWriter{
-		LogConfig: config,
-	}
-	go cw.Write(testContent)
-	numMessages := 0
-	select {
-	case message := <-config.channel:
-		assert.Equal(t, []byte("log line\nlog line\n"), message.Content)
-		numMessages++
-	case <-time.After(100 * time.Millisecond):
-		t.FailNow()
-	}
-
-	assert.Equal(t, 1, numMessages)
-}
-
-func TestWriteEnabled(t *testing.T) {
-	testContent := []byte("hello this is a log")
-	logChannel := make(chan *config.ChannelMessage)
-	config := &Config{
-		channel:   logChannel,
-		isEnabled: true,
-	}
-	go Write(config, testContent, false)
-	select {
-	case received := <-logChannel:
-		assert.NotNil(t, received)
-		assert.Equal(t, testContent, received.Content)
-	case <-time.After(100 * time.Millisecond):
-		assert.Fail(t, "We should have received logs")
-	}
-}
-
-func TestWriteEnabledIsError(t *testing.T) {
-	testContent := []byte("hello this is a log")
-	logChannel := make(chan *config.ChannelMessage)
-	config := &Config{
-		channel:   logChannel,
-		isEnabled: true,
-	}
-	go Write(config, testContent, true)
-	select {
-	case received := <-logChannel:
-		assert.NotNil(t, received)
-		assert.Equal(t, testContent, received.Content)
-		assert.True(t, received.IsError)
-	case <-time.After(100 * time.Millisecond):
-		assert.Fail(t, "We should have received logs")
-	}
-}
-
-func TestWriteDisabled(t *testing.T) {
-	testContent := []byte("hello this is a log")
-	logChannel := make(chan *config.ChannelMessage)
-	config := &Config{
-		channel:   logChannel,
-		isEnabled: false,
-	}
-	go Write(config, testContent, false)
-	select {
-	case <-logChannel:
-		assert.Fail(t, "We should not have received logs")
-	case <-time.After(100 * time.Millisecond):
-		assert.True(t, true)
-	}
-}
 
 func TestCreateConfig(t *testing.T) {
 	config := CreateConfig("fake-origin")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "fake-origin", config.source)
-	assert.Equal(t, "DD_LOG_AGENT", string(config.loggerName))
 }
 
 func TestCreateConfigWithSource(t *testing.T) {
@@ -99,7 +23,6 @@ func TestCreateConfigWithSource(t *testing.T) {
 	config := CreateConfig("cloudrun")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "python", config.source)
-	assert.Equal(t, "DD_LOG_AGENT", string(config.loggerName))
 }
 
 func TestIsEnabledTrue(t *testing.T) {

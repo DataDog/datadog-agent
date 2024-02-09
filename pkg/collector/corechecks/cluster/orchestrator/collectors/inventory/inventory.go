@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver && orchestrator
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package inventory
 
 import (
@@ -45,6 +46,7 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewStatefulSetCollectorVersions(),
 			k8sCollectors.NewUnassignedPodCollectorVersions(),
 			k8sCollectors.NewVerticalPodAutoscalerCollectorVersions(),
+			k8sCollectors.NewHorizontalPodAutoscalerCollectorVersions(),
 		},
 	}
 }

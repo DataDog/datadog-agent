@@ -5,11 +5,14 @@
 
 //go:build !linux && !windows
 
+// Package eventmonitor holds eventmonitor related files
 package eventmonitor
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/grpc"
@@ -23,6 +26,7 @@ type EventMonitor struct {
 	Config       *config.Config
 	StatsdClient statsd.ClientInterface
 	GRPCServer   *grpc.Server
+	Probe        *probe.Probe
 }
 
 // EventTypeHandler event type based handler
@@ -30,6 +34,8 @@ type EventTypeHandler interface {
 }
 
 // AddEventTypeHandler registers an event handler
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
 	return fmt.Errorf("Not implemented on this platform")
 }

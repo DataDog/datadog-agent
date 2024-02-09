@@ -1,0 +1,24 @@
+# Profile for F5 BIG-IP devices
+#
+extends:
+  - _base.yaml
+
+device:
+  vendor: "def-p1"
+
+sysobjectid: 1.2.3.*
+
+metrics:
+  - symbol:
+      OID: 1.2.3.5
+      name: default_p1_metric
+
+# metadata section helps test the bug related to nil metadata
+# that is fixed by this PR: https://github.com/DataDog/datadog-agent/pull/20859
+metadata:
+  device:
+    fields:
+      name:
+        symbol:
+          OID: 1.3.6.1.2.1.1.5.0
+          name: sysName

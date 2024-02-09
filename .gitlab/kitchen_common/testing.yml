@@ -9,6 +9,25 @@
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
   retry: 1
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "6Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
+
+.kitchen_common_with_junit:
+  extends:
+    - .kitchen_common
+  after_script:
+    - echo -n "--tags ci.job.name:${CI_JOB_NAME} --tags arch:${KITCHEN_ARCH} --tags os:${KITCHEN_PLATFORM} upload_option.os_version_from_name" > $CI_PROJECT_DIR/test/kitchen/tags.txt
+    - echo -n "${CI_JOB_URL}" > $CI_PROJECT_DIR/test/kitchen/job_url.txt
+    - kitchen_files=$(find $CI_PROJECT_DIR -name "kitchen-rspec-*.xml" -exec basename {} \;)
+    - find $CI_PROJECT_DIR -name "kitchen-rspec-*.xml" -exec $CI_PROJECT_DIR/test/kitchen/tasks/kitchen_rspec_xml_update.sh {} "${CI_JOB_NAME}" \;
+    - tar -czvf kitchen-rspec-common-${CI_JOB_NAME}.tar.gz -C $CI_PROJECT_DIR/test/kitchen/ ./job_url.txt ./tags.txt $kitchen_files
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+      - "**/kitchen-rspec-common-${CI_JOB_NAME}.tar.gz"
 
 # Kitchen: providers
 # ---------------
@@ -49,13 +68,13 @@
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
     CHEF_VERSION: 14.15.6
   extends:
-    - .kitchen_ec2_spot_instances
+    - .kitchen_ec2
 
 # Kitchen: agents
 # ---------------
 
 .kitchen_agent_a6:
-  extends: .kitchen_common
+  extends: .kitchen_common_with_junit
   rules:
     !reference [.on_kitchen_tests_a6]
   variables:
@@ -63,7 +82,7 @@
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
 
 .kitchen_agent_a7:
-  extends: .kitchen_common
+  extends: .kitchen_common_with_junit
   rules:
     !reference [.on_kitchen_tests_a7]
   variables:
@@ -77,14 +96,6 @@
 .kitchen_test_chef:
   script:
     - tasks/run-test-kitchen.sh chef-test $AGENT_MAJOR_VERSION
-
-.kitchen_test_step_by_step:
-  script:
-    - tasks/run-test-kitchen.sh step-by-step-test $AGENT_MAJOR_VERSION
-
-.kitchen_test_install_script:
-  script:
-    - tasks/run-test-kitchen.sh install-script-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_upgrade5:
   script:
@@ -110,23 +121,6 @@
 .kitchen_datadog_agent_flavor:
   variables:
     AGENT_FLAVOR: "datadog-agent"
-
-# For non-main Agent installs, KITCHEN_PLATFORM_SUFFIX needs to be set
-# to a unique name. See test/kitchen/drivers/azure_driver.yml for details.
-.kitchen_datadog_iot_agent_flavor:
-  variables:
-    AGENT_FLAVOR: "datadog-iot-agent"
-    KITCHEN_PLATFORM_SUFFIX: "iot"
-
-.kitchen_datadog_heroku_agent_flavor:
-  variables:
-    AGENT_FLAVOR: "datadog-heroku-agent"
-    KITCHEN_PLATFORM_SUFFIX: "heroku"
-
-.kitchen_datadog_dogstatsd_flavor:
-  variables:
-    AGENT_FLAVOR: "datadog-dogstatsd"
-    KITCHEN_PLATFORM_SUFFIX: "dsd"
 
 # Kitchen: Azure locations
 # -------------------------------
@@ -154,8 +148,8 @@
 .kitchen_ec2_location_us_east_1:
   variables:
     KITCHEN_EC2_REGION: us-east-1
-    KITCHEN_EC2_SUBNET: subnet-c18341ed
-    KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
+    KITCHEN_EC2_SUBNET: subnet-05d7c6b1b5cfea811
+    KITCHEN_EC2_SG_IDS: sg-019917348cb0eb7e7
 
 # Kitchen: Test types (test suite * agent flavor + location in each cloud provider)
 # -------------------------------
@@ -165,41 +159,6 @@
     - .kitchen_test_chef
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_step_by_step_agent:
-  extends:
-    - .kitchen_test_step_by_step
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_install_script_agent:
-  extends:
-    - .kitchen_test_install_script
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_south_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_install_script_iot_agent:
-  extends:
-    - .kitchen_test_install_script
-    - .kitchen_datadog_iot_agent_flavor
-    - .kitchen_azure_location_west_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_install_script_heroku_agent:
-  extends:
-    - .kitchen_test_install_script
-    - .kitchen_datadog_heroku_agent_flavor
-    - .kitchen_azure_location_west_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_install_script_dogstatsd:
-  extends:
-    - .kitchen_test_install_script
-    - .kitchen_datadog_dogstatsd_flavor
-    - .kitchen_azure_location_west_central_us
     - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_upgrade5_agent:
@@ -220,12 +179,5 @@
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_west_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_upgrade7_iot_agent:
-  extends:
-    - .kitchen_test_upgrade7
-    - .kitchen_datadog_iot_agent_flavor
     - .kitchen_azure_location_south_central_us
     - .kitchen_ec2_location_us_east_1

@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1205
+      - image: gcr.io/datadoghq/agent-circleci-runner:v27950662-17e84032
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -29,11 +29,11 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/images/runner/Dockerfile" }}-{{ .Branch }}-{{ .Revision }}
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/images/runner/Dockerfile" }}-{{ .Branch }}-
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/images/runner/Dockerfile" }}-main-
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-{{ .Revision }}
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-main-
     - save_cache: &save_deps
-        key: gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/images/runner/Dockerfile" }}-{{ .Branch }}-{{ .Revision }}
+        key: gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
@@ -58,12 +58,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run:
-          name: setup python deps
-          command: |
-            python3 -m pip install wheel
-            python3 -m pip install -r requirements.txt
-            python3 -m pip install -r .circleci/requirements.txt
       - run:
           name: check go version
           command: |
@@ -95,7 +89,6 @@ jobs:
             - /go/pkg/mod
             - /go/bin
             - /go/src/github.com/DataDog/datadog-agent/dev
-            - /usr/local/lib/python3.8/dist-packages
             - /usr/local/bin
 
   unit_tests:
@@ -107,14 +100,13 @@ jobs:
       - run:
           name: run unit tests
           no_output_timeout: 20m
-          command: inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8
-      # Codecov upload is failing in CircleCI with a "Please upload with the Codecov repository upload token to resolve issue" error.
-      # Public repositories don't need to use a token, it's a known issue often breaking Codecov, see  https://github.com/codecov/codecov-action/issues/837
-      # Adding a token would fix it but Datadog OAuth doesn't allow us to get a token, so we're disabling it for now.
-      # - run:
-      #     name: upload code coverage results
-      #     # Never fail on coverage upload
-      #     command: inv -e codecov || true
+          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8 --build-stdlib
+          environment:
+            GO_TEST_SKIP_FLAKE: "true"
+      - run:
+          name: upload code coverage results
+          # Never fail on coverage upload
+          command: inv -e codecov || true
 
   integration_tests:
     <<: *job_template
@@ -133,26 +125,11 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
+          command: pip install -r tasks/libs/requirements-github.txt
+          name: Install additional requirements
+      - run:
           command: inv -e lint-releasenote
           name: run PR check for release note
-
-  team_label:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-teamassignment
-          name: run PR check for team assignment labels
-
-  milestone:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-milestone
-          name: run PR check for milestone assignment
 
   go_linting:
     <<: *job_template
@@ -218,8 +195,8 @@ jobs:
       - run:
           name: setting env vars for click
           command: |
-              echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
-              echo 'export LANG="C.UTF-8"' >> $BASH_ENV
+            echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
+            echo 'export LANG="C.UTF-8"' >> $BASH_ENV
       - run:
           name: lint python files
           command: inv -e lint-python
@@ -231,7 +208,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run component linting
-          command: inv -e lint-components
+          command: inv -e lint-components lint-fxutil-oneshot-test
 
   codeowner_linting:
     <<: *job_template
@@ -304,20 +281,6 @@ workflows:
           requires:
             - dependencies
       - release_note:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
-      - team_label:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
-      - milestone:
           filters:
             branches:
               ignore:

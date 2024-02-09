@@ -5,32 +5,33 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// signalProbes holds the list of probes used to track signal events
-var signalProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_check_kill_permission",
+func getSignalProbes(fentry bool) []*manager.Probe {
+	var signalProbes = []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_check_kill_permission",
+			},
 		},
-	},
-}
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_check_kill_permission",
+			},
+		},
+	}
 
-func getSignalProbes() []*manager.Probe {
 	signalProbes = append(signalProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "kill",
-	}, Entry)...)
-	signalProbes = append(signalProbes, &manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_kill_pid_info",
-		},
-	})
+	}, fentry, Entry)...)
+
 	return signalProbes
 }

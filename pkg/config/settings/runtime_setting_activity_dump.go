@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,44 +25,42 @@ type ActivityDumpRuntimeSetting struct {
 }
 
 // Description returns the runtime setting's description
-func (l ActivityDumpRuntimeSetting) Description() string {
+func (l *ActivityDumpRuntimeSetting) Description() string {
 	return "Set/get the corresponding field."
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
-func (l ActivityDumpRuntimeSetting) Hidden() bool {
+func (l *ActivityDumpRuntimeSetting) Hidden() bool {
 	return false
 }
 
 // Name returns the name of the runtime setting
-func (l ActivityDumpRuntimeSetting) Name() string {
+func (l *ActivityDumpRuntimeSetting) Name() string {
 	return l.ConfigKey
 }
 
 // Get returns the current value of the runtime setting
-func (l ActivityDumpRuntimeSetting) Get() (interface{}, error) {
+func (l *ActivityDumpRuntimeSetting) Get() (interface{}, error) {
 	val := config.SystemProbe.Get(l.ConfigKey)
 	return val, nil
 }
 
-func (l ActivityDumpRuntimeSetting) setMaxDumpSize(v interface{}) {
+func (l *ActivityDumpRuntimeSetting) setMaxDumpSize(v interface{}, source model.Source) {
 	intVar, _ := strconv.Atoi(v.(string))
-	config.SystemProbe.Set(l.ConfigKey, intVar)
+	config.SystemProbe.Set(l.ConfigKey, intVar, source)
 }
 
 // Set changes the value of the runtime setting
-func (l ActivityDumpRuntimeSetting) Set(v interface{}) error {
+func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source model.Source) error {
 	val := v.(string)
 	log.Infof("ActivityDumpRuntimeSetting Set %s = %s\n", l.ConfigKey, val)
 
 	switch l.ConfigKey {
 	case MaxDumpSizeConfKey:
-		l.setMaxDumpSize(v)
+		l.setMaxDumpSize(v, source)
 	default:
 		return fmt.Errorf("Field %s does not exist", l.ConfigKey)
 	}
 
-	// we trigger a new inventory metadata payload since the configuration was updated by the user.
-	inventories.Refresh()
 	return nil
 }

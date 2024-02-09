@@ -228,7 +228,7 @@ Local:
 // 			err = os.MkdirAll(path.Join(testProc.RootPath, "net"), os.ModePerm)
 // 			require.NoError(t, err)
 
-// 			err = ioutil.WriteFile(path.Join(testProc.RootPath, "net", "route"), testCase.netRouteContent, os.ModePerm)
+// 			err = os.WriteFile(path.Join(testProc.RootPath, "net", "route"), testCase.netRouteContent, os.ModePerm)
 // 			require.NoError(t, err)
 // 			ip, err := defaultGateway(testProc.RootPath)
 // 			require.NoError(t, err)

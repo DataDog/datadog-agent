@@ -5,10 +5,12 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"path"
@@ -18,20 +20,23 @@ import (
 	"syscall"
 	"time"
 
+	// shirou/gopsutil uses different logic for getting the memory maps Path
+	// it assumes space-separation and the path is last
+	// DD: combines 6th+ fields into the path
 	legacyprocess "github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // snapshot uses procfs to retrieve information about the current process
-func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStats, newEvent func() *model.Event, reducer *PathsReducer) {
+func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// call snapshot for all the children of the current node
 	for _, child := range pn.Children {
 		child.snapshot(owner, stats, newEvent, reducer)
@@ -57,16 +62,39 @@ func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStat
 	}
 }
 
-func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event, reducer *PathsReducer) {
+// maxFDsPerProcessSnapshot represents the maximum number of FDs we will collect per process while snapshotting
+// this value was selected because it represents the default upper bound for the number of FDs a linux process can have
+const maxFDsPerProcessSnapshot = 1024
+
+func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
 	if err != nil {
 		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
 	}
 
-	var files []string
+	var (
+		isSampling = false
+		preAlloc   = len(fileFDs)
+	)
+
+	if len(fileFDs) > maxFDsPerProcessSnapshot {
+		isSampling = true
+		preAlloc = 1024
+	}
+
+	files := make([]string, 0, preAlloc)
 	for _, fd := range fileFDs {
-		files = append(files, fd.Path)
+		if len(files) >= maxFDsPerProcessSnapshot {
+			break
+		}
+
+		if !isSampling || rand.Int63n(int64(len(fileFDs))) < maxFDsPerProcessSnapshot {
+			files = append(files, fd.Path)
+		}
+	}
+	if isSampling {
+		seclog.Warnf("sampled open files while snapshotting (pid: %v): kept %d of %d files", p.Pid, len(files), len(fileFDs))
 	}
 
 	// list the mmaped files of the process
@@ -74,13 +102,15 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	if err != nil {
 		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
 	}
+	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
+	mmapedFiles = slices.Compact(mmapedFiles)
 
+	files = append(files, mmapedFiles...)
 	if len(files) == 0 {
 		return
 	}
-	files = append(files, mmapedFiles...)
 
-	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
+	slices.Sort(files)
 	files = slices.Compact(files)
 
 	// insert files
@@ -92,7 +122,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		}
 
 		// fetch the file user, group and mode
-		fullPath := filepath.Join(utils.RootPath(int32(pn.Process.Pid)), f)
+		fullPath := filepath.Join(utils.ProcRootPath(pn.Process.Pid), f)
 		fileinfo, err = os.Stat(fullPath)
 		if err != nil {
 			continue
@@ -129,7 +159,8 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	}
 }
 
-const MAX_MMAPED_FILES = 128
+// MaxMmapedFiles defines the max mmaped files
+const MaxMmapedFiles = 128
 
 func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, error) {
 	fakeprocess := legacyprocess.Process{Pid: pid}
@@ -138,9 +169,9 @@ func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, er
 		return nil, err
 	}
 
-	files := make([]string, 0, MAX_MMAPED_FILES)
+	files := make([]string, 0, MaxMmapedFiles)
 	for _, mm := range *stats {
-		if len(files) >= MAX_MMAPED_FILES {
+		if len(files) >= MaxMmapedFiles {
 			break
 		}
 
@@ -157,7 +188,7 @@ func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, er
 	return files, nil
 }
 
-func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) {
+func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {
 	// list all the file descriptors opened by the process
 	FDs, err := p.OpenFiles()
 	if err != nil {
@@ -185,7 +216,7 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityT
 	}
 
 	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
-	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(fmt.Sprintf("%d", p.Pid))))
+	proc, _ := procfs.NewFS(filepath.Join(kernel.HostProc(fmt.Sprintf("%d", p.Pid))))
 	if err != nil {
 		seclog.Warnf("error while opening procfs (pid: %v): %s", p.Pid, err)
 	}
@@ -238,7 +269,7 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityT
 	}
 }
 
-func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port uint16, stats *ActivityTreeStats, newEvent func() *model.Event) {
+func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port uint16, stats *Stats, newEvent func() *model.Event) {
 	evt := newEvent()
 	evt.Type = uint32(model.BindEventType)
 

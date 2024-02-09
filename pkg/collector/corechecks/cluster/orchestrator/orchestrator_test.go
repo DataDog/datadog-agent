@@ -55,8 +55,8 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	vpaClient := vpa.NewSimpleClientset()
 	crdClient := crd.NewSimpleClientset()
-	cl := &apiserver.APIClient{Cl: client, VPAClient: vpaClient, CRDClient: crdClient}
-	orchCheck := OrchestratorFactory().(*OrchestratorCheck)
+	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient}
+	orchCheck := newCheck().(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
 	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
@@ -74,17 +74,17 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	err = bundle.Initialize()
 	assert.NoError(t, err)
 
-	bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
+	_, err = bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			wg.Done()
 		},
 	})
+	assert.NoError(t, err)
 
 	writeNode(t, client, "1")
 	writeNode(t, client, "2")
 
 	assert.True(t, waitTimeout(&wg, 2*time.Second))
-
 }
 
 func writeNode(t *testing.T, client *fake.Clientset, version string) {

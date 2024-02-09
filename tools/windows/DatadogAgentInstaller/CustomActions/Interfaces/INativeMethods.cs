@@ -27,6 +27,8 @@ namespace Datadog.CustomActions.Interfaces
 
         bool IsDomainController();
 
+        bool IsReadOnlyDomainController();
+
         /// <summary>
         /// 
         /// </summary>
@@ -42,5 +44,7 @@ namespace Datadog.CustomActions.Interfaces
         int AddUser(string userName, string userPassword);
 
         void EnablePrivilege(string privilegeName);
+
+        void GetCurrentUser(out string name, out SecurityIdentifier sid);
     }
 }

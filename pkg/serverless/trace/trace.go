@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"strings"
 
-	tracecmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
+	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
+	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -67,16 +69,24 @@ const invocationSpanResource = "dd-tracer-serverless-span"
 
 // Load loads the config from a file path
 func (l *LoadConfig) Load() (*config.AgentConfig, error) {
-	return tracecmdconfig.LoadConfigFile(l.Path)
+	c, err := compcorecfg.NewServerlessConfig(l.Path)
+	if err != nil {
+		return nil, err
+	} else if c == nil {
+		return nil, fmt.Errorf("No error, but no configuration component was produced - bailing out")
+	}
+	return comptracecfg.LoadConfigFile(l.Path, c)
 }
 
 // Start starts the agent
+//
+//nolint:revive // TODO(SERV) Fix revive linter
 func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) {
 	if enabled {
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
-		ddConfig.Datadog.Set("serverless.enabled", true)
+		ddConfig.Datadog.Set("serverless.enabled", true, model.SourceAgentRuntime)
 
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {
@@ -128,6 +138,7 @@ func (s *ServerlessTraceAgent) Stop() {
 	}
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (s *ServerlessTraceAgent) SetSpanModifier(fn func(*pb.TraceChunk, *pb.Span)) {
 	s.ta.ModifySpan = fn
 }

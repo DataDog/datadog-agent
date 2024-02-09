@@ -3,18 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package serverless
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	json "github.com/json-iterator/go"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -50,8 +51,6 @@ const (
 	Invoke RuntimeEvent = "INVOKE"
 	// Shutdown event
 	Shutdown RuntimeEvent = "SHUTDOWN"
-	// Failure event
-	Failure RuntimeEvent = "FAILURE"
 
 	// Timeout is one of the possible ShutdownReasons
 	Timeout ShutdownReason = "timeout"
@@ -129,12 +128,14 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	if payload.EventType == Invoke {
 		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
 		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
-	} else if payload.EventType == Shutdown || payload.EventType == Failure {
+	} else if payload.EventType == Shutdown {
+		// Log collection can be safely called multiple times, so ensure we start log collection during a SHUTDOWN event too in case an INVOKE event is never received
+		daemon.StartLogCollection()
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
-			ecs := daemon.ExecutionContext.GetCurrentState()
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart, ecs.ProactiveInit)
+			coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(daemon.ExecutionContext.LastRequestID())
+			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
@@ -171,24 +172,23 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
 	log.Debug("Received invocation event...")
 	daemon.ExecutionContext.SetFromInvocation(arn, requestID)
-	daemon.ComputeGlobalTags(config.GetGlobalConfiguredTags(true))
 	daemon.StartLogCollection()
-	ecs := daemon.ExecutionContext.GetCurrentState()
+	coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(requestID)
 
 	if daemon.MetricAgent != nil {
-		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart, ecs.ProactiveInit)
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
 		metricTags = tags.AddInitTypeTag(metricTags)
 		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 	} else {
 		log.Error("Could not send the invocation enhanced metric")
 	}
 
-	if ecs.Coldstart {
+	if coldStartTags.IsColdStart {
 		daemon.UpdateStrategy()
 	}
 
 	// immediately check if we should flush data
-	if daemon.ShouldFlush(flush.Starting, time.Now()) {
+	if daemon.ShouldFlush(flush.Starting) {
 		log.Debugf("The flush strategy %s has decided to flush at moment: %s", daemon.GetFlushStrategy(), flush.Starting)
 		daemon.TriggerFlush(false)
 	} else {

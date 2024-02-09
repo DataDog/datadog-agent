@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -63,7 +63,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dogstatsdReplay,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -75,6 +75,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdReplayCmd}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -84,7 +85,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		_ = <-sigs
+		<-sigs
 		done <- true
 	}()
 

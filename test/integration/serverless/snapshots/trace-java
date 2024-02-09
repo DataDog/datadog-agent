@@ -1,36 +1,88 @@
 [
   {
-    "container_id": "",
-    "language_name": "",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-service",
-            "name": "aws.lambda",
-            "resource": "integration-tests-extension-XXXXXX-trace-java",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "account_id": "425362996713",
+              "account_id": "############",
               "architecture": "XXX",
-              "aws_account": "425362996713",
+              "aws_account": "############",
+              "cold_start": "false",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
+              "function.request.body": "testing request payload",
+              "function.response": "{}",
+              "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-trace-java",
+              "functionname": "integration-tests-extension-XXXXXX-trace-java",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "request_id": "null",
+              "runtime": "java8.al2",
+              "service": "integration-tests-service",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
+              "version": "integration-tests-version"
+            },
+            "metrics": {
+              "_sampling_priority_rate_v1": 1,
+              "_top_level": 1
+            },
+            "name": "aws.lambda",
+            "parent_id": null,
+            "resource": "integration-tests-extension-XXXXXX-trace-java",
+            "service": "integration-tests-service",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
+            "type": "serverless"
+          }
+        ],
+        "tags": null
+      }
+    ],
+    "container_id": "",
+    "env": "integration-tests-env",
+    "hostname": "",
+    "language_name": "",
+    "language_version": null,
+    "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
+  },
+  {
+    "app_version": "integration-tests-version",
+    "chunks": [
+      {
+        "dropped_trace": false,
+        "origin": "lambda",
+        "priority": 1,
+        "spans": [
+          {
+            "duration": null,
+            "error": 0,
+            "meta": {
+              "_dd.compute_stats": "1",
+              "_dd.origin": "lambda",
+              "account_id": "############",
+              "architecture": "XXX",
+              "aws_account": "############",
+              "cold_start": "true",
               "dd_extension_version": "123",
               "env": "integration-tests-env",
               "function.request": "{}",
               "function.response": "{}",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-java",
+              "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-trace-java",
               "functionname": "integration-tests-extension-XXXXXX-trace-java",
               "memorysize": "1024",
               "region": "eu-west-1",
@@ -47,108 +99,48 @@
               "_sampling_priority_rate_v1": 1,
               "_top_level": 1
             },
-            "type": "serverless"
-          }
-        ],
-        "tags": null,
-        "dropped_trace": false
-      }
-    ],
-    "tags": null,
-    "env": "integration-tests-env",
-    "hostname": "",
-    "app_version": "integration-tests-version"
-  },
-  {
-    "container_id": "",
-    "language_name": "",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
-    "chunks": [
-      {
-        "priority": 1,
-        "origin": "lambda",
-        "spans": [
-          {
-            "service": "integration-tests-service",
             "name": "aws.lambda",
-            "resource": "integration-tests-extension-XXXXXX-trace-java",
-            "trace_id": null,
-            "span_id": null,
             "parent_id": null,
+            "resource": "integration-tests-extension-XXXXXX-trace-java",
+            "service": "integration-tests-service",
+            "span_id": null,
             "start": null,
-            "duration": null,
-            "error": 0,
-            "meta": {
-              "_dd.compute_stats": "1",
-              "_dd.origin": "lambda",
-              "account_id": "425362996713",
-              "architecture": "XXX",
-              "aws_account": "425362996713",
-              "dd_extension_version": "123",
-              "env": "integration-tests-env",
-              "function.request": "{\"body\":\"testing request payload\"}",
-              "function.response": "{}",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-java",
-              "functionname": "integration-tests-extension-XXXXXX-trace-java",
-              "memorysize": "1024",
-              "region": "eu-west-1",
-              "request_id": "null",
-              "runtime": "java8.al2",
-              "service": "integration-tests-service",
-              "taga": "valuea",
-              "tagb": "valueb",
-              "tagc": "valuec",
-              "tagd": "valued",
-              "version": "integration-tests-version"
-            },
-            "metrics": {
-              "_sampling_priority_rate_v1": 1,
-              "_top_level": 1
-            },
+            "trace_id": null,
             "type": "serverless"
           }
         ],
-        "tags": null,
-        "dropped_trace": false
+        "tags": null
       }
     ],
-    "tags": null,
+    "container_id": "",
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": "integration-tests-version"
-  },
-  {
-    "container_id": "",
     "language_name": "",
     "language_version": null,
-    "tracer_version": null,
     "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
+  },
+  {
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-service",
-            "name": "aws.lambda.cold_start",
-            "resource": "integration-tests-extension-XXXXXX-trace-java",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "account_id": "425362996713",
+              "account_id": "############",
               "architecture": "XXX",
-              "aws_account": "425362996713",
+              "aws_account": "############",
               "dd_extension_version": "123",
               "env": "integration-tests-env",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-java",
+              "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-trace-java",
               "functionname": "integration-tests-extension-XXXXXX-trace-java",
               "memorysize": "1024",
               "region": "eu-west-1",
@@ -164,16 +156,26 @@
               "_sampling_priority_rate_v1": 1,
               "_top_level": 1
             },
+            "name": "aws.lambda.cold_start",
+            "parent_id": null,
+            "resource": "integration-tests-extension-XXXXXX-trace-java",
+            "service": "integration-tests-service",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "serverless"
           }
         ],
-        "tags": null,
-        "dropped_trace": false
+        "tags": null
       }
     ],
-    "tags": null,
+    "container_id": "",
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": "integration-tests-version"
+    "language_name": "",
+    "language_version": null,
+    "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
   }
 ]

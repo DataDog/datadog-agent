@@ -1,182 +1,182 @@
 [
   {
-    "message": {
-      "message": "END RequestId: XXX",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "END RequestId: XXX"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "END RequestId: XXX",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "END RequestId: XXX"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "REPORT",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "REPORT"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "REPORT",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "REPORT"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "START RequestId: XXX Version: $LATEST",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "START RequestId: XXX Version: $LATEST"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "START RequestId: XXX Version: $LATEST",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "START RequestId: XXX Version: $LATEST"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 0 XXX\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 0 XXX\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 0 XXX\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 0 XXX\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 1 XXX\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 1 XXX\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 1 XXX\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 1 XXX\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 2 XXX\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 2 XXX\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   },
   {
-    "message": {
-      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 2 XXX\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp",
-    "service": "integration-tests-service",
     "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp,functionname:integration-tests-extension-XXXXXX-log-csharp,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-csharp,runtime:dotnet6,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-csharp",
+        "request_id": "XXX"
+      },
+      "message": "TIMESTAMP\tXXX\tinfo\tXXX Log 2 XXX\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
   }
 ]

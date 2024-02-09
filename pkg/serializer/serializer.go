@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package serializer
 
 import (
@@ -16,7 +17,9 @@ import (
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -108,7 +111,8 @@ type MetricSerializer interface {
 type Serializer struct {
 	clock                 clock.Clock
 	Forwarder             forwarder.Forwarder
-	orchestratorForwarder forwarder.Forwarder
+	orchestratorForwarder orchestratorForwarder.Component
+	config                config.Component
 
 	seriesJSONPayloadBuilder *stream.JSONPayloadBuilder
 
@@ -127,24 +131,27 @@ type Serializer struct {
 	enableServiceChecksJSONStream bool
 	enableEventsJSONStream        bool
 	enableSketchProtobufStream    bool
+	hostname                      string
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder, orchestratorForwarder forwarder.Forwarder) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, config config.Component, hostName string) *Serializer {
 	s := &Serializer{
 		clock:                         clock.New(),
 		Forwarder:                     forwarder,
 		orchestratorForwarder:         orchestratorForwarder,
-		seriesJSONPayloadBuilder:      stream.NewJSONPayloadBuilder(config.Datadog.GetBool("enable_json_stream_shared_compressor_buffers")),
-		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
-		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
-		enableServiceChecks:           config.Datadog.GetBool("enable_payloads.service_checks"),
-		enableSketches:                config.Datadog.GetBool("enable_payloads.sketches"),
-		enableJSONToV1Intake:          config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
-		enableJSONStream:              stream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
-		enableServiceChecksJSONStream: stream.Available && config.Datadog.GetBool("enable_service_checks_stream_payload_serialization"),
-		enableEventsJSONStream:        stream.Available && config.Datadog.GetBool("enable_events_stream_payload_serialization"),
-		enableSketchProtobufStream:    stream.Available && config.Datadog.GetBool("enable_sketch_stream_payload_serialization"),
+		config:                        config,
+		seriesJSONPayloadBuilder:      stream.NewJSONPayloadBuilder(config.GetBool("enable_json_stream_shared_compressor_buffers"), config),
+		enableEvents:                  config.GetBool("enable_payloads.events"),
+		enableSeries:                  config.GetBool("enable_payloads.series"),
+		enableServiceChecks:           config.GetBool("enable_payloads.service_checks"),
+		enableSketches:                config.GetBool("enable_payloads.sketches"),
+		enableJSONToV1Intake:          config.GetBool("enable_payloads.json_to_v1_intake"),
+		enableJSONStream:              stream.Available && config.GetBool("enable_stream_payload_serialization"),
+		enableServiceChecksJSONStream: stream.Available && config.GetBool("enable_service_checks_stream_payload_serialization"),
+		enableEventsJSONStream:        stream.Available && config.GetBool("enable_events_stream_payload_serialization"),
+		enableSketchProtobufStream:    stream.Available && config.GetBool("enable_sketch_stream_payload_serialization"),
+		hostname:                      hostName,
 	}
 
 	if !s.enableEvents {
@@ -163,7 +170,7 @@ func NewSerializer(forwarder, orchestratorForwarder forwarder.Forwarder) *Serial
 		log.Warn("JSON to V1 intake is disabled: all payloads to that endpoint will be dropped")
 	}
 
-	if !config.Datadog.GetBool("enable_sketch_stream_payload_serialization") {
+	if !config.GetBool("enable_sketch_stream_payload_serialization") {
 		log.Warn("'enable_sketch_stream_payload_serialization' is set to false which is not recommended. This option is deprecated and will removed in the future. If you need this option, please reach out to support")
 	}
 
@@ -174,7 +181,8 @@ func (s Serializer) serializePayload(
 	jsonMarshaler marshaler.JSONMarshaler,
 	protoMarshaler marshaler.ProtoMarshaler,
 	compress bool,
-	useV1API bool) (transaction.BytesPayloads, http.Header, error) {
+	useV1API bool,
+) (transaction.BytesPayloads, http.Header, error) {
 	if useV1API {
 		return s.serializePayloadJSON(jsonMarshaler, compress)
 	}
@@ -205,7 +213,6 @@ func (s Serializer) serializePayloadProto(payload marshaler.ProtoMarshaler, comp
 
 func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler, compress bool, extraHeaders http.Header, marshalFct split.MarshalFct) (transaction.BytesPayloads, http.Header, error) {
 	payloads, err := split.Payloads(payload, compress, marshalFct)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not split payload into small enough chunks: %s", err)
 	}
@@ -234,7 +241,8 @@ func (s Serializer) serializeIterableStreamablePayload(payload marshaler.Iterabl
 //
 // If none of the previous methods work, we fallback to the old serialization method (Serializer.serializePayload).
 func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
-	eventsSerializer metricsserializer.Events, useV1API bool) (transaction.BytesPayloads, http.Header, error) {
+	eventsSerializer metricsserializer.Events, useV1API bool,
+) (transaction.BytesPayloads, http.Header, error) {
 	marshaler := eventsSerializer.CreateSingleMarshaler()
 	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, stream.FailOnErrItemTooBig)
 
@@ -271,7 +279,10 @@ func (s *Serializer) SendEvents(events event.Events) error {
 	var extraHeaders http.Header
 	var err error
 
-	eventsSerializer := metricsserializer.Events(events)
+	eventsSerializer := metricsserializer.Events{
+		EventsArr: events,
+		Hostname:  s.hostname,
+	}
 	if s.enableEventsJSONStream {
 		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(eventsSerializer, true)
 	} else {
@@ -321,7 +332,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	}
 
 	seriesSerializer := metricsserializer.CreateIterableSeries(serieSource)
-	useV1API := !config.Datadog.GetBool("use_v2_api.series")
+	useV1API := !s.config.GetBool("use_v2_api.series")
 
 	var seriesBytesPayloads transaction.BytesPayloads
 	var extraHeaders http.Header
@@ -332,7 +343,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	} else if useV1API && !s.enableJSONStream {
 		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
-		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext())
+		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config)
 		extraHeaders = protobufExtraHeadersWithCompression
 	}
 
@@ -359,13 +370,14 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
-		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext())
+		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config)
 		if err != nil {
 			return fmt.Errorf("dropping sketch payload: %v", err)
 		}
 
 		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
 	} else {
+		//nolint:revive // TODO(AML) Fix revive linter
 		compress := true
 		splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
 		if err != nil {
@@ -438,7 +450,9 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 
 // SendOrchestratorMetadata serializes & send orchestrator metadata payloads
 func (s *Serializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, hostName, clusterID string, payloadType int) error {
-	if s.orchestratorForwarder == nil {
+	orchestratorForwarder, found := s.orchestratorForwarder.Get()
+
+	if !found {
 		return errors.New("orchestrator forwarder is not setup")
 	}
 	for _, m := range msgs {
@@ -447,15 +461,15 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, h
 			return log.Errorf("Unable to encode message: %s", err)
 		}
 
-		responses, err := s.orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
+		responses, err := orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
 		if err != nil {
 			return log.Errorf("Unable to submit payload: %s", err)
 		}
 
 		// Consume the responses so that writers to the channel do not become blocked
 		// we don't need the bodies here though
+		//nolint:revive // TODO(AML) Fix revive linter
 		for range responses {
-
 		}
 	}
 	return nil
@@ -463,7 +477,8 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, h
 
 // SendOrchestratorManifests serializes & send orchestrator manifest payloads
 func (s *Serializer) SendOrchestratorManifests(msgs []types.ProcessMessageBody, hostName, clusterID string) error {
-	if s.orchestratorForwarder == nil {
+	orchestratorForwarder, found := s.orchestratorForwarder.Get()
+	if !found {
 		return errors.New("orchestrator forwarder is not setup")
 	}
 	for _, m := range msgs {
@@ -473,15 +488,15 @@ func (s *Serializer) SendOrchestratorManifests(msgs []types.ProcessMessageBody, 
 			continue
 		}
 
-		responses, err := s.orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
+		responses, err := orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
 		if err != nil {
 			return log.Errorf("Unable to submit payload: %s", err)
 		}
 
 		// Consume the responses so that writers to the channel do not become blocked
 		// we don't need the bodies here though
+		//nolint:revive // TODO(AML) Fix revive linter
 		for range responses {
-
 		}
 	}
 	return nil

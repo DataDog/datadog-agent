@@ -27,11 +27,11 @@ func TestConfigLoading(t *testing.T) {
 	err = iisCfg.Start()
 	assert.Nil(t, err)
 
-	name := iisCfg.GetSiteNameFromId(0)
+	name := iisCfg.GetSiteNameFromID(0)
 	assert.Equal(t, name, "")
-	name = iisCfg.GetSiteNameFromId(1)
+	name = iisCfg.GetSiteNameFromID(1)
 	assert.Equal(t, name, "Default Web Site")
-	name = iisCfg.GetSiteNameFromId(2)
+	name = iisCfg.GetSiteNameFromID(2)
 	assert.Equal(t, name, "TestSite")
 	iisCfg.Stop()
 }

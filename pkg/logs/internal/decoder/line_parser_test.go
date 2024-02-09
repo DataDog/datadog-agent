@@ -15,13 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 const header = "HEADER"
 
-func lineParserChans() (func(*Message), chan *Message) {
-	ch := make(chan *Message, 20)
-	return func(m *Message) { ch <- m }, ch
+func lineParserChans() (func(*message.Message), chan *message.Message) {
+	ch := make(chan *message.Message, 20)
+	return func(m *message.Message) { ch <- m }, ch
 }
 
 type MockFailingParser struct {
@@ -34,19 +35,22 @@ func NewMockFailingParser(header string) parsers.Parser {
 
 // Parse removes header from line, returns a message if its header matches the Parser header
 // or returns an error and flags the line as partial if it does not end up by \n
-func (u *MockFailingParser) Parse(msg []byte) (parsers.Message, error) {
-	if bytes.HasPrefix(msg, u.header) {
-		msg := bytes.Replace(msg, u.header, []byte(""), 1)
-		l := len(msg)
-		if l > 1 && msg[l-2] == '\\' && msg[l-1] == 'n' {
-			return parsers.Message{Content: msg[:l-2]}, nil
+func (u *MockFailingParser) Parse(input *message.Message) (*message.Message, error) {
+	if bytes.HasPrefix(input.GetContent(), u.header) {
+		content := bytes.Replace(input.GetContent(), u.header, []byte(""), 1)
+		l := len(content)
+		if l > 1 && content[l-2] == '\\' && content[l-1] == 'n' {
+			msg := message.NewMessage(content[:l-2], nil, "", 0)
+			return msg, nil
 		}
-		return parsers.Message{
-			Content:   msg,
+		msg := message.NewMessage(content, nil, "", 0)
+		msg.ParsingExtra = message.ParsingExtra{
 			IsPartial: true,
-		}, nil
+		}
+		return msg, nil
 	}
-	return parsers.Message{Content: msg}, fmt.Errorf("error")
+	msg := message.NewMessage(input.GetContent(), nil, "", 0)
+	return msg, fmt.Errorf("error")
 }
 
 func (u *MockFailingParser) SupportsPartialLine() bool {
@@ -54,24 +58,25 @@ func (u *MockFailingParser) SupportsPartialLine() bool {
 }
 
 func TestSingleLineParser(t *testing.T) {
-	var message *Message
 	p := NewMockFailingParser(header)
 
 	outputFn, outputChan := lineParserChans()
 	lineParser := NewSingleLineParser(outputFn, p)
 
 	line := header
+	logMessage := message.NewMessage([]byte(line), nil, "", 0)
 
-	inputLen := len(line) + 1
-	lineParser.process([]byte(line), inputLen)
-	message = <-outputChan
-	assert.Equal(t, "", string(message.Content))
+	inputLen := len(logMessage.GetContent()) + 1
+	lineParser.process(logMessage, inputLen)
+	message := <-outputChan
+	assert.Equal(t, "", string(message.GetContent()))
 	assert.Equal(t, inputLen, message.RawDataLen)
 
-	inputLen = len(line+"one message") + 1
-	lineParser.process([]byte(line+"one message"), inputLen)
+	logMessage.SetContent([]byte(line + "one message"))
+	inputLen = len(logMessage.GetContent()) + 1
+	lineParser.process(logMessage, inputLen)
 	message = <-outputChan
-	assert.Equal(t, "one message", string(message.Content))
+	assert.Equal(t, []byte("one message"), message.GetContent())
 	assert.Equal(t, inputLen, message.RawDataLen)
 }
 
@@ -81,9 +86,11 @@ func TestSingleLineParserSendsRawInvalidMessages(t *testing.T) {
 	outputFn, outputChan := lineParserChans()
 	lineParser := NewSingleLineParser(outputFn, p)
 
-	lineParser.process([]byte("one message"), 12)
+	logMessage := message.NewMessage([]byte("one message"), nil, "", 0)
+
+	lineParser.process(logMessage, 12)
 	message := <-outputChan
-	assert.Equal(t, "one message", string(message.Content))
+	assert.Equal(t, "one message", string(message.GetContent()))
 }
 
 func TestMultilineParser(t *testing.T) {
@@ -94,13 +101,19 @@ func TestMultilineParser(t *testing.T) {
 	outputFn, outputChan := lineParserChans()
 	lineParser := NewMultiLineParser(outputFn, timeout, p, contentLenLimit)
 
-	lineParser.process([]byte(header+"one "), 11)
-	lineParser.process([]byte(header+"long "), 12)
-	lineParser.process([]byte(header+"line\\n"), 14)
+	logMessage := message.NewMessage([]byte(header+"one "), nil, "", 0)
+
+	lineParser.process(logMessage, 11)
+
+	logMessage.SetContent([]byte(header + "long "))
+	lineParser.process(logMessage, 12)
+
+	logMessage.SetContent([]byte(header + "line\\n"))
+	lineParser.process(logMessage, 14)
 
 	message := <-outputChan
 
-	assert.Equal(t, "one long line", string(message.Content))
+	assert.Equal(t, "one long line", string(message.GetContent()))
 	assert.Equal(t, message.RawDataLen, 11+12+14)
 }
 
@@ -112,7 +125,9 @@ func TestMultilineParserTimeout(t *testing.T) {
 	outputFn, outputChan := lineParserChans()
 	lineParser := NewMultiLineParser(outputFn, timeout, p, contentLenLimit)
 
-	lineParser.process([]byte(header+"message"), 14)
+	logMessage := message.NewMessage([]byte(header+"message"), nil, "", 0)
+
+	lineParser.process(logMessage, 14)
 
 	// shouldn't be anything here yet
 	select {
@@ -125,7 +140,7 @@ func TestMultilineParserTimeout(t *testing.T) {
 
 	message := <-outputChan
 
-	assert.Equal(t, "message", string(message.Content))
+	assert.Equal(t, "message", string(message.GetContent()))
 	assert.Equal(t, message.RawDataLen, 14)
 }
 
@@ -134,24 +149,26 @@ func TestMultilineParserLimit(t *testing.T) {
 	p := NewMockFailingParser(header)
 	timeout := 1000 * time.Millisecond
 	contentLenLimit := 64
-	var message *Message
 	line := strings.Repeat("a", contentLenLimit)
 
 	outputFn, outputChan := lineParserChans()
 	lineParser := NewMultiLineParser(outputFn, timeout, p, contentLenLimit)
 
 	for i := 0; i < 10; i++ {
-		lineParser.process([]byte(header+line), 7+len(line))
+		logMessage := message.NewMessage([]byte(header+line), nil, "", 0)
+		lineParser.process(logMessage, 7+len(line))
 	}
-	lineParser.process([]byte(header+"aaaa\\n"), 13)
+
+	logMessage := message.NewMessage([]byte(header+"aaaa\\n"), nil, "", 0)
+	lineParser.process(logMessage, 13)
 
 	for i := 0; i < 10; i++ {
-		message = <-outputChan
-		assert.Equal(t, line, string(message.Content))
+		message := <-outputChan
+		assert.Equal(t, line, string(message.GetContent()))
 		assert.Equal(t, message.RawDataLen, 7+len(line))
 	}
 
-	message = <-outputChan
-	assert.Equal(t, "aaaa", string(message.Content))
+	message := <-outputChan
+	assert.Equal(t, "aaaa", string(message.GetContent()))
 	assert.Equal(t, message.RawDataLen, 13)
 }

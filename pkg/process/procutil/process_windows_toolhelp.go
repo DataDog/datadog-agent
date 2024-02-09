@@ -16,7 +16,7 @@ import (
 	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
 
-	process "github.com/DataDog/gopsutil/process"
+	process "github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -30,6 +30,7 @@ var (
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type IO_COUNTERS struct {
 	ReadOperationCount  uint64
 	WriteOperationCount uint64
@@ -76,7 +77,7 @@ func NewWindowsToolhelpProbe() Probe {
 
 func (p *windowsToolhelpProbe) Close() {}
 
-func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) {
+func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) { //nolint:revive // TODO fix revive unused-parameter
 	procs, err := p.ProcessesByPID(now, true)
 	if err != nil {
 		return nil, err
@@ -89,11 +90,11 @@ func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[in
 }
 
 // StatsWithPermByPID is currently not implemented in non-linux environments
-func (p *windowsToolhelpProbe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) {
+func (p *windowsToolhelpProbe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, fmt.Errorf("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
 }
 
-func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) {
+func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) { //nolint:revive // TODO fix revive unused-parameter
 	// make sure we get the consistent snapshot by using the same OS thread
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -262,5 +263,25 @@ func (cp *cachedProcess) close() {
 		windows.CloseHandle(cp.procHandle)
 		cp.procHandle = windows.Handle(0)
 	}
-	return
+}
+
+// GetParentPid looks up the parent process given a pid
+func GetParentPid(pid uint32) (uint32, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var pe32 w32.PROCESSENTRY32
+	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
+
+	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
+	if allProcsSnap == 0 {
+		return 0, windows.GetLastError()
+	}
+	defer w32.CloseHandle(allProcsSnap)
+	for success := w32.Process32First(allProcsSnap, &pe32); success; success = w32.Process32Next(allProcsSnap, &pe32) {
+		if pid == pe32.Th32ProcessID {
+			return pe32.Th32ParentProcessID, nil
+		}
+	}
+	return 0, nil
 }

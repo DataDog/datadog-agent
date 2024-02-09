@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package corechecks
 
 import (
@@ -11,13 +12,14 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,6 +42,7 @@ import (
 // If custom tags are set in the instance configuration, they will
 // be automatically appended to each send done by this check.
 type CheckBase struct {
+	senderManager  sender.SenderManager
 	checkName      string
 	checkID        checkid.ID
 	latestWarnings []error
@@ -61,7 +64,7 @@ func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckB
 		checkName:     name,
 		checkID:       checkid.ID(name),
 		checkInterval: defaultInterval,
-		telemetry:     telemetry_utils.IsCheckEnabled(name),
+		telemetry:     utils.IsCheckTelemetryEnabled(name, config.Datadog),
 	}
 }
 
@@ -73,8 +76,9 @@ func (c *CheckBase) BuildID(integrationConfigDigest uint64, instance, initConfig
 
 // Configure is provided for checks that require no config. If overridden,
 // the call to CommonConfigure must be preserved.
-func (c *CheckBase) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+func (c *CheckBase) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	c.senderManager = senderManager
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -92,7 +96,10 @@ func (c *CheckBase) Configure(integrationConfigDigest uint64, data integration.D
 
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
-func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, instanceConfig integration.Data, source string) error {
+//
+//nolint:revive // TODO(AML) Fix revive linter
+func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, integrationConfigDigest uint64, initConfig, instanceConfig integration.Data, source string) error {
+	c.senderManager = senderManager
 	handleConf := func(conf integration.Data, c *CheckBase) error {
 		commonOptions := integration.CommonInstanceConfig{}
 		err := yaml.Unmarshal(conf, &commonOptions)
@@ -162,7 +169,7 @@ func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, 
 
 // Warn sends an integration warning to logs + agent status.
 func (c *CheckBase) Warn(v ...interface{}) error {
-	w := log.Warn(v...)
+	w := log.WarncStackDepth(log.BuildLogEntry(v...), 1, "check", c.checkName)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w
@@ -170,7 +177,7 @@ func (c *CheckBase) Warn(v ...interface{}) error {
 
 // Warnf sends an integration warning to logs + agent status.
 func (c *CheckBase) Warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params...)
+	w := log.WarncStackDepth(fmt.Sprintf(format, params...), 1, "check", c.checkName)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w
@@ -260,7 +267,7 @@ func (c *CheckBase) GetSender() (sender.Sender, error) {
 
 // GetRawSender is similar to GetSender, but does not provide the safety wrapper.
 func (c *CheckBase) GetRawSender() (sender.Sender, error) {
-	return aggregator.GetSender(c.ID())
+	return c.senderManager.GetSender(c.ID())
 }
 
 // GetSenderStats returns the stats from the last run of the check.
@@ -270,4 +277,9 @@ func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 		return stats.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
 	}
 	return sender.GetSenderStats(), nil
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }

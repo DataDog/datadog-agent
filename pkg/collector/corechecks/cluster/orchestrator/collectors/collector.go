@@ -5,22 +5,23 @@
 
 //go:build kubeapiserver && orchestrator
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package collectors
 
 import (
 	"fmt"
+
+	"go.uber.org/atomic"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-
-	"go.uber.org/atomic"
-	"k8s.io/client-go/tools/cache"
 )
 
 // Collector is an interface that represents the collection process for a
@@ -73,8 +74,10 @@ type CollectorMetadata struct {
 	IsStable                  bool
 	SupportsManifestBuffering bool
 	Name                      string
-	NodeType                  orchestrator.NodeType
+	NodeType                  pkgorchestratormodel.NodeType
 	Version                   string
+	IsSkipped                 bool
+	SkippedReason             string
 }
 
 // FullName returns a string that contains the collector name and version.

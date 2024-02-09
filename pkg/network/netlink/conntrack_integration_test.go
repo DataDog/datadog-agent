@@ -12,7 +12,6 @@ import (
 	"net"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,10 +44,10 @@ func TestConntrackExists(t *testing.T) {
 	udpCloser := nettestutil.StartServerUDPNs(t, net.ParseIP("2.2.2.4"), 8080, ns)
 	defer udpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80)
+	tcpConn := nettestutil.MustPingTCP(t, net.ParseIP("2.2.2.4"), 80)
 	defer tcpConn.Close()
 
-	udpConn := nettestutil.PingUDP(t, net.ParseIP("2.2.2.4"), 80)
+	udpConn := nettestutil.MustPingUDP(t, net.ParseIP("2.2.2.4"), 80)
 	defer udpConn.Close()
 
 	testNs, err := netns.GetFromName(ns)
@@ -75,7 +74,7 @@ func BenchmarkConntrackExists(b *testing.B) {
 	tcpCloser := nettestutil.StartServerTCPNs(b, net.ParseIP("2.2.2.4"), 8080, ns)
 	defer tcpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(b, net.ParseIP("2.2.2.4"), 80)
+	tcpConn := nettestutil.MustPingTCP(b, net.ParseIP("2.2.2.4"), 80)
 	defer tcpConn.Close()
 
 	testNs, err := netns.GetFromName(ns)
@@ -92,7 +91,7 @@ func BenchmarkConntrackExists(b *testing.B) {
 	tcpAddr := tcpConn.LocalAddr().(*net.TCPAddr)
 	laddrIP := tcpAddr.IP.String()
 	laddrPort := tcpAddr.Port
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(b, err)
 	defer rootNs.Close()
 
@@ -164,19 +163,16 @@ func BenchmarkConntrackExists(b *testing.B) {
 func TestConntrackExists6(t *testing.T) {
 	ns := testutil.SetupCrossNsDNAT6(t)
 
-	// wait a small amount of time to ensure IPv6 setup is functional
-	time.Sleep(100 * time.Millisecond)
-
 	tcpCloser := nettestutil.StartServerTCPNs(t, net.ParseIP("fd00::2"), 8080, ns)
 	defer tcpCloser.Close()
 
 	udpCloser := nettestutil.StartServerUDPNs(t, net.ParseIP("fd00::2"), 8080, ns)
 	defer udpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(t, net.ParseIP("fd00::2"), 80)
+	tcpConn := nettestutil.MustPingTCP(t, net.ParseIP("fd00::2"), 80)
 	defer tcpConn.Close()
 
-	udpConn := nettestutil.PingUDP(t, net.ParseIP("fd00::2"), 80)
+	udpConn := nettestutil.MustPingUDP(t, net.ParseIP("fd00::2"), 80)
 	defer udpConn.Close()
 
 	testNs, err := netns.GetFromName(ns)
@@ -217,14 +213,14 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 	require.NoError(t, err)
 	defer testNs.Close()
 
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
 	defer rootNs.Close()
 
 	tcpCloser := nettestutil.StartServerTCPNs(t, net.ParseIP(listenIP), listenPort, ns)
 	defer tcpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(t, net.ParseIP(destIP), destPort)
+	tcpConn := nettestutil.MustPingTCP(t, net.ParseIP(destIP), destPort)
 	defer tcpConn.Close()
 
 	rootck, err := NewConntrack(rootNs)
@@ -248,7 +244,7 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 }
 
 func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[netns.NsHandle]Conntrack) {
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
 	defer rootNs.Close()
 
@@ -331,7 +327,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 }
 
 func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[netns.NsHandle]Conntrack) {
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
 	defer rootNs.Close()
 

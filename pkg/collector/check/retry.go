@@ -41,7 +41,7 @@ func Retry(retryDuration time.Duration, retries int, callback func() error, frie
 		}
 
 		// how much did the callback run?
-		execDuration := time.Now().Sub(t0)
+		execDuration := time.Since(t0)
 		if execDuration < retryDuration {
 			// the callback failed too soon, retry but increment the counter
 			attempts++

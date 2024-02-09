@@ -8,8 +8,8 @@ package telemetry
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // common prefix used across all statsd metric
@@ -24,15 +24,23 @@ func ReportStatsd() {
 		return
 	}
 
-	metrics := GetMetrics(OptStatsd)
+	metrics := globalRegistry.GetMetrics(OptStatsd)
 	previousValues := statsdDelta.GetState("")
 	for _, metric := range metrics {
 		v := previousValues.ValueFor(metric)
-		if contains(OptGauge, metric.tags) {
-			client.Gauge(statsdPrefix+metric.name, float64(v), metric.tags, 1.0) //nolint:errcheck
+		base := metric.base()
+		tags := sets.List(base.tags)
+		if _, ok := metric.(*Gauge); ok {
+			client.Gauge(statsdPrefix+base.name, float64(v), tags, 1.0) //nolint:errcheck
+			continue
 		}
 
-		client.Count(statsdPrefix+metric.name, v, metric.tags, 1.0) //nolint:errcheck
+		// Don't emit counter metrics with zero values
+		if v == 0 {
+			continue
+		}
+
+		client.Count(statsdPrefix+base.name, v, tags, 1.0) //nolint:errcheck
 	}
 }
 
@@ -41,41 +49,13 @@ var telemetryDelta deltaCalculator
 // ReportPayloadTelemetry returns a map with all metrics tagged with `OptPayloadTelemetry`
 // The return format is consistent with what we use in the protobuf messages sent to the backend
 func ReportPayloadTelemetry(clientID string) map[string]int64 {
-	metrics := GetMetrics(OptPayloadTelemetry)
+	metrics := globalRegistry.GetMetrics(OptPayloadTelemetry)
 	previousValues := telemetryDelta.GetState(clientID)
 	result := make(map[string]int64, len(metrics))
 	for _, metric := range metrics {
-		result[metric.name] = previousValues.ValueFor(metric)
+		result[metric.base().name] = previousValues.ValueFor(metric)
 	}
 	return result
-}
-
-var expvarDelta deltaCalculator
-
-// ReportExpvar returns a nested map structure with all metrics tagged with `OptExpvar`
-func ReportExpvar() map[string]interface{} {
-	metrics := GetMetrics(OptExpvar)
-	previousValues := expvarDelta.GetState("")
-	root := make(map[string]interface{})
-	seen := make(map[string]struct{})
-
-	for _, m := range metrics {
-		if _, ok := seen[m.name]; ok {
-			log.Debugf(
-				"metric %q has multiple instances with different tag sets which is not suitable for expvar.",
-				m.name,
-			)
-			continue
-		}
-
-		seen[m.name] = struct{}{}
-		err := insertNestedValueFor(m.name, previousValues.ValueFor(m), root)
-		if err != nil {
-			log.Errorf("error inserting metric %s into expvar map: %s", m.name, err)
-		}
-	}
-
-	return root
 }
 
 var clientMux sync.Mutex

@@ -3,17 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package agent holds agent related files
 package agent
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"runtime"
+	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
@@ -21,6 +27,27 @@ import (
 type RuntimeSecurityClient struct {
 	apiClient api.SecurityModuleClient
 	conn      *grpc.ClientConn
+}
+
+// SecurityModuleClientWrapper represents a security module client
+type SecurityModuleClientWrapper interface {
+	DumpDiscarders() (string, error)
+	DumpProcessCache(withArgs bool) (string, error)
+	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
+	ListActivityDumps() (*api.ActivityDumpListMessage, error)
+	StopActivityDump(name, containerid, comm string) (*api.ActivityDumpStopMessage, error)
+	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
+	DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error)
+	GetConfig() (*api.SecurityConfigMessage, error)
+	GetStatus() (*api.Status, error)
+	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
+	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
+	GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error)
+	GetEvents() (api.SecurityModule_GetEventsClient, error)
+	GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error)
+	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
+	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
+	Close()
 }
 
 // DumpDiscarders sends a request to dump discarders
@@ -105,6 +132,15 @@ func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessa
 	return response, nil
 }
 
+// GetRuleSetReport gets the currently loaded policies from the system probe
+func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error) {
+	response, err := c.apiClient.GetRuleSetReport(context.Background(), &api.GetRuleSetReportParams{})
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 // GetEvents returns a stream of events
 func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient, error) {
 	stream, err := c.apiClient.GetEvents(context.Background(), &api.GetEventParams{})
@@ -152,14 +188,24 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
+	family, _ := config.GetFamilyAddress(socketPath)
+	if runtime.GOOS == "windows" && family == "unix" {
+		return nil, fmt.Errorf("unix sockets are not supported on Windows")
+	}
+
 	conn, err := grpc.Dial(
 		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
-			return net.Dial("unix", url)
+			return net.Dial(family, url)
 		}),
-	)
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay: time.Second,
+				MaxDelay:  time.Second,
+			},
+		}))
 	if err != nil {
 		return nil, err
 	}

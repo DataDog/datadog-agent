@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/operators -output eval_operators.go
+//go:generate operators -output eval_operators.go
 
+// Package eval holds eval related files
 package eval
 
 import (
@@ -853,13 +854,8 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				}
 				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 			case *CIDREvaluator:
-				switch next.(type) {
+				switch nextIP := next.(type) {
 				case *CIDREvaluator:
-					nextIP, ok := next.(*CIDREvaluator)
-					if !ok {
-						return nil, pos, NewTypeError(pos, reflect.TypeOf(CIDREvaluator{}).Kind())
-					}
-
 					switch *obj.ScalarComparison.Op {
 					case "!=":
 						boolEvaluator, err = CIDREquals(unary, nextIP, state)

@@ -9,19 +9,13 @@ package kprobe
 
 import (
 	"os"
-	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-)
-
-const (
-	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
-	maxActive = 128
 )
 
 var mainProbes = []probes.ProbeFuncName{
@@ -29,6 +23,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.ProtocolClassifierEntrySocketFilter,
 	probes.ProtocolClassifierQueuesSocketFilter,
 	probes.ProtocolClassifierDBsSocketFilter,
+	probes.ProtocolClassifierGRPCSocketFilter,
 	probes.TCPSendMsg,
 	probes.TCPSendMsgReturn,
 	probes.TCPSendPage,
@@ -42,7 +37,6 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
-	probes.TCPSetState,
 	probes.IPMakeSkb,
 	probes.IPMakeSkbReturn,
 	probes.IP6MakeSkb,
@@ -63,13 +57,11 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.Inet6Bind,
 	probes.InetBindRet,
 	probes.Inet6BindRet,
-	probes.SockFDLookup,
-	probes.SockFDLookupRet,
 	probes.UDPSendPage,
 	probes.UDPSendPageReturn,
 }
 
-func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) error {
+func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, runtimeTracer bool, cfg *config.Config) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -81,10 +73,7 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		{Name: probes.UDPPortBindingsMap},
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
-		{Name: probes.SockByPidFDMap},
 		{Name: probes.ConnectionProtocolMap},
-		{Name: probes.PidFDBySockMap},
-		{Name: probes.SockFDLookupArgsMap},
 		{Name: probes.TcpSendMsgArgsMap},
 		{Name: probes.TcpSendPageArgsMap},
 		{Name: probes.UdpSendPageArgsMap},
@@ -95,27 +84,25 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
-	mgr.PerfMaps = []*manager.PerfMap{
-		{
-			Map: manager.Map{Name: probes.ConnCloseEventMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
-				Watermark:          1,
-				RecordHandler:      closedHandler.RecordHandler,
-				LostHandler:        closedHandler.LostHandler,
-				RecordGetter:       closedHandler.RecordGetter,
-			},
+	pm := &manager.PerfMap{
+		Map: manager.Map{Name: probes.ConnCloseEventMap},
+		PerfMapOptions: manager.PerfMapOptions{
+			PerfRingBufferSize: 8 * os.Getpagesize(),
+			Watermark:          1,
+			RecordHandler:      closedHandler.RecordHandler,
+			LostHandler:        closedHandler.LostHandler,
+			RecordGetter:       closedHandler.RecordGetter,
+			TelemetryEnabled:   cfg.InternalTelemetryEnabled,
 		},
 	}
+	mgr.PerfMaps = []*manager.PerfMap{pm}
+	ebpftelemetry.ReportPerfMapTelemetry(pm)
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: funcName,
 				UID:          probeUID,
 			},
-		}
-		if strings.HasPrefix(funcName, "kretprobe") {
-			p.KProbeMaxActive = maxActive
 		}
 		mgr.Probes = append(mgr.Probes, p)
 	}

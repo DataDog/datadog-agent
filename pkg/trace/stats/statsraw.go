@@ -6,10 +6,11 @@
 package stats
 
 import (
+	"math"
 	"math/rand"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/golang/protobuf/proto"
@@ -36,6 +37,7 @@ type groupedStats struct {
 	duration        float64
 	okDistribution  *ddsketch.DDSketch
 	errDistribution *ddsketch.DDSketch
+	peerTags        []string
 }
 
 // round a float to an int, uniformly choosing
@@ -48,18 +50,18 @@ func round(f float64) uint64 {
 	return i
 }
 
-func (s *groupedStats) export(a Aggregation) (pb.ClientGroupedStats, error) {
+func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 	msg := s.okDistribution.ToProto()
 	okSummary, err := proto.Marshal(msg)
 	if err != nil {
-		return pb.ClientGroupedStats{}, err
+		return &pb.ClientGroupedStats{}, err
 	}
 	msg = s.errDistribution.ToProto()
 	errSummary, err := proto.Marshal(msg)
 	if err != nil {
-		return pb.ClientGroupedStats{}, err
+		return &pb.ClientGroupedStats{}, err
 	}
-	return pb.ClientGroupedStats{
+	return &pb.ClientGroupedStats{
 		Service:        a.Service,
 		Name:           a.Name,
 		Resource:       a.Resource,
@@ -72,8 +74,8 @@ func (s *groupedStats) export(a Aggregation) (pb.ClientGroupedStats, error) {
 		OkSummary:      okSummary,
 		ErrorSummary:   errSummary,
 		Synthetics:     a.Synthetics,
-		PeerService:    a.PeerService,
 		SpanKind:       a.SpanKind,
+		PeerTags:       s.peerTags,
 	}, nil
 }
 
@@ -118,8 +120,8 @@ func NewRawBucket(ts, d uint64) *RawBucket {
 // Export transforms a RawBucket into a ClientStatsBucket, typically used
 // before communicating data to the API, as RawBucket is the internal
 // type while ClientStatsBucket is the public, shared one.
-func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
-	m := make(map[PayloadAggregationKey]pb.ClientStatsBucket)
+func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
+	m := make(map[PayloadAggregationKey]*pb.ClientStatsBucket)
 	for k, v := range sb.data {
 		b, err := v.export(k)
 		if err != nil {
@@ -134,7 +136,7 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 		}
 		s, ok := m[key]
 		if !ok {
-			s = pb.ClientStatsBucket{
+			s = &pb.ClientStatsBucket{
 				Start:    sb.start,
 				Duration: sb.duration,
 			}
@@ -146,20 +148,21 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool) {
+func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
-	aggr := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg)
-	sb.add(s, weight, isTop, aggr)
+	aggr, peerTags := NewAggregationFromSpan(s, origin, aggKey, enablePeerTagsAgg, peerTagKeys)
+	sb.add(s, weight, isTop, aggr, peerTags)
 }
 
-func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation) {
+func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation, peerTags []string) {
 	var gs *groupedStats
 	var ok bool
 
 	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
+		gs.peerTags = peerTags
 		sb.data[aggr] = gs
 	}
 	if isTop {
@@ -183,15 +186,14 @@ func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregatio
 	}
 }
 
-// 10 bits precision (any value will be +/- 1/1024)
-const roundMask int64 = 1 << 10
-
 // nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
 func nsTimestampToFloat(ns int64) float64 {
-	var shift uint
-	for ns > roundMask {
-		ns = ns >> 1
-		shift++
-	}
-	return float64(ns << shift)
+	b := math.Float64bits(float64(ns))
+	// IEEE-754
+	// the mask include 1 bit sign 11 bits exponent (0xfff)
+	// then we filter the mantissa to 10bits (0xff8) (9 bits as it has implicit value of 1)
+	// 10 bits precision (any value will be +/- 1/1024)
+	// https://en.wikipedia.org/wiki/Double-precision_floating-point_format
+	b &= 0xfffff80000000000
+	return math.Float64frombits(b)
 }

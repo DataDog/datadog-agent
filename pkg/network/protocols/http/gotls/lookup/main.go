@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package lookup provides a lookup table for the protocol package.
 package lookup
 
 // This generates each lookup table's implementation in ./luts.go:

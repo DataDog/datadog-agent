@@ -28,8 +28,8 @@ const (
 	validPathQueryStringSymbols = "/_-+@?&=.:\""
 )
 
-// allowedHeaders contains the headers that the proxy will forward. All others will be cleared.
-var allowedHeaders = [...]string{"Content-Type", "User-Agent", "DD-CI-PROVIDER-NAME"}
+// EvpProxyAllowedHeaders contains the headers that the proxy will forward. All others will be cleared.
+var EvpProxyAllowedHeaders = []string{"Content-Type", "Accept-Encoding", "Content-Encoding", "User-Agent", "DD-CI-PROVIDER-NAME"}
 
 // evpProxyEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
 func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
@@ -150,7 +150,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", t.conf.AgentVersion))
 
 	// Copy allowed headers from the input request
-	for _, header := range allowedHeaders {
+	for _, header := range EvpProxyAllowedHeaders {
 		val := inputHeaders.Get(header)
 		if val != "" {
 			req.Header.Set(header, val)
@@ -162,10 +162,12 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		req.Header.Set(header.ContainerID, containerID)
 		if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
+			log.Debugf("Setting header X-Datadog-Container-Tags=%s for evp proxy", ctags)
 		}
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
+	log.Debugf("Setting headers X-Datadog-Hostnames=%s, X-Datadog-AgentDefaultEnv=%s for evp proxy", t.conf.Hostname, t.conf.DefaultEnv)
 	req.Header.Set(header.ContainerID, containerID)
 	if needsAppKey {
 		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)

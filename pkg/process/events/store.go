@@ -80,7 +80,7 @@ type RingStore struct {
 }
 
 // readPositiveInt reads a config stored in the given key and asserts that it's a positive value
-func readPositiveInt(cfg config.ConfigReader, key string) (int, error) {
+func readPositiveInt(cfg config.Reader, key string) (int, error) {
 	i := cfg.GetInt(key)
 	if i <= 0 {
 		return 0, fmt.Errorf("invalid setting. %s must be > 0", key)
@@ -90,7 +90,7 @@ func readPositiveInt(cfg config.ConfigReader, key string) (int, error) {
 }
 
 // NewRingStore creates a new RingStore to store process events
-func NewRingStore(cfg config.ConfigReader, client statsd.ClientInterface) (Store, error) {
+func NewRingStore(cfg config.Reader, client statsd.ClientInterface) (Store, error) {
 	maxItems, err := readPositiveInt(cfg, "process_config.event_collection.store.max_items")
 	if err != nil {
 		return nil, err
@@ -169,7 +169,7 @@ func (s *RingStore) Push(e *model.ProcessEvent, done chan bool) error {
 }
 
 // Pull returns all events stored in the RingStore
-func (s *RingStore) Pull(ctx context.Context, timeout time.Duration) ([]*model.ProcessEvent, error) {
+func (s *RingStore) Pull(ctx context.Context, timeout time.Duration) ([]*model.ProcessEvent, error) { //nolint:revive // TODO fix revive unused-parameter
 	q := &pullRequest{
 		results: make(chan []*model.ProcessEvent),
 	}

@@ -15,6 +15,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,7 +25,7 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config ddconfig.ConfigReader) *ContainerCheck {
+func NewContainerCheck(config ddconfig.Reader) *ContainerCheck {
 	return &ContainerCheck{
 		config: config,
 	}
@@ -34,11 +35,11 @@ func NewContainerCheck(config ddconfig.ConfigReader) *ContainerCheck {
 type ContainerCheck struct {
 	sync.Mutex
 
-	config ddconfig.ConfigReader
+	config ddconfig.Reader
 
 	hostInfo          *HostInfo
-	containerProvider util.ContainerProvider
-	lastRates         map[string]*util.ContainerRateMetrics
+	containerProvider proccontainers.ContainerProvider
+	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	networkID         string
 
 	containerFailedLogLimit *util.LogLimit
@@ -47,8 +48,8 @@ type ContainerCheck struct {
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
-	c.containerProvider = util.GetSharedContainerProvider()
+func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
+	c.containerProvider = proccontainers.GetSharedContainerProvider()
 	c.hostInfo = info
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
@@ -84,6 +85,8 @@ func (c *ContainerCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the ContainerCheck to collect a list of running ctrList and the
 // stats for each container.
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	c.Lock()
 	defer c.Unlock()
@@ -92,7 +95,7 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	var err error
 	var containers []*model.Container
 	var pidToCid map[int]string
-	var lastRates map[string]*util.ContainerRateMetrics
+	var lastRates map[string]*proccontainers.ContainerRateMetrics
 	containers, lastRates, pidToCid, err = c.containerProvider.GetContainers(cacheValidityNoRT, c.lastRates)
 	if err == nil {
 		c.lastRates = lastRates
@@ -129,7 +132,7 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 
 	numContainers := float64(len(containers))
 	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{}, 1) //nolint:errcheck
-	log.Debugf("collected %d containers in %s", int(numContainers), time.Now().Sub(startTime))
+	log.Debugf("collected %d containers in %s", int(numContainers), time.Since(startTime))
 	return StandardRunResult(messages), nil
 }
 

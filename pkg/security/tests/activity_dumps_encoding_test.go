@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -53,11 +54,13 @@ func BenchmarkProtobufEncoding(b *testing.B) {
 
 func BenchmarkProtoJSONEncoding(b *testing.B) {
 	runEncoding(b, func(ad *dump.ActivityDump) (*bytes.Buffer, error) {
-		return ad.EncodeJSON()
+		return ad.EncodeJSON("")
 	})
 }
 
 func TestProtobufDecoding(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ad := getTestDataActivityDump(t)
 
 	out, err := ad.EncodeProtobuf()

@@ -44,16 +44,15 @@ func run(params *params) error {
 		meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
 	}
 
-	fmt.Fprintln(
+	fmt.Fprintf(
 		color.Output,
-		fmt.Sprintf("%s %s %s- Commit: %s - Serialization version: %s - Go version: %s",
-			params.binary,
-			color.CyanString(av.GetNumberAndPre()),
-			meta,
-			color.GreenString(version.Commit),
-			color.YellowString(serializer.AgentPayloadVersion),
-			color.RedString(runtime.Version()),
-		),
+		"%s %s %s- Commit: %s - Serialization version: %s - Go version: %s\n",
+		params.binary,
+		color.CyanString(av.GetNumberAndPre()),
+		meta,
+		color.GreenString(version.Commit),
+		color.YellowString(serializer.AgentPayloadVersion),
+		color.RedString(runtime.Version()),
 	)
 
 	return nil

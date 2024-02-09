@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,20 +20,21 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const defaultWaitInterval = time.Second
@@ -50,11 +51,12 @@ type dependencies struct {
 
 	CliParams *cliParams
 
-	Config   config.Component
-	Syscfg   sysprobeconfig.Component
-	Log      log.Component
-	Hostinfo hostinfo.Component
-	Checks   []types.CheckComponent `group:"check"`
+	Config       config.Component
+	Syscfg       sysprobeconfig.Component
+	Log          log.Component
+	Hostinfo     hostinfo.Component
+	WorkloadMeta workloadmeta.Component
+	Checks       []types.CheckComponent `group:"check"`
 }
 
 func nextGroupID() func() int32 {
@@ -83,15 +85,34 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			// Disable logging if `--json` is specified. This way the check command will output proper json.
 			if cliParams.checkOutputJSON {
-				bundleParams.LogParams = log.LogForOneShot(string(command.LoggerName), "off", true)
+				bundleParams.LogParams = logimpl.ForOneShot(string(command.LoggerName), "off", true)
 			}
 
 			return fxutil.OneShot(runCheckCmd,
 				fx.Supply(cliParams, bundleParams),
+				core.Bundle(),
+				// Provide the corresponding workloadmeta Params to configure the catalog
+				collectors.GetCatalog(),
+				fx.Provide(func(config config.Component) workloadmeta.Params {
 
-				fx.Invoke(command.SetHostMountEnv),
+					var catalog workloadmeta.AgentType
+					if config.GetBool("process_config.remote_workloadmeta") {
+						catalog = workloadmeta.Remote
+					} else {
+						catalog = workloadmeta.ProcessAgent
+					}
 
-				processComponent.Bundle,
+					return workloadmeta.Params{AgentType: catalog}
+				}),
+
+				// Tagger must be initialized after agent config has been setup
+				fx.Provide(func(c config.Component) tagger.Params {
+					if c.GetBool("process_config.remote_tagger") {
+						return tagger.NewNodeRemoteTaggerParams()
+					}
+					return tagger.NewTaggerParams()
+				}),
+				processComponent.Bundle(),
 			)
 		},
 		SilenceUsage: true,
@@ -104,46 +125,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func runCheckCmd(deps dependencies) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	command.SetHostMountEnv(deps.Log)
 
 	// Now that the logger is configured log host info
-	hostStatus := host.GetStatusInformation()
-	deps.Log.Infof("running on platform: %s", hostStatus.Platform)
+	deps.Log.Infof("running on platform: %s", hostMetadataUtils.GetPlatformName())
 	agentVersion, _ := version.Agent()
 	deps.Log.Infof("running version: %s", agentVersion.GetNumberAndPre())
-
-	// Start workload metadata store before tagger (used for containerCollection)
-	// TODO: (Components) Add to dependencies once workloadmeta is migrated to components
-	var workloadmetaCollectors workloadmeta.CollectorCatalog
-	if deps.Config.GetBool("process_config.remote_workloadmeta") {
-		workloadmetaCollectors = workloadmeta.RemoteCatalog
-	} else {
-		workloadmetaCollectors = workloadmeta.NodeAgentCatalog
-	}
-	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
-	store.Start(ctx)
-
-	// Tagger must be initialized after agent config has been setup
-	// TODO: (Components) Add to dependencies once tagger is migrated to components
-	var t tagger.Tagger
-	if deps.Config.GetBool("process_config.remote_tagger") {
-		options, err := remote.NodeAgentOptions()
-		if err != nil {
-			_ = deps.Log.Errorf("unable to configure the remote tagger: %s", err)
-		} else {
-			t = remote.NewTagger(options)
-		}
-	} else {
-		t = local.NewTagger(store)
-	}
-
-	tagger.SetDefaultTagger(t)
-	err := tagger.Init(ctx)
-	if err != nil {
-		_ = deps.Log.Errorf("failed to start the tagger: %s", err)
-	}
-	defer tagger.Stop() //nolint:errcheck
 
 	cleanups := make([]func(), 0)
 	defer func() {
@@ -158,20 +145,22 @@ func runCheckCmd(deps dependencies) error {
 
 		names = append(names, ch.Name())
 
-		_, processModuleEnabled := deps.Syscfg.Object().EnabledModules[sysconfig.ProcessModule]
+		_, processModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
 		cfg := &checks.SysProbeConfig{
-			MaxConnsPerMessage:   deps.Syscfg.Object().MaxConnsPerMessage,
-			SystemProbeAddress:   deps.Syscfg.Object().SocketAddress,
+			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
+			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
 			ProcessModuleEnabled: processModuleEnabled,
+			GRPCServerEnabled:    deps.Syscfg.SysProbeObject().GRPCServerEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {
 			continue
 		}
 
-		if err = ch.Init(cfg, deps.Hostinfo.Object()); err != nil {
+		if err := ch.Init(cfg, deps.Hostinfo.Object(), true); err != nil {
 			return err
 		}
+
 		cleanups = append(cleanups, ch.Cleanup)
 		return runCheck(deps.Log, deps.CliParams, ch)
 	}

@@ -15,23 +15,22 @@ package connectivity
 import (
 	"crypto/tls"
 	"fmt"
-	"io"
 	"net/http/httptrace"
 	"strings"
-
-	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// createDiagnoseTrace creates a httptrace.ClientTrace containing functions that display
+// createDiagnoseTraces creates a httptrace.ClientTrace containing functions that collects
 // additional information when a http.Client is sending requests
 // During a request, the http.Client will call the functions of the ClientTrace at specific moments
 // This is useful to get extra information about what is happening and if there are errors during
 // connection establishment, DNS resolution or TLS handshake for instance
-func createDiagnoseTrace(writer io.Writer) *httptrace.ClientTrace {
+func createDiagnoseTraces(httpTraces *[]string) *httptrace.ClientTrace {
 
-	hooks := &connectivityHooks{w: writer}
+	hooks := &httpTraceContext{
+		httpTraces: httpTraces,
+	}
 
 	return &httptrace.ClientTrace{
 
@@ -53,45 +52,34 @@ func createDiagnoseTrace(writer io.Writer) *httptrace.ClientTrace {
 	}
 }
 
-var (
-	// color functions are defined here to keep consistency when displaying information as it might be
-	// easier to read all the information about a specific section when the information concerning this
-	// section are colored with the same color.
-	dnsColorFunc  = color.MagentaString
-	tlsColorFunc  = color.YellowString
-	hintColorFunc = color.CyanString
-)
-
-// writeWrapper is used to pass a io.Writer variable to the hooks so that they
-// can output into a terminal if the command is used via CLI or into a buffer
-// when requesting a flare
-type connectivityHooks struct {
-	w io.Writer
+// httpTraceContext collect reported HTTP traces into its holding array
+// to be retrieved later by client
+type httpTraceContext struct {
+	httpTraces *[]string
 }
 
 // connectStartHook is called when the http.Client is establishing a new connection to 'addr'
 // However, it is not called when a connection is reused (see gotConnHook)
-func (writer *connectivityHooks) connectStartHook(network, addr string) {
-	fmt.Fprintf(writer.w, "~~~ Starting a new connection ~~~\n")
+func (c *httpTraceContext) connectStartHook(_, _ string) {
+	*(c.httpTraces) = append(*(c.httpTraces), "...Starting a new connection")
 }
 
 // connectDoneHook is called when the new connection to 'addr' completes
-// It displays the error message if there is one and indicates if this step was successful
-func (writer *connectivityHooks) connectDoneHook(network, addr string, err error) {
-	statusString := color.GreenString("OK")
+// It collects the error message if there is one and indicates if this step was successful
+func (c *httpTraceContext) connectDoneHook(_, _ string, err error) {
 	if err != nil {
-		statusString = color.RedString("ERROR")
-		fmt.Fprintf(writer.w, "Unable to connect to the endpoint : %v\n", scrubber.ScrubLine(err.Error()))
+		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to connect to the endpoint: %v", scrubber.ScrubLine(err.Error())))
+	} else {
+		*(c.httpTraces) = append(*(c.httpTraces), "...Connection to the endpoint: OK")
 	}
-	fmt.Fprintf(writer.w, "* Connection to the endpoint [%v]\n\n", statusString)
 }
 
 // getConnHook is called before getting a new connection.
 // This is called before :
 //   - Creating a new connection 		: getConnHook ---> connectStartHook
 //   - Retrieving an existing connection : getConnHook ---> gotConnHook
-func (writer *connectivityHooks) getConnHook(hostPort string) {
-	fmt.Fprintf(writer.w, "=== Retrieving or creating a new connection ===\n")
+func (c *httpTraceContext) getConnHook(_ string) {
+	*(c.httpTraces) = append(*(c.httpTraces), "...Retrieving or creating a new connection")
 }
 
 // gotConnHook is called after a successful connection is obtained.
@@ -99,53 +87,51 @@ func (writer *connectivityHooks) getConnHook(hostPort string) {
 //   - New connection created 		: connectDoneHook ---> gotDoneHook
 //   - Previous connection retrieved : getConnHook     ---> gotConnHook
 //
-// This function only displays when a connection is retrieved.
+// This function only collects information when a connection is retrieved.
 // Information about new connection are reported by connectDoneHook
-func (writer *connectivityHooks) gotConnHook(gci httptrace.GotConnInfo) {
+func (c *httpTraceContext) gotConnHook(gci httptrace.GotConnInfo) {
 	if gci.Reused {
-		fmt.Fprint(writer.w, hintColorFunc("Reusing a previous connection that was idle for %v\n", gci.IdleTime))
+		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Reusing a previous connection that was idle for %v", gci.IdleTime))
 	}
 }
 
 // dnsStartHook is called when starting the DNS lookup
-func (writer *connectivityHooks) dnsStartHook(di httptrace.DNSStartInfo) {
-	fmt.Fprint(writer.w, dnsColorFunc("--- Starting DNS lookup to resolve '%v' ---\n", di.Host))
+func (c *httpTraceContext) dnsStartHook(di httptrace.DNSStartInfo) {
+	*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Starting DNS lookup to resolve %v", di.Host))
 }
 
 // dnsDoneHook is called after the DNS lookup
-// It displays the error message if there is one and indicates if this step was successful
-func (writer *connectivityHooks) dnsDoneHook(di httptrace.DNSDoneInfo) {
-	statusString := color.GreenString("OK")
+// It collects the error message if there is one and indicates if this step was successful
+func (c *httpTraceContext) dnsDoneHook(di httptrace.DNSDoneInfo) {
 	if di.Err != nil {
-		statusString = color.RedString("ERROR")
-		fmt.Fprint(writer.w, dnsColorFunc("Unable to resolve the address : %v\n", scrubber.ScrubLine(di.Err.Error())))
+		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to resolve the address: %v", scrubber.ScrubLine(di.Err.Error())))
+	} else {
+		*(c.httpTraces) = append(*(c.httpTraces), "...DNS Lookup: OK")
 	}
-	fmt.Fprintf(writer.w, "* %v [%v]\n\n", dnsColorFunc("DNS Lookup"), statusString)
 }
 
 // tlsHandshakeStartHook is called when starting the TLS Handshake
-func (writer *connectivityHooks) tlsHandshakeStartHook() {
-	fmt.Fprint(writer.w, tlsColorFunc("### Starting TLS Handshake ###\n"))
+func (c *httpTraceContext) tlsHandshakeStartHook() {
+	*(c.httpTraces) = append(*(c.httpTraces), "...Starting TLS Handshake")
 }
 
 // tlsHandshakeDoneHook is called after the TLS Handshake
-// It displays the error message if there is one and indicates if this step was successful
-func (writer *connectivityHooks) tlsHandshakeDoneHook(cs tls.ConnectionState, err error) {
-	statusString := color.GreenString("OK")
+// It collects the error message if there is one and indicates if this step was successful
+func (c *httpTraceContext) tlsHandshakeDoneHook(_ tls.ConnectionState, err error) {
 	if err != nil {
-		statusString = color.RedString("ERROR")
-		fmt.Fprint(writer.w, tlsColorFunc("Unable to achieve the TLS Handshake : %v\n", scrubber.ScrubLine(err.Error())))
-
-		writer.getTLSHandshakeHints(err)
+		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to achieve the TLS Handshake: %v", scrubber.ScrubLine(err.Error())))
+		c.getTLSHandshakeHints(err)
+	} else {
+		*(c.httpTraces) = append(*(c.httpTraces), "...TLS Handshake: OK")
 	}
-	fmt.Fprintf(writer.w, "* %v [%v]\n\n", tlsColorFunc("TLS Handshake"), statusString)
 }
 
 // getTLSHandshakeHints is called when the TLS handshake fails.
-// It aims to give more context on why the handshake failed when the error displayed is not clear enough.
-func (writer *connectivityHooks) getTLSHandshakeHints(err error) {
+// It aims to give more context on why the handshake failed when the error is not clear enough.
+func (c *httpTraceContext) getTLSHandshakeHints(err error) {
 	if strings.Contains(err.Error(), "first record does not look like a TLS handshake") {
-		fmt.Fprintln(writer.w, hintColorFunc("Hint: you are trying to communicate using HTTPS with an endpoint that does not seem to be configured for HTTPS."+
-			" If you are using a proxy, please verify that it is configured for HTTPS connections."))
+		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...%s %s",
+			"Hint: you are trying to communicate using HTTPS with an endpoint that does not seem to be configured for HTTPS.",
+			"If you are using a proxy, please verify that it is configured for HTTPS connections."))
 	}
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package profiling interacts with internal profiling
 package profiling
 
 import (
@@ -42,15 +43,19 @@ func Start(settings Settings) error {
 	}
 
 	options := []profiler.Option{
+		profiler.WithURL(settings.ProfilingURL),
 		profiler.WithEnv(settings.Env),
 		profiler.WithService(settings.Service),
-		profiler.WithURL(settings.ProfilingURL),
 		profiler.WithPeriod(settings.Period),
 		profiler.WithProfileTypes(types...),
 		profiler.CPUDuration(settings.CPUDuration),
 		profiler.WithDeltaProfiles(settings.WithDeltaProfiles),
 		profiler.WithTags(settings.Tags...),
 		profiler.WithAPIKey(""), // to silence the error log about `DD_API_KEY`
+	}
+
+	if settings.Socket != "" {
+		options = append(options, profiler.WithUDS(settings.Socket))
 	}
 
 	// If block or mutex profiling was configured via runtime configuration, pass current
@@ -61,6 +66,14 @@ func Start(settings Settings) error {
 	}
 	if settings.BlockProfileRate > 0 {
 		options = append(options, profiler.BlockProfileRate(settings.BlockProfileRate))
+	}
+
+	if len(settings.CustomAttributes) > 0 {
+		customContextTags := make([]string, len(settings.CustomAttributes))
+		for _, customAttribute := range settings.CustomAttributes {
+			customContextTags = append(customContextTags, "ddprof.custom_ctx:"+customAttribute)
+		}
+		options = append(options, profiler.WithTags(customContextTags...))
 	}
 
 	err := profiler.Start(options...)

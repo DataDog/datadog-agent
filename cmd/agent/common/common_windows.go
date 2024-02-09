@@ -13,14 +13,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
 
 	"github.com/cihub/seelog"
 )
 
+// ServiceName is the name of the Windows Service the agent runs as
+const ServiceName = "DatadogAgent"
+
 func init() {
 	_, err := winutil.GetProgramDataDir()
 	if err != nil {
-		winutil.LogEventViewer(config.ServiceName, 0x8000000F, path.DefaultConfPath)
+		winutil.LogEventViewer(ServiceName, messagestrings.MSG_WARNING_PROGRAMDATA_ERROR, path.DefaultConfPath)
 	}
 }
 
@@ -45,7 +49,7 @@ func CheckAndUpgradeConfig() error {
 		return nil
 	}
 	config.Datadog.AddConfigPath(path.DefaultConfPath)
-	_, err := config.Load()
+	_, err := config.LoadWithoutSecret()
 	if err == nil {
 		// was able to read config, check for api key
 		if config.Datadog.GetString("api_key") != "" {
@@ -53,5 +57,10 @@ func CheckAndUpgradeConfig() error {
 			return nil
 		}
 	}
-	return ImportConfig(path.DefaultConfPath, path.DefaultConfPath, false)
+	err = ImportConfig(path.DefaultConfPath, path.DefaultConfPath, false)
+	if err != nil {
+		winutil.LogEventViewer(ServiceName, messagestrings.MSG_WARN_CONFIGUPGRADE_FAILED, err.Error())
+		return err
+	}
+	return nil
 }

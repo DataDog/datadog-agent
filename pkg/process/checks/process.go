@@ -13,7 +13,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/gopsutil/cpu"
+	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
@@ -35,36 +36,24 @@ const (
 	configScrubArgs            = configPrefix + "scrub_args"
 	configStripProcArgs        = configPrefix + "strip_proc_arguments"
 	configDisallowList         = configPrefix + "blacklist_patterns"
+	configIgnoreZombies        = configPrefix + "ignore_zombie_processes"
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
-	var extractors []metadata.Extractor
-	var wlmServer *workloadmeta.GRPCServer
-	if workloadmeta.Enabled(config) {
-		wlmExtractor := workloadmeta.NewWorkloadMetaExtractor(config)
-		srv := workloadmeta.NewGRPCServer(config, wlmExtractor)
-		err := srv.Start()
-		if err != nil {
-			log.Error("Failed to start the workload meta gRPC server:", err)
-		} else {
-			extractors = append(extractors, wlmExtractor)
-			wlmServer = srv
-		}
+func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
+	check := &ProcessCheck{
+		config:        config,
+		scrubber:      procutil.NewDefaultDataScrubber(),
+		lookupIdProbe: NewLookupIDProbe(config),
 	}
 
-	return &ProcessCheck{
-		config:             config,
-		scrubber:           procutil.NewDefaultDataScrubber(),
-		lookupIdProbe:      NewLookupIdProbe(config),
-		extractors:         extractors,
-		workloadMetaServer: wlmServer,
-	}
+	return check
 }
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 const (
+	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryHint int32 = 1 << iota // 1
 )
 
@@ -72,7 +61,7 @@ const (
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
-	config ddconfig.ConfigReader
+	config ddconfig.Reader
 
 	probe procutil.Probe
 	// scrubber is a DataScrubber to hide command line sensitive words
@@ -81,13 +70,16 @@ type ProcessCheck struct {
 	// disallowList to hide processes
 	disallowList []*regexp.Regexp
 
+	// determine if zombies process will be collected
+	ignoreZombieProcesses bool
+
 	hostInfo                   *HostInfo
 	lastCPUTime                cpu.TimesStat
 	lastProcs                  map[int32]*procutil.Process
 	lastRun                    time.Time
-	containerProvider          util.ContainerProvider
-	lastContainerRates         map[string]*util.ContainerRateMetrics
-	realtimeLastContainerRates map[string]*util.ContainerRateMetrics
+	containerProvider          proccontainers.ContainerProvider
+	lastContainerRates         map[string]*proccontainers.ContainerRateMetrics
+	realtimeLastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	networkID                  string
 
 	realtimeLastCPUTime cpu.TimesStat
@@ -111,18 +103,23 @@ type ProcessCheck struct {
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 
+	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe
 
-	extractors         []metadata.Extractor
-	workloadMetaServer *workloadmeta.GRPCServer
+	extractors []metadata.Extractor
+
+	workloadMetaExtractor *workloadmeta.WorkloadMetaExtractor
+	workloadMetaServer    *workloadmeta.GRPCServer
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
+func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
-	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
-	p.containerProvider = util.GetSharedContainerProvider()
+	p.probe = newProcessProbe(p.config,
+		procutil.WithPermission(syscfg.ProcessModuleEnabled),
+		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
+	p.containerProvider = proccontainers.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
 
@@ -146,7 +143,20 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 
 	p.disallowList = initDisallowList(p.config)
 
+	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
+
 	p.initConnRates()
+
+	if !oneShot && workloadmeta.Enabled(p.config) {
+		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
+		p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
+		err = p.workloadMetaServer.Start()
+		if err != nil {
+			return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
+		} else { //nolint:revive // TODO(PROC) Fix revive linter
+			p.extractors = append(p.extractors, p.workloadMetaExtractor)
+		}
+	}
 	return nil
 }
 
@@ -218,10 +228,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return nil, err
 	}
 
-	for _, extractor := range p.extractors {
-		extractor.Extract(procs)
-	}
-
 	// stores lastPIDs to be used by RTProcess
 	p.lastPIDs = p.lastPIDs[:0]
 	for pid := range procs {
@@ -234,7 +240,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	var containers []*model.Container
 	var pidToCid map[int]string
-	var lastContainerRates map[string]*util.ContainerRateMetrics
+	var lastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	cacheValidity := cacheValidityNoRT
 	if collectRealTime {
 		cacheValidity = cacheValidityRT
@@ -245,6 +251,15 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		p.lastContainerRates = lastContainerRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)
+	}
+
+	// Notify the workload meta extractor that the mapping between pid and cid has changed
+	if p.workloadMetaExtractor != nil {
+		p.workloadMetaExtractor.SetLastPidToCid(pidToCid)
+	}
+
+	for _, extractor := range p.extractors {
+		extractor.Extract(procs)
 	}
 
 	// Keep track of containers addresses
@@ -268,7 +283,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	p.checkCount++
 
 	connsRates := p.getLastConnRates()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -312,7 +327,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
 	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
-	log.Debugf("collected processes in %s", time.Now().Sub(start))
+	log.Debugf("collected processes in %s", time.Since(start))
 
 	return result, nil
 }
@@ -421,12 +436,14 @@ func fmtProcesses(
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connRates ProcessConnRates,
+	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe,
+	zombiesIgnored bool,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
 	for _, fp := range procs {
-		if skipProcess(disallowList, fp, lastProcs) {
+		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
 			continue
 		}
 
@@ -472,6 +489,7 @@ func formatCommand(fp *procutil.Process) *model.Command {
 		OnDisk: false, // TODO
 		Ppid:   fp.Ppid,
 		Exe:    fp.Exe,
+		Comm:   fp.Comm,
 	}
 }
 
@@ -569,6 +587,7 @@ func skipProcess(
 	disallowList []*regexp.Regexp,
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
+	zombiesIgnored bool,
 ) bool {
 	cl := fp.Cmdline
 	if len(cl) == 0 {
@@ -581,6 +600,11 @@ func skipProcess(
 	if _, ok := lastProcs[fp.Pid]; !ok {
 		// Skipping any processes that didn't exist in the previous run.
 		// This means short-lived processes (<2s) will never be captured.
+		return true
+	}
+	// Skipping zombie processes (defined in docs as Status = "Z") if the config
+	// for skipping zombie processes is on.
+	if zombiesIgnored && fp.Stats != nil && fp.Stats.Status == "Z" {
 		return true
 	}
 	return false
@@ -619,7 +643,7 @@ func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process,
 	}
 }
 
-func initScrubber(config ddconfig.ConfigReader, scrubber *procutil.DataScrubber) {
+func initScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
 	// Enable/Disable the DataScrubber to obfuscate process args
 	if config.IsSet(configScrubArgs) {
 		scrubber.Enabled = config.GetBool(configScrubArgs)
@@ -643,7 +667,7 @@ func initScrubber(config ddconfig.ConfigReader, scrubber *procutil.DataScrubber)
 	}
 }
 
-func initDisallowList(config ddconfig.ConfigReader) []*regexp.Regexp {
+func initDisallowList(config ddconfig.Reader) []*regexp.Regexp {
 	var disallowList []*regexp.Regexp
 	// A list of regex patterns that will exclude a process if matched.
 	if config.IsSet(configDisallowList) {

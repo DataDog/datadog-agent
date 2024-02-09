@@ -19,7 +19,7 @@ int __attribute__((always_inline)) trace__sys_rmdir(u8 async, int flags) {
     return 0;
 }
 
-SYSCALL_KPROBE0(rmdir) {
+HOOK_SYSCALL_ENTRY0(rmdir) {
     return trace__sys_rmdir(SYNC_SYSCALL, 0);
 }
 
@@ -33,9 +33,8 @@ int hook_do_rmdir(ctx_t *ctx) {
 }
 
 // security_inode_rmdir is shared between rmdir and unlink syscalls
-// fentry blocked by: tail call
-SEC("kprobe/security_inode_rmdir")
-int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
+HOOK_ENTRY("security_inode_rmdir")
+int hook_security_inode_rmdir(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;
@@ -51,9 +50,9 @@ int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
             }
 
             // we resolve all the information before the file is actually removed
-            dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+            dentry = (struct dentry *)CTX_PARM2(ctx);
             set_file_inode(dentry, &syscall->rmdir.file, 1);
-            fill_file_metadata(dentry, &syscall->rmdir.file.metadata);
+            fill_file(dentry, &syscall->rmdir.file);
 
             // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
             key = syscall->rmdir.file.path_key;
@@ -70,9 +69,9 @@ int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
             }
 
             // we resolve all the information before the file is actually removed
-            dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+            dentry = (struct dentry *) CTX_PARM2(ctx);
             set_file_inode(dentry, &syscall->unlink.file, 1);
-            fill_file_metadata(dentry, &syscall->unlink.file.metadata);
+            fill_file(dentry, &syscall->unlink.file);
 
             // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
             key = syscall->unlink.file.path_key;
@@ -100,7 +99,7 @@ int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
 
-        resolve_dentry(ctx, DR_KPROBE);
+        resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
         // if the tail call fails, we need to pop the syscall cache entry
         pop_syscall_with(rmdir_predicate);
@@ -108,9 +107,8 @@ int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/dr_security_inode_rmdir_callback")
-int __attribute__((always_inline)) kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("dr_security_inode_rmdir_callback")
+int tail_call_target_dr_security_inode_rmdir_callback(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;
@@ -155,14 +153,14 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     return 0;
 }
 
-SEC("kretprobe/do_rmdir")
-int kretprobe_do_rmdir(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_EXIT("do_rmdir")
+int rethook_do_rmdir(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 2);
     return sys_rmdir_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(rmdir) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(rmdir) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_rmdir_ret(ctx, retval);
 }
 

@@ -28,7 +28,7 @@ spec:
       hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.43.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -37,14 +37,13 @@ spec:
               name: dogstatsdport
               protocol: UDP
           env:
-            # Needs to be removed when Agent N-2 is built with Golang 1.17
-            - name: GODEBUG
-              value: x509ignoreCN=0
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "true"
             - name: DD_AUTH_TOKEN_FILE_PATH
               value: /etc/datadog-agent/auth/token
             - name: KUBERNETES
@@ -59,6 +58,8 @@ spec:
               value: "8125"
             - name: DD_DOGSTATSD_NON_LOCAL_TRAFFIC
               value: "true"
+            - name: DD_DOGSTATSD_TAG_CARDINALITY
+              value: "low"
             - name: DD_CLUSTER_AGENT_ENABLED
               value: "true"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
@@ -86,39 +87,50 @@ spec:
               value: "clusterchecks endpointschecks"
             - name: DD_IGNORE_AUTOCONF
               value: "kubernetes_state"
+            - name: DD_CONTAINER_LIFECYCLE_ENABLED
+              value: "true"
+            - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
+              value: "true"
             - name: DD_EXPVAR_PORT
               value: "6000"
+            - name: DD_COMPLIANCE_CONFIG_ENABLED
+              value: "true"
+            - name: DD_CONTAINER_IMAGE_ENABLED
+              value: "true"
           volumeMounts:
+            - name: logdatadog
+              mountPath: /var/log/datadog
+              readOnly: false # Need RW to write logs
             - name: installinfo
               subPath: install_info
               mountPath: /etc/datadog-agent/install_info
               readOnly: true
-            - name: logdatadog
-              mountPath: /var/log/datadog
             - name: tmpdir
               mountPath: /tmp
-              readOnly: false
+              readOnly: false # Need RW to write to /tmp directory
             - name: os-release-file
               mountPath: /host/etc/os-release
-              mountPropagation: None
               readOnly: true
             - name: config
               mountPath: /etc/datadog-agent
+              readOnly: false # Need RW to mount to config path
             - name: auth-token
               mountPath: /etc/datadog-agent/auth
-              readOnly: false
+              readOnly: false # Need RW to write auth token
             - name: runtimesocketdir
               mountPath: /host/var/run
               mountPropagation: None
               readOnly: true
             - name: dsdsocket
               mountPath: /var/run/datadog
+              readOnly: false
             - name: sysprobe-socket-dir
               mountPath: /var/run/sysprobe
               readOnly: true
             - name: sysprobe-config
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
+              readOnly: true
             - name: procdir
               mountPath: /host/proc
               mountPropagation: None
@@ -130,6 +142,7 @@ spec:
             - name: pointerdir
               mountPath: /opt/datadog-agent/run
               mountPropagation: None
+              readOnly: false # Need RW for logs pointer
             - name: logpodpath
               mountPath: /var/log/pods
               mountPropagation: None
@@ -163,7 +176,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: trace-agent
-          image: "gcr.io/datadoghq/agent:7.43.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           command: ["trace-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -173,14 +186,13 @@ spec:
               name: traceport
               protocol: TCP
           env:
-            # Needs to be removed when Agent N-2 is built with Golang 1.17
-            - name: GODEBUG
-              value: x509ignoreCN=0
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "true"
             - name: DD_AUTH_TOKEN_FILE_PATH
               value: /etc/datadog-agent/auth/token
             - name: KUBERNETES
@@ -213,6 +225,10 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
+              readOnly: true
+            - name: logdatadog
+              mountPath: /var/log/datadog
+              readOnly: false # Need RW to write logs
             - name: auth-token
               mountPath: /etc/datadog-agent/auth
               readOnly: true
@@ -224,13 +240,12 @@ spec:
               mountPath: /host/sys/fs/cgroup
               mountPropagation: None
               readOnly: true
-            - name: logdatadog
-              mountPath: /var/log/datadog
             - name: tmpdir
               mountPath: /tmp
-              readOnly: false
+              readOnly: false # Need RW for tmp directory
             - name: dsdsocket
               mountPath: /var/run/datadog
+              readOnly: false # Need RW for UDS DSD socket
             - name: runtimesocketdir
               mountPath: /host/var/run
               mountPropagation: None
@@ -242,19 +257,18 @@ spec:
               port: 8126
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.43.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml"]
           resources: {}
           env:
-            # Needs to be removed when Agent N-2 is built with Golang 1.17
-            - name: GODEBUG
-              value: x509ignoreCN=0
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "true"
             - name: DD_AUTH_TOKEN_FILE_PATH
               value: /etc/datadog-agent/auth/token
             - name: KUBERNETES
@@ -287,17 +301,21 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
-            - name: auth-token
-              mountPath: /etc/datadog-agent/auth
               readOnly: true
             - name: logdatadog
               mountPath: /var/log/datadog
+              readOnly: false # Need RW to write logs
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
+            - name: dsdsocket
+              mountPath: /var/run/datadog
+              readOnly: false # Need RW for UDS DSD socket
             - name: tmpdir
               mountPath: /tmp
-              readOnly: false
+              readOnly: false # Need RW to write to tmp directory
             - name: os-release-file
               mountPath: /host/etc/os-release
-              mountPropagation: None
               readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
@@ -314,17 +332,15 @@ spec:
               mountPath: /host/proc
               mountPropagation: None
               readOnly: true
-            - name: dsdsocket
-              mountPath: /var/run/datadog
-              readOnly: true
             - name: sysprobe-socket-dir
               mountPath: /var/run/sysprobe
               readOnly: true
             - name: sysprobe-config
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
+              readOnly: true
         - name: system-probe
-          image: "gcr.io/datadoghq/agent:7.43.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -344,14 +360,13 @@ spec:
               localhostProfile: system-probe
           command: ["/opt/datadog-agent/embedded/bin/system-probe", "--config=/etc/datadog-agent/system-probe.yaml"]
           env:
-            # Needs to be removed when Agent N-2 is built with Golang 1.17
-            - name: GODEBUG
-              value: x509ignoreCN=0
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "true"
             - name: DD_AUTH_TOKEN_FILE_PATH
               value: /etc/datadog-agent/auth/token
             - name: KUBERNETES
@@ -369,26 +384,30 @@ spec:
               readOnly: true
             - name: logdatadog
               mountPath: /var/log/datadog
+              readOnly: false # Need RW to write logs
             - name: tmpdir
               mountPath: /tmp
-              readOnly: false
+              readOnly: false # Need RW for tmp directory to instantiate self tests
             - name: debugfs
               mountPath: /sys/kernel/debug
               mountPropagation: None
+              readOnly: false # Need RW for kprobe_events
             - name: config
               mountPath: /etc/datadog-agent
+              readOnly: true
             - name: sysprobe-config
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
+              readOnly: true
             - name: sysprobe-socket-dir
               mountPath: /var/run/sysprobe
+              readOnly: false # Need RW for sys-probe socket
             - name: procdir
               mountPath: /host/proc
               mountPropagation: None
               readOnly: true
             - name: os-release-file
               mountPath: /host/etc/os-release
-              mountPropagation: None
               readOnly: true
             - name: etc-redhat-release
               mountPath: /host/etc/redhat-release
@@ -400,7 +419,7 @@ spec:
               mountPath: /host/etc/lsb-release
               readOnly: true
         - name: security-agent
-          image: "gcr.io/datadoghq/agent:7.43.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -408,14 +427,13 @@ spec:
           command: ["security-agent", "start", "-c=/etc/datadog-agent/datadog.yaml"]
           resources: {}
           env:
-            # Needs to be removed when Agent N-2 is built with Golang 1.17
-            - name: GODEBUG
-              value: x509ignoreCN=0
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "true"
             - name: DD_AUTH_TOKEN_FILE_PATH
               value: /etc/datadog-agent/auth/token
             - name: KUBERNETES
@@ -452,20 +470,21 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
-            - name: auth-token
-              mountPath: /etc/datadog-agent/auth
               readOnly: true
             - name: logdatadog
               mountPath: /var/log/datadog
-            - name: tmpdir
-              mountPath: /tmp
-              readOnly: false
+              readOnly: false # Need RW to write logs
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
             - name: dsdsocket
               mountPath: /var/run/datadog
-              readOnly: true
+              readOnly: false # Need RW for UDS DSD socket
+            - name: tmpdir
+              mountPath: /tmp
+              readOnly: false # Need RW to write to tmp directory
             - name: os-release-file
               mountPath: /host/etc/os-release
-              mountPropagation: None
               readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
@@ -492,9 +511,10 @@ spec:
             - name: sysprobe-config
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
+              readOnly: true
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.43.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -502,18 +522,23 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /opt/datadog-agent
+              readOnly: false # Need RW for config path
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.43.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
-          command: ["bash", "-c"]
+          command:
+            - bash
+            - -c
           args:
             - for script in $(find /etc/cont-init.d/ -type f -name '*.sh' | sort) ; do bash $script ; done
           volumeMounts:
             - name: logdatadog
               mountPath: /var/log/datadog
+              readOnly: false # Need RW to write logs
             - name: config
               mountPath: /etc/datadog-agent
+              readOnly: false # Need RW for config path
             - name: procdir
               mountPath: /host/proc
               mountPropagation: None
@@ -525,15 +550,15 @@ spec:
             - name: sysprobe-config
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
+              readOnly: true
           env:
-            # Needs to be removed when Agent N-2 is built with Golang 1.17
-            - name: GODEBUG
-              value: x509ignoreCN=0
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "true"
             - name: DD_AUTH_TOKEN_FILE_PATH
               value: /etc/datadog-agent/auth/token
             - name: KUBERNETES
@@ -544,7 +569,7 @@ spec:
                   fieldPath: status.hostIP
           resources: {}
         - name: seccomp-setup
-          image: "gcr.io/datadoghq/agent:7.43.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           command:
             - cp
@@ -553,9 +578,11 @@ spec:
           volumeMounts:
             - name: datadog-agent-security
               mountPath: /etc/config
+              readOnly: true
             - name: seccomp-root
               mountPath: /host/var/lib/kubelet/seccomp
               mountPropagation: None
+              readOnly: false # Need RW for seccomp-root
           resources: {}
       volumes:
         - name: auth-token
@@ -638,6 +665,7 @@ spec:
       tolerations:
       affinity: {}
       serviceAccountName: "datadog"
+      automountServiceAccountToken: true
       nodeSelector:
         kubernetes.io/os: linux
   updateStrategy:

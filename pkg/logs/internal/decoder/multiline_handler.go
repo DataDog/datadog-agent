@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -21,7 +22,7 @@ const linesCombinedTelemetryMetricName = "datadog.logs_agent.auto_multi_line_lin
 // MultiLineHandler makes sure that multiple lines from a same content
 // are properly put together.
 type MultiLineHandler struct {
-	outputFn          func(*Message)
+	outputFn          func(*message.Message)
 	newContentRe      *regexp.Regexp
 	buffer            *bytes.Buffer
 	flushTimeout      time.Duration
@@ -38,7 +39,7 @@ type MultiLineHandler struct {
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
-func NewMultiLineHandler(outputFn func(*Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool) *MultiLineHandler {
+func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool) *MultiLineHandler {
 	return &MultiLineHandler{
 		outputFn:          outputFn,
 		newContentRe:      newContentRe,
@@ -68,7 +69,7 @@ func (h *MultiLineHandler) flush() {
 // It also makes sure that the content will never exceed the limit
 // and that the length of the lines is properly tracked
 // so that the agent restarts tailing from the right place.
-func (h *MultiLineHandler) process(message *Message) {
+func (h *MultiLineHandler) process(message *message.Message) {
 	if h.flushTimer != nil && h.buffer.Len() > 0 {
 		// stop the flush timer, as we now have data
 		if !h.flushTimer.Stop() {
@@ -76,7 +77,7 @@ func (h *MultiLineHandler) process(message *Message) {
 		}
 	}
 
-	if h.newContentRe.Match(message.Content) {
+	if h.newContentRe.Match(message.GetContent()) {
 		h.countInfo.Add(1)
 		// the current line is part of a new message,
 		// send the buffer
@@ -89,7 +90,7 @@ func (h *MultiLineHandler) process(message *Message) {
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
 	h.linesLen += message.RawDataLen
-	h.timestamp = message.Timestamp
+	h.timestamp = message.ParsingExtra.Timestamp
 	h.status = message.Status
 	h.linesCombined++
 
@@ -106,7 +107,7 @@ func (h *MultiLineHandler) process(message *Message) {
 		h.buffer.Write(truncatedFlag)
 	}
 
-	h.buffer.Write(message.Content)
+	h.buffer.Write(message.GetContent())
 
 	if h.buffer.Len() >= h.lineLimit {
 		// the multiline message is too long, it needs to be cut off and send,

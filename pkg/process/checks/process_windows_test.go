@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/gopsutil/cpu"
+	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -21,14 +21,14 @@ import (
 func TestPerfCountersConfigSetting(t *testing.T) {
 	t.Run("use toolhelp API", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.windows.use_perf_counters", false)
+		cfg.SetWithoutSource("process_config.windows.use_perf_counters", false)
 		probe := newProcessProbe(cfg, procutil.WithPermission(false))
 		assert.IsType(t, procutil.NewWindowsToolhelpProbe(), probe)
 	})
 
 	t.Run("use PDH api", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.windows.use_perf_counters", true)
+		cfg.SetWithoutSource("process_config.windows.use_perf_counters", true)
 		probe := newProcessProbe(cfg, procutil.WithPermission(false))
 		assert.IsType(t, procutil.NewProcessProbe(), probe)
 	})

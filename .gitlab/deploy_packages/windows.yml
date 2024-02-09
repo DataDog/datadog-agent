@@ -1,0 +1,69 @@
+---
+#
+# Agent v6
+#
+deploy_packages_windows-x64-6:
+  rules:
+    !reference [.on_deploy_a6]
+  stage: deploy_packages
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["arch:amd64"]
+  needs: ["windows_msi_x64-a6"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD
+      --recursive
+      --exclude "*"
+      --include "datadog-agent-6*.msi"
+      --include "datadog-agent-6*.debug.zip"
+      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/ || true
+
+#
+# Agent v7
+#
+deploy_packages_windows-x64-7:
+  rules:
+    !reference [.on_deploy_a7]
+  stage: deploy_packages
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["arch:amd64"]
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD
+      --recursive
+      --exclude "*"
+      --include "datadog-agent-7*.msi"
+      --include "datadog-agent-7*.debug.zip"
+      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/ || true
+
+deploy_staging_windows_tags-7:
+  rules:
+    !reference [.on_deploy_stable_or_beta_repo_branch_a7]
+  stage: deploy_packages
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["arch:amd64"]
+  needs: ["windows_msi_and_bosh_zip_x64-a7", "windows_zip_agent_binaries_x64-a7"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    # used for cloudfoundry bosh
+    - $S3_CP_CMD
+      --recursive
+      --exclude "*"
+      --include "datadog-agent-7.*.zip"
+      $OMNIBUS_PACKAGE_DIR
+      $S3_DSD6_URI/windows/agent7/bosh/
+      --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+      full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    # used for cloudfoundry buildpack and azure-app-services
+    - $S3_CP_CMD
+      --recursive
+      --exclude "*"
+      --include "agent-binaries-7.*.zip"
+      $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/buildpack/
+      --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+      full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+

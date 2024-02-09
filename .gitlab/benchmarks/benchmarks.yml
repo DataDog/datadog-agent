@@ -1,24 +1,25 @@
 benchmark:
   stage: benchmarks
   # This base image is created here: https://gitlab.ddbuild.io/DataDog/apm-reliability/relenv-microbenchmarking-platform
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/relenv-microbenchmarking-platform:trace-agent
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:trace-agent_microbenchmarks
   timeout: 1h
   rules:
     !reference [.manual] # TODO: run this benchmark automatically when the trace-agent changes
   interruptible: true
-  # tags: ["runner:apm-k8s-tweaked-metal"] # TODO: Commented out until we have the metal runners available in this repo
-  tags: ["runner:main"]
+  needs: ["setup_agent_version"]
+  tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   script:
+    - export ARTIFACTS_DIR="$(pwd)/artifacts" && mkdir -p $ARTIFACTS_DIR
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
     - ./test/benchmarks/apm_scripts/run-benchmarks.sh
-    # - ./test/benchmarks/apm_scripts/upload-results-to-s3.sh #commented out until we have merged our permissions changes
     - ./test/benchmarks/apm_scripts/analyze-results.sh
-    - ./test/benchmarks/apm_scripts/post-pr-comment.sh
+    - "./test/benchmarks/apm_scripts/upload-results-to-s3.sh || :"
+    - "./test/benchmarks/apm_scripts/post-pr-comment.sh || :"
   artifacts:
-    name: "reports"
+    name: "artifacts"
+    when: always
     paths:
-      - reports/
+      - artifacts/
     expire_in: 3 months
   variables:
-    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: datadog-agent
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"

@@ -7,23 +7,31 @@ package cloudservice
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 )
 
 // ContainerApp has helper functions for getting specific Azure Container App data
 type ContainerApp struct {
+	//nolint:revive // TODO(SERV) Fix revive linter
 	SubscriptionId string
-	ResourceGroup  string
+	//nolint:revive // TODO(SERV) Fix revive linter
+	ResourceGroup string
 }
 
 const (
+	//nolint:revive // TODO(SERV) Fix revive linter
 	ContainerAppNameEnvVar = "CONTAINER_APP_NAME"
-	ContainerAppDNSSuffix  = "CONTAINER_APP_ENV_DNS_SUFFIX"
-	ContainerAppRevision   = "CONTAINER_APP_REVISION"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	ContainerAppDNSSuffix = "CONTAINER_APP_ENV_DNS_SUFFIX"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	ContainerAppRevision = "CONTAINER_APP_REVISION"
 
+	//nolint:revive // TODO(SERV) Fix revive linter
 	AzureSubscriptionIdEnvVar = "DD_AZURE_SUBSCRIPTION_ID"
-	AzureResourceGroupEnvVar  = "DD_AZURE_RESOURCE_GROUP"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	AzureResourceGroupEnvVar = "DD_AZURE_RESOURCE_GROUP"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -85,16 +93,17 @@ func (c *ContainerApp) Init() error {
 	// and DD_AZURE_RESOURCE_GROUP.
 	// These environment variables are optional for now. Once we go GA,
 	// return an error if these are not set.
+	//nolint:revive // TODO(SERV) Fix revive linter
 	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
 		c.SubscriptionId = subscriptionId
 	} else {
-		return fmt.Errorf("must set %v", AzureSubscriptionIdEnvVar)
+		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
 	}
 
 	if resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar); exists {
 		c.ResourceGroup = resourceGroup
 	} else {
-		return fmt.Errorf("must set %v", AzureResourceGroupEnvVar)
+		log.Fatalf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
 	}
 
 	return nil

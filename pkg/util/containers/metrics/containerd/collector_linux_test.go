@@ -8,23 +8,29 @@
 package containerd
 
 import (
+	"context"
 	"testing"
 	"time"
 
-	v1 "github.com/containerd/cgroups/stats/v1"
-	v2 "github.com/containerd/cgroups/v2/stats"
+	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
+	v2 "github.com/containerd/cgroups/v3/cgroup2/stats"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/oci"
-	"github.com/containerd/typeurl"
+	"github.com/containerd/typeurl/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetaTesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 func TestGetContainerStats_Containerd(t *testing.T) {
@@ -56,6 +62,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			Kernel: &v1.MemoryEntry{
 				Usage: 500,
 			},
+			PgFault:    2,
+			PgMajFault: 1,
 		},
 		Blkio: &v1.BlkIOStat{
 			IoServiceBytesRecursive: []*v1.BlkIOEntry{
@@ -132,6 +140,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			SwapUsage:    10,
 			Slab:         400,
 			KernelStack:  100,
+			Pgfault:      2,
+			Pgmajfault:   1,
 		},
 		Io: &v2.IOStat{
 			Usage: []*v2.IOEntry{
@@ -165,7 +175,10 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		{
 			name: "Linux cgroup v1 metrics",
 			containerdMetrics: &types.Metric{
-				Data: linuxCgroupV1MetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: linuxCgroupV1MetricsAny.GetTypeUrl(),
+					Value:   linuxCgroupV1MetricsAny.GetValue(),
+				},
 			},
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
@@ -184,6 +197,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 					RSS:          pointer.Ptr(100.0),
 					Cache:        pointer.Ptr(20.0),
 					Swap:         pointer.Ptr(10.0),
+					Pgfault:      pointer.Ptr(2.0),
+					Pgmajfault:   pointer.Ptr(1.0),
 				},
 				IO: &provider.ContainerIOStats{
 					ReadBytes:       pointer.Ptr(60.0),
@@ -210,7 +225,10 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		{
 			name: "Linux cgroup v2 metrics",
 			containerdMetrics: &types.Metric{
-				Data: linuxCgroupV2MetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: linuxCgroupV2MetricsAny.GetTypeUrl(),
+					Value:   linuxCgroupV2MetricsAny.GetValue(),
+				},
 			},
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
@@ -229,6 +247,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 					RSS:          pointer.Ptr(100.0),
 					Cache:        pointer.Ptr(20.0),
 					Swap:         pointer.Ptr(10.0),
+					Pgfault:      pointer.Ptr(2.0),
+					Pgmajfault:   pointer.Ptr(1.0),
 				},
 				IO: &provider.ContainerIOStats{
 					ReadBytes:       pointer.Ptr(60.0),
@@ -260,7 +280,14 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := workloadmetaTesting.NewStore()
+			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+				logimpl.MockModule(),
+				config.MockModule(),
+				fx.Supply(context.Background()),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2(),
+			))
+
 			workloadmetaStore.Set(&workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
@@ -319,7 +346,10 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 		{
 			name: "Linux with no interface mapping",
 			containerdMetrics: &types.Metric{
-				Data: linuxMetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: linuxMetricsAny.GetTypeUrl(),
+					Value:   linuxMetricsAny.GetValue(),
+				},
 			},
 			expectedNetworkStats: &provider.ContainerNetworkStats{
 				BytesSent:   pointer.Ptr(220.0),
@@ -350,7 +380,14 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := workloadmetaTesting.NewStore()
+			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+				logimpl.MockModule(),
+				config.MockModule(),
+				fx.Supply(context.Background()),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2(),
+			))
+
 			workloadmetaStore.Set(&workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
@@ -368,9 +405,8 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 			// ID and cache TTL not relevant for these tests
 			result, err := collector.GetContainerNetworkStats("", containerID, 10*time.Second)
+			require.NoError(t, err)
 			result.Timestamp = time.Time{} // We have no control over it, so set it to avoid checking it.
-
-			assert.NoError(t, err)
 			assert.Empty(t, cmp.Diff(test.expectedNetworkStats, result))
 		})
 	}

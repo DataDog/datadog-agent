@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package selftests holds selftests related files
 package selftests
 
 import (

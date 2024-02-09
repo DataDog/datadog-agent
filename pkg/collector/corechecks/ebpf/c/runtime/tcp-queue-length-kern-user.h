@@ -4,7 +4,7 @@
 #include "ktypes.h"
 
 struct stats_key {
-    char cgroup_name[129];
+    char cgroup[129];
 };
 
 struct stats_value {

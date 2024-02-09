@@ -7,23 +7,30 @@
 
 // Maps a connection tuple to its classified protocol. Used to reduce redundant
 // classification procedures on the same connection
-// Note that LRU maps were introduced in Kernel 4.10, but protocol
-// classification is supported by >= 4.7. For kernel releases within this range
-// we replace the LRU map by a regular HashMap during eBPF program load time.
-BPF_LRU_MAP(connection_protocol, conn_tuple_t, protocol_stack_t, 0)
+BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_stack_wrapper_t, 0)
+
+static __always_inline protocol_stack_t* __get_protocol_stack(conn_tuple_t* tuple) {
+    protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);
+    if (!wrapper) {
+        return NULL;
+    }
+    return &wrapper->stack;
+}
 
 static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;
     normalize_tuple(&normalized_tup);
-    protocol_stack_t* stack = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
-    if (stack) {
-        return stack;
+    protocol_stack_wrapper_t* wrapper = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
+    if (wrapper) {
+        wrapper->updated = bpf_ktime_get_ns();
+        return &wrapper->stack;
     }
 
     // this code path is executed once during the entire connection lifecycle
-    protocol_stack_t empty_stack = {0};
-    bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_stack, BPF_NOEXIST);
-    return bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
+    protocol_stack_wrapper_t empty_wrapper = {0};
+    empty_wrapper.updated = bpf_ktime_get_ns();
+    bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST);
+    return __get_protocol_stack(&normalized_tup);
 }
 
 __maybe_unused static __always_inline void update_protocol_stack(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {
@@ -95,6 +102,16 @@ __maybe_unused static __always_inline void delete_protocol_stack(conn_tuple_t* n
         return;
     }
  deletion:
+    if (stack->flags&FLAG_SERVER_SIDE && stack->flags&FLAG_CLIENT_SIDE) {
+        // If we reach this code path it means both client and server are
+        // present in this host. To avoid a race condition where one side
+        // potentially deletes protocol information before the other gets a
+        // chance to retrieve it, we clear these flags and bail out, which
+        // defers the deletion of protocol data to the last one to reach this
+        // code path.
+        stack->flags = stack->flags & ~(FLAG_SERVER_SIDE|FLAG_CLIENT_SIDE);
+        return;
+    }
     bpf_map_delete_elem(&connection_protocol, normalized_tuple);
 }
 

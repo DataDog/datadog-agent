@@ -8,17 +8,20 @@ package utils
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
 	infraURLPrefix = "https://app."
 )
 
-func getResolvedDDUrl(c config.ConfigReader, urlKey string) string {
+func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
 	resolvedDDURL := c.GetString(urlKey)
 	if c.IsSet("site") {
 		log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, c.GetString(urlKey))
@@ -36,9 +39,7 @@ func mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]st
 		}
 
 		if _, ok := keysPerDomain[domain]; ok {
-			for _, apiKey := range apiKeys {
-				keysPerDomain[domain] = append(keysPerDomain[domain], apiKey)
-			}
+			keysPerDomain[domain] = append(keysPerDomain[domain], apiKeys...)
 		} else {
 			keysPerDomain[domain] = apiKeys
 		}
@@ -68,7 +69,7 @@ func mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]st
 }
 
 // GetMainEndpointBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
-func GetMainEndpointBackwardCompatible(c config.ConfigReader, prefix string, ddURLKey string, backwardKey string) string {
+func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, ddURLKey string, backwardKey string) string {
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over backwardKey and 'site'
 		return getResolvedDDUrl(c, ddURLKey)
@@ -78,11 +79,11 @@ func GetMainEndpointBackwardCompatible(c config.ConfigReader, prefix string, ddU
 	} else if c.GetString("site") != "" {
 		return prefix + strings.TrimSpace(c.GetString("site"))
 	}
-	return prefix + config.DefaultSite
+	return prefix + pkgconfigsetup.DefaultSite
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
-func GetMultipleEndpoints(c config.ConfigReader) (map[string][]string, error) {
+func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]string, error) {
 	ddURL := GetInfraEndpoint(c)
 	// Validating domain
 	if _, err := url.Parse(ddURL); err != nil {
@@ -100,17 +101,46 @@ func GetMultipleEndpoints(c config.ConfigReader) (map[string][]string, error) {
 }
 
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
-func GetMainEndpoint(c config.ConfigReader, prefix string, ddURLKey string) string {
+func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) string {
 	// value under ddURLKey takes precedence over 'site'
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
 		return getResolvedDDUrl(c, ddURLKey)
 	} else if c.GetString("site") != "" {
 		return prefix + strings.TrimSpace(c.GetString("site"))
 	}
-	return prefix + config.DefaultSite
+	return prefix + pkgconfigsetup.DefaultSite
 }
 
 // GetInfraEndpoint returns the main DD Infra URL defined in config, based on the value of `site` and `dd_url`
-func GetInfraEndpoint(c config.ConfigReader) string {
+func GetInfraEndpoint(c pkgconfigmodel.Reader) string {
 	return GetMainEndpoint(c, infraURLPrefix, "dd_url")
+}
+
+// ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
+// version (see AddAgentVersionToDomain).
+var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+
+// getDomainPrefix provides the right prefix for agent X.Y.Z
+func getDomainPrefix(app string) string {
+	v, _ := version.Agent()
+	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
+}
+
+// AddAgentVersionToDomain prefixes the domain with the agent version: X-Y-Z.domain
+func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
+	u, err := url.Parse(DDURL)
+	if err != nil {
+		return "", err
+	}
+
+	// we don't update unknown URLs (ie: proxy or custom DD domain)
+	if !ddURLRegexp.MatchString(u.Host) {
+		return DDURL, nil
+	}
+
+	subdomain := strings.Split(u.Host, ".")[0]
+	newSubdomain := getDomainPrefix(app)
+
+	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
+	return u.String(), nil
 }

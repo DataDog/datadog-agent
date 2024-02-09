@@ -4,16 +4,22 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package winproc
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
-const winprocCheckName = "winproc"
+const (
+	// CheckName is the name of the check
+	CheckName = "winproc"
+)
 
 type processChk struct {
 	core.CheckBase
@@ -50,8 +56,8 @@ func (c *processChk) Run() error {
 	return nil
 }
 
-func (c *processChk) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+func (c *processChk) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -70,12 +76,13 @@ func (c *processChk) Configure(integrationConfigDigest uint64, data integration.
 	return err
 }
 
-func processCheckFactory() check.Check {
-	return &processChk{
-		CheckBase: core.NewCheckBase(winprocCheckName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(winprocCheckName, processCheckFactory)
+func newCheck() check.Check {
+	return &processChk{
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }

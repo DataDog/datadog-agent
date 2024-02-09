@@ -16,7 +16,7 @@ env DD_LOG_TO_CONSOLE=false
 setuid dd-agent
 
 script
-  exec <%= install_dir %>/embedded/bin/trace-agent --config <%= etc_dir %>/datadog.yaml --pid <%= install_dir %>/run/trace-agent.pid
+  exec <%= install_dir %>/embedded/bin/trace-agent --config <%= etc_dir %>/datadog.yaml --pidfile <%= install_dir %>/run/trace-agent.pid
 end script
 
 post-stop script

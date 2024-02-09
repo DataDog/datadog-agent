@@ -9,8 +9,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
 	"github.com/stretchr/testify/assert"
@@ -100,7 +101,7 @@ func TestObfuscateDefaults(t *testing.T) {
 		agnt, stop := agentWithDefaults()
 		defer stop()
 		agnt.obfuscateSpan(span)
-		assert.Equal(t, query, span.Meta["sql.query"])
+		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Meta["sql.query"])
 		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Resource)
 	})
 }
@@ -141,7 +142,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"redis.raw_command",
 		"SET key val",
 		"SET key ?",
-		&config.ObfuscationConfig{Redis: config.RedisObfuscationConfig{Enabled: true}},
+		&config.ObfuscationConfig{Redis: obfuscate.RedisConfig{Enabled: true}},
 	))
 
 	t.Run("redis/remove_all_args", testConfig(
@@ -149,7 +150,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"redis.raw_command",
 		"SET key val",
 		"SET ?",
-		&config.ObfuscationConfig{Redis: config.RedisObfuscationConfig{
+		&config.ObfuscationConfig{Redis: obfuscate.RedisConfig{
 			Enabled:       true,
 			RemoveAllArgs: true,
 		}},
@@ -168,7 +169,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/?/??",
-		&config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+		&config.ObfuscationConfig{HTTP: obfuscate.HTTPConfig{
 			RemovePathDigits:  true,
 			RemoveQueryString: true,
 		}},
@@ -187,7 +188,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/?/??",
-		&config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+		&config.ObfuscationConfig{HTTP: obfuscate.HTTPConfig{
 			RemovePathDigits:  true,
 			RemoveQueryString: true,
 		}},
@@ -207,7 +208,7 @@ func TestObfuscateConfig(t *testing.T) {
 		`{"role": "database"}`,
 		`{"role":"?"}`,
 		&config.ObfuscationConfig{
-			ES: config.JSONObfuscationConfig{Enabled: true},
+			ES: obfuscate.JSONConfig{Enabled: true},
 		},
 	))
 
@@ -223,8 +224,19 @@ func TestObfuscateConfig(t *testing.T) {
 		"memcached",
 		"memcached.command",
 		"set key 0 0 0\r\nvalue",
+		"",
+		&config.ObfuscationConfig{Memcached: obfuscate.MemcachedConfig{Enabled: true}},
+	))
+
+	t.Run("memcached/keep_command", testConfig(
+		"memcached",
+		"memcached.command",
+		"set key 0 0 0\r\nvalue",
 		"set key 0 0 0",
-		&config.ObfuscationConfig{Memcached: config.Enablable{Enabled: true}},
+		&config.ObfuscationConfig{Memcached: obfuscate.MemcachedConfig{
+			Enabled:     true,
+			KeepCommand: true,
+		}},
 	))
 
 	t.Run("memcached/disabled", testConfig(
@@ -248,61 +260,69 @@ func SQLSpan(query string) *pb.Span {
 
 func TestSQLResourceQuery(t *testing.T) {
 	assert := assert.New(t)
-	span := &pb.Span{
-		Resource: "SELECT * FROM users WHERE id = 42",
-		Type:     "sql",
-		Meta: map[string]string{
-			"sql.query": "SELECT * FROM users WHERE id = 42",
+	testCases := []*struct {
+		span *pb.Span
+	}{
+		{
+			&pb.Span{
+				Resource: "SELECT * FROM users WHERE id = 42",
+				Type:     "sql",
+			},
+		},
+		{
+			&pb.Span{
+				Resource: "SELECT * FROM users WHERE id = 42",
+				Type:     "sql",
+				Meta: map[string]string{ // ensure that any existing sql.query tag gets overwritten with obfuscated value
+					"sql.query": "SELECT * FROM users WHERE id = 42",
+				},
+			},
 		},
 	}
 
 	agnt, stop := agentWithDefaults()
 	defer stop()
-	agnt.obfuscateSpan(span)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
-	assert.Equal("SELECT * FROM users WHERE id = 42", span.Meta["sql.query"])
-}
-
-func TestSQLResourceWithoutQuery(t *testing.T) {
-	assert := assert.New(t)
-	span := &pb.Span{
-		Resource: "SELECT * FROM users WHERE id = 42",
-		Type:     "sql",
+	for _, tc := range testCases {
+		agnt.obfuscateSpan(tc.span)
+		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Resource)
+		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Meta["sql.query"])
 	}
-
-	agnt, stop := agentWithDefaults()
-	defer stop()
-	agnt.obfuscateSpan(span)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Meta["sql.query"])
 }
 
 func TestSQLResourceWithError(t *testing.T) {
 	assert := assert.New(t)
 	testCases := []*struct {
-		span pb.Span
+		span *pb.Span
 	}{
 		{
-			pb.Span{
+			&pb.Span{
+				Resource: "SELECT * FROM users WHERE id = '' AND '",
+				Type:     "sql",
+				Meta: map[string]string{ // ensure that any existing sql.query tag gets overwritten with obfuscated value
+					"sql.query": "SELECT * FROM users WHERE id = '' AND '",
+				},
+			},
+		},
+		{
+			&pb.Span{
 				Resource: "SELECT * FROM users WHERE id = '' AND '",
 				Type:     "sql",
 			},
 		},
 		{
-			pb.Span{
+			&pb.Span{
 				Resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1",
 				Type:     "sql",
 			},
 		},
 		{
-			pb.Span{
+			&pb.Span{
 				Resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1)",
 				Type:     "sql",
 			},
 		},
-
 		{
-			pb.Span{
+			&pb.Span{
 				Resource: `SELECT [b].[BlogId], [b].[Name]
 FROM [Blogs] AS [b
 ORDER BY [b].[Name]`,
@@ -314,7 +334,7 @@ ORDER BY [b].[Name]`,
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(&tc.span)
+		agnt.obfuscateSpan(tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
 		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}

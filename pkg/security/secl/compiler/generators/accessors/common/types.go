@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package common holds common related files
 package common
 
 // EventTypeMetadata is used to iterate over the model from the event types
@@ -22,49 +23,50 @@ func NewEventTypeMetada(fields ...string) *EventTypeMetadata {
 type Platform string
 
 const (
-	Unspecified Platform = "unspecified"
-	Linux       Platform = "linux"
-	Windows     Platform = "windows"
+	Unspecified Platform = "unspecified" // Unspecified defines unspecified platforms
+	Linux       Platform = "linux"       // Linux defines linux platforms
+	Windows     Platform = "windows"     // Windows defines windows platforms
 )
 
 // Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)
 type Module struct {
-	Name                   string
-	SourcePkgPrefix        string
-	SourcePkg              string
-	TargetPkg              string
-	BuildTags              []string
-	FieldHandlersBuildTags []string
-	Fields                 map[string]*StructField // only exposed fields by SECL
-	AllFields              map[string]*StructField
-	Iterators              map[string]*StructField
-	EventTypes             map[string]*EventTypeMetadata
-	Mock                   bool
-	Platform               Platform
+	Name            string
+	SourcePkgPrefix string
+	SourcePkg       string
+	TargetPkg       string
+	BuildTags       []string
+	Fields          map[string]*StructField // Fields only contains fields that are exposed in SECL
+	//GettersOnlyFields map[string]*StructField // GettersOnlyFields only contains fields that have generated getters but are not exposed in SECL
+	AllFields  map[string]*StructField
+	Iterators  map[string]*StructField
+	EventTypes map[string]*EventTypeMetadata
+	Mock       bool
+	Imports    []string
 }
 
 // StructField represents a structure field for which an accessor will be generated
 type StructField struct {
-	Name                string
-	Prefix              string
-	Struct              string
-	BasicType           string
-	ReturnType          string
-	IsArray             bool
-	IsLength            bool
-	Event               string
-	Handler             string
-	CachelessResolution bool
-	SkipADResolution    bool
-	OrigType            string
-	IsOrigTypePtr       bool
-	Iterator            *StructField
-	Weight              int64
-	CommentText         string
-	OpOverrides         string
-	Check               string
-	Alias               string
-	AliasPrefix         string
+	Name             string
+	Prefix           string
+	Struct           string
+	BasicType        string
+	ReturnType       string
+	IsArray          bool
+	IsLength         bool
+	Event            string
+	Handler          string
+	Helper           bool // specify the handler as just a helper and not a real resolver. It means that this handler won't be called by the ResolveFields function
+	SkipADResolution bool
+	OrigType         string
+	IsOrigTypePtr    bool
+	Iterator         *StructField
+	Weight           int64
+	CommentText      string
+	OpOverrides      string
+	Check            string
+	Alias            string
+	AliasPrefix      string
+	GettersOnly      bool
 }
 
 // GetEvaluatorType returns the evaluator type name

@@ -39,5 +39,6 @@ namespace Datadog.CustomActions.Native
                 throw new Exception($"Unexpected Start value for service {_service.ServiceName}");
             }
         }
+        public void Refresh() => _service.Refresh();
     }
 }

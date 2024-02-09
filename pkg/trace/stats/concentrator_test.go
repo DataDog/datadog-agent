@@ -8,11 +8,12 @@ package stats
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 	"testing"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
@@ -27,7 +28,7 @@ var (
 )
 
 func NewTestConcentrator(now time.Time) *Concentrator {
-	statsChan := make(chan pb.StatsPayload)
+	statsChan := make(chan *pb.StatsPayload)
 	cfg := config.AgentConfig{
 		BucketInterval: time.Duration(testBucketInterval),
 		AgentVersion:   "0.99.0",
@@ -79,9 +80,9 @@ func spansToTraceChunk(spans []*pb.Span) *pb.TraceChunk {
 }
 
 // assertCountsEqual is a test utility function to assert expected == actual for count aggregations.
-func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []pb.ClientGroupedStats) {
-	expectedM := make(map[BucketsAggregationKey]pb.ClientGroupedStats)
-	actualM := make(map[BucketsAggregationKey]pb.ClientGroupedStats)
+func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual []*pb.ClientGroupedStats) {
+	expectedM := make(map[BucketsAggregationKey]*pb.ClientGroupedStats)
+	actualM := make(map[BucketsAggregationKey]*pb.ClientGroupedStats)
 	for _, e := range expected {
 		e.ErrorSummary = nil
 		e.OkSummary = nil
@@ -93,6 +94,104 @@ func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []
 		actualM[NewAggregationFromGroup(a).BucketsAggregationKey] = a
 	}
 	assert.Equal(t, expectedM, actualM)
+}
+
+func TestNewConcentratorPeerTags(t *testing.T) {
+	t.Run("nothing enabled", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval: time.Duration(testBucketInterval),
+			AgentVersion:   "0.99.0",
+			DefaultEnv:     "env",
+			Hostname:       "hostname",
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.False(c.peerTagsAggregation)
+		assert.Nil(c.peerTagKeys)
+	})
+	t.Run("deprecated peer service flag set", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:         time.Duration(testBucketInterval),
+			AgentVersion:           "0.99.0",
+			DefaultEnv:             "env",
+			Hostname:               "hostname",
+			PeerServiceAggregation: true,
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal(defaultPeerTags, c.peerTagKeys)
+	})
+	t.Run("deprecated peer service flag set + peer tags", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:         time.Duration(testBucketInterval),
+			AgentVersion:           "0.99.0",
+			DefaultEnv:             "env",
+			Hostname:               "hostname",
+			PeerServiceAggregation: true,
+			PeerTags:               []string{"zz_tag"},
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
+	})
+	t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:         time.Duration(testBucketInterval),
+			AgentVersion:           "0.99.0",
+			DefaultEnv:             "env",
+			Hostname:               "hostname",
+			PeerServiceAggregation: true,
+			PeerTagsAggregation:    true,
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal(defaultPeerTags, c.peerTagKeys)
+	})
+	t.Run("deprecated peer service flag set + new peer tags aggregation flag + peer tags", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:         time.Duration(testBucketInterval),
+			AgentVersion:           "0.99.0",
+			DefaultEnv:             "env",
+			Hostname:               "hostname",
+			PeerServiceAggregation: true,
+			PeerTagsAggregation:    true,
+			PeerTags:               []string{"zz_tag"},
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
+	})
+	t.Run("new peer tags aggregation flag", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:      time.Duration(testBucketInterval),
+			AgentVersion:        "0.99.0",
+			DefaultEnv:          "env",
+			Hostname:            "hostname",
+			PeerTagsAggregation: true,
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal(defaultPeerTags, c.peerTagKeys)
+	})
+	t.Run("new peer tags aggregation flag + peer tags", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:      time.Duration(testBucketInterval),
+			AgentVersion:        "0.99.0",
+			DefaultEnv:          "env",
+			Hostname:            "hostname",
+			PeerTagsAggregation: true,
+			PeerTags:            []string{"zz_tag"},
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
+	})
 }
 
 // TestTracerHostname tests if `Concentrator` uses the tracer hostname rather than agent hostname, if there is one.
@@ -153,7 +252,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		// First oldest bucket aggregates old past time buckets, so each count
 		// should be an aggregated total across the spans.
-		expected := []pb.ClientGroupedStats{
+		expected := []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -190,7 +289,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		// First oldest bucket aggregates, it should have it all except the
 		// last four spans that have offset of 0.
-		expected := []pb.ClientGroupedStats{
+		expected := []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -210,7 +309,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		}
 
 		// Stats of the last four spans.
-		expected = []pb.ClientGroupedStats{
+		expected = []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -317,9 +416,9 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		testSpan(now, 6, 0, 24, 0, "A1", "resource2", 0, nil),
 	}
 
-	expectedCountValByKeyByTime := make(map[int64][]pb.ClientGroupedStats)
+	expectedCountValByKeyByTime := make(map[int64][]*pb.ClientGroupedStats)
 	// 2-bucket old flush
-	expectedCountValByKeyByTime[alignedNow-2*testBucketInterval] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow-2*testBucketInterval] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource1",
@@ -374,7 +473,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		},
 	}
 	// 1-bucket old flush
-	expectedCountValByKeyByTime[alignedNow-testBucketInterval] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow-testBucketInterval] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource1",
@@ -427,7 +526,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		},
 	}
 	// last bucket to be flushed
-	expectedCountValByKeyByTime[alignedNow] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource2",
@@ -439,7 +538,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Errors:       0,
 		},
 	}
-	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []pb.ClientGroupedStats{}
+	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
 
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "")
@@ -577,8 +676,7 @@ func TestForceFlush(t *testing.T) {
 	assert.Len(stats.GetStats(), 1)
 }
 
-// TestPeerServiceStats tests that if peer.service is present in the span's meta, we will generate stats with it as an additional field.
-func TestPeerServiceStats(t *testing.T) {
+func TestPeerTags(t *testing.T) {
 	assert := assert.New(t)
 	now := time.Now()
 	sp := &pb.Span{
@@ -588,45 +686,46 @@ func TestPeerServiceStats(t *testing.T) {
 		Name:     "http.server.request",
 		Resource: "GET /users",
 		Duration: 100,
+		Meta:     map[string]string{"span.kind": "server", "region": "us1"},
 	}
-	peerSvcSp := &pb.Span{
+	sp2 := &pb.Span{
 		ParentID: sp.SpanID,
 		SpanID:   2,
 		Service:  "myservice",
 		Name:     "postgres.query",
 		Resource: "SELECT user_id from users WHERE user_name = ?",
 		Duration: 75,
+		Meta:     map[string]string{"span.kind": "client", "db.instance": "i-1234", "db.system": "postgres", "region": "us1"},
 		Metrics:  map[string]float64{"_dd.measured": 1.0},
-		Meta:     map[string]string{"peer.service": "users-db"},
 	}
-	t.Run("enabled", func(t *testing.T) {
-		spans := []*pb.Span{sp, peerSvcSp}
+	t.Run("not configured", func(t *testing.T) {
+		spans := []*pb.Span{sp, sp2}
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
-		c.peerSvcAggregation = true
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+		for _, st := range stats.Stats[0].Stats[0].Stats {
+			assert.Nil(st.PeerTags)
+		}
+	})
+	t.Run("configured", func(t *testing.T) {
+		spans := []*pb.Span{sp, sp2}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
+		c.peerTagsAggregation = true
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
 			if st.Name == "postgres.query" {
-				assert.Equal("users-db", st.PeerService)
+				assert.Equal([]string{"db.instance:i-1234", "db.system:postgres"}, st.PeerTags)
 			} else {
-				assert.Equal("", st.PeerService)
+				assert.Nil(st.PeerTags)
 			}
-		}
-	})
-	t.Run("disabled", func(t *testing.T) {
-		spans := []*pb.Span{sp, peerSvcSp}
-		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "")
-		c := NewTestConcentrator(now)
-		c.peerSvcAggregation = false
-		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
-		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
-		for _, st := range stats.Stats[0].Stats[0].Stats {
-			assert.Equal("", st.PeerService)
 		}
 	})
 }
@@ -794,5 +893,34 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 		},
 	} {
 		assert.Equal(tc.res, computeStatsForSpanKind(tc.s))
+	}
+}
+
+func TestPreparePeerTags(t *testing.T) {
+	type testCase struct {
+		input  []string
+		output []string
+	}
+
+	for _, tc := range []testCase{
+		{
+			input:  nil,
+			output: nil,
+		},
+		{
+			input:  []string{},
+			output: nil,
+		},
+		{
+			input:  []string{"zz_tag", "peer.service", "some.other.tag", "db.name", "db.instance"},
+			output: []string{"db.name", "db.instance", "peer.service", "some.other.tag", "zz_tag"},
+		},
+		{
+			input:  append([]string{"zz_tag"}, defaultPeerTags...),
+			output: append(defaultPeerTags, "zz_tag"),
+		},
+	} {
+		sort.Strings(tc.output)
+		assert.Equal(t, tc.output, preparePeerTags(tc.input...))
 	}
 }

@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -118,43 +117,6 @@ func newCheckSender(
 	}
 }
 
-// GetSender returns a Sender with passed ID, properly registered with the aggregator
-// If no error is returned here, DestroySender must be called with the same ID
-// once the sender is not used anymore
-func GetSender(id checkid.ID) (sender.Sender, error) {
-	if demultiplexerInstance == nil {
-		return nil, errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.GetSender(id)
-}
-
-// DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
-// Should be called when no sender with this ID is used anymore
-// The metrics of this (these) sender(s) that haven't been flushed yet will be lost
-func DestroySender(id checkid.ID) {
-	if demultiplexerInstance == nil {
-		return
-	}
-	demultiplexerInstance.DestroySender(id)
-}
-
-// SetSender returns the passed sender with the passed ID.
-// This is largely for testing purposes
-func SetSender(sender sender.Sender, id checkid.ID) error {
-	if demultiplexerInstance == nil {
-		return errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.SetSender(sender, id)
-}
-
-// GetDefaultSender returns the default sender
-func GetDefaultSender() (sender.Sender, error) {
-	if demultiplexerInstance == nil {
-		return nil, errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.GetDefaultSender()
-}
-
 // DisableDefaultHostname allows check to override the default hostname that will be injected
 // when no hostname is specified at submission (for metrics, events and service checks).
 func (s *checkSender) DisableDefaultHostname(disable bool) {
@@ -233,6 +195,7 @@ func (s *checkSender) sendMetricSample(
 		Timestamp:       timeNowNano(),
 		FlushFirstValue: flushFirstValue,
 		NoIndex:         s.noIndex || noIndex,
+		Source:          metrics.CoreCheckToMetricSource(checkid.IDToCheckName(s.id)),
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
@@ -333,6 +296,10 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 // Warning this doesn't use the harmonic mean, beware of what it means when using it.
 func (s *checkSender) Historate(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, metrics.HistorateType, false, false)
+}
+
+func (s *checkSender) Distribution(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.DistributionType, false, false)
 }
 
 // SendRawServiceCheck sends the raw service check

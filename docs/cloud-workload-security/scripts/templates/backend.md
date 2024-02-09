@@ -1,17 +1,17 @@
 ---
-title: Cloud Workload Security (CWS) Events Formats
+title: CSM Threats Events Formats
 kind: documentation
-description: JSON schema documentation of the CWS backend event
+description: JSON schema documentation of the CSM Threats backend event
 disable_edit: true
 ---
 
 {{ warning_message }}
 
-When activity matches a [Cloud Workload Security][1] (CWS) [Agent expression][2], a CWS log will be collected from the system containing all the relevant context about the activity.
+When activity matches a [Cloud Security Management Threats][1] (CSM Threats) [Agent expression][2], a CSM Threats log will be collected from the system containing all the relevant context about the activity.
 
-This log is sent to Datadog, where it is analyzed. Based on analysis, CWS logs can trigger Security Signals or they can be stored as logs for audit, threat investigation purposes.
+This log is sent to Datadog, where it is analyzed. Based on analysis, CSM Threats logs can trigger Security Signals or they can be stored as logs for audit, threat investigation purposes.
 
-CWS logs have the following JSON schema:
+CSM Threats logs have the following JSON schema:
 
 {% raw %}
 {{< code-block lang="json" collapsible="true" filename="BACKEND_EVENT_JSON_SCHEMA" >}}
@@ -56,5 +56,5 @@ CWS logs have the following JSON schema:
 
 {% endfor %}
 
-[1]: /security/cloud_workload_security/
-[2]: /security/cloud_workload_security/agent_expressions
+[1]: /security/threats/
+[2]: /security/threats/agent_expressions

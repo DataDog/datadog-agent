@@ -6,24 +6,22 @@
 package diagnostic
 
 import (
-	"context"
-	"fmt"
 	"sync"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // MessageReceiver interface to handle messages for diagnostics
 type MessageReceiver interface {
-	HandleMessage(message.Message, []byte)
+	HandleMessage(*message.Message, []byte, string)
 }
 
 type messagePair struct {
-	msg         *message.Message
-	redactedMsg []byte
+	msg       *message.Message
+	rendered  []byte
+	eventType string
 }
 
 // BufferedMessageReceiver handles in coming log messages and makes them available for diagnostics
@@ -31,6 +29,7 @@ type BufferedMessageReceiver struct {
 	inputChan chan messagePair
 	enabled   bool
 	m         sync.RWMutex
+	formatter Formatter
 }
 
 // Filters for processing log messages
@@ -41,10 +40,17 @@ type Filters struct {
 	Service string `json:"service"`
 }
 
-// NewBufferedMessageReceiver creates a new MessageReceiver
-func NewBufferedMessageReceiver() *BufferedMessageReceiver {
+// NewBufferedMessageReceiver creates a new MessageReceiver. It takes an optional Formatter as a parameter, and defaults
+// to using logFormatter if not supplied.
+func NewBufferedMessageReceiver(f Formatter, hostname hostnameinterface.Component) *BufferedMessageReceiver {
+	if f == nil {
+		f = &logFormatter{
+			hostname: hostname,
+		}
+	}
 	return &BufferedMessageReceiver{
 		inputChan: make(chan messagePair, config.ChanSize),
+		formatter: f,
 	}
 }
 
@@ -90,11 +96,15 @@ func (b *BufferedMessageReceiver) IsEnabled() bool {
 }
 
 // HandleMessage buffers a message for diagnostic processing
-func (b *BufferedMessageReceiver) HandleMessage(m message.Message, redactedMsg []byte) {
+func (b *BufferedMessageReceiver) HandleMessage(m *message.Message, rendered []byte, eventType string) {
 	if !b.IsEnabled() {
 		return
 	}
-	b.inputChan <- messagePair{&m, redactedMsg}
+	b.inputChan <- messagePair{
+		msg:       m,
+		rendered:  rendered,
+		eventType: eventType,
+	}
 }
 
 // Filter writes the buffered events from the input channel formatted as a string to the output channel
@@ -105,8 +115,8 @@ func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{})
 		for {
 			select {
 			case msgPair := <-b.inputChan:
-				if shouldHandleMessage(msgPair.msg, filters) {
-					out <- formatMessage(msgPair.msg, msgPair.redactedMsg)
+				if shouldHandleMessage(&msgPair, filters) {
+					out <- b.formatter.Format(msgPair.msg, msgPair.eventType, msgPair.rendered)
 				}
 			case <-done:
 				return
@@ -116,7 +126,7 @@ func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{})
 	return out
 }
 
-func shouldHandleMessage(m *message.Message, filters *Filters) bool {
+func shouldHandleMessage(m *messagePair, filters *Filters) bool {
 	if filters == nil {
 		return true
 	}
@@ -124,43 +134,20 @@ func shouldHandleMessage(m *message.Message, filters *Filters) bool {
 	shouldHandle := true
 
 	if filters.Name != "" {
-		shouldHandle = shouldHandle && m.Origin.LogSource.Name == filters.Name
+		shouldHandle = shouldHandle && m.msg.Origin != nil && m.msg.Origin.LogSource.Name == filters.Name
 	}
 
 	if filters.Type != "" {
-		shouldHandle = shouldHandle && m.Origin.LogSource.Config.Type == filters.Type
+		shouldHandle = shouldHandle && ((m.msg.Origin != nil && m.msg.Origin.LogSource.Config.Type == filters.Type) || m.eventType == filters.Type)
 	}
 
 	if filters.Source != "" {
-		shouldHandle = shouldHandle && filters.Source == m.Origin.Source()
+		shouldHandle = shouldHandle && m.msg.Origin != nil && filters.Source == m.msg.Origin.Source()
 	}
 
 	if filters.Service != "" {
-		shouldHandle = shouldHandle && filters.Service == m.Origin.Service()
+		shouldHandle = shouldHandle && m.msg.Origin != nil && filters.Service == m.msg.Origin.Service()
 	}
 
 	return shouldHandle
-}
-
-func formatMessage(m *message.Message, redactedMsg []byte) string {
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		hname = "unknown"
-	}
-
-	ts := time.Now().UTC()
-	if !m.Timestamp.IsZero() {
-		ts = m.Timestamp
-	}
-
-	return fmt.Sprintf("Integration Name: %s | Type: %s | Status: %s | Timestamp: %s | Hostname: %s | Service: %s | Source: %s | Tags: %s | Message: %s\n",
-		m.Origin.LogSource.Name,
-		m.Origin.LogSource.Config.Type,
-		m.GetStatus(),
-		ts,
-		hname,
-		m.Origin.Service(),
-		m.Origin.Source(),
-		m.Origin.TagsToString(),
-		string(redactedMsg))
 }

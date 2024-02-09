@@ -15,14 +15,18 @@ const (
 
 // Offset names in the format "OffsetName[Struct Name]Struct[Field Name]"
 const (
-	OffsetNameSuperBlockStructSMagic = "sb_magic_offset"
-	OffsetNameSignalStructStructTTY  = "tty_offset"
-	OffsetNameTTYStructStructName    = "tty_name_offset"
-	OffsetNameCredStructUID          = "creds_uid_offset"
-	OffsetNameLinuxBinprmP           = "linux_binprm_p_offset"
-	OffsetNameLinuxBinprmArgc        = "linux_binprm_argc_offset"
-	OffsetNameLinuxBinprmEnvc        = "linux_binprm_envc_offset"
-	OffsetNameVmAreaStructFlags      = "vm_area_struct_flags_offset"
+	OffsetNameSuperBlockStructSFlags    = "sb_flags_offset"
+	OffsetNameSuperBlockStructSMagic    = "sb_magic_offset"
+	OffsetNameSignalStructStructTTY     = "tty_offset"
+	OffsetNameTTYStructStructName       = "tty_name_offset"
+	OffsetNameCredStructUID             = "creds_uid_offset"
+	OffsetNameLinuxBinprmP              = "linux_binprm_p_offset"
+	OffsetNameLinuxBinprmArgc           = "linux_binprm_argc_offset"
+	OffsetNameLinuxBinprmEnvc           = "linux_binprm_envc_offset"
+	OffsetNameVMAreaStructFlags         = "vm_area_struct_flags_offset"
+	OffsetNameKernelCloneArgsExitSignal = "kernel_clone_args_exit_signal_offset"
+	OffsetNameFileFinode                = "file_f_inode_offset"
+	OffsetNameFileFpath                 = "file_f_path_offset"
 
 	// bpf offsets
 	OffsetNameBPFMapStructID                  = "bpf_map_id_offset"

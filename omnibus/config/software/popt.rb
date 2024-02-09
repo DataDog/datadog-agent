@@ -38,7 +38,7 @@ build do
   update_config_guess
 
   configure_options = [
-    " --prefix=#{install_dir}/embedded",
+    "--disable-static",
     "--disable-nls",
   ]
   configure(*configure_options, env: env)

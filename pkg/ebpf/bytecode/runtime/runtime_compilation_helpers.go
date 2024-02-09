@@ -16,15 +16,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/gopsutil/host"
-	"golang.org/x/sys/unix"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// CompiledOutput is the interface for a compiled output from runtime compilation
 type CompiledOutput interface {
 	io.Reader
 	io.ReaderAt
@@ -72,7 +70,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 		if err != nil {
 			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel version: %w", err)
 		}
-		_, family, _, err := host.PlatformInformation()
+		family, err := kernel.Family()
 		if err != nil {
 			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel family: %w", err)
 		}
@@ -144,15 +142,15 @@ func getOutputFilePath(outputDir, filename, inputHash, flagHash string) (string,
 func getUnameHash() (string, error) {
 	// we use the raw uname instead of the kernel version, because some kernel versions
 	// can be clamped to 255 thus causing collisions
-	var uname unix.Utsname
-	if err := unix.Uname(&uname); err != nil {
-		return "", fmt.Errorf("unable to get kernel version: %w", err)
+	r, err := kernel.Release()
+	if err != nil {
+		return "", err
 	}
-
-	var rv string
-	rv += unix.ByteSliceToString(uname.Release[:])
-	rv += unix.ByteSliceToString(uname.Version[:])
-	return sha256hex([]byte(rv))
+	v, err := kernel.UnameVersion()
+	if err != nil {
+		return "", err
+	}
+	return sha256hex([]byte(r + v))
 }
 
 // sha256hex returns the hex string of the sha256 of the provided buffer

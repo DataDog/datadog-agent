@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package profile holds profile related files
 package profile
 
 import (
@@ -19,15 +20,17 @@ import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+// EventTypeState defines an event type state
 type EventTypeState struct {
 	lastAnomalyNano uint64
 	state           EventFilteringProfileState
@@ -46,9 +49,6 @@ type SecurityProfile struct {
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
-
-	// Status is the status of the profile
-	Status model.Status
 
 	// Version is the version of a Security Profile
 	Version string
@@ -106,13 +106,6 @@ func (p *SecurityProfile) generateSyscallsFilters() [64]byte {
 	return output
 }
 
-func (p *SecurityProfile) generateKernelSecurityProfileDefinition() [16]byte {
-	var output [16]byte
-	model.ByteOrder.PutUint64(output[0:8], p.profileCookie)
-	model.ByteOrder.PutUint32(output[8:12], uint32(p.Status))
-	return output
-}
-
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	for _, workload := range p.Instances {
@@ -125,14 +118,15 @@ func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 
 // IsEventTypeValid is used to control which event types should trigger anomaly detection alerts
 func (p *SecurityProfile) IsEventTypeValid(evtType model.EventType) bool {
-	return slices.Contains[model.EventType](p.anomalyDetectionEvents, evtType)
+	return slices.Contains(p.anomalyDetectionEvents, evtType)
 }
 
 // NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the activity tree
-func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode) {
+func (p *SecurityProfile) NewProcessNodeCallback(_ *activity_tree.ProcessNode) {
 	// TODO: debounce and regenerate profile filters & programs
 }
 
+// LoadProfileFromFile loads profile from file
 func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
@@ -157,14 +151,14 @@ func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 }
 
 // SendStats sends profile stats
-func (profile *SecurityProfile) SendStats(client statsd.ClientInterface) error {
-	profile.Lock()
-	defer profile.Unlock()
-	return profile.ActivityTree.SendStats(client)
+func (p *SecurityProfile) SendStats(client statsd.ClientInterface) error {
+	p.Lock()
+	defer p.Unlock()
+	return p.ActivityTree.SendStats(client)
 }
 
 // ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile
-func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Resolver, minimumStablePeriod time.Duration) *api.SecurityProfileMessage {
+func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Resolver, cfg *config.RuntimeSecurityConfig) *api.SecurityProfileMessage {
 	msg := &api.SecurityProfileMessage{
 		LoadedInKernel:          p.loadedInKernel,
 		LoadedInKernelTimestamp: timeResolver.ResolveMonotonicTimestamp(p.loadedNano).String(),
@@ -173,7 +167,6 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 			Tag:  p.selector.Tag,
 		},
 		ProfileCookie: p.profileCookie,
-		Status:        p.Status.String(),
 		Version:       p.Version,
 		Metadata: &api.MetadataMessage{
 			Name: p.Metadata.Name,
@@ -199,7 +192,7 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 		msg.LastAnomalies = append(msg.LastAnomalies, &api.LastAnomalyTimestampMessage{
 			EventType:         evt.String(),
 			Timestamp:         lastAnomaly.String(),
-			IsStableEventType: time.Now().Sub(lastAnomaly) >= minimumStablePeriod,
+			IsStableEventType: time.Since(lastAnomaly) >= cfg.GetAnomalyDetectionMinimumStablePeriod(evt),
 		})
 	}
 

@@ -3,19 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
+//nolint:revive // TODO(PROC) Fix revive linter
 package main
 
 import (
+	_ "net/http/pprof"
+	"os"
+
+	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-const useWinParams = false
+// main is the main application entry point
+func main() {
+	flavor.SetFlavor(flavor.ProcessAgent)
 
-func rootCmdRun(globalParams *command.GlobalParams) {
-	exit := make(chan struct{})
+	os.Args = command.FixDeprecatedFlags(os.Args, os.Stdout)
 
-	// Invoke the Agent
-	runAgent(globalParams, exit)
+	rootCmd := command.MakeCommand(subcommands.ProcessAgentSubcommands(), command.UseWinParams, command.RootCmdRun)
+	os.Exit(runcmd.Run(rootCmd))
 }

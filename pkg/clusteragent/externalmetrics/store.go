@@ -147,6 +147,8 @@ func (ds *DatadogMetricsInternalStore) LockRead(id string, lockOnMissing bool) *
 }
 
 // Unlock allows to unlock after a read that do not require any modification to the internal object
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (ds *DatadogMetricsInternalStore) Unlock(id string) {
 	ds.lock.Unlock()
 }

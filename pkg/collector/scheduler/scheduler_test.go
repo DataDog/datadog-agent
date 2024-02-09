@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 )
 
 // FIXTURE
 type TestCheck struct {
-	stats.StubCheck
+	stub.StubCheck
 	intl time.Duration
 }
 
@@ -147,6 +147,7 @@ func TestStop(t *testing.T) {
 	assert.Nil(t, s.Stop())
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestStopCancelsProducers(t *testing.T) {
 	ch := make(chan check.Check)
 	stop := make(chan bool)

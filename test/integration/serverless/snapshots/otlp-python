@@ -1,41 +1,30 @@
 [
   {
-    "container_id": "",
-    "language_name": "python",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-extension-XXXXXX-otlp-python",
-            "name": "otlpPython.internal",
-            "resource": "my-function",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-9",
-              "account_id": "425362996713",
+              "account_id": "############",
               "architecture": "XXX",
-              "aws_account": "425362996713",
+              "aws_account": "############",
               "cloud.provider": "aws",
               "cloud.region": "eu-west-1",
-              "cloud_provider": "aws",
               "dd_extension_version": "123",
               "env": "integration-tests-env",
               "faas.instance": "null",
               "faas.name": "integration-tests-extension-XXXXXX-otlp-python",
               "faas.version": "$LATEST",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
+              "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-otlp-python",
               "functionname": "integration-tests-extension-XXXXXX-otlp-python",
               "memorysize": "1024",
               "otel.library.name": "otlpPython",
@@ -56,35 +45,34 @@
               "version": "integration-tests-version"
             },
             "metrics": null,
+            "name": "otlpPython.internal",
+            "parent_id": null,
+            "resource": "my-function",
+            "service": "integration-tests-extension-XXXXXX-otlp-python",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "custom"
           },
           {
-            "service": "integration-tests-extension-XXXXXX-otlp-python",
-            "name": "opentelemetry.instrumentation.aws_lambda.server",
-            "resource": "otlpPython.simple_test",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "account_id": "425362996713",
+              "account_id": "############",
               "architecture": "XXX",
-              "aws_account": "425362996713",
+              "aws_account": "############",
               "cloud.provider": "aws",
               "cloud.region": "eu-west-1",
-              "cloud_provider": "aws",
               "dd_extension_version": "123",
               "env": "integration-tests-env",
               "faas.execution": "null",
-              "faas.id": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
+              "faas.id": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-otlp-python",
               "faas.instance": "null",
               "faas.name": "integration-tests-extension-XXXXXX-otlp-python",
               "faas.version": "$LATEST",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
+              "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-otlp-python",
               "functionname": "integration-tests-extension-XXXXXX-otlp-python",
               "memorysize": "1024",
               "otel.library.name": "opentelemetry.instrumentation.aws_lambda",
@@ -108,59 +96,58 @@
             "metrics": {
               "_top_level": 1
             },
+            "name": "opentelemetry.instrumentation.aws_lambda.server",
+            "parent_id": null,
+            "resource": "otlpPython.simple_test",
+            "service": "integration-tests-extension-XXXXXX-otlp-python",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "web"
           }
         ],
         "tags": {
           "_dd.otlp_sr": "1.00"
-        },
-        "dropped_trace": false
+        }
       }
     ],
+    "container_id": "",
+    "env": "integration-tests-env",
+    "hostname": "",
+    "language_name": "python",
+    "language_version": null,
+    "runtime_id": "",
     "tags": {
       "_dd.tags.container": "cloud_provider:aws,region:eu-west-1"
     },
-    "env": "integration-tests-env",
-    "hostname": "",
-    "app_version": "integration-tests-version"
+    "tracer_version": null
   },
   {
-    "container_id": "",
-    "language_name": "python",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-extension-XXXXXX-otlp-python",
-            "name": "otlpPython.internal",
-            "resource": "my-function",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-9",
-              "account_id": "425362996713",
+              "account_id": "############",
               "architecture": "XXX",
-              "aws_account": "425362996713",
+              "aws_account": "############",
               "cloud.provider": "aws",
               "cloud.region": "eu-west-1",
-              "cloud_provider": "aws",
               "dd_extension_version": "123",
               "env": "integration-tests-env",
               "faas.instance": "null",
               "faas.name": "integration-tests-extension-XXXXXX-otlp-python",
               "faas.version": "$LATEST",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
+              "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-otlp-python",
               "functionname": "integration-tests-extension-XXXXXX-otlp-python",
               "memorysize": "1024",
               "otel.library.name": "otlpPython",
@@ -181,35 +168,34 @@
               "version": "integration-tests-version"
             },
             "metrics": null,
+            "name": "otlpPython.internal",
+            "parent_id": null,
+            "resource": "my-function",
+            "service": "integration-tests-extension-XXXXXX-otlp-python",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "custom"
           },
           {
-            "service": "integration-tests-extension-XXXXXX-otlp-python",
-            "name": "opentelemetry.instrumentation.aws_lambda.server",
-            "resource": "otlpPython.simple_test",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "account_id": "425362996713",
+              "account_id": "############",
               "architecture": "XXX",
-              "aws_account": "425362996713",
+              "aws_account": "############",
               "cloud.provider": "aws",
               "cloud.region": "eu-west-1",
-              "cloud_provider": "aws",
               "dd_extension_version": "123",
               "env": "integration-tests-env",
               "faas.execution": "null",
-              "faas.id": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
+              "faas.id": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-otlp-python",
               "faas.instance": "null",
               "faas.name": "integration-tests-extension-XXXXXX-otlp-python",
               "faas.version": "$LATEST",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
+              "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-otlp-python",
               "functionname": "integration-tests-extension-XXXXXX-otlp-python",
               "memorysize": "1024",
               "otel.library.name": "opentelemetry.instrumentation.aws_lambda",
@@ -233,20 +219,30 @@
             "metrics": {
               "_top_level": 1
             },
+            "name": "opentelemetry.instrumentation.aws_lambda.server",
+            "parent_id": null,
+            "resource": "otlpPython.simple_test",
+            "service": "integration-tests-extension-XXXXXX-otlp-python",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "web"
           }
         ],
         "tags": {
           "_dd.otlp_sr": "1.00"
-        },
-        "dropped_trace": false
+        }
       }
     ],
+    "container_id": "",
+    "env": "integration-tests-env",
+    "hostname": "",
+    "language_name": "python",
+    "language_version": null,
+    "runtime_id": "",
     "tags": {
       "_dd.tags.container": "cloud_provider:aws,region:eu-west-1"
     },
-    "env": "integration-tests-env",
-    "hostname": "",
-    "app_version": "integration-tests-version"
+    "tracer_version": null
   }
 ]

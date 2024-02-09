@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix the issue introduced in 7.47.0 that causes the SE_DACL_AUTO_INHERITED flag to be removed from
+    the installation drive directory when the installer fails and rolls back.

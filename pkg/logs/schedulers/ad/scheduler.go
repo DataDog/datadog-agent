@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package ad
 
 import (
@@ -11,10 +12,11 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -150,6 +152,13 @@ func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSourc
 	case names.Container, names.Kubernetes, names.KubeContainer:
 		// config attached to a container label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
+	case names.RemoteConfig:
+		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
+			// config supplied by remote config
+			configs, err = logsConfig.ParseJSON(config.LogsConfig)
+		} else {
+			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
+		}
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)

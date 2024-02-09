@@ -18,15 +18,15 @@ int __attribute__((always_inline)) trace__sys_rename(u8 async) {
     return 0;
 }
 
-SYSCALL_KPROBE0(rename) {
+HOOK_SYSCALL_ENTRY0(rename) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(renameat) {
+HOOK_SYSCALL_ENTRY0(renameat) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(renameat2) {
+HOOK_SYSCALL_ENTRY0(renameat2) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
@@ -39,9 +39,8 @@ int hook_do_renameat2(ctx_t *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/vfs_rename")
-int kprobe_vfs_rename(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_rename")
+int hook_vfs_rename(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
         return 0;
@@ -56,10 +55,10 @@ int kprobe_vfs_rename(struct pt_regs *ctx) {
     struct dentry *target_dentry;
 
     if (get_vfs_rename_input_type() == VFS_RENAME_REGISTER_INPUT) {
-        src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-        target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
+        src_dentry = (struct dentry *)CTX_PARM2(ctx);
+        target_dentry = (struct dentry *)CTX_PARM4(ctx);
     } else {
-        struct renamedata *rename_data = (struct renamedata *)PT_REGS_PARM1(ctx);
+        struct renamedata *rename_data = (struct renamedata *)CTX_PARM1(ctx);
 
         bpf_probe_read(&src_dentry, sizeof(src_dentry), (void *) rename_data + get_vfs_rename_src_dentry_offset());
         bpf_probe_read(&target_dentry, sizeof(target_dentry), (void *) rename_data + get_vfs_rename_target_dentry_offset());
@@ -68,7 +67,7 @@ int kprobe_vfs_rename(struct pt_regs *ctx) {
     syscall->rename.src_dentry = src_dentry;
     syscall->rename.target_dentry = target_dentry;
 
-    fill_file_metadata(src_dentry, &syscall->rename.src_file.metadata);
+    fill_file(src_dentry, &syscall->rename.src_file);
     syscall->rename.target_file.metadata = syscall->rename.src_file.metadata;
     if (is_overlayfs(src_dentry)) {
         syscall->rename.target_file.flags |= UPPER_LAYER;
@@ -105,7 +104,7 @@ int kprobe_vfs_rename(struct pt_regs *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_RENAME);
@@ -149,9 +148,10 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
         syscall->resolver.key = syscall->rename.target_file.path_key;
         syscall->resolver.dentry = syscall->rename.src_dentry;
         syscall->resolver.discarder_type = 0;
-        syscall->resolver.callback = dr_type == DR_KPROBE ? DR_RENAME_CALLBACK_KPROBE_KEY : DR_RENAME_CALLBACK_TRACEPOINT_KEY;
+        syscall->resolver.callback = select_dr_key(dr_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
+        syscall->resolver.sysretval = retval;
 
         resolve_dentry(ctx, dr_type);
     }
@@ -161,27 +161,25 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
     return 0;
 }
 
-SEC("kretprobe/do_renameat2")
-int kretprobe_do_renameat2(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_rename_ret(ctx, retval, DR_KPROBE);
+HOOK_EXIT("do_renameat2")
+int rethook_do_renameat2(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 5);
+    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-int __attribute__((always_inline)) kprobe_sys_rename_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_rename_ret(ctx, retval, DR_KPROBE);
+HOOK_SYSCALL_EXIT(rename) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(rename) {
-    return kprobe_sys_rename_ret(ctx);
+HOOK_SYSCALL_EXIT(renameat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(renameat) {
-    return kprobe_sys_rename_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(renameat2) {
-    return kprobe_sys_rename_ret(ctx);
+HOOK_SYSCALL_EXIT(renameat2) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_rename_exit")
@@ -189,11 +187,13 @@ int tracepoint_handle_sys_rename_exit(struct tracepoint_raw_syscalls_sys_exit_t 
     return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
 }
 
-int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
+int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
     if (!syscall) {
         return 0;
     }
+
+    s64 retval = syscall->resolver.sysretval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
@@ -215,16 +215,14 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/dr_rename_callback")
-int __attribute__((always_inline)) kprobe_dr_rename_callback(struct pt_regs *ctx) {
-    int ret = PT_REGS_RC(ctx);
-    return dr_rename_callback(ctx, ret);
+TAIL_CALL_TARGET("dr_rename_callback")
+int tail_call_target_dr_rename_callback(ctx_t *ctx) {
+    return dr_rename_callback(ctx);
 }
 
 SEC("tracepoint/dr_rename_callback")
-int __attribute__((always_inline)) tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_rename_callback(args, args->ret);
+int tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_rename_callback(args);
 }
 
 #endif

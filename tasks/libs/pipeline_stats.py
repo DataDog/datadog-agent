@@ -1,7 +1,7 @@
 from collections import Counter
 
-from .pipeline_data import get_failed_jobs
-from .types import FailedJobType
+from tasks.libs.pipeline_data import get_failed_jobs
+from tasks.libs.types import FailedJobType
 
 
 def get_failed_jobs_stats(project_name, pipeline_id):
@@ -25,14 +25,14 @@ def get_failed_jobs_stats(project_name, pipeline_id):
     # only due to infrastructure failures.
     global_failure_reason = None
 
-    for job in failed_jobs:
+    if failed_jobs.mandatory_job_failures:
+        global_failure_reason = FailedJobType.JOB_FAILURE.name
+    elif failed_jobs.mandatory_infra_job_failures:
+        global_failure_reason = FailedJobType.INFRA_FAILURE.name
+
+    for job in failed_jobs.all_mandatory_failures():
         failure_type = job["failure_type"]
         failure_reason = job["failure_reason"]
-
-        if failure_type == FailedJobType.JOB_FAILURE:
-            global_failure_reason = FailedJobType.JOB_FAILURE.name
-        elif failure_type == FailedJobType.INFRA_FAILURE and not global_failure_reason:
-            global_failure_reason = FailedJobType.INFRA_FAILURE.name
 
         key = tuple(sorted(job["tag_list"] + [f"type:{failure_type.name}", f"reason:{failure_reason.name}"]))
         job_failure_stats[key] += 1

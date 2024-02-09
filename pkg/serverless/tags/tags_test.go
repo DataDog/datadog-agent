@@ -6,8 +6,10 @@
 package tags
 
 import (
+	"os"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -335,7 +337,34 @@ func TestBuildTagMapWithRuntimeAndMemoryTag(t *testing.T) {
 }
 
 func TestGetRuntimeFound(t *testing.T) {
-	result := getRuntime("../proc/testData", "./testValidData", "AWS_EXECUTION_ENV")
+	result := getRuntime("../proc/testData", "./testValidData", "AWS_EXECUTION_ENV", 0)
+	assert.Equal(t, "nodejs14.x", result)
+}
+
+func TestGetRuntimeRetries(t *testing.T) {
+	// create empty environ file
+	os.MkdirAll("./testGetRuntimeRetries/13", os.ModePerm)
+	f, _ := os.OpenFile("./testGetRuntimeRetries/13/environ", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	defer func() {
+		os.RemoveAll("./testGetRuntimeRetries/")
+	}()
+	f.Close()
+
+	output := make(chan string)
+	go func() {
+		// 5 seconds of retries
+		res := getRuntime("./testGetRuntimeRetries", "./testValidData", "AWS_EXECUTION_ENV", 1000)
+		output <- res
+	}()
+	go func() {
+		// after 1 second, append the runtime env var to environ file
+		envVarToAppend := "AWS_EXECUTION_ENV=nodejs14.x"
+		time.Sleep(1 * time.Second)
+		f, _ := os.OpenFile("./testGetRuntimeRetries/13/environ", os.O_APPEND|os.O_WRONLY, 0666)
+		defer f.Close()
+		f.Write([]byte(envVarToAppend))
+	}()
+	result := <-output
 	assert.Equal(t, "nodejs14.x", result)
 }
 

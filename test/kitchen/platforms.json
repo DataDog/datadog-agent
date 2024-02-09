@@ -12,8 +12,9 @@
         },
         "ec2": {
             "x86_64": {
-                "centos-79": "ami-00e87074e52e6c9f9",
-                "rhel-86": "ami-06640050dc3f556bb"
+                "centos-79": "ami-0db0376aef6830be3",
+                "rhel-86": "ami-031eff1ae75bb87e4",
+                "rocky-92": "ami-08f362c39d03a4eb5"
             },
             "arm64": {
                 "centos-79": "ami-0144a5a84f5699847",
@@ -33,18 +34,19 @@
             "x86_64": {
                 "debian-8": "urn,credativ:Debian:8:8.0.201901221",
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
-                "debian-10": "urn,Debian:debian-10:10:0.20230222.1299",
-                "debian-11": "urn,Debian:debian-11:11:0.20230501.1367"
+                "debian-10": "urn,Debian:debian-10:10:0.20230802.1460",
+                "debian-11": "urn,Debian:debian-11:11:0.20230501.1367",
+                "debian-12": "urn,Debian:debian-12:12:0.20230802.1460"
             }
         },
         "ec2": {
             "x86_64": {
-                "debian-10": "ami-09c5dc3046df4741f",
-                "debian-11": "ami-09e24b0cfe072ecef",
-                "debian-12": "ami-0076a5c1d029e906a"
+                "debian-10": "ami-041540a5c191757a0",
+                "debian-11": "ami-02ba6eae41e089e8d",
+                "debian-12": "ami-07edaec601cf2b6d3"
             },
             "arm64": {
-                "debian-10": "ami-0d35a4c5725fd0da7",
+                "debian-10": "ami-0108ade0d057c8eba",
                 "debian-11": "ami-03ea090ddd75eb738",
                 "debian-12": "ami-02aab8d5301cb8d68"
             }
@@ -53,11 +55,11 @@
     "fedora": {
         "ec2": {
             "x86_64": {
-                "fedora-36": "ami-08b7bda26f4071b80",
-                "fedora-37": "ami-023fb534213ca41da"
+                "fedora-36": "ami-05e7ccec1e0408397",
+                "fedora-37": "ami-032e9a5778bde5a1a"
             },
             "arm64": {
-                "fedora-36": "ami-01925eb0821988986",
+                "fedora-36": "ami-0487fbde1f898f0f1",
                 "fedora-37": "ami-0e9221491fc51fca6"
             }
         }
@@ -72,7 +74,7 @@
         },
         "ec2": {
             "arm64": {
-                "sles-15": "ami-05f2f5f76d89313bb"
+                "sles-15": "ami-02f7663f03ca92749"
             }
         }
     },
@@ -91,20 +93,21 @@
         },
         "ec2": {
             "x86_64": {
-                "ubuntu-16-04-4.4": "ami-a4dc46db",
-                "ubuntu-16-04": "ami-0b0ea68c435eb488d",
-                "ubuntu-18-04": "ami-0ee23bfc74a881de5",
-                "ubuntu-20-04": "ami-079ca844e323047c2",
-                "ubuntu-22-04": "ami-08c40ec9ead489470",
-                "ubuntu-23-04": "ami-062b1c3c00754c48b"
+                "ubuntu-16-04": "ami-089043ae24872fe78",
+                "ubuntu-18-04": "ami-015715c1584e7243c",
+                "ubuntu-20-04": "ami-0ffb8e1df897204c4",
+                "ubuntu-22-04": "ami-02e99c6973f5a184a",
+                "ubuntu-23-04": "ami-09c5d86a379ab69a5",
+                "ubuntu-23-10": "ami-0949b45ef274e55a1"
             },
             "arm64": {
-                "ubuntu-18-04": "ami-02ed82f3a38303e6f",
-                "ubuntu-20-04": "ami-0b75998a97c952252",
-                "ubuntu-20-04-2": "ami-0a82127206c2824a1",
+                "ubuntu-18-04": "ami-002c0df0f55a14f82",
+                "ubuntu-20-04": "ami-0ccf50ab09c6df2d4",
+                "ubuntu-20-04-2": "ami-023f1e40b096c3ebc",
                 "ubuntu-21-04": "ami-044f0ceee8e885e87",
-                "ubuntu-22-04": "ami-02ddaf75821f25213",
-                "ubuntu-23-04": "ami-05fab5da2d7fe0b0b"
+                "ubuntu-22-04": "ami-0f1d4680f8b775120",
+                "ubuntu-23-04": "ami-05fab5da2d7fe0b0b",
+                "ubuntu-23-10": "ami-0dea732dd5f1da0a8"
             }
         },
         "vagrant": {
@@ -129,13 +132,13 @@
             "x86_64": {
                 "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
                 "amazonlinux2-5-10": "ami-06a0cd9728546d178",
-                "amazonlinux2022-5-15": "ami-0309aede310b9cc1f",
-                "amazonlinux2023": "ami-0889a44b331db0194"
+                "amazonlinux2022-5-15": "ami-0f0f00c2d082c52ae",
+                "amazonlinux2023": "ami-09a843efa5c250b9c"
             },
             "arm64": {
                 "amazonlinux2-4-14": "ami-090230ed0c6b13c74",
                 "amazonlinux2-5-10": "ami-09e51988f56677f44",
-                "amazonlinux2022-5-15": "ami-0a8495f6303122235",
+                "amazonlinux2022-5-15": "ami-0acc51c3357f26240",
                 "amazonlinux2023": "ami-08fc6fb8ad2e794bb"
             }
         }
@@ -143,8 +146,6 @@
     "windows": {
         "azure": {
             "x86_64": {
-                "win2012": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows-2012/versions/1.0.0",
-                "win2012r2": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows-2012-R2/versions/1.0.1",
                 "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:14393.5429.221014",
                 "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:17763.3534.221015",
                 "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.3534.221015",
@@ -153,8 +154,6 @@
         },
         "ec2": {
             "x86_64": {
-                "win2012r2": "ami-05bcfc8413c69a2a1",
-                "comment-win2012r2": "EC2LaunchV2-Windows_Server-2012_R2_RTM-English-Full-Base-2022.09.14",
                 "win2016": "ami-03bee25bb430166e4",
                 "comment-win2016": "# Windows_Server-2016-English-Core-Containers-2022.12.14",
                 "win2019": "ami-01cc656499debb56a",

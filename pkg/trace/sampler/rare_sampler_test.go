@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 func TestSpanSeenTTLExpiration(t *testing.T) {
@@ -79,6 +79,7 @@ func TestConsideredSpans(t *testing.T) {
 	}
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func TestRareSamplerRace(t *testing.T) {
 	e := NewRareSampler(config.New())
 	e.Stop()

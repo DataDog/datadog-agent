@@ -6,9 +6,9 @@
 package generic
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // ContainerFilter defines an interface to exclude containers based on Metadata
@@ -43,6 +43,7 @@ func (f ANDContainerFilter) IsExcluded(container *workloadmeta.Container) bool {
 // LegacyContainerFilter allows to use old containers.Filter within this new framework
 type LegacyContainerFilter struct {
 	OldFilter *containers.Filter
+	Store     workloadmeta.Component
 }
 
 // IsExcluded returns if a container should be excluded or not
@@ -51,11 +52,8 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 		return false
 	}
 	var annotations map[string]string
-	store := workloadmeta.GetGlobalStore()
-	if store != nil {
-		if pod, err := store.GetKubernetesPodForContainer(container.ID); err == nil {
-			annotations = pod.Annotations
-		}
+	if pod, err := f.Store.GetKubernetesPodForContainer(container.ID); err == nil {
+		annotations = pod.Annotations
 	}
 
 	return f.OldFilter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])

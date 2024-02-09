@@ -3,13 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package events holds events related files
 package events
 
 import (
 	"time"
-
-	"github.com/mailru/easyjson"
-	"github.com/mailru/easyjson/jwriter"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -30,6 +28,11 @@ const (
 	// RulesetLoadedRuleDesc is the rule description for the ruleset_loaded events
 	RulesetLoadedRuleDesc = "New ruleset loaded"
 
+	// HeartbeatRuleID is the rule ID for the heartbeat events
+	HeartbeatRuleID = "heartbeat"
+	// HeartbeatRuleDesc is the rule description for the heartbeat events
+	HeartbeatRuleDesc = "Heartbeat"
+
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
 	// AbnormalPathRuleDesc is the rule description for the abnormal_path events
@@ -42,7 +45,7 @@ const (
 
 	// AnomalyDetectionRuleID is the rule ID for anomaly_detection events
 	AnomalyDetectionRuleID = "anomaly_detection"
-	// AnomalyDetectionRuleID is the rule description for anomaly_detection events
+	// AnomalyDetectionRuleDesc is the rule description for anomaly_detection events
 	AnomalyDetectionRuleDesc = "Anomaly detection"
 
 	// NoProcessContextErrorRuleID is the rule ID for events without process context
@@ -54,13 +57,18 @@ const (
 	BrokenProcessLineageErrorRuleID = "broken_process_lineage"
 	// BrokenProcessLineageErrorRuleDesc is the rule description for events with a broken process lineage
 	BrokenProcessLineageErrorRuleDesc = "Broken process lineage detected"
+
+	// RefreshUserCacheRuleID is the rule ID used to refresh users and groups cache
+	RefreshUserCacheRuleID = "refresh_user_cache"
 )
 
+// CustomEventCommonFields represents the fields common to all custom events
 type CustomEventCommonFields struct {
 	Timestamp time.Time `json:"date"`
 	Service   string    `json:"service"`
 }
 
+// FillCustomEventCommonFields fills the common fields with default values
 func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields() {
 	commonFields.Service = ServiceName
 	commonFields.Timestamp = time.Now()
@@ -87,8 +95,8 @@ func AllCustomRuleIDs() []string {
 	}
 }
 
-// NewCustomEvent returns a new custom event
-func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() easyjson.Marshaler, tags ...string) *CustomEvent {
+// NewCustomEventLazy returns a new custom event
+func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() EventMarshaler, tags ...string) *CustomEvent {
 	return &CustomEvent{
 		eventType:     eventType,
 		marshalerCtor: marshalerCtor,
@@ -96,8 +104,9 @@ func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() easyjson
 	}
 }
 
-func NewCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler, tags ...string) *CustomEvent {
-	return NewCustomEventLazy(eventType, func() easyjson.Marshaler {
+// NewCustomEvent returns a new custom event
+func NewCustomEvent(eventType model.EventType, marshaler EventMarshaler, tags ...string) *CustomEvent {
+	return NewCustomEventLazy(eventType, func() EventMarshaler {
 		return marshaler
 	}, tags...)
 }
@@ -106,7 +115,7 @@ func NewCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler, tag
 type CustomEvent struct {
 	eventType     model.EventType
 	tags          []string
-	marshalerCtor func() easyjson.Marshaler
+	marshalerCtor func() EventMarshaler
 }
 
 // Clone returns a copy of the current CustomEvent
@@ -128,11 +137,22 @@ func (ce *CustomEvent) GetType() string {
 	return ce.eventType.String()
 }
 
+// GetActions returns the triggred actions
+func (ce *CustomEvent) GetActions() []*model.ActionTriggered {
+	return nil
+}
+
+// GetWorkloadID returns the workload id
+func (ce *CustomEvent) GetWorkloadID() string {
+	return ""
+}
+
 // GetEventType returns the event type
 func (ce *CustomEvent) GetEventType() model.EventType {
 	return ce.eventType
 }
 
-func (ce *CustomEvent) MarshalEasyJSON(w *jwriter.Writer) {
-	ce.marshalerCtor().MarshalEasyJSON(w)
+// MarshalJSON marshals the custom event to JSON using easyJSON
+func (ce *CustomEvent) MarshalJSON() ([]byte, error) {
+	return ce.marshalerCtor().ToJSON()
 }

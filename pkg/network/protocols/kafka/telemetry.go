@@ -8,56 +8,36 @@
 package kafka
 
 import (
-	"time"
-
-	"go.uber.org/atomic"
-
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Telemetry is a struct to hold the telemetry for the kafka protocol
 type Telemetry struct {
-	then *atomic.Int64
+	metricGroup *libtelemetry.MetricGroup
 
-	totalHits *libtelemetry.Metric
-	dropped   *libtelemetry.Metric // this happens when KafkaStatKeeper reaches capacity
+	totalHits *libtelemetry.Counter
+	dropped   *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
 }
 
+// NewTelemetry creates a new Telemetry
 func NewTelemetry() *Telemetry {
-	metricGroup := libtelemetry.NewMetricGroup(
-		"usm.kafka",
-		libtelemetry.OptExpvar,
-		libtelemetry.OptMonotonic,
-	)
+	metricGroup := libtelemetry.NewMetricGroup("usm.kafka", libtelemetry.OptStatsd)
 
-	t := &Telemetry{
-		then: atomic.NewInt64(time.Now().Unix()),
-
+	return &Telemetry{
+		metricGroup: metricGroup,
 		// these metrics are also exported as statsd metrics
-		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd),
-		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
+		totalHits: metricGroup.NewCounter("total_hits"),
+		dropped:   metricGroup.NewCounter("dropped"),
 	}
-
-	return t
 }
 
-func (t *Telemetry) Count(_ *EbpfKafkaTx) {
+// Count increments the total hits counter
+func (t *Telemetry) Count(*EbpfTx) {
 	t.totalHits.Add(1)
 }
 
+// Log logs the kafka stats summary
 func (t *Telemetry) Log() {
-	now := time.Now().Unix()
-	then := t.then.Swap(now)
-
-	totalRequests := t.totalHits.Delta()
-	dropped := t.dropped.Delta()
-	elapsed := now - then
-
-	log.Debugf(
-		"kafka stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s)",
-		totalRequests,
-		float64(totalRequests)/float64(elapsed),
-		dropped,
-		float64(dropped)/float64(elapsed),
-	)
+	log.Debugf("kafka stats summary: %s", t.metricGroup.Summary())
 }

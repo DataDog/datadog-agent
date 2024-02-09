@@ -6,21 +6,22 @@
 package telemetry
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 // Histogram tracks the value of one health metric of the Agent.
 type Histogram interface {
-	// Observe the value to the Histogram value.
-	Observe(value float64, tagsValue ...string)
-	// Delete deletes the value for the Histogram with the given tags.
-	Delete(tagsValue ...string)
+	telemetryComponent.Histogram
 }
 
 type histogramNoOp struct{}
 
-func (h histogramNoOp) Observe(_ float64, _ ...string) {}
-func (h histogramNoOp) Delete(_ ...string)             {}
+func (h histogramNoOp) Observe(_ float64, _ ...string)                                    {}
+func (h histogramNoOp) Delete(_ ...string)                                                {}
+func (h histogramNoOp) WithValues(tagsValue ...string) telemetryComponent.SimpleHistogram { return nil } //nolint:revive // TODO fix revive unused-parameter
+func (h histogramNoOp) WithTags(tags map[string]string) telemetryComponent.SimpleHistogram { //nolint:revive // TODO fix revive unused-parameter
+	return nil
+}
 
 // NewHistogramNoOp creates a dummy Histogram
 func NewHistogramNoOp() Histogram {
@@ -36,19 +37,5 @@ func NewHistogram(subsystem, name string, tags []string, help string, buckets []
 // NewHistogramWithOpts creates a Histogram with the given options for telemetry purpose.
 // See NewHistogram()
 func NewHistogramWithOpts(subsystem, name string, tags []string, help string, buckets []float64, opts Options) Histogram {
-	name = opts.NameWithSeparator(subsystem, name)
-
-	h := &promHistogram{
-		ph: prometheus.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Subsystem: subsystem,
-				Name:      name,
-				Help:      help,
-				Buckets:   buckets,
-			},
-			tags,
-		),
-	}
-	telemetryRegistry.MustRegister(h.ph)
-	return h
+	return telemetryComponent.GetCompatComponent().NewHistogramWithOpts(subsystem, name, tags, help, buckets, telemetryComponent.Options(opts))
 }

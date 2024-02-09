@@ -3,6 +3,17 @@
 
 package http2
 
+const (
+	maxHTTP2Path     = 0xa0
+	http2PathBuckets = 0x7
+
+	HTTP2TerminatedBatchSize = 0x50
+
+	http2RawStatusCodeMaxLength = 0x3
+
+	Http2MaxHeadersCountPerFiltering = 0x21
+)
+
 type connTuple = struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
@@ -14,28 +25,62 @@ type connTuple = struct {
 	Pid      uint32
 	Metadata uint32
 }
-type EbpfTx struct {
-	Tup                   connTuple
+type HTTP2DynamicTableIndex struct {
+	Index uint64
+	Tup   connTuple
+}
+type HTTP2DynamicTableEntry struct {
+	Buffer             [160]int8
+	Original_index     uint32
+	String_len         uint8
+	Is_huffman_encoded bool
+	Pad_cgo_0          [2]byte
+}
+type http2StreamKey struct {
+	Tup       connTuple
+	Id        uint32
+	Pad_cgo_0 [4]byte
+}
+type http2StatusCode struct {
+	Raw_buffer         [3]uint8
+	Is_huffman_encoded bool
+	Static_table_entry uint8
+	Finalized          bool
+}
+type http2requestMethod struct {
+	Raw_buffer         [7]uint8
+	Is_huffman_encoded bool
+	Static_table_entry uint8
+	Length             uint8
+	Finalized          bool
+}
+type http2Stream struct {
 	Response_last_seen    uint64
 	Request_started       uint64
-	Response_status_code  uint16
-	Request_method        uint32
+	Status_code           http2StatusCode
+	Request_method        http2requestMethod
 	Path_size             uint8
 	Request_end_of_stream bool
-	Pad_cgo_0             [6]byte
-	Request_path          [30]uint8
-	Pad_cgo_1             [2]byte
+	Is_huffman_encoded    bool
+	Pad_cgo_0             [4]byte
+	Request_path          [160]uint8
+}
+type EbpfTx struct {
+	Tuple  connTuple
+	Stream http2Stream
+}
+type HTTP2Telemetry struct {
+	Request_seen                     uint64
+	Response_seen                    uint64
+	End_of_stream                    uint64
+	End_of_stream_rst                uint64
+	Literal_value_exceeds_frame      uint64
+	Exceeding_max_interesting_frames uint64
+	Exceeding_max_frames_to_filter   uint64
+	Path_size_bucket                 [8]uint64
 }
 
-type StaticTableEnumKey = uint32
-
-const (
-	MethodKey StaticTableEnumKey = 0x2
-	PathKey   StaticTableEnumKey = 0x4
-	StatusKey StaticTableEnumKey = 0x9
-)
-
-type StaticTableEnumValue = uint32
+type StaticTableEnumValue = uint8
 
 const (
 	GetValue       StaticTableEnumValue = 0x2
@@ -50,8 +95,3 @@ const (
 	K404Value      StaticTableEnumValue = 0xd
 	K500Value      StaticTableEnumValue = 0xe
 )
-
-type StaticTableValue = struct {
-	Key   uint32
-	Value uint32
-}

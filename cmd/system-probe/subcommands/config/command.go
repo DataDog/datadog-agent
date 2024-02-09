@@ -16,8 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -44,12 +45,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(callback,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true)),
-					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfig.WithConfigLoadSecrets(true)),
-					LogParams:            log.LogForOneShot("SYS-PROBE", "off", true),
+					ConfigParams:         config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath)),
+					LogParams:            logimpl.ForOneShot("SYS-PROBE", "off", true),
 				}),
-				// no need to provide sysprobe logger since LogForOneShot ignores config values
-				core.Bundle,
+				// no need to provide sysprobe logger since ForOneShot ignores config values
+				core.Bundle(),
 			)
 		}
 	}
@@ -93,7 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func getClient(sysprobeconfig sysprobeconfig.Component) (settings.Client, error) {
-	cfg := sysprobeconfig.Object()
+	cfg := sysprobeconfig.SysProbeObject()
 	hc := api.GetClient(cfg.SocketAddress)
 	return settingshttp.NewClient(hc, "http://localhost/config", "system-probe"), nil
 }

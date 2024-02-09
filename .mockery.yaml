@@ -1,0 +1,34 @@
+with-expecter: false
+dir: "{{.InterfaceDir}}/mocks"
+outpkg: "mocks"
+mockname: "{{.InterfaceName}}"
+filename: "{{.InterfaceNameSnake}}.go"
+
+packages:
+  # security agent
+  github.com/DataDog/datadog-agent/pkg/security/proto/api:
+    interfaces:
+      SecurityModuleServer:
+      SecurityModuleClient:
+  github.com/DataDog/datadog-agent/pkg/security/agent:
+    interfaces:
+      SecurityModuleClientWrapper:
+  github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api:
+    interfaces:
+      EventMonitoringModuleServer:
+      EventMonitoringModuleClient:
+      EventMonitoringModule_GetProcessEventsClient:
+
+  # processes
+  github.com/DataDog/datadog-agent/pkg/process/runner:
+    interfaces:
+      Submitter:
+  github.com/DataDog/datadog-agent/pkg/process/checks:
+    interfaces:
+      Check:
+  github.com/DataDog/datadog-agent/pkg/process/net:
+    interfaces:
+      SysProbeUtil:
+  github.com/DataDog/datadog-agent/pkg/process/procutil:
+    interfaces:
+      Probe:

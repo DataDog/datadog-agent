@@ -7,7 +7,7 @@
 
 #define MAIN_ICON 1
 
-MAIN_ICON ICON "..\\..\\..\omnibus\\resources\\agent\\msi\\assets\\project.ico"
+MAIN_ICON ICON "..\\..\\..\\tools\\windows\\DatadogAgentInstaller\\WixSetup\\assets\\project.ico"
 
 #define VS_VERSION_INFO 1
 VS_VERSION_INFO VERSIONINFO
@@ -42,9 +42,3 @@ BEGIN
         VALUE "Translation", 0x409, 1200
     END
 END
-
-// Country: United States
-// Language: English
-#pragma code_page(437)
-LANGUAGE 0x9, 0x1
-1 MESSAGETABLE "MSG00409.bin"

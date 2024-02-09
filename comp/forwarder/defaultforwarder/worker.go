@@ -55,7 +55,8 @@ func NewWorker(
 	lowPrioChan <-chan transaction.Transaction,
 	requeueChan chan<- transaction.Transaction,
 	blocked *blockedEndpoints,
-	pointSuccessfullySent PointSuccessfullySent) *Worker {
+	pointSuccessfullySent PointSuccessfullySent,
+) *Worker {
 	return &Worker{
 		config:                config,
 		log:                   log,
@@ -73,7 +74,7 @@ func NewWorker(
 
 // NewHTTPClient creates a new http.Client
 func NewHTTPClient(config config.Component) *http.Client {
-	transport := httputils.CreateHTTPTransport()
+	transport := httputils.CreateHTTPTransport(config)
 
 	return &http.Client{
 		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,
@@ -99,7 +100,6 @@ func (w *Worker) Stop(purgeHighPrio bool) {
 			}
 		}
 	}
-
 }
 
 // Start starts a Worker.
@@ -171,6 +171,7 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	case <-w.stopChan:
 		// cancel current Transaction if we need to stop the worker
 		cancel()
+		w.requeue(t)
 		<-done // We still need to wait for the process func to return
 		return fmt.Errorf("Worker was requested to stop")
 	}
@@ -179,26 +180,26 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 }
 
 func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
-	requeue := func() {
-		select {
-		case w.RequeueChan <- t:
-		default:
-			w.log.Errorf("dropping transaction because the retry goroutine is too busy to handle another one")
-		}
-	}
-
 	// Run the endpoint through our blockedEndpoints circuit breaker
 	target := t.GetTarget()
 	if w.blockedList.isBlock(target) {
-		requeue()
+		w.requeue(t)
 		w.log.Errorf("Too many errors for endpoint '%s': retrying later", target)
 	} else if err := t.Process(ctx, w.config, w.log, w.Client); err != nil {
 		w.blockedList.close(target)
-		requeue()
+		w.requeue(t)
 		w.log.Errorf("Error while processing transaction: %v", err)
 	} else {
 		w.pointSuccessfullySent.OnPointSuccessfullySent(t.GetPointCount())
 		w.blockedList.recover(target)
+	}
+}
+
+func (w *Worker) requeue(t transaction.Transaction) {
+	select {
+	case w.RequeueChan <- t:
+	default:
+		w.log.Errorf("dropping transaction because the retry goroutine is too busy to handle another one")
 	}
 }
 

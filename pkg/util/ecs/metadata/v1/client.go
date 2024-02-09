@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package v1 provides an ECS client for v1 of API.
 package v1
 
 import (
@@ -29,20 +30,26 @@ const (
 	taskMetadataPath = "/tasks"
 )
 
+// Client is an interface for ECS metadata v1 API clients.
+type Client interface {
+	GetInstance(context.Context) (*Instance, error)
+	GetTasks(context.Context) ([]Task, error)
+}
+
 // Client represents a client for a metadata v1 API endpoint.
-type Client struct {
+type client struct {
 	agentURL string
 }
 
 // NewClient creates a new client for the specified metadata v1 API endpoint.
-func NewClient(agentURL string) *Client {
-	return &Client{
+func NewClient(agentURL string) Client {
+	return &client{
 		agentURL: agentURL,
 	}
 }
 
 // GetInstance returns metadata for the current container instance.
-func (c *Client) GetInstance(ctx context.Context) (*Instance, error) {
+func (c *client) GetInstance(ctx context.Context) (*Instance, error) {
 	var i Instance
 	if err := c.get(ctx, instancePath, &i); err != nil {
 		return nil, err
@@ -51,7 +58,7 @@ func (c *Client) GetInstance(ctx context.Context) (*Instance, error) {
 }
 
 // GetTasks returns the list of task on the current container instance.
-func (c *Client) GetTasks(ctx context.Context) ([]Task, error) {
+func (c *client) GetTasks(ctx context.Context) ([]Task, error) {
 	var t Tasks
 	if err := c.get(ctx, taskMetadataPath, &t); err != nil {
 		return nil, err
@@ -59,7 +66,7 @@ func (c *Client) GetTasks(ctx context.Context) ([]Task, error) {
 	return t.Tasks, nil
 }
 
-func (c *Client) makeURL(requestPath string) (string, error) {
+func (c *client) makeURL(requestPath string) (string, error) {
 	u, err := url.Parse(c.agentURL)
 	if err != nil {
 		return "", err
@@ -68,7 +75,7 @@ func (c *Client) makeURL(requestPath string) (string, error) {
 	return u.String(), nil
 }
 
-func (c *Client) get(ctx context.Context, path string, v interface{}) error {
+func (c *client) get(ctx context.Context, path string, v interface{}) error {
 	client := http.Client{Timeout: common.MetadataTimeout()}
 	url, err := c.makeURL(path)
 	if err != nil {

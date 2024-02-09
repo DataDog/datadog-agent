@@ -1,0 +1,37 @@
+<div class="stat">
+  <span class="stat_title">Agent Info</span>
+  <span class="stat_data">
+    Version: {{.version}}
+    <br>Flavor: {{.flavor}}
+    <br>PID: {{.pid}}
+    <br>Agent start: {{ formatUnixTime .agent_start_nano }}
+    {{- if .config.log_file}}
+      <br>Log File: {{.config.log_file}}
+    {{end}}
+    <br>Log Level: {{.config.log_level}}
+    <br>Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
+    <br>Conf.d Path: {{.config.confd_path}}
+    <br>Checks.d Path: {{.config.additional_checksd}}
+  </span>
+</div>
+
+<div class="stat">
+  <span class="stat_title">System Info</span>
+  <span class="stat_data">
+    System time: {{ formatUnixTime .time_nano }}
+    <br>Go Version: {{.go_version}}
+    <br>Python Version: {{.python_version}}
+    <br>Build arch: {{.build_arch}}
+  </span>
+</div>
+
+{{- if eq .config.fips_enabled "true" }}
+<div class="stat">
+  <span class="stat_title">FIPS proxy</span>
+  <span class="stat_data">
+    FIPS proxy is enabled. All communication will be routed to a local FIPS proxy:<br>
+      - Local address: {{ .config.fips_local_address }}<br>
+      - Starting port range: {{ .config.fips_port_range_start }}<br>
+  </span>
+</div>
+{{- end }}

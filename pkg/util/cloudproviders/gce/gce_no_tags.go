@@ -10,7 +10,7 @@ package gce
 import "context"
 
 // GetTags gets the tags from the GCE api
-func GetTags(ctx context.Context) ([]string, error) {
+func GetTags(_ context.Context) ([]string, error) {
 	tags := []string{}
 
 	return tags, nil

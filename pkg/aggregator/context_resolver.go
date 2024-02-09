@@ -7,13 +7,16 @@ package aggregator
 
 import (
 	"fmt"
+	"io"
+	"unsafe"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // Context holds the elements that form a context, and can be serialized into a context key
@@ -27,6 +30,12 @@ type Context struct {
 	source     metrics.MetricSource
 }
 
+const (
+	// ContextSizeInBytes is the size of a context in bytes
+	// We count the size of the context key with the context.
+	ContextSizeInBytes = int(unsafe.Sizeof(Context{})) + int(unsafe.Sizeof(ckey.ContextKey(0)))
+)
+
 // Tags returns tags for the context.
 func (c *Context) Tags() tagset.CompositeTags {
 	return tagset.NewCompositeTags(c.taggerTags.Tags(), c.metricTags.Tags())
@@ -37,16 +46,31 @@ func (c *Context) release() {
 	c.metricTags.Release()
 }
 
+// SizeInBytes returns the size of the context in bytes
+func (c *Context) SizeInBytes() int {
+	return ContextSizeInBytes
+}
+
+// DataSizeInBytes returns the size of the context data in bytes
+func (c *Context) DataSizeInBytes() int {
+	return len(c.Name) + len(c.Host) + c.taggerTags.DataSizeInBytes() + c.metricTags.DataSizeInBytes()
+}
+
+// Make sure we implement the interface
+var _ util.HasSizeInBytes = &Context{}
+
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
-	contextsByKey   map[ckey.ContextKey]*Context
-	countsByMtype   []uint64
-	tagsCache       *tags.Store
-	keyGenerator    *ckey.KeyGenerator
-	taggerBuffer    *tagset.HashingTagsAccumulator
-	metricBuffer    *tagset.HashingTagsAccumulator
-	contextsLimiter *limiter.Limiter
-	tagsLimiter     *tags_limiter.Limiter
+	id               string
+	contextsByKey    map[ckey.ContextKey]*Context
+	seendByMtype     []bool
+	countsByMtype    []uint64
+	bytesByMtype     []uint64
+	dataBytesByMtype []uint64
+	tagsCache        *tags.Store
+	keyGenerator     *ckey.KeyGenerator
+	taggerBuffer     *tagset.HashingTagsAccumulator
+	metricBuffer     *tagset.HashingTagsAccumulator
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -54,34 +78,32 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 	return cr.keyGenerator.GenerateWithTags2(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.taggerBuffer, cr.metricBuffer)
 }
 
-func newContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter) *contextResolver {
+func newContextResolver(cache *tags.Store, id string) *contextResolver {
 	return &contextResolver{
-		contextsByKey:   make(map[ckey.ContextKey]*Context),
-		countsByMtype:   make([]uint64, metrics.NumMetricTypes),
-		tagsCache:       cache,
-		keyGenerator:    ckey.NewKeyGenerator(),
-		taggerBuffer:    tagset.NewHashingTagsAccumulator(),
-		metricBuffer:    tagset.NewHashingTagsAccumulator(),
-		contextsLimiter: contextsLimiter,
-		tagsLimiter:     tagsLimiter,
+		id:               id,
+		contextsByKey:    make(map[ckey.ContextKey]*Context),
+		seendByMtype:     make([]bool, metrics.NumMetricTypes),
+		countsByMtype:    make([]uint64, metrics.NumMetricTypes),
+		bytesByMtype:     make([]uint64, metrics.NumMetricTypes),
+		dataBytesByMtype: make([]uint64, metrics.NumMetricTypes),
+		tagsCache:        cache,
+		keyGenerator:     ckey.NewKeyGenerator(),
+		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
+		metricBuffer:     tagset.NewHashingTagsAccumulator(),
 	}
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) (ckey.ContextKey, bool) {
-	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer) // tags here are not sorted and can contain duplicates
+func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer, tagger.EnrichTags) // tags here are not sorted and can contain duplicates
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
-		if !cr.tryAdd(taggerKey) {
-			return contextKey, false
-		}
-
 		mtype := metricSampleContext.GetMetricType()
-		cr.contextsByKey[contextKey] = &Context{
+		context := &Context{
 			Name:       metricSampleContext.GetName(),
 			taggerTags: cr.tagsCache.Insert(taggerKey, cr.taggerBuffer),
 			metricTags: cr.tagsCache.Insert(metricKey, cr.metricBuffer),
@@ -90,17 +112,14 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			noIndex:    metricSampleContext.IsNoIndex(),
 			source:     metricSampleContext.GetSource(),
 		}
+		cr.contextsByKey[contextKey] = context
+		cr.seendByMtype[mtype] = true
 		cr.countsByMtype[mtype]++
+		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
+		cr.dataBytesByMtype[mtype] += uint64(context.DataSizeInBytes())
 	}
 
-	return contextKey, true
-}
-
-func (cr *contextResolver) tryAdd(taggerKey ckey.TagsKey) bool {
-	taggerTags := cr.taggerBuffer.Get()
-	metricTags := cr.metricBuffer.Get()
-	// tagsLimiter should come first, contextsLimiter is stateful and successful calls to Track must be paired with Remove.
-	return cr.tagsLimiter.Check(taggerKey, taggerTags, metricTags) && cr.contextsLimiter.Track(taggerTags)
+	return contextKey
 }
 
 func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {
@@ -118,8 +137,26 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 
 	if context != nil {
 		cr.countsByMtype[context.mtype]--
-		cr.contextsLimiter.Remove(context.taggerTags.Tags())
+		cr.bytesByMtype[context.mtype] -= uint64(context.SizeInBytes())
+		cr.dataBytesByMtype[context.mtype] -= uint64(context.DataSizeInBytes())
 		context.release()
+	}
+}
+
+func (cr *contextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, bytesByMTypeGauge telemetry.Gauge) {
+	for i := 0; i < int(metrics.NumMetricTypes); i++ {
+		count := cr.countsByMtype[i]
+		bytes := cr.bytesByMtype[i]
+		dataBytes := cr.dataBytesByMtype[i]
+		mtype := metrics.MetricType(i).String()
+
+		// Limit un-needed cardinality (especially because each check has its own resolver)
+		if !cr.seendByMtype[i] {
+			continue
+		}
+		countsByMTypeGauge.WithValues(cr.id, mtype).Set(float64(count))
+		bytesByMTypeGauge.Set(float64(bytes), cr.id, mtype, util.BytesKindStruct)
+		bytesByMTypeGauge.Set(float64(dataBytes), cr.id, mtype, util.BytesKindData)
 	}
 }
 
@@ -129,20 +166,11 @@ func (cr *contextResolver) release() {
 	}
 }
 
-func (cr *contextResolver) removeOverLimit(keep func(ckey.ContextKey) bool) {
-	cr.contextsLimiter.ExpireEntries()
-
-	for key, cx := range cr.contextsByKey {
-		if cr.contextsLimiter.IsOverLimit(cx.taggerTags.Tags()) && (keep == nil || !keep(key)) {
-			cr.remove(key)
-		}
-	}
-}
-
-func (c *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
+//nolint:revive // TODO(AML) Fix revive linter
+func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
 	// Within the contextResolver, each set of tags is represented by a unique pointer.
 	perOrigin := map[*tags.Entry]uint64{}
-	for _, cx := range c.contextsByKey {
+	for _, cx := range cr.contextsByKey {
 		perOrigin[cx.taggerTags]++
 	}
 
@@ -169,20 +197,15 @@ func (c *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.
 	}
 }
 
-func (c *contextResolver) sendLimiterTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
-	c.contextsLimiter.SendTelemetry(timestamp, series, hostname, constTags)
-	c.tagsLimiter.SendTelemetry(timestamp, series, hostname, constTags)
-}
-
 // timestampContextResolver allows tracking and expiring contexts based on time.
 type timestampContextResolver struct {
 	resolver      *contextResolver
 	lastSeenByKey map[ckey.ContextKey]float64
 }
 
-func newTimestampContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter) *timestampContextResolver {
+func newTimestampContextResolver(cache *tags.Store, id string) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver:      newContextResolver(cache, contextsLimiter, tagsLimiter),
+		resolver:      newContextResolver(cache, id),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
 	}
 }
@@ -199,12 +222,10 @@ func (cr *timestampContextResolver) updateTrackedContext(contextKey ckey.Context
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *timestampContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp float64) (ckey.ContextKey, bool) {
-	contextKey, ok := cr.resolver.trackContext(metricSampleContext)
-	if ok {
-		cr.lastSeenByKey[contextKey] = currentTimestamp
-	}
-	return contextKey, ok
+func (cr *timestampContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp float64) ckey.ContextKey {
+	contextKey := cr.resolver.trackContext(metricSampleContext)
+	cr.lastSeenByKey[contextKey] = currentTimestamp
+	return contextKey
 }
 
 func (cr *timestampContextResolver) length() int {
@@ -229,16 +250,18 @@ func (cr *timestampContextResolver) expireContexts(expireTimestamp float64, keep
 			cr.resolver.remove(contextKey)
 		}
 	}
-
-	cr.resolver.removeOverLimit(keep)
 }
 
 func (cr *timestampContextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []string) {
 	cr.resolver.sendOriginTelemetry(timestamp, series, hostname, tags)
 }
 
-func (cr *timestampContextResolver) sendLimiterTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []string) {
-	cr.resolver.sendLimiterTelemetry(timestamp, series, hostname, tags)
+func (cr *timestampContextResolver) dumpContexts(dest io.Writer) error {
+	return cr.resolver.dumpContexts(dest)
+}
+
+func (cr *timestampContextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, bytesByMTypeGauge telemetry.Gauge) {
+	cr.resolver.updateMetrics(countsByMTypeGauge, bytesByMTypeGauge)
 }
 
 // countBasedContextResolver allows tracking and expiring contexts based on the number
@@ -250,18 +273,27 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, id string) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(cache, nil, nil),
+		resolver:            newContextResolver(cache, id),
 		expireCountByKey:    make(map[ckey.ContextKey]int64),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
 	}
 }
 
+// length returns the number of contexts tracked by the resolver
+func (cr *countBasedContextResolver) length() int {
+	return cr.resolver.length()
+}
+
+func (cr *countBasedContextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, bytesByMTypeGauge telemetry.Gauge) {
+	cr.resolver.updateMetrics(countsByMTypeGauge, bytesByMTypeGauge)
+}
+
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	contextKey, _ := cr.resolver.trackContext(metricSampleContext)
+	contextKey := cr.resolver.trackContext(metricSampleContext)
 	cr.expireCountByKey[contextKey] = cr.expireCount
 	return contextKey
 }

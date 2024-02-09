@@ -1,0 +1,50 @@
+From e8ce85ce0ee230aac96594b11ffea6cabd2d89c7 Mon Sep 17 00:00:00 2001
+From: Gabriel Aszalos <gabriel.aszalos@gmail.com>
+Date: Tue, 2 Nov 2021 14:34:03 +0200
+Subject: [PATCH] pkg/trace/traceutil: credit card obfuscation (#9213)
+
+The PR adds support for credit card number obfuscation in span tags by means of configuration:
+```yaml
+apm_config:
+  obfuscation:
+    credit_cards:
+      enabled: true # enables obfuscation in span tags
+      luhn: true    # enables Luhn check
+```
+It is also possible to apply these settings via `DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED` and `DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN`.
+
+The feature is off by default. Applying the Luhn algorithm has a performance impact but eliminates any potential false positives. Without it, the algorithm simply checks for valid IIN credit card prefixes (and lengths) in numeric tags, which should be sufficient for most use cases.
+
+The check and obfuscation is applied at decode time to avoid iterating and reading the map again. This is possible only for Msgpack. For JSON, the iteration happens since we don't own the decoding code.
+---
+ pkg/trace/pb/span_gen.go | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/pkg/trace/pb/span_gen.go b/pkg/trace/pb/span_gen.go
+index 7a06e04853..589abbfee8 100644
+--- a/pkg/trace/pb/span_gen.go
++++ b/pkg/trace/pb/span_gen.go
+@@ -74,6 +74,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
+ 		err = msgp.WrapError(err)
+ 		return
+ 	}
++	hook, hookok := MetaHook()
+ 	for zb0001 > 0 {
+ 		zb0001--
+ 		field, bts, err = msgp.ReadMapKeyZC(bts)
+@@ -169,7 +170,11 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
+ 					err = msgp.WrapError(err, "Meta", za0001)
+ 					return
+ 				}
+-				z.Meta[za0001] = za0002
++				if hookok {
++					z.Meta[za0001] = hook(za0001, za0002)
++				} else {
++					z.Meta[za0001] = za0002
++				}
+ 			}
+ 		case "metrics":
+ 			if msgp.IsNil(bts) {
+-- 
+2.41.0
+

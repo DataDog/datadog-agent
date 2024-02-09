@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package trigger
 
 import (
-	jsonEncoder "encoding/json"
+	"fmt"
 	"strings"
+
+	jsonEncoder "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/util/json"
 )
@@ -17,14 +20,23 @@ import (
 type AWSEventType int
 
 const (
+	// Unknown describes an unknown event type
+	Unknown AWSEventType = iota
+
 	// APIGatewayEvent describes an event from classic AWS API Gateways
-	APIGatewayEvent AWSEventType = iota
+	APIGatewayEvent
 
 	// APIGatewayV2Event describes an event from AWS API Gateways
 	APIGatewayV2Event
 
 	// APIGatewayWebsocketEvent describes an event from websocket AWS API Gateways
 	APIGatewayWebsocketEvent
+
+	// APIGatewayLambdaAuthorizerTokenEvent describes an event from a token-based API Gateway lambda authorizer
+	APIGatewayLambdaAuthorizerTokenEvent
+
+	// APIGatewayLambdaAuthorizerRequestParametersEvent describes an event from a request-parameters-based API Gateway lambda authorizer
+	APIGatewayLambdaAuthorizerRequestParametersEvent
 
 	// ALBEvent describes an event from application load balancers
 	ALBEvent
@@ -64,101 +76,88 @@ const (
 
 	// LambdaFunctionURLEvent describes an event from an HTTP lambda function URL invocation
 	LambdaFunctionURLEvent
-
-	// Unknown describes an unknown event type
-	Unknown
 )
 
 // eventParseFunc defines the signature of AWS event parsing functions
-type eventParseFunc func(map[string]interface{}) bool
+type eventParseFunc func(map[string]any) bool
+
+type checker struct {
+	check eventParseFunc
+	typ   AWSEventType
+}
+
+var (
+	unknownChecker = new(checker)
+	// TODO: refactor to store the last event type on the execution context
+	// instead of as a global
+	lastEventChecker = unknownChecker
+	eventCheckers    = []*checker{
+		{isAPIGatewayEvent, APIGatewayEvent},
+		{isAPIGatewayV2Event, APIGatewayV2Event},
+		{isAPIGatewayWebsocketEvent, APIGatewayWebsocketEvent},
+		{isAPIGatewayLambdaAuthorizerTokenEvent, APIGatewayLambdaAuthorizerTokenEvent},
+		{isAPIGatewayLambdaAuthorizerRequestParametersEvent, APIGatewayLambdaAuthorizerRequestParametersEvent},
+		{isALBEvent, ALBEvent},
+		{isCloudFrontRequestEvent, CloudFrontRequestEvent},
+		{isCloudwatchEvent, CloudWatchEvent},
+		{isCloudwatchLogsEvent, CloudWatchLogsEvent},
+		{isDynamoDBStreamEvent, DynamoDBStreamEvent},
+		{isKinesisStreamEvent, KinesisStreamEvent},
+		{isS3Event, S3Event},
+		{isSNSEvent, SNSEvent},
+		{isSNSSQSEvent, SNSSQSEvent},
+		{isSQSEvent, SQSEvent},
+		{isAppSyncResolverEvent, AppSyncResolverEvent},
+		{isEventBridgeEvent, EventBridgeEvent},
+		{isLambdaFunctionURLEvent, LambdaFunctionURLEvent},
+		// Ultimately check this is a Kong API Gateway event as a last resort.
+		// This is because Kong API Gateway events are a subset of API Gateway events
+		// as of https://github.com/Kong/kong/blob/348c980/kong/plugins/aws-lambda/request-util.lua#L248-L260
+		{isKongAPIGatewayEvent, APIGatewayEvent},
+	}
+)
 
 // GetEventType takes in a payload string and returns an AWSEventType
 // that matches the input payload. Returns `Unknown` if a payload could not be
 // matched to an event.
-func GetEventType(payload map[string]interface{}) AWSEventType {
-	if isAPIGatewayEvent(payload) {
-		return APIGatewayEvent
+func GetEventType(payload map[string]any) AWSEventType {
+	// allow last event type to jump ahead in line since it is likely the event
+	// type is the same between invocations
+	if lastEventChecker != unknownChecker {
+		if lastEventChecker.check(payload) {
+			return lastEventChecker.typ
+		}
 	}
-
-	if isAPIGatewayV2Event(payload) {
-		return APIGatewayV2Event
+	for _, checker := range eventCheckers {
+		if checker == lastEventChecker {
+			continue // typ already checked
+		}
+		if checker.check(payload) {
+			lastEventChecker = checker
+			return checker.typ
+		}
 	}
-
-	if isAPIGatewayWebsocketEvent(payload) {
-		return APIGatewayWebsocketEvent
-	}
-
-	if isALBEvent(payload) {
-		return ALBEvent
-	}
-
-	if isCloudFrontRequestEvent(payload) {
-		return CloudFrontRequestEvent
-	}
-
-	if isCloudwatchEvent(payload) {
-		return CloudWatchEvent
-	}
-
-	if isCloudwatchLogsEvent(payload) {
-		return CloudWatchLogsEvent
-	}
-
-	if isDynamoDBStreamEvent(payload) {
-		return DynamoDBStreamEvent
-	}
-
-	if isKinesisStreamEvent(payload) {
-		return KinesisStreamEvent
-	}
-
-	if isS3Event(payload) {
-		return S3Event
-	}
-
-	if isSNSEvent(payload) {
-		return SNSEvent
-	}
-
-	if isSNSSQSEvent(payload) {
-		return SNSSQSEvent
-	}
-
-	if isSQSEvent(payload) {
-		return SQSEvent
-	}
-
-	if isAppSyncResolverEvent(payload) {
-		return AppSyncResolverEvent
-	}
-
-	if isEventBridgeEvent(payload) {
-		return EventBridgeEvent
-	}
-
-	if isLambdaFunctionURLEvent(payload) {
-		return LambdaFunctionURLEvent
-	}
-
+	lastEventChecker = unknownChecker
 	return Unknown
 }
 
 // Unmarshal unmarshals a payload string into a generic interface
-func Unmarshal(payload []byte) (map[string]interface{}, error) {
-	jsonPayload := make(map[string]interface{})
+func Unmarshal(payload []byte) (map[string]any, error) {
+	jsonPayload := make(map[string]any)
 	if err := jsonEncoder.Unmarshal(payload, &jsonPayload); err != nil {
 		return nil, err
 	}
 	return jsonPayload, nil
 }
 
-func isAPIGatewayEvent(event map[string]interface{}) bool {
+func isAPIGatewayEvent(event map[string]any) bool {
 	return json.GetNestedValue(event, "requestcontext", "stage") != nil &&
 		json.GetNestedValue(event, "httpmethod") != nil &&
-		json.GetNestedValue(event, "resource") != nil
+		json.GetNestedValue(event, "resource") != nil &&
+		!isAPIGatewayLambdaAuthorizerRequestParametersEvent(event)
 }
 
-func isAPIGatewayV2Event(event map[string]interface{}) bool {
+func isAPIGatewayV2Event(event map[string]any) bool {
 	version, ok := json.GetNestedValue(event, "version").(string)
 	if !ok {
 		return false
@@ -172,49 +171,73 @@ func isAPIGatewayV2Event(event map[string]interface{}) bool {
 		!strings.Contains(domainName, "lambda-url")
 }
 
-func isAPIGatewayWebsocketEvent(event map[string]interface{}) bool {
+// Kong API Gateway events are regular API Gateway events with a few missing
+// fields (cf. https://github.com/Kong/kong/blob/348c980/kong/plugins/aws-lambda/request-util.lua#L248-L260)
+// As a result, this function must be called after isAPIGatewayEvent() and
+// related API Gateway event payload checks. It returns true when httpmethod and
+// resource are present.
+func isKongAPIGatewayEvent(event map[string]any) bool {
+	return json.GetNestedValue(event, "httpmethod") != nil &&
+		json.GetNestedValue(event, "resource") != nil
+}
+
+func isAPIGatewayWebsocketEvent(event map[string]any) bool {
 	return json.GetNestedValue(event, "requestcontext") != nil &&
 		json.GetNestedValue(event, "requestcontext", "messagedirection") != nil
 }
 
-func isALBEvent(event map[string]interface{}) bool {
+func isAPIGatewayLambdaAuthorizerTokenEvent(event map[string]any) bool {
+	return json.GetNestedValue(event, "type") == "token" &&
+		json.GetNestedValue(event, "authorizationtoken") != nil &&
+		json.GetNestedValue(event, "methodarn") != nil
+}
+
+func isAPIGatewayLambdaAuthorizerRequestParametersEvent(event map[string]any) bool {
+	return json.GetNestedValue(event, "type") == "request" &&
+		json.GetNestedValue(event, "methodarn") != nil &&
+		json.GetNestedValue(event, "headers") != nil &&
+		json.GetNestedValue(event, "querystringparameters") != nil &&
+		json.GetNestedValue(event, "requestcontext", "apiid") != nil
+}
+
+func isALBEvent(event map[string]any) bool {
 	return json.GetNestedValue(event, "requestcontext", "elb") != nil
 }
 
-func isCloudwatchEvent(event map[string]interface{}) bool {
+func isCloudwatchEvent(event map[string]any) bool {
 	source, ok := json.GetNestedValue(event, "source").(string)
 	return ok && source == "aws.events"
 }
 
-func isCloudwatchLogsEvent(event map[string]interface{}) bool {
+func isCloudwatchLogsEvent(event map[string]any) bool {
 	return json.GetNestedValue(event, "awslogs") != nil
 }
 
-func isCloudFrontRequestEvent(event map[string]interface{}) bool {
+func isCloudFrontRequestEvent(event map[string]any) bool {
 	return eventRecordsKeyExists(event, "cf")
 }
 
-func isDynamoDBStreamEvent(event map[string]interface{}) bool {
+func isDynamoDBStreamEvent(event map[string]any) bool {
 	return eventRecordsKeyExists(event, "dynamodb")
 }
 
-func isKinesisStreamEvent(event map[string]interface{}) bool {
+func isKinesisStreamEvent(event map[string]any) bool {
 	return eventRecordsKeyExists(event, "kinesis")
 }
 
-func isS3Event(event map[string]interface{}) bool {
+func isS3Event(event map[string]any) bool {
 	return eventRecordsKeyExists(event, "s3")
 }
 
-func isSNSEvent(event map[string]interface{}) bool {
+func isSNSEvent(event map[string]any) bool {
 	return eventRecordsKeyExists(event, "sns")
 }
 
-func isSQSEvent(event map[string]interface{}) bool {
+func isSQSEvent(event map[string]any) bool {
 	return eventRecordsKeyEquals(event, "eventsource", "aws:sqs")
 }
 
-func isSNSSQSEvent(event map[string]interface{}) bool {
+func isSNSSQSEvent(event map[string]any) bool {
 	if !eventRecordsKeyEquals(event, "eventsource", "aws:sqs") {
 		return false
 	}
@@ -231,15 +254,15 @@ func isSNSSQSEvent(event map[string]interface{}) bool {
 	return messageType == "notification" && topicArn != ""
 }
 
-func isAppSyncResolverEvent(event map[string]interface{}) bool {
+func isAppSyncResolverEvent(event map[string]any) bool {
 	return json.GetNestedValue(event, "info", "selectionsetgraphql") != nil
 }
 
-func isEventBridgeEvent(event map[string]interface{}) bool {
+func isEventBridgeEvent(event map[string]any) bool {
 	return json.GetNestedValue(event, "detail-type") != nil && json.GetNestedValue(event, "source") != "aws.events"
 }
 
-func isLambdaFunctionURLEvent(event map[string]interface{}) bool {
+func isLambdaFunctionURLEvent(event map[string]any) bool {
 	lambdaURL, ok := json.GetNestedValue(event, "requestcontext", "domainname").(string)
 	if !ok {
 		return false
@@ -247,28 +270,73 @@ func isLambdaFunctionURLEvent(event map[string]interface{}) bool {
 	return strings.Contains(lambdaURL, "lambda-url")
 }
 
-func eventRecordsKeyExists(event map[string]interface{}, key string) bool {
+func eventRecordsKeyExists(event map[string]any, key string) bool {
 	records, ok := json.GetNestedValue(event, "records").([]interface{})
 	if !ok {
 		return false
 	}
 	if len(records) > 0 {
-		if records[0].(map[string]interface{})[key] != nil {
+		if records[0].(map[string]any)[key] != nil {
 			return true
 		}
 	}
 	return false
 }
 
-func eventRecordsKeyEquals(event map[string]interface{}, key string, val string) bool {
+func eventRecordsKeyEquals(event map[string]any, key string, val string) bool {
 	records, ok := json.GetNestedValue(event, "records").([]interface{})
 	if !ok {
 		return false
 	}
 	if len(records) > 0 {
-		if mapVal := records[0].(map[string]interface{})[key]; mapVal != nil {
+		if mapVal := records[0].(map[string]any)[key]; mapVal != nil {
 			return mapVal == val
 		}
 	}
 	return false
+}
+
+func (et AWSEventType) String() string {
+	switch et {
+	case Unknown:
+		return "Unknown"
+	case APIGatewayEvent:
+		return "APIGatewayEvent"
+	case APIGatewayV2Event:
+		return "APIGatewayV2Event"
+	case APIGatewayWebsocketEvent:
+		return "APIGatewayWebsocketEvent"
+	case APIGatewayLambdaAuthorizerTokenEvent:
+		return "APIGatewayLambdaAuthorizerTokenEvent"
+	case APIGatewayLambdaAuthorizerRequestParametersEvent:
+		return "APIGatewayLambdaAuthorizerRequestParametersEvent"
+	case ALBEvent:
+		return "ALBEvent"
+	case CloudWatchEvent:
+		return "CloudWatchEvent"
+	case CloudWatchLogsEvent:
+		return "CloudWatchLogsEvent"
+	case CloudFrontRequestEvent:
+		return "CloudFrontRequestEvent"
+	case DynamoDBStreamEvent:
+		return "DynamoDBStreamEvent"
+	case KinesisStreamEvent:
+		return "KinesisStreamEvent"
+	case S3Event:
+		return "S3Event"
+	case SNSEvent:
+		return "SNSEvent"
+	case SQSEvent:
+		return "SQSEvent"
+	case SNSSQSEvent:
+		return "SNSSQSEvent"
+	case AppSyncResolverEvent:
+		return "AppSyncResolverEvent"
+	case EventBridgeEvent:
+		return "EventBridgeEvent"
+	case LambdaFunctionURLEvent:
+		return "LambdaFunctionURLEvent"
+	default:
+		return fmt.Sprintf("EventType(%d)", et)
+	}
 }

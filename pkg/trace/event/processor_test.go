@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -100,11 +100,11 @@ func TestProcessor(t *testing.T) {
 				TraceChunk: testChunk,
 				Root:       root,
 			}
-			numEvents, extracted := p.Process(pt)
+			numEvents, numExtracted, events := p.Process(pt)
 			p.Stop()
 
 			expectedExtracted := float64(numSpans) * test.expectedExtractedPct
-			assert.InDelta(expectedExtracted, extracted, expectedExtracted*test.deltaPct)
+			assert.InDelta(expectedExtracted, numExtracted, expectedExtracted*test.deltaPct)
 
 			expectedReturned := expectedExtracted * test.expectedSampledPct
 			assert.InDelta(expectedReturned, numEvents, expectedReturned*test.deltaPct)
@@ -112,19 +112,20 @@ func TestProcessor(t *testing.T) {
 			assert.EqualValues(1, testSampler.StartCalls)
 			assert.EqualValues(1, testSampler.StopCalls)
 
-			expectedSampleCalls := extracted
+			expectedSampleCalls := numExtracted
 			if test.priority == sampler.PriorityUserKeep {
 				expectedSampleCalls = 0
 			}
 			assert.EqualValues(expectedSampleCalls, testSampler.SampleCalls)
 
 			if !test.droppedTrace {
+				events = testChunk.Spans // If we aren't going to drop the trace we need to look at the whole list of spans
 				assert.EqualValues(numSpans, len(testChunk.Spans))
 			} else {
-				assert.EqualValues(numEvents, len(testChunk.Spans))
+				assert.EqualValues(numEvents, len(events))
 			}
 
-			for _, event := range testChunk.Spans {
+			for _, event := range events {
 				if !sampler.IsAnalyzedSpan(event) {
 					continue
 				}
@@ -147,10 +148,12 @@ func TestProcessor(t *testing.T) {
 	}
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 type MockExtractor struct {
 	Rate float64
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (e *MockExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
 	if e.Rate < 0 {
 		return 0, false
@@ -158,6 +161,7 @@ func (e *MockExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (
 	return e.Rate, true
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 type MockEventSampler struct {
 	Rate float64
 
@@ -174,6 +178,7 @@ func (s *MockEventSampler) Stop() {
 	s.StopCalls++
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (s *MockEventSampler) Sample(event *pb.Span) (bool, float64) {
 	s.SampleCalls++
 

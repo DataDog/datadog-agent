@@ -3,25 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package sbom holds sbom related files
 package sbom
 
 import (
 	"time"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
-	ScanFilesystemType = "filesystem"
-	ScanDaemonType     = "daemon"
+	ScanFilesystemType = "filesystem" // ScanFilesystemType defines the type for file-system scan
+	ScanDaemonType     = "daemon"     // ScanDaemonType defines the type for daemon scan
 )
 
+// Report defines the report interface
 type Report interface {
 	ToCycloneDX() (*cyclonedxgo.BOM, error)
+	ID() string
 }
 
+// ScanOptions defines the scan options
 type ScanOptions struct {
 	Analyzers        []string
 	CheckDiskUsage   bool
@@ -33,7 +37,7 @@ type ScanOptions struct {
 }
 
 // ScanOptionsFromConfig loads the scanning options from the configuration
-func ScanOptionsFromConfig(cfg config.Config, containers bool) (scanOpts ScanOptions) {
+func ScanOptionsFromConfig(cfg config.Config, containers bool) (scanOpts ScanOptions) { //nolint:revive // TODO fix revive unused-parameter
 	if containers {
 		scanOpts.CheckDiskUsage = config.Datadog.GetBool("sbom.container_image.check_disk_usage")
 		scanOpts.MinAvailableDisk = uint64(config.Datadog.GetSizeInBytes("sbom.container_image.min_available_disk"))
@@ -49,12 +53,20 @@ func ScanOptionsFromConfig(cfg config.Config, containers bool) (scanOpts ScanOpt
 	return
 }
 
+// ScanRequest defines the scan request interface
 type ScanRequest interface {
 	Collector() string
 	Type() string
 	ID() string
 }
 
+// ImageScanRequest defines methods exclusive to image scan requests
+type ImageScanRequest interface {
+	// GetImgMetadata() returns the image metadata.
+	GetImgMetadata() *workloadmeta.ContainerImageMetadata
+}
+
+// ScanResult defines the scan result
 type ScanResult struct {
 	Error     error
 	Report    Report

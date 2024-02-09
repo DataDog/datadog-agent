@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package module holds module related files
 package module
 
 import (
@@ -12,15 +11,19 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
-	jwriter "github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
-	"golang.org/x/time/rate"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -35,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -60,31 +62,37 @@ type APIServer struct {
 	expiredEventsLock sync.RWMutex
 	expiredEvents     map[rules.RuleID]*atomic.Int64
 	expiredDumps      *atomic.Int64
-	limiter           *events.StdLimiter
-	statsdClient      statsd.ClientInterface
-	probe             *sprobe.Probe
-	queueLock         sync.Mutex
-	queue             []*pendingMsg
-	retention         time.Duration
-	cfg               *config.RuntimeSecurityConfig
-	selfTester        *selftests.SelfTester
-	cwsConsumer       *CWSConsumer
+	//nolint:unused // TODO(SEC) Fix unused linter
+	limiter            *events.StdLimiter
+	statsdClient       statsd.ClientInterface
+	probe              *sprobe.Probe
+	queueLock          sync.Mutex
+	queue              []*pendingMsg
+	retention          time.Duration
+	cfg                *config.RuntimeSecurityConfig
+	selfTester         *selftests.SelfTester
+	cwsConsumer        *CWSConsumer
+	policiesStatusLock sync.RWMutex
+	policiesStatus     []*api.PolicyStatus
 
-	stopper startstop.Stopper
+	stopChan chan struct{}
+	stopper  startstop.Stopper
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
-func (a *APIServer) GetActivityDumpStream(params *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
-	// read one activity dump or timeout after one second
-	select {
-	case dump := <-a.activityDumps:
-		if err := stream.Send(dump); err != nil {
-			return err
+func (a *APIServer) GetActivityDumpStream(_ *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
+		case dump := <-a.activityDumps:
+			if err := stream.Send(dump); err != nil {
+				return err
+			}
 		}
-	case <-time.After(time.Second):
-		break
 	}
-	return nil
 }
 
 // SendActivityDump queues an activity dump to the chan of activity dumps
@@ -111,192 +119,25 @@ func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
 }
 
 // GetEvents waits for security events
-func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
-	// Read 10 security events per call
-	msgs := 10
-LOOP:
+func (a *APIServer) GetEvents(_ *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
 	for {
-		// Check that the limit is not reached
-		if !a.limiter.Allow(nil) {
-			return nil
-		}
-
-		// Read one message
 		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
 		case msg := <-a.msgs:
 			if err := stream.Send(msg); err != nil {
 				return err
 			}
-			msgs--
-		case <-time.After(time.Second):
-			break LOOP
-		}
-
-		// Stop the loop when 10 messages were retrieved
-		if msgs <= 0 {
-			break
 		}
 	}
-
-	return nil
 }
 
 // RuleEvent is a wrapper used to send an event to the backend
 type RuleEvent struct {
 	RuleID string       `json:"rule_id"`
 	Event  events.Event `json:"event"`
-}
-
-// DumpDiscarders handles discarder dump requests
-func (a *APIServer) DumpDiscarders(ctx context.Context, params *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error) {
-	filePath, err := a.probe.DumpDiscarders()
-	if err != nil {
-		return nil, err
-	}
-	seclog.Infof("Discarder dump file path: %s", filePath)
-
-	return &api.DumpDiscardersMessage{DumpFilename: filePath}, nil
-}
-
-// DumpProcessCache handles process cache dump requests
-func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
-	resolvers := a.probe.GetResolvers()
-
-	filename, err := resolvers.ProcessResolver.Dump(params.WithArgs)
-	if err != nil {
-		return nil, err
-	}
-
-	return &api.SecurityDumpProcessCacheMessage{
-		Filename: filename,
-	}, nil
-}
-
-// DumpActivity handle an activity dump request
-func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	if managers := a.probe.GetProfileManagers(); managers != nil {
-		msg, err := managers.DumpActivity(params)
-		if err != nil {
-			seclog.Errorf(err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, fmt.Errorf("monitor not configured")
-}
-
-// ListActivityDumps returns the list of active dumps
-func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	if managers := a.probe.GetProfileManagers(); managers != nil {
-		msg, err := managers.ListActivityDumps(params)
-		if err != nil {
-			seclog.Errorf(err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, fmt.Errorf("monitor not configured")
-}
-
-// StopActivityDump stops an active activity dump if it exists
-func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	if managers := a.probe.GetProfileManagers(); managers != nil {
-		msg, err := managers.StopActivityDump(params)
-		if err != nil {
-			seclog.Errorf(err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, fmt.Errorf("monitor not configured")
-}
-
-// TranscodingRequest encodes an activity dump following the requested parameters
-func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	if managers := a.probe.GetProfileManagers(); managers != nil {
-		msg, err := managers.GenerateTranscoding(params)
-		if err != nil {
-			seclog.Errorf(err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, fmt.Errorf("monitor not configured")
-}
-
-// ListSecurityProfiles returns the list of security profiles
-func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
-	if managers := a.probe.GetProfileManagers(); managers != nil {
-		msg, err := managers.ListSecurityProfiles(params)
-		if err != nil {
-			seclog.Errorf(err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, fmt.Errorf("monitor not configured")
-}
-
-// SaveSecurityProfile saves the requested security profile to disk
-func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
-	if managers := a.probe.GetProfileManagers(); managers != nil {
-		msg, err := managers.SaveSecurityProfile(params)
-		if err != nil {
-			seclog.Errorf(err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, fmt.Errorf("monitor not configured")
-}
-
-// GetStatus returns the status of the module
-func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) (*api.Status, error) {
-	status, err := a.probe.GetConstantFetcherStatus()
-	if err != nil {
-		return nil, err
-	}
-
-	constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
-	for _, v := range status.Values {
-		constants = append(constants, &api.ConstantValueAndSource{
-			ID:     v.ID,
-			Value:  v.Value,
-			Source: v.FetcherName,
-		})
-	}
-
-	apiStatus := &api.Status{
-		Environment: &api.EnvironmentStatus{
-			Constants: &api.ConstantFetcherStatus{
-				Fetchers: status.Fetchers,
-				Values:   constants,
-			},
-		},
-		SelfTests: a.selfTester.GetStatus(),
-	}
-
-	envErrors := a.probe.VerifyEnvironment()
-	if envErrors != nil {
-		apiStatus.Environment.Warnings = make([]string, len(envErrors.Errors))
-		for i, err := range envErrors.Errors {
-			apiStatus.Environment.Warnings[i] = err.Error()
-		}
-	}
-
-	apiStatus.Environment.KernelLockdown = string(kernel.GetLockdownMode())
-
-	if kernel, err := a.probe.GetKernelVersion(); err == nil {
-		apiStatus.Environment.UseMmapableMaps = kernel.HaveMmapableMaps()
-		apiStatus.Environment.UseRingBuffer = a.probe.UseRingBuffers()
-	}
-
-	return apiStatus, nil
-}
-
-// DumpNetworkNamespace handles network namespace cache dump requests
-func (a *APIServer) DumpNetworkNamespace(ctx context.Context, params *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error) {
-	return a.probe.GetResolvers().NamespaceResolver.DumpNetworkNamespaces(params), nil
 }
 
 func (a *APIServer) enqueue(msg *pendingMsg) {
@@ -367,6 +208,7 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 			})
 		case <-ctx.Done():
+			a.stopChan <- struct{}{}
 			return
 		}
 	}
@@ -378,7 +220,13 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 		break
 	default:
 		// The channel is full, consume the oldest event
-		oldestMsg := <-a.msgs
+		select {
+		case oldestMsg := <-a.msgs:
+			a.expireEvent(oldestMsg)
+		default:
+			break
+		}
+
 		// Try to send the event again
 		select {
 		case a.msgs <- m:
@@ -388,7 +236,6 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 			a.expireEvent(m)
 			break
 		}
-		a.expireEvent(oldestMsg)
 		break
 	}
 }
@@ -403,7 +250,7 @@ func (a *APIServer) Start(ctx context.Context) {
 }
 
 // GetConfig returns config of the runtime security module required by the security agent
-func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
+func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
 	if a.cfg != nil {
 		return &api.SecurityConfigMessage{
 			FIMEnabled:          a.cfg.FIMEnabled,
@@ -414,38 +261,24 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 	return &api.SecurityConfigMessage{}, nil
 }
 
-// RunSelfTest runs self test and then reload the current policies
-func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
-	if a.cwsConsumer == nil {
-		return nil, errors.New("failed to found module in APIServer")
-	}
-
-	if a.selfTester == nil {
-		return &api.SecuritySelfTestResultMessage{
-			Ok:    false,
-			Error: "self-tests are disabled",
-		}, nil
-	}
-
-	if _, err := a.cwsConsumer.RunSelfTest(false); err != nil {
-		return &api.SecuritySelfTestResultMessage{
-			Ok:    false,
-			Error: err.Error(),
-		}, nil
-	}
-
-	return &api.SecuritySelfTestResultMessage{
-		Ok:    true,
-		Error: "",
-	}, nil
-}
-
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func() []string, service string) {
+	var ruleActions []events.RuleActionContext
+
+	// report only kill action for now
+	for _, action := range e.GetActions() {
+		if action.Name == rules.KillAction {
+			ruleActions = append(ruleActions, events.RuleActionContext{Name: action.Name, Signal: action.Value})
+		}
+	}
+
 	agentContext := events.AgentContext{
 		RuleID:      rule.Definition.ID,
 		RuleVersion: rule.Definition.Version,
+		RuleActions: ruleActions,
 		Version:     version.AgentVersion,
+		OS:          runtime.GOOS,
+		Arch:        utils.RuntimeArch(),
 	}
 
 	ruleEvent := &events.Signal{
@@ -458,7 +291,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := marshalEvent(e, a.probe)
+	probeJSON, err := marshalEvent(e)
 	if err != nil {
 		seclog.Errorf("failed to marshal event: %v", err)
 		return
@@ -487,22 +320,18 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
 	msg.tags = append(msg.tags, rule.Tags...)
 	msg.tags = append(msg.tags, eventTags...)
-	msg.tags = append(msg.tags, common.QueryAccountIdTag())
+	msg.tags = append(msg.tags, common.QueryAccountIDTag())
 
 	a.enqueue(msg)
 }
 
-func marshalEvent(event events.Event, probe *sprobe.Probe) ([]byte, error) {
+func marshalEvent(event events.Event) ([]byte, error) {
 	if ev, ok := event.(*model.Event); ok {
-		return serializers.MarshalEvent(ev, probe.GetResolvers())
+		return serializers.MarshalEvent(ev)
 	}
 
-	if m, ok := event.(easyjson.Marshaler); ok {
-		w := &jwriter.Writer{
-			Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-		}
-		m.MarshalEasyJSON(w)
-		return w.BuildBytes()
+	if ev, ok := event.(events.EventMarshaler); ok {
+		return ev.ToJSON()
 	}
 
 	return json.Marshal(event)
@@ -555,7 +384,7 @@ func (a *APIServer) SendStats() error {
 }
 
 // ReloadPolicies reloads the policies
-func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
+func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
 	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
 		return nil, errors.New("no rule engine")
 	}
@@ -566,8 +395,36 @@ func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPolici
 	return &api.ReloadPoliciesResultMessage{}, nil
 }
 
-// Apply a rule set
-func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
+// GetRuleSetReport reports the ruleset loaded
+func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
+		return nil, errors.New("no rule engine")
+	}
+
+	ruleSet := a.cwsConsumer.ruleEngine.GetRuleSet()
+	if ruleSet == nil {
+		return nil, fmt.Errorf("failed to get loaded rule set")
+	}
+
+	cfg := &pconfig.Config{
+		EnableKernelFilters: a.probe.Config.Probe.EnableKernelFilters,
+		EnableApprovers:     a.probe.Config.Probe.EnableApprovers,
+		EnableDiscarders:    a.probe.Config.Probe.EnableDiscarders,
+		PIDCacheSize:        a.probe.Config.Probe.PIDCacheSize,
+	}
+
+	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.GetRuleSetReportResultMessage{
+		RuleSetReportMessage: api.FromKFiltersToProtoRuleSetReport(report),
+	}, nil
+}
+
+// ApplyRuleIDs the rule ids
+func (a *APIServer) ApplyRuleIDs(ruleIDs []rules.RuleID) {
 	a.expiredEventsLock.Lock()
 	defer a.expiredEventsLock.Unlock()
 
@@ -577,10 +434,36 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	}
 }
 
+// ApplyPolicyStates the policy states
+func (a *APIServer) ApplyPolicyStates(policies []*monitor.PolicyState) {
+	a.policiesStatusLock.Lock()
+	defer a.policiesStatusLock.Unlock()
+
+	a.policiesStatus = []*api.PolicyStatus{}
+	for _, policy := range policies {
+		entry := api.PolicyStatus{
+			Name:   policy.Name,
+			Source: policy.Source,
+		}
+
+		for _, rule := range policy.Rules {
+			entry.Status = append(entry.Status, &api.RuleStatus{
+				ID:     rule.ID,
+				Status: rule.Status,
+				Error:  rule.Message,
+			})
+		}
+
+		a.policiesStatus = append(a.policiesStatus, &entry)
+	}
+}
+
+// Stop stops the API server
 func (a *APIServer) Stop() {
 	a.stopper.Stop()
 }
 
+// SetCWSConsumer sets the CWS consumer
 func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 	a.cwsConsumer = consumer
 }
@@ -600,13 +483,13 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 		activityDumps:  make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents:  make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:   atomic.NewInt64(0),
-		limiter:        events.NewStdLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:   client,
 		probe:          probe,
 		retention:      cfg.EventServerRetention,
 		cfg:            cfg,
 		stopper:        stopper,
 		selfTester:     selfTester,
+		stopChan:       make(chan struct{}),
 	}
 	return es
 }
@@ -618,8 +501,9 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 	}
 
 	runPath := pkgconfig.Datadog.GetString("runtime_security_config.run_path")
+	useSecRuntimeTrack := pkgconfig.SystemProbe.GetBool("runtime_security_config.use_secruntime_track")
 
-	endpoints, destinationsCtx, err := common.NewLogContextRuntime()
+	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
 	}
@@ -628,7 +512,9 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 		log.Info(status)
 	}
 
-	reporter, err := reporter.NewCWSReporter(runPath, stopper, endpoints, destinationsCtx)
+	// we set the hostname to the empty string to take advantage of the out of the box message hostname
+	// resolution
+	reporter, err := reporter.NewCWSReporter("", runPath, stopper, endpoints, destinationsCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}

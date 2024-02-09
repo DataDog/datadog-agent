@@ -98,6 +98,10 @@ int __attribute__((always_inline)) mkdir_approvers(struct syscall_cache_t *sysca
     return basename_approver(syscall, syscall->mkdir.dentry, EVENT_MKDIR);
 }
 
+int __attribute__((always_inline)) chdir_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->chdir.dentry, EVENT_CHDIR);
+}
+
 int __attribute__((always_inline)) approve_mprotect_by_vm_protection(struct syscall_cache_t *syscall) {
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&mprotect_vm_protection_approvers, &key);
@@ -136,7 +140,7 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     if (flags != NULL && (syscall->open.flags & *flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
 #ifdef DEBUG
-        bpf_printk("open flags %d approved\n", syscall->open.flags);
+        bpf_printk("open flags %d approved", syscall->open.flags);
 #endif
         return 1;
     }

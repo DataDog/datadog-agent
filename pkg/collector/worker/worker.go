@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,6 +27,17 @@ const (
 
 	// Variables for the utilization expvars
 	pollingInterval = 15 * time.Second
+)
+
+// The worker utilization is also reported via expvars, but it emits one metric
+// for each worker, which is a bit inconvenient to use because the number of
+// workers might be different on every Agent. With telemetry, we can use a
+// single metric and put the worker name in a tag.
+var workerUtilization = telemetry.NewGauge(
+	"collector",
+	"worker_utilization",
+	[]string{"worker_name"},
+	"Worker utilization. It's a value between 0 and 1 that represents the share of time that the check runner worker is running checks",
 )
 
 // Worker is an object that encapsulates the logic to manage a loop of processing
@@ -45,6 +56,7 @@ type Worker struct {
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
 func NewWorker(
+	senderManager sender.SenderManager,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -70,7 +82,7 @@ func NewWorker(
 		pendingChecksChan,
 		checksTracker,
 		shouldAddCheckStatsFunc,
-		aggregator.GetDefaultSender,
+		senderManager.GetDefaultSender,
 		pollingInterval,
 	)
 }
@@ -113,7 +125,7 @@ func (w *Worker) Run() {
 	utilizationTracker := NewUtilizationTracker(w.Name, w.utilizationTickInterval)
 	defer utilizationTracker.Stop()
 
-	startExpvarUpdater(w.Name, utilizationTracker)
+	startUtilizationUpdater(w.Name, utilizationTracker)
 	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval)
 	defer cancel()
 
@@ -137,8 +149,7 @@ func (w *Worker) Run() {
 		utilizationTracker.CheckStarted()
 
 		// Run the check
-		var checkErr error
-		checkErr = check.Run()
+		checkErr := check.Run()
 
 		utilizationTracker.CheckFinished()
 
@@ -167,8 +178,13 @@ func (w *Worker) Run() {
 			serviceCheckStatus = servicecheck.ServiceCheckCritical
 		}
 
-		if sender != nil && !longRunning && config.Datadog.GetBool("integration_check_status_enabled") {
-			sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+		if sender != nil && !longRunning {
+			if config.Datadog.GetBool("integration_check_status_enabled") {
+				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+			}
+			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
+			// it here for now to make sure it's not breaking any historical behavior
+			// with the shared default sender.
 			sender.Commit()
 		}
 
@@ -194,16 +210,20 @@ func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
 }
 
-func startExpvarUpdater(name string, ut *UtilizationTracker) {
+func startUtilizationUpdater(name string, ut *UtilizationTracker) {
 	expvars.SetWorkerStats(name, &expvars.WorkerStats{
 		Utilization: 0.0,
 	})
+
+	workerUtilization.Set(0, name)
 
 	go func() {
 		for value := range ut.Output {
 			expvars.SetWorkerStats(name, &expvars.WorkerStats{
 				Utilization: value,
 			})
+
+			workerUtilization.Set(value, name)
 		}
 		expvars.DeleteWorkerStats(name)
 	}()

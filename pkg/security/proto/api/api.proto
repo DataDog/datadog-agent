@@ -39,11 +39,40 @@ message SecurityConfigMessage {
     bool ActivityDumpEnabled = 3;
 }
 
-message RunSelfTestParams {}
+message RuleSetReportMessage{
+    repeated EventTypePolicy Policies = 1;
+}
+
+message EventTypePolicy{
+    string EventType = 1;
+    uint32 Mode = 2;
+    uint32 Flags = 3;
+    Approvers Approvers = 4;
+}
+
+message Approvers {
+    string Field = 1;
+    repeated ApproverDetails ApproverDetails = 2;
+}
+
+message ApproverDetails {
+    string Field = 1;
+    string Value = 2;
+    int32 Type = 3;
+}
+
+message GetRuleSetReportParams{}
+
+message GetRuleSetReportResultMessage{
+    RuleSetReportMessage RuleSetReportMessage = 1;
+    string Error = 2;
+}
 
 message ReloadPoliciesParams{}
 
 message ReloadPoliciesResultMessage{}
+
+message RunSelfTestParams {}
 
 message SecuritySelfTestResultMessage {
     bool Ok = 1;
@@ -64,9 +93,22 @@ message SelfTestsStatus {
     repeated string Fails = 3;
 }
 
+message RuleStatus {
+    string ID = 1;
+    string Status = 2;
+    string Error = 3;
+}
+
+message PolicyStatus {
+    string name = 1;
+    string source = 2;
+    repeated RuleStatus Status = 3;
+}
+
 message Status {
     EnvironmentStatus Environment = 1;
     SelfTestsStatus SelfTests = 2;
+    repeated PolicyStatus PoliciesStatus = 3;
 }
 
 message ConstantFetcherStatus {
@@ -241,6 +283,7 @@ service SecurityModule {
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc GetStatus(GetStatusParams) returns (Status) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
+    rpc GetRuleSetReport(GetRuleSetReportParams) returns (GetRuleSetReportResultMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
     rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}

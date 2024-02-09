@@ -17,7 +17,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 	"github.com/tinylib/msgp/msgp"
 	"google.golang.org/protobuf/proto"
@@ -100,11 +100,11 @@ func (s *fakeBackend) Shutdown(wait time.Duration) error {
 	return s.srv.Shutdown(ctx)
 }
 
-func (s *fakeBackend) handleHealth(w http.ResponseWriter, req *http.Request) {
+func (s *fakeBackend) handleHealth(w http.ResponseWriter, req *http.Request) { //nolint:revive // TODO fix revive unused-parameter
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) {
+func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) { //nolint:revive // TODO fix revive unused-parameter
 	var payload pb.StatsPayload
 	if err := readMsgPRequest(req, &payload); err != nil {
 		log.Println("server: error reading stats: ", err)
@@ -112,7 +112,7 @@ func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) {
 	s.out <- &payload
 }
 
-func (s *fakeBackend) handleTraces(w http.ResponseWriter, req *http.Request) {
+func (s *fakeBackend) handleTraces(w http.ResponseWriter, req *http.Request) { //nolint:revive // TODO fix revive unused-parameter
 	var payload pb.AgentPayload
 	if err := readProtoRequest(req, &payload); err != nil {
 		log.Println("server: error reading traces: ", err)

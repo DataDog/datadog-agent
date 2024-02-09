@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package kfilters holds kfilters related files
 package kfilters
 
 import (
+	"encoding/json"
 	"errors"
-	"strings"
 )
 
 // PolicyMode represents the policy mode (accept or deny)
@@ -54,20 +53,28 @@ func (m PolicyMode) MarshalJSON() ([]byte, error) {
 		return nil, errors.New("invalid policy mode")
 	}
 
-	return []byte(`"` + s + `"`), nil
+	return json.Marshal(s)
 }
 
 // MarshalJSON returns the JSON encoding of the policy flags
 func (f PolicyFlag) MarshalJSON() ([]byte, error) {
+	flags := f.StringArray()
+
+	return json.Marshal(flags)
+}
+
+// StringArray returns the policy flags as a string array
+func (f PolicyFlag) StringArray() []string {
 	var flags []string
 	if f&PolicyFlagBasename != 0 {
-		flags = append(flags, `"basename"`)
+		flags = append(flags, "basename")
 	}
 	if f&PolicyFlagFlags != 0 {
-		flags = append(flags, `"flags"`)
+		flags = append(flags, "flags")
 	}
 	if f&PolicyFlagMode != 0 {
-		flags = append(flags, `"mode"`)
+		flags = append(flags, "mode")
 	}
-	return []byte("[" + strings.Join(flags, ",") + "]"), nil
+
+	return flags
 }

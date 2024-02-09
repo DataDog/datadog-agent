@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package path holds path related files
 package path
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// ResolverInterface defines the resolver interface
 type ResolverInterface interface {
 	ResolveBasename(e *model.FileFields) string
 	ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error)
@@ -31,32 +33,32 @@ type NoResolver struct {
 }
 
 // ResolveBasename resolves an inode/mount ID pair to a file basename
-func (n *NoResolver) ResolveBasename(e *model.FileFields) string {
+func (n *NoResolver) ResolveBasename(_ *model.FileFields) string {
 	return ""
 }
 
 // ResolveFileFieldsPath resolves an inode/mount ID pair to a full path
-func (n *NoResolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
+func (n *NoResolver) ResolveFileFieldsPath(_ *model.FileFields, _ *model.PIDContext, _ *model.ContainerContext) (string, error) {
 	return "", nil
 }
 
 // SetMountRoot set the mount point information
-func (n *NoResolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
+func (n *NoResolver) SetMountRoot(_ *model.Event, _ *model.Mount) error {
 	return nil
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
-func (n *NoResolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error) {
+func (n *NoResolver) ResolveMountRoot(_ *model.Event, _ *model.Mount) (string, error) {
 	return "", nil
 }
 
 // SetMountPoint set the mount point information
-func (n *NoResolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
+func (n *NoResolver) SetMountPoint(_ *model.Event, _ *model.Mount) error {
 	return nil
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
-func (n *NoResolver) ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error) {
+func (n *NoResolver) ResolveMountPoint(_ *model.Event, _ *model.Mount) (string, error) {
 	return "", nil
 }
 
@@ -80,6 +82,9 @@ func (r *Resolver) ResolveBasename(e *model.FileFields) string {
 func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	pathStr, err := r.dentryResolver.Resolve(e.PathKey, !e.HasHardLinks())
 	if err != nil {
+		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
+			return pathStr, &ErrPathResolutionNotCritical{Err: err}
+		}
 		return pathStr, &ErrPathResolution{Err: err}
 	}
 
@@ -87,7 +92,7 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 		return pathStr, nil
 	}
 
-	mountPath, err := r.mountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	mountPath, err := r.mountResolver.ResolveMountPath(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
@@ -95,27 +100,32 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 		return pathStr, &ErrPathResolution{Err: err}
 	}
 
-	rootPath, err := r.mountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	rootPath, err := r.mountResolver.ResolveMountRoot(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
 		return pathStr, &ErrPathResolution{Err: err}
 	}
+
 	// This aims to handle bind mounts
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)
 	}
 
 	if mountPath != "/" {
-		pathStr = mountPath + pathStr
+		if pathStr != "/" {
+			pathStr = mountPath + pathStr
+		} else {
+			pathStr = mountPath
+		}
 	}
 
 	return pathStr, nil
 }
 
 // SetMountRoot set the mount point information
-func (r *Resolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
+func (r *Resolver) SetMountRoot(_ *model.Event, e *model.Mount) error {
 	var err error
 
 	e.RootStr, err = r.dentryResolver.Resolve(e.RootPathKey, true)
@@ -136,7 +146,7 @@ func (r *Resolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, er
 }
 
 // SetMountPoint set the mount point information
-func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
+func (r *Resolver) SetMountPoint(_ *model.Event, e *model.Mount) error {
 	var err error
 
 	e.MountPointStr, err = r.dentryResolver.Resolve(e.ParentPathKey, true)

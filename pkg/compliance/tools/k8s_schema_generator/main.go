@@ -14,6 +14,76 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
+// We hardcode some of the field of KubeletConfiguration file content which
+// are not yet in our type system.
+const kubeletConfigSchema = `{
+	"properties": {
+		"authentication": {
+			"properties": {
+				"anonymous": {
+					"properties": {
+						"enabled": {
+							"type": "boolean"
+						}
+					},
+					"type": "object"
+				},
+				"x509": {
+					"properties": {
+						"clientCAFile": {
+							"$ref": "#/$defs/K8sCertFileMeta"
+						}
+					},
+					"type": "object"
+				},
+				"webhook": {
+					"properties": {
+						"enabled": {
+							"type": "boolean"
+						}
+					},
+					"type": "object"
+				}
+			},
+			"type": "object"
+		},
+		"authorization": {
+			"properties": {
+				"mode": {
+					"type": "string"
+				}
+			},
+			"type": "object"
+		},
+		"tlsCertFile": {
+			"$ref": "#/$defs/K8sCertFileMeta"
+		},
+		"tlsPrivateKeyFile": {
+			"$ref": "#/$defs/K8sKeyFileMeta"
+		},
+		"rotateCertificates": {
+			"type": "boolean"
+		},
+		"readOnlyPort": {
+			"type": "integer"
+		},
+		"streamingConnectionIdleTimeout": {
+			"type": "integer"
+		},
+		"protectKernelDefaults": {
+			"type": "boolean"
+		},
+		"makeIPTablesUtilChains": {
+			"type": "boolean"
+		},
+		"featureGates": {
+			"type": "object"
+		}
+	},
+	"additionalProperties": false,
+	"type": "object"
+}`
+
 func usage() {
 	fmt.Fprintf(os.Stderr, "k8s_schema_generator <kubernetes_worker_node|kubernetes_master_node>\n")
 	os.Exit(1)
@@ -36,16 +106,16 @@ func main() {
 		if !ok {
 			log.Fatal("bad schema: missing K8sNodeConfig definition")
 		}
-		cs, ok := n.Properties.Get("components")
+		c, ok := n.Properties.Get("components")
 		if !ok {
 			log.Fatal("bad schema: missing components properties")
 		}
 		n.Properties.Delete("manifests")
-		c := cs.(*jsonschema.Schema)
 		c.Properties.Delete("kubeControllerManager")
 		c.Properties.Delete("kubeApiserver")
 		c.Properties.Delete("kubeScheduler")
 		c.Properties.Delete("kubeControllerManager")
+		c.Properties.Delete("etcd")
 		delete(schema.Definitions, "K8sKubeApiserverConfig")
 		delete(schema.Definitions, "K8sEtcdConfig")
 		delete(schema.Definitions, "K8sKubeControllerManagerConfig")
@@ -55,6 +125,24 @@ func main() {
 	default:
 		log.Fatalf(`resource should be "kubernetes_master_node" or "kubernetes_worker_node": was %q`, resource)
 	}
+
+	var kubeletConfigContentSchema jsonschema.Schema
+	if err := json.Unmarshal([]byte(kubeletConfigSchema), &kubeletConfigContentSchema); err != nil {
+		log.Fatal(err)
+	}
+
+	configFileMetaCopy, err := schema.Definitions["K8sConfigFileMeta"].MarshalJSON()
+	if err != nil {
+		log.Fatal(err)
+	}
+	var kubeletConfigFileMeta jsonschema.Schema
+	if err := json.Unmarshal(configFileMetaCopy, &kubeletConfigFileMeta); err != nil {
+		log.Fatal(err)
+	}
+	kubeletConfigFileMeta.Properties.Set("content", &kubeletConfigContentSchema)
+
+	schema.Definitions["K8sKubeletConfig"].Properties.Set("config", &kubeletConfigFileMeta)
+
 	b, err := json.MarshalIndent(schema, "", "    ")
 	if err != nil {
 		log.Fatal(err)

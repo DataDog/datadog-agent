@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package mock
 
 import (
@@ -52,6 +54,7 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				Swap:             pointer.Ptr(0.0),
 				OOMEvents:        pointer.Ptr(10.0),
 				PartialStallTime: pointer.Ptr(97000.0),
+				Peak:             pointer.Ptr(50000.0),
 			},
 			IO: &metrics.ContainerIOStats{
 				Devices: map[string]metrics.DeviceIOStats{
@@ -75,11 +78,11 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				PartialStallTime: pointer.Ptr(98000.0),
 			},
 			PID: &metrics.ContainerPIDStats{
-				PIDs:        []int{4, 2},
 				ThreadCount: pointer.Ptr(10.0),
 				ThreadLimit: pointer.Ptr(20.0),
 			},
 		},
 		OpenFiles: pointer.Ptr(uint64(200)),
+		PIDs:      []int{4, 2},
 	}
 }

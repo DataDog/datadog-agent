@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package dump holds dump related files
 package dump
 
 import (
@@ -56,4 +57,4 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(sender sender.Sender) {}
+func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(_ sender.Sender) {}

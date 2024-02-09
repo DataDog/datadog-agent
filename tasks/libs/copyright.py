@@ -26,18 +26,26 @@ COPYRIGHT_REGEX = [
 # These path patterns are excluded from checks
 PATH_EXCLUSION_REGEX = [
     # These are auto-generated files but without headers to indicate it
+    '/vendor/',
     '/pkg/clusteragent/custommetrics/api/generated/',
-    '/pkg/proto/msgpgo/.*_gen(_test){,1}.go',
     '/pkg/process/events/model/.*_gen.go',
+    '/pkg/proto/msgpgo/.*_gen(_test){,1}.go',
+    '/pkg/proto/pbgo/core/.*_gen(_test){,1}.go',
+    '/pkg/proto/pbgo/trace/.*_gen(_test){,1}.go',
     '/pkg/remoteconfig/state/products/apmsampling/.*_gen(_test){,1}.go',
     '/pkg/security/security_profile/dump/activity_dump_easyjson.go',
     '/pkg/security/probe/custom_events_easyjson.go',
     '/pkg/security/serializers/serializers_easyjson.go',
-    '/pkg/trace/pb/.*_gen(_test){,1}.go',
+    '/pkg/security/serializers/serializers_linux_easyjson.go',
+    '/pkg/security/serializers/serializers_base_linux_easyjson.go',
+    '/pkg/security/serializers/serializers_windows_easyjson.go',
+    '/pkg/security/serializers/serializers_base_windows_easyjson.go',
+    '/pkg/security/probe/selftests/self_tests_easyjson.go',
     # These are files that we should not add our copyright to
     '/internal/patch/grpc-go-insecure/',
     '/internal/patch/logr/funcr/funcr(_test){,1}.go',
     '/internal/patch/logr/funcr/internal/logr/',
+    '/internal/third_party/client-go/',
     '/internal/third_party/golang/',
     '/internal/third_party/kubernetes/',
     '/pkg/collector/corechecks/cluster/ksm/customresources/utils.go',
@@ -56,6 +64,7 @@ HEADER_EXCLUSION_REGEX = [
     '^// Copyright 2017 Kinvolk',
     '^// Copyright 2021 The Vitess Authors.',
     '^// This file is licensed under the MIT License.',
+    '^// Copyright \\(C\\) 2017 ScyllaDB',
 ]
 
 

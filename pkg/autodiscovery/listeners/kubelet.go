@@ -11,12 +11,12 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func init() {
@@ -34,11 +34,12 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
-	f := workloadmeta.NewFilter(
-		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		workloadmeta.SourceNodeOrchestrator,
-		workloadmeta.EventTypeAll,
-	)
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod},
+		Source:    workloadmeta.SourceNodeOrchestrator,
+		EventType: workloadmeta.EventTypeAll,
+	}
+	f := workloadmeta.NewFilter(&filterParams)
 
 	var err error
 	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.processPod)
@@ -52,8 +53,9 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 func (l *KubeletListener) processPod(entity workloadmeta.Entity) {
 	pod := entity.(*workloadmeta.KubernetesPod)
 
-	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
-	for _, podContainer := range pod.Containers {
+	wlmContainers := pod.GetAllContainers()
+	containers := make([]*workloadmeta.Container, 0, len(wlmContainers))
+	for _, podContainer := range wlmContainers {
 		container, err := l.Store().GetContainer(podContainer.ID)
 		if err != nil {
 			log.Debugf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
@@ -129,7 +131,7 @@ func (l *KubeletListener) createContainerService(
 	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
 		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
-		if time.Now().Sub(finishedAt) > excludeAge {
+		if time.Since(finishedAt) > excludeAge {
 			log.Debugf("container %q not running for too long, skipping", container.ID)
 			return
 		}

@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package custommetrics runs the Kubernetes custom metrics API server.
 package custommetrics
 
 import (
@@ -13,6 +14,7 @@ import (
 	"net"
 
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/util/errors"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
@@ -119,12 +121,12 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as
 
 // Config creates the configuration containing the required parameters to communicate with the APIServer as an APIService
 func (a *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
-	if a.FlagSet.Lookup("cert-dir").Changed == false {
+	if !a.FlagSet.Lookup("cert-dir").Changed {
 		// Ensure backward compatibility. Was hardcoded before.
 		// Config flag is now to be added to the map `external_metrics_provider.config` as, `cert-dir`.
 		a.SecureServing.ServerCert.CertDirectory = "/etc/datadog-agent/certificates"
 	}
-	if a.FlagSet.Lookup("secure-port").Changed == false {
+	if !a.FlagSet.Lookup("secure-port").Changed {
 		// Ensure backward compatibility. 443 by default, but will error out if incorrectly set.
 		// refer to apiserver code in k8s.io/apiserver/pkg/server/option/serving.go
 		a.SecureServing.BindPort = config.Datadog.GetInt("external_metrics_provider.port")
@@ -137,7 +139,18 @@ func (a *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 		log.Errorf("Failed to create self signed AuthN/Z configuration %#v", err)
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
-	return a.CustomMetricsAdapterServerOptions.Config()
+	if errList := a.CustomMetricsAdapterServerOptions.Validate(); len(errList) > 0 {
+		return nil, errors.NewAggregate(errList)
+	}
+
+	serverConfig := genericapiserver.NewConfig(apiserver.Codecs)
+	err := a.CustomMetricsAdapterServerOptions.ApplyTo(serverConfig)
+	if err != nil {
+		return nil, err
+	}
+	return &apiserver.Config{
+		GenericConfig: serverConfig,
+	}, nil
 }
 
 // clearServerResources closes the connection and the server

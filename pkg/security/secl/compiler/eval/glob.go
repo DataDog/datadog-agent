@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
@@ -92,7 +93,7 @@ func (g *Glob) matches(filename string) bool {
 		if end+1 >= len(filename) {
 			elf, elp = filename[start:end+1], g.elements[i]
 			if len(elf) == 0 {
-				return false
+				return elp == "*"
 			}
 			if PatternMatches(elp, elf, g.caseInsensitive) && i+1 == len(g.elements) {
 				return true

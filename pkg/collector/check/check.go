@@ -3,14 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package check
 
 import (
+	"errors"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // Check is an interface for types capable to run checks
@@ -26,7 +30,7 @@ type Check interface {
 	// String provides a printable version of the check name
 	String() string
 	// Configure configures the check
-	Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
+	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
 	// Interval returns the interval time for the check
 	Interval() time.Duration
 	// ID provides a unique identifier for every check instance
@@ -45,6 +49,8 @@ type Check interface {
 	InitConfig() string
 	// InstanceConfig returns the instance configuration of the check
 	InstanceConfig() string
+	// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+	GetDiagnoses() ([]diagnosis.Diagnosis, error)
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check
@@ -65,3 +71,17 @@ type Info interface {
 	// InstanceConfig returns the instance configuration of the check
 	InstanceConfig() string
 }
+
+// ErrSkipCheckInstance is returned from Configure() when a check is intentionally refusing to load a
+// check instance, and NOT due to an error. The distinction is important for deciding whether or not
+// to log the error and report it on the status page.
+//
+// Loaders should check for this error after calling Configure() and should not log it as an error.
+// The scheduler reports this error to the agent status if and only if all loaders fail to load the
+// check instance.
+//
+// Usage example: one version of the check is written in Python, and another is written in Golang. Each
+// loader is called on the given configuration, and will reject the configuration if it does not
+// match the right version, without raising errors to the log or agent status. If another error is
+// returned then the errors will be properly logged and reported in the agent status.
+var ErrSkipCheckInstance = errors.New("refused to load the check instance")

@@ -205,6 +205,10 @@
           },
           "type": "array",
           "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
+        },
+        "origin": {
+          "type": "string",
+          "description": "Origin of the event"
         }
       },
       "additionalProperties": false,
@@ -628,37 +632,48 @@
     "MountEvent": {
       "properties": {
         "mp": {
-          "$ref": "#/$defs/File"
+          "$ref": "#/$defs/File",
+          "description": "Mount point file information"
         },
         "root": {
-          "$ref": "#/$defs/File"
+          "$ref": "#/$defs/File",
+          "description": "Root file information"
         },
         "mount_id": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Mount ID of the new mount"
         },
         "parent_mount_id": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Mount ID of the parent mount"
         },
         "bind_src_mount_id": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Mount ID of the source of a bind mount"
         },
         "device": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Device associated with the file"
         },
         "fs_type": {
-          "type": "string"
+          "type": "string",
+          "description": "Filesystem type"
         },
         "mountpoint.path": {
-          "type": "string"
+          "type": "string",
+          "description": "Mount point path"
         },
         "source.path": {
-          "type": "string"
+          "type": "string",
+          "description": "Mount source path"
         },
         "mountpoint.path_error": {
-          "type": "string"
+          "type": "string",
+          "description": "Mount point path error"
         },
         "source.path_error": {
-          "type": "string"
+          "type": "string",
+          "description": "Mount source path error"
         }
       },
       "additionalProperties": false,
@@ -817,6 +832,10 @@
           "$ref": "#/$defs/ProcessCredentials",
           "description": "Credentials associated with the process"
         },
+        "user_session": {
+          "$ref": "#/$defs/UserSessionContext",
+          "description": "Context of the user session for this event"
+        },
         "executable": {
           "$ref": "#/$defs/File",
           "description": "File information of the executable"
@@ -862,6 +881,10 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "is_exec_child": {
+          "type": "boolean",
+          "description": "Indicates wether the process is an exec child of its parent"
         },
         "source": {
           "type": "string",
@@ -937,6 +960,10 @@
           "$ref": "#/$defs/ProcessCredentials",
           "description": "Credentials associated with the process"
         },
+        "user_session": {
+          "$ref": "#/$defs/UserSessionContext",
+          "description": "Context of the user session for this event"
+        },
         "executable": {
           "$ref": "#/$defs/File",
           "description": "File information of the executable"
@@ -982,6 +1009,10 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "is_exec_child": {
+          "type": "boolean",
+          "description": "Indicates wether the process is an exec child of its parent"
         },
         "source": {
           "type": "string",
@@ -1151,10 +1182,6 @@
           "type": "string",
           "description": "Name of the security profile"
         },
-        "status": {
-          "type": "string",
-          "description": "Status defines in which state the security profile was when the event was triggered"
-        },
         "version": {
           "type": "string",
           "description": "Version of the profile in use"
@@ -1165,15 +1192,19 @@
           },
           "type": "array",
           "description": "List of tags associated to this profile"
+        },
+        "event_in_profile": {
+          "type": "boolean",
+          "description": "True if the corresponding event is part of this profile"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "name",
-        "status",
         "version",
-        "tags"
+        "tags",
+        "event_in_profile"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
@@ -1233,14 +1264,76 @@
       "additionalProperties": false,
       "type": "object",
       "description": "UserContextSerializer serializes a user context to JSON"
+    },
+    "UserSessionContext": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the user session on the host"
+        },
+        "session_type": {
+          "type": "string",
+          "description": "Type of the user session"
+        },
+        "k8s_username": {
+          "type": "string",
+          "description": "Username of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_uid": {
+          "type": "string",
+          "description": "UID of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_groups": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Groups of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_extra": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Extra of the Kubernetes \"kubectl exec\" session"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "UserSessionContextSerializer serializes the user session context to JSON"
     }
   },
   "properties": {
     "evt": {
       "$ref": "#/$defs/EventContext"
     },
+    "date": {
+      "type": "string",
+      "format": "date-time"
+    },
     "file": {
       "$ref": "#/$defs/FileEvent"
+    },
+    "exit": {
+      "$ref": "#/$defs/ExitEvent"
+    },
+    "process": {
+      "$ref": "#/$defs/ProcessContext"
+    },
+    "container": {
+      "$ref": "#/$defs/ContainerContext"
+    },
+    "network": {
+      "$ref": "#/$defs/NetworkContext"
+    },
+    "dd": {
+      "$ref": "#/$defs/DDContext"
+    },
+    "security_profile": {
+      "$ref": "#/$defs/SecurityProfileContext"
     },
     "selinux": {
       "$ref": "#/$defs/SELinuxEvent"
@@ -1269,14 +1362,8 @@
     "dns": {
       "$ref": "#/$defs/DNSEvent"
     },
-    "network": {
-      "$ref": "#/$defs/NetworkContext"
-    },
     "bind": {
       "$ref": "#/$defs/BindEvent"
-    },
-    "exit": {
-      "$ref": "#/$defs/ExitEvent"
     },
     "mount": {
       "$ref": "#/$defs/MountEvent"
@@ -1286,22 +1373,6 @@
     },
     "usr": {
       "$ref": "#/$defs/UserContext"
-    },
-    "process": {
-      "$ref": "#/$defs/ProcessContext"
-    },
-    "dd": {
-      "$ref": "#/$defs/DDContext"
-    },
-    "container": {
-      "$ref": "#/$defs/ContainerContext"
-    },
-    "security_profile": {
-      "$ref": "#/$defs/SecurityProfileContext"
-    },
-    "date": {
-      "type": "string",
-      "format": "date-time"
     }
   },
   "additionalProperties": false,

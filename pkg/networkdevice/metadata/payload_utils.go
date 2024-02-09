@@ -7,17 +7,8 @@ package metadata
 
 import "time"
 
-func BatchPayloads(namespace string,
-	subnet string,
-	collectTime time.Time,
-	batchSize int,
-	devices []DeviceMetadata,
-	interfaces []InterfaceMetadata,
-	ipAddresses []IPAddressMetadata,
-	topologyLinks []TopologyLinkMetadata,
-	netflowExporters []NetflowExporter,
-	traceroutePaths []NetworkPath,
-) []NetworkDevicesMetadata {
+// BatchPayloads batch NDM metadata payloads
+func BatchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter, diagnoses []DiagnosisMetadata) []NetworkDevicesMetadata {
 
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
@@ -43,13 +34,15 @@ func BatchPayloads(namespace string,
 		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.Links = append(curPayload.Links, linkMetadata)
 	}
+
 	for _, netflowExporter := range netflowExporters {
 		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.NetflowExporters = append(curPayload.NetflowExporters, netflowExporter)
 	}
-	for _, traceroutePath := range traceroutePaths {
+
+	for _, diagnosis := range diagnoses {
 		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
-		curPayload.NetworkPaths = append(curPayload.NetworkPaths, traceroutePath)
+		curPayload.Diagnoses = append(curPayload.Diagnoses, diagnosis)
 	}
 	payloads = append(payloads, curPayload)
 	return payloads

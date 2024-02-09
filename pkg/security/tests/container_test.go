@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -19,6 +20,8 @@ import (
 )
 
 func TestContainerCreatedAt(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_created_at",
@@ -29,7 +32,7 @@ func TestContainerCreatedAt(t *testing.T) {
 			Expression: `container.id != "" && container.created_at > 3s && open.file.path == "{{.Root}}/test-open-delay"`,
 		},
 	}
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +83,7 @@ func TestContainerCreatedAt(t *testing.T) {
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 			createdAtNano, _ := event.GetFieldValue("container.created_at")
 			createdAt := time.Unix(0, int64(createdAtNano.(int)))
-			assert.True(t, time.Now().Sub(createdAt) > 3*time.Second)
+			assert.True(t, time.Since(createdAt) > 3*time.Second)
 
 			test.validateOpenSchema(t, event)
 		})
@@ -88,11 +91,13 @@ func TestContainerCreatedAt(t *testing.T) {
 }
 
 func TestContainerScopedVariable(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_set_scoped_variable",
 			Expression: `open.file.path == "/tmp/test-open"`,
-			Actions: []rules.ActionDefinition{{
+			Actions: []*rules.ActionDefinition{{
 				Set: &rules.SetDefinition{
 					Name:  "var1",
 					Value: true,
@@ -105,7 +110,7 @@ func TestContainerScopedVariable(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,9 +7,10 @@ REM don't use `OUTDIR` as an environment variable. It will confuse the VC build
 set PKG_OUTDIR=c:\mnt\build-out\%CI_JOB_ID%
 if not exist %PKG_OUTDIR% mkdir %PKG_OUTDIR%
 
-mkdir \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint
-if not exist \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint exit /b 1
-cd \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint || exit /b 2
+set BUILD_ROOT=c:\buildroot
+mkdir %BUILD_ROOT%\datadog-agent\Dockerfiles\agent\windows\entrypoint
+if not exist %BUILD_ROOT%\datadog-agent\Dockerfiles\agent\windows\entrypoint exit /b 1
+cd %BUILD_ROOT%\datadog-agent\Dockerfiles\agent\windows\entrypoint || exit /b 2
 xcopy /e/s/h/q c:\mnt\Dockerfiles\agent\windows\entrypoint || exit /b 3
 
 @echo PATH %PATH%
@@ -19,7 +20,7 @@ xcopy /e/s/h/q c:\mnt\Dockerfiles\agent\windows\entrypoint || exit /b 3
 call "%VSTUDIO_ROOT%\VC\Auxiliary\Build\vcvars64.bat"
 msbuild /p:Configuration=Release /p:Platform=%TARGET_ARCH% || exit /b 4
 REM xcopy fails with 'file exists' error if %CI_JOB_ID% is not set, which happens when running the script outside the CI.
-copy \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint\%TARGET_ARCH%\Release\entrypoint.exe %PKG_OUTDIR%\  || exit /b 5
+copy %BUILD_ROOT%\datadog-agent\Dockerfiles\agent\windows\entrypoint\%TARGET_ARCH%\Release\entrypoint.exe %PKG_OUTDIR%\  || exit /b 5
 
 goto :EOF
 

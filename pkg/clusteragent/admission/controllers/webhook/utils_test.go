@@ -10,7 +10,6 @@ package webhook
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 
@@ -22,24 +21,6 @@ import (
 type fixture struct {
 	t      *testing.T //nolint:structcheck
 	client *fake.Clientset
-}
-
-// waitOnActions can be used to wait for controller to start watching
-// resources effectively and handling objects before returning it.
-// Otherwise tests will start making assertions before the reconciliation is done.
-func (f *fixture) waitOnActions() {
-	lastChange := time.Now()
-	lastCount := 0
-	for {
-		time.Sleep(1 * time.Second)
-		count := len(f.client.Actions())
-		if count > lastCount {
-			lastChange = time.Now()
-			lastCount = count
-		} else if time.Since(lastChange) > 2*time.Second {
-			return
-		}
-	}
 }
 
 func (f *fixture) populateSecretsCache(secrets ...*corev1.Secret) {
@@ -59,9 +40,10 @@ func buildSecret(data map[string][]byte, cfg Config) *corev1.Secret {
 }
 
 func resetMockConfig(c *config.MockConfig) {
-	c.Set("admission_controller.mutate_unlabelled", false)
-	c.Set("admission_controller.inject_config.enabled", true)
-	c.Set("admission_controller.inject_tags.enabled", true)
-	c.Set("admission_controller.namespace_selector_fallback", false)
-	c.Set("admission_controller.add_aks_selectors", false)
+	c.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+	c.SetWithoutSource("admission_controller.inject_config.enabled", true)
+	c.SetWithoutSource("admission_controller.inject_tags.enabled", true)
+	c.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
+	c.SetWithoutSource("admission_controller.add_aks_selectors", false)
+	c.SetWithoutSource("admission_controller.admission_controller.cws_instrumentation.enabled", false)
 }

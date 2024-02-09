@@ -156,39 +156,63 @@ var NoopLogger = noopLogger{}
 type noopLogger struct{}
 
 // Trace implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Trace(v ...interface{}) {}
 
 // Tracef implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Tracef(format string, params ...interface{}) {}
 
 // Debug implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Debug(v ...interface{}) {}
 
 // Debugf implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Debugf(format string, params ...interface{}) {}
 
 // Info implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Info(v ...interface{}) {}
 
 // Infof implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Infof(format string, params ...interface{}) {}
 
 // Warn implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Warn(v ...interface{}) error { return nil }
 
 // Warnf implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Warnf(format string, params ...interface{}) error { return nil }
 
 // Error implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Error(v ...interface{}) error { return nil }
 
 // Errorf implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Errorf(format string, params ...interface{}) error { return nil }
 
 // Critical implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Critical(v ...interface{}) error { return nil }
 
 // Criticalf implements Logger.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (noopLogger) Criticalf(format string, params ...interface{}) error { return nil }
 
 // Flush implements Logger.

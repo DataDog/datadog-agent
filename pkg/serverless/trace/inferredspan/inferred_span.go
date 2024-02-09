@@ -14,12 +14,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -78,7 +76,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	}
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
-	ddTags := config.GetGlobalConfiguredTags(false)
+	ddTags := configUtils.GetConfiguredTags(config.Datadog, false)
 	for _, tag := range ddTags {
 		tagParts := strings.SplitN(tag, ":", 2)
 		if len(tagParts) != 2 {
@@ -97,47 +95,9 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	return output
 }
 
-// CompleteInferredSpan finishes the inferred span and passes it
-// as an API payload to be processed by the trace agent
-func (inferredSpan *InferredSpan) CompleteInferredSpan(
-	processTrace func(p *api.Payload),
-	endTime time.Time,
-	isError bool,
-	traceID uint64,
-	samplingPriority sampler.SamplingPriority) {
-
-	durationIsSet := inferredSpan.Span.Duration != 0
-	if inferredSpan.IsAsync {
-		// SNSSQS span duration is set in invocationlifecycle/init.go
-		if !durationIsSet {
-			inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
-		}
-	} else {
-		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
-	}
-	if isError {
-		inferredSpan.Span.Error = 1
-	}
-
-	inferredSpan.Span.TraceID = traceID
-
-	traceChunk := &pb.TraceChunk{
-		Origin:   "lambda",
-		Spans:    []*pb.Span{inferredSpan.Span},
-		Priority: int32(samplingPriority),
-	}
-
-	tracerPayload := &pb.TracerPayload{
-		Chunks: []*pb.TraceChunk{traceChunk},
-	}
-
-	processTrace(&api.Payload{
-		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
-		TracerPayload: tracerPayload,
-	})
-}
-
 // GenerateSpanId creates a secure random span id in specific scenarios, otherwise return a pseudo random id
+//
+//nolint:revive // TODO(SERV) Fix revive linter
 func GenerateSpanId() uint64 {
 	isSnapStart := os.Getenv(tags.InitType) == tags.SnapStartValue
 	if isSnapStart {
@@ -151,9 +111,9 @@ func GenerateSpanId() uint64 {
 	return random.Random.Uint64()
 }
 
-// generateInferredSpan declares and initializes a new inferred span
-// with the SpanID and TraceID
-func (inferredSpan *InferredSpan) generateInferredSpan(startTime time.Time) {
+// GenerateInferredSpan declares and initializes a new inferred span with a
+// SpanID
+func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
 
 	inferredSpan.CurrentInvocationStartTime = startTime
 	inferredSpan.Span = &pb.Span{

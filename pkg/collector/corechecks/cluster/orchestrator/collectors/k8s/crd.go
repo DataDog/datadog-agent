@@ -41,7 +41,7 @@ func NewCRDCollector() *CRDCollector {
 	return &CRDCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
-			IsStable:                  false,
+			IsStable:                  true,
 			IsManifestProducer:        true,
 			IsMetadataProducer:        false,
 			SupportsManifestBuffering: false,
@@ -64,7 +64,7 @@ func (c *CRDCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	var err error
 	c.informer, err = rcfg.OrchestratorInformerFactory.CRDInformerFactory.ForResource(groupVersionResource)
 	if err != nil {
-		log.Error(err)
+		log.Errorc(err.Error(), orchestrator.ExtraLogContext...)
 	}
 	c.lister = c.informer.Lister() // return that Lister
 }

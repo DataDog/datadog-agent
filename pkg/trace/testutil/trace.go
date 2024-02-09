@@ -8,7 +8,7 @@ package testutil
 import (
 	"math/rand"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -89,6 +89,8 @@ func RandomTrace(maxLevels, maxSpans int) pb.Trace {
 
 // RandomTraceChunk generates a random trace chunk with a depth from 1 to
 // maxLevels of spans. Each level has at most maxSpans items.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func RandomTraceChunk(maxLevels, maxSpans int) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Priority: int32(rand.Intn(3)),

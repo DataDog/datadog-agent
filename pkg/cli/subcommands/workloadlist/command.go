@@ -15,11 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -32,6 +33,10 @@ type cliParams struct {
 	verboseList bool
 }
 
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath string
 	ConfigName   string
@@ -54,12 +59,12 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(workloadList,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithoutSecrets(
+					ConfigParams: config.NewAgentParams(
 						globalParams.ConfFilePath,
 						config.WithConfigName(globalParams.ConfigName),
 					),
-					LogParams: log.LogForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
+					LogParams: logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -69,7 +74,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return workloadListCommand
 }
 
-func workloadList(log log.Component, config config.Component, cliParams *cliParams) error {
+func workloadList(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token

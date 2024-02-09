@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package discarder holds discarder related files
 package discarder
 
 import (
@@ -22,28 +23,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// DiscarderStats is used to collect kernel space metrics about discarders
-type DiscarderStats struct {
+// Stats is used to collect kernel space metrics about discarders
+type Stats struct {
 	DiscarderAdded uint64 `yaml:"discarder_added"`
 	EventDiscarded uint64 `yaml:"event_discarded"`
 }
 
-// DiscarderMonitor defines a discarder monitor
-type DiscarderMonitor struct {
+// Monitor defines a discarder monitor
+type Monitor struct {
 	statsdClient      statsd.ClientInterface
 	stats             [2]*lib.Map
 	bufferSelector    *lib.Map
-	statsZero         []DiscarderStats
+	statsZero         []Stats
 	activeStatsBuffer uint32
 	numCPU            int
 }
 
 // SendStats send stats
-func (d *DiscarderMonitor) SendStats() error {
+func (d *Monitor) SendStats() error {
 	buffer := d.stats[1-d.activeStatsBuffer]
 	iterator := buffer.Iterate()
-	stats := make([]DiscarderStats, d.numCPU)
-	globalStats := make([]DiscarderStats, model.LastDiscarderEventType)
+	stats := make([]Stats, d.numCPU)
+	globalStats := make([]Stats, model.LastDiscarderEventType)
 
 	var eventType uint32
 	for iterator.Next(&eventType, &stats) {
@@ -86,16 +87,16 @@ func (d *DiscarderMonitor) SendStats() error {
 	return d.bufferSelector.Put(ebpf.BufferSelectorDiscarderMonitorKey, d.activeStatsBuffer)
 }
 
-// NewDiscarderMonitor returns a new DiscarderMonitor
-func NewDiscarderMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*DiscarderMonitor, error) {
+// NewDiscarderMonitor returns a new Monitor
+func NewDiscarderMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	d := &DiscarderMonitor{
+	d := &Monitor{
 		statsdClient: statsdClient,
-		statsZero:    make([]DiscarderStats, numCPU),
+		statsZero:    make([]Stats, numCPU),
 		numCPU:       numCPU,
 	}
 

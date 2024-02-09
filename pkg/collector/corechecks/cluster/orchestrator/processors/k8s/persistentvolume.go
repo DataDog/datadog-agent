@@ -24,6 +24,8 @@ type PersistentVolumeHandlers struct {
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PersistentVolumeHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.PersistentVolume)
 	m.Yaml = yaml
@@ -50,6 +52,8 @@ func (h *PersistentVolumeHandlers) BuildMessageBody(ctx *processors.ProcessorCon
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PersistentVolumeHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.PersistentVolume)
 	return k8sTransformers.ExtractPersistentVolume(r)
@@ -57,6 +61,8 @@ func (h *PersistentVolumeHandlers) ExtractResource(ctx *processors.ProcessorCont
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PersistentVolumeHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*corev1.PersistentVolume)
 	resources = make([]interface{}, 0, len(resourceList))
@@ -69,17 +75,23 @@ func (h *PersistentVolumeHandlers) ResourceList(ctx *processors.ProcessorContext
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PersistentVolumeHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.PersistentVolume).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PersistentVolumeHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.PersistentVolume).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PersistentVolumeHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.PersistentVolume)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)

@@ -36,12 +36,13 @@ void __attribute__((always_inline)) copy_credentials(struct credentials_t* src, 
 
 void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t* src, struct pid_cache_t* dst) {
     dst->cookie = src->cookie;
+    dst->user_session_id = src->user_session_id;
     dst->ppid = src->ppid;
     dst->fork_timestamp = src->fork_timestamp;
     dst->credentials = src->credentials;
 }
 
-struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 cookie) {
+struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u64 cookie) {
     if (!cookie) {
         return NULL;
     }
@@ -49,8 +50,12 @@ struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 coo
     return bpf_map_lookup_elem(&proc_cache, &cookie);
 }
 
+struct pid_cache_t * __attribute__((always_inline)) get_pid_cache(u32 tgid) {
+    return (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+}
+
 struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+    struct pid_cache_t *pid_entry = get_pid_cache(tgid);
     if (!pid_entry) {
         return NULL;
     }
@@ -128,7 +133,7 @@ u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task
 }
 
 __attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_fork) {
-    u32 key = 0;
+    u32 key = bpf_get_current_pid_tgid() % EVENT_GEN_SIZE;
     struct process_event_t *evt = bpf_map_lookup_elem(&process_event_gen, &key);
 
     if (evt) {
@@ -139,6 +144,15 @@ __attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_f
     }
 
     return evt;
+}
+
+bool __attribute__((always_inline)) is_current_kworker_dying() {
+    char comm[16];
+    bpf_get_current_comm(comm, sizeof(comm));
+    return comm[0] == 'k' && comm[1] == 'w' && comm[2] == 'o' && comm[3] == 'r'
+        && comm[4] == 'k' && comm[5] == 'e' && comm[6] == 'r' && comm[7] == '/'
+        && comm[8] == 'd' && comm[9] == 'y' && comm[10] == 'i' && comm[11] == 'n'
+        && comm[12] == 'g';
 }
 
 #endif

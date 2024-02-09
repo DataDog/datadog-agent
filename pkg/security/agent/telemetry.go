@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package agent holds agent related files
 package agent
 
 import (
@@ -11,27 +12,29 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/common"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	sectelemetry "github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // telemetry reports environment information (e.g containers running) when the runtime security component is running
 type telemetry struct {
-	containers            *common.ContainersTelemetry
+	containers            *sectelemetry.ContainersTelemetry
 	runtimeSecurityClient *RuntimeSecurityClient
 	profiledContainers    map[profiledContainer]struct{}
 	logProfiledWorkloads  bool
 }
 
-func newTelemetry(logProfiledWorkloads, ignoreDDAgentContainers bool) (*telemetry, error) {
+//nolint:unused // TODO(SEC) Fix unused linter
+func newTelemetry(senderManager sender.SenderManager, logProfiledWorkloads, ignoreDDAgentContainers bool) (*telemetry, error) {
 	runtimeSecurityClient, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	containersTelemetry, err := common.NewContainersTelemetry()
+	containersTelemetry, err := sectelemetry.NewContainersTelemetry(senderManager)
 	if err != nil {
 		return nil, err
 	}

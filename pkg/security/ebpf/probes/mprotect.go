@@ -5,26 +5,26 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// mprotectProbes holds the list of probes used to track mprotect events
-var mprotectProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_security_file_mprotect",
+func getMProtectProbes(fentry bool) []*manager.Probe {
+	var mprotectProbes = []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_security_file_mprotect",
+			},
 		},
-	},
-}
+	}
 
-func getMProtectProbes() []*manager.Probe {
 	mprotectProbes = append(mprotectProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mprotect",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	return mprotectProbes
 }

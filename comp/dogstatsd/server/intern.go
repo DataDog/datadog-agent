@@ -6,26 +6,28 @@
 package server
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"fmt"
 
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
-	// There are multiple instances of the interner, one per worker. Counters are normally fine,
-	// gauges require special care to make sense. We don't need to clean up when an instance is
-	// dropped, because it only happens on agent shutdown.
-	tlmSIResets = telemetry.NewSimpleCounter("dogstatsd", "string_interner_resets",
+	// There are multiple instances of the interner, one per worker (depends on # of virtual CPUs).
+	// Most metrics are tagged with the instance ID, however some are left as global
+	// Note `New` vs `NewSimple`
+	tlmSIResets = telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"},
 		"Amount of resets of the string interner used in dogstatsd")
-	tlmSIRSize = telemetry.NewSimpleGauge("dogstatsd", "string_interner_entries",
+	tlmSIRSize = telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
 		"Number of entries in the string interner")
-	tlmSIRBytes = telemetry.NewSimpleGauge("dogstatsd", "string_interner_bytes",
+	tlmSIRBytes = telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"},
 		"Number of bytes stored in the string interner")
-	tlmSIRHits = telemetry.NewSimpleCounter("dogstatsd", "string_interner_hits",
+	tlmSIRHits = telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"},
 		"Number of times string interner returned an existing string")
-	tlmSIRMiss = telemetry.NewSimpleCounter("dogstatsd", "string_interner_miss",
+	tlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
 		"Number of times string interner created a new string object")
+	//nolint:unused // TODO(AML) Fix unused linter
 	tlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
 		"Number of times string interner was created")
 	tlmSIRStrBytes = telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
@@ -36,23 +38,59 @@ var (
 // stringInterner is a string cache providing a longer life for strings,
 // helping to avoid GC runs because they're re-used many times instead of
 // created every time.
+//
+// The current interning strategy is fairly simple, but can require manual
+// adjustments of the `maxSize` to improve performance, which is not ideal.
+
+// However the current strategy works well enough, and there is an
+// accepted go proposal to offer an "interning" mechanism from the
+// go runtime directly.
+
+// Once this is available, the interner design should be re-visited to
+// take advantage of the new "Unique" api that is proposed below.
+// ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
-	strings    map[string]string
-	maxSize    int
-	curBytes   int
-	tlmEnabled bool
+	strings map[string]string
+	maxSize int
+	id      string
+
+	telemetry siTelemetry
 }
 
-func newStringInterner(maxSize int) *stringInterner {
+type siTelemetry struct {
+	enabled  bool
+	curBytes int
+
+	resets telemetry.SimpleCounter
+	size   telemetry.SimpleGauge
+	bytes  telemetry.SimpleGauge
+	hits   telemetry.SimpleCounter
+	miss   telemetry.SimpleCounter
+}
+
+func newStringInterner(maxSize int, internerID int) *stringInterner {
 	i := &stringInterner{
-		strings:    make(map[string]string),
-		maxSize:    maxSize,
-		tlmEnabled: telemetry_utils.IsEnabled(),
+		strings: make(map[string]string),
+		id:      fmt.Sprintf("interner_%d", internerID),
+		maxSize: maxSize,
+		telemetry: siTelemetry{
+			enabled: utils.IsTelemetryEnabled(config.Datadog),
+		},
 	}
-	if i.tlmEnabled {
-		tlmSIRNew.Inc()
+
+	if i.telemetry.enabled {
+		i.prepareTelemetry()
 	}
+
 	return i
+}
+
+func (i *stringInterner) prepareTelemetry() {
+	i.telemetry.resets = tlmSIResets.WithValues(i.id)
+	i.telemetry.size = tlmSIRSize.WithValues(i.id)
+	i.telemetry.bytes = tlmSIRBytes.WithValues(i.id)
+	i.telemetry.hits = tlmSIRHits.WithValues(i.id)
+	i.telemetry.miss = tlmSIRMiss.WithValues(i.id)
 }
 
 // LoadOrStore always returns the string from the cache, adding it into the
@@ -66,33 +104,31 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	// for this string.
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
 	if s, found := i.strings[string(key)]; found {
-		if i.tlmEnabled {
-			tlmSIRHits.Inc()
+		if i.telemetry.enabled {
+			i.telemetry.hits.Inc()
 		}
 		return s
 	}
 	if len(i.strings) >= i.maxSize {
-		if i.tlmEnabled {
-			tlmSIResets.Inc()
-			tlmSIRBytes.Sub(float64(i.curBytes))
-			tlmSIRSize.Sub(float64(len(i.strings)))
-			i.curBytes = 0
+		if i.telemetry.enabled {
+			i.telemetry.resets.Inc()
+			i.telemetry.bytes.Sub(float64(i.telemetry.curBytes))
+			i.telemetry.size.Sub(float64(len(i.strings)))
+			i.telemetry.curBytes = 0
 		}
 
 		i.strings = make(map[string]string)
-		log.Debug("clearing the string interner cache")
-
 	}
 
 	s := string(key)
 	i.strings[s] = s
 
-	if i.tlmEnabled {
-		tlmSIRMiss.Inc()
-		tlmSIRSize.Inc()
-		tlmSIRBytes.Add(float64(len(s)))
+	if i.telemetry.enabled {
+		i.telemetry.miss.Inc()
+		i.telemetry.size.Inc()
+		i.telemetry.bytes.Add(float64(len(s)))
 		tlmSIRStrBytes.Observe(float64(len(s)))
-		i.curBytes += len(s)
+		i.telemetry.curBytes += len(s)
 	}
 
 	return s

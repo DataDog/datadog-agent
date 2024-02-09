@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"errors"
@@ -16,6 +17,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -43,8 +46,6 @@ var (
 var (
 	// ErrBrokenLineage is returned when the given process don't have a full lineage
 	ErrBrokenLineage = errors.New("broken lineage")
-	// ErrContainerIDNotEqual is returnet when the given process don't have the same container ID as the tree
-	ErrContainerIDNotEqual = errors.New("ContainerIDs are different")
 	// ErrNotValidRootNode is returned when trying to insert a process with an invalide root node
 	ErrNotValidRootNode = errors.New("root node not valid")
 )
@@ -83,8 +84,8 @@ func (genType NodeGenerationType) String() string {
 	}
 }
 
-// ActivityTreeOwner is used to communicate with the owner of the activity tree
-type ActivityTreeOwner interface {
+// Owner is used to communicate with the owner of the activity tree
+type Owner interface {
 	MatchesSelector(entry *model.ProcessCacheEntry) bool
 	IsEventTypeValid(evtType model.EventType) bool
 	NewProcessNodeCallback(p *ProcessNode)
@@ -92,25 +93,30 @@ type ActivityTreeOwner interface {
 
 type cookieSelector struct {
 	execTime int64
-	cookie   uint32
+	cookie   uint64
 }
 
 func (cs *cookieSelector) isSet() bool {
 	return cs.execTime != 0 && cs.cookie != 0
 }
 
+func (cs *cookieSelector) fillFromEntry(entry *model.ProcessCacheEntry) {
+	cs.execTime = entry.ExecTime.UnixNano()
+	cs.cookie = entry.Cookie
+}
+
 // ActivityTree contains a process tree and its activities. This structure has no locks.
 type ActivityTree struct {
-	Stats *ActivityTreeStats
+	Stats *Stats
 
 	treeType          string
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
 
-	validator    ActivityTreeOwner
+	validator    Owner
 	pathsReducer *PathsReducer
 
-	CookieToProcessNode map[cookieSelector]*ProcessNode
+	CookieToProcessNode *simplelru.LRU[cookieSelector, *ProcessNode]
 	ProcessNodes        []*ProcessNode `json:"-"`
 
 	// top level lists used to summarize the content of the tree
@@ -118,18 +124,43 @@ type ActivityTree struct {
 	SyscallsMask map[int]int
 }
 
+// CookieToProcessNodeCacheSize defines the "cookie to process" node cache size
+const CookieToProcessNodeCacheSize = 128
+
 // NewActivityTree returns a new ActivityTree instance
-func NewActivityTree(validator ActivityTreeOwner, pathsReducer *PathsReducer, treeType string) *ActivityTree {
-	at := &ActivityTree{
+func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType string) *ActivityTree {
+	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](CookieToProcessNodeCacheSize, nil)
+
+	return &ActivityTree{
 		treeType:            treeType,
 		validator:           validator,
 		pathsReducer:        pathsReducer,
 		Stats:               NewActivityTreeNodeStats(),
-		CookieToProcessNode: make(map[cookieSelector]*ProcessNode),
+		CookieToProcessNode: cache,
 		SyscallsMask:        make(map[int]int),
 		DNSNames:            utils.NewStringKeys(nil),
 	}
-	return at
+}
+
+// GetChildren returns the list of root ProcessNodes from the ActivityTree
+func (at *ActivityTree) GetChildren() *[]*ProcessNode {
+	return &at.ProcessNodes
+}
+
+// GetSiblings returns the list of siblings of the current node
+func (at *ActivityTree) GetSiblings() *[]*ProcessNode {
+	return nil
+}
+
+// AppendChild appends a new root node in the ActivityTree
+func (at *ActivityTree) AppendChild(node *ProcessNode) {
+	at.ProcessNodes = append(at.ProcessNodes, node)
+	node.Parent = at
+}
+
+// GetParent returns nil for the ActivityTree
+func (at *ActivityTree) GetParent() ProcessNodeParent {
+	return nil
 }
 
 // ComputeSyscallsList computes the top level list of syscalls
@@ -152,7 +183,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 	for len(pnodes) > 0 {
 		node := pnodes[0]
 
-		at.Stats.ProcessNodes += 1
+		at.Stats.ProcessNodes++
 		pnodes = append(pnodes, node.Children...)
 
 		at.Stats.DNSNodes += int64(len(node.DNSNames))
@@ -169,7 +200,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		node := fnodes[0]
 
 		if node.File != nil {
-			at.Stats.FileNodes += 1
+			at.Stats.FileNodes++
 		}
 
 		for _, f := range node.Children {
@@ -185,7 +216,7 @@ func (at *ActivityTree) IsEmpty() bool {
 	return len(at.ProcessNodes) == 0
 }
 
-// nolint: unused
+// Debug dumps the content of an activity tree
 func (at *ActivityTree) Debug(w io.Writer) {
 	for _, root := range at.ProcessNodes {
 		root.debug(w, "")
@@ -193,7 +224,7 @@ func (at *ActivityTree) Debug(w io.Writer) {
 }
 
 // ScrubProcessArgsEnvs scrubs and retains process args and envs
-func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.Resolver) {
+func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
 	// iterate through all the process nodes
 	openList := make([]*ProcessNode, len(at.ProcessNodes))
 	copy(openList, at.ProcessNodes)
@@ -210,6 +241,14 @@ func (at *ActivityTree) DifferentiateArgs() {
 	at.differentiateArgs = true
 }
 
+type untracedEventError struct {
+	eventType model.EventType
+}
+
+func (e untracedEventError) Error() string {
+	return fmt.Sprintf("invalid event: event type not valid: %s", e.eventType)
+}
+
 // isEventValid evaluates if the provided event is valid
 func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, error) {
 	// check event type
@@ -217,7 +256,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 		if !dryRun {
 			at.Stats.droppedCount[event.GetEventType()][eventTypeReason].Inc()
 		}
-		return false, fmt.Errorf("event type not valid: %s", event.GetEventType())
+		return false, untracedEventError{eventType: event.GetEventType()}
 	}
 
 	// event specific filtering
@@ -228,15 +267,15 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 			if !dryRun {
 				at.Stats.droppedCount[model.BindEventType][bindFamilyReason].Inc()
 			}
-			return false, fmt.Errorf("invalid bind family")
+			return false, errors.New("invalid event: invalid bind family")
 		}
 	}
 	return true, nil
 }
 
 // Insert inserts the event in the activity tree
-func (at *ActivityTree) Insert(event *model.Event, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
-	newEntry, err := at.insert(event, false, generationType, resolvers)
+func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
+	newEntry, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, generationType, resolvers)
 	if newEntry {
 		// this doesn't count the exec events which are counted separately
 		at.Stats.addedCount[event.GetEventType()][generationType].Inc()
@@ -245,13 +284,13 @@ func (at *ActivityTree) Insert(event *model.Event, generationType NodeGeneration
 }
 
 // Contains looks up the event in the activity tree
-func (at *ActivityTree) Contains(event *model.Event, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
-	newEntry, err := at.insert(event, true, generationType, resolvers)
+func (at *ActivityTree) Contains(event *model.Event, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
+	newEntry, err := at.insertEvent(event, true /* dryRun */, insertMissingProcesses, generationType, resolvers)
 	return !newEntry, err
 }
 
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
-func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
+func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
 	// sanity check
 	if generationType == Unknown || generationType > MaxNodeGenerationType {
 		return false, fmt.Errorf("invalid generation type: %v", generationType)
@@ -259,17 +298,18 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 
 	// check if this event type is traced
 	if valid, err := at.isEventValid(event, dryRun); !valid || err != nil {
-		return false, fmt.Errorf("invalid event: %s", err)
+		return false, err
 	}
 
-	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, nil, generationType, dryRun, resolvers)
+	// Next we'll call CreateProcessNode, which will retrieve the process node if already present, or create a new one (with all its lineage if needed).
+	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
 	if err != nil {
 		return false, err
 	}
-	if newProcessNode && dryRun {
+	if newProcessNode && !insertMissingProcesses {
+		// the event insertion can't be done because there was missing process nodes for the related event we want to insert
 		return true, nil
-	}
-	if node == nil {
+	} else if node == nil {
 		// a process node couldn't be found or created for this event, ignore it
 		return false, errors.New("a process node couldn't be found or created for this event")
 	}
@@ -343,7 +383,7 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 		if ancestor.FileEvent.Inode == 0 {
 			return nil
 		}
-		if current.FileEvent.Inode != ancestor.FileEvent.Inode {
+		if current.FileEvent.PathnameStr != ancestor.FileEvent.PathnameStr {
 			return ancestor
 		}
 		if process.IsBusybox(current.FileEvent.PathnameStr) && process.IsBusybox(ancestor.FileEvent.PathnameStr) {
@@ -365,185 +405,290 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 	return nil
 }
 
-func eventHaveValidCookie(entry *model.ProcessCacheEntry) bool {
-	return !entry.ExecTime.IsZero() && entry.Cookie != 0
+// buildBranchAndLookupCookies iterates over the ancestors of entry with 2 intentions in mind:
+//   - check if one of the ancestors of entry is already in the tree and has a shortcut thanks to its cookie
+//   - creates the list of ancestors "we care about" for the tree, i.e. the chain of ancestors created by calling
+//     "GetNextAncestorBinaryOrArgv0" and that match the tree selector.
+func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEntry) ([]*model.ProcessCacheEntry, *ProcessNode, error) {
+	var cs cookieSelector
+	var fastMatch *ProcessNode
+	var found bool
+	var branch []*model.ProcessCacheEntry
+	nextAncestor := entry
+
+	for nextAncestor != nil {
+		// look for the current ancestor
+		cs.fillFromEntry(nextAncestor)
+		if cs.isSet() {
+			fastMatch, found = at.CookieToProcessNode.Get(cs)
+			if found {
+				return branch, fastMatch, nil
+			}
+		}
+
+		// check if the next ancestor matches the tree selector
+		if !at.validator.MatchesSelector(nextAncestor) {
+			// When the first ancestor that doesn't match the tree selector is reached, we can return early because we
+			// know that none of its parents will match the selector
+			break
+		}
+
+		// append current ancestor to the branch
+		branch = append(branch, nextAncestor)
+		nextAncestor = GetNextAncestorBinaryOrArgv0(&nextAncestor.ProcessContext)
+	}
+	if len(branch) == 0 {
+		return nil, nil, nil
+	}
+
+	// make sure the branch has a valid root node
+	for i := len(branch) - 1; i >= 0; i-- {
+		if isValidRootNode(&branch[i].ProcessContext) {
+			return branch[:i+1], nil, nil
+		}
+	}
+
+	return branch, nil, ErrNotValidRootNode
 }
 
-// CreateProcessNode finds or a create a new process activity node in the activity dump if the entry
-// matches the activity dump selector.
-func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch []*model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.Resolvers) (node *ProcessNode, newProcessNode bool, err error) {
+// CreateProcessNode looks up or inserts the provided entry in the tree
+func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
 	if entry == nil {
 		return nil, false, nil
 	}
 
-	if !entry.HasCompleteLineage() {
-		return nil, false, ErrBrokenLineage
-	}
-
-	// look for a ProcessActivityNode by process cookie
-	cs := cookieSelector{}
-	if eventHaveValidCookie(entry) {
-		cs = cookieSelector{
-			execTime: entry.ExecTime.UnixNano(),
-			cookie:   entry.Cookie,
-		}
-		var found bool
-		node, found = at.CookieToProcessNode[cs]
-		if found {
-			return node, false, nil
+	if _, err := entry.HasValidLineage(); err != nil {
+		// check if the node belongs to the container
+		var mn *model.ErrProcessMissingParentNode
+		if !errors.As(err, &mn) {
+			return nil, false, ErrBrokenLineage
 		}
 	}
 
-	defer func() {
-		// if a node was found, and if the entry has a valid cookie, insert a cookie shortcut
-		if cs.isSet() && node != nil {
-			at.CookieToProcessNode[cs] = node
-		}
-	}()
-
-	branch = append([]*model.ProcessCacheEntry{entry}, branch...)
-
-	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
-	// jump immediately to the next ancestor.
-	parentNode, newProcessNode, err := at.CreateProcessNode(GetNextAncestorBinaryOrArgv0(&entry.ProcessContext), branch, Snapshot, dryRun, resolvers)
-	if err == nil && newProcessNode && dryRun {
-		// Explanation of (newProcessNode && dryRun): when dryRun is on, we can return as soon as we
-		// see something new in the tree.
-		return parentNode, newProcessNode, err
+	// Check if entry or one of its parents cookies are in CookieToProcessNode while building the branch we're trying to
+	// insert.
+	branchToInsert, quickMatch, err := at.buildBranchAndLookupCookies(entry)
+	if err != nil {
+		return nil, false, err
+	}
+	if quickMatch != nil && len(branchToInsert) == 0 {
+		// we can return immediately, we've found a direct hit from the cookie of the input entry
+		return quickMatch, false, nil
 	}
 
-	// if parentNode is nil, the parent of the current node is out of tree (either because the parent is null, or it
-	// doesn't match the dump tags).
-	if parentNode == nil {
+	var parent ProcessNodeParent
 
-		// since the parent of the current entry wasn't inserted, we need to know if the current entry needs to be inserted.
-		if !at.validator.MatchesSelector(entry) {
-			return nil, false, ErrContainerIDNotEqual
-		}
-
-		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
-		if branchRoot, newChildNode := at.findBranchInChildrenNodes(&at.ProcessNodes, branch, dryRun, generationType, resolvers); branchRoot != nil {
-			return branchRoot, newChildNode, nil
-		}
-
-		// we're about to add a root process node, make sure this root node passes the root node sanitizer
-		if !isValidRootNode(&entry.ProcessContext) {
-			return nil, false, ErrNotValidRootNode
-		}
-
-		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
-		if !dryRun {
-			node = NewProcessNode(entry, generationType, resolvers)
-			// insert in the list of root entries
-			at.ProcessNodes = append(at.ProcessNodes, node)
-			at.Stats.ProcessNodes++
-		}
-
+	// At this point, we want to insert "branchToInsert" below "firstMatch" in the tree
+	if quickMatch == nil {
+		// we didn't find a shortcut to the tree, this means we'll have to attempt the insertion from the top
+		parent = at
 	} else {
-		// if parentNode wasn't nil, then (at least) the parent is part of the activity dump. This means that we need
-		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
-		// parent node and check if one of them matches the input ProcessCacheEntry.
-		branchRoot, newChildNode := at.findBranchInChildrenNodes(&parentNode.Children, branch, dryRun, generationType, resolvers)
-		if branchRoot != nil {
-			return branchRoot, newChildNode || newProcessNode, nil
-		}
-
-		// we haven't found anything, create a new ProcessActivityNode for the input processCacheEntry
-		if !dryRun {
-			node = NewProcessNode(entry, generationType, resolvers)
-			// insert in the list of children
-			parentNode.Children = append(parentNode.Children, node)
-			at.Stats.ProcessNodes++
-		}
+		// we have a shortcut to the tree, populate tree, siblings and parent accordingly
+		parent = quickMatch
 	}
 
-	// count new entry
-	if !dryRun {
-		at.Stats.addedCount[model.ExecEventType][generationType].Inc()
-		// propagate the entry matching process cache entry
-		at.validator.NewProcessNodeCallback(node)
-	}
-
-	return node, true, nil
+	return at.insertBranch(parent, branchToInsert, generationType, dryRun, resolvers)
 }
 
-// findBranchInChildrenNodes looks for the provided branch in the list of children. Returns the node that matches the
+func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []*model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool, r *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
+	var matchingNode *ProcessNode
+	var branchIncrement int
+	var newNode, newNodeFromRebase bool
+	i := len(branchToInsert) - 1
+
+	for i >= 0 {
+		matchingNode, branchIncrement, newNodeFromRebase = at.findBranch(parent, branchToInsert[:i+1], dryRun, generationType, r)
+		if newNodeFromRebase {
+			newNode = true
+			if dryRun {
+				// early return in case of a dry run
+				return nil, newNodeFromRebase, nil
+			}
+		}
+		if matchingNode != nil {
+			parent = matchingNode
+			i -= branchIncrement
+			continue
+		}
+
+		// we've found a new node in the branch which doesn't exist in the tree
+		if dryRun {
+			// exit early in case of a dry run
+			return nil, true, nil
+		}
+
+		// we can safely insert the rest of the branch since they automatically all be new
+		for j := i; j >= 0; j-- {
+			// create the node
+			matchingNode = NewProcessNode(branchToInsert[j], generationType, r)
+			parent.AppendChild(matchingNode)
+
+			// insert the new node in the list of children
+			at.Stats.addedCount[model.ExecEventType][generationType].Inc()
+			at.Stats.ProcessNodes++
+
+			parent = matchingNode
+		}
+
+		// if we reach this point, we can safely return the last inserted entry and indicate that the tree was modified
+		return matchingNode, true, nil
+	}
+
+	// if we reach this point, we've successfully found the matching node in the tree without modifying the tree
+	return matchingNode, newNode, nil
+}
+
+// findBranch2 looks for the provided branch in the list of children. Returns the node that matches the
 // first node of the branch and true if a new entry was inserted.
-func (at *ActivityTree) findBranchInChildrenNodes(tree *[]*ProcessNode, branch []*model.ProcessCacheEntry, dryRun bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (*ProcessNode, bool) {
-	for i, branchCursor := range branch {
+func (at *ActivityTree) findBranch(parent ProcessNodeParent, branch []*model.ProcessCacheEntry, dryRun bool, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (*ProcessNode, int, bool) {
+	for i := len(branch) - 1; i >= 0; i-- {
+		branchCursor := branch[i]
 
-		// look for branchCursor in the tree
-		treeNodeToRebase, treeNodeToRebaseIndex := at.findProcessCacheEntryInChildrenNodes(tree, branchCursor)
+		// look for branchCursor in the children
+		matchingNode, treeNodeToRebaseIndex := at.findProcessCacheEntryInTree(*parent.GetChildren(), branchCursor)
 
-		// if found, append the input process sequence and rebase the tree
-		if treeNodeToRebase != nil {
-			// if this is the first iteration, we've just identified a direct match without looking for execs, return now
-			if i == 0 {
-				return treeNodeToRebase, false
+		if matchingNode != nil {
+			// if this is the first iteration, we've just identified a direct match without looking for execs in the event.
+			// This means we have nothing to rebase, return now.
+			if i == len(branch)-1 {
+				return matchingNode, 1, false
 			}
 
 			// we're about to rebase part of the tree, exit early if this is a dry run
 			if dryRun {
-				return nil, true
+				return nil, len(branch) - i, true
 			}
+
+			// make sure we properly update the isExecChild status
+			matchingNode.Process.IsExecChild = matchingNode.Process.IsExecChild || branchCursor.IsExecChild
 
 			// here is the current state of the tree:
-			//   parentNode (owner of tree) -> treeNodeToRebase -> [...] -> an existing node that matched children[i]
+			//   parent -> treeNodeToRebase -> [...] -> matchingNode
 			// here is what we want:
-			//   parentNode (owner of tree) -> children[0] -> children[i-1] -> treeNodeToRebase
+			//   parent -> { result of branch[i+1:].insert(treeNodeToRebase) } -> matchingNode
+			at.rebaseTree(parent, treeNodeToRebaseIndex, parent, branch[i:], generationType, resolvers)
 
-			// start by appending the entry
-			newNodesRoot := NewProcessNode(branch[0], generationType, resolvers)
-			*tree = append(*tree, newNodesRoot)
-			at.Stats.ProcessNodes++
-			at.Stats.addedCount[model.ExecEventType][generationType].Inc()
+			return matchingNode, len(branch) - i, true
 
-			// now add the children
-			childrenCursor := newNodesRoot
-			for _, eventExecChildTmp := range branch[1:i] {
-				n := NewProcessNode(eventExecChildTmp, generationType, resolvers)
-				childrenCursor.Children = append(childrenCursor.Children, n)
-				at.Stats.ProcessNodes++
-				at.Stats.addedCount[model.ExecEventType][generationType].Inc()
-
-				childrenCursor = n
-			}
-
-			// attach the head of  to the last newly inserted child
-			childrenCursor.Children = append(childrenCursor.Children, (*tree)[treeNodeToRebaseIndex])
-			// rebase the tree, break the link between parent and treeNodeToRebase
-			*tree = append((*tree)[0:treeNodeToRebaseIndex], (*tree)[treeNodeToRebaseIndex+1:]...)
-
-			// now that the tree is ready, call the validator on the first node
-			at.validator.NewProcessNodeCallback(newNodesRoot)
-
-			// we need to return the node that matched `entry`
-			return newNodesRoot, true
-		} else {
-			// We didn't find the current entry anywhere, has it execed into something else ? (i.e. are we missing something
-			// in the profile ?)
-			if i+1 < len(branch) {
-				if branch[i+1].IsExecChild() {
-					continue
-				}
-			}
-
-			// if we're here, we've either reached the end of the list of children, or the next child wasn't
-			// directly exec-ed
-			break
 		}
+		// are we looking for an exec child ?
+		if siblings := parent.GetSiblings(); branchCursor.IsExecChild && siblings != nil {
+
+			// if yes, then look for branchCursor in the siblings of the parent of children
+			matchingNode, treeNodeToRebaseIndex = at.findProcessCacheEntryInTree(*siblings, branchCursor)
+			if treeNodeToRebaseIndex >= 0 {
+
+				// We're about to rebase part of the tree, exit early if this is a dry run.
+				// The "i < len(branch)-1" check is used in case we'll rebase a node without adding a new one, which
+				// should be allowed in a dryRun.
+				if i < len(branch)-1 && dryRun {
+					return nil, len(branch) - i, true
+				}
+
+				// make sure we properly update the isExecChild status
+				matchingNode.Process.IsExecChild = matchingNode.Process.IsExecChild || branchCursor.IsExecChild
+
+				// here is the current state of the tree:
+				//   parent of parent -> treeNodeToRebase -> [...] -> matchingNode
+				// here is what we want:
+				//   parent -> { result of branch[i+1:].insert(treeNodeToRebase) } -> matchingNode
+				at.rebaseTree(parent.GetParent(), treeNodeToRebaseIndex, parent, branch[i:], generationType, resolvers)
+
+				return matchingNode, len(branch) - i, i < len(branch)-1
+			}
+		}
+
+		// We didn't find the current entry anywhere, has it execed into something else ? (i.e. are we missing something
+		// in the profile ?)
+		if i-1 >= 0 {
+			if branch[i-1].IsExecChild {
+				continue
+			}
+		}
+
+		// if we're here, we've either reached the end of the list of children, or the next child wasn't
+		// directly exec-ed
+		break
 	}
-	return nil, false
+	return nil, 0, false
 }
 
-// findProcessCacheEntryInChildrenNodes looks for the provided entry in the list of process nodes, returns the node (if
-// found) and the index of the top level child that lead to the node (if found) and its index (or -1 if not found).
-func (at *ActivityTree) findProcessCacheEntryInChildrenNodes(tree *[]*ProcessNode, entry *model.ProcessCacheEntry) (*ProcessNode, int) {
-	for i, child := range *tree {
-		if child.Matches(&entry.Process, at.differentiateArgs) {
+// rebaseTree rebases the node identified by "nodeIndexToRebase" in the input "tree" onto a newly created branch made of
+// "branchToInsert" and appended to "treeToRebaseOnto". New nodes will be tagged with the input "generationType".
+// This function returns the top level node, owner of the newly inserted branch that lead to the rebased node
+func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase int, newParent ProcessNodeParent, branchToInsert []*model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
+	if len(branchToInsert) > 1 {
+		// We know that the entries in "branch" are all "isExecChild = true" nodes, except the top level entry that might be
+		// a "isExecChild = false" node. Similarly, all the nodes below parent.GetChildren()[childIndexToRebase] must be non
+		// matching "isExecChild = true" nodes, except parent.GetChildren()[childIndexToRebase] that might be a "isExecChild
+		// = false" node. To be safe, check if the 2 top level nodes match if one of them is an "isExecChild = true" node.
+		childToRebase := (*parent.GetChildren())[childIndexToRebase]
+		if topLevelNode := branchToInsert[len(branchToInsert)-1]; !topLevelNode.IsExecChild || !childToRebase.Process.IsExecChild {
+			if childToRebase.Matches(&topLevelNode.Process, at.differentiateArgs, true) {
+				// ChildNodeToRebase and topLevelNode match and need to be merged, rebase the one in the profile, and insert
+				// the remaining nodes of the branch on top of it
+				newRebasedChild := at.rebaseTree(parent, childIndexToRebase, newParent, nil, generationType, resolvers)
+				output, _, _ := at.insertBranch(newRebasedChild, branchToInsert[:len(branchToInsert)-1], generationType, false, resolvers)
+
+				if output == nil {
+					return newRebasedChild
+				}
+				return output
+			}
+		}
+	}
+
+	// create the new branch
+	var rebaseRoot, childrenCursor *ProcessNode
+	for i := len(branchToInsert) - 1; i >= 1; i-- {
+		eventExecChildTmp := branchToInsert[i]
+		n := NewProcessNode(eventExecChildTmp, generationType, resolvers)
+		if i == len(branchToInsert)-1 {
+			rebaseRoot = n
+		}
+		if childrenCursor != nil {
+			childrenCursor.AppendChild(n)
+		}
+		at.Stats.ProcessNodes++
+		at.Stats.addedCount[model.ExecEventType][generationType].Inc()
+
+		childrenCursor = n
+	}
+
+	// mark the rebased node as an exec child
+	(*parent.GetChildren())[childIndexToRebase].Process.IsExecChild = true
+
+	if rebaseRoot == nil {
+		rebaseRoot = (*parent.GetChildren())[childIndexToRebase]
+	}
+
+	if childrenCursor != nil {
+		// attach the head of to the last newly inserted child
+		childrenCursor.Children = append(childrenCursor.Children, (*parent.GetChildren())[childIndexToRebase])
+	}
+
+	// rebase the node onto treeToRebaseOnto
+	*newParent.GetChildren() = append(*newParent.GetChildren(), rebaseRoot)
+
+	// break the link between the parent and the node to rebase
+	*parent.GetChildren() = append((*parent.GetChildren())[0:childIndexToRebase], (*parent.GetChildren())[childIndexToRebase+1:]...)
+
+	// now that the tree is ready, call the validator on the first node
+	at.validator.NewProcessNodeCallback(rebaseRoot)
+
+	return rebaseRoot
+}
+
+// findProcessCacheEntryInTree looks for the provided entry in the list of process nodes, returns the node (if
+// found) and the index of the top level child that lead to the matching node (or -1 if not found).
+func (at *ActivityTree) findProcessCacheEntryInTree(tree []*ProcessNode, entry *model.ProcessCacheEntry) (*ProcessNode, int) {
+	for i, child := range tree {
+		if child.Matches(&entry.Process, at.differentiateArgs, true) {
 			return child, i
 		}
+	}
 
+	for i, child := range tree {
 		// has the parent execed into one of its own children ?
 		if execChild := at.findProcessCacheEntryInChildExecedNodes(child, entry); execChild != nil {
 			return execChild, i
@@ -554,28 +699,42 @@ func (at *ActivityTree) findProcessCacheEntryInChildrenNodes(tree *[]*ProcessNod
 
 // findProcessCacheEntryInChildExecedNodes look for entry in the execed nodes of child
 func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNode, entry *model.ProcessCacheEntry) *ProcessNode {
+	// fast path
+	for _, node := range child.Children {
+		if node.Process.IsExecChild {
+			// does this execed child match the entry ?
+			if node.Matches(&entry.Process, at.differentiateArgs, true) {
+				return node
+			}
+		}
+	}
+
+	// slow path
+
 	// children is used to iterate over the tree below child
-	execChildren := []*ProcessNode{child}
+	execChildren := make([]*ProcessNode, 1, 64)
+	execChildren[0] = child
+
+	visited := make([]*ProcessNode, 0, 64)
 
 	for len(execChildren) > 0 {
-		cursor := execChildren[0]
-		execChildren = execChildren[1:]
+		cursor := execChildren[len(execChildren)-1]
+		execChildren = execChildren[:len(execChildren)-1]
+
+		visited = append(visited, cursor)
 
 		// look for an execed child
 		for _, node := range cursor.Children {
-			if node.IsExecChild {
+			if node.Process.IsExecChild && !slices.Contains(visited, node) {
 				// there should always be only one
+
+				// does this execed child match the entry ?
+				if node.Matches(&entry.Process, at.differentiateArgs, true) {
+					return node
+				}
+
 				execChildren = append(execChildren, node)
 			}
-		}
-
-		if len(execChildren) == 0 {
-			break
-		}
-
-		// does this execed child match the entry ?
-		if execChildren[0].Matches(&entry.Process, at.differentiateArgs) {
-			return execChildren[0]
 		}
 	}
 
@@ -583,6 +742,7 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 	return nil
 }
 
+// FindMatchingRootNodes finds and returns the matching root nodes
 func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	var res []*ProcessNode
 	for _, node := range at.ProcessNodes {

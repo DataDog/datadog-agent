@@ -1,8 +1,8 @@
-from .tool import info
+from tasks.kernel_matrix_testing.tool import info
 
 
 def resource_in_stack(stack, resource):
-    return stack in resource
+    return f"-{stack}" in resource
 
 
 def get_resources_in_stack(stack, list_fn):
@@ -21,7 +21,8 @@ def delete_domains(conn, stack):
 
     for domain in domains:
         name = domain.name()
-        domain.destroy()
+        if domain.isActive():
+            domain.destroy()
         domain.undefine()
         info(f"[+] VM {name} deleted")
 
@@ -70,7 +71,8 @@ def delete_networks(conn, stack):
 
     for network in networks:
         name = network.name()
-        network.destroy()
+        if network.isActive():
+            network.destroy()
         network.undefine()
         info(f"[+] Network {name} deleted")
 
@@ -81,15 +83,30 @@ def pause_domains(conn, stack):
 
     for domain in domains:
         name = domain.name()
-        domain.destroy()
+        if domain.isActive():
+            domain.destroy()
         info(f"[+] VM {name} is paused")
+
+
+def resume_network(conn, stack):
+    networks = get_resources_in_stack(stack, conn.listAllNetworks)
+    info(f"[*] {len(networks)} networks running in stack {stack}")
+
+    for network in networks:
+        name = network.name()
+        if not network.isActive():
+            network.create()
+        info(f"[+] Network {name} resumed")
 
 
 def resume_domains(conn, stack):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
     info(f"[*] {len(domains)} VMs running in stack {stack}")
 
+    resume_network(conn, stack)
+
     for domain in domains:
         name = domain.name()
-        domain.create()
+        if not domain.isActive():
+            domain.create()
         info(f"[+] VM {name} is resumed")

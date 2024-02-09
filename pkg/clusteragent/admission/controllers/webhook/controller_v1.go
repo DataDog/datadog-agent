@@ -52,17 +52,21 @@ func NewControllerV1(client kubernetes.Interface, secretInformer coreinformers.S
 	controller.isLeaderNotif = isLeaderNotif
 	controller.generateTemplates()
 
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleSecret,
 		UpdateFunc: controller.handleSecretUpdate,
 		DeleteFunc: controller.handleSecret,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to secret informer: %v", err)
+	}
 
-	webhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := webhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleWebhook,
 		UpdateFunc: controller.handleWebhookUpdate,
 		DeleteFunc: controller.handleWebhook,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to webhook informer: %v", err)
+	}
 
 	return controller
 }
@@ -184,26 +188,97 @@ func (c *ControllerV1) generateTemplates() {
 
 	// DD_AGENT_HOST injection
 	if config.Datadog.GetBool("admission_controller.inject_config.enabled") {
-		webhook := c.getWebhookSkeleton("config", config.Datadog.GetString("admission_controller.inject_config.endpoint"))
+		// generate selectors
+		nsSelector, objSelector := buildLabelSelectors(c.config.useNamespaceSelector())
+
+		webhook := c.getWebhookSkeleton(
+			"config",
+			config.Datadog.GetString("admission_controller.inject_config.endpoint"),
+			[]admiv1.OperationType{
+				admiv1.Create,
+			},
+			[]string{"pods"},
+			nsSelector,
+			objSelector,
+		)
 		webhooks = append(webhooks, webhook)
 	}
 
 	// DD_ENV, DD_VERSION, DD_SERVICE injection
 	if config.Datadog.GetBool("admission_controller.inject_tags.enabled") {
-		webhook := c.getWebhookSkeleton("tags", config.Datadog.GetString("admission_controller.inject_tags.endpoint"))
+		// generate selectors
+		nsSelector, objSelector := buildLabelSelectors(c.config.useNamespaceSelector())
+
+		webhook := c.getWebhookSkeleton(
+			"tags",
+			config.Datadog.GetString("admission_controller.inject_tags.endpoint"),
+			[]admiv1.OperationType{
+				admiv1.Create,
+			},
+			[]string{"pods"},
+			nsSelector,
+			objSelector,
+		)
 		webhooks = append(webhooks, webhook)
 	}
 
 	// Auto instrumentation - lib injection
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.enabled") {
-		webhook := c.getWebhookSkeleton("auto-instrumentation", config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"))
+		// generate selectors
+		nsSelector, objSelector := buildLabelSelectors(c.config.useNamespaceSelector())
+
+		webhook := c.getWebhookSkeleton(
+			"auto-instrumentation",
+			config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"),
+			[]admiv1.OperationType{
+				admiv1.Create,
+			},
+			[]string{"pods"},
+			nsSelector,
+			objSelector,
+		)
 		webhooks = append(webhooks, webhook)
+	}
+
+	// CWS Instrumentation
+	if config.Datadog.GetBool("admission_controller.cws_instrumentation.enabled") {
+		// sanity check: make sure the provided CWS Injector image name isn't empty
+		if len(config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")) != 0 {
+			// generate selectors
+			nsSelector, objSelector := buildCWSInstrumentationLabelSelectors(c.config.useNamespaceSelector())
+
+			// bind mount cws-instrumentation
+			webhook := c.getWebhookSkeleton(
+				"cws-pod-instrumentation",
+				config.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"),
+				[]admiv1.OperationType{
+					admiv1.Create,
+				},
+				[]string{"pods"},
+				nsSelector,
+				objSelector,
+			)
+			webhooks = append(webhooks, webhook)
+
+			// override pod exec command
+			webhook = c.getWebhookSkeleton(
+				"cws-command-instrumentation",
+				config.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"),
+				[]admiv1.OperationType{
+					admiv1.Connect,
+				},
+				[]string{"pods/exec"},
+				nil,
+				nil,
+			)
+			webhooks = append(webhooks, webhook)
+		}
 	}
 
 	c.webhookTemplates = webhooks
 }
 
-func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.MutatingWebhook {
+func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resources []string, namespaceSelector, objectSelector *metav1.LabelSelector) admiv1.MutatingWebhook {
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -222,13 +297,11 @@ func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.Mutati
 		},
 		Rules: []admiv1.RuleWithOperations{
 			{
-				Operations: []admiv1.OperationType{
-					admiv1.Create,
-				},
+				Operations: operations,
 				Rule: admiv1.Rule{
 					APIGroups:   []string{""},
 					APIVersions: []string{"v1"},
-					Resources:   []string{"pods"},
+					Resources:   resources,
 				},
 			},
 		},
@@ -238,9 +311,9 @@ func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.Mutati
 		SideEffects:             &sideEffects,
 		TimeoutSeconds:          &timeout,
 		AdmissionReviewVersions: []string{"v1", "v1beta1"},
+		NamespaceSelector:       namespaceSelector,
+		ObjectSelector:          objectSelector,
 	}
-
-	webhook.NamespaceSelector, webhook.ObjectSelector = buildLabelSelectors(c.config.useNamespaceSelector())
 
 	return webhook
 }

@@ -2,6 +2,7 @@ import glob
 import json
 import os
 import re
+import sys
 import traceback
 
 import requests
@@ -171,14 +172,31 @@ def should_rerun_failed(_, runlog):
     """
     Parse a log from kitchen run and see if we should rerun it (e.g. because of a network issue).
     """
-    test_result_re = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
+    test_result_re_gotest = re.compile(r'--- FAIL: (?P<failures>[A-Z].*) \(.*\)')
+    test_result_re_rspec = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
+
     with open(runlog, 'r', encoding='utf-8') as f:
         text = f.read()
-        result = set(test_result_re.findall(text))
+        result_rspec = set(test_result_re_rspec.findall(text))
+        result_gotest = set(test_result_re_gotest.findall(text))
+        result = result_rspec.union(result_gotest)
         if result == {'0'} or result == set():
-            print("Seeing no failed tests in log, advising to rerun")
+            print(
+                "Seeing no failed kitchen tests in log this is probably an infrastructure problem, advising to rerun the failed test suite"
+            )
         else:
-            raise Exit("Seeing some failed tests in log, not advising to rerun", 1)
+            raise Exit("Seeing some failed kitchen tests in log, not advising to rerun the failed test suite", 1)
+
+
+@task
+def invoke_unit_tests(ctx):
+    """
+    Run the unit tests on the invoke tasks
+    """
+    for _, _, files in os.walk("tasks/unit-tests/"):
+        for file in files:
+            if file[-3:] == ".py" and file != "__init__.py":
+                ctx.run(f"{sys.executable} -m tasks.unit-tests.{file[:-3]}")
 
 
 def load_targets(_, targethash, selections, platform):

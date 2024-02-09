@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package tencent provides utilities to detect tencent cloud provider.
 package tencent
 
 import (
@@ -12,7 +13,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Tencent Metadata availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Tencent Metadata availability", diagnose)
 }
 
 // diagnose the tencent cloud metadata API availability

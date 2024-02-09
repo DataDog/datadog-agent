@@ -34,7 +34,6 @@ typedef enum {
     OFFSET_SK_BUFF_HEAD,
     OFFSET_CT_ORIGIN,
     OFFSET_CT_REPLY,
-    OFFSET_CT_STATUS,
     OFFSET_CT_NETNS,
     OFFSET_CT_INO,
 } offset_t;
@@ -65,7 +64,7 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
 
     o = OFFSET_SPORT;
-    offset = offsetof(struct inet_sock, inet_sport);
+    offset = offsetof(struct sock, sk_num);
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
 
     o = OFFSET_DPORT;
@@ -158,10 +157,6 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
     offset += offsetof(struct nf_conntrack_tuple_hash, tuple);
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
 
-    o = OFFSET_CT_STATUS;
-    offset = offsetof(struct nf_conn, status);
-    bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
-
     o = OFFSET_CT_NETNS;
     offset = offsetof(struct nf_conn, ct_net);
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
@@ -173,7 +168,4 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
     return 0;
 }
 
-// This number will be interpreted by elf-loader to set the current running kernel version
-__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
-
-char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+char _license[] SEC("license") = "GPL";

@@ -3,7 +3,7 @@ name: "CWS BTFHub constants sync"
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 4 * * *' # at 4:30 UTC every day
+    - cron: '30 4 * * 1-5' # at 4:30 UTC every week-day
 
 jobs:
   sync:
@@ -15,30 +15,25 @@ jobs:
           docker rmi $(docker image ls -aq) >/dev/null 2>&1
 
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v3
-        with:
-          ref: main
+        uses: actions/checkout@v4
 
       - name: Checkout btfhub-archive repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          repository: aquasecurity/btfhub-archive
+          repository: DataDog/btfhub-archive
           path: dev/dist/archive
 
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.14'
+          python-version: '3.9'
           cache: 'pip'
+      - run: pip install -r requirements.txt
 
       - name: Install go
         uses: actions/setup-go@v4
         with:
           go-version-file: '.go-version'
-
-      - name: Install python requirements
-        run: |
-          pip install -r requirements.txt
 
       - name: Install go deps
         run: |
@@ -63,7 +58,7 @@ jobs:
           skip_checkout: true
 
       - name: Create Pull Request
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         if: steps.commit-creator.outputs.changes_detected == 'true'
         with:
           script: |
@@ -90,5 +85,5 @@ jobs:
               owner,
               repo,
               issue_number: result.data.number,
-              labels: ['changelog/no-changelog', 'qa/skip-qa', 'team/agent-security']
+              labels: ['changelog/no-changelog', 'qa/no-code-change', 'team/agent-security']
             });

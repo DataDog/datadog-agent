@@ -23,7 +23,7 @@ import (
 
 func TestFromConfig(t *testing.T) {
 	config.Mock(t)
-	config.Datadog.Set("hostname", "test-hostname")
+	config.Datadog.SetWithoutSource("hostname", "test-hostname")
 
 	hostname, err := fromConfig(context.TODO(), "")
 	require.NoError(t, err)
@@ -32,7 +32,7 @@ func TestFromConfig(t *testing.T) {
 
 func TestFromConfigInvalid(t *testing.T) {
 	config.Mock(t)
-	config.Datadog.Set("hostname", "hostname_with_underscore")
+	config.Datadog.SetWithoutSource("hostname", "hostname_with_underscore")
 
 	_, err := fromConfig(context.TODO(), "")
 	assert.Error(t, err)
@@ -49,7 +49,7 @@ func setupHostnameFile(t *testing.T, content string) {
 	require.NoError(t, err, "Could not write to tmp file %s: %s", destFile.Name(), err)
 
 	config.Mock(t)
-	config.Datadog.Set("hostname_file", destFile.Name())
+	config.Datadog.SetWithoutSource("hostname_file", destFile.Name())
 
 	destFile.Close()
 }
@@ -72,7 +72,7 @@ func TestFromHostnameFileWhitespaceTrim(t *testing.T) {
 
 func TestFromHostnameFileNoFileName(t *testing.T) {
 	config.Mock(t)
-	config.Datadog.Set("hostname_file", "")
+	config.Datadog.SetWithoutSource("hostname_file", "")
 
 	_, err := fromHostnameFile(context.TODO(), "")
 	assert.NotNil(t, err)
@@ -112,12 +112,12 @@ func TestFromFQDN(t *testing.T) {
 	fqdnHostname = func() (string, error) { return "fqdn-hostname", nil }
 
 	config.Mock(t)
-	config.Datadog.Set("hostname_fqdn", false)
+	config.Datadog.SetWithoutSource("hostname_fqdn", false)
 
 	_, err := fromFQDN(context.TODO(), "")
 	assert.Error(t, err)
 
-	config.Datadog.Set("hostname_fqdn", true)
+	config.Datadog.SetWithoutSource("hostname_fqdn", true)
 
 	hostname, err := fromFQDN(context.TODO(), "")
 	assert.NoError(t, err)
@@ -166,7 +166,7 @@ func TestFromEc2Prioritize(t *testing.T) {
 	// to true we use the instance ID
 	defer func() { ec2GetInstanceID = ec2.GetInstanceID }()
 	config.Mock(t)
-	config.Datadog.Set("ec2_prioritize_instance_id_as_hostname", true)
+	config.Datadog.SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
 
 	// make AWS provider return an error
 	ec2GetInstanceID = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }

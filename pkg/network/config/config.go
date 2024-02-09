@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NET) Fix revive linter
 package config
 
 import (
@@ -19,9 +20,8 @@ const (
 	spNS   = "system_probe_config"
 	netNS  = "network_config"
 	smNS   = "service_monitoring_config"
-	dsNS   = "data_streams_config"
 	evNS   = "event_monitoring_config"
-	smjtNS = smNS + ".java_tls"
+	smjtNS = smNS + ".tls.java"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -36,9 +36,6 @@ type Config struct {
 
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
-
-	// DataStreamsEnabled is whether the data streams feature is enabled or not
-	DataStreamsEnabled bool
 
 	// CollectTCPv4Conns specifies whether the tracer should collect traffic statistics for TCPv4 connections
 	CollectTCPv4Conns bool
@@ -83,13 +80,20 @@ type Config struct {
 	// EnableKafkaMonitoring specifies whether the tracer should monitor Kafka traffic
 	EnableKafkaMonitoring bool
 
-	// EnableHTTPSMonitoring specifies whether the tracer should monitor HTTPS traffic
-	// Supported libraries: OpenSSL
-	EnableHTTPSMonitoring bool
+	// EnableNativeTLSMonitoring specifies whether the USM should monitor HTTPS traffic via native libraries.
+	// Supported libraries: OpenSSL, GnuTLS, LibCrypto.
+	EnableNativeTLSMonitoring bool
+
+	// EnableIstioMonitoring specifies whether USM should monitor Istio traffic
+	EnableIstioMonitoring bool
 
 	// EnableGoTLSSupport specifies whether the tracer should monitor HTTPS
 	// traffic done through Go's standard library's TLS implementation
 	EnableGoTLSSupport bool
+
+	// GoTLSExcludeSelf specifies whether USM's GoTLS module should avoid
+	// hooking the system-probe test binary. Defaults to true.
+	GoTLSExcludeSelf bool
 
 	// EnableJavaTLSSupport specifies whether the tracer should monitor HTTPS
 	// traffic done through Java's TLS implementation
@@ -153,6 +157,10 @@ type Config struct {
 	// MaxDNSStatsBuffered represents the maximum number of DNS stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxDNSStatsBuffered int
+
+	// MaxUSMConcurrentRequests represents the maximum number of requests (for a single protocol)
+	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
+	MaxUSMConcurrentRequests uint32
 
 	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
@@ -234,6 +242,9 @@ type Config struct {
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
 
+	// HTTP2DynamicTableMapCleanerInterval is the interval to run the cleaner function.
+	HTTP2DynamicTableMapCleanerInterval time.Duration
+
 	// HTTPMapCleanerInterval is the interval to run the cleaner function.
 	HTTPMapCleanerInterval time.Duration
 
@@ -247,6 +258,12 @@ type Config struct {
 	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
+
+	// EnableUSMQuantization enables endpoint quantization for USM programs
+	EnableUSMQuantization bool
+
+	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
+	EnableUSMConnectionRollup bool
 }
 
 func join(pieces ...string) string {
@@ -263,7 +280,6 @@ func New() *Config {
 
 		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
-		DataStreamsEnabled:       cfg.GetBool(join(dsNS, "enabled")),
 
 		CollectTCPv4Conns: cfg.GetBool(join(netNS, "collect_tcp_v4")),
 		CollectTCPv6Conns: cfg.GetBool(join(netNS, "collect_tcp_v6")),
@@ -296,11 +312,14 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
-		EnableHTTPMonitoring:  cfg.GetBool(join(smNS, "enable_http_monitoring")),
-		EnableHTTP2Monitoring: cfg.GetBool(join(smNS, "enable_http2_monitoring")),
-		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		MaxHTTPStatsBuffered:  cfg.GetInt(join(smNS, "max_http_stats_buffered")),
-		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
+		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
+		EnableKafkaMonitoring:     cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
+		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
+		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
+		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
+		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
+		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
@@ -327,6 +346,8 @@ func New() *Config {
 
 		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
 
+		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
+
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
@@ -336,8 +357,11 @@ func New() *Config {
 		JavaAgentArgs:               cfg.GetString(join(smjtNS, "args")),
 		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
 		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
-		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "enable_go_tls_support")),
+		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
+		GoTLSExcludeSelf:            cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
+		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")
@@ -363,8 +387,6 @@ func New() *Config {
 	if !c.DNSInspection {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
-
-	c.EnableKafkaMonitoring = c.DataStreamsEnabled
 
 	if c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring enabled")

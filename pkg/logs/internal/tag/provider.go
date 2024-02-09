@@ -11,9 +11,10 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,7 +41,7 @@ func NewProvider(entityID string) Provider {
 func newProviderWithClock(entityID string, clock clock.Clock) Provider {
 	p := &provider{
 		entityID:             entityID,
-		taggerWarmupDuration: config.TaggerWarmupDuration(),
+		taggerWarmupDuration: config.TaggerWarmupDuration(pkgConfig.Datadog),
 		localTagProvider:     newLocalProviderWithClock([]string{}, clock),
 		clock:                clock,
 	}

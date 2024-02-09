@@ -6,12 +6,15 @@
 package corechecks
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // CheckFactory factory function type to instantiate checks
@@ -21,8 +24,10 @@ type CheckFactory func() check.Check
 var catalog = make(map[string]CheckFactory)
 
 // RegisterCheck adds a check to the catalog
-func RegisterCheck(name string, c CheckFactory) {
-	catalog[name] = c
+func RegisterCheck(name string, checkFactory optional.Option[func() check.Check]) {
+	if v, ok := checkFactory.Get(); ok {
+		catalog[name] = v
+	}
 }
 
 // GetRegisteredFactoryKeys get the keys for all registered factories
@@ -49,7 +54,7 @@ func (gl *GoCheckLoader) Name() string {
 }
 
 // Load returns a Go check
-func (gl *GoCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 
 	factory, found := catalog[config.Name]
@@ -59,7 +64,10 @@ func (gl *GoCheckLoader) Load(config integration.Config, instance integration.Da
 	}
 
 	c = factory()
-	if err := c.Configure(config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(senderManger, config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
+		if errors.Is(err, check.ErrSkipCheckInstance) {
+			return c, err
+		}
 		log.Errorf("core.loader: could not configure check %s: %s", c, err)
 		msg := fmt.Sprintf("Could not configure check %s: %s", c, err)
 		return c, fmt.Errorf(msg)
@@ -73,7 +81,7 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
-	factory := func() (check.Loader, error) {
+	factory := func(sender.SenderManager) (check.Loader, error) {
 		return NewGoCheckLoader()
 	}
 

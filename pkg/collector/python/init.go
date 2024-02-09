@@ -186,6 +186,7 @@ func (ire InterpreterResolutionError) Error() string {
 		" Python's 'multiprocessing' library may fail to work.", ire.Err)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 const PythonWinExeBasename = "python.exe"
 
 var (
@@ -207,6 +208,7 @@ var (
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
 
+	//nolint:revive // TODO(AML) Fix revive linter
 	rtloader *C.rtloader_t = nil
 
 	expvarPyInit  *expvar.Map
@@ -220,6 +222,21 @@ func init() {
 
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
+
+	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
+	// in integrations, which causes a 10MB memory increase.
+	// Note: a future version of setuptools (TBD) will remove the ability to use this variable
+	// (https://github.com/pypa/setuptools/issues/3625),
+	// and Python 3.12 removes distutils from the standard library.
+	// Once we upgrade one of those, we won't have any choice but to use setuptools' distutils,
+	// which means we will get the memory increase again if integrations still use distutils.
+
+	// This must happen as early as possible in the process lifetime to avoid data race with
+	// `getenv`. Ideally before we start any goroutines that call native code or open network
+	// connections.
+	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
+		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
+	}
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -227,9 +244,7 @@ func expvarPythonInitErrors() interface{} {
 	defer pyInitLock.RUnlock()
 
 	pyInitErrorsCopy := []string{}
-	for i := range pyInitErrors {
-		pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors[i])
-	}
+	pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors...)
 
 	return pyInitErrorsCopy
 }
@@ -354,20 +369,10 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 	return filepath.Join(PythonHome, "bin", interpreterBasename), nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")
-
-	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
-	// in integrations, which causes a 10MB memory increase.
-	// Note: a future version of setuptools (TBD) will remove the ability to use this variable
-	// (https://github.com/pypa/setuptools/issues/3625),
-	// and Python 3.12 removes distutils from the standard library.
-	// Once we upgrade one of those, we won't have any choice but to use setuptools' distutils,
-	// which means we will get the memory increase again if integrations still use distutils.
-	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
-		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
-	}
 
 	// Memory related RTLoader-global initialization
 	if config.Datadog.GetBool("memtrack_enabled") {
@@ -387,6 +392,7 @@ func Initialize(paths ...string) error {
 	}
 	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
+	//nolint:revive // TODO(AML) Fix revive linter
 	var pyErr *C.char = nil
 
 	csPythonHome := TrackedCString(PythonHome)
@@ -455,8 +461,7 @@ func Initialize(paths ...string) error {
 	if pyInfo != nil {
 		PythonVersion = strings.Replace(C.GoString(pyInfo.version), "\n", "", -1)
 		// Set python version in the cache
-		key := cache.BuildAgentKey("pythonVersion")
-		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
+		cache.Cache.Set(pythonInfoCacheKey, PythonVersion, cache.NoExpiration)
 
 		PythonPath = C.GoString(pyInfo.path)
 		C.free_py_info(rtloader, pyInfo)

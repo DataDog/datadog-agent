@@ -39,7 +39,7 @@ func TestRun_fail(t *testing.T) {
 	require.Equal(t, -1, Run(cmd))
 }
 
-func makeFxError(t *testing.T) error {
+func makeFxError(t *testing.T) error { //nolint:revive // TODO fix revive unused-parameter
 	app := fx.New(
 		fx.Provide(func() (string, error) {
 			return "", errors.New("uhoh")

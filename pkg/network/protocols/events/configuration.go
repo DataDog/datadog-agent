@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -42,7 +41,6 @@ func Configure(proto string, m *manager.Manager, o *manager.Options) {
 	}
 
 	o.MapSpecEditors[proto+batchMapSuffix] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: uint32(onlineCPUs * batchPagesPerCPU),
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -71,7 +69,7 @@ func setupPerfMap(proto string, m *manager.Manager) {
 	}
 
 	handler := ddebpf.NewPerfHandler(100)
-	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
+	pm := &manager.PerfMap{
 		Map: manager.Map{Name: mapName},
 		PerfMapOptions: manager.PerfMapOptions{
 			PerfRingBufferSize: 16 * os.Getpagesize(),
@@ -80,7 +78,8 @@ func setupPerfMap(proto string, m *manager.Manager) {
 			LostHandler:        handler.LostHandler,
 			RecordGetter:       handler.RecordGetter,
 		},
-	})
+	}
+	m.PerfMaps = append(m.PerfMaps, pm)
 
 	handlerMux.Lock()
 	if handlerByProtocol == nil {

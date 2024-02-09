@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NET) Fix revive linter
 package network
 
 // ConnectionBuffer encapsulates a resizing buffer for ConnectionStat objects
@@ -29,6 +30,12 @@ func (b *ConnectionBuffer) Next() *ConnectionStats {
 	c := &b.buf[b.off]
 	b.off++
 	return c
+}
+
+// Assign slice to ConnectionBuffer
+func (b *ConnectionBuffer) Assign(slice []ConnectionStats) {
+	b.buf = slice
+	b.off = len(slice)
 }
 
 // Append slice to ConnectionBuffer

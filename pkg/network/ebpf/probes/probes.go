@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+//nolint:revive // TODO(NET) Fix revive linter
 package probes
 
 // ProbeFuncName stores the function name of the kernel probes setup for tracing
@@ -25,9 +26,13 @@ const (
 	TCPv6ConnectReturn ProbeFuncName = "kretprobe__tcp_v6_connect"
 
 	// ProtocolClassifierEntrySocketFilter runs a classifier algorithm as a socket filter
-	ProtocolClassifierEntrySocketFilter  ProbeFuncName = "socket__classifier_entry"
+	ProtocolClassifierEntrySocketFilter ProbeFuncName = "socket__classifier_entry"
+	//nolint:revive // TODO(NET) Fix revive linter
 	ProtocolClassifierQueuesSocketFilter ProbeFuncName = "socket__classifier_queues"
-	ProtocolClassifierDBsSocketFilter    ProbeFuncName = "socket__classifier_dbs"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ProtocolClassifierDBsSocketFilter ProbeFuncName = "socket__classifier_dbs"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ProtocolClassifierGRPCSocketFilter ProbeFuncName = "socket__classifier_grpc"
 
 	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
 	// belongs (but hidden) for it.
@@ -60,9 +65,6 @@ const (
 	// SockGetSockOpt traces the sock_common_getsockopt() kernel function
 	// This probe is used for offset guessing only
 	SockGetSockOpt ProbeFuncName = "kprobe__sock_common_getsockopt"
-
-	// TCPSetState traces the tcp_set_state() kernel function
-	TCPSetState ProbeFuncName = "kprobe__tcp_set_state"
 
 	// TCPRecvMsg traces the tcp_recvmsg() kernel function
 	TCPRecvMsg ProbeFuncName = "kprobe__tcp_recvmsg"
@@ -169,12 +171,6 @@ const (
 
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"
-
-	// SockFDLookup is the kprobe used for mapping socket FDs to kernel sock structs
-	SockFDLookup ProbeFuncName = "kprobe__sockfd_lookup_light"
-
-	// SockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
-	SockFDLookupRet ProbeFuncName = "kretprobe__sockfd_lookup_light"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
@@ -182,34 +178,58 @@ type BPFMapName = string
 
 // constants for the map names
 const (
-	ConnMap                           BPFMapName = "conn_stats"
-	TCPStatsMap                       BPFMapName = "tcp_stats"
-	TCPConnectSockPidMap              BPFMapName = "tcp_ongoing_connect_pid"
-	ConnCloseEventMap                 BPFMapName = "conn_close_event"
-	TracerStatusMap                   BPFMapName = "tracer_status"
-	ConntrackStatusMap                BPFMapName = "conntrack_status"
-	PortBindingsMap                   BPFMapName = "port_bindings"
-	UDPPortBindingsMap                BPFMapName = "udp_port_bindings"
-	TelemetryMap                      BPFMapName = "telemetry"
-	ConnCloseBatchMap                 BPFMapName = "conn_close_batch"
-	ConntrackMap                      BPFMapName = "conntrack"
-	ConntrackTelemetryMap             BPFMapName = "conntrack_telemetry"
-	SockFDLookupArgsMap               BPFMapName = "sockfd_lookup_args"
-	SockByPidFDMap                    BPFMapName = "sock_by_pid_fd"
-	PidFDBySockMap                    BPFMapName = "pid_fd_by_sock"
-	TcpSendMsgArgsMap                 BPFMapName = "tcp_sendmsg_args"
-	TcpSendPageArgsMap                BPFMapName = "tcp_sendpage_args"
-	UdpSendPageArgsMap                BPFMapName = "udp_sendpage_args"
-	IpMakeSkbArgsMap                  BPFMapName = "ip_make_skb_args"
-	MapErrTelemetryMap                BPFMapName = "map_err_telemetry_map"
-	HelperErrTelemetryMap             BPFMapName = "helper_err_telemetry_map"
-	TcpRecvMsgArgsMap                 BPFMapName = "tcp_recvmsg_args"
-	ProtocolClassificationBufMap      BPFMapName = "classification_buf"
-	KafkaClientIDBufMap               BPFMapName = "kafka_client_id"
-	KafkaTopicNameBufMap              BPFMapName = "kafka_topic_name"
-	ConnectionProtocolMap             BPFMapName = "connection_protocol"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ConnMap BPFMapName = "conn_stats"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TCPStatsMap BPFMapName = "tcp_stats"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TCPRetransmitsMap BPFMapName = "tcp_retransmits"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TCPConnectSockPidMap BPFMapName = "tcp_ongoing_connect_pid"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ConnCloseEventMap BPFMapName = "conn_close_event"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TracerStatusMap BPFMapName = "tracer_status"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ConntrackStatusMap BPFMapName = "conntrack_status"
+	//nolint:revive // TODO(NET) Fix revive linter
+	PortBindingsMap BPFMapName = "port_bindings"
+	//nolint:revive // TODO(NET) Fix revive linter
+	UDPPortBindingsMap BPFMapName = "udp_port_bindings"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TelemetryMap BPFMapName = "telemetry"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ConnCloseBatchMap BPFMapName = "conn_close_batch"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ConntrackMap BPFMapName = "conntrack"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TcpSendMsgArgsMap BPFMapName = "tcp_sendmsg_args"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TcpSendPageArgsMap BPFMapName = "tcp_sendpage_args"
+	//nolint:revive // TODO(NET) Fix revive linter
+	UdpSendPageArgsMap BPFMapName = "udp_sendpage_args"
+	//nolint:revive // TODO(NET) Fix revive linter
+	IpMakeSkbArgsMap BPFMapName = "ip_make_skb_args"
+	//nolint:revive // TODO(NET) Fix revive linter
+	MapErrTelemetryMap BPFMapName = "map_err_telemetry_map"
+	//nolint:revive // TODO(NET) Fix revive linter
+	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TcpRecvMsgArgsMap BPFMapName = "tcp_recvmsg_args"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ProtocolClassificationBufMap BPFMapName = "classification_buf"
+	//nolint:revive // TODO(NET) Fix revive linter
+	KafkaClientIDBufMap BPFMapName = "kafka_client_id"
+	//nolint:revive // TODO(NET) Fix revive linter
+	KafkaTopicNameBufMap BPFMapName = "kafka_topic_name"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ConnectionProtocolMap BPFMapName = "connection_protocol"
+	//nolint:revive // TODO(NET) Fix revive linter
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
-	ClassificationProgsMap            BPFMapName = "classification_progs"
-	TCPCloseProgsMap                  BPFMapName = "tcp_close_progs"
-	StaticTableMap                    BPFMapName = "http2_static_table"
+	//nolint:revive // TODO(NET) Fix revive linter
+	ClassificationProgsMap BPFMapName = "classification_progs"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TCPCloseProgsMap BPFMapName = "tcp_close_progs"
 )

@@ -3,145 +3,296 @@
 // Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
 // Copyright 2014-present Datadog, Inc.
 
-//go:build linux || darwin
-// +build linux darwin
+//go:build darwin || linux
 
 package filesystem
 
 import (
-	"os"
-	"runtime"
+	"math/rand"
 	"testing"
-	"time"
 
+	"github.com/moby/sys/mountinfo"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func withDfCommand(t *testing.T, command ...string) {
-	oldCommand := dfCommand
-	oldOptions := dfOptions
-	dfCommand = command[0]
-	if len(command) > 1 {
-		dfOptions = command[1:]
-	} else {
-		dfOptions = []string{}
-	}
-	t.Cleanup(func() {
-		dfCommand = oldCommand
-		dfOptions = oldOptions
-	})
-}
+// Used for dynamic test field value generation
+const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-func TestSlowDf(t *testing.T) {
-	withDfCommand(t, "sleep", "5")
-	dfTimeout = 20 * time.Millisecond // test faster
-	defer func() { dfTimeout = 2 * time.Second }()
+func TestNixFSTypeFiltering(t *testing.T) {
+	testCases := []struct {
+		FSType   string
+		FSName   string
+		Included bool
+	}{
+		// Sample of some FS types that are not ignored
 
-	_, err := getFileSystemInfo()
-	require.ErrorContains(t, err, "df failed to collect filesystem data")
-}
+		{"ext3", randString(), true},
+		{"ext4", randString(), true},
+		{"apfs", randString(), true},
+		{"aufs", randString(), true},
 
-func TestOldMacosDf(t *testing.T) {
-	// from https://apple.stackexchange.com/questions/263437/df-hide-ifree-iused-512-blocks-customize-column-format-dont-show-inode-info
-	withDfCommand(t, "sh", "-c", `
-		echo 'Filesystem                                 1K-blocks       Used Available Capacity  iused    ifree %iused  Mounted on';
-		echo '/dev/disk0s2                               975093952  719904648 254677304    74% 90052079 31834663   74%   /';
-		echo 'devfs                                            368        368         0   100%      637        0  100%   /dev';
-		echo 'map -hosts                                         0          0         0   100%        0        0  100%   /net';
-		echo 'map -static                                        0          0         0   100%        0        0  100%   /Volumes/Large';
-	`)
+		// Basic ignored FS types
 
-	out, err := getFileSystemInfo()
-	require.NoError(t, err)
-	require.Equal(t, []interface{}{
-		map[string]string{"kb_size": "975093952", "mounted_on": "/", "name": "/dev/disk0s2"},
-		map[string]string{"kb_size": "368", "mounted_on": "/dev", "name": "devfs"},
-		map[string]string{"kb_size": "0", "mounted_on": "/net", "name": "map -hosts"},
-		map[string]string{"kb_size": "0", "mounted_on": "/Volumes/Large", "name": "map -static"},
-	}, out)
-}
+		{"autofs", randString(), false},
+		{"debugfs", randString(), false},
+		{"devfs", randString(), false},
+		{"devpts", randString(), false},
+		{"devtmpfs", randString(), false},
+		{"fuse.portal", randString(), false},
+		{"fusectl", randString(), false},
+		{"ignore", randString(), false},
+		{"kernfs", randString(), false},
+		{"none", randString(), false},
+		{"proc", randString(), false},
+		{"subfs", randString(), false},
+		{"mqueue", randString(), false},
+		{"rpc_pipefs", randString(), false},
+		{"squashfs", randString(), false},
+		{"sysfs", randString(), false},
 
-func TestDfLinux(t *testing.T) {
-	withDfCommand(t, "sh", "-c", `
-		echo 'Filesystem             1K-blocks     Used Available Use% Mounted on';
-		echo '/dev/root               16197480 13252004   2929092  82% /';
-		echo 'devtmpfs                15381564        0  15381564   0% /dev';
-		echo 'tmpfs                   15388388        0  15388388   0% /dev/shm';
-	`)
+		// Remote/Networked FS types detected by FSType
 
-	out, err := getFileSystemInfo()
-	require.NoError(t, err)
-	require.Equal(t, []interface{}{
-		map[string]string{"kb_size": "16197480", "mounted_on": "/", "name": "/dev/root"},
-		map[string]string{"kb_size": "15381564", "mounted_on": "/dev", "name": "devtmpfs"},
-		map[string]string{"kb_size": "15388388", "mounted_on": "/dev/shm", "name": "tmpfs"},
-	}, out)
-}
+		{"acfs", randString(), false},
+		{"afs", randString(), false},
+		{"auristorfs", randString(), false},
+		{"coda", randString(), false},
+		{"fhgfs", randString(), false},
+		{"gpfs", randString(), false},
+		{"ibrix", randString(), false},
+		{"ocfs2", randString(), false},
+		{"vxfs", randString(), false},
 
-func TestDfMac(t *testing.T) {
-	withDfCommand(t, "sh", "-c", `
-		echo 'Filesystem     1024-blocks      Used Available Capacity iused      ifree %iused  Mounted on';
-		echo '/dev/disk1s1s1   488245288  15055192 344743840     5%  502048 3447438400    0%   /';
-		echo '/dev/disk1s5     488245288        20 344743840     1%       2 3447438400    0%   /System/Volumes/VM';
-	`)
+		// Remote/Networked FS types detected by names
 
-	out, err := getFileSystemInfo()
-	require.NoError(t, err)
-	require.Equal(t, []interface{}{
-		map[string]string{"kb_size": "488245288", "mounted_on": "/", "name": "/dev/disk1s1s1"},
-		map[string]string{"kb_size": "488245288", "mounted_on": "/System/Volumes/VM", "name": "/dev/disk1s5"},
-	}, out)
-}
+		// `-hosts` FSName is remote
+		{"dummyhosts1", randString(), true},
+		{"dummyhosts2", randString() + "-" + randString(), true},
+		{"dummyhosts3", "-hosts", false},
 
-func TestDfWithVolumeSpaces(t *testing.T) {
-	withDfCommand(t, "sh", "-c", `
-		echo 'Filesystem     1K-blocks      Used Available Use% Mounted on';
-		echo '/dev/disk4s3      367616    360928      6688  99% /Volumes/Firefox';
-		echo '/dev/disk5        307200    283136     24064  93% /Volumes/MySQL Workbench community-8.0.30';
-	`)
+		// Anything w/ `:`s is assumed to be a remote mount
+		{"dummycolons1", randString(), true},
+		{"dummycolons2", randString() + ":" + randString(), false},
+		{"dummycolons3", ":" + randString(), false},
 
-	out, err := getFileSystemInfo()
-	require.NoError(t, err)
-	require.Equal(t, []interface{}{
-		map[string]string{"kb_size": "367616", "mounted_on": "/Volumes/Firefox", "name": "/dev/disk4s3"},
-		map[string]string{"kb_size": "307200", "mounted_on": "/Volumes/MySQL Workbench community-8.0.30", "name": "/dev/disk5"},
-	}, out)
-}
-
-func TestDfWithErrors(t *testing.T) {
-	withDfCommand(t, "sh", "-c", `
-		echo 'Filesystem     1K-blocks      Used Available Use% Mounted on';
-		echo '/dev/disk4s3      367616    360928      6688  99% /Volumes/Firefox';
-		echo 'Some error from df';
-		echo '/dev/disk5        307200    283136     24064  93% /Volumes/MySQL Workbench community-8.0.30';
-	`)
-
-	out, err := getFileSystemInfo()
-	require.NoError(t, err)
-	require.Equal(t, []interface{}{
-		map[string]string{"kb_size": "367616", "mounted_on": "/Volumes/Firefox", "name": "/dev/disk4s3"},
-		map[string]string{"kb_size": "307200", "mounted_on": "/Volumes/MySQL Workbench community-8.0.30", "name": "/dev/disk5"},
-	}, out)
-}
-
-func TestFaileDfWithData(t *testing.T) {
-	// (note that this sample output is valid on both linux and darwin)
-	withDfCommand(t, "sh", "-c", `echo "Filesystem     1K-blocks      Used Available Use% Mounted on"; echo "/dev/disk1s1s1 488245288 138504332 349740956  29% /"; exit 1`)
-
-	out, err := getFileSystemInfo()
-	require.NoError(t, err)
-	require.Equal(t, []interface{}{
-		map[string]string{"kb_size": "488245288", "mounted_on": "/", "name": "/dev/disk1s1s1"},
-	}, out)
-}
-
-func TestGetFileSystemInfo(t *testing.T) {
-	if os.Getenv("CI") != "" && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-		t.Skip("Test disabled on arm64 Linux CI runners, as df doesn't work")
+		// Anything starting with `//` and from a specific set of FS types (CIFS/SMB) is remote too
+		{"dummyfwdslashes1", randString(), true},
+		{"dummyfwdslashes2", "//" + randString(), true},
+		{"dummyfwdslashes3", "/" + randString(), true},
+		{"cifs", "//" + randString(), false},
+		{"smb3", "//" + randString(), false},
+		{"smbfs", "//" + randString(), false},
 	}
 
-	out, err := getFileSystemInfo()
+	for _, tc := range testCases {
+		t.Run("TestIgnoringOfFSType/"+tc.FSType, func(t *testing.T) {
+			inputMounts := []*mountinfo.Info{
+				{
+					Source:     tc.FSName,
+					FSType:     tc.FSType,
+					Mountpoint: randString(),
+				},
+				newTestInputMountinfo(randString()),
+			}
+
+			expectedMounts := make([]MountInfo, 0, len(inputMounts))
+			for _, mount := range inputMounts {
+				// We only care about excluding specific FS types that we are doing the
+				// test for and that are marked as excluded
+				if mount.FSType == tc.FSType {
+					if !tc.Included {
+						continue
+					}
+				}
+
+				expectedMount := MountInfo{
+					Name:      mount.Source,
+					MountedOn: mount.Mountpoint,
+					SizeKB:    1,
+				}
+
+				expectedMounts = append(expectedMounts, expectedMount)
+			}
+
+			mounts, err := getFileSystemInfoWithMounts(inputMounts, mockFSSizeKB, getMockFSDev())
+			require.NoError(t, err)
+
+			require.Equal(t, len(expectedMounts), len(mounts))
+			assert.ElementsMatch(t, mounts, expectedMounts)
+		})
+	}
+}
+
+func TestNixMissingMountValues(t *testing.T) {
+	testCases := []struct {
+		Desc           string
+		InputMounts    []*mountinfo.Info
+		ExpectedMounts []MountInfo
+	}{
+		{
+			"MissingSize",
+			[]*mountinfo.Info{newTestInputMountinfo("Normal")},
+			[]MountInfo{newTestOutputMountInfo("Normal")},
+		},
+		{
+			"MissingMountName",
+			[]*mountinfo.Info{
+				newTestInputMountinfo("Normal"),
+				{Source: "", FSType: "foo", Mountpoint: "Bad1"},
+				{Source: "none", FSType: "foo", Mountpoint: "Bad2"},
+			},
+			[]MountInfo{
+				newTestOutputMountInfo("Normal"),
+			},
+		},
+		{
+			"MissingMountPoint",
+			[]*mountinfo.Info{
+				newTestInputMountinfo("Normal"),
+				{Source: "Bad", FSType: "foo", Mountpoint: ""},
+			},
+			[]MountInfo{
+				newTestOutputMountInfo("Normal"),
+			},
+		},
+		{
+			"MissingMountPointAndName",
+			[]*mountinfo.Info{
+				newTestInputMountinfo("Normal"),
+				{Source: "", FSType: "foo", Mountpoint: ""},
+			},
+			[]MountInfo{
+				newTestOutputMountInfo("Normal"),
+			},
+		},
+		{
+			"MissingFSType",
+			[]*mountinfo.Info{
+				newTestInputMountinfo("Normal"),
+				{Source: "Bad", FSType: "", Mountpoint: "Bad"},
+			},
+			[]MountInfo{
+				newTestOutputMountInfo("Normal"),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Desc, func(t *testing.T) {
+			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts, mockFSSizeKB, getMockFSDev())
+			require.NoError(t, err)
+
+			require.Equal(t, len(tc.ExpectedMounts), len(mounts))
+			assert.ElementsMatch(t, mounts, tc.ExpectedMounts)
+		})
+	}
+}
+
+func TestFilterEmptySize(t *testing.T) {
+	// return 0 for every filesystem
+	mockSize := func(mount *mountinfo.Info) (uint64, error) {
+		return 0, nil
+	}
+
+	initialMounts := []*mountinfo.Info{
+		newTestInputMountinfo("Normal"),
+	}
+	mounts, err := getFileSystemInfoWithMounts(initialMounts, mockSize, getMockFSDev())
 	require.NoError(t, err)
-	outArray := out.([]interface{})
-	require.Greater(t, len(outArray), 0)
+	require.Empty(t, mounts)
+}
+
+func TestFilterDev(t *testing.T) {
+	// return the same dev id for every filesystem
+	mockDev := func(mount *mountinfo.Info) (uint64, error) {
+		return 1, nil
+	}
+
+	testCases := []struct {
+		Desc           string
+		InputMounts    []*mountinfo.Info
+		ExpectedMounts []MountInfo
+	}{
+		{
+			"ReplaceDevNameSlash",
+			[]*mountinfo.Info{
+				{Source: "Source", FSType: "foo", Mountpoint: "MountPoint"},
+				{Source: "/Source", FSType: "foo", Mountpoint: "MountPoint"},
+			},
+			[]MountInfo{
+				{Name: "/Source", SizeKB: 1, MountedOn: "MountPoint"},
+			},
+		},
+		{
+			"ReplaceDevMountLength",
+			[]*mountinfo.Info{
+				{Source: "Source", FSType: "foo", Mountpoint: "MountPoint0"},
+				{Source: "Source", FSType: "foo", Mountpoint: "MountPoint"},
+			},
+			[]MountInfo{
+				{Name: "Source", SizeKB: 1, MountedOn: "MountPoint"},
+			},
+		},
+		{
+			"ReplaceDevNewSource",
+			[]*mountinfo.Info{
+				{Source: "Source", FSType: "foo", Mountpoint: "MountPoint"},
+				{Source: "NewSource", FSType: "foo", Mountpoint: "MountPoint"},
+			},
+			[]MountInfo{
+				{Name: "NewSource", SizeKB: 1, MountedOn: "MountPoint"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Desc, func(t *testing.T) {
+			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts, mockFSSizeKB, mockDev)
+			require.NoError(t, err)
+
+			require.Equal(t, len(tc.ExpectedMounts), len(mounts))
+			assert.ElementsMatch(t, mounts, tc.ExpectedMounts)
+		})
+	}
+}
+
+// Test Helpers
+
+func newTestInputMountinfo(name string) *mountinfo.Info {
+	return &mountinfo.Info{
+		Source:     name + "Source",
+		FSType:     name,
+		Mountpoint: name + "MountPoint",
+	}
+}
+
+func newTestOutputMountInfo(name string) MountInfo {
+	return MountInfo{
+		Name:      name + "Source",
+		MountedOn: name + "MountPoint",
+		SizeKB:    1,
+	}
+}
+
+func randString() string {
+	stringLength := rand.Intn(30) + 1
+	bytes := make([]byte, stringLength)
+	for idx := range bytes {
+		bytes[idx] = charset[rand.Intn(len(charset))]
+	}
+	return string(bytes)
+}
+
+// mock filesystem syscalls
+
+func mockFSSizeKB(*mountinfo.Info) (uint64, error) {
+	return 1, nil
+}
+
+func getMockFSDev() func(*mountinfo.Info) (uint64, error) {
+	counter := uint64(0)
+	return func(*mountinfo.Info) (uint64, error) {
+		counter++
+		return counter, nil
+	}
 }

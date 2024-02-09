@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package selftests holds selftests related files
 package selftests
 
 import (
@@ -23,7 +24,7 @@ type OpenSelfTest struct {
 func (o *OpenSelfTest) GetRuleDefinition(filename string) *rules.RuleDefinition {
 	return &rules.RuleDefinition{
 		ID:         fmt.Sprintf("%s_open", ruleIDPrefix),
-		Expression: fmt.Sprintf(`open.file.path == "%s"`, filename),
+		Expression: fmt.Sprintf(`open.file.path == "%s" && open.flags & O_CREAT > 0`, filename),
 	}
 }
 

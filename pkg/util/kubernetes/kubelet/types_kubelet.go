@@ -9,6 +9,8 @@ package kubelet
 
 import (
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // Pod contains fields for unmarshalling a Pod
@@ -20,7 +22,8 @@ type Pod struct {
 
 // PodList contains fields for unmarshalling a PodList
 type PodList struct {
-	Items []*Pod `json:"items,omitempty"`
+	Items        []*Pod `json:"items,omitempty"`
+	ExpiredCount int
 }
 
 // PodMetadata contains fields for unmarshalling a pod's metadata
@@ -67,6 +70,27 @@ type ContainerSpec struct {
 	ReadinessProbe  *ContainerProbe               `json:"readinessProbe,omitempty"`
 	Env             []EnvVar                      `json:"env,omitempty"`
 	SecurityContext *ContainerSecurityContextSpec `json:"securityContext,omitempty"`
+	Resources       *ContainerResourcesSpec       `json:"resources,omitempty"`
+}
+
+// ResourceName is the key to fields in in Pod.Spec.Containers.Resources
+type ResourceName string
+
+// Resources name
+const (
+	ResourceCPU              ResourceName = "cpu"
+	ResourceMemory           ResourceName = "memory"
+	ResourceStorage          ResourceName = "storage"
+	ResourceEphemeralStorage ResourceName = "ephemeral-storage"
+)
+
+// ResourceList is the type of fields in Pod.Spec.Containers.Resources
+type ResourceList map[ResourceName]resource.Quantity
+
+// ContainerResourcesSpec contains fields for unmarshalling a Pod.Spec.Containers.Resources
+type ContainerResourcesSpec struct {
+	Requests ResourceList `json:"requests,omitempty"`
+	Limits   ResourceList `json:"limits,omitempty"`
 }
 
 // ContainerPortSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
@@ -98,6 +122,7 @@ type CapabilitiesSpec struct {
 // SeccompProfileType is used for unmarshalling Pod.Spec.Containers.SecurityContext.SeccompProfile.Type
 type SeccompProfileType string
 
+// Seccomp profiles
 const (
 	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
 	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
@@ -123,11 +148,22 @@ type VolumeSpec struct {
 	Name string `json:"name"`
 	// Only try to retrieve persistent volume claim to tag statefulsets
 	PersistentVolumeClaim *PersistentVolumeClaimSpec `json:"persistentVolumeClaim,omitempty"`
+	Ephemeral             *EphemeralSpec             `json:"ephemeral,omitempty"`
 }
 
 // PersistentVolumeClaimSpec contains fields for unmarshalling a Pod.Spec.Volumes.PersistentVolumeClaim
 type PersistentVolumeClaimSpec struct {
 	ClaimName string `json:"claimName"`
+}
+
+// EphemeralSpec contains fields for unmarshalling a Pod.Spec.Volumes.Ephemeral
+type EphemeralSpec struct {
+	VolumeClaimTemplate *VolumeClaimTemplateSpec `json:"volumeClaimTemplate,omitempty"`
+}
+
+// VolumeClaimTemplateSpec contains fields for unmarshalling a Pod.Spec.Volumes.Ephemeral.VolumeClaimTemplate
+type VolumeClaimTemplateSpec struct {
+	Metadata PodMetadata `json:"metadata,omitempty"`
 }
 
 // Status contains fields for unmarshalling a Pod.Status
@@ -156,12 +192,14 @@ type Conditions struct {
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
 type ContainerStatus struct {
-	Name    string         `json:"name"`
-	Image   string         `json:"image"`
-	ImageID string         `json:"imageID"`
-	ID      string         `json:"containerID"`
-	Ready   bool           `json:"ready"`
-	State   ContainerState `json:"state"`
+	Name         string         `json:"name"`
+	Image        string         `json:"image"`
+	ImageID      string         `json:"imageID"`
+	ID           string         `json:"containerID"`
+	Ready        bool           `json:"ready"`
+	RestartCount int            `json:"restartCount"`
+	State        ContainerState `json:"state"`
+	LastState    ContainerState `json:"lastState"`
 }
 
 // IsPending returns if the container doesn't have an ID
@@ -198,4 +236,5 @@ type ContainerStateTerminated struct {
 	ExitCode   int32     `json:"exitCode"`
 	StartedAt  time.Time `json:"startedAt"`
 	FinishedAt time.Time `json:"finishedAt"`
+	Reason     string    `json:"reason"`
 }

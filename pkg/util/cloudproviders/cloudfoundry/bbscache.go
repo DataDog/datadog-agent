@@ -5,6 +5,7 @@
 
 //go:build clusterchecks
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package cloudfoundry
 
 import (
@@ -257,16 +258,8 @@ func (bc *BBSCache) readActualLRPs() (map[string][]*ActualLRP, map[string][]*Act
 	}
 	for _, lrp := range actualLRPsBBS {
 		alrp := ActualLRPFromBBSModel(lrp)
-		if _, ok := actualLRPsByProcessGUID[alrp.ProcessGUID]; ok {
-			actualLRPsByProcessGUID[alrp.ProcessGUID] = append(actualLRPsByProcessGUID[alrp.ProcessGUID], &alrp)
-		} else {
-			actualLRPsByProcessGUID[alrp.ProcessGUID] = []*ActualLRP{&alrp}
-		}
-		if _, ok := actualLRPsByCellID[alrp.CellID]; ok {
-			actualLRPsByCellID[alrp.CellID] = append(actualLRPsByCellID[alrp.CellID], &alrp)
-		} else {
-			actualLRPsByCellID[alrp.CellID] = []*ActualLRP{&alrp}
-		}
+		actualLRPsByProcessGUID[alrp.ProcessGUID] = append(actualLRPsByProcessGUID[alrp.ProcessGUID], &alrp)
+		actualLRPsByCellID[alrp.CellID] = append(actualLRPsByCellID[alrp.CellID], &alrp)
 	}
 	log.Debugf("Successfully read %d Actual LRPs", len(actualLRPsBBS))
 	return actualLRPsByProcessGUID, actualLRPsByCellID, nil

@@ -17,23 +17,25 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const probeUID = "net"
 
+//nolint:revive // TODO(NET) Fix revive linter
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
 // LoadTracer loads a new tracer
-func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
+func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 	if !fargate.IsFargateInstance() {
-		return nil, ErrorNotSupported
+		return nil, nil, ErrorNotSupported
 	}
 
-	err := ddebpf.LoadCOREAsset(&config.Config, netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
+	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RLimit = mgrOpts.RLimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
@@ -44,14 +46,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 			return fmt.Errorf("invalid probe configuration: %v", err)
 		}
 
-		initManager(m, config, perfHandlerTCP)
-
-		if err := errtelemetry.ActivateBPFTelemetry(m, nil); err != nil {
-			return fmt.Errorf("could not activate ebpf telemetry: %w", err)
-		}
-
-		telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
-		o.ConstantEditors = append(o.ConstantEditors, telemetryMapKeys...)
+		initManager(m, perfHandlerTCP, config)
 
 		file, err := os.Stat("/proc/self/ns/pid")
 
@@ -92,8 +87,8 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return nil, nil
+	return m.Manager, nil, nil
 }

@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    [Beta] Cluster agent supports APM Single Step Instrumentation for Kubernetes.
+    Can be enabled in Kubernetes cluster by setting ``DD_APM_INSTRUMENTATION_ENABLED=true`.
+    Single Step Instrumentation can be turned on in specific namespaces using 
+    environment variable DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES.
+    Single Step Instrumentation can be turned off in specific namespaces using 
+    environment variable DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES.
+
+

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Datadog cluster-agent container image is now using Ubuntu 23.04 lunar
+    as the base image.

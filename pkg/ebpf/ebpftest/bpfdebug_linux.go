@@ -3,17 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package ebpftest is utilities for tests against eBPF
 package ebpftest
 
 import (
 	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // LogTracePipe logs all messages read from /sys/kernel/[debug/]/tracing/trace_pipe during the test.
@@ -25,7 +25,27 @@ func LogTracePipe(t *testing.T) {
 // LogTracePipeSelf logs only messages from the current process read from /sys/kernel/[debug/]/tracing/trace_pipe during the test.
 // This function will set the environment variable BPF_DEBUG=true for the duration of the test.
 func LogTracePipeSelf(t *testing.T) {
-	LogTracePipeProcess(t, getpid())
+	subtask := make(map[uint32]struct{})
+	mypid := getpid()
+	pidstr := strconv.Itoa(int(mypid))
+	t.Logf("filtering to %d and child tasks", mypid)
+
+	logTracePipe(t, func(ev *TraceEvent) bool {
+		if ev.PID == mypid {
+			return true
+		}
+		// check if a thread group of current process
+		if _, ok := subtask[ev.PID]; ok {
+			return true
+		}
+		_, err := os.Stat(kernel.HostProc(pidstr, "task", strconv.Itoa(int(ev.PID))))
+		if err == nil {
+			// cache result for faster lookup
+			subtask[ev.PID] = struct{}{}
+			return true
+		}
+		return false
+	})
 }
 
 // LogTracePipeProcess logs only messages from the provided process read from /sys/kernel/[debug/]/tracing/trace_pipe during the test.
@@ -43,7 +63,7 @@ func LogTracePipeFilter(t *testing.T, filterFn func(ev *TraceEvent) bool) {
 }
 
 func getpid() uint32 {
-	p, err := os.Readlink(filepath.Join(util.HostProc(), "/self"))
+	p, err := os.Readlink(kernel.HostProc("/self"))
 	if err == nil {
 		if pid, err := strconv.ParseInt(p, 10, 32); err == nil {
 			return uint32(pid)

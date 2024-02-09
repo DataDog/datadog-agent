@@ -17,7 +17,7 @@ import (
 )
 
 func TestFile(t *testing.T) {
-	b := NewTestBench(t)
+	b := newTestBench(t)
 	defer b.Run()
 
 	b.AddRule("FileNotExists").
@@ -155,7 +155,7 @@ findings[f] {
 }
 
 func TestFileParser(t *testing.T) {
-	b := NewTestBench(t)
+	b := newTestBench(t)
 	defer b.Run()
 
 	tmpFileJSON := b.WriteTempFile(t, `{"foo":"bar","baz": {"quz": 1}}`)
@@ -231,7 +231,7 @@ findings[f] {
 }
 
 func TestFileGlob(t *testing.T) {
-	b := NewTestBench(t)
+	b := newTestBench(t)
 	defer b.Run()
 
 	b.

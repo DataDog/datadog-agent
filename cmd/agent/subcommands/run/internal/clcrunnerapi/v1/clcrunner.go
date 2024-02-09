@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,10 +33,11 @@ import (
 func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/clcrunner/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/clcrunner/stats", getCLCRunnerStats).Methods("GET")
+	r.HandleFunc("/clcrunner/workers", getCLCRunnerWorkers).Methods("GET")
 }
 
 // getCLCRunnerStats retrieves Cluster Level Check runners stats
-func getCLCRunnerStats(w http.ResponseWriter, r *http.Request) {
+func getCLCRunnerStats(w http.ResponseWriter, _ *http.Request) {
 	log.Info("Got a request for the runner stats. Making stats.")
 	w.Header().Set("Content-Type", "application/json")
 	stats, err := status.GetExpvarRunnerStats()
@@ -45,10 +47,11 @@ func getCLCRunnerStats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	s := flattenCLCStats(stats)
-	jsonStats, err := json.Marshal(s)
+	flattenedStats := flattenCLCStats(stats)
+	statsWithIDsKnownByDCA := replaceIDsWithIDsKnownByDCA(flattenedStats)
+	jsonStats, err := json.Marshal(statsWithIDsKnownByDCA)
 	if err != nil {
-		log.Errorf("Error marshalling stats. Error: %v, Stats: %v", err, s)
+		log.Errorf("Error marshalling stats. Error: %v, Stats: %v", err, statsWithIDsKnownByDCA)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		http.Error(w, string(body), 500)
 		return
@@ -67,4 +70,49 @@ func flattenCLCStats(stats status.CLCChecks) map[string]status.CLCStats {
 	}
 
 	return flatened
+}
+
+// replaceIDsWithIDsKnownByDCA replaces the check IDs in the map received with
+// the ID that those checks had before decrypting their secrets. This is needed
+// because if the Cluster Agent does not decrypt secrets and the runner does,
+// the check ID seen by both of them is going to be different and the Cluster
+// Agent won't recognize the check as a cluster check.
+// The API defined in this file is only used by the Cluster Agent, so it makes
+// sense to use the IDs that it recognizes.
+func replaceIDsWithIDsKnownByDCA(stats map[string]status.CLCStats) map[string]status.CLCStats {
+	res := make(map[string]status.CLCStats, len(stats))
+
+	for checkID, checkStats := range stats {
+		originalID := common.AC.GetIDOfCheckWithEncryptedSecrets(checkid.ID(checkID))
+
+		if originalID != "" {
+			res[string(originalID)] = checkStats
+		} else {
+			res[checkID] = checkStats
+		}
+	}
+
+	return res
+}
+
+func getCLCRunnerWorkers(w http.ResponseWriter, _ *http.Request) {
+	log.Info("Got a request for the runner workers")
+	w.Header().Set("Content-Type", "application/json")
+	stats, err := status.GetExpvarRunnerStats()
+	if err != nil {
+		log.Errorf("Error getting exp var stats: %v", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	jsonWorkers, err := json.Marshal(stats.Workers)
+	if err != nil {
+		log.Errorf("Error marshalling stats. Error: %v, Stats: %v", err, stats.Workers)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonWorkers)
 }

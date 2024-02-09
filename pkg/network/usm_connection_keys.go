@@ -69,7 +69,7 @@ func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (s
 	// USM data is generally indexed as (client, server), so we do a
 	// *best-effort* to determine the key tuple most likely to be the one
 	// correct and minimize the numer of `f` calls
-	if !IsEphemeralPort(int(clientPort)) {
+	if IsPortInEphemeralRange(connectionStats.Family, connectionStats.Type, clientPort) != EphemeralTrue {
 		// Flip IPs and ports
 		clientIP, clientPort, serverIP, serverPort = serverIP, serverPort, clientIP, clientPort
 		clientIPNAT, clientPortNAT, serverIPNAT, serverPortNAT = serverIPNAT, serverPortNAT, clientIPNAT, clientPortNAT

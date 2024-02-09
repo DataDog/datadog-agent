@@ -12,9 +12,9 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -94,10 +94,12 @@ func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (e *RareSampler) SetEnabled(enabled bool) {
 	e.enabled.Store(enabled)
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (e *RareSampler) IsEnabled() bool {
 	return e.enabled.Load()
 }

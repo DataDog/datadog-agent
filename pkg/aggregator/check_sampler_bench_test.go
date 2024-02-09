@@ -8,30 +8,48 @@ package aggregator
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"go.uber.org/fx"
+
+	//nolint:revive // TODO(AML) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
+
+type benchmarkDeps struct {
+	fx.In
+	Log      log.Component
+	Hostname hostname.Component
+}
 
 func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// Because these benchs can run for a long time, the aggregator is trying to
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
-	log := fxutil.Test[log.Component](b, log.MockModule)
-	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
+	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, deps.Log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarderOpts)
-	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, options, "hostname")
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, deps.Log, forwarderOpts)
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
+	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, "hostname")
 	defer demux.Stop(true)
 
-	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))
+	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"))
 
 	bucket := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -50,7 +68,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 }
 
 func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
-	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))
+	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"))
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}
 	bucket := &metrics.HistogramBucket{

@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 )
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
@@ -26,14 +26,14 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		}
 	}
 	type reducedObfuscationConfig struct {
-		ElasticSearch        bool                          `json:"elastic_search"`
-		Mongo                bool                          `json:"mongo"`
-		SQLExecPlan          bool                          `json:"sql_exec_plan"`
-		SQLExecPlanNormalize bool                          `json:"sql_exec_plan_normalize"`
-		HTTP                 config.HTTPObfuscationConfig  `json:"http"`
-		RemoveStackTraces    bool                          `json:"remove_stack_traces"`
-		Redis                config.RedisObfuscationConfig `json:"redis"`
-		Memcached            bool                          `json:"memcached"`
+		ElasticSearch        bool                      `json:"elastic_search"`
+		Mongo                bool                      `json:"mongo"`
+		SQLExecPlan          bool                      `json:"sql_exec_plan"`
+		SQLExecPlanNormalize bool                      `json:"sql_exec_plan_normalize"`
+		HTTP                 obfuscate.HTTPConfig      `json:"http"`
+		RemoveStackTraces    bool                      `json:"remove_stack_traces"`
+		Redis                obfuscate.RedisConfig     `json:"redis"`
+		Memcached            obfuscate.MemcachedConfig `json:"memcached"`
 	}
 	type reducedConfig struct {
 		DefaultEnv             string                        `json:"default_env"`
@@ -59,25 +59,27 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.HTTP = o.HTTP
 		oconf.RemoveStackTraces = o.RemoveStackTraces
 		oconf.Redis = o.Redis
-		oconf.Memcached = o.Memcached.Enabled
+		oconf.Memcached = o.Memcached
 	}
 	txt, err := json.MarshalIndent(struct {
-		Version          string        `json:"version"`
-		GitCommit        string        `json:"git_commit"`
-		Endpoints        []string      `json:"endpoints"`
-		FeatureFlags     []string      `json:"feature_flags,omitempty"`
-		ClientDropP0s    bool          `json:"client_drop_p0s"`
-		SpanMetaStructs  bool          `json:"span_meta_structs"`
-		LongRunningSpans bool          `json:"long_running_spans"`
-		Config           reducedConfig `json:"config"`
+		Version                string        `json:"version"`
+		GitCommit              string        `json:"git_commit"`
+		Endpoints              []string      `json:"endpoints"`
+		FeatureFlags           []string      `json:"feature_flags,omitempty"`
+		ClientDropP0s          bool          `json:"client_drop_p0s"`
+		SpanMetaStructs        bool          `json:"span_meta_structs"`
+		LongRunningSpans       bool          `json:"long_running_spans"`
+		EvpProxyAllowedHeaders []string      `json:"evp_proxy_allowed_headers"`
+		Config                 reducedConfig `json:"config"`
 	}{
-		Version:          r.conf.AgentVersion,
-		GitCommit:        r.conf.GitCommit,
-		Endpoints:        all,
-		FeatureFlags:     r.conf.AllFeatures(),
-		ClientDropP0s:    true,
-		SpanMetaStructs:  true,
-		LongRunningSpans: true,
+		Version:                r.conf.AgentVersion,
+		GitCommit:              r.conf.GitCommit,
+		Endpoints:              all,
+		FeatureFlags:           r.conf.AllFeatures(),
+		ClientDropP0s:          true,
+		SpanMetaStructs:        true,
+		LongRunningSpans:       true,
+		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
 		Config: reducedConfig{
 			DefaultEnv:             r.conf.DefaultEnv,
 			TargetTPS:              r.conf.TargetTPS,

@@ -5,37 +5,51 @@
 
 //go:build linux
 
+// Package rules holds rules related files
 package rules
 
 import (
+	"os"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+// RuleFilterEvent defines a rule filter event
 type RuleFilterEvent struct {
 	*kernel.Version
+	origin string
 }
 
+// RuleFilterModel defines a filter model
 type RuleFilterModel struct {
 	*kernel.Version
+	origin string
 }
 
-func NewRuleFilterModel() *RuleFilterModel {
-	kv, _ := kernel.NewKernelVersion()
+// NewRuleFilterModel returns a new rule filter model
+func NewRuleFilterModel(origin string) (*RuleFilterModel, error) {
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		return nil, err
+	}
 	return &RuleFilterModel{
 		Version: kv,
-	}
+		origin:  origin,
+	}, nil
 }
 
+// NewEvent returns a new event
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
 		Version: m.Version,
+		origin:  m.origin,
 	}
 }
 
-func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+// GetEvaluator gets the evaluator
+func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "kernel.version.major":
 		return &eval.IntEvaluator{
@@ -165,11 +179,22 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).IsSuse15Kernel() },
 			Field:   field,
 		}, nil
+	case "envs":
+		return &eval.StringArrayEvaluator{
+			Values: os.Environ(),
+			Field:  field,
+		}, nil
+	case "origin":
+		return &eval.StringEvaluator{
+			Value: m.origin,
+			Field: field,
+		}, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
+// GetFieldValue gets a field value
 func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 	case "kernel.version.major":
@@ -227,6 +252,10 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.IsSuse12Kernel(), nil
 	case "os.is_sles15":
 		return e.IsSuse15Kernel(), nil
+	case "envs":
+		return os.Environ(), nil
+	case "origin":
+		return e.origin, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}

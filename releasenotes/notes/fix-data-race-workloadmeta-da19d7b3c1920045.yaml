@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fixes a critical data race in ``workloadmeta`` that was causing issues when a subscriber attempted to unsubscribe while events were being handled in another goroutine.

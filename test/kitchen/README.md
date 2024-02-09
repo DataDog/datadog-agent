@@ -28,7 +28,6 @@ Note: When building on macOS M1, you might run into an error when installing the
 bundle config build.ffi-yajl --with-ldflags="-Wl,-undefined,dynamic_lookup"
 ```
 
-
 #### Azure
 
 These tests are set up to be run on Azure.
@@ -106,7 +105,7 @@ executed on each platform.
 
 ### Platforms Tested:
 
-To generate a test suite, the platforms to be tested are passed in via the 
+To generate a test suite, the platforms to be tested are passed in via the
 TEST_PLATFORMS environment variable.  The exact format of the list that's
 supplied in this variable will vary depending upon which driver (provider)
 is being used.
@@ -216,15 +215,15 @@ frameworks (including Bats and minitest).
 
 ### Creating a complete test file (kitchen.yaml)
 
-To support running multiple kitchen suites using multiple back-end providers, the 
+To support running multiple kitchen suites using multiple back-end providers, the
 kitchen configuration file (kitchen.yaml) is created dynamically by combining three
-provided yaml files. 
+provided yaml files.
 
-A complete kitchen configuration (kitchen.yaml) is created by taking one of the 
+A complete kitchen configuration (kitchen.yaml) is created by taking one of the
 driver files, adding the common configuration options [platforms-common](test-definitions/platforms-common.yml),
 and then adding the desired test suite(s) from the test-definitions directory.
 
-There is an invoke task for creating the completed `kitchen.yml`.  The usage for 
+There is an invoke task for creating the completed `kitchen.yml`.  The usage for
 the invoke task is:
 
   invoke kitchen.genconfig --platform=platform --osversions=osversions --provider=provider --arch=arch --testfiles=testfiles
@@ -238,7 +237,7 @@ where:
   - windows
   - amazonlinux
 
-  osversions is an index into the per-provider dictionary for the given 
+  osversions is an index into the per-provider dictionary for the given
   platform.  Examples include
   - win2012r2 (which is in both windows/azure and windows/ec2)
   - ubuntu-20-04 (which is in ubuntu/azure)
@@ -259,14 +258,14 @@ where:
 An example command would be
   invoke kitchen.genconfig --platform ubuntu --osversions all --provider azure --arch x86_64 --testfiles install-script-test
 
-  This will generate a kitchen.yml which executes the `install-script-test` on all of the defined `ubuntu` 
+  This will generate a kitchen.yml which executes the `install-script-test` on all of the defined `ubuntu`
   OS images in azure.
 
 #### Running in CI
 
 When run in CI, the gitlab job will set up the `TEST_PLATFORMS` environment variable,
 and then concatenate the [azure driver](drivers/azure-driver.yml), [platforms-common](test-definitions/platforms-common.yml),
-and the desired test suite file (for example [upgrade7-test](test-definitions/upgrade-7-test.yml)).
+and the desired test suite file (for example [upgrade7-test](test-definitions/upgrade7-test.yml)).
 
 Test kitchen then expands out each of the `TEST_PLATFORMS` into a kitchen platform, and runs
 each suite on each provided platform

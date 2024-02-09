@@ -5,20 +5,18 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// ioctlProbes holds the list of probes used to track ioctl events
-var ioctlProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_do_vfs_ioctl",
-		},
-	},
-}
-
 func getIoctlProbes() []*manager.Probe {
-	return ioctlProbes
+	return []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_do_vfs_ioctl",
+			},
+		},
+	}
 }

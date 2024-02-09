@@ -10,57 +10,17 @@ package oracle
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"testing"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
-	go_ora "github.com/sijms/go-ora/v2"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	_ "github.com/godror/godror"
+	"github.com/jmoiron/sqlx"
+	go_ora "github.com/sijms/go-ora/v2"
+	"github.com/stretchr/testify/assert"
 )
-
-var chk Check
-
-var HOST = "localhost"
-var PORT = 1521
-var USER = "c##datadog"
-var PASSWORD = "datadog"
-var SERVICE_NAME = "XE"
-var TNS_ALIAS = "XE"
-var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/testutil/etc/netadmin"
-
-func TestBasic(t *testing.T) {
-	chk = Check{}
-
-	// language=yaml
-	rawInstanceConfig := []byte(fmt.Sprintf(`
-server: %s
-port: %d
-username: %s
-password: %s
-service_name: %s
-tns_alias: %s
-tns_admin: %s
-`, HOST, PORT, USER, PASSWORD, SERVICE_NAME, TNS_ALIAS, TNS_ADMIN))
-
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
-	require.NoError(t, err)
-
-	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
-	assert.Equal(t, chk.config.InstanceConfig.Port, PORT)
-	assert.Equal(t, chk.config.InstanceConfig.Username, USER)
-	assert.Equal(t, chk.config.InstanceConfig.Password, PASSWORD)
-	assert.Equal(t, chk.config.InstanceConfig.ServiceName, SERVICE_NAME)
-	assert.Equal(t, chk.config.InstanceConfig.TnsAlias, TNS_ALIAS)
-	assert.Equal(t, chk.config.InstanceConfig.TnsAdmin, TNS_ADMIN)
-}
 
 func TestConnectionGoOra(t *testing.T) {
 	databaseUrl := go_ora.BuildUrl(HOST, PORT, SERVICE_NAME, USER, PASSWORD, nil)
@@ -80,18 +40,11 @@ func TestConnection(t *testing.T) {
 	assert.NoError(t, err)
 
 	databaseUrl = fmt.Sprintf(`user="%s" password="%s" connectString="%s:%d/%s"`, USER, PASSWORD, HOST, PORT, SERVICE_NAME)
-	_, err = sqlx.Open("godror", databaseUrl)
+	_, err = sqlx.Open("oracle", databaseUrl)
 	assert.NoError(t, err)
 	err = db.Ping()
 	assert.NoError(t, err)
 
-}
-
-func demuxOpts() aggregator.AgentDemultiplexerOptions {
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 1 * time.Hour
-	opts.DontStartForwarders = true
-	return opts
 }
 
 func connectToDB(driver string) (*sqlx.DB, error) {
@@ -119,20 +72,47 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func initAndStartAgentDemultiplexer() {
-	aggregator.InitAndStartAgentDemultiplexer(nil, demuxOpts(), "")
+func getUsedPGA(db *sqlx.DB) (float64, error) {
+	var pga float64
+	err := chk.db.Get(&pga, `SELECT 
+	sum(p.pga_used_mem)
+FROM   v$session s,
+	v$process p
+WHERE  s.paddr = p.addr AND s.username = 'C##DATADOG'`)
+	return pga, err
+}
+
+func getSession(db *sqlx.DB) (string, error) {
+	var r string
+	err := chk.db.Get(&r, `SELECT sid || 'X' || serial# FROM v$session WHERE username = 'C##DATADOG'`)
+	return r, err
+}
+
+func getLOBReads(db *sqlx.DB) (float64, error) {
+	var r float64
+	err := chk.db.Get(&r, `SELECT name,value 
+	FROM v$sesstat  m, v$statname n, v$session s 
+	WHERE n.statistic# = m.statistic# AND s.sid = m.sid AND s.username = 'C##DATADOG' AND n.name = 'lob reads'`)
+	return r, err
+}
+
+func getTemporaryLobs(db *sqlx.DB) (int, error) {
+	var r int
+	err := chk.db.Get(&r, `SELECT SUM(cache_lobs) + SUM(nocache_lobs) + SUM(abstract_lobs) 
+	FROM v$temporary_lobs l, v$session s WHERE s.SID = l.SID AND s.username = 'C##DATADOG'`)
+	return r, err
 }
 
 func TestChkRun(t *testing.T) {
-	initAndStartAgentDemultiplexer()
-
 	chk.dbmEnabled = true
-	chk.config.InstanceConfig.InstantClient = false
+	chk.config.InstanceConfig.OracleClient = false
+
+	// This is to ensure that query samples return rows
+	chk.config.QuerySamples.IncludeAllSessions = true
 
 	type RowsStruct struct {
 		N int `db:"N"`
 	}
-	r := RowsStruct{}
 
 	for _, tnsAlias := range []string{"", TNS_ALIAS} {
 		chk.db = nil
@@ -141,16 +121,55 @@ func TestChkRun(t *testing.T) {
 		var driver string
 		if tnsAlias == "" {
 			driver = common.GoOra
-			chk.config.InstanceConfig.InstantClient = false
+			chk.config.InstanceConfig.OracleClient = false
 		} else {
 			driver = common.Godror
 		}
 
+		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
 		err := chk.Run()
 		assert.NoError(t, err, "check run with %s driver", driver)
 
-		err = chk.db.Get(&r, "select /* DDTEST */ 1 n from dual")
-		assert.NoError(t, err, "running test statement with %s driver", driver)
+		sessionBefore, _ := getSession(chk.db)
+
+		pgaBefore, err := getUsedPGA(chk.db)
+		assert.NoError(t, err, "get used pga with %s driver", driver)
+		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
+
+		tempLobsBefore, _ := getTemporaryLobs(chk.db)
+
+		/* Requires:
+		 * create table sys.t(n number);
+		 * grant insert on sys.t to c##datadog
+		 */
+		_, err = chk.db.Exec(`begin
+				for i in 1..1000
+				loop
+					execute immediate 'insert into sys.t values (' || i || ')';
+				end loop;
+				end ;`)
+		assert.NoError(t, err, "error generating statements with %s driver", driver)
+
+		chk.Run()
+
+		pgaAfter1StRun, _ := getUsedPGA(chk.db)
+		diff1 := (pgaAfter1StRun - pgaBefore) / 1024
+		assert.Less(t, diff1, float64(1024), "extreme PGA usage (%f KB) with the %s driver", diff1, driver)
+
+		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
+		chk.Run()
+
+		pgaAfter2ndRun, _ := getUsedPGA(chk.db)
+		diff2 := (pgaAfter2ndRun - pgaAfter1StRun) / 1024
+		percGrowth := (diff2 - diff1) * 100 / diff1
+		assert.Less(t, percGrowth, float64(10), "PGA memory leak (%f %% increase between two consecutive runs) with the %s driver", percGrowth, driver)
+
+		tempLobsAfter, _ := getTemporaryLobs(chk.db)
+		diffTempLobs := tempLobsAfter - tempLobsBefore
+		assert.Equal(t, 0, diffTempLobs, "temporary LOB leak (%d) with %s driver", diffTempLobs, driver)
+
+		sessionAfter, _ := getSession(chk.db)
+		assert.Equal(t, sessionBefore, sessionAfter, "The agent reconnected")
 	}
 }
 
@@ -184,7 +203,6 @@ func TestLicense(t *testing.T) {
 		'SQL Tuning Set (user)'
 		)
  `)
-	//err = row.Scan(&usedFeaturesCount)
 	if err != nil {
 		fmt.Printf("failed to query license info: %s", err)
 	}
@@ -199,17 +217,17 @@ func TestBindingSimple(t *testing.T) {
 		db, _ := connectToDB(driver)
 		stmt, err := db.Prepare(fmt.Sprintf("SELECT %d FROM dual WHERE rownum = :1", result))
 		if err != nil {
-			log.Fatalf("preparing statement with driver %s %s", driver, err)
+			fmt.Printf("preparing statement with driver %s %s", driver, err)
 		}
 		row := stmt.QueryRow(1)
 		if row.Err() != nil {
-			log.Fatalf("row error with driver %s %s", driver, row.Err())
+			fmt.Printf("row error with driver %s %s", driver, row.Err())
 			return
 		}
 		var retValue int
 		err = row.Scan(&retValue)
 		if err != nil {
-			log.Fatalf("scanning with driver %s %s", driver, err)
+			fmt.Printf("scanning with driver %s %s", driver, err)
 		}
 		assert.Equal(t, retValue, result, driver)
 	}
@@ -226,7 +244,7 @@ func TestSQLXIn(t *testing.T) {
 
 		rows, err = db.Query(fmt.Sprintf("SELECT %d FROM dual WHERE rownum IN (:1)", result), slice...)
 		if err != nil {
-			log.Fatalf("row error with driver %s %s", driver, err)
+			fmt.Printf("row error with driver %s %s", driver, err)
 			return
 		}
 
@@ -235,7 +253,7 @@ func TestSQLXIn(t *testing.T) {
 		err = rows.Scan(&retValue)
 		rows.Close()
 		if err != nil {
-			log.Fatalf("scan error %s", err)
+			fmt.Printf("scan error %s", err)
 		}
 		assert.Equal(t, retValue, result, driver)
 
@@ -252,24 +270,42 @@ func TestSQLXIn(t *testing.T) {
 		err = rows.Scan(&retValue)
 		rows.Close()
 		if err != nil {
-			log.Fatalf("scan error %s", err)
+			fmt.Printf("scan error %s", err)
 		}
 		assert.Equal(t, retValue, result, driver)
 	}
 
 }
 
-func TestLargeUint64Binding(t *testing.T) {
-	largeUint64 := uint64(18446744073709551615)
-	//largeUint64 = 1
-	var result uint64
-	for _, driver := range DRIVERS {
-		db, _ := connectToDB(driver)
-		err := db.Get(&result, "SELECT n FROM T WHERE n = :1", largeUint64)
-		assert.NoError(t, err, "running test statement with %s driver", driver)
-		if err != nil {
-			continue
-		}
-		assert.Equal(t, result, largeUint64, "simple uint64 binding with %s driver", driver)
+func TestObfuscator(t *testing.T) {
+	obfuscatorOptions := obfuscate.SQLConfig{}
+	obfuscatorOptions.DBMS = common.IntegrationName
+	obfuscatorOptions.TableNames = true
+	obfuscatorOptions.CollectCommands = true
+	obfuscatorOptions.CollectComments = true
+
+	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: config.GetDefaultObfuscatorOptions()})
+	for _, statement := range []string{
+		// needs https://datadoghq.atlassian.net/browse/DBM-2295
+		`UPDATE /* comment */ SET t n=1`,
+		`SELECT /* comment */ from dual`} {
+		obfuscatedStatement, err := o.ObfuscateSQLString(statement)
+		assert.NoError(t, err, "obfuscator error")
+		assert.NotContains(t, obfuscatedStatement.Query, "comment", "comment wasn't removed by the obfuscator")
 	}
+
+	_, err := o.ObfuscateSQLString(`SELECT TRUNC(SYSDATE@!) from dual`)
+	assert.NoError(t, err, "can't obfuscate @!")
+
+	sql := "begin null ; end;"
+	obfuscatedStatement, err := o.ObfuscateSQLString(sql)
+	assert.Equal(t, obfuscatedStatement.Query, "begin null; end;")
+
+	sql = "select count (*) from dual"
+	obfuscatedStatement, err = o.ObfuscateSQLString(sql)
+	assert.Equal(t, sql, obfuscatedStatement.Query)
+
+	sql = "select file# from dual"
+	obfuscatedStatement, err = o.ObfuscateSQLString(sql)
+	assert.Equal(t, sql, obfuscatedStatement.Query)
 }

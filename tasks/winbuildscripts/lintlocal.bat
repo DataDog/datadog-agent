@@ -3,6 +3,5 @@
 
 if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~1
 
-cd \dev\go\src\github.com\DataDog\datadog-agent
 
-Powershell -C "c:\dev\go\src\github.com\datadog\datadog-agent\tasks\winbuildscripts\lint.ps1"
+Powershell -C "%~dp0lint.ps1"

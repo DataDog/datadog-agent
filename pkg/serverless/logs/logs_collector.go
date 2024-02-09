@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -31,6 +31,7 @@ type Tags struct {
 	Tags []string
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 type LambdaInitMetric struct {
 	InitDurationTelemetry float64
 	InitStartTime         time.Time
@@ -50,9 +51,11 @@ type LambdaLogsCollector struct {
 	enhancedMetricsEnabled bool
 	invocationStartTime    time.Time
 	invocationEndTime      time.Time
-	process_once           *sync.Once
-	executionContext       *executioncontext.ExecutionContext
-	lambdaInitMetricChan   chan<- *LambdaInitMetric
+	//nolint:revive // TODO(SERV) Fix revive linter
+	process_once         *sync.Once
+	executionContext     *executioncontext.ExecutionContext
+	lambdaInitMetricChan chan<- *LambdaInitMetric
+	orphanLogsChan       chan []LambdaLogAPIMessage
 
 	arn string
 
@@ -60,10 +63,11 @@ type LambdaLogsCollector struct {
 	handleRuntimeDone func()
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), lambdaInitMetricChan chan<- *LambdaInitMetric) *LambdaLogsCollector {
 
 	return &LambdaLogsCollector{
-		In:                     make(chan []LambdaLogAPIMessage, maxBufferedLogs), // Buffered, so we can hold start-up logs before first invocation without blocking
+		In:                     make(chan []LambdaLogAPIMessage),
 		out:                    out,
 		demux:                  demux,
 		extraTags:              extraTags,
@@ -73,6 +77,7 @@ func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregato
 		handleRuntimeDone:      handleRuntimeDone,
 		process_once:           &sync.Once{},
 		lambdaInitMetricChan:   lambdaInitMetricChan,
+		orphanLogsChan:         make(chan []LambdaLogAPIMessage, maxBufferedLogs),
 	}
 }
 
@@ -100,6 +105,13 @@ func (lc *LambdaLogsCollector) Start() {
 			for messages := range lc.In {
 				lc.processLogMessages(messages)
 			}
+
+			// Process logs without a request ID when it becomes available
+			if len(lc.lastRequestID) > 0 && len(lc.orphanLogsChan) > 0 {
+				for msgs := range lc.orphanLogsChan {
+					lc.processLogMessages(msgs)
+				}
+			}
 		}()
 	})
 }
@@ -122,9 +134,19 @@ func shouldProcessLog(message *LambdaLogAPIMessage) bool {
 	return true
 }
 
-func createStringRecordForReportLog(startTime, endTime time.Time, l *LambdaLogAPIMessage) string {
+// calculateRuntimeDuration returns the runtimeDuration and postRuntimeDuration is milliseconds
+func calculateRuntimeDuration(l *LambdaLogAPIMessage, startTime, endTime time.Time) (float64, float64) {
+	// If neither startTime nor endTime have been set, avoid returning exaggerated values
+	if startTime.IsZero() || endTime.IsZero() {
+		return 0, 0
+	}
 	runtimeDurationMs := float64(endTime.Sub(startTime).Milliseconds())
 	postRuntimeDurationMs := l.objectRecord.reportLogItem.durationMs - runtimeDurationMs
+	return runtimeDurationMs, postRuntimeDurationMs
+}
+
+func createStringRecordForReportLog(startTime, endTime time.Time, l *LambdaLogAPIMessage) string {
+	runtimeDurationMs, postRuntimeDurationMs := calculateRuntimeDuration(l, startTime, endTime)
 	stringRecord := fmt.Sprintf("REPORT RequestId: %s\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: %d ms\tMemory Size: %d MB\tMax Memory Used: %d MB",
 		l.objectRecord.requestID,
 		l.objectRecord.reportLogItem.durationMs,
@@ -142,6 +164,15 @@ func createStringRecordForReportLog(startTime, endTime time.Time, l *LambdaLogAP
 	return stringRecord
 }
 
+// createStringRecordForTimeoutLog returns the `Task timed out` log using the platform.report message
+func createStringRecordForTimeoutLog(l *LambdaLogAPIMessage) string {
+	durationMs := l.objectRecord.reportLogItem.durationMs
+	durationSeconds := durationMs / 1000
+	timeStr := l.time.Format(time.RFC3339Nano)
+	return fmt.Sprintf(`%s %s Task timed out after %.2f seconds`, timeStr, l.objectRecord.requestID, durationSeconds)
+
+}
+
 // removeInvalidTracingItem is a temporary fix to handle malformed JSON tracing object
 func removeInvalidTracingItem(data []byte) []byte {
 	return []byte(strings.ReplaceAll(string(data), ",\"tracing\":}", ""))
@@ -152,6 +183,7 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 	sort.Slice(messages, func(i, j int) bool {
 		return messages[i].time.Before(messages[j].time)
 	})
+	orphanMessages := []LambdaLogAPIMessage{}
 	for _, message := range messages {
 		lc.processMessage(&message)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
@@ -161,12 +193,29 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 			if message.stringRecord == "" && message.logType != logTypeFunction {
 				continue
 			}
+
+			// If logs cannot be assigned a request ID, delay sending until a request ID is available
+			if len(message.objectRecord.requestID) == 0 && len(lc.lastRequestID) == 0 {
+				orphanMessages = append(orphanMessages, message)
+				continue
+			}
+
+			isErrorLog := message.logType == logTypeFunction && serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord)
 			if message.objectRecord.requestID != "" {
-				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, message.objectRecord.requestID)
+				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, message.objectRecord.requestID, isErrorLog)
 			} else {
-				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, lc.lastRequestID)
+				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, lc.lastRequestID, isErrorLog)
+			}
+
+			// Create the timeout log from the REPORT log if a timeout status is detected
+			isTimeoutLog := message.logType == logTypePlatformReport && message.objectRecord.status == timeoutStatus
+			if isTimeoutLog {
+				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(createStringRecordForTimeoutLog(&message)), message.time, lc.arn, message.objectRecord.requestID, isTimeoutLog)
 			}
 		}
+	}
+	if len(orphanMessages) > 0 {
+		lc.orphanLogsChan <- orphanMessages
 	}
 }
 
@@ -202,16 +251,21 @@ func (lc *LambdaLogsCollector) processMessage(
 		lc.executionContext.UpdateStartTime(lc.invocationStartTime)
 	}
 
+	if message.logType == logTypePlatformReport {
+		message.stringRecord = createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, message)
+	}
+
 	if lc.enhancedMetricsEnabled {
 		proactiveInit := false
 		coldStart := false
 		// Only run this block if the LC thinks we're in a cold start
 		if lc.lastRequestID == lc.coldstartRequestID {
-			state := lc.executionContext.GetCurrentState()
-			proactiveInit = state.ProactiveInit
-			coldStart = state.Coldstart
+			coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
+			proactiveInit = coldStartTags.IsProactiveInit
+			coldStart = coldStartTags.IsColdStart
 		}
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
+		//nolint:revive // TODO(SERV) Fix revive linter
 		outOfMemoryRequestId := ""
 
 		if message.logType == logTypeFunction {
@@ -242,7 +296,6 @@ func (lc *LambdaLogsCollector) processMessage(
 				outOfMemoryRequestId = message.objectRecord.requestID
 			}
 			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(args)
-			message.stringRecord = createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, message)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
 			serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLog(

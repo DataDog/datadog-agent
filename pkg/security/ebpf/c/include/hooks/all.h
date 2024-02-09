@@ -19,7 +19,6 @@
 #include "mprotect.h"
 #include "namespaces.h"
 #include "open.h"
-#include "pipe.h"
 #include "procfs.h"
 #include "ptrace.h"
 #include "raw_syscalls.h"
@@ -33,6 +32,7 @@
 #include "umount.h"
 #include "unlink.h"
 #include "utimes.h"
+#include "chdir.h"
 
 #include "network/bind.h"
 

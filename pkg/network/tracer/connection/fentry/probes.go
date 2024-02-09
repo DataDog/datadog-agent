@@ -30,9 +30,6 @@ const (
 	tcpSendPageReturn = "tcp_sendpage_exit"
 	udpSendPageReturn = "udp_sendpage_exit"
 
-	// tcpSetState traces the tcp_set_state() kernel function
-	tcpSetState = "tcp_set_state"
-
 	// tcpRecvMsgReturn traces the return value for the tcp_recvmsg() system call
 	tcpRecvMsgReturn        = "tcp_recvmsg_exit"
 	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
@@ -48,9 +45,11 @@ const (
 	udpSendMsgReturn        = "udp_sendmsg_exit"
 	udpSendSkb              = "kprobe__udp_send_skb"
 
-	skbFreeDatagramLocked   = "skb_free_datagram_locked"
+	skbFreeDatagramLocked = "skb_free_datagram_locked"
+	//nolint:revive // TODO(NET) Fix revive linter
 	__skbFreeDatagramLocked = "__skb_free_datagram_locked"
-	skbConsumeUdp           = "skb_consume_udp"
+	//nolint:revive // TODO(NET) Fix revive linter
+	skbConsumeUdp = "skb_consume_udp"
 
 	udpv6RecvMsg              = "udpv6_recvmsg"
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
@@ -74,21 +73,23 @@ const (
 	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	inetCskAcceptReturn = "inet_csk_accept_exit"
 
-	// inetBindRet is the kretprobe of the bind() syscall for IPv4
+	// inetBind traces the bind() syscall for IPv4
+	inetBind = "inet_bind_enter"
+	// inet6Bind traces the bind() syscall for IPv6
+	inet6Bind = "inet6_bind_enter"
+	// inetBindRet traces the bind() syscall for IPv4
 	inetBindRet = "inet_bind_exit"
-	// inet6BindRet is the kretprobe of the bind() syscall for IPv6
+	// inet6BindRet traces the bind() syscall for IPv6
 	inet6BindRet = "inet6_bind_exit"
-
-	// sockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
-	sockFDLookupRet = "sockfd_lookup_light_exit"
 )
 
 var programs = map[string]struct{}{
+	inetBind:                  {},
+	inet6Bind:                 {},
 	inet6BindRet:              {},
 	inetBindRet:               {},
 	inetCskAcceptReturn:       {},
 	inetCskListenStop:         {},
-	sockFDLookupRet:           {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
 	tcpRecvMsgReturn:          {},
 	tcpClose:                  {},
 	tcpCloseReturn:            {},
@@ -98,7 +99,6 @@ var programs = map[string]struct{}{
 	tcpRetransmitRet:          {},
 	tcpSendMsgReturn:          {},
 	tcpSendPageReturn:         {},
-	tcpSetState:               {},
 	udpDestroySock:            {},
 	udpDestroySockReturn:      {},
 	udpRecvMsg:                {},
@@ -145,7 +145,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, inetCskAcceptReturn)
 		enableProgram(enabled, inetCskListenStop)
-		enableProgram(enabled, tcpSetState)
 		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
 
@@ -162,6 +161,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, udpDestroySockReturn)
+		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpRecvMsg)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsgReturn, udpRecvMsgPre5190Return, kv5190))
@@ -173,6 +173,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpv6DestroySock)
 		enableProgram(enabled, udpv6DestroySockReturn)
+		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
 		enableProgram(enabled, udpv6RecvMsg)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))

@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package helm implements the Helm cluster check.
 package helm
 
 import (
@@ -30,20 +31,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
-	checkName               = "helm"
+	// CheckName is the name of the check
+	CheckName               = "helm"
 	serviceCheckName        = "helm.release_state"
 	maximumWaitForAPIServer = 10 * time.Second
 	defaultExtraSyncTimeout = 120 * time.Second
 	defaultResyncInterval   = 10 * time.Minute
 	labelSelector           = "owner=helm"
 )
-
-func init() {
-	core.RegisterCheck(checkName, factory)
-}
 
 type helmStorage string
 
@@ -85,9 +85,14 @@ func (cc *checkConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, cc)
 }
 
-func factory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &HelmCheck{
-		CheckBase:         core.NewCheckBase(checkName),
+		CheckBase:         core.NewCheckBase(CheckName),
 		instance:          &checkConfig{},
 		store:             newReleasesStore(),
 		runLeaderElection: !config.IsCLCRunner(),
@@ -96,10 +101,10 @@ func factory() check.Check {
 }
 
 // Configure configures the Helm check
-func (hc *HelmCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (hc *HelmCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	hc.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := hc.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := hc.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -118,7 +123,6 @@ func (hc *HelmCheck) Configure(integrationConfigDigest uint64, config, initConfi
 
 	hc.setSharedInformerFactory(apiClient)
 	hc.startTS = time.Now()
-
 	hc.informersStopCh = make(chan struct{})
 
 	return nil
@@ -168,25 +172,30 @@ func (hc *HelmCheck) Run() error {
 	return nil
 }
 
+// Cancel cancels the check
 func (hc *HelmCheck) Cancel() {
 	close(hc.informersStopCh)
 }
 
 func (hc *HelmCheck) setupInformers() error {
 	secretInformer := hc.informerFactory.Core().V1().Secrets()
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addSecret,
 		DeleteFunc: hc.deleteSecret,
 		UpdateFunc: hc.updateSecret,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to secret informer: %v", err)
+	}
 	go secretInformer.Informer().Run(hc.informersStopCh)
 
 	configmapInformer := hc.informerFactory.Core().V1().ConfigMaps()
-	configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addConfigmap,
 		DeleteFunc: hc.deleteConfigmap,
 		UpdateFunc: hc.updateConfigmap,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to config map informer: %v", err)
+	}
 	go configmapInformer.Informer().Run(hc.informersStopCh)
 
 	return apiserver.SyncInformers(
@@ -199,13 +208,11 @@ func (hc *HelmCheck) setupInformers() error {
 }
 
 func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
-	hc.informerFactory = informers.NewSharedInformerFactoryWithOptions(
-		apiClient.Cl,
-		hc.getInformersResyncPeriod(),
+	hc.informerFactory = apiClient.GetInformerWithOptions(
+		pointer.Ptr(hc.getInformersResyncPeriod()),
 		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 			opts.LabelSelector = labelSelector
-		}),
-	)
+		}))
 }
 
 func (hc *HelmCheck) allTags(release *release, storageDriver helmStorage, includeRevision bool) []string {

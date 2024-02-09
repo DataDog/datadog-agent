@@ -308,6 +308,8 @@ func TestInfoReceiverStats(t *testing.T) {
 	conf := testInit(t)
 	assert.NotNil(conf)
 
+	assert.NotNil(publishReceiverStats())
+
 	stats := NewReceiverStats()
 	t1 := &TagStats{
 		Tags{Lang: "python"},
@@ -395,6 +397,8 @@ func TestInfoConfig(t *testing.T) {
 	conf.EVPProxy.ApplicationKey = ""
 	assert.Equal("", confCopy.DebuggerProxy.APIKey, "Debugger Proxy API Key should *NEVER* be exported")
 	conf.DebuggerProxy.APIKey = ""
+	assert.Equal("", confCopy.DebuggerDiagnosticsProxy.APIKey, "Debugger Diagnostics Proxy API Key should *NEVER* be exported")
+	conf.DebuggerDiagnosticsProxy.APIKey = ""
 
 	// Any key-like data should scrubbed
 	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
@@ -428,6 +432,7 @@ func TestPublishReceiverStats(t *testing.T) {
 				atom(6),
 				atom(7),
 				atom(8),
+				atom(9),
 			},
 			SpansMalformed: &SpansMalformed{
 				atom(1),
@@ -510,6 +515,7 @@ func TestPublishReceiverStats(t *testing.T) {
 				"TraceIDZero":     4.0,
 				"SpanIDZero":      5.0,
 				"ForeignSpan":     6.0,
+				"MSGPShortBytes":  9.0,
 				"Timeout":         7.0,
 				"EOF":             8.0,
 			},
@@ -530,18 +536,6 @@ func TestPublishWatchdogInfo(t *testing.T) {
 		map[string]interface{}{
 			"CPU": map[string]interface{}{"UserAvg": 1.2},
 			"Mem": map[string]interface{}{"Alloc": 1000.0},
-		})
-}
-
-func TestPublishRateLimiterStats(t *testing.T) {
-	rateLimiterStats = RateLimiterStats{1.0, 2.0, 3.0, 4.0}
-
-	testExpvarPublish(t, publishRateLimiterStats,
-		map[string]interface{}{
-			"TargetRate":          1.0,
-			"RecentPayloadsSeen":  2.0,
-			"RecentTracesSeen":    3.0,
-			"RecentTracesDropped": 4.0,
 		})
 }
 

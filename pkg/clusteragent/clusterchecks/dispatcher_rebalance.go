@@ -8,11 +8,18 @@
 package clusterchecks
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,7 +50,7 @@ func (d *dispatcher) calculateAvg() (int, error) {
 	defer d.store.RUnlock()
 
 	for _, node := range d.store.nodes {
-		busyness = node.GetBusyness(busynessFunc)
+		busyness += node.GetBusyness(busynessFunc)
 		length++
 	}
 
@@ -164,9 +171,17 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 	return nil
 }
 
-// rebalance tries to optimize the checks repartition on cluster level check
-// runners with less possible check moves based on the runner stats.
-func (d *dispatcher) rebalance() []types.RebalanceResponse {
+func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
+	if config.Datadog.GetBool("cluster_checks.rebalance_with_utilization") {
+		return d.rebalanceUsingUtilization(force)
+	}
+
+	return d.rebalanceUsingBusyness()
+}
+
+// rebalanceUsingBusyness tries to optimize the checks repartition on cluster
+// level check runners with less possible check moves based on the runner stats.
+func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 	// Collect CLC runners stats and update cache before rebalancing
 	d.updateRunnersStats()
 
@@ -233,4 +248,214 @@ func (d *dispatcher) rebalance() []types.RebalanceResponse {
 	}
 
 	return checksMoved
+}
+
+// rebalanceUsingUtilization rebalances the cluster checks deployed in a cluster
+// by taking into account the workers utilization of each runner instead of
+// using the busyness function as the rebalanceUsingBusyness function.
+//
+// When all the workers of a runner are busy running checks (utilization = 1),
+// they are not able to accept any new requests to run other checks. If other
+// checks need to be run, the agent will be marked as unhealthy and the runner
+// pod will be restarted shortly after. What we're trying to achieve is to avoid
+// that situation by balancing the checks in a way that all the runners are at
+// similar utilization level and none of them approaches a utilization of 1, if
+// there's enough capacity in other runners.
+//
+// The implementation is a classical greedy algorithm. It sorts in descending
+// order all the cluster checks by the number of workers that we think that they
+// are going to require, and it goes one by one placing them in the runner with
+// the lowest utilization. When there are several candidate runners, first, if
+// the current node is among the candidates, it leaves the check there to avoid
+// unnecessary check schedules and unschedules. If the current runner is not
+// among the candidates, it chooses the runner that contains fewer checks.
+//
+// The algorithm used by rebalanceUsingBusyness has 2 limitations that this one
+// does not have:
+// - It does not try to move checks from runners where the busyness is below
+// average.
+// - It tries to move checks from a runner trying the ones with the highest
+// busyness first. It stops when it cannot move one, even if ones with a lower
+// busyness could be moved.
+//
+// To apply this algorithm we need the number of workers of each runner and the
+// predicted number of workers that each check deployed in the cluster is going
+// to require. The number of workers for each runner is fetched from the CLC
+// API. The predicted number of workers of a check is calculated as follows:
+// avg_execution_time / interval_execution_time. This means that a check that on
+// average takes 3 seconds to run and needs to run every 15 seconds, is going to
+// require 3/15=0.20 workers approximately. A check that takes longer to run
+// than its defined interval, will be running all the time (approx.), so we
+// consider that it requires a whole worker.
+//
+// Limitations and assumptions:
+// - This function does not try to find the optimal solution, but in most cases
+// it should find one that's good enough for our use case.
+// - It assumes that the execution time of a check is more or less stable and
+// can be predicted according to the average execution time of the last few
+// runs.
+// - It assumes that the checks running on the runners that are not cluster
+// checks are not very costly. They're ignored by this function.
+// - It can't predict the execution time of checks that are running for the
+// first time. This could become a problem for checks that take too long.
+func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResponse {
+	// Collect CLC runners stats and update cache before rebalancing
+	d.updateRunnersStats()
+
+	start := time.Now()
+	defer func() {
+		rebalancingDuration.Set(time.Since(start).Seconds(), le.JoinLeaderValue)
+	}()
+
+	currentChecksDistribution := d.currentDistribution()
+
+	proposedDistribution := newChecksDistribution(currentChecksDistribution.runnerWorkers())
+
+	// First all the checks that are excluded from rebalancing are added to the
+	// same runner where they are currently running.
+	for checkID, check := range currentChecksDistribution.Checks {
+		checkName := checkid.IDToCheckName(checkid.ID(checkID))
+		if _, excluded := d.excludedChecksFromDispatching[checkName]; excluded {
+			proposedDistribution.addCheck(checkID, check.WorkersNeeded, check.Runner)
+		}
+	}
+
+	// Place the checks that are not excluded from rebalancing
+	for _, checkID := range currentChecksDistribution.checksSortedByWorkersNeeded() {
+		checkName := checkid.IDToCheckName(checkid.ID(checkID))
+		if _, excluded := d.excludedChecksFromDispatching[checkName]; !excluded {
+			proposedDistribution.addToLeastBusy(
+				checkID,
+				currentChecksDistribution.workersNeededForCheck(checkID),
+				currentChecksDistribution.runnerForCheck(checkID),
+				"",
+			)
+		}
+	}
+
+	// We don't calculate the optimal distribution, so it might be worse than
+	// the current one or not good enough so that it's worth it to schedule and
+	// unschedule checks. When that's the case, return without moving any
+	// checks.
+	currentUtilizationStdDev := currentChecksDistribution.utilizationStdDev()
+	proposedUtilizationStdDev := proposedDistribution.utilizationStdDev()
+	minPercImprovement := config.Datadog.GetInt("cluster_checks.rebalance_min_percentage_improvement")
+
+	if force || rebalanceIsWorthIt(currentChecksDistribution, proposedDistribution, minPercImprovement) {
+
+		jsonDistribution, _ := json.Marshal(proposedDistribution)
+
+		if force {
+			log.Infof("Forcing rebalance proposed distribution for the cluster checks. Utilization stdDev of proposed distribution: %.3f. StdDev of current distribution: %.3f. Proposed distribution: %s",
+				proposedUtilizationStdDev, currentUtilizationStdDev, jsonDistribution)
+		} else {
+			log.Infof("Found a better distribution for the cluster checks. Utilization stdDev of proposed distribution: %.3f. StdDev of current distribution: %.3f. Proposed distribution: %s",
+				proposedUtilizationStdDev, currentUtilizationStdDev, jsonDistribution)
+		}
+
+		setPredictedUtilization(proposedDistribution)
+
+		return d.applyDistribution(proposedDistribution, currentChecksDistribution)
+	}
+
+	log.Debugf("Didn't find a distribution better enough so that rescheduling checks is worth it (current utilization stddev: %.3f, found utilization stddev: %.3f)",
+		currentUtilizationStdDev, proposedUtilizationStdDev)
+	setPredictedUtilization(currentChecksDistribution)
+	return nil
+}
+
+func (d *dispatcher) currentDistribution() checksDistribution {
+	currentWorkersPerRunner := map[string]int{}
+
+	d.store.Lock()
+	defer d.store.Unlock()
+
+	for nodeName, nodeInfo := range d.store.nodes {
+		currentWorkersPerRunner[nodeName] = nodeInfo.workers
+	}
+
+	distribution := newChecksDistribution(currentWorkersPerRunner)
+
+	for nodeName, nodeStoreInfo := range d.store.nodes {
+		for checkID, stats := range nodeStoreInfo.clcRunnerStats {
+			if !stats.IsClusterCheck {
+				continue
+			}
+
+			minCollectionInterval := defaults.DefaultCheckInterval
+			conf := d.store.digestToConfig[d.store.idToDigest[checkid.ID(checkID)]]
+			if len(conf.Instances) > 0 {
+				commonOptions := integration.CommonInstanceConfig{}
+				err := yaml.Unmarshal(conf.Instances[0], &commonOptions)
+				if err != nil {
+					// Assume default
+					log.Errorf("error getting min collection interval for check ID %s: %v", checkID, err)
+				} else if commonOptions.MinCollectionInterval != 0 {
+					minCollectionInterval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
+				}
+			}
+
+			workersNeeded := (float64)(stats.AverageExecutionTime) / (float64)(minCollectionInterval.Milliseconds())
+			if workersNeeded > 1 {
+				workersNeeded = 1
+			}
+
+			distribution.addCheck(checkID, workersNeeded, nodeName)
+		}
+	}
+
+	return distribution
+}
+
+func (d *dispatcher) applyDistribution(proposedDistribution checksDistribution, currentDistribution checksDistribution) []types.RebalanceResponse {
+	var checksMoved []types.RebalanceResponse
+
+	for checkID, checkStatus := range proposedDistribution.Checks {
+		currentNode := currentDistribution.runnerForCheck(checkID)
+		proposedNode := checkStatus.Runner
+
+		if proposedNode == currentNode {
+			continue
+		}
+
+		rebalancingDecisions.Inc(le.JoinLeaderValue)
+
+		err := d.moveCheck(currentNode, proposedNode, checkID)
+		if err != nil {
+			log.Warnf("Cannot move check %s: %v", checkID, err)
+			continue
+		}
+
+		successfulRebalancing.Inc(le.JoinLeaderValue)
+
+		checksMoved = append(
+			checksMoved,
+			types.RebalanceResponse{
+				CheckID:        checkID,
+				SourceNodeName: currentNode,
+				DestNodeName:   proposedNode,
+			},
+		)
+	}
+
+	return checksMoved
+}
+
+func setPredictedUtilization(distribution checksDistribution) {
+	for runnerName, runnerStatus := range distribution.Runners {
+		predictedUtilization.Set(runnerStatus.utilization(), runnerName, le.JoinLeaderValue)
+	}
+}
+
+func rebalanceIsWorthIt(currentDistribution checksDistribution, proposedDistribution checksDistribution, minPercImprovement int) bool {
+	// If the current utilization stddev is already good enough, consider that
+	// rescheduling checks is not worth it, unless the new distribution has
+	// fewer runners with a high utilization or leaves fewer runners empty.
+	if currentDistribution.utilizationStdDev() < 0.1 {
+		return proposedDistribution.numRunnersWithHighUtilization() < currentDistribution.numRunnersWithHighUtilization() ||
+			proposedDistribution.numEmptyRunners() < currentDistribution.numEmptyRunners()
+	}
+
+	maxStdDevAccepted := currentDistribution.utilizationStdDev() * ((100 - float64(minPercImprovement)) / 100)
+	return proposedDistribution.utilizationStdDev() < maxStdDevAccepted
 }

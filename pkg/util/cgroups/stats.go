@@ -56,6 +56,8 @@ type MemoryStats struct {
 	SwapLimit         *uint64 // Memory+Swap (thus >= Limit)
 	SwapHighThreshold *uint64 // cgroupv2 only
 
+	Peak *uint64 // cgroupv1: mapped to max_usage_in_bytes. cgroupv2: peak.
+
 	PSISome PSIStats
 	PSIFull PSIStats
 }
@@ -68,7 +70,8 @@ type CPUStats struct {
 	System *uint64
 	Total  *uint64
 
-	Shares           *uint64 // Raw share value (no unit)
+	Shares           *uint64 // Raw share value (no unit). Available only in cgroups v1.
+	Weight           *uint64 // Raw value (no unit). Available only in cgroups v2. Similar concept as shares but the default value and the range of valid values are different.
 	ElapsedPeriods   *uint64 // Number (no unit)
 	ThrottledPeriods *uint64 // Number (no unit)
 	ThrottledTime    *uint64

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package decoder
 
 import (
@@ -15,6 +16,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -52,14 +54,14 @@ func (d *DetectedPattern) Get() *regexp.Regexp {
 type AutoMultilineHandler struct {
 	multiLineHandler    *MultiLineHandler
 	singleLineHandler   *SingleLineHandler
-	outputFn            func(*Message)
+	outputFn            func(*message.Message)
 	isRunning           bool
 	linesToAssess       int
 	linesTested         int
 	lineLimit           int
 	matchThreshold      float64
 	scoredMatches       []*scoredPattern
-	processFunc         func(message *Message)
+	processFunc         func(message *message.Message)
 	flushTimeout        time.Duration
 	source              *sources.ReplaceableSource
 	matchTimeout        time.Duration
@@ -71,7 +73,7 @@ type AutoMultilineHandler struct {
 
 // NewAutoMultilineHandler returns a new AutoMultilineHandler.
 func NewAutoMultilineHandler(
-	outputFn func(*Message),
+	outputFn func(*message.Message),
 	lineLimit, linesToAssess int,
 	matchThreshold float64,
 	matchTimeout time.Duration,
@@ -116,7 +118,7 @@ func NewAutoMultilineHandler(
 	return h
 }
 
-func (h *AutoMultilineHandler) process(message *Message) {
+func (h *AutoMultilineHandler) process(message *message.Message) {
 	h.processFunc(message)
 }
 
@@ -135,12 +137,12 @@ func (h *AutoMultilineHandler) flush() {
 	}
 }
 
-func (h *AutoMultilineHandler) processAndTry(message *Message) {
+func (h *AutoMultilineHandler) processAndTry(message *message.Message) {
 	// Process message before anything else
 	h.singleLineHandler.process(message)
 
 	for i, scoredPattern := range h.scoredMatches {
-		match := scoredPattern.regexp.Match(message.Content)
+		match := scoredPattern.regexp.Match(message.GetContent())
 		if match {
 			scoredPattern.score++
 

@@ -57,26 +57,20 @@ type BundleParams struct {
 var Bundle = fxutil.Bundle(
     // You must tell to fx how to get foo.Params from BundleParams.
 	  fx.Provide(func(params BundleParams) foo.Params { return params.Foo }),
-    foo.Module,
+    foo.Module(),
     // You must tell to fx how to get bar.Params from BundleParams.
 	  fx.Provide(func(params BundleParams) bar.Params { return params.Bar }),
-    bar.Module,
+    bar.Module(),
 )
 ```
 
 ## Testing
 
 A bundle should have a test file, `bundle_test.go`, to verify the documentation's claim about its dependencies.
-This simply uses ValidateApp to check that all dependencies are satisfied when given the full set of required bundles.
+This simply uses fxutil.TestBundle to check that all dependencies are satisfied when given the full set of required bundles.
 
 ```go
 func TestBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		fx.Supply(core.CreateBundleParams()),
-		core.Bundle,
-		fx.Supply(autodiscovery.BundleParams{}),
-		autodiscovery.Bundle,
-		fx.Supply(BundleParams{}),
-		Bundle))
+  fxutil.TestBundle(t, Bundle, EXTERNAL_DEPENDENCIES)
 }
 ```

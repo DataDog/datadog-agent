@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package tags
 
 import (
@@ -10,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,7 +27,8 @@ const (
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
-	InitType        = "AWS_LAMBDA_INITIALIZATION_TYPE"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	InitType = "AWS_LAMBDA_INITIALIZATION_TYPE"
 
 	// FunctionARNKey is the tag key for a function's arn
 	FunctionARNKey = "function_arn"
@@ -83,7 +86,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	architecture := ResolveRuntimeArch()
 	tags = setIfNotEmpty(tags, ArchitectureKey, architecture)
 
-	tags = setIfNotEmpty(tags, RuntimeKey, getRuntime("/proc", "/etc", runtimeVar))
+	tags = setIfNotEmpty(tags, RuntimeKey, getRuntime("/proc", "/etc", runtimeVar, 5))
 
 	tags = setIfNotEmpty(tags, MemorySizeKey, os.Getenv(memorySizeVar))
 
@@ -120,6 +123,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	return tags
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func ArrayToMap(tagArray []string) map[string]string {
 	tagMap := make(map[string]string)
 	for _, tag := range tagArray {
@@ -229,9 +233,21 @@ func getRuntimeFromOsReleaseFile(osReleasePath string) string {
 	return runtime
 }
 
-func getRuntime(procPath string, osReleasePath string, varName string) string {
-	foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
-	runtime := cleanRuntimes(foundRuntimes)
+func getRuntime(procPath string, osReleasePath string, varName string, retries int) string {
+	runtime := ""
+	counter := 0
+	start := time.Now()
+	// Retry as the process holding the runtime env var is sometimes not up during extension init.
+	// This predominantly happens with csharp lambdas.
+	// The max possible wait is 25ms + time taken for proc/env var search, usually ~28ms total.
+	for len(runtime) == 0 && counter <= retries {
+		if counter > 0 {
+			time.Sleep(5 * time.Millisecond)
+		}
+		foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
+		runtime = cleanRuntimes(foundRuntimes)
+		counter++
+	}
 	runtime = strings.Replace(runtime, "AWS_Lambda_", "", 1)
 	if len(runtime) == 0 {
 		runtime = getRuntimeFromOsReleaseFile(osReleasePath)
@@ -240,6 +256,7 @@ func getRuntime(procPath string, osReleasePath string, varName string) string {
 		log.Debug("could not find a valid runtime, defaulting to unknown")
 		runtime = "unknown"
 	}
+	log.Debugf("finding the lambda runtime took %v. found runtime: %s", time.Since(start), runtime)
 	return runtime
 }
 

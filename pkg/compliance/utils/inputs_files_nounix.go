@@ -5,14 +5,17 @@
 
 //go:build windows
 
+// Package utils is a compliance internal submodule implementing various utilies.
 package utils
 
 import "os"
 
-func GetFileUser(fi os.FileInfo) string {
+// GetFileUser returns the file user.
+func GetFileUser(os.FileInfo) string {
 	return ""
 }
 
-func GetFileGroup(fi os.FileInfo) string {
+// GetFileGroup returns the file group.
+func GetFileGroup(os.FileInfo) string {
 	return ""
 }

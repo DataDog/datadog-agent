@@ -18,6 +18,8 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
+//
+//nolint:revive // TODO(WINA) Fix revive linter
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
 		{

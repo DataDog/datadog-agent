@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package java contains implementation for JavaTLS support.
 package java
 
 import (
@@ -23,8 +24,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/unix"
 )
 
 // Hotspot java has a specific protocol, described here:
@@ -32,7 +34,7 @@ import (
 //	o touch .attach_pid<pid-of-java>
 //	o kill -SIGQUIT <pid-of-java>
 //	o java process check if .attach_pid<his-pid> exit
-//	o then create an unix socket .java_pid<his-pid>
+//	o then create a unix socket .java_pid<his-pid>
 //	o we can write command through the unix socket
 //	<pid-of-java> refers to the namespaced pid of the process.
 //
@@ -65,7 +67,7 @@ func NewHotspot(pid int, nsPid int) (*Hotspot, error) {
 	}
 
 	var err error
-	procPath := fmt.Sprintf("%s/%d", util.HostProc(), pid)
+	procPath := fmt.Sprintf("%s/%d", kernel.ProcFSRoot(), pid)
 	h.root = procPath + "/root"
 	h.cwd, err = os.Readlink(procPath + "/cwd")
 	if err != nil {
@@ -97,14 +99,37 @@ func getPathOwner(path string) (uint32, uint32, error) {
 	return stat.Uid, stat.Gid, nil
 }
 
+// findWritableDest looks for a writable destination for agent-usm.jar file.
+// The default is to write this file into the working directory of the agent.
+// If this is not possible then we try 'root/tmp', and finally fail.
+func findWritableDest(cwd, root, agent string) (string, error) {
+	if unix.Access(cwd, unix.W_OK) == nil {
+		return filepath.Join(cwd, filepath.Base(agent)), nil
+	}
+
+	log.Debugf("Current working directory %q is not writable", cwd)
+
+	if unix.Access(filepath.Join(root, "tmp"), unix.W_OK) == nil {
+		dstPath := filepath.Join(root, "tmp", filepath.Base(agent))
+		log.Debugf("Writing agent jar file to %q", dstPath)
+		return dstPath, nil
+	}
+
+	return "", errors.New("unable to find writable destionation")
+}
+
 // copyAgent copy the agent-usm.jar to a directory where the running java process can load it.
 // the agent-usm.jar file must be readable from java process point of view
 // copyAgent return :
 //
 //	o dstPath is path to the copy of agent-usm.jar (from container perspective), this would be pass to the hotspot command
 //	o cleanup must be called to remove the created file
-func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cleanup func(), err error) {
-	dstPath = h.cwd + "/" + filepath.Base(agent)
+func (h *Hotspot) copyAgent(agent string, uid int, gid int) (string, func(), error) {
+	dstPath, err := findWritableDest(h.cwd, h.root, agent)
+	if err != nil {
+		return "", nil, err
+	}
+
 	// path from the host point of view pointing to the process root namespace (/proc/pid/root/usr/...)
 	nsDstPath := h.root + dstPath
 	if dst, err := os.Stat(nsDstPath); err == nil {
@@ -132,9 +157,9 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 	if err != nil {
 		return "", nil, err
 	}
-	_, err = io.Copy(dst, srcAgent)
-	dst.Close() // we are closing the file here as Chown will be call just after on the same path
-	if err != nil {
+	_, copyErr := io.Copy(dst, srcAgent)
+	dst.Close() // we are closing the file here as Chown will be called just after on the same path
+	if copyErr != nil {
 		return "", nil, err
 	}
 	if err := syscall.Chown(nsDstPath, uid, gid); err != nil {
@@ -178,7 +203,7 @@ func (h *Hotspot) dialunix(raddr *net.UnixAddr, withCredential bool) (*net.UnixC
 
 // connect to the previously created hotspot unix socket
 // return close function must be call when finished
-func (h *Hotspot) connect(withCredential bool) (close func(), err error) {
+func (h *Hotspot) connect(withCredential bool) (func(), error) {
 	h.conn = nil
 	addr, err := net.ResolveUnixAddr("unix", h.socketPath)
 	if err != nil {
@@ -287,7 +312,7 @@ func (h *Hotspot) commandWriteRead(cmd string, tailingNull bool) error {
 	}
 
 	if returnCommand != 0 {
-		return fmt.Errorf("command sent to hotspot JVM '%s' return %d and return code %d, response text:\n%s\n", cmd, returnCommand, returnCode, responseText)
+		return fmt.Errorf("command sent to hotspot JVM %q return %d and return code %d, response text:\n%s", cmd, returnCommand, returnCode, responseText)
 	}
 	return nil
 }

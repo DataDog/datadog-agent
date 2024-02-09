@@ -32,10 +32,8 @@ func (k *KubeASCheck) retrieveOShiftClusterQuotas() ([]osq.ClusterResourceQuota,
 	switch k.oshiftAPILevel {
 	case apiserver.OpenShiftAPIGroup:
 		url = apiGroupClusterQuotaEndpoint
-		break
 	case apiserver.OpenShiftOAPI:
 		url = oapiClusterQuotaEndpoint
-		break
 	default:
 		return nil, errors.New("OpenShift APIs unavailable")
 	}

@@ -41,9 +41,12 @@ func GetSidFromUser() (*windows.SID, error) {
 	return windows.StringToSid(sidString)
 }
 
-// Returns true is a user is a member of the Administrator's group
+// IsUserAnAdmin returns true is a user is a member of the Administrator's group
 // TODO: Microsoft does not recommend using this function, instead CheckTokenMembership should be used.
+//
 // https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-isuseranadmin
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func IsUserAnAdmin() (bool, error) {
 	shell32 := windows.NewLazySystemDLL("Shell32.dll")
 	defer windows.FreeLibrary(windows.Handle(shell32.Handle()))

@@ -1,6 +1,8 @@
-FROM ubuntu:22.04 AS baseimage
-LABEL baseimage.os "ubuntu jammy LTS"
-LABEL baseimage.name "ubuntu:22.04"
+ARG BASE_IMAGE_UBUNTU_VERSION=23.10
+ARG BASE_IMAGE_UBUNTU_NAME=mantic
+FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
+LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
+LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 # Can be used by Dependabot
 LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 
@@ -44,7 +46,7 @@ COPY datadog-agent*_$TARGETARCH.deb /
 WORKDIR /output
 
 # Get s6-overlay
-ENV S6_VERSION v1.22.1.0
+ENV S6_VERSION v2.2.0.3
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
 RUN apt install --no-install-recommends -y curl ca-certificates
@@ -129,7 +131,7 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \

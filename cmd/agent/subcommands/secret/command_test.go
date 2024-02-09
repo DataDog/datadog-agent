@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,8 +20,18 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"secret"},
-		secret,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+		showSecretInfo,
+		func(coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
+		})
+}
+
+func TestRefreshCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"secret", "refresh"},
+		secretRefresh,
+		func(coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
 		})
 }

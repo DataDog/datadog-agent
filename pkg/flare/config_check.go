@@ -12,7 +12,7 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -58,9 +58,9 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	}
 
 	if len(cr.ConfigErrors) > 0 {
-		fmt.Fprintln(w, fmt.Sprintf("=== Configuration %s ===", color.RedString("errors")))
+		fmt.Fprintf(w, "=== Configuration %s ===\n", color.RedString("errors"))
 		for check, error := range cr.ConfigErrors {
-			fmt.Fprintln(w, fmt.Sprintf("\n%s: %s", color.RedString(check), error))
+			fmt.Fprintf(w, "\n%s: %s\n", color.RedString(check), error)
 		}
 	}
 
@@ -70,19 +70,19 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 
 	if withDebug {
 		if len(cr.ResolveWarnings) > 0 {
-			fmt.Fprintln(w, fmt.Sprintf("\n=== Resolve %s ===", color.YellowString("warnings")))
+			fmt.Fprintf(w, "\n=== Resolve %s ===\n", color.YellowString("warnings"))
 			for check, warnings := range cr.ResolveWarnings {
-				fmt.Fprintln(w, fmt.Sprintf("\n%s", color.YellowString(check)))
+				fmt.Fprintf(w, "\n%s\n", color.YellowString(check))
 				for _, warning := range warnings {
-					fmt.Fprintln(w, fmt.Sprintf("* %s", warning))
+					fmt.Fprintf(w, "* %s\n", warning)
 				}
 			}
 		}
 		if len(cr.Unresolved) > 0 {
-			fmt.Fprintln(w, fmt.Sprintf("\n=== %s Configs ===", color.YellowString("Unresolved")))
+			fmt.Fprintf(w, "\n=== %s Configs ===\n", color.YellowString("Unresolved"))
 			for ids, configs := range cr.Unresolved {
-				fmt.Fprintln(w, fmt.Sprintf("\n%s: %s", color.BlueString("Auto-discovery IDs"), color.YellowString(ids)))
-				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Templates")))
+				fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(ids))
+				fmt.Fprintf(w, "%s:\n", color.BlueString("Templates"))
 				for _, config := range configs {
 					printYaml(w, []byte(config.String()))
 				}
@@ -104,7 +104,7 @@ func printYaml(w io.Writer, data []byte) {
 	if err == nil {
 		fmt.Fprintln(w, string(scrubbed))
 	} else {
-		fmt.Fprintln(w, fmt.Sprintf("error scrubbing secrets from config: %s", err))
+		fmt.Fprintf(w, "error scrubbing secrets from config: %s\n", err)
 	}
 }
 
@@ -115,49 +115,49 @@ func PrintConfig(w io.Writer, c integration.Config, checkName string) {
 	}
 	configDigest := c.FastDigest()
 	if !c.ClusterCheck {
-		fmt.Fprintln(w, fmt.Sprintf("\n=== %s check ===", color.GreenString(c.Name)))
+		fmt.Fprintf(w, "\n=== %s check ===\n", color.GreenString(c.Name))
 	} else {
-		fmt.Fprintln(w, fmt.Sprintf("\n=== %s cluster check ===", color.GreenString(c.Name)))
+		fmt.Fprintf(w, "\n=== %s cluster check ===\n", color.GreenString(c.Name))
 	}
 
 	if c.Provider != "" {
-		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Configuration provider"), color.CyanString(c.Provider)))
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration provider"), color.CyanString(c.Provider))
 	} else {
-		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Configuration provider"), color.RedString("Unknown provider")))
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration provider"), color.RedString("Unknown provider"))
 	}
 	if c.Source != "" {
-		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Configuration source"), color.CyanString(c.Source)))
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.CyanString(c.Source))
 	} else {
-		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Configuration source"), color.RedString("Unknown configuration source")))
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.RedString("Unknown configuration source"))
 	}
 	for _, inst := range c.Instances {
 		ID := string(checkid.BuildID(c.Name, configDigest, inst, c.InitConfig))
-		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Config for instance ID"), color.CyanString(ID)))
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Config for instance ID"), color.CyanString(ID))
 		printYaml(w, inst)
 		fmt.Fprintln(w, "~")
 	}
 	if len(c.InitConfig) > 0 {
-		fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Init Config")))
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Init Config"))
 		printYaml(w, c.InitConfig)
 	}
 	if len(c.MetricConfig) > 0 {
-		fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Metric Config")))
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Metric Config"))
 		printYaml(w, c.MetricConfig)
 	}
 	if len(c.LogsConfig) > 0 {
-		fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Log Config")))
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Log Config"))
 		printYaml(w, c.LogsConfig)
 	}
 	if c.IsTemplate() {
-		fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Auto-discovery IDs")))
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Auto-discovery IDs"))
 		for _, id := range c.ADIdentifiers {
-			fmt.Fprintln(w, fmt.Sprintf("* %s", color.CyanString(id)))
+			fmt.Fprintf(w, "* %s\n", color.CyanString(id))
 		}
 		printContainerExclusionRulesInfo(w, &c)
 	}
 	if c.NodeName != "" {
 		state := fmt.Sprintf("dispatched to %s", c.NodeName)
-		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("State"), color.CyanString(state)))
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("State"), color.CyanString(state))
 	}
 	fmt.Fprintln(w, "===")
 }
@@ -171,6 +171,6 @@ func printContainerExclusionRulesInfo(w io.Writer, c *integration.Config) {
 	}
 
 	if msg != "" {
-		fmt.Fprintln(w, fmt.Sprintf("%s", color.BlueString(msg)))
+		fmt.Fprintln(w, color.BlueString(msg))
 	}
 }

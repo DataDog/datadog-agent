@@ -67,6 +67,13 @@ func TestGetIntegrationConfig(t *testing.T) {
 	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
 	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_deprecated.yaml")
 	assert.NotNil(t, err)
+
+	// autodiscovery: check that the service ID is ignored when set explicitly.
+	// Service ID is not meant to be set in configs provided by users. It's set
+	// automatically when needed.
+	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_with_service_id.yaml")
+	assert.Nil(t, err)
+	assert.Empty(t, config.ServiceID)
 }
 
 func TestReadConfigFiles(t *testing.T) {
@@ -75,12 +82,12 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 17, len(configs))
+	require.Equal(t, 18, len(configs))
 	require.Equal(t, 3, len(errors))
 
 	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
 	require.Nil(t, err)
-	require.Equal(t, 16, len(configs))
+	require.Equal(t, 17, len(configs))
 
 	configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
 	require.Nil(t, err)
@@ -119,8 +126,8 @@ instances:
 
 	// Change config
 	mockConfig := config.Mock(t)
-	mockConfig.Set("autoconf_config_files_poll", true)
-	mockConfig.Set("autoconf_config_files_poll_interval", 2)
+	mockConfig.SetWithoutSource("autoconf_config_files_poll", true)
+	mockConfig.SetWithoutSource("autoconf_config_files_poll_interval", 2)
 
 	// Write file + reset reader (trigger a read on all files)
 	assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))

@@ -5,6 +5,7 @@
 
 //go:build linux && linux_bpf
 
+// Package constantfetch holds constantfetch related files
 package constantfetch
 
 import (
@@ -16,6 +17,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -72,7 +74,7 @@ func (og *OffsetGuesser) String() string {
 }
 
 func (og *OffsetGuesser) guessPidNumbersOfsset() (uint64, error) {
-	if _, err := os.ReadFile(utils.StatusPath(int32(utils.Getpid()))); err != nil {
+	if _, err := os.ReadFile(utils.StatusPath(utils.Getpid())); err != nil {
 		return ErrorSentinel, err
 	}
 	offsetMap, found, err := og.manager.GetMap("guessed_offsets")
@@ -158,11 +160,11 @@ func (og *OffsetGuesser) guess(id string) error {
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (og *OffsetGuesser) AppendSizeofRequest(id, typeName, headerName string) {
+func (og *OffsetGuesser) AppendSizeofRequest(_, _, _ string) {
 }
 
 // AppendOffsetofRequest appends an offset request
-func (og *OffsetGuesser) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
+func (og *OffsetGuesser) AppendOffsetofRequest(id, _, _, _ string) {
 	og.res[id] = ErrorSentinel
 }
 
@@ -201,8 +203,10 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 	if err := og.manager.InitWithOptions(bytecodeReader, options); err != nil {
 		return og.res, err
 	}
+	ebpfcheck.AddNameMappings(og.manager, "cws_offsetguess")
 
 	if err := og.manager.Start(); err != nil {
+		ebpfcheck.RemoveNameMappings(og.manager)
 		return og.res, err
 	}
 
@@ -212,6 +216,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 		}
 	}
 
+	ebpfcheck.RemoveNameMappings(og.manager)
 	if err := og.manager.Stop(manager.CleanAll); err != nil {
 		return og.res, err
 	}

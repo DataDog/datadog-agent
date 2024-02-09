@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	// Required to initialize the "dogstatsd" expvar
@@ -19,16 +20,16 @@ import (
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {
-	common.SetupConfigWithWarnings("./test", "")
+	common.SetupConfigForTest("./test")
 	mockConfig := config.Mock(t)
-	mockConfig.Set("compliance_config.dir", "./test/compliance.d")
+	mockConfig.SetWithoutSource("compliance_config.dir", "./test/compliance.d")
 	logFilePath := "./test/logs/agent.log"
 
 	// Mock getLinuxKernelSymbols. It can take a long time to scrub when creating a flare.
-	defer func(f func(flarehelpers.FlareBuilder) error) {
+	defer func(f func(flaretypes.FlareBuilder) error) {
 		linuxKernelSymbols = f
 	}(getLinuxKernelSymbols)
-	linuxKernelSymbols = func(fb flarehelpers.FlareBuilder) error {
+	linuxKernelSymbols = func(fb flaretypes.FlareBuilder) error {
 		fb.AddFile("kallsyms", []byte("some kernel symbol"))
 		return nil
 	}

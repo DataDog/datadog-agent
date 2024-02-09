@@ -3,12 +3,14 @@
 
 #include "constants/custom.h"
 #include "constants/enums.h"
+#include "constants/fentry_macro.h"
 #include "maps.h"
 #include "perf_ring.h"
 
 #include "discarders.h"
 #include "dentry_resolver.h"
 #include "span.h"
+#include "user_sessions.h"
 
 int __attribute__((always_inline)) handle_discard_inode(void *data) {
     if (!is_runtime_request()) {
@@ -80,8 +82,8 @@ int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
 }
 #endif
 
-int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
-    u32 cmd = PT_REGS_PARM3(ctx);
+int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
+    u32 cmd = CTX_PARM3(ctx);
     if (cmd != RPC_CMD) {
         return 0;
     }
@@ -89,8 +91,8 @@ int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
     return 1;
 }
 
-int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
-    void *req = (void *)PT_REGS_PARM4(ctx);
+int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
+    void *req = (void *)CTX_PARM4(ctx);
 
     u8 op = 0;
     int ret = bpf_probe_read(&op, sizeof(op), req);
@@ -119,12 +121,10 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
     }
 
     switch (op) {
-        case RESOLVE_SEGMENT_OP:
-            return handle_dr_request(ctx, data, DR_ERPC_SEGMENT_KEY); // func (dr *DentryResolver) ResolveFromERPC in the userspace code side triggers handle_dr_request
         case RESOLVE_PATH_OP:
             return handle_dr_request(ctx, data, DR_ERPC_KEY);
-        case RESOLVE_PARENT_OP:
-            return handle_dr_request(ctx, data, DR_ERPC_PARENT_KEY);
+        case USER_SESSION_CONTEXT_OP:
+            return handle_register_user_session(data);
         case REGISTER_SPAN_TLS_OP:
             return handle_register_span_memory(data);
         case EXPIRE_INODE_DISCARDER_OP:

@@ -236,6 +236,7 @@ func TestSortedMarshal(t *testing.T) {
 	json, err := json.Marshal(p)
 	assert.NoError(t, err)
 
+	//nolint:revive // TODO(CAPP) Fix revive linter
 	expectedJson := `{
 						"metadata":{
 							"name":"test-pod",
@@ -254,6 +255,7 @@ func TestSortedMarshal(t *testing.T) {
 						},
 						"status":{}
 					}`
+	//nolint:revive // TODO(CAPP) Fix revive linter
 	actualJson := string(json)
 	assert.JSONEq(t, expectedJson, actualJson)
 }

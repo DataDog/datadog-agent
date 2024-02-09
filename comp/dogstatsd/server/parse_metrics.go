@@ -58,10 +58,7 @@ func hasMetricSampleFormat(message []byte) bool {
 		return false
 	}
 	separatorCount := bytes.Count(message, fieldSeparator)
-	if separatorCount < 1 {
-		return false
-	}
-	return true
+	return separatorCount >= 1
 }
 
 func parseMetricSampleNameAndRawValue(rawNameAndValue []byte) ([]byte, []byte, error) {

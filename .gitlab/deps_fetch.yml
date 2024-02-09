@@ -4,39 +4,74 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
-  - rm -f modcache.tar.gz
+  - mkdir -p $GOPATH/pkg/mod && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod
+  - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH/pkg/mod && tar xzf modcache_tools.tar.gz -C $GOPATH/pkg/mod
-  - rm -f modcache_tools.tar.gz
+  - mkdir -p $GOPATH/pkg/mod && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod
+  - rm -f modcache_tools.tar.xz
+
+.cache_policy:
+  rules:
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    variables:
+      POLICY: pull-push
+  - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+    variables:
+      POLICY: pull
 
 go_deps:
   stage: deps_fetch
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: []
+  needs: ["setup_agent_version"]
+  extends: .cache_policy
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
+    # If the cache already contains the dependencies, don't redownload them
+    # but still provide the artifact that's expected for the other jobs to run
+    - if [ -f modcache.tar.xz  ]; then exit 0; fi
     - source /root/.bashrc
     - inv -e deps --verbose
-    - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
+    - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache.tar.gz
+      - $CI_PROJECT_DIR/modcache.tar.xz
+  cache:
+    - key:
+        files:
+          - ./**/go.mod
+        prefix: "go_deps"
+      paths:
+        - modcache.tar.xz
   retry: 1
 
 go_tools_deps:
   stage: deps_fetch
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: []
+  needs: ["setup_agent_version"]
+  extends: .cache_policy
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
   script:
+    - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - source /root/.bashrc
     - inv -e download-tools
-    - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache_tools.tar.gz .
+    - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache_tools.tar.gz
+      - $CI_PROJECT_DIR/modcache_tools.tar.xz
+  cache:
+    - key:
+        files:
+          - ./**/go.mod
+        prefix: "go_tools_deps"
+      paths:
+        - modcache_tools.tar.xz
   retry: 1

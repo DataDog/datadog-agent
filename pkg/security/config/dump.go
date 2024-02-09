@@ -5,6 +5,7 @@
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=StorageFormat,StorageType -linecomment -output enum_string.go
 
+// Package config holds config related files
 package config
 
 import (
@@ -91,8 +92,8 @@ func (sr *StorageRequest) GetOutputPath(filename string) string {
 type StorageFormat int
 
 const (
-	// Json is used to request the JSON format
-	Json StorageFormat = iota // json
+	// JSON is used to request the JSON format
+	JSON StorageFormat = iota // json
 	// Protobuf is used to request the protobuf format
 	Protobuf // protobuf
 	// Dot is used to request the dot format
@@ -103,7 +104,7 @@ const (
 
 // AllStorageFormats returns the list of supported formats
 func AllStorageFormats() []StorageFormat {
-	return []StorageFormat{Json, Protobuf, Dot, Profile}
+	return []StorageFormat{JSON, Protobuf, Dot, Profile}
 }
 
 // ParseStorageFormat returns a storage format from a string input

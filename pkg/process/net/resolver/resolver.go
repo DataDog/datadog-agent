@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package resolver
 
 import (
@@ -32,7 +33,7 @@ func (l *LocalResolver) LoadAddrs(containers []*model.Container, pidToCid map[in
 	l.mux.Lock()
 	defer l.mux.Unlock()
 
-	if time.Now().Sub(l.updated) < defaultTTL {
+	if time.Since(l.updated) < defaultTTL {
 		return
 	}
 
@@ -92,7 +93,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		// first
 		cid := conn.Laddr.ContainerId
 		if cid == "" {
-			cid, _ = l.ctrForPid[int(conn.Pid)]
+			cid = l.ctrForPid[int(conn.Pid)]
 		}
 
 		if cid == "" {

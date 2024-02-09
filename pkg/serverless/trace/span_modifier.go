@@ -6,8 +6,8 @@
 package trace
 
 import (
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,8 +19,9 @@ const (
 )
 
 type spanModifier struct {
-	tags            map[string]string
-	lambdaSpanChan  chan<- *pb.Span
+	tags           map[string]string
+	lambdaSpanChan chan<- *pb.Span
+	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId uint64
 }
 

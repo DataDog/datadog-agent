@@ -6,7 +6,8 @@
 package cloudservice
 
 import (
-	"fmt"
+	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,9 @@ func TestGetContainerAppTags(t *testing.T) {
 	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
 	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
 	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+
+	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
+	t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
 
 	tags := service.GetTags()
 
@@ -59,20 +63,50 @@ func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestInitHasErrorsWhenMissingEnvVars(t *testing.T) {
+func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {
 	service := NewContainerApp()
+	if os.Getenv("SERVERLESS_TEST") == "true" {
+		t.Setenv("CONTAINER_APP_NAME", "test_app_name")
+		t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
+		t.Setenv("CONTAINER_APP_REVISION", "test_revision")
 
-	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
-	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
-	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+		t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
 
-	err := service.Init()
-	assert.Equal(t, fmt.Errorf("must set %v", AzureSubscriptionIdEnvVar), err)
+		service.Init()
+		return
+	}
 
-	// Set the missing environment variable. We also need to set DD_AZURE_RESOURCE_GROUP,
-	// so we should still error when we call Init() again.
-	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
+	// Re-run this test but set SERVERLESS_TEST to true to trigger the Init() function
+	cmd := exec.Command(os.Args[0], "-test.run=TestInitHasErrorsWhenMissingSubscriptionId")
+	cmd.Env = append(os.Environ(), "SERVERLESS_TEST=true")
+	err := cmd.Run()
+	if e, ok := err.(*exec.ExitError); ok && !e.Success() {
+		return
+	} else { //nolint:revive // TODO(SERV) Fix revive linter
+		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_SUBSCRIPTION_ID")
+	}
+}
 
-	err = service.Init()
-	assert.Equal(t, fmt.Errorf("must set %v", AzureResourceGroupEnvVar), err)
+func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
+	service := NewContainerApp()
+	if os.Getenv("SERVERLESS_TEST") == "true" {
+		t.Setenv("CONTAINER_APP_NAME", "test_app_name")
+		t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
+		t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+
+		t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
+
+		service.Init()
+		return
+	}
+
+	// Re-run this test but set SERVERLESS_TEST to true to trigger the Init() function
+	cmd := exec.Command(os.Args[0], "-test.run=TestInitHasErrorsWhenMissingResourceGroup")
+	cmd.Env = append(os.Environ(), "SERVERLESS_TEST=true")
+	err := cmd.Run()
+	if e, ok := err.(*exec.ExitError); ok && !e.Success() {
+		return
+	} else { //nolint:revive // TODO(SERV) Fix revive linter
+		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_RESOURCE_GROUP")
+	}
 }

@@ -13,6 +13,8 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type messageType int
@@ -21,6 +23,7 @@ const (
 	metricSampleType messageType = iota
 	serviceCheckType
 	eventType
+	cacheValidity = 2 * time.Second
 )
 
 var (
@@ -33,6 +36,9 @@ var (
 
 	// containerIDFieldPrefix is the prefix for a common field holding the sender's container ID
 	containerIDFieldPrefix = []byte("c:")
+
+	// containerInodeFieldPrefix is the prefix for a notation holding the sender's container Inode in the containerIDField
+	containerIDFieldInodePrefix = []byte("in-")
 )
 
 // parser parses dogstatsd messages
@@ -48,17 +54,21 @@ type parser struct {
 
 	// readTimestamps is true if the parser has to read timestamps from messages.
 	readTimestamps bool
+
+	// Generic Metric Provider
+	provider provider.Provider
 }
 
-func newParser(cfg config.ConfigReader, float64List *float64ListPool) *parser {
+func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize),
+		interner:         newStringInterner(stringInternerCacheSize, workerNum),
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
+		provider:         provider.GetProvider(),
 	}
 }
 
@@ -138,7 +148,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		// protocol, we directly parse it as a float64. This avoids
 		// pulling a slice from the float64List and greatly improve
 		// performances.
-		if bytes.Index(rawValue, colonSeparator) == -1 {
+		if !bytes.Contains(rawValue, colonSeparator) {
 			value, err = parseFloat64(rawValue)
 		} else {
 			values, err = p.parseFloat64List(rawValue)
@@ -238,8 +248,27 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 }
 
 // extractContainerID parses the value of the container ID field.
+// If the field is prefixed by `in-`, it corresponds to the cgroup controller's inode of the source
+// and is used for ContainerID resolution.
 func (p *parser) extractContainerID(rawContainerIDField []byte) []byte {
-	return rawContainerIDField[len(containerIDFieldPrefix):]
+	containerIDField := rawContainerIDField[len(containerIDFieldPrefix):]
+
+	if bytes.HasPrefix(containerIDField[:len(containerIDFieldInodePrefix)], containerIDFieldInodePrefix) {
+		inodeField, err := strconv.ParseUint(string(containerIDField[len(containerIDFieldPrefix)+1:]), 10, 64)
+		if err != nil {
+			log.Debugf("Failed to parse inode from %s, got %v", containerIDField, err)
+			return nil
+		}
+
+		containerID, err := p.provider.GetMetaCollector().GetContainerIDForInode(inodeField, cacheValidity)
+		if err != nil {
+			log.Debugf("Failed to get container ID, got %v", err)
+			return nil
+		}
+		return []byte(containerID)
+	}
+
+	return containerIDField
 }
 
 // the std API does not have methods to do []byte => float parsing

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package dump holds dump related files
 package dump
 
 import (
@@ -19,8 +20,9 @@ import (
 	"github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
 
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -47,7 +49,7 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	storage := &ActivityDumpRemoteStorage{
 		tooLargeEntities: make(map[tooLargeEntityStatsEntry]*atomic.Uint64),
 		client: &http.Client{
-			Transport: ddhttputil.CreateHTTPTransport(),
+			Transport: ddhttputil.CreateHTTPTransport(pkgconfig.Datadog),
 		},
 	}
 

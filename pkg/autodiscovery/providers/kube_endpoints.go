@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,6 +45,7 @@ type kubeEndpointsConfigProvider struct {
 	endpointsLister    listersv1.EndpointsLister
 	upToDate           bool
 	monitoredEndpoints map[string]bool
+	configErrors       map[string]ErrorMsgSet
 }
 
 // configInfo contains an endpoint check config template with its name and namespace
@@ -71,13 +73,16 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 	p := &kubeEndpointsConfigProvider{
 		serviceLister:      servicesInformer.Lister(),
 		monitoredEndpoints: make(map[string]bool),
+		configErrors:       make(map[string]ErrorMsgSet),
 	}
 
-	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
 		UpdateFunc: p.invalidateIfChangedService,
 		DeleteFunc: p.invalidate,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to service informer: %s", err)
+	}
 
 	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if endpointsInformer == nil {
@@ -86,9 +91,11 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 
 	p.endpointsLister = endpointsInformer.Lister()
 
-	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: p.invalidateIfChangedEndpoints,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %s", err)
+	}
 
 	return p, nil
 }
@@ -99,6 +106,8 @@ func (k *kubeEndpointsConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (k *kubeEndpointsConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := k.serviceLister.List(labels.Everything())
 	if err != nil {
@@ -107,7 +116,7 @@ func (k *kubeEndpointsConfigProvider) Collect(ctx context.Context) ([]integratio
 	k.setUpToDate(true)
 
 	var generatedConfigs []integration.Config
-	parsedConfigsInfo := parseServiceAnnotationsForEndpoints(services)
+	parsedConfigsInfo := k.parseServiceAnnotationsForEndpoints(services)
 	for _, config := range parsedConfigsInfo {
 		kep, err := k.endpointsLister.Endpoints(config.namespace).Get(config.name)
 		if err != nil {
@@ -124,6 +133,8 @@ func (k *kubeEndpointsConfigProvider) Collect(ctx context.Context) ([]integratio
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (k *kubeEndpointsConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return k.upToDate, nil
 }
@@ -205,7 +216,6 @@ func (k *kubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 		// Invalidate only when subsets change
 		k.upToDate = equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets)
 	}
-	return
 }
 
 // setUpToDate is a thread-safe method to update the upToDate value
@@ -215,8 +225,10 @@ func (k *kubeEndpointsConfigProvider) setUpToDate(v bool) {
 	k.upToDate = v
 }
 
-func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
+func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 	var configsInfo []configInfo
+
+	setEndpointIDs := map[string]struct{}{}
 
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
@@ -225,10 +237,22 @@ func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 		}
 
 		endpointsID := apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
+		setEndpointIDs[endpointsID] = struct{}{}
 
 		endptConf, errors := utils.ExtractTemplatesFromPodAnnotations(endpointsID, svc.Annotations, kubeEndpointID)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+		}
+
+		if len(errors) > 0 {
+			errMsgSet := make(ErrorMsgSet)
+			for _, err := range errors {
+				log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+				errMsgSet[err.Error()] = struct{}{}
+			}
+			k.configErrors[endpointsID] = errMsgSet
+		} else {
+			delete(k.configErrors, endpointsID)
 		}
 
 		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeEndpointAnnotationPrefix)
@@ -249,6 +273,10 @@ func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 			})
 		}
 	}
+
+	k.cleanErrorsOfDeletedEndpoints(setEndpointIDs)
+
+	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeEndpoints)
 
 	return configsInfo
 }
@@ -307,11 +335,24 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 	return generatedConfigs
 }
 
+func (k *kubeEndpointsConfigProvider) cleanErrorsOfDeletedEndpoints(setCurrentEndpointIDs map[string]struct{}) {
+	setEndpointIDsWithErrors := map[string]struct{}{}
+	for endpointID := range k.configErrors {
+		setEndpointIDsWithErrors[endpointID] = struct{}{}
+	}
+
+	for endpointID := range setEndpointIDsWithErrors {
+		if _, exists := setCurrentEndpointIDs[endpointID]; !exists {
+			delete(k.configErrors, endpointID)
+		}
+	}
+}
+
 func init() {
 	RegisterProvider(names.KubeEndpointsRegisterName, NewKubeEndpointsConfigProvider)
 }
 
-// GetConfigErrors is not implemented for the kubeEndpointsConfigProvider
+// GetConfigErrors returns a map of configuration errors for each Kubernetes endpoint
 func (k *kubeEndpointsConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+	return k.configErrors
 }

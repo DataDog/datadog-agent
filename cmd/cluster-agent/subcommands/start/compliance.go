@@ -11,27 +11,29 @@ import (
 	"context"
 	"os"
 
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"k8s.io/client-go/dynamic"
 )
 
 const (
 	intakeTrackType = "compliance"
 )
 
-func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader func() bool) error {
+func runCompliance(ctx context.Context, senderManager sender.SenderManager, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	stopper := startstop.NewSerialStopper()
-	if err := startCompliance(stopper, apiCl, isLeader); err != nil {
+	if err := startCompliance(senderManager, stopper, apiCl, isLeader); err != nil {
 		return err
 	}
 
@@ -42,12 +44,12 @@ func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader fun
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(coreconfig.Datadog, logsConfig, endpointPrefix, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+		endpoints, err = config.BuildHTTPEndpoints(coreconfig.Datadog, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog)
+			endpoints, err = config.BuildEndpoints(coreconfig.Datadog, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		}
 	}
 
@@ -70,7 +72,7 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
-func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
+func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	endpoints, ctx, err := newLogContextCompliance()
 	if err != nil {
 		log.Error(err)
@@ -81,20 +83,16 @@ func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLe
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 
-	reporter, err := compliance.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
-	if err != nil {
-		return err
-	}
-
-	runner := runner.NewRunner()
-	stopper.Add(runner)
-
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
 	}
 
-	agent := compliance.NewAgent(compliance.AgentOptions{
+	runner := runner.NewRunner(senderManager)
+	stopper.Add(runner)
+
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", runPath, endpoints, ctx)
+	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,
 		CheckInterval: checkInterval,
@@ -106,7 +104,7 @@ func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLe
 			HostRoot:           os.Getenv("HOST_ROOT"),
 			DockerProvider:     compliance.DefaultDockerProvider,
 			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
-			KubernetesProvider: wrapKubernetesClient(apiCl.DynamicCl, isLeader),
+			KubernetesProvider: wrapKubernetesClient(apiCl, isLeader),
 		},
 	})
 	err = agent.Start()
@@ -119,11 +117,11 @@ func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLe
 	return nil
 }
 
-func wrapKubernetesClient(client dynamic.Interface, isLeader func() bool) compliance.KubernetesProvider {
-	return func(ctx context.Context) (dynamic.Interface, error) {
+func wrapKubernetesClient(apiCl *apiserver.APIClient, isLeader func() bool) compliance.KubernetesProvider {
+	return func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 		if isLeader() {
-			return client, nil
+			return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 		}
-		return nil, compliance.ErrIncompatibleEnvironment
+		return nil, nil, compliance.ErrIncompatibleEnvironment
 	}
 }

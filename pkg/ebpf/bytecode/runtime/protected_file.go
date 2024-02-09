@@ -13,11 +13,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/justincormack/go-memfd"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// This represent a symlink to a sealed ram-backed file
+// ProtectedFile represents a symlink to a sealed ram-backed file
 type ProtectedFile interface {
 	Close() error
 	Reader() io.Reader
@@ -29,7 +30,7 @@ type ramBackedFile struct {
 	file    *memfd.Memfd
 }
 
-// This function returns a sealed ram backed file
+// NewProtectedFile returns a sealed ram backed file
 func NewProtectedFile(name, dir string, source io.Reader) (ProtectedFile, error) {
 	var err error
 
@@ -62,7 +63,7 @@ func NewProtectedFile(name, dir string, source io.Reader) (ProtectedFile, error)
 		return nil, fmt.Errorf("failed to create symlink %s from target %s: %w", tmpFile, target, err)
 	}
 
-	if _, err := memfdFile.Seek(0, os.SEEK_SET); err != nil {
+	if _, err := memfdFile.Seek(0, io.SeekStart); err != nil {
 		return nil, fmt.Errorf("failed to reset cursor: %w", err)
 	}
 
@@ -90,7 +91,7 @@ func setupSourceInfoFile(source io.Reader, path string) error {
 
 func (m *ramBackedFile) Close() error {
 	os.Remove(m.symlink)
-	if _, err := m.file.Seek(0, os.SEEK_SET); err != nil {
+	if _, err := m.file.Seek(0, io.SeekStart); err != nil {
 		log.Debug(err)
 	}
 	if err := setupSourceInfoFile(m.file, m.symlink); err != nil {

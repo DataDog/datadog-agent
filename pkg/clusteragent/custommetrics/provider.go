@@ -115,7 +115,7 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			log.Infof("Received instruction to terminate collection of External Metrics, stopping async loop")
 			return
 		default:
-			if p.isServing == true {
+			if p.isServing {
 				currentBackoff = externalMetricsBaseBackoff
 			} else {
 				currentBackoff = currentBackoff * 2
@@ -131,12 +131,12 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 }
 
 // GetMetricByName - Not implemented
-func (p *datadogProvider) GetMetricByName(_ context.Context, name types.NamespacedName, info provider.CustomMetricInfo, labels labels.Selector) (*custom_metrics.MetricValue, error) {
+func (p *datadogProvider) GetMetricByName(_ context.Context, name types.NamespacedName, info provider.CustomMetricInfo, labels labels.Selector) (*custom_metrics.MetricValue, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, fmt.Errorf("not Implemented - GetMetricByName")
 }
 
 // GetMetricBySelector - Not implemented
-func (p *datadogProvider) GetMetricBySelector(_ context.Context, namespace string, selector labels.Selector, info provider.CustomMetricInfo, label labels.Selector) (*custom_metrics.MetricValueList, error) {
+func (p *datadogProvider) GetMetricBySelector(_ context.Context, namespace string, selector labels.Selector, info provider.CustomMetricInfo, label labels.Selector) (*custom_metrics.MetricValueList, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, fmt.Errorf("not Implemented - GetMetricBySelector")
 }
 
@@ -165,7 +165,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 }
 
 // GetExternalMetric is called by the Autoscaler Controller to get the value of the external metric it is currently evaluating.
-func (p *datadogProvider) GetExternalMetric(_ context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+func (p *datadogProvider) GetExternalMetric(_ context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) { //nolint:revive // TODO fix revive unused-parameter
 	if !p.isServing || time.Now().Unix()-p.timestamp > 2*p.maxAge {
 		return nil, fmt.Errorf("external metrics invalid")
 	}

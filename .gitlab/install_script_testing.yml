@@ -1,0 +1,23 @@
+---
+test_install_script:
+  stage: install_script_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  script:
+    - source /root/.bashrc
+    - set +x
+    - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
+    - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET
+    - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
+    - export TEST_PIPELINE_ID=$CI_PIPELINE_ID
+    - "inv pipeline.trigger-child-pipeline --project-name DataDog/agent-linux-install-script --git-ref main
+      --variable TESTING_APT_URL
+      --variable TESTING_YUM_URL
+      --variable TEST_PIPELINE_ID
+      --variable APPS,BAZEL_TARGET
+      --variable DDR,DDR_WORKFLOW_ID
+      --variable TARGET_ENV
+      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  needs: ["deploy_deb_testing-a6_x64", "deploy_rpm_testing-a6_x64", "deploy_deb_testing-a7_x64", "deploy_rpm_testing-a7_x64"]
+  rules:
+    !reference [.on_deploy]

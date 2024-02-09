@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package datadog.config;
 
-option go_package = "pkg/proto/pbgo";  // golang
+option go_package = "pkg/proto/pbgo/core"; // golang
 
 // Backend definitions
 
@@ -54,6 +54,7 @@ message LatestConfigsRequest {
   string error = 12;
   string trace_agent_env = 13;
   string org_uuid = 14;
+  repeated string tags = 15;
 }
 
 message LatestConfigsResponse {

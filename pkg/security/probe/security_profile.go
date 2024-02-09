@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -29,28 +29,28 @@ type SecurityProfileManagers struct {
 }
 
 // NewSecurityProfileManagers returns a new manager object
-func NewSecurityProfileManagers(probe *Probe) (*SecurityProfileManagers, error) {
+func NewSecurityProfileManagers(p *EBPFProbe) (*SecurityProfileManagers, error) {
 	managers := SecurityProfileManagers{
-		config: probe.Config,
+		config: p.config,
 	}
 
-	if probe.IsActivityDumpEnabled() {
-		activityDumpManager, err := dump.NewActivityDumpManager(probe.Config, probe.StatsdClient, func() *model.Event { return NewEvent(probe.fieldHandlers) }, probe.resolvers, probe.kernelVersion, probe.Manager)
+	if p.probe.IsActivityDumpEnabled() {
+		activityDumpManager, err := dump.NewActivityDumpManager(p.config, p.statsdClient, p.NewEvent, p.Resolvers, p.kernelVersion, p.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
 		managers.activityDumpManager = activityDumpManager
 	}
 
-	if probe.IsSecurityProfileEnabled() {
-		securityProfileManager, err := profile.NewSecurityProfileManager(probe.Config, probe.StatsdClient, probe.resolvers, probe.Manager)
+	if p.probe.IsSecurityProfileEnabled() {
+		securityProfileManager, err := profile.NewSecurityProfileManager(p.config, p.statsdClient, p.Resolvers, p.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}
 		managers.securityProfileManager = securityProfileManager
 	}
 
-	if probe.IsActivityDumpEnabled() && probe.IsSecurityProfileEnabled() {
+	if p.probe.IsActivityDumpEnabled() && p.probe.IsSecurityProfileEnabled() {
 		managers.activityDumpManager.SetSecurityProfileManager(managers.securityProfileManager)
 		managers.securityProfileManager.SetActivityDumpManager(managers.activityDumpManager)
 	}
@@ -88,6 +88,9 @@ func (spm *SecurityProfileManagers) SendStats() error {
 
 // ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled
 var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
+
+// ErrSecurityProfileManagerDisabled is returned when the security profile manager is disabled
+var ErrSecurityProfileManagerDisabled = errors.New("SecurityProfileManager is disabled")
 
 // AddActivityDumpHandler add a handler
 func (spm *SecurityProfileManagers) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
@@ -148,11 +151,17 @@ func (spm *SecurityProfileManagers) SnapshotTracedCgroups() {
 
 // ListSecurityProfiles list the profiles
 func (spm *SecurityProfileManagers) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
+	if spm.securityProfileManager == nil {
+		return nil, ErrSecurityProfileManagerDisabled
+	}
 	return spm.securityProfileManager.ListSecurityProfiles(params)
 }
 
 // SaveSecurityProfile save a security profile
 func (spm *SecurityProfileManagers) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
+	if spm.securityProfileManager == nil {
+		return nil, ErrSecurityProfileManagerDisabled
+	}
 	return spm.securityProfileManager.SaveSecurityProfile(params)
 }
 

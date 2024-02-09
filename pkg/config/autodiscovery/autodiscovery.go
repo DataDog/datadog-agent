@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package autodiscovery contains helper function that return autodiscovery
+// providers from the config and from the environment where the Agent is
+// running.
 package autodiscovery
 
 import (
@@ -77,8 +80,8 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 	detectedListeners = append(detectedListeners, config.Listeners{Name: "environment"})
 	detectedListeners = append(detectedListeners, config.Listeners{Name: "static config"})
 
-	// Automatic handling of AD providers/listeners should only run in Core agent.
-	if flavor.GetFlavor() != flavor.DefaultAgent {
+	// Automatic handling of AD providers/listeners should only run in the core or process agent.
+	if flavor.GetFlavor() != flavor.DefaultAgent && flavor.GetFlavor() != flavor.ProcessAgent {
 		return detectedProviders, detectedListeners
 	}
 

@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -110,23 +110,15 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	awsCreds := credentials.NewStaticCredentials(iamParams.AccessKeyID,
-		iamParams.SecretAccessKey,
-		iamParams.Token)
-
+	awsCreds := credentials.NewStaticCredentialsProvider(iamParams.AccessKeyID, iamParams.SecretAccessKey, iamParams.Token)
 	return getTagsWithCreds(ctx, instanceIdentity, awsCreds)
 }
 
-func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2Identity, awsCreds *credentials.Credentials) ([]string, error) {
-	awsSess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(instanceIdentity.Region),
+func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2Identity, awsCreds aws.CredentialsProvider) ([]string, error) {
+	connection := ec2.New(ec2.Options{
+		Region:      instanceIdentity.Region,
 		Credentials: awsCreds,
 	})
-	if err != nil {
-		return nil, fmt.Errorf("unable to get aws session, %s", err)
-	}
-
-	connection := ec2.New(awsSess)
 
 	// We want to use 'ec2_metadata_timeout' here instead of current context. 'ctx' comes from the agent main and will
 	// only be canceled if the agent is stopped. The default timeout for the AWS SDK is 1 minutes (20s timeout with
@@ -134,12 +126,12 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2Identity, awsCre
 	ctx, cancel := context.WithTimeout(ctx, config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond)
 	defer cancel()
 
-	ec2Tags, err := connection.DescribeTagsWithContext(ctx,
+	ec2Tags, err := connection.DescribeTags(ctx,
 		&ec2.DescribeTagsInput{
-			Filters: []*ec2.Filter{{
+			Filters: []types.Filter{{
 				Name: aws.String("resource-id"),
-				Values: []*string{
-					aws.String(instanceIdentity.InstanceID),
+				Values: []string{
+					instanceIdentity.InstanceID,
 				},
 			}},
 		},

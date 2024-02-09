@@ -17,9 +17,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,48 +32,111 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 const setupTimeout = time.Second * 10
+const leaseMinVersion = "v1.14.0"
 
 type apiserverSuite struct {
 	suite.Suite
 	kubeConfigPath string
+	usingLease     bool
+}
+
+func getApiserverComposePath(version string) string {
+	return fmt.Sprintf("/tmp/apiserver-compose-%s.yaml", version)
+}
+
+func generateApiserverCompose(version string) error {
+	apiserverCompose, err := os.ReadFile("testdata/apiserver-compose.yaml")
+	if err != nil {
+		return err
+	}
+
+	newComposeFile := strings.Replace(string(apiserverCompose), "APIVERSION_PLACEHOLDER", version, -1)
+
+	err = os.WriteFile(getApiserverComposePath(version), []byte(newComposeFile), os.ModePerm)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func TestSuiteAPIServer(t *testing.T) {
-	mockConfig := config.Mock(t)
-	config.SetFeatures(t, config.Kubernetes)
-	s := &apiserverSuite{}
-
-	// Start compose stack
-	compose := &utils.ComposeConf{
-		ProjectName: "kube_events",
-		FilePath:    "testdata/apiserver-compose.yaml",
-		Variables:   map[string]string{},
+	tests := []struct {
+		name                          string
+		version                       string
+		usingLease                    bool
+		leaderElectionDefaultResource string
+	}{
+		{
+			"test version 1.18",
+			"v1.18.20",
+			true,
+			"",
+		},
+		{
+			"test version 1.13",
+			"v1.13.2",
+			false,
+			"",
+		},
+		{
+			"test version 1.18 with config set to configmap",
+			"v1.18.20",
+			false,
+			"configmap",
+		},
+		{
+			"test version 1.18 with config set to lease",
+			"v1.18.20",
+			false,
+			"lease",
+		},
 	}
-	output, err := compose.Start()
-	defer compose.Stop()
-	require.Nil(t, err, string(output))
+	for _, tt := range tests {
+		s := &apiserverSuite{
+			usingLease: tt.usingLease,
+		}
 
-	// Init apiclient
-	pwd, err := os.Getwd()
-	require.Nil(t, err)
-	s.kubeConfigPath = filepath.Join(pwd, "testdata", "kubeconfig.json")
-	mockConfig.Set("kubernetes_kubeconfig_path", s.kubeConfigPath)
-	_, err = os.Stat(s.kubeConfigPath)
-	require.Nil(t, err, fmt.Sprintf("%v", err))
+		err := generateApiserverCompose(tt.version)
+		require.NoError(t, err)
+		defer func() {
+			os.Remove(getApiserverComposePath(tt.version))
+		}()
 
-	suite.Run(t, s)
+		mockConfig := config.Mock(t)
+		config.SetFeatures(t, config.Kubernetes)
+		mockConfig.SetWithoutSource("leader_election_default_resource", tt.leaderElectionDefaultResource)
+
+		// Start compose stack
+		compose := &utils.ComposeConf{
+			ProjectName: "kube_events",
+			FilePath:    getApiserverComposePath(tt.version),
+			Variables:   map[string]string{},
+		}
+		output, err := compose.Start()
+		defer compose.Stop()
+		require.Nil(t, err, string(output))
+
+		// Init apiclient
+		pwd, err := os.Getwd()
+		require.Nil(t, err)
+		s.kubeConfigPath = filepath.Join(pwd, "testdata", "kubeconfig.json")
+		mockConfig.SetWithoutSource("kubernetes_kubeconfig_path", s.kubeConfigPath)
+		_, err = os.Stat(s.kubeConfigPath)
+		require.Nil(t, err, fmt.Sprintf("%v", err))
+
+		suite.Run(t, s)
+	}
 }
 
 func (suite *apiserverSuite) SetupTest() {
 	leaderelection.ResetGlobalLeaderEngine()
-	telemetry.Reset()
+	telemetryComponent.GetCompatComponent().Reset()
 
 	tick := time.NewTicker(time.Millisecond * 500)
 	timeout := time.NewTicker(setupTimeout)
@@ -121,9 +186,13 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 
 func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderelection.LeaderEngine {
 	leaderelection.ResetGlobalLeaderEngine()
-	telemetry.Reset()
+	telemetryComponent.GetCompatComponent().Reset()
 
-	leader, err := leaderelection.GetCustomLeaderEngine(holderIdentity, time.Second*30)
+	leader := leaderelection.CreateGlobalLeaderEngine(context.Background())
+	leader.HolderIdentity = holderIdentity
+	leader.LeaseDuration = time.Second * 30
+
+	_, err := leaderelection.GetLeaderEngine()
 	require.Nil(suite.T(), err)
 	return leader
 }
@@ -171,24 +240,38 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	}
 
 	c, err := apiserver.GetAPIClient()
-	client := c.Cl.CoreV1()
+	require.NoError(suite.T(), err)
 
-	require.Nil(suite.T(), err)
-	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
-	require.Nil(suite.T(), err)
-	// 1 ConfigMap
-	require.Len(suite.T(), cmList.Items, 1)
+	if suite.usingLease {
+		client := c.Cl.CoordinationV1()
+		require.Nil(suite.T(), err)
+		leasesList, err := client.Leases(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
+		require.Nil(suite.T(), err)
+		// 1 Lease
+		require.Len(suite.T(), leasesList.Items, 1)
+		lease := leasesList.Items[0]
+		require.Equal(suite.T(), "datadog-leader-election", lease.Name)
+		require.NotNil(suite.T(), lease.Spec.HolderIdentity)
+		require.Equal(suite.T(), testCases[0].leaderEngine.HolderIdentity, *lease.Spec.HolderIdentity)
+	} else {
+		client := c.Cl.CoreV1()
+		require.Nil(suite.T(), err)
+		cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
+		require.Nil(suite.T(), err)
+		// 1 ConfigMap
+		require.Len(suite.T(), cmList.Items, 1)
 
-	var leaderAnnotation string
-	var found bool
-	for _, cm := range cmList.Items {
-		if cm.Name == "datadog-leader-election" {
-			require.False(suite.T(), found, "only one configmap match")
-			leaderAnnotation, found = cm.Annotations[rl.LeaderElectionRecordAnnotationKey]
-			require.True(suite.T(), found)
+		var leaderAnnotation string
+		var found bool
+		for _, cm := range cmList.Items {
+			if cm.Name == "datadog-leader-election" {
+				require.False(suite.T(), found, "only one configmap match")
+				leaderAnnotation, found = cm.Annotations[rl.LeaderElectionRecordAnnotationKey]
+				require.True(suite.T(), found)
+			}
 		}
+		require.Nil(suite.T(), err)
+		expectedMessage := fmt.Sprintf(`"holderIdentity":"%s"`, testCases[0].leaderEngine.HolderIdentity)
+		assert.Contains(suite.T(), leaderAnnotation, expectedMessage)
 	}
-	require.Nil(suite.T(), err)
-	expectedMessage := fmt.Sprintf(`"holderIdentity":"%s"`, testCases[0].leaderEngine.HolderIdentity)
-	assert.Contains(suite.T(), leaderAnnotation, expectedMessage)
 }

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -414,8 +415,208 @@ func TestShouldIgnore(t *testing.T) {
 				promInclAnnot:     getPrometheusIncludeAnnotations(),
 				targetAllServices: tt.targetAll,
 			}
-
 			assert.Equal(t, tt.want, l.shouldIgnore(tt.ksvc))
+		})
+	}
+}
+
+func TestHasFilterKubeServices(t *testing.T) {
+	tests := []struct {
+		name            string
+		ksvc            *v1.Service
+		metricsExcluded bool
+		globalExcluded  bool
+		want            bool
+		filter          containers.FilterType
+	}{
+		{
+			name: "metrics excluded is true",
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					UID:             types.UID("test"),
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+						"tags.datadoghq.com/service": "my-http-service",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test1", Port: 123},
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			metricsExcluded: true,
+			globalExcluded:  false,
+			want:            true,
+			filter:          containers.MetricsFilter,
+		},
+		{
+			name: "metrics excluded is false",
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					UID:             types.UID("test"),
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+						"tags.datadoghq.com/service": "my-http-service",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test1", Port: 123},
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			metricsExcluded: false,
+			globalExcluded:  true,
+			want:            false,
+			filter:          containers.MetricsFilter,
+		},
+		{
+			name: "metrics excluded is true with logs filter",
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					UID:             types.UID("test"),
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+						"tags.datadoghq.com/service": "my-http-service",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test1", Port: 123},
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			metricsExcluded: true,
+			globalExcluded:  true,
+			want:            false,
+			filter:          containers.LogsFilter,
+		},
+		{
+			name: "metrics excluded is false with logs filter",
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					UID:             types.UID("test"),
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+						"tags.datadoghq.com/service": "my-http-service",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test1", Port: 123},
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			metricsExcluded: false,
+			globalExcluded:  false,
+			want:            false,
+			filter:          containers.LogsFilter,
+		},
+		{
+			name: "global excluded is true",
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					UID:             types.UID("test"),
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+						"tags.datadoghq.com/service": "my-http-service",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test1", Port: 123},
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			metricsExcluded: false,
+			globalExcluded:  true,
+			want:            true,
+			filter:          containers.GlobalFilter,
+		},
+		{
+			name: "global excluded is false",
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					UID:             types.UID("test"),
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+						"tags.datadoghq.com/service": "my-http-service",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test1", Port: 123},
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			metricsExcluded: true,
+			globalExcluded:  false,
+			want:            false,
+			filter:          containers.GlobalFilter,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := processService(tt.ksvc)
+			svc.metricsExcluded = tt.metricsExcluded
+			svc.globalExcluded = tt.globalExcluded
+			isFilter := svc.HasFilter(tt.filter)
+			assert.Equal(t, isFilter, tt.want)
 		})
 	}
 }

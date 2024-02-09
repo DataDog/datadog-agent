@@ -10,6 +10,7 @@ rules:
       - ""
     resources:
       - secrets
+      - configmaps
       - nodes
       - pods
       - services
@@ -77,6 +78,13 @@ rules:
       - networking.k8s.io
     resources:
       - ingresses
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
     verbs:
       - list
       - watch

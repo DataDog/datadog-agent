@@ -152,8 +152,7 @@ func getCommandParamsForProcess32(h windows.Handle, includeImagePath bool) (*Pro
 	}
 	var peb peb32
 	var read uint64
-	var toRead uint32
-	toRead = uint32(unsafe.Sizeof(peb))
+	toRead := uint32(unsafe.Sizeof(peb))
 
 	read, err = ReadProcessMemory(h, procmem, uintptr(unsafe.Pointer(&peb)), toRead)
 	if err != nil {

@@ -7,49 +7,73 @@ package httpsec
 
 import (
 	"bytes"
-	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/aws/aws-lambda-go/events"
+	json "github.com/json-iterator/go"
 )
 
-// ProxyLifecycleProcessor is a LifecycleProcessor implementation allowing to support
-// NodeJS and Python by monitoring the runtime api calls until they support the
-// universal instrumentation api.
+// ProxyLifecycleProcessor is an implementation of the invocationlifecycle.InvocationProcessor
+// interface called by the Runtime API proxy on every function invocation calls and responses.
+// This allows AppSec to run by monitoring the function invocations, and run the security
+// rules upon reception of the HTTP request span in the SpanModifier function created by
+// the WrapSpanModifier() method.
+// A value of this type can be used by a single function invocation at a time.
 type ProxyLifecycleProcessor struct {
-	SubProcessor *ProxyProcessor
+	// AppSec instance
+	appsec Monitorer
+
+	// Parsed invocation event value
+	invocationEvent interface{}
+
+	demux aggregator.Demultiplexer
 }
 
+// NewProxyLifecycleProcessor returns a new httpsec proxy processor monitored with the
+// given Monitorer.
+func NewProxyLifecycleProcessor(appsec Monitorer, demux aggregator.Demultiplexer) *ProxyLifecycleProcessor {
+	return &ProxyLifecycleProcessor{
+		appsec: appsec,
+		demux:  demux,
+	}
+}
+
+//nolint:revive // TODO(ASM) Fix revive linter
 func (lp *ProxyLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
 	return nil // not used in the runtime api proxy case
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecycle.InvocationStartDetails) {
-	log.Debugf("appsec-proxy-lifecycle: invocation started with raw payload `%s`", startDetails.InvokeEventRawPayload)
+	log.Debugf("appsec: proxy-lifecycle: invocation started with raw payload `%s`", startDetails.InvokeEventRawPayload)
 
 	payloadBytes := invocationlifecycle.ParseLambdaPayload(startDetails.InvokeEventRawPayload)
 	log.Debugf("Parsed payload string: %s", bytesStringer(payloadBytes))
 
 	lowercaseEventPayload, err := trigger.Unmarshal(bytes.ToLower(payloadBytes))
 	if err != nil {
-		log.Debugf("appsec-proxy-lifecycle: Failed to parse event payload: %v", err)
+		log.Debugf("appsec: proxy-lifecycle: Failed to parse event payload: %v", err)
 	}
 
 	eventType := trigger.GetEventType(lowercaseEventPayload)
 	if eventType == trigger.Unknown {
-		log.Debugf("appsec-proxy-lifecycle: Failed to extract event type")
+		log.Debugf("appsec: proxy-lifecycle: Failed to extract event type")
+	} else {
+		log.Debugf("appsec: proxy-lifecycle: Extracted event type: %v", eventType)
 	}
 
 	var event interface{}
 	switch eventType {
 	default:
-		log.Debug("appsec-proxy-lifecycle: ignoring unsupported lambda event type %s", eventType)
+		log.Debugf("appsec: proxy-lifecycle: ignoring unsupported lambda event type %v", eventType)
 		return
 	case trigger.APIGatewayEvent:
 		event = &events.APIGatewayProxyRequest{}
@@ -57,18 +81,26 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 		event = &events.APIGatewayV2HTTPRequest{}
 	case trigger.APIGatewayWebsocketEvent:
 		event = &events.APIGatewayWebsocketProxyRequest{}
+	case trigger.APIGatewayLambdaAuthorizerTokenEvent:
+		event = &events.APIGatewayCustomAuthorizerRequest{}
+	case trigger.APIGatewayLambdaAuthorizerRequestParametersEvent:
+		event = &events.APIGatewayCustomAuthorizerRequestTypeRequest{}
 	case trigger.ALBEvent:
 		event = &events.ALBTargetGroupRequest{}
 	case trigger.LambdaFunctionURLEvent:
 		event = &events.LambdaFunctionURLRequest{}
 	}
+	if lp.demux != nil {
+		serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
+	}
 
 	if err := json.Unmarshal(payloadBytes, event); err != nil {
-		log.Errorf("appsec-proxy-lifecycle: unexpected lambda event parsing error: %v", err)
+		log.Errorf("appsec: proxy-lifecycle: unexpected lambda event parsing error: %v", err)
 		return
 	}
 
-	lp.SubProcessor.OnInvokeStart(event)
+	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
+	lp.invocationEvent = event
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
@@ -78,35 +110,33 @@ func (lp *ProxyLifecycleProcessor) OnInvokeEnd(_ *invocationlifecycle.Invocation
 	// So the final appsec monitoring logic moved to the SpanModifier instead and we use it as "invocation end" event.
 }
 
-func (lp *ProxyLifecycleProcessor) SpanModifier(chunk *pb.TraceChunk, span *pb.Span) {
-	lp.SubProcessor.SpanModifier(chunk, span)
-}
-
-// ProxyProcessor type allows to monitor lamdba invocations receiving HTTP-based
-// events and response via the runtime api proxy.
-type ProxyProcessor struct {
-	// AppSec instance
-	appsec Monitorer
-
-	// Parsed invocation event value
-	invocationEvent interface{}
-}
-
-// NewProxyProcessor returns a new httpsec proxy processor monitored with the
-// given Monitorer.
-func NewProxyProcessor(appsec Monitorer) *ProxyProcessor {
-	return &ProxyProcessor{
-		appsec: appsec,
+//nolint:revive // TODO(ASM) Fix revive linter
+func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.TraceChunk, s *pb.Span) {
+	// Add relevant standalone tags to the chunk (TODO: remove per span tagging once backend handles chunk tags)
+	if config.IsStandalone() {
+		if chunk.Tags == nil {
+			chunk.Tags = make(map[string]string)
+		}
+		chunk.Tags["_dd.apm.enabled"] = "0"
+		// By the spec, only the service entry span needs to be tagged.
+		// We play it safe by tagging everything in case the service entry span gets changed by the agent
+		for _, s := range chunk.Spans {
+			(*spanWrapper)(s).SetMetricsTag("_dd.apm.enabled", 0)
+		}
 	}
-}
+	if s.Name != "aws.lambda" || s.Type != "serverless" {
+		return
+	}
+	//nolint:revive // TODO(ASM) Fix revive linter
+	currentReqId := s.Meta["request_id"]
+	//nolint:revive // TODO(ASM) Fix revive linter
+	if spanReqId := lastReqId; currentReqId != spanReqId {
+		log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
+		return
+	}
+	log.Debugf("appsec: found service entry span of the currently monitored request id `%s`", currentReqId)
 
-func (p *ProxyProcessor) OnInvokeStart(invocationEvent interface{}) {
-	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
-	p.invocationEvent = invocationEvent
-}
-
-func (p *ProxyProcessor) SpanModifier(chunk *pb.TraceChunk, s *pb.Span) {
-	if p.invocationEvent == nil {
+	if lp.invocationEvent == nil {
 		log.Debug("appsec: ignoring unsupported lamdba event")
 		return // skip: unsupported event
 	}
@@ -114,7 +144,7 @@ func (p *ProxyProcessor) SpanModifier(chunk *pb.TraceChunk, s *pb.Span) {
 	span := (*spanWrapper)(s)
 
 	var ctx context
-	switch event := p.invocationEvent.(type) {
+	switch event := lp.invocationEvent.(type) {
 	default:
 		log.Debugf("appsec: ignoring unsupported lamdba event type %T", event)
 		return
@@ -122,56 +152,95 @@ func (p *ProxyProcessor) SpanModifier(chunk *pb.TraceChunk, s *pb.Span) {
 	case *events.APIGatewayProxyRequest:
 		makeContext(
 			&ctx,
+			&event.Resource,
 			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayV2HTTPRequest:
 		makeContext(
 			&ctx,
+			&event.RouteKey,
 			&event.RawPath,
 			toMultiValueMap(event.Headers),
 			toMultiValueMap(event.QueryStringParameters),
 			event.PathParameters,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayWebsocketProxyRequest:
 		makeContext(
 			&ctx,
+			&event.Resource,
 			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
+		)
+
+	case *events.APIGatewayCustomAuthorizerRequest:
+		makeContext(
+			&ctx,
+			nil,
+			nil,
+			// NOTE: The header name could have been different (depends on API GW configuration)
+			map[string][]string{"Authorization": {event.AuthorizationToken}},
+			nil,
+			nil,
+			"", // Not provided by API Gateway
+			nil,
+			false,
+		)
+
+	case *events.APIGatewayCustomAuthorizerRequestTypeRequest:
+		makeContext(
+			&ctx,
+			&event.Resource,
+			&event.Path,
+			event.MultiValueHeaders,
+			event.MultiValueQueryStringParameters,
+			event.PathParameters,
+			event.RequestContext.Identity.SourceIP,
+			nil,
+			false,
 		)
 
 	case *events.ALBTargetGroupRequest:
 		makeContext(
 			&ctx,
+			nil,
 			&event.Path,
-			event.MultiValueHeaders,
-			event.MultiValueQueryStringParameters,
+			// Depending on how the ALB is configured, headers will be either in MultiValueHeaders or Headers (not both).
+			multiOrSingle(event.MultiValueHeaders, event.Headers),
+			// Depending on how the ALB is configured, query parameters will be either in MultiValueQueryStringParameters or QueryStringParameters (not both).
+			multiOrSingle(event.MultiValueQueryStringParameters, event.QueryStringParameters),
 			nil,
 			"",
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.LambdaFunctionURLRequest:
 		makeContext(
 			&ctx,
+			nil,
 			&event.RawPath,
 			toMultiValueMap(event.Headers),
 			toMultiValueMap(event.QueryStringParameters),
 			nil,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 	}
 
@@ -191,41 +260,62 @@ func (p *ProxyProcessor) SpanModifier(chunk *pb.TraceChunk, s *pb.Span) {
 		log.Debug("appsec: missing span tag http.status_code")
 	}
 
-	if events := p.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
-		setSecurityEventsTags(span, events, reqHeaders, nil)
+	if res := lp.appsec.Monitor(ctx.toAddresses()); res.HasEvents() {
+		setSecurityEventsTags(span, res.Events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
+		if ctx.requestRoute != nil {
+			span.SetMetaTag("http.route", *ctx.requestRoute)
+		}
+		setAPISecurityTags(span, res.Derivatives)
 	}
 }
 
+// multiOrSingle picks the first non-nil map, and returns the content formatted
+// as the multi-map.
+func multiOrSingle(multi map[string][]string, single map[string]string) map[string][]string {
+	if multi == nil && single != nil {
+		// There is no multi-map, but there is a single-map, so we'll make a multi-map out of that.
+		multi = make(map[string][]string, len(single))
+		for key, value := range single {
+			multi[key] = []string{value}
+		}
+	}
+	return multi
+}
+
+//nolint:revive // TODO(ASM) Fix revive linter
 type ExecutionContext interface {
 	LastRequestID() string
 }
 
+// WrapSpanModifier wraps the given SpanModifier function with AppSec monitoring
+// and returns it. When non nil, the given modifySpan function is called first,
+// before the AppSec monitoring.
+// The resulting function will run AppSec when the span's request_id span tag
+// matches the one observed at function invocation with OnInvokeStat() through
+// the Runtime API proxy.
 func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modifySpan func(*pb.TraceChunk, *pb.Span)) func(*pb.TraceChunk, *pb.Span) {
 	return func(chunk *pb.TraceChunk, span *pb.Span) {
 		if modifySpan != nil {
 			modifySpan(chunk, span)
 		}
-		// Add appsec tags to the aws lambda function root span
-		if span.Name != "aws.lambda" || span.Type != "serverless" {
-			return
-		}
-		if currentReqId, spanReqId := ctx.LastRequestID(), span.Meta["request_id"]; currentReqId != spanReqId {
-			log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
-			return
-		}
-		log.Debug("appsec: found service entry span to add appsec tags")
-		lp.SpanModifier(chunk, span)
+		lp.spanModifier(ctx.LastRequestID(), chunk, span)
 	}
 }
 
 type spanWrapper pb.Span
 
 func (s *spanWrapper) SetMetaTag(tag string, value string) {
+	if s.Meta == nil {
+		s.Meta = make(map[string]string)
+	}
 	s.Meta[tag] = value
 }
 
 func (s *spanWrapper) SetMetricsTag(tag string, value float64) {
+	if s.Metrics == nil {
+		s.Metrics = make(map[string]float64)
+	}
 	s.Metrics[tag] = value
 }
 

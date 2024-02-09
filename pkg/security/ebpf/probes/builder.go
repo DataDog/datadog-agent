@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -15,24 +15,18 @@ import (
 )
 
 type probeSelectorBuilder struct {
-	uid          string
-	skipIfFentry bool
+	uid string
 }
 
 type psbOption func(*probeSelectorBuilder)
 
-func kprobeOrFentry(funcName string, fentry bool, options ...psbOption) *manager.ProbeSelector {
+func kprobeOrFentry(funcName string, options ...psbOption) *manager.ProbeSelector {
 	psb := &probeSelectorBuilder{
-		uid:          SecurityAgentUID,
-		skipIfFentry: false,
+		uid: SecurityAgentUID,
 	}
 
 	for _, opt := range options {
 		opt(psb)
-	}
-
-	if fentry && psb.skipIfFentry {
-		return nil
 	}
 
 	return &manager.ProbeSelector{
@@ -43,8 +37,25 @@ func kprobeOrFentry(funcName string, fentry bool, options ...psbOption) *manager
 	}
 }
 
-func withSkipIfFentry(skip bool) psbOption {
+func kretprobeOrFexit(funcName string, options ...psbOption) *manager.ProbeSelector {
+	psb := &probeSelectorBuilder{
+		uid: SecurityAgentUID,
+	}
+
+	for _, opt := range options {
+		opt(psb)
+	}
+
+	return &manager.ProbeSelector{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          psb.uid,
+			EBPFFuncName: fmt.Sprintf("rethook_%s", funcName),
+		},
+	}
+}
+
+func withUID(uid string) psbOption {
 	return func(psb *probeSelectorBuilder) {
-		psb.skipIfFentry = skip
+		psb.uid = uid
 	}
 }

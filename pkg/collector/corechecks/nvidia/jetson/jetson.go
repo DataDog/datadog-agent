@@ -17,15 +17,18 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	checkName = "jetson"
+	// CheckName is the name of the check
+	CheckName = "jetson"
 
 	// The interval to run tegrastats at, in seconds
 	tegraStatsInterval = 500 * time.Millisecond
@@ -152,8 +155,8 @@ func (c *JetsonCheck) Run() error {
 }
 
 // Configure the GPU check
-func (c *JetsonCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+func (c *JetsonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -197,12 +200,13 @@ func (c *JetsonCheck) Configure(integrationConfigDigest uint64, data integration
 	return nil
 }
 
-func jetsonCheckFactory() check.Check {
-	return &JetsonCheck{
-		CheckBase: core.NewCheckBase(checkName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(checkName, jetsonCheckFactory)
+func newCheck() check.Check {
+	return &JetsonCheck{
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }

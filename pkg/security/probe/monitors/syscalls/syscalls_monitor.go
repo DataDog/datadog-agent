@@ -5,35 +5,36 @@
 
 //go:build linux
 
+// Package syscalls holds syscalls related files
 package syscalls
 
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-// SyscallsMonitor defines an approver monitor
-type SyscallsMonitor struct {
+// Monitor defines an approver monitor
+type Monitor struct {
 	statsdClient statsd.ClientInterface
 	stats        *lib.Map
-	prevStats    [model.MaxAllEventType]uint32
-	collected    [model.MaxAllEventType]bool
+	enabled      *lib.Map
 	numCPU       int
 }
 
 // SendStats send stats
-func (d *SyscallsMonitor) SendStats() error {
+func (d *Monitor) SendStats() error {
 	iterator := d.stats.Iterate()
-	statsAcrossAllCPUs := make([]uint32, d.numCPU)
-	statsByEventType := make([]uint32, model.MaxAllEventType)
+	statsAcrossAllCPUs := make([][8]byte, d.numCPU)
+	statsByEventType := make([]int32, model.MaxAllEventType)
 
 	var eventType uint32
 	for iterator.Next(&eventType, &statsAcrossAllCPUs) {
@@ -44,7 +45,7 @@ func (d *SyscallsMonitor) SendStats() error {
 
 		// aggregate all cpu stats
 		for _, stat := range statsAcrossAllCPUs {
-			statsByEventType[eventType] += stat
+			statsByEventType[eventType] += int32(model.ByteOrder.Uint32(stat[0:4]))
 		}
 	}
 
@@ -53,28 +54,41 @@ func (d *SyscallsMonitor) SendStats() error {
 		tagsEvents := []string{
 			eventTypeTag,
 		}
-
-		if d.collected[eventType] {
-			value := float64(int32(inflight) - int32(d.prevStats[eventType]))
-			if value > 0 {
-				_ = d.statsdClient.Gauge(metrics.MetricSyscallsInFlight, value, tagsEvents, 1.0)
-			}
-		}
-		d.prevStats[eventType] = inflight
-		d.collected[eventType] = true
+		_ = d.statsdClient.Gauge(metrics.MetricSyscallsInFlight, float64(inflight), tagsEvents, 1.0)
 	}
 
 	return nil
 }
 
-// NewSyscallsMonitor returns a new SyscallsMonitor
-func NewSyscallsMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*SyscallsMonitor, error) {
+// Enable the monitor
+func (d *Monitor) Enable() error {
+	enabled := uint32(1)
+	return d.enabled.Put(ebpf.ZeroUint32MapItem, enabled)
+}
+
+// Disable the monitor
+func (d *Monitor) Disable() error {
+	enabled := uint32(0)
+	return d.enabled.Put(ebpf.ZeroUint32MapItem, enabled)
+}
+
+// Flush flush stat entries
+func (d *Monitor) Flush() error {
+	stats := make([][8]byte, d.numCPU)
+	for key := uint32(0); key != uint32(model.MaxKernelEventType); key++ {
+		_ = d.stats.Update(key, stats, lib.UpdateAny)
+	}
+	return nil
+}
+
+// NewSyscallsMonitor returns a new Monitor
+func NewSyscallsMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	monitor := &SyscallsMonitor{
+	monitor := &Monitor{
 		statsdClient: statsdClient,
 		numCPU:       numCPU,
 	}
@@ -84,6 +98,13 @@ func NewSyscallsMonitor(manager *manager.Manager, statsdClient statsd.ClientInte
 		return nil, err
 	}
 	monitor.stats = stats
+
+	// kprobes & kretprobes should be now all installed
+	enabled, err := managerhelper.Map(manager, "syscalls_stats_enabled")
+	if err != nil {
+		return nil, err
+	}
+	monitor.enabled = enabled
 
 	return monitor, nil
 }

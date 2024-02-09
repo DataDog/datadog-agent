@@ -10,20 +10,22 @@ package customresources
 // This file has most of its logic copied from the KSM hpa metric family
 // generators available at
 // https://github.com/kubernetes/kube-state-metrics/blob/release-2.4/internal/store/horizontalpodautoscaler.go
-// It exists here to provide backwards compatibility with k8s >1.25, as KSM 2.4
-// uses API v2beta2 instead of v2.
+// It exists here to provide backwards compatibility with kubernetes versions
+// that use autoscaling/v2beta2, as the KSM version that we depend on uses API
+// v2 instead of v2beta2.
 
 import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	autoscaling "k8s.io/api/autoscaling/v2"
+	autoscaling "k8s.io/api/autoscaling/v2beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	basemetrics "k8s.io/component-base/metrics"
 
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
@@ -54,9 +56,9 @@ var (
 	targetMetricLabels = []string{"metric_name", "metric_target_type"}
 )
 
-// NewHorizontalPodAutoscalerV2Factory returns a new HorizontalPodAutoscaler
-// metric family generator factory.
-func NewHorizontalPodAutoscalerV2Factory(client *apiserver.APIClient) customresource.RegistryFactory {
+// NewHorizontalPodAutoscalerV2Beta2Factory returns a new
+// HorizontalPodAutoscaler metric family generator factory.
+func NewHorizontalPodAutoscalerV2Beta2Factory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &hpav2Factory{
 		client: client.Cl,
 	}
@@ -71,16 +73,19 @@ func (f *hpav2Factory) Name() string {
 }
 
 // CreateClient is not implemented
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *hpav2Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
 func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_info",
 			"Information about this autoscaler.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				labelKeys := []string{"scaletargetref_kind", "scaletargetref_name"}
@@ -100,10 +105,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_metadata_generation",
 			"The generation observed by the HorizontalPodAutoscaler controller.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				return &metric.Family{
@@ -115,10 +121,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_spec_max_replicas",
 			"Upper limit for the number of pods that can be set by the autoscaler; cannot be smaller than MinReplicas.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				return &metric.Family{
@@ -130,10 +137,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_spec_min_replicas",
 			"Lower limit for the number of pods that can be set by the autoscaler, default 1.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				return &metric.Family{
@@ -145,10 +153,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_spec_target_metric",
 			"The metric specifications used by this autoscaler when calculating the desired replica count.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(a.Spec.Metrics))
@@ -207,10 +216,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				return &metric.Family{Metrics: ms}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_status_current_replicas",
 			"Current number of replicas of pods managed by this autoscaler.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				return &metric.Family{
@@ -222,10 +232,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_status_target_metric",
 			"The current metric status used by this autoscaler when calculating the desired replica count.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(a.Status.CurrentMetrics))
@@ -277,10 +288,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				return &metric.Family{Metrics: ms}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_status_desired_replicas",
 			"Desired number of replicas of pods managed by this autoscaler.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				return &metric.Family{
@@ -292,10 +304,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descHorizontalPodAutoscalerAnnotationsName,
 			descHorizontalPodAutoscalerAnnotationsHelp,
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", a.Annotations, allowAnnotationsList)
@@ -310,10 +323,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descHorizontalPodAutoscalerLabelsName,
 			descHorizontalPodAutoscalerLabelsHelp,
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				labelKeys, labelValues := createPrometheusLabelKeysValues("label", a.Labels, allowLabelsList)
@@ -328,10 +342,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_status_condition",
 			"The condition of this autoscaler.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(a.Status.Conditions)*len(conditionStatusesV1))
@@ -363,11 +378,11 @@ func (f *hpav2Factory) ListWatch(customResourceClient interface{}, ns string, fi
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.AutoscalingV2().HorizontalPodAutoscalers(ns).List(context.TODO(), opts)
+			return client.AutoscalingV2beta2().HorizontalPodAutoscalers(ns).List(context.TODO(), opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.AutoscalingV2().HorizontalPodAutoscalers(ns).Watch(context.TODO(), opts)
+			return client.AutoscalingV2beta2().HorizontalPodAutoscalers(ns).Watch(context.TODO(), opts)
 		},
 	}
 }

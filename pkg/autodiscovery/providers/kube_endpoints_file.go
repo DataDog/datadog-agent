@@ -84,17 +84,21 @@ func NewKubeEndpointsFileConfigProvider(*config.ConfigurationProviders) (ConfigP
 	}
 
 	provider.epLister = epInformer.Lister()
-	epInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := epInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    provider.addHandler,
 		UpdateFunc: provider.updateHandler,
 		DeleteFunc: provider.deleteHandler,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %s", err)
+	}
 
 	return provider, nil
 }
 
 // Collect returns the check configurations defined in Yaml files.
 // Only configs with advanced AD identifiers targeting kubernetes endpoints are handled by this collector.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *KubeEndpointsFileConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	p.setUpToDate(true)
 
@@ -102,6 +106,8 @@ func (p *KubeEndpointsFileConfigProvider) Collect(ctx context.Context) ([]integr
 }
 
 // IsUpToDate returns whether the config provider needs to be polled.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *KubeEndpointsFileConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	p.RLock()
 	defer p.RUnlock()

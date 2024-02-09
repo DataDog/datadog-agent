@@ -14,13 +14,11 @@ struct mount_ref_t {
     s32 counter;
 };
 
-struct mount_fields_t {
-    struct path_key_t parent_key;
+ struct mount_fields_t {
     struct path_key_t root_key;
+    struct path_key_t mountpoint_key;
     dev_t device;
-    u32 mount_id;
     u32 bind_src_mount_id;
-    u32 padding;
     char fstype[FSTYPE_LEN];
 };
 

@@ -16,7 +16,7 @@ import (
 // https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/deployment_guide/s2-proc-meminfo
 func TestParseMemoryInfo(t *testing.T) {
 	meminfo := `MemTotal:        1921988 kB
-MemFree:         1374408 kB
+MemFree:       1374408 kB
 SwapTotal:       1048572 kB
 AnonHugePages:         0 kB
 HugePages_Total:       0`
@@ -32,4 +32,21 @@ HugePages_Total:       0`
 	swapTotalKbVal, err := swapTotalKb.Value()
 	require.NoError(t, err)
 	require.EqualValues(t, 1048572, swapTotalKbVal)
+}
+
+func TestParseMemoryInfoWeird(t *testing.T) {
+	meminfo := `	MemTotal 	: 	 	 1921988 kB
+
+HugePages_Total:       0`
+	reader := strings.NewReader(meminfo)
+
+	totalBytes, swapTotalKb, err := parseMemoryInfo(reader)
+	require.NoError(t, err)
+
+	totalBytesVal, err := totalBytes.Value()
+	require.NoError(t, err)
+	require.EqualValues(t, 1921988*1024, totalBytesVal)
+
+	_, err = swapTotalKb.Value()
+	require.ErrorContains(t, err, "not found")
 }

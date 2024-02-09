@@ -15,23 +15,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 )
 
-const QUERY_SHM = `SELECT 
+const shmQuery12 = `SELECT
     c.name pdb_name, s.name, ROUND(bytes/1024/1024,2) size_
   FROM v$sgainfo s, v$containers c
-  WHERE 
+  WHERE
     c.con_id(+) = s.con_id
-    AND s.name NOT IN ('Maximum SGA Size','Startup overhead in Shared Pool','Granule Size','Shared IO Pool Size')
-`
+    AND s.name NOT IN ('Maximum SGA Size','Startup overhead in Shared Pool','Granule Size','Shared IO Pool Size')`
 
+const shmQuery11 = `SELECT
+	s.name, ROUND(bytes/1024/1024,2) size_
+FROM v$sgainfo s
+WHERE
+  s.name NOT IN ('Maximum SGA Size','Startup overhead in Shared Pool','Granule Size','Shared IO Pool Size')`
+
+//nolint:revive // TODO(DBM) Fix revive linter
 type SHMRow struct {
 	PdbName sql.NullString `db:"PDB_NAME"`
 	Memory  string         `db:"NAME"`
 	Size    float64        `db:"SIZE_"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SharedMemory() error {
 	rows := []SHMRow{}
-	err := c.db.Select(&rows, QUERY_SHM)
+	var shmQuery string
+	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
+		shmQuery = shmQuery12
+	} else {
+		shmQuery = shmQuery11
+	}
+	err := c.db.Select(&rows, shmQuery)
 	if err != nil {
 		return fmt.Errorf("failed to collect shared memory info: %w", err)
 	}
@@ -45,7 +58,7 @@ func (c *Check) SharedMemory() error {
 		memoryTag = strings.ToLower(memoryTag)
 		memoryTag = strings.ReplaceAll(memoryTag, "_size", "")
 		tags = append(tags, fmt.Sprintf("memory:%s", memoryTag))
-		sender.Gauge(fmt.Sprintf("%s.shared_memory.size", common.IntegrationName), r.Size, "", tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.shared_memory.size", common.IntegrationName), r.Size, tags)
 	}
 	sender.Commit()
 	return nil

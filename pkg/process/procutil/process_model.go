@@ -7,6 +7,7 @@ package procutil
 
 import (
 	"github.com/DataDog/gopsutil/cpu"
+	// using process.FilledProcess
 	"github.com/DataDog/gopsutil/process"
 )
 
@@ -18,6 +19,7 @@ type Process struct {
 	Name     string
 	Cwd      string
 	Exe      string
+	Comm     string
 	Cmdline  []string
 	Username string // (Windows only)
 	Uids     []int32
@@ -26,8 +28,24 @@ type Process struct {
 	Stats *Stats
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
+func (p *Process) GetPid() int32 {
+	return p.Pid
+}
+
+//nolint:revive // TODO(PROC) Fix revive linter
+func (p *Process) GetCommand() string {
+	return p.Comm
+}
+
+//nolint:revive // TODO(PROC) Fix revive linter
+func (p *Process) GetCmdline() []string {
+	return p.Cmdline
+}
+
 // DeepCopy creates a deep copy of Process
 func (p *Process) DeepCopy() *Process {
+	//nolint:revive // TODO(PROC) Fix revive linter
 	copy := &Process{
 		Pid:      p.Pid,
 		Ppid:     p.Ppid,
@@ -78,6 +96,7 @@ type Stats struct {
 
 // DeepCopy creates a deep copy of Stats
 func (s *Stats) DeepCopy() *Stats {
+	//nolint:revive // TODO(PROC) Fix revive linter
 	copy := &Stats{
 		CreateTime:  s.CreateTime,
 		Status:      s.Status,

@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -25,12 +26,14 @@ import (
 )
 
 func TestRename(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rename.file.path == "{{.Root}}/test-rename" && rename.file.uid == 98 && rename.file.gid == 99 && rename.file.destination.path == "{{.Root}}/test2-rename" && rename.file.destination.uid == 98 && rename.file.destination.gid == 99`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,8 +66,8 @@ func TestRename(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
-			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
-			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
+			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
+			test.validateRenameSchema(t, event)
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
@@ -74,8 +77,6 @@ func TestRename(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-
-			test.validateRenameSchema(t, event)
 		})
 	}))
 
@@ -94,8 +95,8 @@ func TestRename(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
-			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
-			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
+			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
+			test.validateRenameSchema(t, event)
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
@@ -105,8 +106,6 @@ func TestRename(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-
-			test.validateRenameSchema(t, event)
 		})
 	})
 
@@ -126,8 +125,8 @@ func TestRename(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
-			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
-			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
+			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
+			test.validateRenameSchema(t, event)
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
@@ -137,8 +136,6 @@ func TestRename(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-
-			test.validateRenameSchema(t, event)
 		})
 	})
 
@@ -147,6 +144,8 @@ func TestRename(t *testing.T) {
 	}
 
 	t.Run("io_uring", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		iour, err := iouring.New(1)
 		if err != nil {
 			if errors.Is(err, unix.ENOTSUP) {
@@ -205,12 +204,14 @@ func TestRename(t *testing.T) {
 }
 
 func TestRenameInvalidate(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rename.file.path in ["{{.Root}}/test-rename", "{{.Root}}/test2-rename"]`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +242,6 @@ func TestRenameInvalidate(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rename.file.destination.path", testNewFile)
-
 			test.validateRenameSchema(t, event)
 		})
 
@@ -253,10 +253,12 @@ func TestRenameInvalidate(t *testing.T) {
 }
 
 func TestRenameReuseInode(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// xfs has changed the inode reuse feature in 5.15
 	// https://lkml.iu.edu/hypermail/linux/kernel/2108.3/07604.html
-	checkKernelCompatibility(t, ">= 5.15 kernels", func(kv *kernel.Version) bool {
-		return kv.Code >= kernel.Kernel5_15
+	checkKernelCompatibility(t, ">= 5.15 kernels or EL9", func(kv *kernel.Version) bool {
+		return kv.Code >= kernel.Kernel5_15 || kv.IsRH9Kernel()
 	})
 
 	ruleDefs := []*rules.RuleDefinition{{
@@ -273,7 +275,7 @@ func TestRenameReuseInode(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,12 +346,14 @@ func TestRenameReuseInode(t *testing.T) {
 }
 
 func TestRenameFolder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.name == "test-rename" && (open.flags & O_CREAT) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +384,6 @@ func TestRenameFolder(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "open.file.path", filename)
-
 			test.validateOpenSchema(t, event)
 
 			// swap

@@ -94,9 +94,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 
 	unrolledSeries := metricsserializer.Series{}
 	for _, series := range splitSeries {
-		for _, s := range series {
-			unrolledSeries = append(unrolledSeries, s)
-		}
+		unrolledSeries = append(unrolledSeries, series...)
 	}
 	newLength := len(unrolledSeries)
 	require.Equal(t, originalLength, newLength)
@@ -183,13 +181,13 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 			AggregationKey: "test aggregation",
 			SourceTypeName: "test source",
 		}
-		testEvent = append(testEvent, &event)
+		testEvent.EventsArr = append(testEvent.EventsArr, &event)
 	}
 
 	payloads, err := Payloads(testEvent, compress, JSONMarshalFct)
 	require.Nil(t, err)
 
-	originalLength := len(testEvent)
+	originalLength := len(testEvent.EventsArr)
 	unrolledEvents := []interface{}{}
 	for _, payload := range payloads {
 		var s map[string]interface{}

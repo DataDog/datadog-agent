@@ -10,16 +10,19 @@ package api
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestUDS(t *testing.T) {
@@ -39,14 +42,18 @@ func TestUDS(t *testing.T) {
 	}
 
 	t.Run("off", func(t *testing.T) {
+		// running the tests on different ports to prevent
+		// flaky panics related to the port being already taken
+		port := 8127
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
+		conf.ReceiverPort = port
 
 		r := newTestReceiverFromConfig(conf)
 		r.Start()
 		defer r.Stop()
 
-		resp, err := client.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(payload))
+		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
 		if err == nil {
 			resp.Body.Close()
 			t.Fatalf("expected to fail, got response %#v", resp)
@@ -54,15 +61,19 @@ func TestUDS(t *testing.T) {
 	})
 
 	t.Run("on", func(t *testing.T) {
+		// running the tests on different ports to prevent
+		// flaky panics related to the port being already taken
+		port := 8125
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
 		conf.ReceiverSocket = sockPath
+		conf.ReceiverPort = port
 
 		r := newTestReceiverFromConfig(conf)
 		r.Start()
 		defer r.Stop()
 
-		resp, err := client.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(payload))
+		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,47 +89,56 @@ func TestHTTPReceiverStart(t *testing.T) {
 	old := log.SetLogger(log.NewBufferLogger(&logs))
 	defer log.SetLogger(old)
 
-	for name, tt := range map[string]struct {
-		port   int      // receiver port
-		socket string   // socket
-		out    []string // expected log output (uses strings.Contains)
-	}{
-		"off": {
-			out: []string{"HTTP Server is off: all listeners are disabled"},
+	for name, setup := range map[string]func() (int, string, []string){
+		"off": func() (int, string, []string) {
+			return 0, "", []string{"HTTP Server is off: all listeners are disabled"}
 		},
-		"tcp": {
-			port: 8129,
-			out: []string{
-				"Listening for traces at http://localhost:8129",
-			},
+		"tcp": func() (int, string, []string) {
+			port := freeTCPPort()
+			return port, "", []string{fmt.Sprintf("Listening for traces at http://localhost:%d", port)}
 		},
-		"uds": {
-			socket: "/tmp/agent.sock",
-			out: []string{
+		"uds": func() (int, string, []string) {
+			socket := filepath.Join(t.TempDir(), "agent.sock")
+			return 0, socket, []string{
 				"HTTP receiver disabled by config (apm_config.receiver_port: 0)",
-				"Listening for traces at unix:///tmp/agent.sock",
-			},
+				fmt.Sprintf("Listening for traces at unix://%s", socket),
+			}
 		},
-		"both": {
-			port:   8129,
-			socket: "/tmp/agent.sock",
-			out: []string{
-				"Listening for traces at http://localhost:8129",
-				"Listening for traces at unix:///tmp/agent.sock",
-			},
+		"both": func() (int, string, []string) {
+			port := freeTCPPort()
+			socket := filepath.Join(t.TempDir(), "agent.sock")
+			return port, socket, []string{
+				fmt.Sprintf("Listening for traces at http://localhost:%d", port),
+				fmt.Sprintf("Listening for traces at unix://%s", socket),
+			}
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			logs.Reset()
 			cfg := config.New()
-			cfg.ReceiverPort = tt.port
-			cfg.ReceiverSocket = tt.socket
+			port, socket, out := setup()
+			cfg.ReceiverPort = port
+			cfg.ReceiverSocket = socket
 			r := newTestReceiverFromConfig(cfg)
 			r.Start()
 			defer r.Stop()
-			for _, l := range tt.out {
+			for _, l := range out {
 				assert.Contains(t, logs.String(), l)
 			}
 		})
 	}
+}
+
+// freePort returns a random and free TCP port.
+func freeTCPPort() int {
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
+	if err != nil {
+		panic(fmt.Sprintf("couldn't resolve address: %s", err))
+	}
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		panic(fmt.Sprintf("couldn't listen: %s", err))
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
 }

@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package main is the entrypoint of the compliance k8s_types_generator tool
+// that is responsible for generating various configuration types of
+// Kubernetes components.
 package main
 
 import (
@@ -27,6 +30,8 @@ import (
 	"unicode"
 
 	"golang.org/x/exp/slices"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -37,23 +42,27 @@ var (
 
 	// https://kubernetes.io/releases/
 	k8sVersions = []string{
+		"v1.28.4",
 		"v1.27.3",
 		"v1.26.6",
 		"v1.25.11",
 		"v1.24.15",
-		"v1.23.17",
 	}
 
 	// https://github.com/kubernetes/kubernetes/blob/c3e7eca7fd38454200819b60e58144d5727f1bbc/cluster/images/etcd/Makefile#L18
 	// "v3.0.17", "v3.1.20" removed because they do not have ARM64 tarballs
 	etcdVersions = []string{
-		"v3.5.7",
-		"v3.4.18",
+		"v3.5.10",
+		"v3.4.28",
 		"v3.3.17",
 		"v3.2.32",
 	}
 
 	knownFlags = []string{
+		// Make sure "--config" parsing is first as it implements the precedence rules
+		// between configuration and CLI args
+		"--config",
+
 		"--address",
 		"--admission-control-config-file",
 		"--allow-privileged",
@@ -73,7 +82,6 @@ var (
 		"--client-cert-auth",
 		"--cluster-signing-cert-file",
 		"--cluster-signing-key-file",
-		"--config",
 		"--data-dir",
 		"--disable-admission-plugins",
 		"--enable-admission-plugins",
@@ -126,10 +134,44 @@ var (
 		"--terminated-pod-gc-threshold",
 		"--tls-cert-file",
 		"--tls-cipher-suites",
+		"--tls-min-version",
 		"--tls-private-key-file",
 		"--token-auth-file",
 		"--trusted-ca-file",
 		"--use-service-account-credentials",
+	}
+
+	// reference: https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/#kubelet-config-k8s-io-v1beta1-KubeletAuthentication
+	cliConfAssoc = map[string]string{
+		"kubelet.address":                           "address",
+		"kubelet.anonymous-auth":                    "authentication.anonymous.enabled",
+		"kubelet.authorization-mode":                "authorization.mode",
+		"kubelet.client-ca-file":                    "authorization.x509.clientCAFile",
+		"kubelet.event-burst":                       "eventBurst",
+		"kubelet.event-qps":                         "eventRecordQPS",
+		"kubelet.feature-gates":                     "featureGates",
+		"kubelet.make-iptables-util-chains":         "makeIPTablesUtilChains",
+		"kubelet.max-pods":                          "maxPods",
+		"kubelet.pod-max-pids":                      "podPidsLimit",
+		"kubelet.protect-kernel-defaults":           "protectKernelDefaults",
+		"kubelet.read-only-port":                    "readOnlyPort",
+		"kubelet.rotate-certificates":               "rotateCertificates",
+		"kubelet.rotate-server-certificates":        "featureGates.RotateKubeletServerCertificate",
+		"kubelet.streaming-connection-idle-timeout": "streamingConnectionIdleTimeout",
+		"kubelet.tls-cert-file":                     "tlsCertFile",
+		"kubelet.tls-cipher-suites":                 "tlsCipherSuites",
+		"kubelet.tls-min-version":                   "tlsMinVersion",
+		"kubelet.tls-private-key-file":              "tlsPrivateKeyFile",
+
+		"kube-scheduler.bind-address":                       "",
+		"kube-scheduler.profiling":                          "enableProfiling",
+		"kube-scheduler.contention-profiling":               "enableContentionProfiling",
+		"kube-scheduler.requestheader-extra-headers-prefix": "",
+		"kube-scheduler.requestheader-group-headers":        "",
+		"kube-scheduler.requestheader-username-headers":     "",
+		"kube-scheduler.secure-port":                        "",
+
+		"kube-proxy.bind-address": "",
 	}
 )
 
@@ -139,8 +181,9 @@ const preamble = `// Unless explicitly stated otherwise all files in this reposi
 // Copyright 2016-present Datadog, Inc.
 
 // !!!
-// This is a generated file: regenerate with go run ./pkg/compliance/tools/k8s_types_generator.go
+// This is a generated file: regenerate with go run ./pkg/compliance/tools/k8s_types_generator/main.go
 // !!!
+//revive:disable
 package k8sconfig
 
 import (
@@ -194,7 +237,6 @@ func main() {
 		}
 		mergedKomp := unionKomponents(komponents...)
 		allKomponents = append(allKomponents, mergedKomp)
-		fmt.Println(printKomponentCode(mergedKomp))
 	}
 
 	{
@@ -205,9 +247,20 @@ func main() {
 		}
 		mergedKomp := unionKomponents(komponents...)
 		allKomponents = append(allKomponents, mergedKomp)
-		fmt.Println(printKomponentCode(mergedKomp))
 	}
 
+	checkForKnownFlags(allKomponents, knownFlags)
+	for _, komp := range allKomponents {
+		sort.Slice(komp.confs, func(i, j int) bool {
+			ii := slices.Index(knownFlags, "--"+komp.confs[i].flagName)
+			jj := slices.Index(knownFlags, "--"+komp.confs[j].flagName)
+			return ii < jj
+		})
+		fmt.Println(printKomponentCode(komp))
+	}
+}
+
+func checkForKnownFlags(allKomponents []*komponent, knownFlags []string) {
 	var knownFlagsClone []string
 	knownFlagsClone = append(knownFlagsClone, knownFlags...)
 	for _, komponent := range allKomponents {
@@ -223,7 +276,7 @@ func main() {
 	}
 }
 
-func defaultedType(conf *conf) *conf {
+func defaultedType(componentName string, conf *conf) *conf { //nolint:revive // TODO fix revive unused-parameter
 	if conf.flagName == "kubeconfig" || conf.flagName == "authentication-kubeconfig" {
 		conf.flagType = "kubeconfig"
 	} else if conf.flagType == "string" || conf.flagType == "stringArray" {
@@ -348,8 +401,16 @@ func unionKomponents(ks ...*komponent) *komponent {
 				confs = append(confs, newConf)
 				conf = newConf
 			} else {
-				if conf.flagType != newConf.flagType {
+				if isKnownFlag(conf.flagName) && conf.flagType != newConf.flagType {
+					fmt.Fprintf(os.Stderr, "%s %s != %s\n", conf.flagName, conf.flagType, newConf.flagType)
 					panic("TODO: different types across versions")
+				}
+				if isKnownFlag(conf.flagName) && conf.flagDefault != newConf.flagDefault {
+					// special case for these flags for which the value itself is not important
+					if conf.flagName != "event-burst" && conf.flagName != "event-qps" {
+						fmt.Fprintf(os.Stderr, "%s %s != %s\n", conf.flagName, conf.flagDefault, newConf.flagDefault)
+						panic("TODO: different defaults across versions")
+					}
 				}
 			}
 			conf.versions = append(conf.versions, k.version)
@@ -369,7 +430,7 @@ func printKomponentCode(komp *komponent) string {
 	printAssignment := func(c *conf, v string) string {
 		switch c.goType {
 		case "string", "ip":
-			return fmt.Sprintf("res.%s = %s", toGoField(c.flagName), v)
+			return fmt.Sprintf("v := %s\nres.%s = &v", v, toGoField(c.flagName))
 		case "bool":
 			return fmt.Sprintf("res.%s = l.parseBool(%s)", toGoField(c.flagName), v)
 		case "float64":
@@ -389,7 +450,12 @@ func printKomponentCode(komp *komponent) string {
 		case "*K8sTokenFileMeta":
 			return fmt.Sprintf("res.%s = l.loadTokenFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sConfigFileMeta":
+			if komp.name == "kubelet" && c.flagName == "config" {
+				return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
+			}
 			return fmt.Sprintf("res.%s = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
+		case "*K8sKubeletConfigFileMeta":
+			return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sAdmissionConfigFileMeta":
 			return fmt.Sprintf("res.%s = l.loadAdmissionConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sEncryptionProviderConfigFileMeta":
@@ -401,20 +467,25 @@ func printKomponentCode(komp *komponent) string {
 		}
 	}
 
-	goStructName := strings.ReplaceAll(strings.Title(komp.name), "-", "")
+	titled := cases.Title(language.English, cases.NoLower).String(komp.name)
+	goStructName := strings.ReplaceAll(titled, "-", "")
 	s := ""
 	s += fmt.Sprintf("type K8s%sConfig struct {\n", goStructName)
 	for _, c := range komp.confs {
 		if !isKnownFlag(c.flagName) {
 			continue
 		}
-		s += fmt.Sprintf(" %s %s `json:\"%s\"` // versions: %s\n",
-			toGoField(c.flagName), c.goType, toGoJSONTag(c.flagName), strings.Join(c.versions, ", "))
+		goType := c.goType
+		if !strings.HasPrefix(goType, "*") && !strings.HasPrefix(goType, "[]") {
+			goType = "*" + goType
+		}
+		s += fmt.Sprintf(" %s %s `json:\"%s,omitempty\"` // versions: %s\n",
+			toGoField(c.flagName), goType, toGoJSONTag(c.flagName), strings.Join(c.versions, ", "))
 	}
-	s += fmt.Sprint(" SkippedFlags map[string]string `json:\"skippedFlags,omitempty\"`\n")
+	s += " SkippedFlags map[string]string `json:\"skippedFlags,omitempty\"`\n"
 	s += "}\n"
 	s += fmt.Sprintf("func (l *loader) newK8s%sConfig(flags map[string]string) *K8s%sConfig {\n", goStructName, goStructName)
-	s += fmt.Sprintf("if (flags == nil) { return nil }\n")
+	s += "if (flags == nil) { return nil }\n"
 	s += fmt.Sprintf("var res K8s%sConfig\n", goStructName)
 	for _, c := range komp.confs {
 		if !isKnownFlag(c.flagName) {
@@ -422,16 +493,33 @@ func printKomponentCode(komp *komponent) string {
 		}
 		s += fmt.Sprintf("if v, ok := flags[\"--%s\"]; ok {\n", c.flagName)
 		s += fmt.Sprintf("delete(flags, \"--%s\")\n", c.flagName)
-		s += printAssignment(c, "v")
+		s += printAssignment(c, "v") + "\n"
 		if c.flagDefault != "" {
-			s += fmt.Sprintf("\n} else {\n")
+			// kube-apiserver and etcd components do not have any configuration file.
+			if komp.name != "kube-apiserver" && komp.name != "etcd" && komp.name != "kube-controller-manager" {
+				configCursor, ok := cliConfAssoc[komp.name+"."+c.flagName]
+				// Some components can be configured with both cli-args and a
+				// configuration file. We need to make sure the default value
+				// of a cli-args is filled only if the associated
+				// configuration in the config file is not setup.
+				if !ok {
+					panic(fmt.Errorf("missing %s configuration associated path to flag %q (default = %q)", komp.name, c.flagName, c.flagDefault))
+				}
+				if configCursor != "" {
+					s += fmt.Sprintf("\n} else if !l.configFileMetaHasField(res.Config, %q) {\n", configCursor)
+				} else {
+					s += "\n} else {\n"
+				}
+			} else {
+				s += "\n} else {\n"
+			}
 			s += printAssignment(c, fmt.Sprintf("%q", c.flagDefault))
 		}
-		s += fmt.Sprintf("}\n")
+		s += "}\n"
 	}
-	s += fmt.Sprintf("if len(flags) > 0 { res.SkippedFlags = flags }\n")
-	s += fmt.Sprintf("return &res\n")
-	s += fmt.Sprintf("}\n")
+	s += "if len(flags) > 0 { res.SkippedFlags = flags }\n"
+	s += "return &res\n"
+	s += "}\n"
 	return s
 }
 
@@ -439,11 +527,11 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 	const componentName = "etcd"
 	componentBin := path.Join(bindir, fmt.Sprintf("%s-%s", componentName, componentVersion))
 	componentTar := path.Join(bindir, fmt.Sprintf("%s-%s.tar.gz", componentName, componentVersion))
-	componentUrl := fmt.Sprintf("https://github.com/etcd-io/etcd/releases/download/%s/etcd-%s-linux-%s.tar.gz",
+	componentURL := fmt.Sprintf("https://github.com/etcd-io/etcd/releases/download/%s/etcd-%s-linux-%s.tar.gz",
 		componentVersion, componentVersion, arch)
 	if _, err := os.Stat(componentBin); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "downloading %s into %s...", componentUrl, componentBin)
-		if err := download(componentUrl, componentTar); err != nil {
+		fmt.Fprintf(os.Stderr, "downloading %s into %s...", componentURL, componentBin)
+		if err := download(componentURL, componentTar); err != nil {
 			log.Fatal(err)
 		}
 		t, err := os.Open(componentTar)
@@ -456,7 +544,7 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 			log.Fatal(err)
 		}
 		r := tar.NewReader(g)
-		for true {
+		for {
 			header, err := r.Next()
 			if err == io.EOF {
 				break
@@ -496,7 +584,7 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 		line := scanner.Text()
 		conf, ok := scanEtcdHelpLine(line)
 		if ok {
-			confs = append(confs, defaultedType(conf))
+			confs = append(confs, defaultedType(componentName, conf))
 		}
 	}
 	return &komponent{
@@ -508,11 +596,11 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 
 func downloadKubeComponentAndExtractFlags(componentName, componentVersion string) *komponent {
 	componentBin := path.Join(bindir, fmt.Sprintf("%s-%s", componentName, componentVersion))
-	componentUrl := fmt.Sprintf("https://dl.k8s.io/%s/bin/linux/%s/%s",
+	componentURL := fmt.Sprintf("https://dl.k8s.io/%s/bin/linux/%s/%s",
 		componentVersion, arch, componentName)
 	if _, err := os.Stat(componentBin); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "downloading %s into %s...", componentUrl, componentBin)
-		if err := download(componentUrl, componentBin); err != nil {
+		fmt.Fprintf(os.Stderr, "downloading %s into %s...", componentURL, componentBin)
+		if err := download(componentURL, componentBin); err != nil {
 			log.Fatal(err)
 		}
 		fmt.Fprintf(os.Stderr, "ok\n")
@@ -534,7 +622,7 @@ func downloadKubeComponentAndExtractFlags(componentName, componentVersion string
 		line := scanner.Text()
 		conf, ok := scanK8sHelpLine(line)
 		if ok {
-			confs = append(confs, defaultedType(conf))
+			confs = append(confs, defaultedType(componentName, conf))
 		}
 	}
 
@@ -546,7 +634,8 @@ func downloadKubeComponentAndExtractFlags(componentName, componentVersion string
 }
 
 func toGoField(s string) string {
-	return strings.ReplaceAll(strings.Title(s), "-", "")
+	caser := cases.Title(language.English, cases.NoLower)
+	return strings.ReplaceAll(caser.String(s), "-", "")
 }
 
 func toGoJSONTag(s string) string {
@@ -650,7 +739,7 @@ func scanDefaultValue(str string, op, cl rune) string {
 
 func parseTypeBool(str string) string {
 	if str == "" {
-		str = "false"
+		return ""
 	}
 	b, err := strconv.ParseBool(str)
 	if err != nil {
@@ -659,7 +748,7 @@ func parseTypeBool(str string) string {
 	if b {
 		return "true"
 	}
-	return ""
+	return "false"
 }
 
 func parseTypeCIDRs(str string) string {
@@ -677,7 +766,7 @@ func parseTypeCIDRs(str string) string {
 
 func parseTypeDuration(str string) string {
 	if str == "" {
-		str = "0"
+		return ""
 	}
 	_, err := time.ParseDuration(str)
 	if err != nil {
@@ -688,7 +777,7 @@ func parseTypeDuration(str string) string {
 
 func parseTypeFloat(str string) string {
 	if str == "" {
-		str = "0.0"
+		return ""
 	}
 	_, err := strconv.ParseFloat(str, 64)
 	if err != nil {
@@ -699,7 +788,7 @@ func parseTypeFloat(str string) string {
 
 func parseTypeNumber(str string) string {
 	if str == "" {
-		str = "0"
+		return ""
 	}
 	_, err := strconv.Atoi(str)
 	if err != nil {

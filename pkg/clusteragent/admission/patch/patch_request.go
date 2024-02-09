@@ -35,8 +35,8 @@ const (
 	DisableConfig Action = "disable"
 )
 
-// PatchRequest holds the required data to target a k8s object and apply library configuration
-type PatchRequest struct {
+// Request holds the required data to target a k8s object and apply library configuration
+type Request struct {
 	ID            string `json:"id"`
 	Revision      int64  `json:"revision"`
 	RcVersion     uint64 `json:"rc_version"`
@@ -51,7 +51,7 @@ type PatchRequest struct {
 }
 
 // Validate returns whether a patch request is applicable
-func (pr PatchRequest) Validate(clusterName string) error {
+func (pr Request) Validate(clusterName string) error {
 	if pr.LibConfig.Language == "" {
 		return errors.New("library language is empty")
 	}
@@ -61,7 +61,7 @@ func (pr PatchRequest) Validate(clusterName string) error {
 	return pr.K8sTarget.validate(clusterName)
 }
 
-func (pr PatchRequest) getApmRemoteConfigEvent(err error, errorCode int) telemetry.ApmRemoteConfigEvent {
+func (pr Request) getApmRemoteConfigEvent(err error, errorCode int) telemetry.ApmRemoteConfigEvent {
 	env := ""
 	if pr.LibConfig.Env != nil {
 		env = *pr.LibConfig.Env

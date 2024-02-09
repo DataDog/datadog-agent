@@ -16,25 +16,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	firstRunnerStatsMinutes  = 2  // collect runner stats after the first 2 minutes
-	secondRunnerStatsMinutes = 5  // collect runner stats after the first 7 minutes
-	finalRunnerStatsMinutes  = 10 // collect runner stats endlessly every 10 minutes
-)
-
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
-	store                 *clusterStore
-	nodeExpirationSeconds int64
-	extraTags             []string
-	clcRunnersClient      clusteragent.CLCRunnerClientInterface
-	advancedDispatching   bool
-	excludedChecks        map[string]struct{}
+	store                         *clusterStore
+	nodeExpirationSeconds         int64
+	extraTags                     []string
+	clcRunnersClient              clusteragent.CLCRunnerClientInterface
+	advancedDispatching           bool
+	excludedChecks                map[string]struct{}
+	excludedChecksFromDispatching map[string]struct{}
+	rebalancingPeriod             time.Duration
 }
 
 func newDispatcher() *dispatcher {
@@ -52,6 +49,17 @@ func newDispatcher() *dispatcher {
 			d.excludedChecks[checkName] = struct{}{}
 		}
 	}
+
+	excludedChecksFromDispatching := config.Datadog.GetStringSlice("cluster_checks.exclude_checks_from_dispatching")
+	// This option will almost always be empty
+	if len(excludedChecksFromDispatching) > 0 {
+		d.excludedChecksFromDispatching = make(map[string]struct{}, len(excludedChecksFromDispatching))
+		for _, checkName := range excludedChecksFromDispatching {
+			d.excludedChecksFromDispatching[checkName] = struct{}{}
+		}
+	}
+
+	d.rebalancingPeriod = config.Datadog.GetDuration("cluster_checks.rebalance_period")
 
 	hname, _ := hostname.Get(context.TODO())
 	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
@@ -94,6 +102,12 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
+
+		if c.HasFilter(containers.MetricsFilter) || c.HasFilter(containers.GlobalFilter) {
+			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", c.Name)
+			continue
+		}
+
 		if c.NodeName != "" {
 			// An endpoint check backed by a pod
 			patched, err := d.patchEndpointsConfiguration(c)
@@ -147,7 +161,7 @@ func (d *dispatcher) reschedule(configs []integration.Config) {
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) {
-	target := d.getLeastBusyNode()
+	target := d.getNodeToScheduleCheck()
 	if target == "" {
 		// If no node is found, store it in the danglingConfigs map for retrying later.
 		log.Warnf("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
@@ -184,9 +198,8 @@ func (d *dispatcher) run(ctx context.Context) {
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
-	runnerStatsMinutes := firstRunnerStatsMinutes
-	runnerStatsTicker := time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
-	defer runnerStatsTicker.Stop()
+	rebalanceTicker := time.NewTicker(d.rebalancingPeriod)
+	defer rebalanceTicker.Stop()
 
 	for {
 		select {
@@ -199,24 +212,13 @@ func (d *dispatcher) run(ctx context.Context) {
 			d.expireNodes()
 
 			// Re-dispatch dangling configs
-			if d.shouldDispatchDanling() {
+			if d.shouldDispatchDangling() {
 				danglingConfs := d.retrieveAndClearDangling()
 				d.reschedule(danglingConfs)
 			}
-		case <-runnerStatsTicker.C:
-			// Collect stats with an exponential backoff 2 - 5 - 10 minutes
-			if runnerStatsMinutes == firstRunnerStatsMinutes {
-				runnerStatsMinutes = secondRunnerStatsMinutes
-				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
-			} else if runnerStatsMinutes == secondRunnerStatsMinutes {
-				runnerStatsMinutes = finalRunnerStatsMinutes
-				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
-			}
-
-			// Rebalance if needed
+		case <-rebalanceTicker.C:
 			if d.advancedDispatching {
-				// Rebalance checks distribution
-				d.rebalance()
+				d.rebalance(false)
 			}
 		}
 	}

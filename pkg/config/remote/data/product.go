@@ -19,12 +19,16 @@ const (
 	ProductCWSProfile Product = "CWS_SECURITY_PROFILES"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing Product = "APM_TRACING"
+	// ProductLiveDebugging is the dynamic instrumentation product
+	ProductLiveDebugging = "LIVE_DEBUGGING"
 	// ProductTesting1 is a testing product
 	ProductTesting1 Product = "TESTING1"
 	// ProductAgentTask is to receive agent task instruction, like a flare
 	ProductAgentTask Product = "AGENT_TASK"
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
+	// ProductAgentIntegrations is to receive integrations to schedule
+	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
 )
 
 // ProductListToString converts a product list to string list

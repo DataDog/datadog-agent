@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(APM) Fix revive linter
 package remoteconfighandler
 
 import (
@@ -45,6 +46,7 @@ type RemoteConfigHandler struct {
 	configSetEndpointFormatString string
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
 	if conf.RemoteConfigClient == nil {
 		return nil
@@ -71,6 +73,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 	}
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (h *RemoteConfigHandler) Start() {
 	if h == nil {
 		return
@@ -81,7 +84,7 @@ func (h *RemoteConfigHandler) Start() {
 	h.remoteClient.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
 }
 
-func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig) {
+func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	mergedConfig, err := state.MergeRCAgentConfig(h.remoteClient.UpdateApplyStatus, updates)
 	if err != nil {
 		log.Debugf("couldn't merge the agent config from remote configuration: %s", err)
@@ -122,9 +125,9 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 	// Apply the new status to all configs
 	for cfgPath := range updates {
 		if err == nil {
-			h.remoteClient.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		} else {
-			h.remoteClient.UpdateApplyStatus(cfgPath, state.ApplyStatus{
+			applyStateCallback(cfgPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
@@ -132,7 +135,7 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 	}
 }
 
-func (h *RemoteConfigHandler) onUpdate(update map[string]state.RawConfig) {
+func (h *RemoteConfigHandler) onUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive // TODO fix revive unused-parameter
 	if len(update) == 0 {
 		log.Debugf("no samplers configuration in remote config update payload")
 		return

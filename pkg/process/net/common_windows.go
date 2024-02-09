@@ -14,13 +14,16 @@ import (
 )
 
 const (
-	connectionsURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/connections"
-	registerURL    = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
-	statsURL       = "http://localhost:3333/debug/stats"
-	netType        = "tcp"
+	connectionsURL       = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	registerURL          = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
+	languageDetectionURL = "http://localhost:3333/" + string(sysconfig.LanguageDetectionModule) + "/detect"
+	statsURL             = "http://localhost:3333/debug/stats"
+	netType              = "tcp"
 
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
 	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
+	// pingURL is not used in windows, the value is added to avoid compilation error in windows
+	pingURL = "http://localhost:3333/" + string(sysconfig.PingModule) + "/ping/"
 )
 
 // CheckPath is used to make sure the globalSocketPath has been set before attempting to connect

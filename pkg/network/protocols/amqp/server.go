@@ -15,10 +15,13 @@ import (
 )
 
 const (
+	// User is the user to use for authentication
 	User = "guest"
+	// Pass is the password to use for authentication
 	Pass = "guest"
 )
 
+// RunServer runs an amqp server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"AMQP_ADDR=" + serverAddr,
@@ -29,5 +32,5 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "amqp", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*started TCP listener on .*%s.*", serverPort)), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "amqp", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*started TCP listener on .*%s.*", serverPort)), protocolsUtils.DefaultTimeout, 3)
 }

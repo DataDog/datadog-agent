@@ -46,6 +46,7 @@ func newDummyCLCRunner() (*dummyCLCRunner, error) {
 		rawResponses: map[string]string{
 			"/api/v1/clcrunner/version": `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
 			"/api/v1/clcrunner/stats":   `{"http_check:My Nginx Service:b0041608e66d20ba":{"AverageExecutionTime":241,"MetricSamples":3},"kube_apiserver_metrics:c5d2d20ccb4bb880":{"AverageExecutionTime":858,"MetricSamples":1562},"":{"AverageExecutionTime":100,"MetricSamples":10}}`,
+			"/api/v1/clcrunner/workers": `{"Count":2,"Instances":{"worker_1":{"Utilization":0.1},"worker_2":{"Utilization":0.2}}}`,
 		},
 		token:    config.Datadog.GetString("cluster_agent.auth_token"),
 		requests: make(chan *http.Request, 100),
@@ -118,7 +119,7 @@ const (
 
 func (suite *clcRunnerSuite) SetupTest() {
 	os.Remove(suite.authTokenPath)
-	mockConfig.Set("cluster_agent.auth_token", clcRunnerTokenValue)
+	mockConfig.SetWithoutSource("cluster_agent.auth_token", clcRunnerTokenValue)
 }
 
 func (suite *clcRunnerSuite) TestGetCLCRunnerStats() {
@@ -182,6 +183,38 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerVersion() {
 
 		require.Nil(t, err, fmt.Sprintf("%v", err))
 		assert.Equal(t, expected, version)
+	})
+}
+
+func (suite *clcRunnerSuite) TestGetRunnerWorkers() {
+	clcRunner, err := newDummyCLCRunner()
+	require.NoError(suite.T(), err)
+
+	ts, p, err := clcRunner.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+
+	c, err := GetCLCRunnerClient()
+	require.NoError(suite.T(), err)
+
+	c.(*CLCRunnerClient).clcRunnerPort = p
+
+	expected := types.Workers{
+		Count: 2,
+		Instances: map[string]types.WorkerInfo{
+			"worker_1": {
+				Utilization: 0.1,
+			},
+			"worker_2": {
+				Utilization: 0.2,
+			},
+		},
+	}
+
+	suite.T().Run("", func(t *testing.T) {
+		workers, err := c.GetRunnerWorkers("127.0.0.1")
+		require.NoError(suite.T(), err)
+		assert.Equal(t, expected, workers)
 	})
 }
 

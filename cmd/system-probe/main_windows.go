@@ -5,38 +5,70 @@
 
 //go:build windows
 
+// Package main is the entrypoint for system-probe process
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 
-	"golang.org/x/sys/windows/svc"
-
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/windows/service"
+	runsubcmd "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
+
+type service struct {
+	servicemain.DefaultSettings
+	errChan <-chan error
+	ctxChan chan context.Context
+}
+
+func (s *service) Name() string {
+	return config.ServiceName
+}
+
+func (s *service) Init() error {
+	s.ctxChan = make(chan context.Context)
+
+	errChan, err := runsubcmd.StartSystemProbeWithDefaults(s.ctxChan)
+	if err != nil {
+		if errors.Is(err, runsubcmd.ErrNotEnabled) {
+			return fmt.Errorf("%w: %w", servicemain.ErrCleanStopAfterInit, err)
+		}
+		return err
+	}
+
+	s.errChan = errChan
+
+	return nil
+}
+
+func (s *service) Run(ctx context.Context) error {
+	// send context to background agent goroutine so we can stop the agent
+	s.ctxChan <- ctx
+	// wait for agent to stop
+	return <-s.errChan
+}
 
 func main() {
 	// if command line arguments are supplied, even in a non-interactive session,
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.
 	if len(os.Args) == 1 {
-		isIntSess, err := svc.IsAnInteractiveSession()
-		if err != nil {
-			fmt.Printf("Failed to determine if we are running in an interactive session: %v\n", err)
-		}
-		if !isIntSess {
-			service.RunService(false)
+		if servicemain.RunningAsWindowsService() {
+			servicemain.Run(&service{})
 			return
 		}
 	}
 	defer log.Flush()
 
 	rootCmd := command.MakeCommand(subcommands.SysprobeSubcommands())
-	setDefaultCommandIfNonePresent(rootCmd)
+	command.SetDefaultCommandIfNonePresent(rootCmd)
 	os.Exit(runcmd.Run(rootCmd))
 }

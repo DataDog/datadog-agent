@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
@@ -39,26 +39,26 @@ func TestDecoderWithDockerHeader(t *testing.T) {
 	input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
 	d.InputChan <- NewInput(input)
 
-	var output *Message
+	var output *message.Message
 	output = <-d.OutputChan
-	assert.Equal(t, "hello", string(output.Content))
+	assert.Equal(t, "hello", string(output.GetContent()))
 	assert.Equal(t, len("hello")+1, output.RawDataLen)
 
 	output = <-d.OutputChan
 	expected := []byte{1, 0, 0, 0, 0}
-	assert.Equal(t, expected, output.Content)
+	assert.Equal(t, expected, output.GetContent())
 	assert.Equal(t, 6, output.RawDataLen)
 
 	output = <-d.OutputChan
 	expected = append([]byte{0, 0}, []byte("2018-06-14T18:27:03.246999277Z app logs")...)
-	assert.Equal(t, expected, output.Content)
+	assert.Equal(t, expected, output.GetContent())
 	assert.Equal(t, len(expected)+1, output.RawDataLen)
 
 	d.Stop()
 }
 
 func TestDecoderWithDockerHeaderSingleline(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -71,10 +71,10 @@ func TestDecoderWithDockerHeaderSingleline(t *testing.T) {
 	d.InputChan <- NewInput(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("message"), output.Content)
+	assert.Equal(t, []byte("message"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.ParsingExtra.Timestamp)
 
 	line = []byte("wrong message\n")
 	lineLen = len(line)
@@ -93,15 +93,15 @@ func TestDecoderWithDockerHeaderSingleline(t *testing.T) {
 	// assert.Equal(t, "", output.Timestamp)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("message"), output.Content)
+	assert.Equal(t, []byte("message"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "wrong", output.Timestamp)
+	assert.Equal(t, "wrong", output.ParsingExtra.Timestamp)
 
 }
 
 func TestDecoderWithDockerHeaderMultiline(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -130,22 +130,22 @@ func TestDecoderWithDockerHeaderMultiline(t *testing.T) {
 	d.InputChan <- NewInput(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("1234 hello\\nworld"), output.Content)
+	assert.Equal(t, []byte("1234 hello\\nworld"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.ParsingExtra.Timestamp)
 
 	lineLen = len(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("1234 bye"), output.Content)
+	assert.Equal(t, []byte("1234 bye"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.ParsingExtra.Timestamp)
 }
 
 func TestDecoderWithDockerJSONSingleline(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -158,24 +158,24 @@ func TestDecoderWithDockerJSONSingleline(t *testing.T) {
 	d.InputChan <- NewInput(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("message"), output.Content)
+	assert.Equal(t, []byte("message"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.ParsingExtra.Timestamp)
 
 	line = []byte("wrong message\n")
 	lineLen = len(line)
 	d.InputChan <- NewInput(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("wrong message"), output.Content)
+	assert.Equal(t, []byte("wrong message"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "", output.Timestamp)
+	assert.Equal(t, "", output.ParsingExtra.Timestamp)
 }
 
 func TestDecoderWithDockerJSONMultiline(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -204,22 +204,22 @@ func TestDecoderWithDockerJSONMultiline(t *testing.T) {
 	d.InputChan <- NewInput(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("1234 hello\\nworld"), output.Content)
+	assert.Equal(t, []byte("1234 hello\\nworld"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.ParsingExtra.Timestamp)
 
 	lineLen = len(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("1234 bye"), output.Content)
+	assert.Equal(t, []byte("1234 bye"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.ParsingExtra.Timestamp)
 }
 
 func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 
 	d := InitializeDecoderForTest(sources.NewLogSource("", &config.LogsConfig{}), dockerfile.New())
@@ -237,10 +237,10 @@ func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
 	// We don't reaggregate partial messages but we expect content of line not finishing with a '\n' character to be reconciliated
 	// with the next line.
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("part1part2"), output.Content)
+	assert.Equal(t, []byte("part1part2"), output.GetContent())
 	assert.Equal(t, rawLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.ParsingExtra.Timestamp)
 }
 
 func TestDecoderWithDecodingParser(t *testing.T) {
@@ -253,9 +253,9 @@ func TestDecoderWithDecodingParser(t *testing.T) {
 	input := []byte{'h', 0x0, 'e', 0x0, 'l', 0x0, 'l', 0x0, 'o', 0x0, '\n', 0x0}
 	d.InputChan <- NewInput(input)
 
-	var output *Message
+	var output *message.Message
 	output = <-d.OutputChan
-	assert.Equal(t, "hello", string(output.Content))
+	assert.Equal(t, "hello", string(output.GetContent()))
 	assert.Equal(t, len(input), output.RawDataLen)
 
 	// Test with BOM
@@ -263,14 +263,14 @@ func TestDecoderWithDecodingParser(t *testing.T) {
 	d.InputChan <- NewInput(input)
 
 	output = <-d.OutputChan
-	assert.Equal(t, "hello", string(output.Content))
+	assert.Equal(t, "hello", string(output.GetContent()))
 	assert.Equal(t, len(input), output.RawDataLen)
 
 	d.Stop()
 }
 
 func TestDecoderWithSinglelineKubernetes(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -283,24 +283,24 @@ func TestDecoderWithSinglelineKubernetes(t *testing.T) {
 	d.InputChan <- NewInput(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("message"), output.Content)
+	assert.Equal(t, []byte("message"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.ParsingExtra.Timestamp)
 
 	line = []byte("wrong message\n")
 	lineLen = len(line)
 	d.InputChan <- NewInput(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("wrong message"), output.Content)
+	assert.Equal(t, []byte("wrong message"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "", output.Timestamp)
+	assert.Equal(t, "", output.ParsingExtra.Timestamp)
 }
 
 func TestDecoderWithMultilineKubernetes(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -328,16 +328,16 @@ func TestDecoderWithMultilineKubernetes(t *testing.T) {
 	d.InputChan <- NewInput(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("1234 hello\\nworld"), output.Content)
+	assert.Equal(t, []byte("1234 hello\\nworld"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.ParsingExtra.Timestamp)
 
 	lineLen = len(line)
 
 	output = <-d.OutputChan
-	assert.Equal(t, []byte("1234 bye"), output.Content)
+	assert.Equal(t, []byte("1234 bye"), output.GetContent())
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.ParsingExtra.Timestamp)
 }

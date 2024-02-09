@@ -45,7 +45,7 @@ func New(containerID string) parsers.Parser {
 }
 
 // Parse implements Parser#Parse
-func (p *dockerStreamFormat) Parse(msg []byte) (parsers.Message, error) {
+func (p *dockerStreamFormat) Parse(msg *message.Message) (*message.Message, error) {
 	return parseDockerStream(msg, p.containerID)
 }
 
@@ -54,21 +54,18 @@ func (p *dockerStreamFormat) SupportsPartialLine() bool {
 	return false
 }
 
-func parseDockerStream(msg []byte, containerID string) (parsers.Message, error) {
+func parseDockerStream(msg *message.Message, containerID string) (*message.Message, error) {
+	content := msg.GetContent()
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
-	if len(msg) < dockerHeaderLength {
-		return parsers.Message{
-			Content:   msg,
-			Status:    message.StatusInfo,
-			Timestamp: "",
-			IsPartial: false,
-		}, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", containerID)
+	if len(content) < dockerHeaderLength {
+		msg.Status = message.StatusInfo
+		return msg, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", containerID)
 	}
 
 	// Read the first byte to get the status
-	status := getDockerSeverity(msg)
+	status := getDockerSeverity(content)
 	if status == "" {
 
 		// When tailing logs coming from a container running with a tty, docker
@@ -80,28 +77,27 @@ func parseDockerStream(msg []byte, containerID string) (parsers.Message, error) 
 	} else {
 
 		// remove partial headers that are added by docker when the message gets too long
-		if len(msg) > dockerBufferSize {
-			msg = removePartialDockerMetadata(msg)
+		if len(content) > dockerBufferSize {
+			content = removePartialDockerMetadata(content)
 		}
 
 		// remove the header as we don't need it anymore
-		msg = msg[dockerHeaderLength:]
+		content = content[dockerHeaderLength:]
 
 	}
 
 	// timestamp goes till first space
-	idx := bytes.Index(msg, []byte{' '})
-	if idx == -1 || isEmptyMessage(msg[idx+1:]) {
+	idx := bytes.Index(content, []byte{' '})
+	if idx == -1 || isEmptyMessage(content[idx+1:]) {
 		// Nothing after the timestamp: empty message
-		return parsers.Message{}, nil
+		return &message.Message{}, nil
 	}
 
-	return parsers.Message{
-		Content:   msg[idx+1:],
-		Status:    status,
-		Timestamp: string(msg[:idx]),
-		IsPartial: false,
-	}, nil
+	msg.ParsingExtra.Timestamp = string(content[:idx])
+	msg.SetContent(content[idx+1:])
+	msg.Status = status
+	msg.ParsingExtra.IsPartial = false
+	return msg, nil
 }
 
 // getDockerSeverity returns the status of the message based on the value of the

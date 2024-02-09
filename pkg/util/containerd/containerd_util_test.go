@@ -13,16 +13,17 @@ import (
 	"fmt"
 	"testing"
 
-	v1 "github.com/containerd/cgroups/stats/v1"
+	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/oci"
-	"github.com/containerd/typeurl"
+	"github.com/containerd/typeurl/v2"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type mockContainer struct {
@@ -79,6 +80,8 @@ type mockImage struct {
 }
 
 // Name is from the Image interface
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (i *mockImage) Size(ctx context.Context) (int64, error) {
 	return i.size, nil
 }
@@ -236,8 +239,10 @@ func TestTaskMetrics(t *testing.T) {
 			&v1.Metrics{},
 		},
 	}
+	//nolint:govet // TODO(CINT) Fix govet linter
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			//nolint:govet // TODO(CINT) Fix govet linter
 			cton := makeCtn(test.values, test.typeURL, test.taskMetricError)
 
 			m, e := mockUtil.TaskMetrics(TestNamespace, cton)
@@ -313,13 +318,15 @@ func TestIsSandbox(t *testing.T) {
 	require.False(t, isSandbox)
 }
 
+//nolint:govet // TODO(CINT) Fix govet linter
 func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) containerd.Container {
 	taskStruct := &mockTaskStruct{
 		mockMectric: func(ctx context.Context) (*types.Metric, error) {
 			typeURL := typeURL
+			//nolint:govet // TODO(CINT) Fix govet linter
 			jsonValue, _ := json.Marshal(value)
 			metric := &types.Metric{
-				Data: &prototypes.Any{
+				Data: &anypb.Any{
 					TypeUrl: typeURL,
 					Value:   jsonValue,
 				},

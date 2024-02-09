@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	basemetrics "k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
@@ -45,17 +46,22 @@ func (f *extendedJobFactory) Name() string {
 }
 
 // CreateClient is not implemented
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedJobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended job metric family generators
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedJobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_job_duration",
 			"Duration represents the time elapsed between the StartTime and CompletionTime of a Job, or the current time if the job is still running",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapJobFunc(func(j *batchv1.Job) *metric.Family {
 				ms := []*metric.Metric{}

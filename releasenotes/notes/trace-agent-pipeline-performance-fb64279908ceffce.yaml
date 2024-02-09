@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM - This change improves the acceptance and queueing strategy for trace
+    payloads sent to the Trace Agent. These changes create a system of
+    backpressure in the Trace Agent, causing it to reject payloads when it
+    cannot keep up with the rate of traffic, rather than buffering and causing
+    OOM issues.
+
+    This change has been shown to increase overall throughput in the Trace Agent
+    while decreasing peak resource usage. Existing configurations for CPU and
+    memory work at least as well, and often better, with these changes compared to previous Agent versions. This means users do not have to adjust
+    their configuration to take advantage of these changes, and they do not
+    experience performance degredation as a result of upgrading.

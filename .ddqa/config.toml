@@ -5,11 +5,12 @@ qa_statuses = [
   "Done",
 ]
 ignored_labels = [
-  "qa/skip-qa",
+  "qa/done",
+  "qa/no-code-change",
 ]
 
 [teams."Agent Metrics Logs"]
-jira_project = "AML"
+jira_project = "AMLII"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -21,7 +22,7 @@ github_labels = ["team/agent-metrics-logs"]
 exclude_members = ["olivielpeau"]
 
 [teams."Agent Shared Components"]
-jira_project = "ASC"
+jira_project = "ASCII"
 jira_issue_type = "QA"
 jira_statuses = [
   "To Do",
@@ -30,10 +31,14 @@ jira_statuses = [
 ]
 github_team = "agent-shared-components"
 github_labels = ["team/agent-shared-components"]
-exclude_members = ["olivielpeau", "sgnn7"]
+exclude_members = [
+  "sgnn7",
+  "truthbk",
+  "cmourot",
+]
 
 [teams."Agent Platform"]
-jira_project = "AP"
+jira_project = "APL"
 jira_issue_type = "QA"
 jira_statuses = [
   "To Do",
@@ -45,7 +50,7 @@ github_labels = ["team/agent-platform"]
 exclude_members = ["olivielpeau"]
 
 [teams."Universal Service Monitoring"]
-jira_project = "USMO"
+jira_project = "USMON"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -56,7 +61,7 @@ github_team = "universal-service-monitoring"
 github_labels = ["team/usm"]
 
 [teams."Network Device Monitoring"]
-jira_project = "NDM"
+jira_project = "NDMII"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -65,9 +70,10 @@ jira_statuses = [
 ]
 github_team = "network-device-monitoring"
 github_labels = ["team/network-device-monitoring"]
+exclude_members = ["leeavital", "heyronhay"]
 
 [teams."Network Performance Monitoring"]
-jira_project = "NET"
+jira_project = "NPM"
 jira_issue_type = "Task"
 jira_statuses = [
   "Backlog",
@@ -109,9 +115,13 @@ jira_statuses = [
 ]
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
+exclude_members = [
+  "ofek",
+  "alopezz",
+]
 
 [teams."Platform Integrations"]
-jira_project = "PINT"
+jira_project = "PLINT"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -120,6 +130,9 @@ jira_statuses = [
 ]
 github_team = "platform-integrations"
 github_labels = ["team/platform-integrations"]
+exclude_members = [
+  "hithwen",
+]
 
 [teams."APM"]
 jira_project = "AIT"
@@ -134,7 +147,7 @@ github_team = "apm-go"
 github_labels = ["team/agent-apm"]
 
 [teams."Remote Config"]
-jira_project = "RCM"
+jira_project = "RC"
 jira_issue_type = "QA"
 jira_statuses = [
   "To Do",
@@ -145,7 +158,7 @@ github_team = "remote-config"
 github_labels = ["team/remote-config"]
 
 [teams."Container Integrations"]
-jira_project = "CONT"
+jira_project = "CONTINT"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -154,10 +167,9 @@ jira_statuses = [
 ]
 github_team = "container-integrations"
 github_labels = ["team/containers"]
-exclude_members = ["vboulineau"]
 
 [teams."Container Ecosystems"]
-jira_project = "CONTECO"
+jira_project = "CECO"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -192,7 +204,7 @@ github_team = "agent-cspm"
 github_labels = ["team/agent-cspm"]
 
 [teams."Processes"]
-jira_project = "PROC"
+jira_project = "PROCS"
 jira_issue_type = "Task"
 jira_statuses = [
   "TRIAGE",
@@ -203,7 +215,7 @@ github_team = "processes"
 github_labels = ["team/processes"]
 
 [teams."Windows Agent"]
-jira_project = "WA"
+jira_project = "WINA"
 jira_issue_type = "QA Task"
 jira_statuses = [
   "To Do",
@@ -214,7 +226,7 @@ github_team = "windows-agent"
 github_labels = ["team/windows-agent"]
 
 [teams."Windows Kernel Integrations"]
-jira_project = "WKIT"
+jira_project = "WKINT"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -225,7 +237,7 @@ github_team = "windows-kernel-integrations"
 github_labels = ["team/windows-kernel-integrations"]
 
 [teams."Database Monitoring"]
-jira_project = "DBM"
+jira_project = "DBMON"
 jira_issue_type = "Task"
 jira_statuses = [
   "Eventually",
@@ -245,3 +257,25 @@ jira_statuses = [
 ]
 github_team = "container-app"
 github_labels = ["team/container-app"]
+
+[teams."APM Onboarding"]
+jira_project = "APMON"
+jira_issue_type = "Story"
+jira_statuses = [
+  "Selected For Development",
+  "In Progress",
+  "Done",
+]
+github_team = "apm-onboarding"
+github_labels = ["team/apm-onboarding"]
+
+[teams."Agent Release Management"]
+jira_project = "AGNTR"
+jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
+github_team = "agent-release-management"
+github_labels = ["team/agent-release-management"]

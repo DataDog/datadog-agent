@@ -101,17 +101,21 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 
 	p := newPromServicesProvider(checks, api, collectEndpoints)
 
-	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
 		UpdateFunc: p.invalidateIfChanged,
 		DeleteFunc: p.invalidate,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
+	}
 
 	if endpointsInformer != nil {
-		endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc:    p.invalidateIfAddedEndpoints,
 			UpdateFunc: p.invalidateIfChangedEndpoints,
-		})
+		}); err != nil {
+			return nil, fmt.Errorf("cannot add event handler to endpoints informer: %s", err)
+		}
 	}
 	return p, nil
 }
@@ -131,6 +135,8 @@ func (p *PrometheusServicesConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := p.api.ListServices()
 	if err != nil {
@@ -190,6 +196,8 @@ func (p *PrometheusServicesConfigProvider) setUpToDate(v bool) {
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *PrometheusServicesConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -252,6 +260,7 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChanged(old, obj interfac
 	}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *PrometheusServicesConfigProvider) invalidateIfAddedEndpoints(obj interface{}) {
 	// An endpoint can be added after a service is created, in which case we need to re-run Collect
 	p.setUpToDate(false)

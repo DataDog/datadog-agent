@@ -85,6 +85,9 @@ type Config struct {
 	// Redis holds the obfuscation settings for Redis commands.
 	Redis RedisConfig
 
+	// Memcached holds the obfuscation settings for Memcached commands.
+	Memcached MemcachedConfig
+
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
 
@@ -98,6 +101,15 @@ type StatsClient interface {
 	// Gauge reports a gauge stat with the given name, value, tags and rate.
 	Gauge(name string, value float64, tags []string, rate float64) error
 }
+
+// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+type ObfuscationMode string
+
+// ObfuscationMode valid values
+const (
+	ObfuscateOnly         = ObfuscationMode("obfuscate_only")
+	ObfuscateAndNormalize = ObfuscationMode("obfuscate_and_normalize")
+)
 
 // SQLConfig holds the config for obfuscating SQL.
 type SQLConfig struct {
@@ -115,6 +127,9 @@ type SQLConfig struct {
 	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
 	CollectComments bool `json:"collect_comments" yaml:"collect_comments"`
 
+	// CollectProcedures specifies whether the obfuscator should extract and return procedure names as SQL metadata when obfuscating.
+	CollectProcedures bool `json:"collect_procedures" yaml:"collect_procedures"`
+
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits" yaml:"replace_digits"`
 
@@ -127,6 +142,38 @@ type SQLConfig struct {
 	//
 	// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
+
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode ObfuscationMode `json:"obfuscation_mode" yaml:"obfuscation_mode"`
+
+	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.
+	// By default, spaces are inserted between parentheses during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_and_normalize".
+	RemoveSpaceBetweenParentheses bool `json:"remove_space_between_parentheses" yaml:"remove_space_between_parentheses"`
+
+	// KeepNull specifies whether to disable obfuscate NULL value with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepNull bool `json:"keep_null" yaml:"keep_null"`
+
+	// KeepBoolean specifies whether to disable obfuscate boolean value with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepBoolean bool `json:"keep_boolean" yaml:"keep_boolean"`
+
+	// KeepPositionalParameter specifies whether to disable obfuscate positional parameter with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepPositionalParameter bool `json:"keep_positional_parameter" yaml:"keep_positional_parameter"`
+
+	// KeepTrailingSemicolon specifies whether to keep trailing semicolon.
+	// By default, trailing semicolon is removed during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepTrailingSemicolon bool `json:"keep_trailing_semicolon" yaml:"keep_trailing_semicolon"`
+
+	// KeepIdentifierQuotation specifies whether to keep identifier quotation, e.g. "my_table" or [my_table].
+	// By default, identifier quotation is removed during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepIdentifierQuotation bool `json:"keep_identifier_quotation" yaml:"keep_identifier_quotation"`
 
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool
@@ -144,40 +191,52 @@ type SQLMetadata struct {
 	Commands []string `json:"commands"`
 	// Comments holds comments in an SQL statement.
 	Comments []string `json:"comments"`
+	// Procedures holds procedure names in an SQL statement.
+	Procedures []string `json:"procedures"`
 }
 
 // HTTPConfig holds the configuration settings for HTTP obfuscation.
 type HTTPConfig struct {
 	// RemoveQueryStrings determines query strings to be removed from HTTP URLs.
-	RemoveQueryString bool
+	RemoveQueryString bool `mapstructure:"remove_query_string" json:"remove_query_string"`
 
 	// RemovePathDigits determines digits in path segments to be obfuscated.
-	RemovePathDigits bool
+	RemovePathDigits bool `mapstructure:"remove_paths_with_digits" json:"remove_path_digits"`
 }
 
 // RedisConfig holds the configuration settings for Redis obfuscation
 type RedisConfig struct {
 	// Enabled specifies whether this feature should be enabled.
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 
 	// RemoveAllArgs specifies whether all arguments to a given Redis
 	// command should be obfuscated.
-	RemoveAllArgs bool
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
+}
+
+// MemcachedConfig holds the configuration settings for Memcached obfuscation
+type MemcachedConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// KeepCommand specifies whether the command of a given Memcached
+	// query should be kept. If false, the entire tag is removed.
+	KeepCommand bool `mapstructure:"keep_command"`
 }
 
 // JSONConfig holds the obfuscation configuration for sensitive
 // data found in JSON objects.
 type JSONConfig struct {
 	// Enabled will specify whether obfuscation should be enabled.
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 
 	// KeepValues will specify a set of keys for which their values will
 	// not be obfuscated.
-	KeepValues []string
+	KeepValues []string `mapstructure:"keep_values"`
 
 	// ObfuscateSQLValues will specify a set of keys for which their values
 	// will be passed through SQL obfuscation
-	ObfuscateSQLValues []string
+	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values"`
 }
 
 // NewObfuscator creates a new obfuscator

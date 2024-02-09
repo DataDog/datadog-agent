@@ -1,13 +1,14 @@
 # Kernel Matrix Testing system
 
 ## Overview
-The Kernel Matrix Testing system is a new approach for testing system-probe. It uses libvirt and qemu to launch pre-provisioned VMs over a range of distributions and kernel versions. These VMs are used for running the test suite of system-probe.  
+The Kernel Matrix Testing system is a new approach for testing system-probe. It uses libvirt and qemu to launch pre-provisioned VMs over a range of distributions and kernel versions. These VMs are used for running the test suite of system-probe.
 
-Developers can check out this confluence page for more details about the system.   
+Developers can check out this confluence page for more details about the system.
 
 This file will document the invoke tasks provided to easily manage the lifecycle of the VMs launched using this system.
 
-The system works on the concept of `stacks`. A `stack` is a collection of VMs, both local and remote. A `stack` is given a unique name by the user. Convenience options for generating the name of the `stack` from the current branch is also provided. This allows the developers to couple `stacks` with their git workflow.
+The system works on the concept of `stacks`. A `stack` is a collection of VMs, both local and remote. A `stack` is given a unique name by the user.
+If no stack name is provided, a name is generated automatically from the current branch name. This allows the developers to couple `stacks` with their git workflow.
 A `stack` may be:
 - Created
 - Configured
@@ -23,10 +24,12 @@ A `stack` may be:
 
 ## Dependencies
 ### Linux
-Review and run `tasks/kernel_matrix_testing/env-setup.sh`   
-   
-Download [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) repository.   
-From within the repository execute the following commands:  
+Review and run `tasks/kernel_matrix_testing/env-setup.sh`
+
+
+- **You will have to run the following manually**
+Download [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) repository.
+From within the repository execute the following commands:
 ```bash
 go mod download
 export PULUMI_CONFIG_PASSPHRASE=dummy
@@ -40,8 +43,8 @@ brew install pulumi/tap/pulumi
 pulumi login --local
 ```
 
-Download [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) repository.   
-From within the repository execute the following commands:  
+Download [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) repository.
+From within the repository execute the following commands:
 ```bash
 go mod download
 export PULUMI_CONFIG_PASSPHRASE=dummy
@@ -54,7 +57,7 @@ pulumi --non-interactive plugin ls
 A straightforward flow to setup a collections of VMs is as follows:
 
 ### Initializing the environment
-This will download all the resources required to launch the VMs. This will not download the dependencies. See [above](#Dependencies) for that.   
+This will download all the resources required to launch the VMs. This will not download the dependencies. See [above](#Dependencies) for that.
 
 > This step should be done only once.
 
@@ -73,7 +76,7 @@ inv -e kmt.create-stack --stack=demo-stack
 ```
 
 ### Configure stack
-We will configure the stack to launch 
+We will configure the stack to launch
 - Remote x86_64 machine with ubuntu-jammy, ubuntu-focal VMs.
 - Remote arm64 machine with amazon linux 2 kernel 4.14, amazon linux 2 kernel 5.10 VMs.
 - Amazon linux 2 kernel 5.15, amazon linux 2 kernel 5.4 VMs on local machine.
@@ -91,7 +94,7 @@ inv -e kmt.launch-stack --stack=demo-stack --ssh-key=<ssh-key>
 
 ### Connecting to VMs
 ```bash
-inv -e kmt.ls --stack=demo-stack
+inv -e kmt.stack --stack=demo-stack
 ```
 This will print the IP addresses of all the VMs and the remote machines if any
 
@@ -107,6 +110,8 @@ Tear down the stack
 ```bash
 inv -e kmt.destroy-stack --stack=demo-stack
 ```
+
+This will attempt to manually teardown all resources. Primarily we care about cleaning the local libvirt environment and destroy remote ec2 instances.
 
 ## Tasks
 
@@ -126,12 +131,12 @@ In order to update the resources for launching VMs run:
 inv -e kmt.update-resources
 ```
 
-Updating will first destroy all running stacks, and then use checksums to decide which packages need to be updated from S3.   
+Updating will first destroy all running stacks, and then use checksums to decide which packages need to be updated from S3.
 If there is an error during update, original packages are restored from backup.
 
 
 ### Revert resources
-During the update process, all packages are first backed-up, incase there is an error during the update.   
+During the update process, all packages are first backed-up, incase there is an error during the update.
 This backup may be resotred manually if there is a problem with the new resources.
 
 ```bash
@@ -143,9 +148,10 @@ Reverting will destroy all running stacks before restoring from backup.
 ### Creating a stack
 A stack can be created as follows:
 ```bash
-inv -e kmt.create-stack [--stack=<name>|--branch]
+inv -e kmt.create-stack [--stack=<name>]
 ```
-The developer needs to provide a name to associate with the `stack`, or specify the `--branch` argument to generate the name from the current branch.
+The developer can provide a name to associate with the `stack`.
+If no name is provided one is automatically generated from the current branch name.
 
 ### Listing possible VMs
 Possible VMs can be listed with
@@ -173,9 +179,9 @@ The `vmsets` file contains the list of one or more sets of VMs to launch. A set 
 Sample VMSet file can be found [here](https://github.com/DataDog/test-infra-definitions/blob/f85e7eb2f003b6f9693c851549fbb7f3969b8ade/scenarios/aws/microVMs/sample-vm-config.json).
 
 
-The file can be generated for a particular `stack` with the `gen-config` task.   
+The file can be generated for a particular `stack` with the `gen-config` task.
 This task takes as parameters
-- The stack to target specified with [--stack=<name>|--branch] 
+- The stack to target specified with [--stack=<name>]
 - The list of VMS to generate specified by --vms=<list>. See [VMs list](#vms-list) for details on how to specify the list.
 - Optional paramenter `--init-stack` to automatically initialize the stack. This can be specified to automatically run the creating stack step.
 - Optional parameter `--new` to generate a fresh configuration file.
@@ -185,41 +191,41 @@ The file can be incrementally generated. This means a user may generate a vmset 
 #### Example 1
 ```bash
 # Setup configuration file to launch jammy and focal locally. Initialize a new stack corresponding to the current branch
-inv -e kmt.gen-config --branch --vms=jammy-local-distro,focal-local-distro --init-stack
+inv -e kmt.gen-config  --vms=jammy-local-distro,focal-local-distro --init-stack
 # Launch this stack. Since we are launching local VMs, there is no need to specify ssh key.
-inv -e kmt.launch-stack --branch
+inv -e kmt.launch-stack
 # Add amazon linux VMs to be launched locally
-inv -e kmt.gen-config --branch --vms=amazon4.14-local-distro,distro-local-amazon5.15,distro-local-amazon5.10
+inv -e kmt.gen-config  --vms=amazon4.14-local-distro,distro-local-amazon5.15,distro-local-amazon5.10
 # Launch the new VMs added. The previous VMs will keep running
-inv -e kmt.launch-stack --branch
+inv -e kmt.launch-stack
 # Remove all VMs except amazon linux 2 4.14 locally
-inv -e kmt.gen-config --branch --new --vms=amazon4.14-local-distro
+inv -e kmt.gen-config  --new --vms=amazon4.14-local-distro
 # Apply this configuration
-inv -e kmt.launch-stack --branch
+inv -e kmt.launch-stack
 ```
 
 #### Example 2
 ```bash
 # Setup configuration file to launch ubuntu VMs on remote x86_64 and arm64 machines
-inv -e kmt.gen-config --branch --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
-# Name of the ssh key to use 
-inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
+inv -e kmt.gen-config  --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
+# Name of the ssh key to use
+inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
 # Add amazon linux
-inv -e kmt.gen-config --branch --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
-# Name of the ssh key to use 
-inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
+inv -e kmt.gen-config  --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
+# Name of the ssh key to use
+inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
 ```
 
 #### Example 3
 ```bash
 # Configure custom kernels
-inv -e kmt.gen-config --branch --vms=custom-5.4-local,custom-4.14-local,custom-5.7-arm64
+inv -e kmt.gen-config  --vms=custom-5.4-local,custom-4.14-local,custom-5.7-arm64
 # Launch stack
-inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
 ```
 
 ### VMs List
-The vms list is a comma separated list of vm entries. These are the VMs to launch in the stack.   
+The vms list is a comma separated list of vm entries. These are the VMs to launch in the stack.
 Each entry comprises of three elemets seperate by a `-` (dash).
 1. Recipe. This is either `custom` or `distro`. `distro` is to be specified for distribution images and `custom` for custom kernels.
 2. Arch. Architecture is either `x86_64`, `arm64` or `local`.
@@ -249,13 +255,13 @@ All of the below resolve to [kernel 5.4, arm64, custom]
 ### Launching the stack
 If you are just launching local VMs you do not need to specify an ssh key
 ```bash
-inv -e kmt.launch-stack --branch
+inv -e kmt.launch-stack
 ```
 
-If you are launching remote instances then the ssh key used to access the machine is required.   
+If you are launching remote instances then the ssh key used to access the machine is required.
 Only the ssh key name is required. The program will automatically look in `~/.ssh/` directory for the key.
 ```bash
-inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
 ```
 
 If you are launching local VMs, you will be queried for you password. This is required since the program has to run some commands as root. However, we do not run the entire scenario with `sudo` to avoid broken permissions.
@@ -263,7 +269,7 @@ If you are launching local VMs, you will be queried for you password. This is re
 ### List the stack
 Prints information about the stack.
 ```bash
-inv -e kmt.stack [--stack=<name>|--branch]
+inv -e kmt.stack [--stack=<name>]
 ```
 
 > At the moment this just prints the running VMs and their IP addresses. This information will be enriched in later versions of the tool.
@@ -278,13 +284,13 @@ This resumes a previously paused stack. This is only applicable for VMs running 
 ### Syncing VMs
 The recommended workflow is to develop on the local machine, push changes to the target VMs, and then build and test there.
 
-To support this, a task for syncing the local datadog-agent repo with target VMs is provided.  
+To support this, a task for syncing the local datadog-agent repo with target VMs is provided.
 
 > We are working on providing tasks which will automatically sync with the target VMs, and build and run tests. However, this is a work in progress.
 
 If syncing to VMs running on remote machine the ssh-key-name is required. For local VMs it is not required.
 The VMs list has the same rules as listed for the task `gen-config`.
 ```bash
-inv -e kmt.sync --branch --vms=local-amazon4.14-distro,jammy-local-distro,focal-arm-distro,amazon5.4-x86-distro --ssh-key=<ssh-key-name>
+inv -e kmt.sync  --vms=local-amazon4.14-distro,jammy-local-distro,focal-arm-distro,amazon5.4-x86-distro --ssh-key=<ssh-key-name>
 ```
 

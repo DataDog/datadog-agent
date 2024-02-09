@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package tag
 
 import (
@@ -13,6 +14,8 @@ import (
 )
 
 // TagPair contains a pair of tag key and value
+//
+//nolint:revive // TODO(SERV) Fix revive linter
 type TagPair struct {
 	name    string
 	envName string

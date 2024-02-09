@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package integration contains the type that represents a configuration.
 package integration
 
 import (
@@ -20,7 +21,7 @@ import (
 )
 
 const (
-	// Used in unit tests
+	// FakeConfigHash is used in unit tests
 	FakeConfigHash = 1
 )
 
@@ -78,7 +79,7 @@ type Config struct {
 
 	// ServiceID is the ID of the service (set only for resolved templates and
 	// for service configs)
-	ServiceID string `json:"-"` // (include in digest: true)
+	ServiceID string `json:"service_id"` // (include in digest: true)
 
 	// TaggerEntity is the tagger entity ID
 	TaggerEntity string `json:"-"` // (include in digest: false)
@@ -362,6 +363,7 @@ func (c *Config) Digest() string {
 	return strconv.FormatUint(c.IntDigest(), 16)
 }
 
+// IntDigest returns a hash value representing the data stored in the configuration.
 func (c *Config) IntDigest() uint64 {
 	h := murmur3.New64()
 	_, _ = h.Write([]byte(c.Name))

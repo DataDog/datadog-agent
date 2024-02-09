@@ -53,20 +53,24 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInf
 	m := &MetadataController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
-	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addNode,
 		DeleteFunc: m.deleteNode,
-	})
+	}); err != nil {
+		log.Errorf("error adding event handler to node informer: %f", err)
+	}
 	m.nodeLister = nodeInformer.Lister()
 	m.nodeListerSynced = nodeInformer.Informer().HasSynced
 
 	m.namespaceListerSynced = namespaceInformer.Informer().HasSynced
 
-	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addEndpoints,
 		UpdateFunc: m.updateEndpoints,
 		DeleteFunc: m.deleteEndpoints,
-	})
+	}); err != nil {
+		log.Errorf("error adding event handler to node informer: %f", err)
+	}
 	m.endpointsLister = endpointsInformer.Lister()
 	m.endpointsListerSynced = endpointsInformer.Informer().HasSynced
 
@@ -151,6 +155,7 @@ func (m *MetadataController) addEndpoints(obj interface{}) {
 	m.enqueue(obj)
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (m *MetadataController) updateEndpoints(old, cur interface{}) {
 	newEndpoints, ok := cur.(*corev1.Endpoints)
 	if !ok {
@@ -209,7 +214,7 @@ func (m *MetadataController) syncEndpoints(key string) error {
 
 // mapEndpoints matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.4+.
 func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
-	nodeToPods := make(map[string]map[string]sets.String)
+	nodeToPods := make(map[string]map[string]sets.Set[string])
 
 	// Loop over the subsets to create a mapping of nodes to pods running on the node.
 	for _, subset := range endpoints.Subsets {
@@ -239,10 +244,10 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 			nodeName := *address.NodeName
 
 			if _, ok := nodeToPods[nodeName]; !ok {
-				nodeToPods[nodeName] = make(map[string]sets.String)
+				nodeToPods[nodeName] = make(map[string]sets.Set[string])
 			}
 			if _, ok := nodeToPods[nodeName][namespace]; !ok {
-				nodeToPods[nodeName][namespace] = sets.NewString()
+				nodeToPods[nodeName][namespace] = sets.New[string]()
 			}
 			nodeToPods[nodeName][namespace].Insert(podName)
 		}

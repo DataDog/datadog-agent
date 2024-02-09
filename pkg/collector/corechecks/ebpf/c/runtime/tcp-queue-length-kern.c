@@ -31,21 +31,21 @@ BPF_HASH_MAP(who_recvmsg, u64, struct sock *, 100)
 
 BPF_HASH_MAP(who_sendmsg, u64, struct sock *, 100)
 
-static __always_inline int check_sock(struct sock *sk) {
+static __always_inline void check_sock(struct sock *sk) {
     struct stats_value zero = {
         .read_buffer_max_usage = 0,
         .write_buffer_max_usage = 0
     };
 
     struct stats_key k;
-    if (!get_cgroup_name(k.cgroup_name, sizeof(k.cgroup_name))) {
-        return 0;
+    if (!get_cgroup_name(k.cgroup, sizeof(k.cgroup))) {
+        return;
     }
 
     bpf_map_update_elem(&tcp_queue_stats, &k, &zero, BPF_NOEXIST);
     struct stats_value *v = bpf_map_lookup_elem(&tcp_queue_stats, &k);
     if (!v) {
-        return 0;
+        return;
     }
 
     int rqueue_size = BPF_CORE_READ(sk, sk_rcvbuf);
@@ -72,26 +72,25 @@ static __always_inline int check_sock(struct sock *sk) {
     if (wqueue_usage > v->write_buffer_max_usage) {
         v->write_buffer_max_usage = wqueue_usage;
     }
-
-    return 0;
+    log_debug("check_sock: name=%s read_max=%d write_max=%d", k.cgroup, v->read_buffer_max_usage, v->write_buffer_max_usage);
 }
 
 SEC("kprobe/tcp_recvmsg")
 int BPF_KPROBE(kprobe__tcp_recvmsg, struct sock *sk) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&who_recvmsg, &pid_tgid, &sk, BPF_ANY);
-    return check_sock(sk);
+    check_sock(sk);
+    return 0;
 }
 
 SEC("kretprobe/tcp_recvmsg")
 int BPF_KRETPROBE(kretprobe__tcp_recvmsg) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct sock **sk = bpf_map_lookup_elem(&who_recvmsg, &pid_tgid);
-    bpf_map_delete_elem(&who_recvmsg, &pid_tgid);
-
     if (sk) {
-        return check_sock(*sk);
+        check_sock(*sk);
     }
+    bpf_map_delete_elem(&who_recvmsg, &pid_tgid);
     return 0;
 }
 
@@ -99,21 +98,19 @@ SEC("kprobe/tcp_sendmsg")
 int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&who_sendmsg, &pid_tgid, &sk, BPF_ANY);
-
-    return check_sock(sk);
+    check_sock(sk);
+    return 0;
 }
 
 SEC("kretprobe/tcp_sendmsg")
 int BPF_KRETPROBE(kretprobe__tcp_sendmsg) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct sock **sk = bpf_map_lookup_elem(&who_sendmsg, &pid_tgid);
-    bpf_map_delete_elem(&who_sendmsg, &pid_tgid);
-
     if (sk) {
-        return check_sock(*sk);
+        check_sock(*sk);
     }
+    bpf_map_delete_elem(&who_sendmsg, &pid_tgid);
     return 0;
 }
 
-__u32 _version SEC("version") = 0xFFFFFFFE;
 char _license[] SEC("license") = "GPL";

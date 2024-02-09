@@ -113,7 +113,7 @@ platforms:
       # Check if we should use an ed25519 key, an rsa key or the default key
       # Some newer platforms don't support rsa, while some older platforms don't support ed25519
       # In Azure, ed25519 is not supported, but the default key created by the driver works
-      default_key_platforms = ["ubuntu-22-04", "rhel-91"]
+      default_key_platforms = ["ubuntu-22-04", "rhel-91", "debian-12"]
       use_default_key = default_key_platforms.any? { |p| platform_name.include?(p) }
 
       ed25519_platforms = []
@@ -195,5 +195,6 @@ platforms:
     downloads:
       "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
       "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
+      "/tmp/kitchen/rspec.xml": kitchen-rspec-<%= platform_name %>.xml
 
 <% end %>

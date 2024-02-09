@@ -34,6 +34,8 @@
 #define FLAG_NPM_ENABLED            1 << 2
 #define FLAG_TCP_CLOSE_DELETION     1 << 3
 #define FLAG_SOCKET_FILTER_DELETION 1 << 4
+#define FLAG_SERVER_SIDE            1 << 5
+#define FLAG_CLIENT_SIDE            1 << 6
 
 // The enum below represents all different protocols we're able to
 // classify. Entries are segmented such that it is possible to infer the
@@ -48,6 +50,7 @@ typedef enum {
 
     __LAYER_API_MIN = LAYER_API_BIT,
     // Add API protocols here (eg. gRPC)
+    PROTOCOL_GRPC,
     __LAYER_API_MAX = LAYER_API_MAX,
 
     __LAYER_APPLICATION_MIN = LAYER_APPLICATION_BIT,
@@ -89,6 +92,26 @@ typedef struct {
     __u8 flags;
 } protocol_stack_t;
 
+// This wrapper type is being added so we can associate an update timestamp to
+// each `protocol_stack_t` value.
+//
+// This timestamp acts as a heartbeat and it is used only in userspace to detect stale
+// entries in the `connection_protocol` map which is currently leaking in some scenarios.
+//
+// Why create a wrapper type?
+//
+// `protocol_stack_t` is embedded in the `conn_stats_t` type, which is used
+// across the whole NPM kernel code. If we added the 64-bit timestamp field
+// directly to `protocol_stack_t`, we would go from 4 bytes to 12 bytes, which
+// bloats the eBPF stack size of some NPM probes.  Using the wrapper type
+// prevents that, because we pretty much only store the wrapper type in the
+// connection_protocol map, but elsewhere in the code we're still using
+// protocol_stack_t, so this is change is "transparent" to most of the code.
+typedef struct {
+    protocol_stack_t stack;
+    __u64 updated;
+} protocol_stack_wrapper_t;
+
 typedef enum {
     CLASSIFICATION_PROG_UNKNOWN = 0,
     __PROG_APPLICATION,
@@ -97,6 +120,7 @@ typedef enum {
     CLASSIFICATION_DBS_PROG,
     __PROG_API,
     // API classification programs go here
+    CLASSIFICATION_GRPC_PROG,
     __PROG_ENCRYPTION,
     // Encryption classification programs go here
     CLASSIFICATION_PROG_MAX,
@@ -111,10 +135,26 @@ typedef enum {
 typedef enum {
     PROG_UNKNOWN = 0,
     PROG_HTTP,
-    PROG_HTTP2,
+    PROG_HTTP2_HANDLE_FIRST_FRAME,
+    PROG_HTTP2_FRAME_FILTER,
+    PROG_HTTP2_HEADERS_PARSER,
+    PROG_HTTP2_EOS_PARSER,
     PROG_KAFKA,
+    PROG_GRPC,
     // Add before this value.
     PROG_MAX,
 } protocol_prog_t;
+
+typedef enum {
+    TLS_PROG_UNKNOWN = 0,
+    TLS_HTTP_PROCESS,
+    TLS_HTTP_TERMINATION,
+    TLS_HTTP2_FIRST_FRAME,
+    TLS_HTTP2_FILTER,
+    TLS_HTTP2_HEADERS_PARSER,
+    TLS_HTTP2_EOS_PARSER,
+    TLS_HTTP2_TERMINATION,
+    TLS_PROG_MAX,
+} tls_prog_t;
 
 #endif

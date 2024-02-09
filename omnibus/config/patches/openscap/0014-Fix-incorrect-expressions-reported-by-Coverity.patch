@@ -1,0 +1,71 @@
+From 4a6c82fc93cb288456f7461361a7fb3f4a9fc73d Mon Sep 17 00:00:00 2001
+From: David du Colombier <djc@datadoghq.com>
+Date: Wed, 20 Sep 2023 14:03:57 +0200
+Subject: [PATCH 14/16] Fix incorrect expressions reported by Coverity
+
+---
+ src/OVAL/probes/SEAP/generic/strto.c      | 6 +++---
+ src/OVAL/probes/independent/sql57_probe.c | 2 +-
+ src/OVAL/probes/independent/sql_probe.c   | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/OVAL/probes/SEAP/generic/strto.c b/src/OVAL/probes/SEAP/generic/strto.c
+index 8996db817..c2fa28c95 100644
+--- a/src/OVAL/probes/SEAP/generic/strto.c
++++ b/src/OVAL/probes/SEAP/generic/strto.c
+@@ -74,7 +74,7 @@ int64_t strto_int64 (const char *str, size_t len, char **endptr, int base)
+ {
+     int errno_copy = 0;
+     int64_t result = 0;
+-    char *null_str = calloc(len + 1, sizeof(str));
++    char *null_str = calloc(len + 1, sizeof(*str));
+ 
+     memcpy(null_str, str, len);
+     errno = 0;
+@@ -90,7 +90,7 @@ uint64_t strto_uint64 (const char *str, size_t len, char **endptr, int base)
+ {
+     int errno_copy = 0;
+     int64_t result = 0;
+-    char *null_str = calloc(len + 1, sizeof(str));
++    char *null_str = calloc(len + 1, sizeof(*str));
+ 
+     memcpy(null_str, str, len);
+     errno = 0;
+@@ -106,7 +106,7 @@ double strto_double (const char *str, size_t len, char **endptr)
+ {
+     int errno_copy = 0;
+     int64_t result = 0;
+-    char *null_str = calloc(len + 1, sizeof(str));
++    char *null_str = calloc(len + 1, sizeof(*str));
+ 
+     memcpy(null_str, str, len);
+     errno = 0;
+diff --git a/src/OVAL/probes/independent/sql57_probe.c b/src/OVAL/probes/independent/sql57_probe.c
+index 2b35750ee..7366e4ef1 100644
+--- a/src/OVAL/probes/independent/sql57_probe.c
++++ b/src/OVAL/probes/independent/sql57_probe.c
+@@ -482,7 +482,7 @@ int sql57_probe_main(probe_ctx *ctx, void *arg)
+ 	err = dbSQL_eval(engine, version, conn, sqlexp, ctx);
+ __exit:
+ 	if (engine != NULL) {
+-		__clearmem(conn, strlen(engine));
++		__clearmem(engine, strlen(engine));
+ 		free(engine);
+ 	}
+ 
+diff --git a/src/OVAL/probes/independent/sql_probe.c b/src/OVAL/probes/independent/sql_probe.c
+index 71ba3c08c..8abcb663c 100644
+--- a/src/OVAL/probes/independent/sql_probe.c
++++ b/src/OVAL/probes/independent/sql_probe.c
+@@ -427,7 +427,7 @@ int sql_probe_main(probe_ctx *ctx, void *arg)
+ 	err = dbSQL_eval(engine, version, conn, sqlexp, ctx);
+ __exit:
+ 	if (engine != NULL) {
+-		__clearmem(conn, strlen(engine));
++		__clearmem(engine, strlen(engine));
+ 		free(engine);
+ 	}
+ 
+-- 
+2.34.1
+

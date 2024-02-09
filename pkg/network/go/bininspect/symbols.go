@@ -21,26 +21,50 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	symbolChunkSize       = uint64(100)
+	symbolNameAddressSize = 4
+)
+
 // getSymbolNameByEntry extracts from the string data section the string in the given position.
-// If the symbol name is shorter or longer than the given min and max (==len(preallocatedBuf)) then we return false.
+// If the symbol name is shorter or longer than the given min and max (==len(preAllocatedBuf)) then we return false.
 // preAllocatedBuf is a pre allocated buffer with a constant length (== max length among all given symbols) to spare
 // redundant allocations. We get it as a parameter and not putting it as a global, to be thread safe among concurrent
 // and parallel calls.
-func getSymbolNameByEntry(sectionReader io.ReaderAt, startPos, minLength int, preAllocatedBuf []byte) (string, bool) {
+func getSymbolNameByEntry(sectionReader io.ReaderAt, startPos, minLength int, preAllocatedBuf []byte) int {
 	_, err := sectionReader.ReadAt(preAllocatedBuf, int64(startPos))
 	if err != nil {
-		return "", false
+		return -1
 	}
-	for i := 0; i < len(preAllocatedBuf); i++ {
+
+	// Matching symbols' length should be between minLength or len(preAllocatedBuf) which represents the max symbols'
+	// length. Each symbol terminates with a null, thus we expect to find null at the (expected) end of the string.
+	// If we didn't find null there, then it is not a symbol we're looking for.
+	foundNull := false
+	nullIndex := minLength
+	for ; nullIndex < len(preAllocatedBuf); nullIndex++ {
+		if preAllocatedBuf[nullIndex] == 0 {
+			foundNull = true
+			break
+		}
+	}
+	// We didn't find null, thus this is not a matching symbol.
+	if !foundNull {
+		return -1
+	}
+
+	// Ensuring we don't multiple null within the range, to ensure we don't have false positives.
+	for i := 1; i <= nullIndex; i++ {
 		if preAllocatedBuf[i] == 0 {
+			// The symbol is shorter the minimum required.
 			if i < minLength {
-				break
+				return -1
 			}
-			return string(preAllocatedBuf[0:i]), true
+			return i
 		}
 	}
 
-	return "", false
+	return -1
 }
 
 // getSymbolLengthBoundaries extracts the minimum and maximum lengths of the symbols.
@@ -62,21 +86,9 @@ func getSymbolLengthBoundaries(set common.StringSet) (int, int) {
 	return minSymbolName, maxSymbolName
 }
 
-// readSymbolEntryInStringTable reads the first 4 bytes from the symbol section current location, which represents the
-// symbol name entry in the string data section. Returns error in case of failure in reading the symbol entry.
-func readSymbolEntryInStringTable(symbolSectionReader io.ReaderAt, byteOrder binary.ByteOrder, readLocation int64, allocatedBufferForRead []byte) (int, error) {
-	if _, err := symbolSectionReader.ReadAt(allocatedBufferForRead, readLocation); err != nil {
-		return 0, err
-	}
-	return int(byteOrder.Uint32(allocatedBufferForRead)), nil
-}
-
 // fillSymbol reads the symbol entry from the symbol section with the first 4 bytes of the name entry (which
 // we read using readSymbolEntryInStringTable).
-func fillSymbol(symbol *elf.Symbol, symbolSectionReader io.ReaderAt, byteOrder binary.ByteOrder, symbolName string, readLocation int64, allocatedBufferForRead []byte, is64Bit bool) error {
-	if _, err := symbolSectionReader.ReadAt(allocatedBufferForRead, readLocation); err != nil {
-		return err
-	}
+func fillSymbol(symbol *elf.Symbol, byteOrder binary.ByteOrder, symbolName string, allocatedBufferForRead []byte, is64Bit bool) {
 	symbol.Name = symbolName
 	if is64Bit {
 		infoAndOther := byteOrder.Uint16(allocatedBufferForRead[0:2])
@@ -93,8 +105,6 @@ func fillSymbol(symbol *elf.Symbol, symbolSectionReader io.ReaderAt, byteOrder b
 		symbol.Value = uint64(byteOrder.Uint32(allocatedBufferForRead[0:4]))
 		symbol.Size = uint64(byteOrder.Uint32(allocatedBufferForRead[4:8]))
 	}
-
-	return nil
 }
 
 // getSymbolsUnified extracts the given symbol list from the binary.
@@ -121,44 +131,60 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 
 	// Allocating entries for all wanted symbols.
 	symbols := make([]elf.Symbol, 0, len(wantedSymbols))
-
 	// Extracting the min and max symbol length.
 	minSymbolNameSize, maxSymbolNameSize := getSymbolLengthBoundaries(wantedSymbols)
 	// Pre-allocating a buffer to read the symbol string into.
 	// The size of the buffer is maxSymbolNameSize + 1, for null termination.
 	symbolNameBuf := make([]byte, maxSymbolNameSize+1)
-	// Pre allocating a buffer for reading the symbol entry in the string table.
-	allocatedBufferForSymbolNameRead := make([]byte, 4)
-	// Pre allocating a buffer for reading the rest of the symbol fields from the symbol section.
-	allocatedBufferForSymbolRead := make([]byte, symbolSize-len(allocatedBufferForSymbolNameRead))
+
+	symbolSizeUint64 := uint64(symbolSize)
+	chunkSize := symbolChunkSize * symbolSizeUint64
+	symbolsCache := make([]byte, chunkSize)
+
+	var locationInCache int64
 
 	// Iterating through the symbol table. We skip the first symbolSize bytes as they are zeros.
-	for readLocation := int64(symbolSize); uint64(readLocation) < symbolSection.Size; readLocation += int64(symbolSize) {
-		// Reading the symbol entry in the string table.
-		stringEntry, err := readSymbolEntryInStringTable(symbolSection.ReaderAt, f.ByteOrder, readLocation, allocatedBufferForSymbolNameRead)
-		if err != nil {
-			log.Debugf("failed reading symbol entry %s", err)
+	for readLocation := symbolSizeUint64; readLocation < symbolSection.Size; readLocation += symbolSizeUint64 {
+		// Checking if we need to read a new chunk of symbols. We read chunks of symbolChunkSize symbols everytime.
+		// Since the first symbol is ignored, `(readLocation-symbolSizeUint64)/symbolSizeUint64` represents the
+		// symbol index. If the current symbol index is a multiplier of symbolChunkSize, then we read a new chunk.
+		symbolIndex := (readLocation / symbolSizeUint64) - 1
+		if symbolIndex%symbolChunkSize == 0 {
+			_, err := symbolSection.ReaderAt.ReadAt(symbolsCache, int64(readLocation))
+			if err != nil && err != io.EOF {
+				log.Debugf("failed reading symbol entry %s", err)
+				return nil, err
+			}
+			locationInCache = 0
+		} else {
+			locationInCache += int64(symbolSize)
+		}
+
+		stringEntry := int(f.ByteOrder.Uint32(symbolsCache[locationInCache : locationInCache+symbolNameAddressSize]))
+		if stringEntry == 0 {
+			// symbol without a name.
 			continue
 		}
 
 		// Trying to get string representation of symbol.
 		// If the symbol name's length is not in the boundaries [minSymbolNameSize, maxSymbolNameSize+1] then we fail,
 		// and continue to the next symbol.
-		symbolName, ok := getSymbolNameByEntry(f.Sections[symbolSection.Link].ReaderAt, stringEntry, minSymbolNameSize, symbolNameBuf)
-		if !ok {
+		symbolNameSize := getSymbolNameByEntry(f.Sections[symbolSection.Link].ReaderAt, stringEntry, minSymbolNameSize, symbolNameBuf)
+
+		if symbolNameSize <= 0 {
 			continue
 		}
 
 		// Checking the symbol is relevant for us.
-		if _, ok := wantedSymbols[symbolName]; !ok {
+		if _, ok := wantedSymbols[string(symbolNameBuf[:symbolNameSize])]; !ok {
 			continue
 		}
 
-		// Complete the symbol reading.
 		var symbol elf.Symbol
-		if err := fillSymbol(&symbol, symbolSection.ReaderAt, f.ByteOrder, symbolName, readLocation+4, allocatedBufferForSymbolRead, is64Bit); err != nil {
-			continue
-		}
+		// Complete the symbol reading.
+		// The symbol is composed of 4 bytes representing the symbol name in the string table, and rest is the fields
+		// of the symbols. So here we skip the first 4 bytes of the symbol, as we already processed it.
+		fillSymbol(&symbol, f.ByteOrder, string(symbolNameBuf[:symbolNameSize]), symbolsCache[locationInCache+symbolNameAddressSize:locationInCache+int64(symbolSize)-symbolNameAddressSize], is64Bit)
 		symbols = append(symbols, symbol)
 
 		// If no symbols left, stop running.
@@ -182,6 +208,8 @@ func getSymbols(f *elf.File, typ elf.SectionType, wanted map[string]struct{}) ([
 	return nil, errors.New("not implemented")
 }
 
+// GetAllSymbolsByName returns all symbols (from the symbolSet) in the given elf file, by the given names.
+// In case of a missing symbol, an error is returned.
 func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := getSymbols(elfFile, elf.SHT_SYMTAB, symbolSet)
 	if regularSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {

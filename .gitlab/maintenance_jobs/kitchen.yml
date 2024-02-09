@@ -4,16 +4,15 @@
 periodic_kitchen_cleanup_s3:
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  rules:
-    !reference [.on_testing_cleanup]
+  tags: ["arch:amd64"]
+  rules: !reference [.on_testing_cleanup]
   script:
-    - BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=pool python3.6 /deploy_scripts/cleanup_s3.py
-    - BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=dists python3.6 /deploy_scripts/cleanup_s3.py
-    - BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=testing/ python3.6 /deploy_scripts/cleanup_s3.py
-    - BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=suse/testing/ python3.6 /deploy_scripts/cleanup_s3.py
-    - BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A6/ python3.6 /deploy_scripts/cleanup_s3.py
-    - BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A7/ python3.6 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=24 BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=pool python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=24 BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=dists python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=24 BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=testing/ python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=24 BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=suse/testing/ python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=24 BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A6/ python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=24 BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A7/ python3 /deploy_scripts/cleanup_s3.py
 
 # Kills any VMs that might have been left over by kitchen
 # The script only deletes VMs that have been there for >= 4 hours, which is more than the time limit
@@ -21,9 +20,8 @@ periodic_kitchen_cleanup_s3:
 periodic_kitchen_cleanup_azure:
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  rules:
-    !reference [.on_main_or_testing_cleanup]
+  tags: ["arch:amd64"]
+  rules: !reference [.on_main_or_testing_cleanup]
   # Note: We're not sure if the cleanup script is safe if run multiple times concurrently, so we limit
   # the job to be run one at a time.
   resource_group: azure_cleanup
@@ -33,29 +31,23 @@ periodic_kitchen_cleanup_azure:
     - export ARM_CLIENT_SECRET=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_secret --with-decryption --query "Parameter.Value" --out text`
     - export ARM_TENANT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_tenant_id --with-decryption --query "Parameter.Value" --out text`
     # Remove kitchen resources for all existing test suite prefixes
-    - RESOURCE_GROUP_PREFIX=kitchen-chef python3.6 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-install-script python3.6 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-upgrade python3.6 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-step-by-step python3.6 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-win python3.6 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-security-agent python3.6 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-system-probe python3.6 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-process-collection python3.6 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-container-collection python3.6 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-chef python3 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-install-script python3 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-upgrade python3 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-step-by-step python3 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-win python3 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-security-agent python3 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-system-probe python3 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-process-collection python3 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-container-collection python3 /deploy_scripts/cleanup_azure.py
 
 periodic_kitchen_cleanup_ec2:
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  rules:
-    !reference [.on_main_or_testing_cleanup]
+  tags: ["arch:amd64"]
+  rules: !reference [.on_main_or_testing_cleanup]
   script:
-    - export FOUR_HOURS_AGO=`date --date="-4 hours" "+%Y-%m-%d %H:%M:%S"`
-    - export ZOMBIES=`aws ec2 describe-instances --filters "Name=tag:CreatedBy,Values=datadog-agent-kitchen-tests" --region us-east-1 --query "Reservations[*].Instances[?LaunchTime<='$FOUR_HOURS_AGO'].[InstanceId]" --output text`
-    - echo $ZOMBIES
     # Only run aws ec2 terminate-instances if $ZOMBIES is not empty, otherwise the command fails
     # https://docs.aws.amazon.com/cli/latest/reference/ec2/terminate-instances.html#options
-    - |
-      if [ -n "$ZOMBIES" ]; then
-        echo "$ZOMBIES" | xargs -I% aws ec2 terminate-instances --region us-east-1 --instance-ids %
-      fi
+    - export AWS_DEFAULT_REGION=us-east-1
+    - python3 /deploy_scripts/cleanup_ec2.py

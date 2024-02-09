@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package gce provides utilities to detect gce cloud provider.
 package gce
 
 import (
@@ -12,7 +13,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("GCE Metadata availability", diagnose)
+	diagnosis.RegisterMetadataAvail("GCE Metadata availability", diagnose)
 }
 
 // diagnose the GCE metadata API availability

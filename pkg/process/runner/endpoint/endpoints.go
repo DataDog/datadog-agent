@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package endpoint
 
 import (
@@ -14,22 +15,24 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
 
-func GetAPIEndpoints(config ddconfig.ConfigReader) (eps []apicfg.Endpoint, err error) {
+// GetAPIEndpoints returns the list of api endpoints from the config
+func GetAPIEndpoints(config ddconfig.Reader) (eps []apicfg.Endpoint, err error) {
 	return getAPIEndpointsWithKeys(config, "https://process.", "process_config.process_dd_url", "process_config.additional_endpoints")
 }
 
-func GetEventsAPIEndpoints(config ddconfig.ConfigReader) (eps []apicfg.Endpoint, err error) {
+// GetEventsAPIEndpoints returns the list of api event endpoints from the config
+func GetEventsAPIEndpoints(config ddconfig.Reader) (eps []apicfg.Endpoint, err error) {
 	return getAPIEndpointsWithKeys(config, "https://process-events.", "process_config.events_dd_url", "process_config.events_additional_endpoints")
 }
 
-func getAPIEndpointsWithKeys(config ddconfig.ConfigReader, prefix, defaultEpKey, additionalEpsKey string) (eps []apicfg.Endpoint, err error) {
+func getAPIEndpointsWithKeys(config ddconfig.Reader, prefix, defaultEpKey, additionalEpsKey string) (eps []apicfg.Endpoint, err error) {
 	// Setup main endpoint
 	mainEndpointURL, err := url.Parse(utils.GetMainEndpoint(ddconfig.Datadog, prefix, defaultEpKey))
 	if err != nil {
 		return nil, fmt.Errorf("error parsing %s: %s", defaultEpKey, err)
 	}
 	eps = append(eps, apicfg.Endpoint{
-		APIKey:   ddconfig.SanitizeAPIKey(config.GetString("api_key")),
+		APIKey:   utils.SanitizeAPIKey(config.GetString("api_key")),
 		Endpoint: mainEndpointURL,
 	})
 
@@ -41,7 +44,7 @@ func getAPIEndpointsWithKeys(config ddconfig.ConfigReader, prefix, defaultEpKey,
 		}
 		for _, k := range apiKeys {
 			eps = append(eps, apicfg.Endpoint{
-				APIKey:   ddconfig.SanitizeAPIKey(k),
+				APIKey:   utils.SanitizeAPIKey(k),
 				Endpoint: u,
 			})
 		}

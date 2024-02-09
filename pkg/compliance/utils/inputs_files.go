@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package utils is a compliance internal submodule implementing various utilies.
 package utils
 
 import (
@@ -14,6 +15,7 @@ import (
 	"syscall"
 )
 
+// GetFileUser returns the file user.
 func GetFileUser(fi os.FileInfo) string {
 	if statt, ok := fi.Sys().(*syscall.Stat_t); ok {
 		u := strconv.Itoa(int(statt.Uid))
@@ -24,6 +26,7 @@ func GetFileUser(fi os.FileInfo) string {
 	return ""
 }
 
+// GetFileGroup returns the file group.
 func GetFileGroup(fi os.FileInfo) string {
 	if statt, ok := fi.Sys().(*syscall.Stat_t); ok {
 		g := strconv.Itoa(int(statt.Gid))

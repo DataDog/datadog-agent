@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package eventstream holds eventstream related files
 package eventstream
 
 import (
@@ -30,16 +31,16 @@ type LostEventCounter interface {
 	CountLostEvent(count uint64, perfMapName string, CPU int)
 }
 
-// EventStreamMapStats contains the collected metrics for one event and one cpu in a perf buffer statistics map
-type EventStreamMapStats struct {
+// MapStats contains the collected metrics for one event and one cpu in a perf buffer statistics map
+type MapStats struct {
 	Bytes *atomic.Uint64
 	Count *atomic.Uint64
 	Lost  *atomic.Uint64
 }
 
-// NewEventStreamMapStats returns a new EventStreamMapStats correctly initialized
-func NewEventStreamMapStats() EventStreamMapStats {
-	return EventStreamMapStats{
+// NewEventStreamMapStats returns a new MapStats correctly initialized
+func NewEventStreamMapStats() MapStats {
+	return MapStats{
 		Bytes: atomic.NewUint64(0),
 		Count: atomic.NewUint64(0),
 		Lost:  atomic.NewUint64(0),
@@ -47,7 +48,7 @@ func NewEventStreamMapStats() EventStreamMapStats {
 }
 
 // UnmarshalBinary parses a map entry and populates the current EventStreamMapStats instance
-func (s *EventStreamMapStats) UnmarshalBinary(data []byte) error {
+func (s *MapStats) UnmarshalBinary(data []byte) error {
 	if len(data) < 24 {
 		return model.ErrNotEnoughData
 	}
@@ -57,8 +58,8 @@ func (s *EventStreamMapStats) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// EventStreamMonitor holds statistics about the number of lost and received events
-type EventStreamMonitor struct {
+// Monitor holds statistics about the number of lost and received events
+type Monitor struct {
 	config       *config.Config
 	statsdClient statsd.ClientInterface
 	eRPC         *erpc.ERPC
@@ -76,9 +77,9 @@ type EventStreamMonitor struct {
 	ringBufferMapNameToStatsMapsName map[string]string
 
 	// stats holds the collected user space metrics
-	stats map[string][][model.MaxKernelEventType]EventStreamMapStats
+	stats map[string][][model.MaxKernelEventType]MapStats
 	// kernelStats holds the aggregated kernel space metrics
-	kernelStats map[string][][model.MaxKernelEventType]EventStreamMapStats
+	kernelStats map[string][][model.MaxKernelEventType]MapStats
 	// readLostEvents is the count of lost events, collected by reading the perf buffer.  Note that the
 	// slices of Uint64 are properly aligned for atomic access, and are not moved after creation (they
 	// are indexed by cpuid)
@@ -104,8 +105,8 @@ type statMap struct {
 }
 
 // NewEventStreamMonitor instantiates a new event statistics counter
-func NewEventStreamMonitor(config *config.Config, eRPC *erpc.ERPC, manager *manager.Manager, statsdClient statsd.ClientInterface, onEventLost func(perfMapName string, perEvent map[string]uint64), useRingBuffers bool) (*EventStreamMonitor, error) {
-	pbm := EventStreamMonitor{
+func NewEventStreamMonitor(config *config.Config, eRPC *erpc.ERPC, manager *manager.Manager, statsdClient statsd.ClientInterface, onEventLost func(perfMapName string, perEvent map[string]uint64), useRingBuffers bool) (*Monitor, error) {
+	pbm := Monitor{
 		config:              config,
 		statsdClient:        statsdClient,
 		eRPC:                eRPC,
@@ -115,8 +116,8 @@ func NewEventStreamMonitor(config *config.Config, eRPC *erpc.ERPC, manager *mana
 		perfBufferMapNameToStatsMapsName: probes.GetPerfBufferStatisticsMaps(),
 		ringBufferMapNameToStatsMapsName: probes.GetRingBufferStatisticsMaps(),
 
-		stats:             make(map[string][][model.MaxKernelEventType]EventStreamMapStats),
-		kernelStats:       make(map[string][][model.MaxKernelEventType]EventStreamMapStats),
+		stats:             make(map[string][][model.MaxKernelEventType]MapStats),
+		kernelStats:       make(map[string][][model.MaxKernelEventType]MapStats),
 		readLostEvents:    make(map[string][]*atomic.Uint64),
 		sortingErrorStats: make(map[string][model.MaxKernelEventType]*atomic.Int64),
 
@@ -172,7 +173,7 @@ func NewEventStreamMonitor(config *config.Config, eRPC *erpc.ERPC, manager *mana
 
 	// Prepare user space counters
 	for mapName := range maps {
-		var stats, kernelStats [][model.MaxKernelEventType]EventStreamMapStats
+		var stats, kernelStats [][model.MaxKernelEventType]MapStats
 		var usrLostEvents []*atomic.Uint64
 		var sortingErrorStats [model.MaxKernelEventType]*atomic.Int64
 
@@ -195,8 +196,8 @@ func NewEventStreamMonitor(config *config.Config, eRPC *erpc.ERPC, manager *mana
 	return &pbm, nil
 }
 
-func initEventStreamMapStatsArray() [model.MaxKernelEventType]EventStreamMapStats {
-	var arr [model.MaxKernelEventType]EventStreamMapStats
+func initEventStreamMapStatsArray() [model.MaxKernelEventType]MapStats {
+	var arr [model.MaxKernelEventType]MapStats
 	for i := 0; i < len(arr); i++ {
 		arr[i] = NewEventStreamMapStats()
 	}
@@ -204,13 +205,13 @@ func initEventStreamMapStatsArray() [model.MaxKernelEventType]EventStreamMapStat
 }
 
 // getLostCount is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) getLostCount(perfMap string, cpu int) uint64 {
+func (pbm *Monitor) getLostCount(perfMap string, cpu int) uint64 {
 	return pbm.readLostEvents[perfMap][cpu].Load()
 }
 
 // GetLostCount returns the number of lost events for a given map and cpu. If a cpu of -1 is provided, the function will
 // return the sum of all the lost events of all the cpus. (only used in tests)
-func (pbm *EventStreamMonitor) GetLostCount(perfMap string, cpu int) uint64 {
+func (pbm *Monitor) GetLostCount(perfMap string, cpu int) uint64 {
 	var total uint64
 
 	switch {
@@ -226,13 +227,13 @@ func (pbm *EventStreamMonitor) GetLostCount(perfMap string, cpu int) uint64 {
 }
 
 // getKernelLostCount is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) getKernelLostCount(eventType model.EventType, perfMap string, cpu int) uint64 {
+func (pbm *Monitor) getKernelLostCount(eventType model.EventType, perfMap string, cpu int) uint64 {
 	return pbm.kernelStats[perfMap][cpu][eventType].Lost.Load()
 }
 
 // GetKernelLostCount returns the number of lost events for a given map and cpu. If a cpu of -1 is provided, the function will
 // return the sum of all the lost events of all the cpus.
-func (pbm *EventStreamMonitor) GetKernelLostCount(perfMap string, cpu int, evtTypes ...model.EventType) uint64 {
+func (pbm *Monitor) GetKernelLostCount(perfMap string, cpu int, evtTypes ...model.EventType) uint64 {
 	var total uint64
 
 	// query the kernel maps
@@ -261,14 +262,14 @@ func (pbm *EventStreamMonitor) GetKernelLostCount(perfMap string, cpu int, evtTy
 }
 
 // getAndResetReadLostCount is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) getAndResetReadLostCount(perfMap string, cpu int) uint64 {
+func (pbm *Monitor) getAndResetReadLostCount(perfMap string, cpu int) uint64 {
 	return pbm.readLostEvents[perfMap][cpu].Swap(0)
 }
 
 // GetAndResetLostCount returns the number of lost events and resets the counter for a given map and cpu. If a cpu of -1 is
 // provided, the function will reset the counters of all the cpus for the provided map, and return the sum of all the
 // lost events of all the cpus of the provided map.  (only used in tests)
-func (pbm *EventStreamMonitor) GetAndResetLostCount(perfMap string, cpu int) uint64 {
+func (pbm *Monitor) GetAndResetLostCount(perfMap string, cpu int) uint64 {
 	var total uint64
 
 	switch {
@@ -283,42 +284,42 @@ func (pbm *EventStreamMonitor) GetAndResetLostCount(perfMap string, cpu int) uin
 }
 
 // getEventCount is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) getEventCount(eventType model.EventType, perfMap string, cpu int) uint64 {
+func (pbm *Monitor) getEventCount(eventType model.EventType, perfMap string, cpu int) uint64 {
 	return pbm.stats[perfMap][cpu][eventType].Count.Load()
 }
 
 // getEventBytes is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) getEventBytes(eventType model.EventType, perfMap string, cpu int) uint64 {
+func (pbm *Monitor) getEventBytes(eventType model.EventType, perfMap string, cpu int) uint64 {
 	return pbm.stats[perfMap][cpu][eventType].Bytes.Load()
 }
 
 // getKernelEventCount is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) getKernelEventCount(eventType model.EventType, perfMap string, cpu int) uint64 {
+func (pbm *Monitor) getKernelEventCount(eventType model.EventType, perfMap string, cpu int) uint64 {
 	return pbm.kernelStats[perfMap][cpu][eventType].Count.Load()
 }
 
 // getEventBytes is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) getKernelEventBytes(eventType model.EventType, perfMap string, cpu int) uint64 {
+func (pbm *Monitor) getKernelEventBytes(eventType model.EventType, perfMap string, cpu int) uint64 {
 	return pbm.kernelStats[perfMap][cpu][eventType].Bytes.Load()
 }
 
 // getKernelEventCount is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) swapKernelEventCount(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
+func (pbm *Monitor) swapKernelEventCount(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
 	return pbm.kernelStats[perfMap][cpu][eventType].Count.Swap(value)
 }
 
 // getKernelEventBytes is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) swapKernelEventBytes(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
+func (pbm *Monitor) swapKernelEventBytes(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
 	return pbm.kernelStats[perfMap][cpu][eventType].Bytes.Swap(value)
 }
 
 // getKernelLostCount is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) swapKernelLostCount(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
+func (pbm *Monitor) swapKernelLostCount(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
 	return pbm.kernelStats[perfMap][cpu][eventType].Lost.Swap(value)
 }
 
 // GetEventStats returns the number of received events of the specified type (only used in tests)
-func (pbm *EventStreamMonitor) GetEventStats(eventType model.EventType, perfMap string, cpu int) (EventStreamMapStats, EventStreamMapStats) {
+func (pbm *Monitor) GetEventStats(eventType model.EventType, perfMap string, cpu int) (MapStats, MapStats) {
 	stats, kernelStats := NewEventStreamMapStats(), NewEventStreamMapStats()
 	var maps []string
 
@@ -361,22 +362,22 @@ func (pbm *EventStreamMonitor) GetEventStats(eventType model.EventType, perfMap 
 }
 
 // getAndResetEventCount is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) getAndResetEventCount(eventType model.EventType, perfMap string, cpu int) uint64 {
+func (pbm *Monitor) getAndResetEventCount(eventType model.EventType, perfMap string, cpu int) uint64 {
 	return pbm.stats[perfMap][cpu][eventType].Count.Swap(0)
 }
 
 // getAndResetEventBytes is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) getAndResetEventBytes(eventType model.EventType, perfMap string, cpu int) uint64 {
+func (pbm *Monitor) getAndResetEventBytes(eventType model.EventType, perfMap string, cpu int) uint64 {
 	return pbm.stats[perfMap][cpu][eventType].Bytes.Swap(0)
 }
 
 // getAndResetSortingErrorCount is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *EventStreamMonitor) getAndResetSortingErrorCount(eventType model.EventType, perfMap string) int64 {
+func (pbm *Monitor) getAndResetSortingErrorCount(eventType model.EventType, perfMap string) int64 {
 	return pbm.sortingErrorStats[perfMap][eventType].Swap(0)
 }
 
 // CountLostEvent adds `count` to the counter of lost events
-func (pbm *EventStreamMonitor) CountLostEvent(count uint64, mapName string, cpu int) {
+func (pbm *Monitor) CountLostEvent(count uint64, mapName string, cpu int) {
 	// sanity check
 	if (pbm.readLostEvents[mapName] == nil) || (len(pbm.readLostEvents[mapName]) <= cpu) {
 		return
@@ -385,7 +386,7 @@ func (pbm *EventStreamMonitor) CountLostEvent(count uint64, mapName string, cpu 
 }
 
 // CountEvent adds `count` to the counter of received events of the specified type
-func (pbm *EventStreamMonitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, mapName string, cpu int) {
+func (pbm *Monitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, mapName string, cpu int) {
 	// check event order
 	if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
 		pbm.sortingErrorStats[mapName][eventType].Inc()
@@ -402,7 +403,7 @@ func (pbm *EventStreamMonitor) CountEvent(eventType model.EventType, timestamp u
 	pbm.stats[mapName][cpu][eventType].Bytes.Add(size)
 }
 
-func (pbm *EventStreamMonitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {
+func (pbm *Monitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {
 	var count int64
 	var err error
 	tags := []string{pbm.config.StatsTagsCardinality, "", ""}
@@ -437,7 +438,7 @@ func (pbm *EventStreamMonitor) sendEventsAndBytesReadStats(client statsd.ClientI
 	return nil
 }
 
-func (pbm *EventStreamMonitor) sendLostEventsReadStats(client statsd.ClientInterface) error {
+func (pbm *Monitor) sendLostEventsReadStats(client statsd.ClientInterface) error {
 	tags := []string{pbm.config.StatsTagsCardinality, ""}
 
 	for m := range pbm.readLostEvents {
@@ -456,8 +457,9 @@ func (pbm *EventStreamMonitor) sendLostEventsReadStats(client statsd.ClientInter
 	return nil
 }
 
-func (pbm *EventStreamMonitor) getRingbufUsage(statsMap *statMap) (uint64, error) {
-	if err := pbm.eRPC.Request(&erpc.ERPCRequest{OP: erpc.GetRingbufUsage}); err != nil {
+func (pbm *Monitor) getRingbufUsage(statsMap *statMap) (uint64, error) {
+	req := erpc.NewERPCRequest(erpc.GetRingbufUsage)
+	if err := pbm.eRPC.Request(req); err != nil {
 		return 0, err
 	}
 
@@ -469,14 +471,14 @@ func (pbm *EventStreamMonitor) getRingbufUsage(statsMap *statMap) (uint64, error
 	return ringUsage, nil
 }
 
-func (pbm *EventStreamMonitor) collectAndSendKernelStats(client statsd.ClientInterface) error {
+func (pbm *Monitor) collectAndSendKernelStats(client statsd.ClientInterface) error {
 	var (
 		id       uint32
 		iterator *lib.MapIterator
 		tmpCount uint64
 	)
 
-	cpuStats := make([]EventStreamMapStats, pbm.numCPU)
+	cpuStats := make([]MapStats, pbm.numCPU)
 	for i := 0; i < pbm.numCPU; i++ {
 		cpuStats[i] = NewEventStreamMapStats()
 	}
@@ -564,7 +566,7 @@ func (pbm *EventStreamMonitor) collectAndSendKernelStats(client statsd.ClientInt
 	return nil
 }
 
-func (pbm *EventStreamMonitor) sendKernelStats(client statsd.ClientInterface, stats EventStreamMapStats, tags []string) error {
+func (pbm *Monitor) sendKernelStats(client statsd.ClientInterface, stats MapStats, tags []string) error {
 	if stats.Count.Load() > 0 {
 		if err := client.Count(metrics.MetricPerfBufferEventsWrite, int64(stats.Count.Load()), tags, 1.0); err != nil {
 			return err
@@ -587,7 +589,7 @@ func (pbm *EventStreamMonitor) sendKernelStats(client statsd.ClientInterface, st
 }
 
 // SendStats send event stats using the provided statsd client
-func (pbm *EventStreamMonitor) SendStats() error {
+func (pbm *Monitor) SendStats() error {
 	if err := pbm.collectAndSendKernelStats(pbm.statsdClient); err != nil {
 		return err
 	}

@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
 	"github.com/tinylib/msgp/msgp"
@@ -40,7 +40,7 @@ const (
 
 // StatsWriter ingests stats buckets and flushes them to the API.
 type StatsWriter struct {
-	in      <-chan pb.StatsPayload
+	in      <-chan *pb.StatsPayload
 	senders []*sender
 	stop    chan struct{}
 	stats   *info.StatsWriterInfo
@@ -48,14 +48,14 @@ type StatsWriter struct {
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
-	payloads  []pb.StatsPayload // payloads buffered for sync mode
+	payloads  []*pb.StatsPayload // payloads buffered for sync mode
 	flushChan chan chan struct{}
 
 	easylog *log.ThrottledLogger
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
-func NewStatsWriter(cfg *config.AgentConfig, in <-chan pb.StatsPayload, telemetryCollector telemetry.TelemetryCollector) *StatsWriter {
+func NewStatsWriter(cfg *config.AgentConfig, in <-chan *pb.StatsPayload, telemetryCollector telemetry.TelemetryCollector) *StatsWriter {
 	sw := &StatsWriter{
 		in:        in,
 		stats:     &info.StatsWriterInfo{},
@@ -130,14 +130,14 @@ func (w *StatsWriter) Stop() {
 	stopSenders(w.senders)
 }
 
-func (w *StatsWriter) addStats(sp pb.StatsPayload) {
+func (w *StatsWriter) addStats(sp *pb.StatsPayload) {
 	defer timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
 	payloads := w.buildPayloads(sp, maxEntriesPerPayload)
 	w.payloads = append(w.payloads, payloads...)
 }
 
 // SendPayload sends a stats payload to the Datadog backend.
-func (w *StatsWriter) SendPayload(p pb.StatsPayload) {
+func (w *StatsWriter) SendPayload(p *pb.StatsPayload) {
 	req := newPayload(map[string]string{
 		headerLanguages:    strings.Join(info.Languages(), "|"),
 		"Content-Type":     "application/msgpack",
@@ -158,11 +158,11 @@ func (w *StatsWriter) sendPayloads() {
 }
 
 func (w *StatsWriter) resetBuffer() {
-	w.payloads = make([]pb.StatsPayload, 0, len(w.payloads))
+	w.payloads = make([]*pb.StatsPayload, 0, len(w.payloads))
 }
 
 // encodePayload encodes the payload as Gzipped msgPack into w.
-func encodePayload(w io.Writer, payload pb.StatsPayload) error {
+func encodePayload(w io.Writer, payload *pb.StatsPayload) error {
 	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 	if err != nil {
 		return err
@@ -172,15 +172,15 @@ func encodePayload(w io.Writer, payload pb.StatsPayload) error {
 			log.Errorf("Error closing gzip stream when writing stats payload: %v", err)
 		}
 	}()
-	return msgp.Encode(gz, &payload)
+	return msgp.Encode(gz, payload)
 }
 
 // buildPayloads splits pb.ClientStatsPayload that have more than maxEntriesPerPayload
 // and then groups them into pb.StatsPayload with less than maxEntriesPerPayload
-func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int) []pb.StatsPayload {
+func (w *StatsWriter) buildPayloads(sp *pb.StatsPayload, maxEntriesPerPayload int) []*pb.StatsPayload {
 	split := splitPayloads(sp.Stats, maxEntriesPerPayload)
-	grouped := make([]pb.StatsPayload, 0, len(sp.Stats))
-	current := pb.StatsPayload{
+	grouped := make([]*pb.StatsPayload, 0, len(sp.Stats))
+	current := &pb.StatsPayload{
 		AgentHostname:  sp.AgentHostname,
 		AgentEnv:       sp.AgentEnv,
 		AgentVersion:   sp.AgentVersion,
@@ -193,9 +193,14 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 		w.stats.ClientPayloads.Add(int64(len(current.Stats)))
 		w.stats.StatsEntries.Add(int64(nbEntries))
 		grouped = append(grouped, current)
-		current.Stats = nil
 		nbEntries = 0
 		nbBuckets = 0
+		current = &pb.StatsPayload{
+			AgentHostname:  sp.AgentHostname,
+			AgentEnv:       sp.AgentEnv,
+			AgentVersion:   sp.AgentVersion,
+			ClientComputed: sp.ClientComputed,
+		}
 	}
 	for _, p := range split {
 		if nbEntries+p.nbEntries > maxEntriesPerPayload {
@@ -203,7 +208,7 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 		}
 		nbEntries += p.nbEntries
 		nbBuckets += len(p.Stats)
-		w.resolveContainerTags(&p.ClientStatsPayload)
+		w.resolveContainerTags(p.ClientStatsPayload)
 		current.Stats = append(current.Stats, p.ClientStatsPayload)
 	}
 	if nbEntries > 0 {
@@ -211,6 +216,9 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 	}
 	if len(grouped) > 1 {
 		w.stats.Splits.Inc()
+		for _, g := range grouped {
+			g.SplitPayload = true
+		}
 	}
 	return grouped
 }
@@ -234,7 +242,7 @@ func (w *StatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
 	}
 }
 
-func splitPayloads(payloads []pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
+func splitPayloads(payloads []*pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
 	split := make([]clientStatsPayload, 0, len(payloads))
 	for _, p := range payloads {
 		split = append(split, splitPayload(p, maxEntriesPerPayload)...)
@@ -245,7 +253,7 @@ func splitPayloads(payloads []pb.ClientStatsPayload, maxEntriesPerPayload int) [
 type timeWindow struct{ start, duration uint64 }
 
 type clientStatsPayload struct {
-	pb.ClientStatsPayload
+	*pb.ClientStatsPayload
 	nbEntries int
 	// bucketIndexes maps from a timeWindow to a bucket in the ClientStatsPayload.
 	// it allows quick checking of what bucket to add a payload to.
@@ -253,7 +261,7 @@ type clientStatsPayload struct {
 }
 
 // splitPayload splits a stats payload to ensure that each stats payload has less than maxEntriesPerPayload entries.
-func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
+func splitPayload(p *pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
 	if len(p.Stats) == 0 {
 		return nil
 	}
@@ -277,7 +285,7 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 	for i := 0; i < nbPayloads; i++ {
 		payloads[i] = clientStatsPayload{
 			bucketIndexes: make(map[timeWindow]int, 1),
-			ClientStatsPayload: pb.ClientStatsPayload{
+			ClientStatsPayload: &pb.ClientStatsPayload{
 				Hostname:         p.Hostname,
 				Env:              p.Env,
 				Version:          p.Version,
@@ -288,7 +296,7 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 				Sequence:         p.Sequence,
 				AgentAggregation: p.AgentAggregation,
 				ContainerID:      p.ContainerID,
-				Stats:            make([]pb.ClientStatsBucket, 0, maxEntriesPerPayload),
+				Stats:            make([]*pb.ClientStatsBucket, 0, maxEntriesPerPayload),
 			},
 		}
 	}
@@ -304,7 +312,7 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 			if !ok {
 				bi = len(payloads[j].Stats)
 				payloads[j].bucketIndexes[tw] = bi
-				payloads[j].Stats = append(payloads[j].Stats, pb.ClientStatsBucket{Start: tw.start, Duration: tw.duration})
+				payloads[j].Stats = append(payloads[j].Stats, &pb.ClientStatsBucket{Start: tw.start, Duration: tw.duration})
 			}
 			// here, we can just append the group, because there are no duplicate groups in the original stats payloads sent to the writer.
 			payloads[j].Stats[bi].Stats = append(payloads[j].Stats[bi].Stats, g)

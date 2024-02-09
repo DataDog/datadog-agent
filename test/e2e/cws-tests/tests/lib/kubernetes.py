@@ -79,7 +79,7 @@ class KubernetesHelper(LogGetter):
         temppolicy.close()
         temppolicy_path = temppolicy.name
         self.exec_command("security-agent", command=["mkdir", "-p", "/tmp/runtime-security.d"])
-        self.cp_to_agent("security-agent", temppolicy_path, "/tmp/runtime-security.d/custom.policy")
+        self.cp_to_agent("security-agent", temppolicy_path, "/tmp/runtime-security.d/downloaded.policy")
         os.remove(temppolicy_path)
 
     def cp_to_agent(self, agent_name, src_file, dst_file):

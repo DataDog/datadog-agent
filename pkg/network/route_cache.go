@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,7 +43,7 @@ type routeTTL struct {
 }
 
 type routeCache struct {
-	sync.Mutex
+	mu     sync.Mutex
 	cache  *lru.Cache
 	router Router
 	ttl    time.Duration
@@ -77,13 +78,13 @@ var routeCacheTelemetry = struct {
 	telemetry.NewCounter(routeCacheTelemetryModuleName, "evicts", []string{}, "Counter measuring the number of route cache evicts"),
 
 	telemetry.NewCounter(routerTelemetryModuleName, "netlink_lookups", []string{}, "Counter measuring the number of netlink lookups"),
-	telemetry.NewCounter(routerTelemetryModuleName, "netlink_errors", []string{}, "Counter measuring the number of netlink errors"),
+	telemetry.NewCounter(routerTelemetryModuleName, "netlink_errors", []string{"error"}, "Counter measuring the number of netlink errors"),
 	telemetry.NewCounter(routerTelemetryModuleName, "netlink_misses", []string{}, "Counter measuring the number of netlink misses"),
 
 	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_lookups", []string{}, "Counter measuring the number of interface cache lookups"),
 	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_misses", []string{}, "Counter measuring the number of interface cache misses"),
 	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_size", []string{}, "Counter measuring the size of the interface cache"),
-	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_errors", []string{}, "Counter measuring the number of interface cache errors"),
+	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_errors", []string{"error"}, "Counter measuring the number of interface cache errors"),
 }
 
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple
@@ -123,18 +124,18 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 }
 
 func (c *routeCache) Close() {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.cache.Clear()
 	c.router.Close()
 }
 
 func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) {
-	c.Lock()
+	c.mu.Lock()
 	defer func() {
 		routeCacheTelemetry.size.Set(float64(c.cache.Len()))
-		c.Unlock()
+		c.mu.Unlock()
 	}()
 
 	routeCacheTelemetry.lookups.Inc()
@@ -186,10 +187,12 @@ type ifEntry struct {
 }
 
 type netlinkRouter struct {
+	mu       sync.Mutex
 	rootNs   uint32
 	ioctlFD  int
 	ifcache  *lru.Cache
 	nlHandle *netlink.Handle
+	closed   bool
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
@@ -200,14 +203,14 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 	}
 	defer rootNs.Close()
 
-	rootNsIno, err := util.GetInoForNs(rootNs)
+	rootNsIno, err := kernel.GetInoForNs(rootNs)
 	if err != nil {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
 	var fd int
 	var nlHandle *netlink.Handle
-	err = util.WithNS(rootNs, func() (sockErr error) {
+	err = kernel.WithNS(rootNs, func() (sockErr error) {
 		if fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0); err != nil {
 			return err
 		}
@@ -232,12 +235,23 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 }
 
 func (n *netlinkRouter) Close() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
 	n.ifcache.Clear()
 	unix.Close(n.ioctlFD)
 	n.nlHandle.Close()
+	n.closed = true
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.closed {
+		return Route{}, false
+	}
+
 	var iifIndex int
 
 	srcBuf := util.IPBufferPool.Get().(*[]byte)
@@ -274,14 +288,16 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		})
 
 	if err != nil {
-		routeCacheTelemetry.netlinkErrors.Inc()
+		errno, ok := counterIncWithTag(routeCacheTelemetry.netlinkErrors, err)
 		if iifIndex > 0 {
-			if errno, ok := err.(syscall.Errno); ok && (errno == syscall.EINVAL || errno == syscall.ENODEV) {
+			if ok && (errno == syscall.EINVAL || errno == syscall.ENODEV) {
 				// invalidate interface cache entry as this may have been the cause of the netlink error
 				n.removeInterface(source, netns)
 			}
 		}
+		log.Debugf("Error getting route via netlink with sourceIP %s, dest IP %s and interface index %d : %s", srcIP, dstIP, iifIndex, err)
 	} else if len(routes) != 1 {
+		log.Debugf("Did not get exactly one route with sourceIP %s, dest IP %s and interface index %d, got %d routes", srcIP, dstIP, iifIndex, len(routes))
 		routeCacheTelemetry.netlinkMisses.Inc()
 	}
 	if err != nil || len(routes) != 1 {
@@ -314,16 +330,18 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	routeCacheTelemetry.netlinkLookups.Inc()
 	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
-		routeCacheTelemetry.netlinkErrors.Inc()
+		_, _ = counterIncWithTag(routeCacheTelemetry.netlinkErrors, err)
+		log.Debugf("Error getting route via netlink %s: %s", srcIP, err)
 		return nil
 	} else if len(routes) != 1 {
+		log.Debugf("Did not get exactly one route for %s, got %d routes", srcIP, len(routes))
 		routeCacheTelemetry.netlinkMisses.Inc()
 		return nil
 	}
 
 	ifr, err := unix.NewIfreq("")
 	if err != nil {
-		routeCacheTelemetry.ifCacheErrors.Inc()
+		_, _ = counterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
 		return nil
 	}
 
@@ -332,13 +350,13 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	// necessary to make the subsequent request to
 	// get the link flags
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
-		routeCacheTelemetry.ifCacheErrors.Inc()
-		log.Tracef("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
+		_, _ = counterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		log.Debugf("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
-		routeCacheTelemetry.ifCacheErrors.Inc()
-		log.Tracef("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
+		_, _ = counterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		log.Debugf("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 
@@ -347,4 +365,15 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	n.ifcache.Add(key, iff)
 	routeCacheTelemetry.ifCacheSize.Inc()
 	return iff
+}
+
+func counterIncWithTag(counter telemetry.Counter, err error) (errno syscall.Errno, ok bool) {
+	if errno, ok = err.(syscall.Errno); ok {
+		if tag := unix.ErrnoName(errno); tag != "" {
+			counter.Inc(tag)
+			return
+		}
+	}
+	counter.Inc()
+	return
 }

@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	connectionsURL = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/connections"
-	procStatsURL   = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
-	registerURL    = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
-	statsURL       = "http://unix/debug/stats"
-	netType        = "unix"
+	pingURL              = "http://unix/" + string(sysconfig.PingModule) + "/ping/"
+	connectionsURL       = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	procStatsURL         = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
+	registerURL          = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
+	statsURL             = "http://unix/debug/stats"
+	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
+	netType              = "unix"
 )
 
 // CheckPath is used in conjunction with calling the stats endpoint, since we are calling this

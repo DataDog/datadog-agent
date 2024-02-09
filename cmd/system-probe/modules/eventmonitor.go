@@ -9,70 +9,73 @@ package modules
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
-	procevents "github.com/DataDog/datadog-agent/pkg/process/events"
+	procconsumer "github.com/DataDog/datadog-agent/pkg/process/events/consumer"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// EventMonitor - Event monitor Factory
-var EventMonitor = module.Factory{
-	Name:             config.EventMonitorModule,
-	ConfigNamespaces: []string{"event_monitoring_config", "runtime_security_config"},
-	Fn: func(sysProbeConfig *config.Config) (module.Module, error) {
-		emconfig := emconfig.NewConfig(sysProbeConfig)
+var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
-		secconfig, err := secconfig.NewConfig()
+func createEventMonitorModule(_ *sysconfigtypes.Config) (module.Module, error) {
+	emconfig := emconfig.NewConfig()
+
+	secconfig, err := secconfig.NewConfig()
+	if err != nil {
+		log.Errorf("invalid probe configuration: %v", err)
+		return nil, module.ErrNotEnabled
+	}
+
+	opts := eventmonitor.Opts{}
+	secmoduleOpts := secmodule.Opts{}
+
+	// adapt options
+	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
+		secmodule.UpdateEventMonitorOpts(&opts, secconfig)
+	} else {
+		secmodule.DisableRuntimeSecurity(secconfig)
+	}
+
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
+	if err != nil {
+		log.Errorf("error initializing event monitoring module: %v", err)
+		return nil, module.ErrNotEnabled
+	}
+
+	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
+		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, secmoduleOpts)
 		if err != nil {
-			log.Infof("invalid probe configuration: %v", err)
-			return nil, module.ErrNotEnabled
+			return nil, err
 		}
+		evm.RegisterEventConsumer(cws)
+		log.Info("event monitoring cws consumer initialized")
+	}
 
-		opts := eventmonitor.Opts{}
-		secmoduleOpts := secmodule.Opts{}
-
-		// adapt options
-		if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-			secmodule.UpdateEventMonitorOpts(&opts)
-		}
-
-		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
+	// only add the network consumer if the pkg/network/events
+	// module was initialized by the network tracer module
+	// (this will happen only if the network consumer is enabled
+	// in config and the network tracer module is loaded successfully)
+	if events.Initialized() {
+		network, err := events.NewNetworkConsumer(evm)
 		if err != nil {
-			log.Infof("error initializing event monitoring module: %v", err)
-			return nil, module.ErrNotEnabled
+			return nil, err
 		}
+		evm.RegisterEventConsumer(network)
+		log.Info("event monitoring network consumer initialized")
+	}
 
-		if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-			cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, secmoduleOpts)
-			if err != nil {
-				return nil, err
-			}
-			evm.RegisterEventConsumer(cws)
-			log.Info("event monitoring cws consumer initialized")
+	if emconfig.ProcessConsumerEnabled {
+		process, err := procconsumer.NewProcessConsumer(evm)
+		if err != nil {
+			return nil, err
 		}
+		evm.RegisterEventConsumer(process)
+		log.Info("event monitoring process-agent consumer initialized")
+	}
 
-		if emconfig.NetworkConsumerEnabled {
-			network, err := events.NewNetworkConsumer(evm)
-			if err != nil {
-				return nil, err
-			}
-			evm.RegisterEventConsumer(network)
-			log.Info("event monitoring network consumer initialized")
-		}
-
-		if emconfig.ProcessConsumerEnabled {
-			process, err := procevents.NewProcessConsumer(evm)
-			if err != nil {
-				return nil, err
-			}
-			evm.RegisterEventConsumer(process)
-			log.Info("event monitoring process-agent consumer initialized")
-		}
-
-		return evm, err
-	},
+	return evm, err
 }

@@ -6,13 +6,20 @@
 
 #include "buffer_selector.h"
 
-int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
-    if (dr_type == DR_KPROBE) {
-        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_AD_FILTER_KEY);
-    } else if (dr_type == DR_TRACEPOINT) {
-        bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_AD_FILTER_KEY);
+int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, int dr_type, int key) {
+    switch (dr_type) {
+    case DR_KPROBE_OR_FENTRY:
+        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_progs, key);
+        break;
+    case DR_TRACEPOINT:
+        bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, key);
+        break;
     }
     return 0;
+}
+
+int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
+    return tail_call_dr_progs(ctx, dr_type, DR_AD_FILTER_KEY);
 }
 
 int __attribute__((always_inline)) monitor_resolution_err(u32 resolution_err) {
@@ -62,7 +69,7 @@ exit:
     return err;
 }
 
-int __attribute__((always_inline)) handle_dr_request(struct pt_regs *ctx, void *data, u32 dr_erpc_key) {
+int __attribute__((always_inline)) handle_dr_request(ctx_t *ctx, void *data, u32 dr_erpc_key) {
     u32 key = 0;
     struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
     if (state == NULL) {
@@ -74,11 +81,20 @@ int __attribute__((always_inline)) handle_dr_request(struct pt_regs *ctx, void *
         goto exit;
     }
 
-    bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, dr_erpc_key);
+    tail_call_dr_progs(ctx, DR_KPROBE_OR_FENTRY, dr_erpc_key);
 
 exit:
     monitor_resolution_err(resolution_err);
     return 0;
+}
+
+int __attribute__((always_inline)) select_dr_key(int dr_type, int kprobe_key, int tracepoint_key) {
+    switch (dr_type) {
+    case DR_KPROBE_OR_FENTRY:
+        return kprobe_key;
+    default: // DR_TRACEPOINT
+        return tracepoint_key;
+    }
 }
 
 #endif

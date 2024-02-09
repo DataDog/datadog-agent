@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package doc holds doc related files
 package doc
 
 import (
@@ -22,7 +23,7 @@ import (
 
 const (
 	generateConstantsAnnotationPrefix = "// generate_constants:"
-	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding string`"
+	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding string`" // SECLDocForLength defines SECL doc for length
 )
 
 type documentation struct {
@@ -96,6 +97,10 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 	cachedDocumentation := make(map[string]*propertyDocumentation)
 
 	for name, field := range module.Fields {
+		if field.GettersOnly {
+			continue
+		}
+
 		var propertyKey string
 		var propertySuffix string
 		var propertyDefinition string
@@ -223,9 +228,7 @@ func mergeConstants(one []constants, two []constants) []constants {
 	var output []constants
 
 	// add constants from one to output
-	for _, consts := range one {
-		output = append(output, consts)
-	}
+	output = append(output, one...)
 
 	// check if the constants from two should be appended or merged
 	for _, constsTwo := range two {

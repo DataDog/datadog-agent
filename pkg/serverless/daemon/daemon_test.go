@@ -16,9 +16,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -74,7 +74,7 @@ func TestTellDaemonRuntimeDoneOnceStartAndEnd(t *testing.T) {
 }
 
 func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
-	t.Setenv(LocalTestEnvVar, "1")
+	t.Setenv(LocalTestEnvVar, "true")
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))

@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/nikos/types"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -79,7 +78,8 @@ type headerProvider struct {
 	kernelHeaders []string
 }
 
-type KernelHeaderOptions struct {
+// HeaderOptions are options for the kernel header download process
+type HeaderOptions struct {
 	DownloadEnabled bool
 	Dirs            []string
 	DownloadDir     string
@@ -89,7 +89,7 @@ type KernelHeaderOptions struct {
 	ZypperReposDir string
 }
 
-func initProvider(opts KernelHeaderOptions) {
+func initProvider(opts HeaderOptions) {
 	HeaderProvider = &headerProvider{
 		downloadEnabled:   opts.DownloadEnabled,
 		headerDirs:        opts.Dirs,
@@ -114,7 +114,7 @@ func initProvider(opts KernelHeaderOptions) {
 // Any subsequent calls to GetKernelHeaders will return the result of the first call. This is because
 // kernel header downloading can be a resource intensive process, so we don't want to retry it an unlimited
 // number of times.
-func GetKernelHeaders(opts KernelHeaderOptions, client statsd.ClientInterface) []string {
+func GetKernelHeaders(opts HeaderOptions, client statsd.ClientInterface) []string {
 	providerMu.Lock()
 	defer providerMu.Unlock()
 
@@ -347,19 +347,17 @@ func parseHeaderVersion(r io.Reader) (Version, error) {
 }
 
 func getDefaultHeaderDirs() []string {
-	// KernelVersion == uname -r
-	hi := host.GetStatusInformation()
-	if hi.KernelVersion == "" {
+	hi, err := Release()
+	if err != nil {
 		return []string{}
 	}
 
-	dirs := []string{
-		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(centosKernelModulesPath, hi.KernelVersion),
+	return []string{
+		fmt.Sprintf(kernelModulesPath, hi),
+		fmt.Sprintf(debKernelModulesPath, hi),
+		fmt.Sprintf(cosKernelModulesPath, hi),
+		fmt.Sprintf(centosKernelModulesPath, hi),
 	}
-	return dirs
 }
 
 func getDownloadedHeaderDirs(headerDownloadDir string) []string {
@@ -444,7 +442,11 @@ func submitTelemetry(result headerFetchResult, client statsd.ClientInterface) {
 		platform = strings.ToLower(target.Distro.Display)
 	} else {
 		log.Warnf("failed to retrieve host platform information from nikos: %s", err)
-		platform = host.GetStatusInformation().Platform
+		platform, err = Platform()
+		if err != nil {
+			log.Warnf("failed to retrieve host platform information: %s", err)
+			return
+		}
 	}
 
 	tags := []string{

@@ -1,212 +1,140 @@
-// This file is licensed under the MIT License.
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
-// Copyright 2014-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// Package main contains the binary related functions,
-// eg. cli parameters
-package main
+// Package gohai encapsulate all the metadata collected by it's subpackage into a single payload ready to be ingested by the
+// backend.
+package gohai
 
 import (
-	"bytes"
 	"encoding/json"
-	"flag"
-	"fmt"
-	"os"
-	"sort"
-	"strings"
+	"net"
+	"sync"
 
-	// 3p
-	log "github.com/cihub/seelog"
-
-	// project
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Collector represents a group of information which can be collected
-type Collector interface {
-	Name() string
-	Collect() (interface{}, error)
-}
-
-// CollectorV2 is a compatibility layer between the old 'Collector' interface and
-// the way the new API is defined
-type CollectorV2[T Jsonable] struct {
-	name    string
-	collect func() T
-}
-
-// Jsonable represents a type which can be converted to a mashallable object
-type Jsonable interface {
-	AsJSON() (interface{}, []string, error)
-}
-
-// Name returns the name of the CollectorV2
-func (collector *CollectorV2[T]) Name() string {
-	return collector.name
-}
-
-// Collect calls the CollectorV2's collect method and returns only its marshallable object and error
-func (collector *CollectorV2[T]) Collect() (interface{}, error) {
-	json, _, err := collector.collect().AsJSON()
-	return json, err
-}
-
-// SelectedCollectors represents a set of collector names
-type SelectedCollectors map[string]struct{}
-
-var collectors = []Collector{
-	&cpu.Cpu{},
-	&filesystem.FileSystem{},
-	&CollectorV2[*memory.Info]{
-		name:    "memory",
-		collect: memory.CollectInfo,
-	},
-	&network.Network{},
-	&platform.Platform{},
-	&processes.Processes{},
-}
-
-var options struct {
-	only     SelectedCollectors
-	exclude  SelectedCollectors
-	logLevel string
-	version  bool
-}
-
-// version information filled in at build time
 var (
-	buildDate string
-	gitCommit string
-	gitBranch string
-	goVersion string
+	// we can use this a hint that docker is running in host mode and it's safe to use detect
+	docker0Detected = false
+	docker0Detector sync.Once
 )
 
-// Collect fills the result map with the collector information under their name key
-func Collect() (result map[string]interface{}, err error) {
-	result = make(map[string]interface{})
+func detectDocker0() bool {
+	docker0Detector.Do(func() {
+		iface, _ := net.InterfaceByName("docker0")
+		docker0Detected = iface != nil
+	})
 
-	for _, collector := range collectors {
-		if shouldCollect(collector) {
-			c, err := collector.Collect()
-			if err != nil {
-				log.Warnf("[%s] %s", collector.Name(), err)
-			}
-			if c != nil {
-				result[collector.Name()] = c
-			}
+	return docker0Detected
+}
+
+type gohai struct {
+	CPU        interface{} `json:"cpu"`
+	FileSystem interface{} `json:"filesystem"`
+	Memory     interface{} `json:"memory"`
+	Network    interface{} `json:"network"`
+	Platform   interface{} `json:"platform"`
+	Processes  interface{} `json:"processes,omitempty"`
+}
+
+// Payload handles the JSON unmarshalling of the metadata payload
+type Payload struct {
+	Gohai *gohai `json:"gohai"`
+}
+
+// GetPayload builds a payload of every metadata collected with gohai except processes metadata.
+func GetPayload(isContainerized bool) *Payload {
+	return &Payload{
+		Gohai: getGohaiInfo(isContainerized, false),
+	}
+}
+
+// GetPayloadWithProcesses builds a pyaload of all metdata including processes
+func GetPayloadWithProcesses(isContainerized bool) *Payload {
+	return &Payload{
+		Gohai: getGohaiInfo(isContainerized, true),
+	}
+}
+
+// GetPayloadAsString marshals the gohai struct twice (to a string). This allows the gohai payload to be embedded as a
+// string in a JSON. This is required to mimic the metadata format inherited from Agent v5.
+func GetPayloadAsString(IsContainerized bool) (string, error) {
+	marshalledPayload, err := json.Marshal(getGohaiInfo(IsContainerized, false))
+	if err != nil {
+		return "", err
+	}
+	return string(marshalledPayload), nil
+}
+
+func getGohaiInfo(isContainerized, withProcesses bool) *gohai {
+	res := new(gohai)
+
+	cpuPayload, _, err := cpu.CollectInfo().AsJSON()
+	if err == nil {
+		res.CPU = cpuPayload
+	} else {
+		log.Errorf("Failed to retrieve cpu metadata: %s", err)
+	}
+
+	var fileSystemPayload interface{}
+	fileSystemInfo, err := filesystem.CollectInfo()
+	if err == nil {
+		fileSystemPayload, _, err = fileSystemInfo.AsJSON()
+	}
+	if err == nil {
+		res.FileSystem = fileSystemPayload
+	} else {
+		log.Errorf("Failed to retrieve filesystem metadata: %s", err)
+	}
+
+	memoryPayload, _, err := memory.CollectInfo().AsJSON()
+	if err == nil {
+		res.Memory = memoryPayload
+	} else {
+		log.Errorf("Failed to retrieve memory metadata: %s", err)
+	}
+
+	if !isContainerized || detectDocker0() {
+		var networkPayload interface{}
+		networkInfo, err := network.CollectInfo()
+		if err == nil {
+			networkPayload, _, err = networkInfo.AsJSON()
+		}
+		if err == nil {
+			res.Network = networkPayload
+		} else {
+			log.Errorf("Failed to retrieve network metadata: %s", err)
 		}
 	}
 
-	result["gohai"] = versionMap()
-
-	return
-}
-
-func versionMap() (result map[string]interface{}) {
-	result = make(map[string]interface{})
-
-	result["git_hash"] = gitCommit
-	result["git_branch"] = gitBranch
-	result["build_date"] = buildDate
-	result["go_version"] = goVersion
-
-	return
-}
-
-func versionString() string {
-	var buf bytes.Buffer
-
-	if gitCommit != "" {
-		fmt.Fprintf(&buf, "Git hash: %s\n", gitCommit)
-	}
-	if gitBranch != "" {
-		fmt.Fprintf(&buf, "Git branch: %s\n", gitBranch)
-	}
-	if buildDate != "" {
-		fmt.Fprintf(&buf, "Build date: %s\n", buildDate)
-	}
-	if goVersion != "" {
-		fmt.Fprintf(&buf, "Go Version: %s\n", goVersion)
+	platformPayload, _, err := platform.CollectInfo().AsJSON()
+	if err == nil {
+		res.Platform = platformPayload
+	} else {
+		log.Errorf("Failed to retrieve platform metadata: %s", err)
 	}
 
-	return buf.String()
-}
-
-// Implement the flag.Value interface
-func (sc *SelectedCollectors) String() string {
-	collectorSlice := make([]string, 0, len(*sc))
-	for collectorName := range *sc {
-		collectorSlice = append(collectorSlice, collectorName)
-	}
-	sort.Strings(collectorSlice)
-	return fmt.Sprint(collectorSlice)
-}
-
-// Set adds the given comma-separated list of collector names to the selected set.
-func (sc *SelectedCollectors) Set(value string) error {
-	for _, collectorName := range strings.Split(value, ",") {
-		(*sc)[collectorName] = struct{}{}
-	}
-	return nil
-}
-
-// Return whether we should collect on a given collector, depending on the parsed flags
-func shouldCollect(collector Collector) bool {
-	if _, ok := options.only[collector.Name()]; len(options.only) > 0 && !ok {
-		return false
+	if withProcesses {
+		var processesPayload interface{}
+		processesInfo, err := processes.CollectInfo()
+		if err == nil {
+			processesPayload, _, err = processesInfo.AsJSON()
+		}
+		if err == nil {
+			res.Processes = processesPayload
+		} else {
+			log.Errorf("Failed to retrieve processes metadata: %s", err)
+		}
 	}
 
-	if _, ok := options.exclude[collector.Name()]; ok {
-		return false
-	}
-
-	return true
-}
-
-// Will be called after all the imported packages' init() have been called
-// Define collector-specific flags in their packages' init() function
-func init() {
-	options.only = make(SelectedCollectors)
-	options.exclude = make(SelectedCollectors)
-
-	flag.BoolVar(&options.version, "version", false, "Show version information and exit")
-	flag.Var(&options.only, "only", "Run only the listed collectors (comma-separated list of collector names)")
-	flag.Var(&options.exclude, "exclude", "Run all the collectors except those listed (comma-separated list of collector names)")
-	flag.StringVar(&options.logLevel, "log-level", "info", "Log level (one of 'warn', 'info', 'debug')")
-}
-
-func main() {
-	defer log.Flush()
-
-	flag.Parse()
-
-	err := initLogging(options.logLevel)
-	if err != nil {
-		panic(fmt.Sprintf("Unable to initialize logger: %s", err))
-	}
-
-	if options.version {
-		fmt.Printf("%s", versionString())
-		os.Exit(0)
-	}
-
-	gohai, err := Collect()
-
-	if err != nil {
-		panic(err)
-	}
-
-	buf, err := json.Marshal(gohai)
-
-	if err != nil {
-		panic(err)
-	}
-
-	os.Stdout.Write(buf)
+	return res
 }

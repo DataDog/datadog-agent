@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package uptane contains the logic needed to perform the Uptane verification
+// checks against stored TUF metadata and the associated config files.
 package uptane
 
 import (
@@ -18,7 +20,7 @@ import (
 	"go.etcd.io/bbolt"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // Client is an uptane client
@@ -28,13 +30,15 @@ type Client struct {
 	orgID           int64
 	orgUUIDProvider OrgUUIDProvider
 
-	configLocalStore  *localStore
-	configRemoteStore *remoteStoreConfig
-	configTUFClient   *client.Client
+	configLocalStore   *localStore
+	configRemoteStore  *remoteStoreConfig
+	configTUFClient    *client.Client
+	configRootOverride string
 
-	directorLocalStore  *localStore
-	directorRemoteStore *remoteStoreDirector
-	directorTUFClient   *client.Client
+	directorLocalStore   *localStore
+	directorRemoteStore  *remoteStoreDirector
+	directorTUFClient    *client.Client
+	directorRootOverride string
 
 	targetStore *targetStore
 	orgStore    *orgStore
@@ -46,11 +50,27 @@ type Client struct {
 	transactionalStore *transactionalStore
 }
 
+// ClientOption describes a function in charge of changing the uptane client
 type ClientOption func(c *Client)
 
+// WithOrgIDCheck sets the org ID
 func WithOrgIDCheck(orgID int64) ClientOption {
 	return func(c *Client) {
 		c.orgID = orgID
+	}
+}
+
+// WithDirectorRootOverride overrides director root
+func WithDirectorRootOverride(directorRootOverride string) ClientOption {
+	return func(c *Client) {
+		c.directorRootOverride = directorRootOverride
+	}
+}
+
+// WithConfigRootOverride overrides config root
+func WithConfigRootOverride(configRootOverride string) ClientOption {
+	return func(c *Client) {
+		c.configRootOverride = configRootOverride
 	}
 }
 
@@ -58,31 +78,32 @@ func WithOrgIDCheck(orgID int64) ClientOption {
 type OrgUUIDProvider func() (string, error)
 
 // NewClient creates a new uptane client
-func NewClient(cacheDB *bbolt.DB, cacheKey string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (*Client, error) {
+func NewClient(cacheDB *bbolt.DB, cacheKey string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *Client, err error) {
 	transactionalStore := newTransactionalStore(cacheDB)
-	localStoreConfig, err := newLocalStoreConfig(transactionalStore, cacheKey)
-	if err != nil {
-		return nil, err
-	}
-	localStoreDirector, err := newLocalStoreDirector(transactionalStore, cacheKey)
-	if err != nil {
-		return nil, err
-	}
 	targetStore := newTargetStore(transactionalStore, cacheKey)
 	orgStore := newOrgStore(transactionalStore, cacheKey)
-	c := &Client{
-		configLocalStore:    localStoreConfig,
+
+	c = &Client{
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
-		directorLocalStore:  localStoreDirector,
 		directorRemoteStore: newRemoteStoreDirector(targetStore),
 		targetStore:         targetStore,
 		orgStore:            orgStore,
 		transactionalStore:  transactionalStore,
 		orgUUIDProvider:     orgUUIDProvider,
 	}
+
 	for _, o := range options {
 		o(c)
 	}
+
+	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, cacheKey, c.configRootOverride); err != nil {
+		return nil, err
+	}
+
+	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, cacheKey, c.directorRootOverride); err != nil {
+		return nil, err
+	}
+
 	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
 	return c, nil

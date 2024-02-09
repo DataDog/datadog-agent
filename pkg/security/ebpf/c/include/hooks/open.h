@@ -39,31 +39,31 @@ int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_
     return trace__sys_openat2(async, flags, mode, 0);
 }
 
-SYSCALL_KPROBE2(creat, const char *, filename, umode_t, mode) {
+HOOK_SYSCALL_ENTRY2(creat, const char *, filename, umode_t, mode) {
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
+HOOK_SYSCALL_COMPAT_ENTRY3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
     umode_t mode = 0;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE0(truncate) {
+HOOK_SYSCALL_COMPAT_ENTRY0(truncate) {
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
     umode_t mode = 0;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE3(open, const char*, filename, int, flags, umode_t, mode) {
+HOOK_SYSCALL_COMPAT_ENTRY3(open, const char*, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
+HOOK_SYSCALL_COMPAT_ENTRY4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_KPROBE4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
+HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
     struct openat2_open_how how;
     bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
     return trace__sys_openat(SYNC_SYSCALL, how.flags, how.mode);
@@ -102,6 +102,11 @@ int hook_vfs_truncate(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
     struct dentry *dentry = get_path_dentry(path);
 
+    if (is_non_mountable_dentry(dentry)) {
+        pop_syscall(EVENT_OPEN);
+        return 0;
+    }
+
     syscall->open.dentry = dentry;
     syscall->open.file.path_key = get_dentry_key_path(syscall->open.dentry, path);
 
@@ -126,21 +131,25 @@ int hook_vfs_open(ctx_t *ctx) {
     struct dentry *dentry = get_path_dentry(path);
     struct inode *inode = get_dentry_inode(dentry);
 
+    if (is_non_mountable_dentry(dentry)) {
+        pop_syscall(EVENT_OPEN);
+        return 0;
+    }
+
     return handle_open_event(syscall, file, path, inode);
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/do_dentry_open")
-int kprobe_do_dentry_open(struct pt_regs *ctx) {
+HOOK_ENTRY("do_dentry_open")
+int hook_do_dentry_open(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
     }
 
-    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
-    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
+    struct file *file = (struct file *)CTX_PARM1(ctx);
+    struct inode *inode = (struct inode *)CTX_PARM2(ctx);
 
-    return handle_exec_event(ctx, syscall, file, &file->f_path, inode);
+    return handle_exec_event(ctx, syscall, file, get_file_f_path_addr(file), inode);
 }
 
 int __attribute__((always_inline)) trace_io_openat(ctx_t *ctx) {
@@ -195,9 +204,10 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0;
-    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_OPEN_CALLBACK_KPROBE_KEY : DR_OPEN_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.callback = select_dr_key(dr_type, DR_OPEN_CALLBACK_KPROBE_KEY, DR_OPEN_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
+    syscall->resolver.sysretval = retval;
 
     // tail call
     resolve_dentry(ctx, dr_type);
@@ -207,34 +217,34 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     return 0;
 }
 
-
-int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE);
+HOOK_SYSCALL_EXIT(creat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(creat) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(open_by_handle_at) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(truncate) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(truncate) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(open) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(open) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(openat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(openat) {
-    return kprobe_sys_open_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(openat2) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_EXIT(openat2) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_open_exit")
@@ -242,10 +252,10 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
     return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
-SEC("kretprobe/io_openat2")
-int kretprobe_io_openat2(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE);
+HOOK_EXIT("io_openat2")
+int rethook_io_openat2(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 2);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 HOOK_ENTRY("filp_close")
@@ -259,11 +269,13 @@ int hook_filp_close(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
+int __attribute__((always_inline)) dr_open_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
     }
+
+    s64 retval = syscall->resolver.sysretval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
@@ -288,7 +300,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
         .mode = syscall->open.mode,
     };
 
-    fill_file_metadata(syscall->open.dentry, &event.file.metadata);
+    fill_file(syscall->open.dentry, &event.file);
     struct proc_cache_t *entry;
     if (syscall->open.pid_tgid != 0) {
         entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);
@@ -302,16 +314,14 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/dr_open_callback")
-int __attribute__((always_inline)) kprobe_dr_open_callback(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return dr_open_callback(ctx, retval);
+TAIL_CALL_TARGET("dr_open_callback")
+int tail_call_target_dr_open_callback(ctx_t *ctx) {
+    return dr_open_callback(ctx);
 }
 
 SEC("tracepoint/dr_open_callback")
-int __attribute__((always_inline)) tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_open_callback(args, args->ret);
+int tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_open_callback(args);
 }
 
 #endif

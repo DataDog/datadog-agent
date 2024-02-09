@@ -7,6 +7,8 @@
 package server
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -30,10 +32,13 @@ type Component interface {
 	UdsListenerRunning() bool
 
 	// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
-	ServerlessFlush()
+	ServerlessFlush(time.Duration)
 
 	// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
 	SetExtraTags(tags []string)
+
+	// UDPLocalAddr returns the local address of the UDP statsd listener, if enabled.
+	UDPLocalAddr() string
 }
 
 // Mock implements mock-specific methods.
@@ -42,11 +47,13 @@ type Mock interface {
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newServer),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newServer))
+}
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
+}

@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package rcclient
+package rcclient //nolint:revive // TODO(RC) Fix revive linter
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -15,13 +16,19 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// TODO: (components) Start the remote config client to listen to AGENT_TASK configurations
+	// TODO: (components) Subscribe to AGENT_CONFIG configurations and start the remote config client
 	// Once the remote config client is refactored and can push updates directly to the listeners,
 	// we can remove this.
-	Listen(clientName string, products []data.Product) error
+	Start(clientName string) error
+	// SubscribeAgentTask subscribe the remote-config client to AGENT_TASK
+	SubscribeAgentTask()
+	// Subscribe is the generic way to start listening to a specific product update
+	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
+	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newRemoteConfigClient),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newRemoteConfigClient))
+}

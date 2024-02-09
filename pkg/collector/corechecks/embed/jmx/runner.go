@@ -10,10 +10,11 @@ package jmx
 import (
 	"time"
 
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 )
 
 type runner struct {
@@ -21,9 +22,10 @@ type runner struct {
 	started  bool
 }
 
-func (r *runner) initRunner() {
+func (r *runner) initRunner(server dogstatsdServer.Component) {
 	r.jmxfetch = &jmxfetch.JMXFetch{}
 	r.jmxfetch.LogLevel = config.Datadog.GetString("log_level")
+	r.jmxfetch.DSD = server
 }
 
 func (r *runner) startRunner() error {
@@ -31,8 +33,8 @@ func (r *runner) startRunner() error {
 	lifecycleMgmt := true
 	err := r.jmxfetch.Start(lifecycleMgmt)
 	if err != nil {
-		s := status.JMXStartupError{LastError: err.Error(), Timestamp: time.Now().Unix()}
-		status.SetJMXStartupError(s)
+		s := jmxStatus.StartupError{LastError: err.Error(), Timestamp: time.Now().Unix()}
+		jmxStatus.SetStartupError(s)
 		return err
 	}
 	r.started = true

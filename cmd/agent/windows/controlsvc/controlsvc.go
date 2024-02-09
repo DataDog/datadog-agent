@@ -9,21 +9,21 @@
 package controlsvc
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // StartService starts the agent service via the Service Control Manager
 func StartService() error {
-	return winutil.StartService(config.ServiceName)
+	return winutil.StartService(common.ServiceName)
 }
 
 // RestartService restarts the agent service by calling StopService and StartService
 func RestartService() error {
-	return winutil.RestartService(config.ServiceName)
+	return winutil.RestartService(common.ServiceName)
 }
 
 // StopService stops the agent service via the Service Control Manager
 func StopService() error {
-	return winutil.StopService(config.ServiceName)
+	return winutil.StopService(common.ServiceName)
 }

@@ -5,35 +5,5 @@
 
 //go:build linux
 
+// Package probe holds probe related files
 package probe
-
-import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-)
-
-// ErrNoProcessContext defines an error for event without process context
-type ErrNoProcessContext struct {
-	Err error
-}
-
-// Error implements the error interface
-func (e *ErrNoProcessContext) Error() string {
-	return e.Err.Error()
-}
-
-// Unwrap implements the error interface
-func (e *ErrNoProcessContext) Unwrap() error {
-	return e.Err
-}
-
-// ErrProcessBrokenLineage returned when a process lineage is broken
-type ErrProcessBrokenLineage struct {
-	PIDContext model.PIDContext
-}
-
-// Error implements the error interface
-func (e *ErrProcessBrokenLineage) Error() string {
-	return fmt.Sprintf("broken process lineage, pid: %d", e.PIDContext.Pid)
-}

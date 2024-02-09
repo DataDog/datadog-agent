@@ -1,0 +1,74 @@
+generator:
+  - id: tcp_logs
+    tcp:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      addr: "127.0.0.1:10000"
+      variant: "apache_common"
+      bytes_per_second: "10 Mb" # per connection, implicitly one for tcp generator
+      block_sizes: ["1Mb", "0.5Mb", "0.25Mb", "0.125Mb", "128Kb", "64Kb", "8Kb", "1Kb"]
+      maximum_prebuild_cache_size_bytes: "128 Mb"
+  - id: traces
+    http:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      headers: {}
+      target_uri: "http://127.0.0.1:8126/"
+      bytes_per_second: "8 Mb" # per connection
+      parallel_connections: 2
+      method:
+        post:
+          maximum_prebuild_cache_size_bytes: "128 Mb"
+          variant:
+            trace_agent: msgpack
+  - id: dogstatsd
+    unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      path: "/tmp/dsd.socket"
+      throttle: stable
+      variant:
+        dogstatsd:
+          metric_names:
+            inclusive:
+              min: 32
+              max: 128
+          tag_keys:
+            inclusive:
+              min: 0
+              max: 512
+          kind_weights:
+            metric: 90
+            event: 5
+            service_check: 5
+          metric_weights:
+            count: 100
+            gauge: 10
+            timer: 0
+            distribution: 50
+            set: 0
+            histogram: 1
+      bytes_per_second: "32 Mb" # per connection
+      parallel_connections: 1
+      block_sizes: ["1Kb", "2Kb", "4Kb", "8Kb", "16Kb", "32Kb"]
+      maximum_prebuild_cache_size_bytes: "128 Mb"
+
+blackhole:
+  - id: api
+    http:
+      binding_addr: "127.0.0.1:9091"
+
+  - id: traces
+    http:
+      binding_addr: "127.0.0.1:9092"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"
+    # metrics: intentionally left off to collect everything
+  - expvar:
+      uri: "http://127.0.0.1:5000/debug/vars"
+      vars:
+        - "/dogstatsd-uds/Bytes"
+        - "/dogstatsd-uds/Packets"
+        - "/dogstatsd-uds/PacketReadingErrors"

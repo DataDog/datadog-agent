@@ -8,11 +8,13 @@ package autodiscovery
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -25,25 +27,39 @@ type mockSecretScenario struct {
 	called         int
 }
 
-type MockSecretDecrypt struct {
+type MockSecretResolver struct {
 	t         *testing.T
 	scenarios []mockSecretScenario
 }
 
-func (m *MockSecretDecrypt) getDecryptFunc() func([]byte, string) ([]byte, error) {
-	return func(data []byte, origin string) ([]byte, error) {
-		for n, scenario := range m.scenarios {
-			if bytes.Compare(data, scenario.expectedData) == 0 && origin == scenario.expectedOrigin {
-				m.scenarios[n].called++
-				return scenario.returnedData, scenario.returnedError
-			}
-		}
-		m.t.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", data, origin)
-		return nil, fmt.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", data, origin)
+var _ secrets.Component = (*MockSecretResolver)(nil)
+
+func (m *MockSecretResolver) Configure(_ string, _ []string, _, _, _ int, _, _ bool) {}
+
+func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
+
+func (m *MockSecretResolver) Resolve(data []byte, origin string) ([]byte, error) {
+	if m.scenarios == nil {
+		return data, nil
 	}
+	for n, scenario := range m.scenarios {
+		if bytes.Equal(data, scenario.expectedData) && origin == scenario.expectedOrigin {
+			m.scenarios[n].called++
+			return scenario.returnedData, scenario.returnedError
+		}
+	}
+	m.t.Errorf("Resolve called with unexpected arguments: data=%s, origin=%s", string(data), origin)
+	return nil, fmt.Errorf("Resolve called with unexpected arguments: data=%s, origin=%s", string(data), origin)
 }
 
-func (m *MockSecretDecrypt) haveAllScenariosBeenCalled() bool {
+func (m *MockSecretResolver) SubscribeToChanges(_ secrets.SecretChangeCallback) {
+}
+
+func (m *MockSecretResolver) Refresh() (string, error) {
+	return "", nil
+}
+
+func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
 	for _, scenario := range m.scenarios {
 		if scenario.called == 0 {
 			fmt.Printf("%#v\n", m.scenarios)
@@ -53,20 +69,13 @@ func (m *MockSecretDecrypt) haveAllScenariosBeenCalled() bool {
 	return true
 }
 
-func (m *MockSecretDecrypt) haveAllScenariosNotCalled() bool {
+func (m *MockSecretResolver) haveAllScenariosNotCalled() bool {
 	for _, scenario := range m.scenarios {
 		if scenario.called != 0 {
 			return false
 		}
 	}
 	return true
-}
-
-// Install this secret decryptor, and return a function to uninstall it
-func (m *MockSecretDecrypt) install() func() {
-	originalSecretsDecrypt := secretsDecrypt
-	secretsDecrypt = m.getDecryptFunc()
-	return func() { secretsDecrypt = originalSecretsDecrypt }
 }
 
 var sharedTpl = integration.Config{
@@ -109,31 +118,29 @@ var makeSharedScenarios = func() []mockSecretScenario {
 	}
 }
 
-func TestSecretDecrypt(t *testing.T) {
-	mockDecrypt := MockSecretDecrypt{t, makeSharedScenarios()}
-	defer mockDecrypt.install()()
+func TestSecretResolve(t *testing.T) {
+	mockResolve := &MockSecretResolver{t, makeSharedScenarios()}
 
-	newConfig, err := decryptConfig(sharedTpl)
+	newConfig, err := decryptConfig(sharedTpl, mockResolve)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, newConfig.Instances, sharedTpl.Instances)
 
-	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
+	assert.True(t, mockResolve.haveAllScenariosBeenCalled())
 }
 
-func TestSkipSecretDecrypt(t *testing.T) {
-	mockDecrypt := MockSecretDecrypt{t, makeSharedScenarios()}
-	defer mockDecrypt.install()()
+func TestSkipSecretResolve(t *testing.T) {
+	mockResolve := &MockSecretResolver{t, makeSharedScenarios()}
 
 	cfg := config.Mock(t)
-	cfg.Set("secret_backend_skip_checks", true)
-	defer cfg.Set("secret_backend_skip_checks", false)
+	cfg.SetWithoutSource("secret_backend_skip_checks", true)
+	defer cfg.SetWithoutSource("secret_backend_skip_checks", false)
 
-	c, err := decryptConfig(sharedTpl)
+	c, err := decryptConfig(sharedTpl, mockResolve)
 	require.NoError(t, err)
 
 	assert.Equal(t, sharedTpl.Instances, c.Instances)
 	assert.Equal(t, sharedTpl.InitConfig, c.InitConfig)
 
-	assert.True(t, mockDecrypt.haveAllScenariosNotCalled())
+	assert.True(t, mockResolve.haveAllScenariosNotCalled())
 }

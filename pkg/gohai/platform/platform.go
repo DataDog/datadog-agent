@@ -4,8 +4,8 @@
 // Copyright 2014-present Datadog, Inc.
 
 //go:build !android
-// +build !android
 
+// Package platform regroups collecting information about the platform
 package platform
 
 import (
@@ -15,57 +15,50 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
-// Collect collects the Platform information.
-// Returns an object which can be converted to a JSON or an error if nothing could be collected.
-// Tries to collect as much information as possible.
-func (platform *Platform) Collect() (result interface{}, err error) {
-	result, _, err = getPlatformInfo()
-	return
+// Info holds metadata about the host
+type Info struct {
+	// GoVersion is the golang version.
+	GoVersion utils.Value[string] `json:"goV"`
+	// GoOS is equal to "runtime.GOOS"
+	GoOS utils.Value[string] `json:"GOOS"`
+	// GoArch is equal to "runtime.GOARCH"
+	GoArch utils.Value[string] `json:"GOOARCH"`
+
+	// KernelName is the kernel name (ex:  "windows", "Linux", ...)
+	KernelName utils.Value[string] `json:"kernel_name"`
+	// KernelRelease the kernel release (ex: "10.0.20348", "4.15.0-1080-gcp", ...)
+	KernelRelease utils.Value[string] `json:"kernel_release"`
+	// Hostname is the hostname for the host
+	Hostname utils.Value[string] `json:"hostname"`
+	// Machine the architecture for the host (is: x86_64 vs arm).
+	Machine utils.Value[string] `json:"machine"`
+	// OS is the os name description (ex: "GNU/Linux", "Windows Server 2022 Datacenter", ...)
+	OS utils.Value[string] `json:"os"`
+
+	// Family is the OS family (Windows only)
+	Family utils.Value[string] `json:"family"`
+
+	// KernelVersion the kernel version, Unix only
+	KernelVersion utils.Value[string] `json:"kernel_version"`
+	// Processor is the processor type, Unix only (ex "x86_64", "arm", ...)
+	Processor utils.Value[string] `json:"processor"`
+	// HardwarePlatform is the hardware name, Linux only (ex "x86_64")
+	HardwarePlatform utils.Value[string] `json:"hardware_platform"`
 }
 
-// Get returns a Platform struct already initialized, a list of warnings and an error. The method will try to collect as much
-// metadata as possible, an error is returned if nothing could be collected. The list of warnings contains errors if
-// some metadata could not be collected.
-func Get() (*Platform, []string, error) {
-	platformInfo, warnings, err := getPlatformInfo()
-	if err != nil {
-		return nil, nil, err
+// CollectInfo returns an Info struct with every field initialized either to a value or an error.
+// The method will try to collect as many fields as possible.
+func CollectInfo() *Info {
+	info := &Info{
+		GoVersion: utils.NewValue(strings.ReplaceAll(runtime.Version(), "go", "")),
+		GoOS:      utils.NewValue(runtime.GOOS),
+		GoArch:    utils.NewValue(runtime.GOARCH),
 	}
-
-	p := &Platform{}
-	p.GoVersion = utils.GetString(platformInfo, "goV")
-	p.GoOS = utils.GetString(platformInfo, "GOOS")
-	p.GoArch = utils.GetString(platformInfo, "GOOARCH")
-	p.KernelName = utils.GetString(platformInfo, "kernel_name")
-	p.KernelRelease = utils.GetString(platformInfo, "kernel_release")
-	p.Hostname = utils.GetString(platformInfo, "hostname")
-	p.Machine = utils.GetString(platformInfo, "machine")
-	p.OS = utils.GetString(platformInfo, "os")
-	p.Family = utils.GetString(platformInfo, "family")
-	p.KernelVersion = utils.GetString(platformInfo, "kernel_version")
-	p.Processor = utils.GetString(platformInfo, "processor")
-	p.HardwarePlatform = utils.GetString(platformInfo, "hardware_platform")
-
-	return p, warnings, nil
+	info.fillPlatformInfo()
+	return info
 }
 
-func getPlatformInfo() (platformInfo map[string]string, warnings []string, err error) {
-
-	// collect each portion, and allow the parts that succeed (even if some
-	// parts fail.)  For this check, it does have the (small) liability
-	// that if both the ArchInfo() and the PythonVersion() fail, the error
-	// from the ArchInfo() will be lost.
-
-	// For this, no error check.  The successful results will be added
-	// to the return value, and the error stored.
-	platformInfo, err = GetArchInfo()
-	if platformInfo == nil {
-		platformInfo = map[string]string{}
-	}
-
-	platformInfo["goV"] = strings.ReplaceAll(runtime.Version(), "go", "")
-	platformInfo["GOOS"] = runtime.GOOS
-	platformInfo["GOOARCH"] = runtime.GOARCH
-
-	return
+// AsJSON returns an interface which can be marshalled to a JSON and contains the value of non-errored fields.
+func (info *Info) AsJSON() (interface{}, []string, error) {
+	return utils.AsJSON(info, false)
 }

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -717,3 +718,6 @@ func (m *mockGauge) Sub(value float64, tagsValue ...string) {
 func (m *mockGauge) Delete(tagsValue ...string) {
 	delete(m.values, strings.Join(tagsValue, ","))
 }
+
+func (*mockGauge) WithValues(tagsValue ...string) telemetryComponent.SimpleGauge  { return nil } //nolint:revive // TODO fix revive unused-parameter
+func (*mockGauge) WithTags(tags map[string]string) telemetryComponent.SimpleGauge { return nil } //nolint:revive // TODO fix revive unused-parameter

@@ -8,8 +8,8 @@
 package docker
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var metricsNameMapping = map[string]string{
@@ -60,6 +60,8 @@ var metricsValuesConverter = map[string]func(float64) float64{
 type metricsAdapter struct{}
 
 // AdaptTags can be used to change Tagger tags before submitting the metrics
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (a metricsAdapter) AdaptTags(tags []string, c *workloadmeta.Container) []string {
 	return append(tags, "runtime:docker")
 }

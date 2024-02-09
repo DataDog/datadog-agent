@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package mocksender
 
 import (
@@ -52,6 +54,11 @@ func (m *MockSender) Gauge(metric string, value float64, hostname string, tags [
 	m.Called(metric, value, hostname, tags)
 }
 
+// Distribution adds a distribution type to the mock calls.
+func (m *MockSender) Distribution(metric string, value float64, hostname string, tags []string) {
+	m.Called(metric, value, hostname, tags)
+}
+
 // GaugeNoIndex adds a gauge type to the mock calls that is not indexed.
 func (m *MockSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)
@@ -97,6 +104,7 @@ func (m *MockSender) SetCheckService(service string) {
 	m.Called(service)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockSender) SetNoIndex(noIndex bool) {
 	m.Called(noIndex)
 }

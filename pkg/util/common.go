@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package util provides various functions
 package util
 
 import (
@@ -116,28 +117,6 @@ func CopyDir(src, dst string) error {
 		}
 	}
 	return nil
-}
-
-// GetFileSize gets the file size
-func GetFileSize(path string) (int64, error) {
-	stat, err := os.Stat(path)
-
-	if err != nil {
-		return 0, err
-	}
-
-	return stat.Size(), nil
-}
-
-// GetFileModTime gets the modification time
-func GetFileModTime(path string) (time.Time, error) {
-	stat, err := os.Stat(path)
-
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return stat.ModTime(), nil
 }
 
 // EnsureParentDirsExist makes a path immediately available for

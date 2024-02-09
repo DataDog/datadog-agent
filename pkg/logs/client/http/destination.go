@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package http
 
 import (
@@ -18,10 +19,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -48,8 +50,10 @@ var (
 	expVarInUseMsMapKey = "inUseMs"
 )
 
-// emptyPayload is an empty payload used to check HTTP connectivity without sending logs.
-var emptyPayload = message.Payload{}
+// emptyJsonPayload is an empty payload used to check HTTP connectivity without sending logs.
+//
+//nolint:revive // TODO(AML) Fix revive linter
+var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: []byte("{}")}
 
 // Destination sends a payload over HTTP.
 type Destination struct {
@@ -89,7 +93,8 @@ func NewDestination(endpoint config.Endpoint,
 	destinationsContext *client.DestinationsContext,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
-	telemetryName string) *Destination {
+	telemetryName string,
+	cfg pkgconfigmodel.Reader) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
@@ -97,7 +102,8 @@ func NewDestination(endpoint config.Endpoint,
 		time.Second*10,
 		maxConcurrentBackgroundSends,
 		shouldRetry,
-		telemetryName)
+		telemetryName,
+		cfg)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -106,15 +112,19 @@ func newDestination(endpoint config.Endpoint,
 	timeout time.Duration,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
-	telemetryName string) *Destination {
+	telemetryName string,
+	cfg pkgconfigmodel.Reader) *Destination {
 
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
 	}
-
-	if endpoint.Origin == config.ServerlessIntakeOrigin {
-		shouldRetry = false
-	}
+	policy := backoff.NewExpBackoffPolicy(
+		endpoint.BackoffFactor,
+		endpoint.BackoffBase,
+		endpoint.BackoffMax,
+		endpoint.RecoveryInterval,
+		endpoint.RecoveryReset,
+	)
 
 	expVars := &expvar.Map{}
 	expVars.AddFloat(expVarIdleMsMapKey, 0)
@@ -123,20 +133,12 @@ func newDestination(endpoint config.Endpoint,
 		metrics.DestinationExpVars.Set(telemetryName, expVars)
 	}
 
-	policy := backoff.NewPolicy(
-		endpoint.BackoffFactor,
-		endpoint.BackoffBase,
-		endpoint.BackoffMax,
-		endpoint.RecoveryInterval,
-		endpoint.RecoveryReset,
-	)
-
 	return &Destination{
 		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
 		apiKey:              endpoint.APIKey,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout, cfg)),
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		wg:                  sync.WaitGroup{},
@@ -221,7 +223,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
-			log.Warnf("Could not send payload: %v", err)
+			log.Debugf("Could not send payload: %v", err)
 		}
 
 		if err == context.Canceled {
@@ -275,9 +277,11 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		req.Header.Set("DD-EVP-ORIGIN", string(d.origin))
 		req.Header.Set("DD-EVP-ORIGIN-VERSION", version.AgentVersion)
 	}
-	req = req.WithContext(ctx)
-
+	req.Header.Set("dd-message-timestamp", strconv.FormatInt(getMessageTimestamp(payload.Messages), 10))
 	then := time.Now()
+	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
+
+	req = req.WithContext(ctx)
 	resp, err := d.client.Do(req)
 
 	latency := time.Since(then).Milliseconds()
@@ -335,7 +339,7 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 		d.lastRetryError = err
 
 		return true
-	} else {
+	} else { //nolint:revive // TODO(AML) Fix revive linter
 		d.nbErrors = d.backoff.DecError(d.nbErrors)
 		if isRetrying != nil && d.lastRetryError != nil {
 			isRetrying <- false
@@ -346,12 +350,12 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 	}
 }
 
-func httpClientFactory(timeout time.Duration) func() *http.Client {
+func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
 	return func() *http.Client {
 		return &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(),
+			Transport: httputils.CreateHTTPTransport(cfg),
 		}
 	}
 }
@@ -359,7 +363,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 // buildURL buils a url from a config endpoint.
 func buildURL(endpoint config.Endpoint) string {
 	var scheme string
-	if endpoint.UseSSL {
+	if endpoint.GetUseSSL() {
 		scheme = "https"
 	} else {
 		scheme = "http"
@@ -382,22 +386,45 @@ func buildURL(endpoint config.Endpoint) string {
 	return url.String()
 }
 
-// CheckConnectivity check if sending logs through HTTP works
-func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
-	log.Info("Checking HTTP connectivity...")
+func getMessageTimestamp(messages []*message.Message) int64 {
+	timestampNanos := int64(-1)
+	if len(messages) > 0 {
+		timestampNanos = messages[len(messages)-1].IngestionTimestamp
+	}
+	return timestampNanos / int64(time.Millisecond/time.Nanosecond)
+}
+
+func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
+	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg)
+	return ctx, destination
+}
+
+func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Destination) error {
 	ctx.Start()
 	defer ctx.Stop()
-	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "")
+	return destination.unconditionalSend(&emptyJsonPayload)
+}
+
+// CheckConnectivity check if sending logs through HTTP works
+func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) config.HTTPConnectivity {
+	log.Info("Checking HTTP connectivity...")
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
-	err := destination.unconditionalSend(&emptyPayload)
+	err := completeCheckConnectivity(ctx, destination)
 	if err != nil {
 		log.Warnf("HTTP connectivity failure: %v", err)
 	} else {
 		log.Info("HTTP connectivity successful")
 	}
 	return err == nil
+}
+
+//nolint:revive // TODO(AML) Fix revive linter
+func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (url string, err error) {
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
+	return destination.url, completeCheckConnectivity(ctx, destination)
 }
 
 func (d *Destination) waitForBackoff() {

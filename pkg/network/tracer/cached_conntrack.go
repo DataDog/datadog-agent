@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+//nolint:revive // TODO(NET) Fix revive linter
 package tracer
 
 import (
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -137,7 +139,7 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 		return v.(netlink.Conntrack), nil
 	}
 
-	ns, err := util.GetNetNamespaceFromPid(cache.procRoot, pid)
+	ns, err := kernel.GetNetNamespaceFromPid(cache.procRoot, pid)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil

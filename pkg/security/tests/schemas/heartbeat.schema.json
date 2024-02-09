@@ -1,0 +1,44 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$id": "heartbeat.json",
+    "type": "object",
+    "properties": {
+        "policy": {
+            "items": {
+                "$ref": "#/$defs/policy"
+            }
+        },
+        "date": {
+            "$ref": "/schemas/datetime.json"
+        }
+    },
+    "required": [
+        "policy",
+        "date"
+    ],
+    "$defs": {
+        "policy": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "file",
+                        "remote-config"
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "source",
+                "name",
+                "version"
+            ]
+        }
+    }
+}

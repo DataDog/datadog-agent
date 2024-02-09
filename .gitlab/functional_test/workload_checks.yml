@@ -1,0 +1,60 @@
+single-machine-performance-workload-checks:
+  stage: functional_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker"]
+  rules:
+    !reference [.on_scheduled_main]
+  needs:
+    - job: single_machine_performance-nightly-amd64-a7
+      artifacts: false
+  artifacts:
+    expire_in: 1 weeks
+    paths:
+      - submission_metadata # for provenance, debugging
+    when: always
+  variables:
+    SMP_VERSION: 0.10.0
+    LADING_VERSION: 0.19.1
+    WARMUP_SECONDS: 45
+    TOTAL_SAMPLES: 600
+    REPLICAS: 5
+  allow_failure: true
+  script:
+    - git fetch origin
+    # Setup AWS credentials for single-machine-performance AWS account
+    - AWS_NAMED_PROFILE="single-machine-performance"
+    - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
+    - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
+    - SMP_AGENT_TEAM_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-agent-team-id --with-decryption --query "Parameter.Value" --out text)
+    - SMP_API=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-api --with-decryption --query "Parameter.Value" --out text)
+    - aws configure set aws_access_key_id $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key-id --with-decryption --query "Parameter.Value" --out text) --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key --with-decryption --query "Parameter.Value" --out text) --profile ${AWS_NAMED_PROFILE}
+    - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
+    # Download smp binary and prepare it for use
+    - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp
+    - chmod +x smp
+    - CURRENT_DATE=$(date --utc '+%Y_%m_%d')
+    - TARGET_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA}-7-amd64
+    # Copy the TARGET_IMAGE to SMP for debugging purposes later
+    - RUST_LOG="info,aws_config::profile::credentials=error"
+    - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
+    - RUST_BACKTRACE=1 RUST_LOG="${RUST_LOG_DEBUG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
+            job submit-workload
+            --lading-version ${LADING_VERSION}
+            --total-samples ${TOTAL_SAMPLES}
+            --warmup-seconds ${WARMUP_SECONDS}
+            --replicas ${REPLICAS}
+            --target-image ${TARGET_IMAGE}
+            --target-sha ${CI_COMMIT_SHA}
+            --target-config-dir test/workload-checks
+            --target-name datadog-agent
+            --target-command "/bin/entrypoint.sh"
+            --target-environment-variables "DD_HOSTNAME=smp-workload-checks,DD_DD_URL=http://127.0.0.1:9092,DD_API_KEY=00000001"
+            --tags smp_status=nightly,client_team="agent",tag_date="${CURRENT_DATE}"
+            --submission-metadata submission-metadata
+    # Wait for job to complete.
+    - RUST_BACKTRACE=1 RUST_LOG="${RUST_LOG_DEBUG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
+            job status
+            --wait
+            --wait-delay-seconds 60
+            --submission-metadata submission-metadata

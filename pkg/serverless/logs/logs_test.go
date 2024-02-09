@@ -12,15 +12,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -186,9 +189,7 @@ func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 }
 
 func TestProcessMessageValid(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 
 	message := LambdaLogAPIMessage{
 		logType: logTypePlatformReport,
@@ -215,6 +216,8 @@ func TestProcessMessageValid(t *testing.T) {
 		Tags: metricTags,
 	}
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
 
 	lc.processMessage(&message)
 
@@ -232,9 +235,7 @@ func TestProcessMessageValid(t *testing.T) {
 }
 
 func TestProcessMessageStartValid(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 
 	message := &LambdaLogAPIMessage{
 		logType: logTypePlatformStart,
@@ -266,10 +267,9 @@ func TestProcessMessageStartValid(t *testing.T) {
 }
 
 func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	messageTime := time.Now()
-	defer demux.Stop(false)
+
 	message := LambdaLogAPIMessage{
 		logType: logTypePlatformRuntimeDone,
 		time:    messageTime,
@@ -301,9 +301,7 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 }
 
 func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 
 	previousRequestID := "9397b299-cb43-5586-9188-641de46d10b0"
 	currentRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
@@ -337,9 +335,8 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 }
 
 func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
+
 	message := &LambdaLogAPIMessage{
 		logType: logTypePlatformReport,
 		time:    time.Now(),
@@ -372,9 +369,8 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 }
 
 func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
+
 	message := &LambdaLogAPIMessage{
 		logType:      logTypePlatformLogsDropped,
 		time:         time.Now(),
@@ -401,9 +397,8 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 }
 
 func TestProcessMessageShouldProcessLogTypeFunctionOutOfMemory(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
+
 	message := &LambdaLogAPIMessage{
 		logType:      logTypeFunction,
 		time:         time.Now(),
@@ -434,9 +429,8 @@ func TestProcessMessageShouldProcessLogTypeFunctionOutOfMemory(t *testing.T) {
 }
 
 func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
+
 	message := &LambdaLogAPIMessage{
 		logType: logTypePlatformReport,
 		time:    time.Now(),
@@ -463,6 +457,8 @@ func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.
 
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.lastRequestID = lastRequestID
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
 
 	go lc.processMessage(message)
 
@@ -663,6 +659,258 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 		assert.Fail(t, "We should not have received logs")
 	case <-time.After(100 * time.Millisecond):
 		// nothing to do here
+	}
+}
+
+func TestProcessLogMessagesTimeoutLogFromReportLog(t *testing.T) {
+	for _, enhancedMetricsEnabled := range []bool{true, false} {
+		t.Run(fmt.Sprint(enhancedMetricsEnabled), func(t *testing.T) {
+
+			logChannel := make(chan *config.ChannelMessage)
+			demux := createDemultiplexer(t)
+
+			mockExecutionContext := &executioncontext.ExecutionContext{}
+			lc := &LambdaLogsCollector{
+				arn:                    "my-arn",
+				lastRequestID:          "myRequestID",
+				logsEnabled:            true,
+				enhancedMetricsEnabled: enhancedMetricsEnabled,
+				out:                    logChannel,
+				extraTags: &Tags{
+					Tags: []string{"tag0:value0,tag1:value1"},
+				},
+				executionContext:    mockExecutionContext,
+				demux:               demux,
+				invocationStartTime: time.Now(),
+				invocationEndTime:   time.Now().Add(10 * time.Millisecond),
+			}
+
+			reportLogMessage := LambdaLogAPIMessage{
+				objectRecord: platformObjectRecord{
+					requestID: "myRequestID",
+					reportLogItem: reportLogMetrics{
+						durationMs:       100.00,
+						billedDurationMs: 100,
+						memorySizeMB:     128,
+						maxMemoryUsedMB:  128,
+						initDurationMs:   50.00,
+					},
+					status: timeoutStatus,
+				},
+				logType:      logTypePlatformReport,
+				stringRecord: "contents to be overwritten",
+			}
+
+			logMessages := []LambdaLogAPIMessage{
+				reportLogMessage,
+			}
+
+			go lc.processLogMessages(logMessages)
+
+			expectedStringRecord := []string{
+				createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessage),
+				createStringRecordForTimeoutLog(&reportLogMessage),
+			}
+			expectedErrors := []bool{false, true}
+			for i := 0; i < len(expectedStringRecord); i++ {
+				select {
+				case received := <-logChannel:
+					assert.NotNil(t, received)
+					assert.Equal(t, "my-arn", received.Lambda.ARN)
+					assert.Equal(t, "myRequestID", received.Lambda.RequestID)
+					assert.Equal(t, expectedStringRecord[i], string(received.Content))
+					assert.Equal(t, expectedErrors[i], received.IsError)
+				case <-time.After(100 * time.Millisecond):
+					assert.Fail(t, "We should have received logs")
+				}
+			}
+		})
+	}
+}
+
+func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
+	logChannel := make(chan *config.ChannelMessage)
+	demux := createDemultiplexer(t)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	lc := &LambdaLogsCollector{
+		arn:                    "my-arn",
+		lastRequestID:          "myRequestID",
+		logsEnabled:            true,
+		enhancedMetricsEnabled: true,
+		out:                    logChannel,
+		extraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		executionContext:    mockExecutionContext,
+		demux:               demux,
+		invocationStartTime: time.Now(),
+		invocationEndTime:   time.Now().Add(10 * time.Millisecond),
+	}
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
+
+	reportLogMessageOne := LambdaLogAPIMessage{
+		objectRecord: platformObjectRecord{
+			requestID: "myRequestID-1",
+			reportLogItem: reportLogMetrics{
+				durationMs:       100.00,
+				billedDurationMs: 100,
+				memorySizeMB:     128,
+				maxMemoryUsedMB:  128,
+				initDurationMs:   50.00,
+			},
+			status: timeoutStatus,
+		},
+		logType:      logTypePlatformReport,
+		stringRecord: "contents to be overwritten",
+	}
+	reportLogMessageTwo := LambdaLogAPIMessage{
+		objectRecord: platformObjectRecord{
+			requestID: "myRequestID-2",
+			reportLogItem: reportLogMetrics{
+				durationMs:       100.00,
+				billedDurationMs: 100,
+				memorySizeMB:     128,
+				maxMemoryUsedMB:  128,
+				initDurationMs:   50.00,
+			},
+		},
+		logType:      logTypePlatformReport,
+		stringRecord: "contents to be overwritten",
+	}
+	logMessages := []LambdaLogAPIMessage{
+		reportLogMessageOne,
+		reportLogMessageTwo,
+	}
+
+	go lc.processLogMessages(logMessages)
+
+	expectedLogs := map[string][]string{
+		"myRequestID-1": {
+			createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessageOne),
+			createStringRecordForTimeoutLog(&reportLogMessageOne),
+		},
+		"myRequestID-2": {
+			createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessageTwo),
+		},
+	}
+
+	for i := 0; i < 3; i++ {
+		select {
+		case received := <-logChannel:
+			assert.NotNil(t, received)
+			logs := expectedLogs[received.Lambda.RequestID]
+			assert.NotEmpty(t, logs)
+			logMatch := false
+			for _, logString := range logs {
+				if logString == string(received.Content) {
+					logMatch = true
+				}
+			}
+			assert.True(t, logMatch)
+			assert.Equal(t, "my-arn", received.Lambda.ARN)
+			if strings.Contains(string(received.Content), "Task timed out") {
+				assert.True(t, received.IsError)
+			} else {
+				assert.False(t, received.IsError)
+			}
+		case <-time.After(100 * time.Millisecond):
+			assert.Fail(t, "We should have received logs")
+		}
+	}
+
+}
+
+func TestProcessLogMessagesOutOfMemoryError(t *testing.T) {
+	logChannel := make(chan *config.ChannelMessage)
+	demux := createDemultiplexer(t)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	lc := &LambdaLogsCollector{
+		arn:                    "my-arn",
+		lastRequestID:          "myRequestID",
+		logsEnabled:            true,
+		enhancedMetricsEnabled: true,
+		out:                    logChannel,
+		extraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		executionContext: mockExecutionContext,
+		demux:            demux,
+	}
+	outOfMemoryMessage := LambdaLogAPIMessage{
+		objectRecord: platformObjectRecord{
+			requestID: "myRequestID",
+			status:    errorStatus,
+		},
+		logType: logTypeFunction,
+		stringRecord: `Java heap space: java.lang.OutOfMemoryError
+		java.lang.OutOfMemoryError: Java heap space
+			at com.datadog.lambda.sample.java.Handler.handleRequest(Handler.java:39)`,
+	}
+	logMessages := []LambdaLogAPIMessage{
+		outOfMemoryMessage,
+	}
+
+	go lc.processLogMessages(logMessages)
+
+	select {
+	case received := <-logChannel:
+		assert.NotNil(t, received)
+		assert.Equal(t, "my-arn", received.Lambda.ARN)
+		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
+		assert.Equal(t, true, received.IsError)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
+	}
+}
+
+func TestProcessLogMessageLogsNoRequestID(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+	orphanLogsChan := make(chan []LambdaLogAPIMessage, maxBufferedLogs)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetArnFromExtensionResponse("my-arn")
+
+	logCollection := &LambdaLogsCollector{
+		logsEnabled: true,
+		out:         logChannel,
+		extraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		executionContext: mockExecutionContext,
+		orphanLogsChan:   orphanLogsChan,
+	}
+
+	logMessages := []LambdaLogAPIMessage{
+		{
+			stringRecord: "hi, log 0",
+		},
+		{
+			stringRecord: "hi, log 1",
+		},
+		{
+			stringRecord: "hi, log 2",
+		},
+	}
+	go logCollection.processLogMessages(logMessages)
+
+	select {
+	case <-logChannel:
+		assert.Fail(t, "We should not have received logs")
+	case <-time.After(100 * time.Millisecond):
+		// nothing to do here
+	}
+
+	select {
+	case received := <-orphanLogsChan:
+		for _, msg := range received {
+			assert.Equal(t, "", msg.objectRecord.requestID)
+		}
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
 	}
 }
 
@@ -886,9 +1134,7 @@ func TestUnmarshalPlatformRuntimeDoneLogNotFatal(t *testing.T) {
 func TestRuntimeMetricsMatchLogs(t *testing.T) {
 	// The test ensures that the values listed in the report log statement
 	// matches the values of the metrics being reported.
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 
 	runtimeDurationMs := 10.0
 	postRuntimeDurationMs := 90.0
@@ -908,6 +1154,13 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Tags: []string{},
 	}
 
+	startMessage := &LambdaLogAPIMessage{
+		time:    startTime,
+		logType: logTypePlatformStart,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
 	doneMessage := &LambdaLogAPIMessage{
 		time:    endTime,
 		logType: logTypePlatformRuntimeDone,
@@ -928,6 +1181,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.invocationStartTime = startTime
 
+	lc.processMessage(startMessage)
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 
@@ -966,9 +1220,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	// The test ensures that the values listed in the report log statement
 	// matches the values of the metrics being reported.
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 
 	runtimeDurationMs := 10.0
 	postRuntimeDurationMs := 90.0
@@ -988,6 +1240,13 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 		Tags: []string{},
 	}
 
+	startMessage := &LambdaLogAPIMessage{
+		time:    startTime,
+		logType: logTypePlatformStart,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
 	doneMessage := &LambdaLogAPIMessage{
 		time:    endTime,
 		logType: logTypePlatformRuntimeDone,
@@ -1008,6 +1267,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.invocationStartTime = startTime
 
+	lc.processMessage(startMessage)
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 
@@ -1041,4 +1301,32 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
 	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
 	assert.Len(t, timedMetrics, 0)
+}
+
+func TestMultipleStartLogCollection(t *testing.T) {
+	demux := createDemultiplexer(t)
+
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+	tags := Tags{
+		Tags: metricTags,
+	}
+	computeEnhancedMetrics := true
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+
+	// start log collection multiple times
+	for i := 0; i < 5; i++ {
+		// due to process_once, we should only set the log collector's context once from the execution context
+		lc.Start()
+		mockExecutionContext.SetArnFromExtensionResponse(fmt.Sprintf("arn-%v", i))
+	}
+	assert.Equal(t, arn, lc.arn)
+}
+
+func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

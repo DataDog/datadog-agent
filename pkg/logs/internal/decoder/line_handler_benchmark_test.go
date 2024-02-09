@@ -11,18 +11,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func benchmarkSingleLineHandler(b *testing.B, logs int) {
-	messages := make([]*Message, logs)
+	messages := make([]*message.Message, logs)
 	for i := 0; i < logs; i++ {
 		messages[i] = getDummyMessageWithLF(fmt.Sprintf("This is a log test line to benchmark the logs agent %d", i))
 	}
 
-	h := NewSingleLineHandler(func(*Message) {}, defaultContentLenLimit)
+	h := NewSingleLineHandler(func(*message.Message) {}, coreConfig.DefaultMaxMessageSizeBytes)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -33,13 +35,13 @@ func benchmarkSingleLineHandler(b *testing.B, logs int) {
 }
 
 func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
-	messages := make([]*Message, logs)
+	messages := make([]*message.Message, logs)
 	for i := 0; i < logs; i++ {
 		messages[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
 	}
 
 	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
-	h := NewAutoMultilineHandler(func(*Message) {}, defaultContentLenLimit, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
+	h := NewAutoMultilineHandler(func(*message.Message) {}, coreConfig.DefaultMaxMessageSizeBytes, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -50,12 +52,12 @@ func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
 }
 
 func benchmarkMultiLineHandler(b *testing.B, logs int, line string) {
-	messages := make([]*Message, logs)
+	messages := make([]*message.Message, logs)
 	for i := 0; i < logs; i++ {
 		messages[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
 	}
 
-	h := NewMultiLineHandler(func(*Message) {}, regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`), 1000*time.Millisecond, 100, false)
+	h := NewMultiLineHandler(func(*message.Message) {}, regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`), 1000*time.Millisecond, 100, false)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {

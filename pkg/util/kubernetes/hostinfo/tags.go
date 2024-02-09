@@ -11,38 +11,17 @@ import (
 	"context"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetTags gets the tags from the kubernetes apiserver and the kubelet
 func GetTags(ctx context.Context) (tags []string, err error) {
-	labelsToTags := getLabelsToTags()
-
-	nodeInfo, e := NewNodeInfo()
-	if e != nil {
-		err = e
-	}
-	nodeName, e := nodeInfo.GetNodeName(ctx)
-	if e == nil && nodeName != "" {
-		tags = append(tags, "kube_node:"+nodeName)
-	}
-
-	if len(labelsToTags) > 0 && err == nil {
-		var nodeLabels map[string]string
-		nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
-		if e != nil {
-			err = e
-		}
-
-		if len(nodeLabels) > 0 {
-			tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
-		}
-	}
+	tags = appendNodeInfoTags(ctx, tags)
 
 	annotationsToTags := getAnnotationsToTags()
-
 	if len(annotationsToTags) > 0 {
 		nodeAnnotations, e := GetNodeAnnotations(ctx)
 		if e != nil {
@@ -53,6 +32,30 @@ func GetTags(ctx context.Context) (tags []string, err error) {
 	}
 
 	return
+}
+
+func appendNodeInfoTags(ctx context.Context, tags []string) []string {
+	nodeInfo, err := NewNodeInfo()
+	if err != nil {
+		log.Debugf("Unable to auto discover node info tags: %s", err)
+		return tags
+	}
+
+	nodeName, err := nodeInfo.GetNodeName(ctx)
+	if err == nil && nodeName != "" {
+		tags = append(tags, "kube_node:"+nodeName)
+	}
+
+	labelsToTags := getLabelsToTags()
+	if len(labelsToTags) > 0 {
+		var nodeLabels map[string]string
+		nodeLabels, err = nodeInfo.GetNodeLabels(ctx)
+		if err == nil && len(nodeLabels) > 0 {
+			tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
+		}
+	}
+
+	return tags
 }
 
 func getDefaultLabelsToTags() map[string]string {

@@ -19,28 +19,43 @@ const (
 	layerEncryptionBit  = C.LAYER_ENCRYPTION_BIT
 )
 
+// DispatcherProgramType is a C type to represent the eBPF programs used for tail calls.
 type DispatcherProgramType C.dispatcher_prog_t
 
 const (
+	// DispatcherKafkaProg is the Golang representation of the C.DISPATCHER_KAFKA_PROG enum.
 	DispatcherKafkaProg DispatcherProgramType = C.DISPATCHER_KAFKA_PROG
 )
 
+// ProgramType is a C type to represent the eBPF programs used for tail calls.
 type ProgramType C.protocol_prog_t
 
 const (
-	ProgramHTTP  ProgramType = C.PROG_HTTP
-	ProgramHTTP2 ProgramType = C.PROG_HTTP2
+	// ProgramHTTP is the Golang representation of the C.PROG_HTTP enum
+	ProgramHTTP ProgramType = C.PROG_HTTP
+	// ProgramHTTP2HandleFirstFrame is the Golang representation of the C.PROG_HTTP2_HANDLE_FIRST_FRAME enum
+	ProgramHTTP2HandleFirstFrame ProgramType = C.PROG_HTTP2_HANDLE_FIRST_FRAME
+	// ProgramHTTP2FrameFilter is the Golang representation of the C.PROG_HTTP2_HANDLE_FRAME enum
+	ProgramHTTP2FrameFilter ProgramType = C.PROG_HTTP2_FRAME_FILTER
+	// ProgramHTTP2HeadersParser is the Golang representation of the C.PROG_HTTP2_HEADERS_PARSER enum
+	ProgramHTTP2HeadersParser ProgramType = C.PROG_HTTP2_HEADERS_PARSER
+	// ProgramHTTP2EOSParser is the Golang representation of the C.PROG_HTTP2_EOS_PARSER enum
+	ProgramHTTP2EOSParser ProgramType = C.PROG_HTTP2_EOS_PARSER
+	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
 	ProgramKafka ProgramType = C.PROG_KAFKA
 )
 
+// Application layer of the protocol stack.
 func Application(protoNum uint8) ProtocolType {
 	return toProtocolType(protoNum, layerApplicationBit)
 }
 
+// API layer of the protocol stack.
 func API(protoNum uint8) ProtocolType {
 	return toProtocolType(protoNum, layerAPIBit)
 }
 
+// Encryption layer of the protocol stack.
 func Encryption(protoNum uint8) ProtocolType {
 	return toProtocolType(protoNum, layerEncryptionBit)
 }
@@ -54,6 +69,8 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 	switch protocol {
 	case C.PROTOCOL_UNKNOWN:
 		return Unknown
+	case C.PROTOCOL_GRPC:
+		return GRPC
 	case C.PROTOCOL_HTTP:
 		return HTTP
 	case C.PROTOCOL_HTTP2:
@@ -77,3 +94,24 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 		return Unknown
 	}
 }
+
+// TLSProgramType is a C type to represent the eBPF programs used for tail calls
+// in TLS traffic decoding
+type TLSProgramType C.tls_prog_t
+
+const (
+	// ProgramTLSHTTPProcess is tail call to process http traffic.
+	ProgramTLSHTTPProcess TLSProgramType = C.TLS_HTTP_PROCESS
+	// ProgramTLSHTTPTermination is tail call to process http termination.
+	ProgramTLSHTTPTermination TLSProgramType = C.TLS_HTTP_TERMINATION
+	// ProgramTLSHTTP2FirstFrame is tail call and the entry point of the TLS HTTP2 decoding.
+	ProgramTLSHTTP2FirstFrame TLSProgramType = C.TLS_HTTP2_FIRST_FRAME
+	// ProgramTLSHTTP2Filter is tail call to filter http2 frames.
+	ProgramTLSHTTP2Filter TLSProgramType = C.TLS_HTTP2_FILTER
+	// ProgramTLSHTTP2HeaderParser is tail call to parse the previously filtered http2 header frames.
+	ProgramTLSHTTP2HeaderParser TLSProgramType = C.TLS_HTTP2_HEADERS_PARSER
+	// ProgramTLSHTTP2EOSParser is tail call to process End-Of-Stream frames.
+	ProgramTLSHTTP2EOSParser TLSProgramType = C.TLS_HTTP2_EOS_PARSER
+	// ProgramTLSHTTP2Termination is tail call to process TLS HTTP2 termination.
+	ProgramTLSHTTP2Termination TLSProgramType = C.TLS_HTTP2_TERMINATION
+)

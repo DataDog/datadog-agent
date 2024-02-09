@@ -7,6 +7,8 @@ package registration
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -33,6 +35,17 @@ func TestExtractID(t *testing.T) {
 	assert.Equal(t, expectedID, extractID(response))
 }
 
+func TestExtractFunctionARN(t *testing.T) {
+	expectedFunctionARN := "arn:aws:lambda:us-east-1:123456789012:function:hello"
+	t.Setenv("AWS_REGION", "us-east-1")
+	response := &http.Response{
+		Body: io.NopCloser(bytes.NewBuffer([]byte("{\"functionName\": \"hello\", \"accountId\": \"123456789012\"}"))),
+	}
+	functionArn, err := extractFunctionARN(response)
+	assert.Nil(t, err)
+	assert.Equal(t, expectedFunctionARN, functionArn)
+}
+
 func TestIsValidResponseTrue(t *testing.T) {
 	response := &http.Response{
 		StatusCode: 200,
@@ -48,16 +61,17 @@ func TestIsValidResponseFalse(t *testing.T) {
 }
 
 func TestBuildRegisterRequestSuccess(t *testing.T) {
-	request, err := buildRegisterRequest("X-Header", "extensionName", "myUrl", bytes.NewBuffer([]byte("blablabla")))
+	request, err := buildRegisterRequest("myUrl", bytes.NewBuffer([]byte("blablabla")))
 	assert.Nil(t, err)
 	assert.Equal(t, http.MethodPost, request.Method)
 	assert.Equal(t, "myUrl", request.URL.Path)
 	assert.NotNil(t, request.Body)
-	assert.Equal(t, "extensionName", request.Header["X-Header"][0])
+	assert.Equal(t, extensionName, request.Header[headerExtName][0])
+	assert.Equal(t, extensionFeature, request.Header[headerExtFeature][0])
 }
 
 func TestBuildRegisterRequestFailure(t *testing.T) {
-	request, err := buildRegisterRequest("X-Header", "extensionName", ":invalid:", bytes.NewBuffer([]byte("blablabla")))
+	request, err := buildRegisterRequest(":invalid:", bytes.NewBuffer([]byte("blablabla")))
 	assert.Nil(t, request)
 	assert.NotNil(t, err)
 }
@@ -81,19 +95,27 @@ func TestSendRequestSuccess(t *testing.T) {
 }
 
 func TestRegisterSuccess(t *testing.T) {
+	//nolint:revive // TODO(SERV) Fix revive linter
+	expectedId := "myGeneratedId"
+	expectedFunctionARN := "arn:aws:lambda:us-east-1:123456789012:function:hello"
+	t.Setenv("AWS_REGION", "us-east-1")
+
 	//fake the register route
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		//add the extension id
-		w.Header().Add(HeaderExtID, "myGeneratedId")
+		w.Header().Add(HeaderExtID, expectedId)
+		// add extension feature response
+		fmt.Fprintln(w, "{\"functionName\": \"hello\", \"accountId\": \"123456789012\"}")
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
 
 	baseRuntime := strings.Replace(ts.URL, "http://", "", 1)
 	t.Setenv("AWS_LAMBDA_RUNTIME_API", baseRuntime)
-	id, err := RegisterExtension(baseRuntime, "/myRoute", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("/myRoute", registerExtensionTimeout)
 
-	assert.Equal(t, "myGeneratedId", id.String())
+	assert.Equal(t, expectedId, id.String())
+	assert.Equal(t, expectedFunctionARN, string(functionArn))
 	assert.Nil(t, err)
 }
 
@@ -102,13 +124,16 @@ func TestRegisterErrorNoExtensionId(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		//no the extension id
 		w.WriteHeader(200)
+		// add extension feature response
+		fmt.Fprintln(w, "{\"functionName\": \"hello\", \"accountId\": \"123456789012\"}")
 	}))
 	defer ts.Close()
 
 	t.Setenv("AWS_LAMBDA_RUNTIME_API", ts.URL)
-	id, err := RegisterExtension(strings.Replace(ts.URL, "http://", "", 1), "", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
+	assert.Empty(t, string(functionArn))
 	assert.NotNil(t, err)
 }
 
@@ -120,15 +145,17 @@ func TestRegisterErrorHttp(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, err := RegisterExtension(strings.Replace(ts.URL, "http://", "", 1), "", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
+	assert.Empty(t, string(functionArn))
 	assert.NotNil(t, err)
 }
 
 func TestRegisterErrorTimeout(t *testing.T) {
-	id, err := RegisterExtension(":invalidURL:", "", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("", registerExtensionTimeout)
 	assert.Empty(t, id.String())
+	assert.Empty(t, string(functionArn))
 	assert.NotNil(t, err)
 }
 
@@ -140,14 +167,16 @@ func TestRegisterErrorBuildRequest(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, err := RegisterExtension(ts.URL, "", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
+	assert.Empty(t, string(functionArn))
 	assert.NotNil(t, err)
 }
 
 func TestRegisterInvalidUrl(t *testing.T) {
-	id, err := RegisterExtension(":inv al id:", "", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("", registerExtensionTimeout)
 	assert.Empty(t, id.String())
+	assert.Empty(t, string(functionArn))
 	assert.NotNil(t, err)
 }

@@ -1,0 +1,8 @@
+# This configuration goal is to enable system-probe in order to have the following files in the flare:
+#
+# ./etc/system-probe.yaml
+# ./logs/system-probe.log
+# ./expvar/system-probe
+system_probe_config.enabled: true
+system_probe_config.bpf_dir: /tmp/dummy_system_probe_config_bpf_dir/
+system_probe_config.sysprobe_socket: /tmp/dummy_dir/dummy_system_probe_sysprobe_socket

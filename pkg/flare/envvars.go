@@ -71,6 +71,8 @@ var allowedEnvvarNames = []string{
 	"DD_APM_REMOTE_TAGGER",
 	"DD_APM_PEER_SERVICE_AGGREGATION",
 	"DD_APM_COMPUTE_STATS_BY_SPAN_KIND",
+	"DD_APM_PEER_TAGS_AGGREGATION",
+	"DD_APM_PEER_TAGS",
 	"DD_APM_MAX_CATALOG_SERVICES",
 	"DD_APM_RECEIVER_TIMEOUT",
 	"DD_APM_MAX_PAYLOAD_SIZE",
@@ -91,6 +93,7 @@ var allowedEnvvarNames = []string{
 	"DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING",
 	"DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS",
 	"DD_APM_OBFUSCATION_MEMCACHED_ENABLED",
+	"DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND",
 	"DD_APM_OBFUSCATION_MONGODB_ENABLED",
 	"DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES",
 	"DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES",
@@ -104,6 +107,9 @@ var allowedEnvvarNames = []string{
 	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES",
 	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES",
 	"DD_APM_DEBUG_PORT",
+	"DD_APM_INSTRUMENTATION_ENABLED",
+	"DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES",
+	"DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES",
 
 	// Process agent
 	"DD_PROCESS_AGENT_URL",
@@ -131,9 +137,7 @@ var allowedEnvvarNames = []string{
 
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
-	for _, envName := range config.Datadog.GetEnvVars() {
-		allowed = append(allowed, envName)
-	}
+	allowed = append(allowed, config.Datadog.GetEnvVars()...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)

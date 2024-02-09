@@ -3,9 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NET) Fix revive linter
 package testutil
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
@@ -46,9 +48,21 @@ func RunCommand(cmd string) (string, error) {
 	return string(out), nil
 }
 
-func StartCommand(cmd string) (*exec.Cmd, io.WriteCloser, error) {
+// RunCommandWithContext runs a single command with the given context
+func RunCommandWithContext(ctx context.Context, cmd string) (string, error) {
 	args := strings.Split(cmd, " ")
-	c := exec.Command(args[0], args[1:]...)
+	c := exec.CommandContext(ctx, args[0], args[1:]...)
+	out, err := c.CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("%s returned %s: %s", c, err, out)
+	}
+	return string(out), nil
+}
+
+//nolint:revive // TODO(NET) Fix revive linter
+func StartCommandCtx(ctx context.Context, cmd string) (*exec.Cmd, io.WriteCloser, error) {
+	args := strings.Split(cmd, " ")
+	c := exec.CommandContext(ctx, args[0], args[1:]...)
 	clientInput, err := c.StdinPipe()
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not get command %s standard input: %w", c, err)

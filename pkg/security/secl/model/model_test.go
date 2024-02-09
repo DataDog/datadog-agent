@@ -5,12 +5,14 @@
 
 //go:build linux
 
+// Package model holds model related files
 package model
 
 import (
 	"errors"
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -18,79 +20,109 @@ import (
 
 func TestPathValidation(t *testing.T) {
 	mod := &Model{}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/var/log/*"}); err != nil {
-		t.Errorf("shouldn't return an error: %s", err)
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "~/apache/httpd.conf"}); err == nil {
-		t.Error("should return an error")
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "../../../etc/apache/httpd.conf"}); err == nil {
-		t.Error("should return an error")
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/etc/apache/./httpd.conf"}); err == nil {
-		t.Error("should return an error")
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "*/"}); err == nil {
-		t.Error("should return an error")
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "~/"}); err == nil {
-		t.Error("should return an error")
-	}
 
-	var val string
+	var maxDepthPath string
 	for i := 0; i <= MaxPathDepth; i++ {
-		val += "a/"
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: val}); err == nil {
-		t.Error("should return an error")
+		maxDepthPath += "a/"
 	}
 
-	val = ""
+	var maxSegmentPath string
 	for i := 0; i <= MaxSegmentLength; i++ {
-		val += "a"
-	}
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: val}); err == nil {
-		t.Error("should return an error")
+		maxSegmentPath += "a"
 	}
 
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/run/..data", Type: eval.PatternValueType}); err != nil {
-		t.Error("shouldn't return an error")
+	tests := []struct {
+		val            string
+		errMessage     string
+		fieldValueType eval.FieldValueType
+	}{
+		{
+			val: "/var/log/*",
+		},
+		{
+			val:        "~/apache/httpd.conf",
+			errMessage: ErrPathMustBeAbsolute,
+		},
+		{
+			val:        "../../../etc/apache/httpd.conf",
+			errMessage: ErrPathMustBeAbsolute,
+		},
+		{
+			val:        "/etc/apache/./httpd.conf",
+			errMessage: ErrPathMustBeAbsolute,
+		},
+		{
+			val:        "*/",
+			errMessage: ErrPathMustBeAbsolute,
+		},
+		{
+			val:        "~/",
+			errMessage: ErrPathMustBeAbsolute,
+		},
+		{
+			val:            "/run/..data",
+			fieldValueType: eval.PatternValueType,
+		},
+		{
+			val:            "./data",
+			fieldValueType: eval.PatternValueType,
+			errMessage:     ErrPathMustBeAbsolute,
+		},
+		{
+			val:            "../data",
+			fieldValueType: eval.PatternValueType,
+			errMessage:     ErrPathMustBeAbsolute,
+		},
+		{
+			val:            "/data/../a",
+			fieldValueType: eval.PatternValueType,
+			errMessage:     ErrPathMustBeAbsolute,
+		},
+		{
+			val:            "*/data",
+			fieldValueType: eval.PatternValueType,
+		},
+		{
+			val:            ".*",
+			fieldValueType: eval.RegexpValueType,
+			errMessage:     ErrPathMustBeAbsolute,
+		},
+		{
+			val:            "/etc/*",
+			fieldValueType: eval.PatternValueType,
+		},
+		{
+			val:            "*",
+			fieldValueType: eval.PatternValueType,
+			errMessage:     ErrPathMustBeAbsolute,
+		},
+		{
+			val:        maxDepthPath,
+			errMessage: ErrPathMustBeAbsolute,
+		},
+		{
+			val:        maxSegmentPath,
+			errMessage: ErrPathMustBeAbsolute,
+		},
 	}
 
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "./data", Type: eval.PatternValueType}); err == nil {
-		t.Error("should return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "../data", Type: eval.PatternValueType}); err == nil {
-		t.Error("should return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/data/../a", Type: eval.PatternValueType}); err == nil {
-		t.Error("should return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "*/data", Type: eval.PatternValueType}); err != nil {
-		t.Error("shouldn't return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: ".*", Type: eval.RegexpValueType}); err == nil {
-		t.Error("should return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/etc/*", Type: eval.PatternValueType}); err != nil {
-		t.Error("shouldn't return an error")
-	}
-
-	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "*", Type: eval.PatternValueType}); err == nil {
-		t.Error("should return an error")
+	for _, test := range tests {
+		err := mod.ValidateField("open.file.path", eval.FieldValue{Value: test.val})
+		if err != nil && test.errMessage == "" {
+			t.Errorf("shouldn't return an error: %s", err)
+		}
+		if err != nil && !strings.Contains(err.Error(), test.errMessage) {
+			t.Errorf("Error message is `%s`, wanted it to contain `%s`", err.Error(), test.errMessage)
+		}
 	}
 }
 
 func TestSetFieldValue(t *testing.T) {
 	var readOnlyError *eval.ErrFieldReadOnly
+	var fieldNotSupportedError *eval.ErrNotSupported
 
 	event := NewDefaultEvent()
-	for _, field := range event.(*Event).GetFields() {
+	for _, field := range event.GetFields() {
 		kind, err := event.GetFieldType(field)
 		if err != nil {
 			t.Fatal(err)
@@ -102,15 +134,14 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &readOnlyError) {
 					continue
-				} else {
-					t.Error(err)
 				}
-			}
-			if err = event.SetFieldValue(field, "aaa"); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
+				if errors.As(err, &fieldNotSupportedError) {
+					continue
+				}
 				t.Errorf("unable to get the expected `%s` value: %v", field, err)
 			}
 			switch v := value.(type) {
@@ -130,12 +161,14 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &readOnlyError) {
 					continue
-				} else {
-					t.Error(err)
 				}
+				t.Error(err)
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
+				if errors.As(err, &fieldNotSupportedError) {
+					continue
+				}
 				t.Errorf("unable to get the expected `%s` value: %v", field, err)
 			}
 			switch v := value.(type) {
@@ -155,12 +188,14 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &readOnlyError) {
 					continue
-				} else {
-					t.Error(err)
 				}
+				t.Error(err)
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
+				if errors.As(err, &fieldNotSupportedError) {
+					continue
+				}
 				t.Errorf("unable to get the expected `%s` value: %v", field, err)
 			}
 			switch v := value.(type) {

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package reorderer holds reorderer related files
 package reorderer
 
 import (
@@ -18,6 +19,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
 
+	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -25,11 +27,11 @@ import (
 )
 
 // OrderedPerfMap implements the EventStream interface
-// using an eBPF perf map associated with a event reorder.
+// using an eBPF perf map associated with an event reorderer.
 type OrderedPerfMap struct {
 	perfMap          *manager.PerfMap
 	lostEventCounter eventstream.LostEventCounter
-	reordererMonitor *ReordererMonitor
+	reordererMonitor *Monitor
 	reOrderer        *ReOrderer
 	recordPool       *RecordPool
 }
@@ -42,19 +44,21 @@ func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error
 	}
 
 	m.perfMap.PerfMapOptions = manager.PerfMapOptions{
-		RecordHandler: m.reOrderer.HandleEvent,
-		LostHandler:   m.handleLostEvents,
-		RecordGetter:  m.recordPool.Get,
+		RecordHandler:    m.reOrderer.HandleEvent,
+		LostHandler:      m.handleLostEvents,
+		RecordGetter:     m.recordPool.Get,
+		TelemetryEnabled: config.InternalTelemetryEnabled,
 	}
 
 	if config.EventStreamBufferSize != 0 {
 		m.perfMap.PerfMapOptions.PerfRingBufferSize = config.EventStreamBufferSize
 	}
 
+	ebpfTelemetry.ReportPerfMapTelemetry(m.perfMap)
 	return nil
 }
 
-func (m *OrderedPerfMap) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
+func (m *OrderedPerfMap) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, _ *manager.Manager) {
 	seclog.Tracef("lost %d events", count)
 	if m.lostEventCounter != nil {
 		m.lostEventCounter.CountLostEvent(count, perfMap.Name, CPU)
@@ -71,7 +75,7 @@ func (m *OrderedPerfMap) Start(wg *sync.WaitGroup) error {
 	wg.Add(2)
 	go m.reordererMonitor.Start(wg)
 	go m.reOrderer.Start(wg)
-	return nil
+	return m.perfMap.Start()
 }
 
 // Pause the event stream.
@@ -91,7 +95,7 @@ func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	}
 
 	return QuickInfo{
-		Cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
+		CPU:       model.ByteOrder.Uint64(record.RawSample[0:8]),
 		Timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
 	}, nil
 }
@@ -105,7 +109,7 @@ func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte), statsdCli
 			handler(record.CPU, record.RawSample)
 		},
 		ExtractEventInfo,
-		ReOrdererOpts{
+		Opts{
 			QueueSize:       10000,
 			Rate:            50 * time.Millisecond,
 			Retention:       5,

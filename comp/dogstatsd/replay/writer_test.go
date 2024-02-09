@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -32,7 +32,7 @@ func writerTest(t *testing.T, z bool) {
 	file, path, err := OpenFile(fs, "foo/bar", "")
 	require.NoError(t, err)
 
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 
 	writer := NewTrafficCaptureWriter(1)
 

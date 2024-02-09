@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -20,13 +21,16 @@ import (
 )
 
 func TestSECLRuleFilter(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	kv := &kernel.Version{
 		OsRelease:    map[string]string{},
 		UnameRelease: "5.9.0-48-generic",
 		Code:         kernel.Kernel5_9,
 	}
 
-	m := rulesmodule.NewRuleFilterModel()
+	m, err := rulesmodule.NewRuleFilterModel("")
+	assert.NoError(t, err)
 	m.Version = kv
 	seclRuleFilter := rules.NewSECLRuleFilter(m)
 

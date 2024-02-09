@@ -6,12 +6,6 @@
   rules:
     !reference [.manual]
   stage: deps_build
-  before_script:
-    # HACK: empty the build directory cache (that can come from previous runs)
-    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
-    # TODO: remove this once we switch to k8s runners, they won't have this problem
-    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
-    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
   script:
     # use tmpdir to prevent git remote capture by clang build
     - mkdir /tmp/clangbuild && cd /tmp/clangbuild
@@ -85,71 +79,16 @@ build_clang_arm64:
   variables:
     ARCH: arm64
 
-build_vcpkg_deps:
-  stage: deps_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  variables:
-    ARCH: "x64"
-  before_script:
-    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)
-  script:
-    - $ErrorActionPreference = "Stop"
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-    - if (Test-Path build-out) { remove-item -recurse -force build-out }
-    - >
-      docker run --rm
-      -m 8192M
-      -v "$(Get-Location):c:\mnt"
-      -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl},readwrite"
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
-      C:\mnt\tasks\winbuildscripts\build_vcpkg_deps.bat
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-
 build_processed_btfhub_archive:
   rules:
-    !reference [.on_scheduled_main_or_manual]
+    - !reference [.except_mergequeue]
+    - !reference [.on_scheduled_main_or_manual]
   stage: deps_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["arch:amd64"]
+  variables:
+    KUBERNETES_CPU_REQUEST: 32
   script:
-    - git clone https://github.com/aquasecurity/btfhub-archive.git
-    - cd btfhub-archive
-    # Flatten btfhub-archive directories & separate arm/x64 btfs into separate directories
-    - dirs=("amzn/2" "centos/7" "centos/8" "debian/9" "debian/10" "fedora/28" "fedora/29" "fedora/30" "fedora/31" "ol/7" "ol/8" "rhel/7" "rhel/8")
-    - |
-      for dir in ${dirs[@]}; do
-        platform=${dir%%/*}
-        mkdir -p "btfs-amd64/${platform}" "btfs-arm64/${platform}"
-        eval "mv ${dir}/x86_64/*.btf.tar.xz btfs-amd64/${platform}/"
-        eval "mv ${dir}/arm64/*.btf.tar.xz btfs-arm64/${platform}/"
-      done
-    # Handle the these directories separately because they don't have an arm64 version
-    - x64dirs=("amzn/2018" "fedora/24" "fedora/25" "fedora/26" "fedora/27" "sles/12.3" "sles/12.5" "sles/15.3")
-    - |
-      for xdir in ${x64dirs[@]}; do
-        platform=${xdir%%/*}
-        mkdir -p "btfs-amd64/${platform}"
-        eval "mv ${xdir}/x86_64/*.btf.tar.xz btfs-amd64/${platform}"
-      done
-    # Handle ubuntu separately because we want to keep the btfs separated by ubuntu version
-    - ubuntu_dirs=("ubuntu/16.04" "ubuntu/18.04" "ubuntu/20.04")
-    - |
-      for udir in ${ubuntu_dirs[@]}; do
-        mkdir -p "btfs-amd64/${udir}" "btfs-arm64/${udir}"
-        eval "mv ${udir}/x86_64/*.btf.tar.xz btfs-amd64/${udir}/"
-        eval "mv ${udir}/arm64/*.btf.tar.xz btfs-arm64/${udir}/"
-      done
-    # Clean up platform names to match the names we get at runtime from gopsutil
-    - mv btfs-amd64/amzn btfs-amd64/amazon
-    - mv btfs-arm64/amzn btfs-arm64/amazon
-    - mv btfs-amd64/ol btfs-amd64/oracle
-    - mv btfs-arm64/ol btfs-arm64/oracle
-    - mv btfs-amd64/rhel btfs-amd64/redhat
-    - mv btfs-arm64/rhel btfs-arm64/redhat
-    # Store results in S3
-    - tar -czf btfs-arm64.tar.gz btfs-arm64
-    - tar -czf btfs-amd64.tar.gz btfs-amd64
-    - $S3_CP_CMD btfs-arm64.tar.gz $S3_PERMANENT_ARTIFACTS_URI/btfs-arm64.tar.gz
-    - $S3_CP_CMD btfs-amd64.tar.gz $S3_PERMANENT_ARTIFACTS_URI/btfs-amd64.tar.gz
-    - $S3_CP_CMD btfs-arm64.tar.gz $S3_DD_AGENT_OMNIBUS_BTFS_URI/btfs-arm64.tar.gz --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-    - $S3_CP_CMD btfs-amd64.tar.gz $S3_DD_AGENT_OMNIBUS_BTFS_URI/btfs-amd64.tar.gz --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - inv -e system-probe.process-btfhub-archive --branch $BTFHUB_ARCHIVE_BRANCH
+    - $S3_CP_CMD btfs-x86_64.tar.gz $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-x86_64.tar.gz --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - $S3_CP_CMD btfs-arm64.tar.gz $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-arm64.tar.gz --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers

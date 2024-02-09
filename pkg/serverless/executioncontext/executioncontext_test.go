@@ -8,7 +8,6 @@
 package executioncontext
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -26,8 +25,9 @@ func TestGetCurrentState(t *testing.T) {
 	ec.SetFromInvocation(testArn, testRequestID)
 
 	ecs := ec.GetCurrentState()
+	coldStartTags := ec.GetColdStartTagsForRequestID(ecs.LastRequestID)
 	assert.Equal(testRequestID, ecs.LastRequestID)
-	assert.Equal(true, ecs.Coldstart)
+	assert.Equal(true, coldStartTags.IsColdStart)
 	assert.Equal(testRequestID, ecs.ColdstartRequestID)
 }
 
@@ -39,9 +39,10 @@ func TestSetFromInvocationUppercase(t *testing.T) {
 	ec := ExecutionContext{}
 	ec.initTime = time.Now()
 	ec.SetFromInvocation(testArn, testRequestID)
+	coldStartTags := ec.GetColdStartTagsForRequestID(ec.lastRequestID)
 	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", ec.arn)
 	assert.Equal(testRequestID, ec.lastRequestID)
-	assert.Equal(true, ec.coldstart)
+	assert.Equal(true, coldStartTags.IsColdStart)
 	assert.Equal(testRequestID, ec.coldstartRequestID)
 }
 
@@ -55,9 +56,22 @@ func TestSetFromInvocationWarmStart(t *testing.T) {
 	ec.SetFromInvocation(testArn, "coldstart-request-id")
 	ec.SetFromInvocation(testArn, testRequestID)
 
+	coldStartTags := ec.GetColdStartTagsForRequestID(ec.lastRequestID)
+
 	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", ec.arn)
 	assert.Equal(testRequestID, ec.lastRequestID)
-	assert.Equal(false, ec.coldstart)
+	assert.Equal(false, coldStartTags.IsColdStart)
+}
+
+func TestSetArnFromExtensionResponse(t *testing.T) {
+	assert := assert.New(t)
+
+	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
+
+	ec := ExecutionContext{}
+	ec.SetArnFromExtensionResponse(testArn)
+
+	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", ec.arn)
 }
 
 func TestUpdateFromStartLog(t *testing.T) {
@@ -73,7 +87,7 @@ func TestUpdateFromStartLog(t *testing.T) {
 func TestSaveAndRestoreFromFile(t *testing.T) {
 	assert := assert.New(t)
 
-	tempfile, err := ioutil.TempFile("/tmp", "dd-lambda-extension-cache-*.json")
+	tempfile, err := os.CreateTemp("/tmp", "dd-lambda-extension-cache-*.json")
 	assert.Nil(err)
 	defer os.Remove(tempfile.Name())
 
@@ -121,4 +135,13 @@ func TestUpdateOutOfMemoryRequestID(t *testing.T) {
 
 	ecs := ec.GetCurrentState()
 	assert.Equal(t, testRequestID, ecs.LastOOMRequestID)
+}
+
+func TestUpdateRuntime(t *testing.T) {
+	runtime := "dotnet6"
+	ec := ExecutionContext{}
+	ec.UpdateRuntime(runtime)
+
+	ecs := ec.GetCurrentState()
+	assert.Equal(t, ecs.Runtime, runtime)
 }

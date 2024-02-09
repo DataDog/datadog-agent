@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"bytes"
 	"net/http/httptest"
 	"testing"
 
@@ -15,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -58,14 +60,19 @@ func TestDecode(t *testing.T) {
 		},
 	}
 
-	marshaller := encoding.GetMarshaler(encoding.ContentTypeJSON)
-	expected, err := marshaller.Marshal(in)
+	marshaller := marshal.GetMarshaler(encoding.ContentTypeJSON)
+	ostream := bytes.NewBuffer(nil)
+
+	connectionsModeler := marshal.NewConnectionsModeler(in)
+	defer connectionsModeler.Close()
+
+	err := marshaller.Marshal(in, ostream, connectionsModeler)
 	require.NoError(t, err)
 
 	writeConnections(rec, marshaller, in)
 
 	rec.Flush()
 	out := rec.Body.Bytes()
-	assert.Equal(t, expected, out)
+	assert.Equal(t, ostream.Bytes(), out)
 
 }

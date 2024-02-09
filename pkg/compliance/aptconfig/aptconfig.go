@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package aptconfig is a compliance submodule that is able to parse the APT tool
+// configuration and export it as a log.
 package aptconfig
 
 import (
 	"context"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,7 +35,7 @@ const (
 
 // LoadConfiguration exports the aggregated APT configuration file and parts
 // of the systemd configuration files related to APT timers.
-func LoadConfiguration(ctx context.Context, hostroot string) (string, interface{}) {
+func LoadConfiguration(_ context.Context, hostroot string) (string, interface{}) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Warnf("could not parse APT configuration properly: %v", err)
@@ -266,7 +267,8 @@ func readFileLimit(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, err := ioutil.ReadAll(io.LimitReader(f, maxSize))
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxSize))
 	if err != nil {
 		return "", err
 	}

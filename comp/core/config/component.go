@@ -16,37 +16,29 @@
 package config
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 // team: agent-shared-components
 
-type LogConfig config.ConfigReader
+// LogConfig reads the logger config
+type LogConfig pkgconfigmodel.Reader
 
 // Component is the component type.
 type Component interface {
-	config.ConfigReader
+	pkgconfigmodel.Reader
 
 	// Warnings returns config warnings collected during setup.
-	Warnings() *config.Warnings
-}
+	Warnings() *pkgconfigmodel.Warnings
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-	config.ConfigWriter
+	// Object returns wrapped config
+	Object() pkgconfigmodel.Reader
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newConfig),
-)
-
-// MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-	fx.Supply(MockParams{}),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newConfig))
+}

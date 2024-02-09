@@ -9,7 +9,6 @@ package http
 
 /*
 #include "../../ebpf/c/protocols/tls/tags-types.h"
-#include "../../ebpf/c/protocols/tls/sowatcher-types.h"
 #include "../../ebpf/c/protocols/http/types.h"
 #include "../../ebpf/c/protocols/classification/defs.h"
 */
@@ -19,14 +18,11 @@ type ConnTuple = C.conn_tuple_t
 type SslSock C.ssl_sock_t
 type SslReadArgs C.ssl_read_args_t
 
+type EbpfEvent C.http_event_t
 type EbpfTx C.http_transaction_t
-
-type LibPath C.lib_path_t
 
 const (
 	BufferSize = C.HTTP_BUFFER_SIZE
-
-	libPathMaxSize = C.LIB_PATH_MAX_SIZE
 )
 
 type ConnTag = uint64

@@ -39,6 +39,7 @@ import (
 	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kubeschema "k8s.io/apimachinery/pkg/runtime/schema"
+	kubediscovery "k8s.io/client-go/discovery"
 	kubedynamic "k8s.io/client-go/dynamic"
 )
 
@@ -46,31 +47,49 @@ import (
 // Rule.
 const inputsResolveTimeout = 5 * time.Second
 
-// ErrIncompatibleEnvironment is returns by the resolver to signal that the
-// given rule's inputs are not resolvable in the current environment.
-var ErrIncompatibleEnvironment = errors.New("environment not compatible this type of input")
-
+// DockerProvider is a function returning a Docker client.
 type DockerProvider func(context.Context) (docker.CommonAPIClient, error)
-type KubernetesProvider func(context.Context) (kubedynamic.Interface, error)
+
+// KubernetesProvider is a function returning a Kubernetes client.
+type KubernetesProvider func(context.Context) (kubedynamic.Interface, kubediscovery.DiscoveryInterface, error)
+
+// LinuxAuditProvider is a function returning a Linux Audit client.
 type LinuxAuditProvider func(context.Context) (LinuxAuditClient, error)
 
+// LinuxAuditClient is an interface that implements the capability of parsing
+// Linux Audit rules.
 type LinuxAuditClient interface {
 	GetFileWatchRules() ([]*auditrule.FileWatchRule, error)
 	Close() error
 }
 
+// DefaultDockerProvider returns the default Docker client.
 func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) {
 	return newDockerClient(ctx)
 }
 
-func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) {
+// DefaultLinuxAuditProvider returns the default Linux Audit client.
+func DefaultLinuxAuditProvider(_ context.Context) (LinuxAuditClient, error) {
 	return newLinuxAuditClient()
 }
 
+// ResolverOptions is an options struct required to instantiate a Resolver
+// instance.
 type ResolverOptions struct {
-	Hostname     string
-	HostRoot     string
-	StatsdClient *statsd.Client
+	// Hostname is the name of the host running the resolver.
+	Hostname string
+
+	// HostRoot is the path to the mountpoint of host root filesystem. In case
+	// the compliance module is run as part of a container.
+	HostRoot string
+
+	// HostRootPID sets the resolving context relative to a specific process
+	// ID (optional)
+	HostRootPID int32
+
+	// StatsdClient is the statsd client used internally by the compliance
+	// resolver (optional)
+	StatsdClient statsd.ClientInterface
 
 	DockerProvider
 	KubernetesProvider
@@ -90,11 +109,14 @@ type defaultResolver struct {
 
 	procsCache         []*process.Process
 	filesCache         []fileMeta
+	pkgsCache          map[string]*packageInfo
 	kubeClusterIDCache string
+	kubeResourcesCache *[]*kubemetav1.APIResourceList
 
-	dockerCl     docker.CommonAPIClient
-	kubernetesCl kubedynamic.Interface
-	linuxAuditCl LinuxAuditClient
+	dockerCl          docker.CommonAPIClient
+	kubernetesCl      kubedynamic.Interface
+	kubernetesDiscoCl kubediscovery.DiscoveryInterface
+	linuxAuditCl      LinuxAuditClient
 }
 
 type fileMeta struct {
@@ -118,7 +140,7 @@ func NewResolver(ctx context.Context, opts ResolverOptions) Resolver {
 		r.dockerCl, _ = opts.DockerProvider(ctx)
 	}
 	if opts.KubernetesProvider != nil {
-		r.kubernetesCl, _ = opts.KubernetesProvider(ctx)
+		r.kubernetesCl, r.kubernetesDiscoCl, _ = opts.KubernetesProvider(ctx)
 	}
 	if opts.LinuxAuditProvider != nil {
 		r.linuxAuditCl, _ = opts.LinuxAuditProvider(ctx)
@@ -136,19 +158,17 @@ func (r *defaultResolver) Close() {
 		r.linuxAuditCl = nil
 	}
 	r.kubernetesCl = nil
+	r.kubernetesDiscoCl = nil
 
 	r.procsCache = nil
 	r.filesCache = nil
+	r.pkgsCache = nil
 	r.kubeClusterIDCache = ""
+	r.kubeResourcesCache = nil
 }
 
-func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (ResolvedInputs, error) {
-	resolvingContext := struct {
-		RuleID            string                `json:"ruleID"`
-		Hostname          string                `json:"hostname"`
-		KubernetesCluster string                `json:"kubernetes_cluster,omitempty"`
-		InputSpecs        map[string]*InputSpec `json:"input"`
-	}{
+func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (ResolvedInputs, error) {
+	resolvingContext := ResolvingContext{
 		RuleID:     rule.ID,
 		Hostname:   r.opts.Hostname,
 		InputSpecs: make(map[string]*InputSpec),
@@ -167,8 +187,23 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		return nil, fmt.Errorf("no inputs for rule %s", rule.ID)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx_, inputsResolveTimeout)
+	ctx, cancel := context.WithTimeout(ctx, inputsResolveTimeout)
 	defer cancel()
+
+	// If a container ID is associated with this resolver instance, we try to
+	// resolve the image metadata associated with the container to be part of
+	// the resolved inputs.
+	rootPath := r.opts.HostRoot
+	if pid := r.opts.HostRootPID; pid > 0 {
+		containerID, ok := utils.GetProcessContainerID(pid)
+		if ok {
+			rootPath, ok = utils.GetProcessRootPath(pid)
+			if !ok {
+				return nil, fmt.Errorf("could not resolve the root path to run the resolver for container ID=%q", resolvingContext.ContainerID)
+			}
+			resolvingContext.ContainerID = string(containerID)
+		}
+	}
 
 	resolved := make(map[string]interface{})
 	for _, spec := range rule.InputSpecs {
@@ -182,7 +217,7 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		switch {
 		case spec.File != nil:
 			resultType = "file"
-			result, err = r.resolveFile(ctx, *spec.File)
+			result, err = r.resolveFile(ctx, rootPath, *spec.File)
 		case spec.Process != nil:
 			resultType = "process"
 			result, err = r.resolveProcess(ctx, *spec.Process)
@@ -199,6 +234,9 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 			resultType = "kubernetes"
 			result, err = r.resolveKubeApiserver(ctx, *spec.KubeApiserver)
 			kubernetesCluster = r.resolveKubeClusterID(ctx)
+		case spec.Package != nil:
+			resultType = "package"
+			result, err = r.resolvePackage(ctx, *spec.Package)
 		case spec.Constants != nil:
 			resultType = "constants"
 			result = *spec.Constants
@@ -248,51 +286,29 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		}
 	}
 
-	preMarshal := make(map[string]interface{})
-	for k, v := range resolved {
-		preMarshal[k] = v
-	}
-	if _, ok := preMarshal["context"]; ok {
-		return nil, fmt.Errorf("\"context\" key is reserved")
-	}
-	preMarshal["context"] = resolvingContext
-	preMarshalBuf, err := json.Marshal(preMarshal)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal resolver outcome: %w", err)
-	}
-
-	var outcome ResolvedInputs
-	log.Tracef("rego input for rule=%s:\n%s", rule.ID, preMarshalBuf)
-	if err := json.Unmarshal(preMarshalBuf, &outcome); err != nil {
-		return nil, fmt.Errorf("could not unmarshal resolver outcome: %w", err)
-	}
-
-	if statsdClient := r.opts.StatsdClient; statsdClient != nil {
-		tags := []string{"rule_id:" + rule.ID, "agent_version:" + version.AgentVersion}
-		if err := statsdClient.Gauge(metrics.MetricInputsSize, float64(len(preMarshalBuf)), tags, 1.0); err != nil {
-			log.Errorf("failed to send input size metric: %v", err)
-		}
-	}
-
-	return outcome, nil
+	return NewResolvedInputs(resolvingContext, resolved)
 }
 
-func (r *defaultResolver) pathNormalizeToHostRoot(path string) string {
-	if r.opts.HostRoot != "" {
-		return filepath.Join(r.opts.HostRoot, path)
+func (r *defaultResolver) pathNormalize(rootPath, path string) string {
+	if rootPath != "" {
+		return filepath.Join(rootPath, path)
 	}
 	return path
 }
 
-func (r *defaultResolver) pathRelativeToHostRoot(path string) string {
-	if r.opts.HostRoot != "" {
-		p, err := filepath.Rel(r.opts.HostRoot, path)
+func (r *defaultResolver) pathRelative(rootPath, path string) string {
+	if rootPath != "" {
+		p, err := filepath.Rel(rootPath, path)
 		if err != nil {
 			return path
 		}
 		return string(os.PathSeparator) + p
 	}
 	return path
+}
+
+func (r *defaultResolver) pathNormalizeToHostRoot(path string) string {
+	return r.pathNormalize(r.opts.HostRoot, path)
 }
 
 func (r *defaultResolver) getFileMeta(path string) (*fileMeta, error) {
@@ -330,17 +346,17 @@ func (r *defaultResolver) getFileMeta(path string) (*fileMeta, error) {
 
 var processFlagBuiltinReg = regexp.MustCompile(`process\.flag\("(\S+)",\s*"(\S+)"\)`)
 
-func (r *defaultResolver) resolveFile(ctx context.Context, spec InputSpecFile) (result interface{}, err error) {
+func (r *defaultResolver) resolveFile(ctx context.Context, rootPath string, spec InputSpecFile) (result interface{}, err error) {
 	path := strings.TrimSpace(spec.Path)
 	if matches := processFlagBuiltinReg.FindStringSubmatch(path); len(matches) == 3 {
 		processName, processFlag := matches[1], matches[2]
-		result, err = r.resolveFileFromProcessFlag(ctx, processName, processFlag, spec.Parser)
+		result, err = r.resolveFileFromProcessFlag(ctx, rootPath, processName, processFlag, spec.Parser)
 	} else if spec.Glob != "" && path == "" {
-		result, err = r.resolveFileGlob(ctx, spec.Glob, spec.Parser)
+		result, err = r.resolveFileGlob(ctx, rootPath, spec.Glob, spec.Parser)
 	} else if strings.Contains(path, "*") {
-		result, err = r.resolveFileGlob(ctx, path, spec.Parser)
+		result, err = r.resolveFileGlob(ctx, rootPath, path, spec.Parser)
 	} else {
-		result, err = r.resolveFilePath(ctx, path, spec.Parser)
+		result, err = r.resolveFilePath(ctx, rootPath, path, spec.Parser)
 	}
 	if errors.Is(err, os.ErrPermission) ||
 		errors.Is(err, os.ErrNotExist) ||
@@ -350,8 +366,8 @@ func (r *defaultResolver) resolveFile(ctx context.Context, spec InputSpecFile) (
 	return
 }
 
-func (r *defaultResolver) resolveFilePath(ctx context.Context, path, parser string) (interface{}, error) {
-	path = r.pathNormalizeToHostRoot(path)
+func (r *defaultResolver) resolveFilePath(ctx context.Context, rootPath, path, parser string) (interface{}, error) { //nolint:revive // TODO fix revive unused-parameter
+	path = r.pathNormalize(rootPath, path)
 	file, err := r.getFileMeta(path)
 	if err != nil {
 		return nil, err
@@ -379,7 +395,7 @@ func (r *defaultResolver) resolveFilePath(ctx context.Context, path, parser stri
 		}
 	}
 	return map[string]interface{}{
-		"path":        r.pathRelativeToHostRoot(path),
+		"path":        r.pathRelative(rootPath, path),
 		"glob":        "",
 		"permissions": file.perms,
 		"user":        file.user,
@@ -388,7 +404,7 @@ func (r *defaultResolver) resolveFilePath(ctx context.Context, path, parser stri
 	}, nil
 }
 
-func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, name, flag, parser string) (interface{}, error) {
+func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, rootPath, name, flag, parser string) (interface{}, error) {
 	procs, err := r.getProcs(ctx)
 	if err != nil {
 		return nil, err
@@ -415,15 +431,15 @@ func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, name, 
 	if !ok {
 		return nil, nil
 	}
-	return r.resolveFilePath(ctx, path, parser)
+	return r.resolveFilePath(ctx, rootPath, path, parser)
 }
 
-func (r *defaultResolver) resolveFileGlob(ctx context.Context, glob, parser string) (interface{}, error) {
-	paths, _ := filepath.Glob(r.pathNormalizeToHostRoot(glob)) // We ignore errors from Glob which are never I/O errors
+func (r *defaultResolver) resolveFileGlob(ctx context.Context, rootPath, glob, parser string) (interface{}, error) {
+	paths, _ := filepath.Glob(r.pathNormalize(rootPath, glob)) // We ignore errors from Glob which are never I/O errors
 	var resolved []interface{}
 	for _, path := range paths {
-		path = r.pathRelativeToHostRoot(path)
-		file, err := r.resolveFilePath(ctx, path, parser)
+		path = r.pathRelative(rootPath, path)
+		file, err := r.resolveFilePath(ctx, rootPath, path, parser)
 		if err != nil {
 			continue
 		}
@@ -458,10 +474,11 @@ func (r *defaultResolver) resolveProcess(ctx context.Context, spec InputSpecProc
 				return nil, err
 			}
 		}
+		exe, _ := p.Exe()
 		resolved = append(resolved, map[string]interface{}{
 			"name":    spec.Name,
 			"pid":     p.Pid,
-			"exe":     "",
+			"exe":     exe,
 			"cmdLine": cmdLine,
 			"flags":   parseCmdlineFlags(cmdLine),
 			"envs":    parseEnvironMap(envs, spec.Envs),
@@ -481,8 +498,8 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 	return r.procsCache, nil
 }
 
-func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
-	f, err := os.Open("/etc/group")
+func (r *defaultResolver) resolveGroup(_ context.Context, spec InputSpecGroup) (interface{}, error) {
+	f, err := os.Open(r.pathNormalizeToHostRoot("/etc/group"))
 	if err != nil {
 		return nil, err
 	}
@@ -515,7 +532,7 @@ func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup)
 	return nil, nil
 }
 
-func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit) (interface{}, error) {
+func (r *defaultResolver) resolveAudit(_ context.Context, spec InputSpecAudit) (interface{}, error) {
 	cl := r.linuxAuditCl
 	if cl == nil {
 		return nil, ErrIncompatibleEnvironment
@@ -675,10 +692,21 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 		spec.Version = "v1"
 	}
 
+	// podsecuritypolicies have been deprecated as part of Kubernetes v1.25
+
 	resourceSchema := kubeschema.GroupVersionResource{
 		Group:    spec.Group,
 		Resource: spec.Kind,
 		Version:  spec.Version,
+	}
+
+	resourceSupported, err := r.checkKubeServerResourceSupport(resourceSchema)
+	if err != nil {
+		return nil, fmt.Errorf("unable to check for Kube resource support:'%v', ns:'%s' err: %w",
+			resourceSchema, spec.Namespace, err)
+	}
+	if !resourceSupported {
+		return nil, ErrIncompatibleEnvironment
 	}
 
 	resourceDef := cl.Resource(resourceSchema)
@@ -726,6 +754,101 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 		})
 	}
 	return resolved, nil
+}
+
+func (r *defaultResolver) checkKubeServerResourceSupport(resourceSchema kubeschema.GroupVersionResource) (bool, error) {
+	if r.kubernetesDiscoCl == nil {
+		return true, nil
+	}
+
+	if r.kubeResourcesCache == nil {
+		_, resources, err := r.kubernetesDiscoCl.ServerGroupsAndResources()
+		if err != nil {
+			return false, fmt.Errorf("could not fetch kubernetes resources: %w", err)
+		}
+		r.kubeResourcesCache = &resources
+	}
+
+	groupVersion := resourceSchema.GroupVersion().String()
+	for _, list := range *r.kubeResourcesCache {
+		if groupVersion == list.GroupVersion {
+			for _, r := range list.APIResources {
+				if r.Name == resourceSchema.Resource {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
+const (
+	apkDb     = "/lib/apk/db/installed"
+	dpkgDb    = "/var/lib/dpkg/status"
+	dpkgDbDir = "/var/lib/dpkg/status.d"
+)
+
+var rpmDbs = []string{
+	"/usr/lib/sysimage/rpm/rpmdb.sqlite",
+	"/var/lib/rpm/rpmdb.sqlite",
+	"/usr/lib/sysimage/rpm/Packages.db",
+	"/var/lib/rpm/Packages.db",
+	"/usr/lib/sysimage/rpm/Packages",
+	"/var/lib/rpm/Packages",
+}
+
+func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) { //nolint:revive // TODO fix revive unused-parameter
+	if len(spec.Names) == 0 {
+		return nil, nil
+	}
+
+	if r.pkgsCache != nil {
+		for _, name := range spec.Names {
+			if p, ok := r.pkgsCache[name]; ok {
+				return p, nil
+			}
+		}
+	}
+
+	defer func() {
+		if pkg != nil {
+			if r.pkgsCache == nil {
+				r.pkgsCache = make(map[string]*packageInfo)
+			}
+			r.pkgsCache[pkg.Name] = pkg
+		}
+	}()
+
+	// apk
+	apkPath := r.pathNormalizeToHostRoot(apkDb)
+	if pkg := findApkPackage(apkPath, spec.Names); pkg != nil {
+		return pkg, nil
+	}
+
+	// dpkg
+	dpkgPath := r.pathNormalizeToHostRoot(dpkgDb)
+	if pkg := findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
+		return pkg, nil
+	}
+	dpkgDirPath := r.pathNormalizeToHostRoot(dpkgDbDir)
+	if files, _ := os.ReadDir(dpkgDirPath); len(files) > 0 {
+		for _, entry := range files {
+			dpkgPath := filepath.Join(dpkgDirPath, entry.Name())
+			if pkg := findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
+				return pkg, nil
+			}
+		}
+	}
+
+	// rpm
+	for _, path := range rpmDbs {
+		rpmPath := r.pathNormalizeToHostRoot(path)
+		if pkg := findRpmPackage(rpmPath, spec.Names); pkg != nil {
+			return pkg, nil
+		}
+	}
+
+	return nil, nil
 }
 
 func parseCmdlineFlags(cmdline []string) map[string]string {

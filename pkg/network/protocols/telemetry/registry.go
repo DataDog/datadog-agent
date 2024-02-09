@@ -7,35 +7,53 @@ package telemetry
 
 import (
 	"sync"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 var globalRegistry *registry
 
 type registry struct {
 	sync.Mutex
-	metrics []*Metric
+	metrics map[string]metric
 }
 
-// GetMetrics returns all metrics matching a certain set of tags
-func GetMetrics(tags ...string) []*Metric {
-	filterIndex := make(map[string]struct{}, len(tags))
-	for _, f := range tags {
-		filterIndex[f] = struct{}{}
+func (r *registry) FindOrCreate(m metric) metric {
+	r.Lock()
+	defer r.Unlock()
+
+	if r.metrics == nil {
+		r.metrics = make(map[string]metric)
 	}
 
-	globalRegistry.Lock()
-	defer globalRegistry.Unlock()
-
-	result := make([]*Metric, 0, len(globalRegistry.metrics))
-	if len(filterIndex) == 0 {
-		// if no filters were provided we return all metrics
-		result = append(result, globalRegistry.metrics...)
-		return result
+	name := m.base().Name()
+	if v, ok := r.metrics[name]; ok {
+		return v
 	}
 
-	for _, m := range globalRegistry.metrics {
-		if matches(filterIndex, m) {
-			result = append(result, m)
+	r.metrics[name] = m
+	return m
+}
+
+// GetMetrics returns all metrics matching a certain criteria
+func (r *registry) GetMetrics(params ...string) []metric {
+	filters := sets.New[string]()
+	filters.Insert(params...)
+
+	r.Lock()
+	defer r.Unlock()
+
+	result := make([]metric, 0, len(globalRegistry.metrics))
+	for _, metricInterface := range r.metrics {
+		m := metricInterface.base()
+		if filters.Len() == 0 {
+			// if no filters were provided we return all metrics
+			result = append(result, metricInterface)
+			continue
+		}
+
+		if m.opts.IsSuperset(filters) {
+			result = append(result, metricInterface)
 		}
 	}
 
@@ -46,24 +64,12 @@ func GetMetrics(tags ...string) []*Metric {
 // WARNING: Only intended for tests
 func Clear() {
 	globalRegistry.Lock()
-	defer globalRegistry.Unlock()
 	globalRegistry.metrics = nil
-}
+	globalRegistry.Unlock()
 
-func matches(filters map[string]struct{}, metric *Metric) bool {
-	var totalMatches int
-
-	for _, tag := range metric.opts {
-		if _, ok := filters[tag]; ok {
-			totalMatches++
-			if totalMatches == len(filters) {
-				return true
-			}
-
-		}
-	}
-
-	return false
+	telemetryDelta.mux.Lock()
+	telemetryDelta.stateByClientID = make(map[string]*clientState)
+	telemetryDelta.mux.Unlock()
 }
 
 func init() {

@@ -1,73 +1,61 @@
-import hashlib
 import unittest
+from types import SimpleNamespace
 from typing import OrderedDict
 from unittest import mock
 
 from invoke.exceptions import Exit
 
-from .. import release
-from ..libs.version import Version
+from tasks import release
+from tasks.libs.version import Version
 
 
 def mocked_github_requests_get(*args, **_kwargs):
-    class MockResponse:
-        def __init__(self, json_data, status_code):
-            self.json_data = json_data
-            self.status_code = status_code
-
-        def json(self):
-            return self.json_data
+    def fake_tag(value):
+        return SimpleNamespace(name=value)
 
     if args[0][-1] == "6":
-        return MockResponse(
-            [
-                {"ref": "6.28.0-rc.1"},
-                {"ref": "6.28.0"},
-                {"ref": "6.28.1-rc.1"},
-                {"ref": "6.28.1"},
-                {"ref": "6.29.0-rc.1"},
-                {"ref": "6.29.0"},
-            ],
-            200,
-        )
+        return [
+            fake_tag("6.28.0-rc.1"),
+            fake_tag("6.28.0"),
+            fake_tag("6.28.1-rc.1"),
+            fake_tag("6.28.1"),
+            fake_tag("6.29.0-rc.1"),
+            fake_tag("6.29.0"),
+        ]
 
     if args[0][-1] == "7":
-        return MockResponse(
-            [
-                {"ref": "7.28.0-rc.1"},
-                {"ref": "7.28.0"},
-                {"ref": "7.28.1-rc.1"},
-                {"ref": "7.28.1"},
-                {"ref": "7.29.0-rc.1"},
-                {"ref": "7.29.0"},
-            ],
-            200,
-        )
+        return [
+            fake_tag("7.28.0-rc.1"),
+            fake_tag("7.28.0"),
+            fake_tag("7.28.1-rc.1"),
+            fake_tag("7.28.1"),
+            fake_tag("7.29.0-rc.1"),
+            fake_tag("7.29.0"),
+        ]
 
-    return MockResponse(
-        [
-            {"ref": "6.28.0-rc.1"},
-            {"ref": "6.28.0"},
-            {"ref": "7.28.0-rc.1"},
-            {"ref": "7.28.0"},
-            {"ref": "6.28.1-rc.1"},
-            {"ref": "6.28.1"},
-            {"ref": "7.28.1-rc.1"},
-            {"ref": "7.28.1"},
-            {"ref": "6.29.0-rc.1"},
-            {"ref": "6.29.0"},
-            {"ref": "7.29.0-rc.1"},
-            {"ref": "7.29.0"},
-        ],
-        200,
-    )
+    return [
+        fake_tag("6.28.0-rc.1"),
+        fake_tag("6.28.0"),
+        fake_tag("7.28.0-rc.1"),
+        fake_tag("7.28.0"),
+        fake_tag("6.28.1-rc.1"),
+        fake_tag("6.28.1"),
+        fake_tag("7.28.1-rc.1"),
+        fake_tag("7.28.1"),
+        fake_tag("6.29.0-rc.1"),
+        fake_tag("6.29.0"),
+        fake_tag("7.29.0-rc.1"),
+        fake_tag("7.29.0"),
+    ]
 
 
 class TestGetHighestRepoVersion(unittest.TestCase):
-    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
-    def test_one_allowed_major_multiple_entries(self, _):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_one_allowed_major_multiple_entries(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_get
+        gh_mock.return_value = gh_instance
         version = release._get_highest_repo_version(
-            "FAKE_TOKEN",
             "target-repo",
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 28),
@@ -75,10 +63,12 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=7, minor=28, patch=1))
 
-    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
-    def test_one_allowed_major_one_entry(self, _):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_one_allowed_major_one_entry(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_get
+        gh_mock.return_value = gh_instance
         version = release._get_highest_repo_version(
-            "FAKE_TOKEN",
             "target-repo",
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
@@ -86,10 +76,12 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=7, minor=29, patch=0))
 
-    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
-    def test_multiple_allowed_majors_multiple_entries(self, _):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_multiple_allowed_majors_multiple_entries(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_get
+        gh_mock.return_value = gh_instance
         version = release._get_highest_repo_version(
-            "FAKE_TOKEN",
             "target-repo",
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[6], 28),
@@ -97,10 +89,12 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=6, minor=28, patch=1))
 
-    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
-    def test_multiple_allowed_majors_one_entry(self, _):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_multiple_allowed_majors_one_entry(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_get
+        gh_mock.return_value = gh_instance
         version = release._get_highest_repo_version(
-            "FAKE_TOKEN",
             "target-repo",
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[6], 29),
@@ -108,12 +102,14 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=6, minor=29, patch=0))
 
-    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
-    def test_nonexistant_minor(self, _):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_nonexistant_minor(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_get
+        gh_mock.return_value = gh_instance
         self.assertRaises(
             Exit,
             release._get_highest_repo_version,
-            "FAKE_TOKEN",
             "target-repo",
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 30),
@@ -195,6 +191,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
         omnibus_software_version = Version(major=7, minor=30, patch=0)
         macos_build_version = Version(major=7, minor=30, patch=0)
         jmxfetch_version = Version(major=0, minor=45, patch=0)
+        jmxfetch_shasum = "jmxfetchhashsum"
         security_agent_policies_version = Version(prefix="v", major="0", minor="15")
         windows_ddnpm_driver = "release-signed"
         windows_ddnpm_version = "1.2.1"
@@ -208,6 +205,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
             omnibus_software_version=omnibus_software_version,
             macos_build_version=macos_build_version,
             jmxfetch_version=jmxfetch_version,
+            jmxfetch_shasum=jmxfetch_shasum,
             security_agent_policies_version=security_agent_policies_version,
             windows_ddnpm_driver=windows_ddnpm_driver,
             windows_ddnpm_version=windows_ddnpm_version,
@@ -257,7 +255,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "OMNIBUS_SOFTWARE_VERSION": str(omnibus_software_version),
                     "OMNIBUS_RUBY_VERSION": str(omnibus_ruby_version),
                     "JMXFETCH_VERSION": str(jmxfetch_version),
-                    "JMXFETCH_HASH": hashlib.sha256(MOCK_JMXFETCH_CONTENT).hexdigest(),
+                    "JMXFETCH_HASH": str(jmxfetch_shasum),
                     "MACOS_BUILD_VERSION": str(macos_build_version),
                     "WINDOWS_DDNPM_DRIVER": str(windows_ddnpm_driver),
                     "WINDOWS_DDNPM_VERSION": str(windows_ddnpm_version),
@@ -350,5 +348,83 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
         self.assertEqual(shasum, 'rc3-ddnpm-sha')
 
 
-if __name__ == '__main__':
-    unittest.main()
+class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
+    test_release_json = {
+        release.nightly_entry_for(6): {
+            "VERSION": "ver6_nightly",
+            "HASH": "hash6_nightly",
+        },
+        release.nightly_entry_for(7): {
+            "VERSION": "ver7_nightly",
+            "HASH": "hash7_nightly",
+        },
+        release.release_entry_for(6): {
+            "VERSION": "ver6_release",
+            "HASH": "hash6_release",
+        },
+        release.release_entry_for(7): {
+            "VERSION": "ver7_release",
+            "HASH": "hash7_release",
+        },
+    }
+
+    def test_get_release_json_info_for_next_rc_on_first_rc(self):
+        previous_release_json = release._get_release_json_info_for_next_rc(self.test_release_json, 7, True)
+
+        self.assertEqual(
+            previous_release_json,
+            {
+                "VERSION": "ver7_nightly",
+                "HASH": "hash7_nightly",
+            },
+        )
+
+    def test_get_release_json_info_for_next_rc_on_second_rc(self):
+        previous_release_json = release._get_release_json_info_for_next_rc(self.test_release_json, 7, False)
+
+        self.assertEqual(
+            previous_release_json,
+            {
+                "VERSION": "ver7_release",
+                "HASH": "hash7_release",
+            },
+        )
+
+
+class TestGetJMXFetchReleaseJsonInfo(unittest.TestCase):
+    test_release_json = {
+        release.nightly_entry_for(6): {
+            "JMXFETCH_VERSION": "ver6_nightly",
+            "JMXFETCH_HASH": "hash6_nightly",
+        },
+        release.nightly_entry_for(7): {
+            "JMXFETCH_VERSION": "ver7_nightly",
+            "JMXFETCH_HASH": "hash7_nightly",
+        },
+        release.release_entry_for(6): {
+            "JMXFETCH_VERSION": "ver6_release",
+            "JMXFETCH_HASH": "hash6_release",
+        },
+        release.release_entry_for(7): {
+            "JMXFETCH_VERSION": "ver7_release",
+            "JMXFETCH_HASH": "hash7_release",
+        },
+    }
+
+    def test_get_release_json_info_for_next_rc_on_first_rc(self):
+        jmxfetch_version, jmxfetch_hash = release._get_jmxfetch_release_json_info(self.test_release_json, 7, True)
+
+        self.assertEqual(jmxfetch_version, "ver7_nightly")
+        self.assertEqual(jmxfetch_hash, "hash7_nightly")
+
+
+class TestCreateBuildLinksPatterns(unittest.TestCase):
+    current_version = "7.50.0-rc.1"
+
+    def test_create_build_links_patterns_correct_values(self):
+        new_rc_version = "7.51.1-rc.2"
+        patterns = release._create_build_links_patterns(self.current_version, new_rc_version)
+
+        self.assertEqual(patterns[".50.0-rc.1"], ".51.1-rc.2")
+        self.assertEqual(patterns[".50.0-rc-1"], ".51.1-rc-2")
+        self.assertEqual(patterns[".50.0~rc.1"], ".51.1~rc.2")

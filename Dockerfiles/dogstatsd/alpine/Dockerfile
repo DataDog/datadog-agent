@@ -1,8 +1,9 @@
-FROM alpine:3.17
+ARG BASE_IMAGE_ALPINE_VERSION=3.18
+FROM alpine:$BASE_IMAGE_ALPINE_VERSION
 ARG TARGETARCH
 
 LABEL baseimage.os "alpine"
-LABEL baseimage.name "alpine:3.17"
+LABEL baseimage.name "alpine:${BASE_IMAGE_ALPINE_VERSION}"
 LABEL maintainer "Datadog <package@datadoghq.com>"
 # Can be used by Dependabot
 LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"

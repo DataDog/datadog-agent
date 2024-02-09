@@ -120,7 +120,7 @@ func TestMeasuredListener(t *testing.T) {
 	defer testutil.WithStatsClient(stats)()
 
 	var mockln mockListener
-	ln := NewMeasuredListener(&mockln, "test-metric").(*measuredListener)
+	ln := NewMeasuredListener(&mockln, "test-metric", 1000).(*measuredListener)
 	mockln.SetSuccess()
 	ln.Accept()
 	ln.Accept()
@@ -152,4 +152,20 @@ func TestMeasuredListener(t *testing.T) {
 	assert.Len(call.Calls, 1)
 	assert.EqualValues(call.Calls[0].Tags, []string{"status:timedout"})
 	assert.EqualValues(call.Calls[0].Value, 1)
+}
+
+func TestOnCloseConn(t *testing.T) {
+
+	var closed int
+	p, _ := net.Pipe()
+	c := OnCloseConn(p, func() {
+		closed++
+	})
+
+	c.Close()
+	assert.Equal(t, 1, closed)
+	// Make sure multiple close calls don't execute the
+	// callback multiple times.
+	c.Close()
+	assert.Equal(t, 1, closed)
 }

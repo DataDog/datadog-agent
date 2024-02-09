@@ -1,52 +1,39 @@
 {
-   "vmsets": [
+    "vmsets": [
         {
-            "name": "ubuntu_x86_64",
+            "tags": [
+                "distro_x86_64"
+            ],
             "recipe": "distro-x86_64",
             "arch": "x86_64",
-            "kernels": [
+            "console_type": "file",
+            "kernels": [],
+            "disks": [
                 {
-                    "dir": "jammy-server-cloudimg-amd64.qcow2",
-                    "tag": "jammy_22",
-                    "image_source": "file:///home/kernel-version-testing/rootfs/jammy-server-cloudimg-amd64.qcow2"
-                },
-                {
-                    "dir": "focal-server-cloudimg-amd64.qcow2",
-                    "tag": "focal_20",
-                    "image_source": "file:///home/kernel-version-testing/rootfs/focal-server-cloudimg-amd64.qcow2"
-                },
-                {
-                    "dir": "bionic-server-cloudimg-amd64.qcow2",
-                    "tag": "bionic_18",
-                    "image_source": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-amd64.qcow2"
+                    "mount_point": "/mnt/docker",
+                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-x86_64.qcow2.xz",
+                    "target": "/home/kernel-version-testing/rootfs/docker-x86_64.qcow2",
+                    "type": "default"
                 }
-            ],
-            "vcpu": [4],
-            "memory": [4096]
+            ]
         },
         {
-            "name": "ubuntu_arm64",
+            "tags": [
+                "distro_arm64"
+            ],
             "recipe": "distro-arm64",
             "arch": "arm64",
-            "kernels": [
+            "console_type": "file",
+            "kernels": [],
+            "machine": "virt",
+            "disks": [
                 {
-                    "dir": "jammy-server-cloudimg-arm64.qcow2",
-                    "tag": "jammy_22",
-                    "image_source": "file:///home/kernel-version-testing/rootfs/jammy-server-cloudimg-arm64.qcow2"
-                },
-                {
-                    "dir": "focal-server-cloudimg-arm64.qcow2",
-                    "tag": "focal_20",
-                    "image_source": "file:///home/kernel-version-testing/rootfs/focal-server-cloudimg-arm64.qcow2"
-                },
-                {
-                    "dir": "bionic-server-cloudimg-arm64.qcow2",
-                    "tag": "bionic_18",
-                    "image_source": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-arm64.qcow2"
+                    "mount_point": "/mnt/docker",
+                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-arm64.qcow2.xz",
+                    "target": "/home/kernel-version-testing/rootfs/docker-arm64.qcow2",
+                    "type": "default"
                 }
-            ],
-            "vcpu": [4],
-            "memory": [4096]
+            ]
         }
-   ]
+    ]
 }

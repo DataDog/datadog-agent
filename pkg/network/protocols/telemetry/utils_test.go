@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestSplitTagsAndOpts(t *testing.T) {
@@ -17,13 +17,13 @@ func TestSplitTagsAndOpts(t *testing.T) {
 
 	t.Run("only tags", func(t *testing.T) {
 		tags, opts := splitTagsAndOptions([]string{"tag:a", "tag:c", "tag:b"})
-		assert.Equal([]string{"tag:a", "tag:b", "tag:c"}, tags)
+		assert.Equal([]string{"tag:a", "tag:b", "tag:c"}, sets.List(tags))
 		assert.Len(opts, 0)
 	})
 
 	t.Run("only opts", func(t *testing.T) {
 		tags, opts := splitTagsAndOptions([]string{"_opt3", "_opt2", "_opt1"})
-		assert.Equal([]string{"_opt1", "_opt2", "_opt3"}, opts)
+		assert.Equal([]string{"_opt1", "_opt2", "_opt3"}, sets.List(opts))
 		assert.Len(tags, 0)
 	})
 
@@ -32,42 +32,26 @@ func TestSplitTagsAndOpts(t *testing.T) {
 			[]string{"_opt3", "tag:a", "_opt2", "tag:b", "_opt1", "tag:c"},
 		)
 
-		assert.Equal([]string{"tag:a", "tag:b", "tag:c"}, tags)
-		assert.Equal([]string{"_opt1", "_opt2", "_opt3"}, opts)
+		assert.Equal([]string{"tag:a", "tag:b", "tag:c"}, sets.List(tags))
+		assert.Equal([]string{"_opt1", "_opt2", "_opt3"}, sets.List(opts))
 	})
 
 }
 
-func TestInsertNestedTagsFor(t *testing.T) {
-	t.Run("happy path", func(t *testing.T) {
-		metrics := make(map[string]interface{})
-		err := insertNestedValueFor("http.request_count", 1, metrics)
-		require.NoError(t, err)
-		err = insertNestedValueFor("dns.errors.nxdomain", 5, metrics)
-		require.NoError(t, err)
-		err = insertNestedValueFor("http.dropped", 10, metrics)
-		require.NoError(t, err)
+func TestSplitName(t *testing.T) {
+	Clear()
 
-		expected := map[string]interface{}{
-			"http": map[string]interface{}{
-				"request_count": int64(1),
-				"dropped":       int64(10),
-			},
-			"dns": map[string]interface{}{
-				"errors": map[string]interface{}{
-					"nxdomain": int64(5),
-				},
-			},
-		}
-
-		assert.Equal(t, expected, metrics)
+	t.Run("with namespace", func(t *testing.T) {
+		c1 := NewCounter("usm.http.hits")
+		namespace, name := splitName(c1)
+		assert.Equal(t, "usm.http", namespace)
+		assert.Equal(t, "hits", name)
 	})
 
-	t.Run("invalid type", func(t *testing.T) {
-		invalidMap := map[string]interface{}{
-			"http": "this should another map",
-		}
-		err := insertNestedValueFor("http.request_count", 1, invalidMap)
-		assert.Error(t, err)
+	t.Run("without namespace", func(t *testing.T) {
+		c2 := NewCounter("events")
+		namespace, name := splitName(c2)
+		assert.Equal(t, "", namespace)
+		assert.Equal(t, "events", name)
 	})
 }

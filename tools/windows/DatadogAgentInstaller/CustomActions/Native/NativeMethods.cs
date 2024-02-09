@@ -1,12 +1,14 @@
 using System;
 using System.ComponentModel;
-using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using Datadog.CustomActions.Interfaces;
+
+// ReSharper disable InconsistentNaming
 
 namespace Datadog.CustomActions.Native
 {
@@ -46,6 +48,27 @@ namespace Datadog.CustomActions.Native
         SidTypeComputer
     }
 
+    // https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights
+    [Flags]
+    public enum ServiceAccess
+    {
+        // specific access rights
+        SERVICE_QUERY_CONFIG = 0x0001,
+        SERVICE_QUERY_STATUS = 0x0004,
+        SERVICE_ENUMERATE_DEPENDENTS = 0x0008,
+        SERVICE_START = 0x0010,
+        SERVICE_STOP = 0x0020,
+        SERVICE_INTERROGATE = 0x0080,
+
+        // standard access rights
+        READ_CONTROL = 0x20000,
+
+        STANDARD_RIGHTS_READ = READ_CONTROL,
+        GENERIC_READ = STANDARD_RIGHTS_READ | SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS | SERVICE_INTERROGATE | SERVICE_ENUMERATE_DEPENDENTS,
+
+        SERVICE_ALL_ACCESS = 0xF01FF
+    }
+
     public class Win32NativeMethods : INativeMethods
     {
         #region Native methods
@@ -68,6 +91,7 @@ namespace Datadog.CustomActions.Native
 
             // One or more of the members specified were already members of the local group. No new members were added.
             ERROR_MEMBER_IN_ALIAS = 1378,
+            ERROR_MEMBER_IN_GROUP = 1320,
 
             // One or more of the members specified do not exist. Therefore, no new members were added.
             ERROR_NO_SUCH_MEMBER = 1387,
@@ -273,7 +297,7 @@ namespace Datadog.CustomActions.Native
         {
             if (level == 0)
             {
-               level = int.Parse(System.Text.RegularExpressions.Regex.Replace(typeof(T).Name, @"[^\d]", ""));
+                level = int.Parse(System.Text.RegularExpressions.Regex.Replace(typeof(T).Name, @"[^\d]", ""));
             }
             var ptr = IntPtr.Zero;
             try
@@ -385,15 +409,70 @@ namespace Datadog.CustomActions.Native
         [DllImport("advapi32.dll")]
         private static extern long LsaNtStatusToWinError(long status);
 
-        [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         private static extern bool GetComputerNameEx(COMPUTER_NAME_FORMAT NameType,
                            [Out] StringBuilder lpBuffer, ref uint lpnSize);
 
-        [DllImport("advapi32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern bool ChangeServiceConfig(SafeHandle hService, uint dwServiceType,
         int dwStartType, int dwErrorControl, string lpBinaryPathName, string lpLoadOrderGroup,
         string lpdwTagId, string lpDependencies, string lpServiceStartName, string lpPassword,
         string lpDisplayName);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool QueryServiceObjectSecurity(SafeHandle serviceHandle,
+            SecurityInfos secInfo,
+            byte[] lpSecDescBuf, uint bufSize, out uint bufSizeNeeded);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool SetServiceObjectSecurity(SafeHandle serviceHandle,
+            SecurityInfos secInfos, byte[] lpSecDescBuf);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public class GuidClass
+        {
+            public Guid TheGuid;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct DOMAIN_CONTROLLER_INFO
+        {
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainControllerName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainControllerAddress;
+            public uint DomainControllerAddressType;
+            public Guid DomainGuid;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DnsForestName;
+            public DS_FLAG Flags;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DcSiteName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string ClientSiteName;
+        }
+
+        [Flags]
+        public enum DS_FLAG : uint
+        {
+            DS_WRITABLE_FLAG = 0x00000100,
+        }
+
+        [DllImport("Netapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern int DsGetDcName
+        (
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string ComputerName,
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string DomainName,
+            [In] GuidClass DomainGuid,
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string SiteName,
+            int Flags,
+            out IntPtr pDOMAIN_CONTROLLER_INFO
+        );
 
         #endregion
         #region Public interface
@@ -461,7 +540,9 @@ namespace Datadog.CustomActions.Native
                 Marshal.Copy(sid, 0, info.pSID, sid.Length);
 
                 err = (ReturnCodes)NetLocalGroupAddMembers(null, groupName, 0, ref info, 1);
-                if (err == ReturnCodes.NO_ERROR || err == ReturnCodes.ERROR_MEMBER_IN_ALIAS)
+                if (err == ReturnCodes.NO_ERROR ||
+                    err == ReturnCodes.ERROR_MEMBER_IN_ALIAS ||
+                    err == ReturnCodes.ERROR_MEMBER_IN_GROUP)
                 {
                     return;
                 }
@@ -543,12 +624,41 @@ namespace Datadog.CustomActions.Native
             return false;
         }
 
+        public bool IsReadOnlyDomainController()
+        {
+            if (!IsDomainController())
+            {
+                return false;
+            }
+
+            IntPtr pDCI = IntPtr.Zero;
+            try
+            {
+                var result = DsGetDcName(null, null, null, null, 0, out pDCI);
+                if (result != 0)
+                {
+                    throw new Exception("unexpected error getting domain controller information",
+                        new Win32Exception((int)result));
+                }
+
+                var domainInfo = (DOMAIN_CONTROLLER_INFO)Marshal.PtrToStructure(pDCI, typeof(DOMAIN_CONTROLLER_INFO));
+                var isWritable = domainInfo.Flags.HasFlag(DS_FLAG.DS_WRITABLE_FLAG);
+                return !isWritable;
+            }
+            finally
+            {
+                if (pDCI != IntPtr.Zero)
+                {
+                    NetApiBufferFree(pDCI);
+                }
+            }
+        }
+
         public string GetComputerDomain()
         {
             // Computer is a DC, default to domain name
             return Domain.GetComputerDomain().Name;
         }
-
 
         /// <summary>
         /// Checks whether or not a user account belongs to a domain or is a local account.
@@ -677,6 +787,8 @@ namespace Datadog.CustomActions.Native
             return result;
         }
 
+
+
         /// <summary>
         /// Enable privilege on current token
         /// https://learn.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
@@ -737,6 +849,68 @@ namespace Datadog.CustomActions.Native
                 {
                     CloseHandle(token);
                 }
+            }
+        }
+
+        // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-queryserviceobjectsecurity
+        public static CommonSecurityDescriptor QueryServiceObjectSecurity(SafeHandle serviceHandle,
+            System.Security.AccessControl.SecurityInfos secInfo)
+        {
+            byte[] secDescBuf = null;
+            if (!QueryServiceObjectSecurity(serviceHandle, secInfo, null, 0, out var bytesNeeded))
+            {
+                var result = (ReturnCodes)Marshal.GetLastWin32Error();
+                if (result != ReturnCodes.ERROR_INSUFFICIENT_BUFFER)
+                {
+                    throw new Exception("Failed to get size for service security descriptor",
+                        new Win32Exception((int)result));
+                }
+            }
+            else
+            {
+                throw new Exception("Failed to get size for service security descriptor");
+            }
+
+            // alloc space
+            secDescBuf = new byte[bytesNeeded];
+
+            if (!QueryServiceObjectSecurity(serviceHandle, secInfo, secDescBuf, bytesNeeded, out _))
+            {
+                throw new Exception("Failed to get service security descriptor",
+                    new Win32Exception(Marshal.GetLastWin32Error()));
+            }
+
+            // isContainer/isDS are N/A to service ACL
+            return new CommonSecurityDescriptor(false, false, new RawSecurityDescriptor(secDescBuf, 0));
+        }
+
+        // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-setserviceobjectsecurity
+        public static void SetServiceObjectSecurity(SafeHandle serviceHandle,
+            System.Security.AccessControl.SecurityInfos secInfo,
+            CommonSecurityDescriptor securityDescriptor)
+        {
+            var secDescBuf = new byte[securityDescriptor.BinaryLength];
+            securityDescriptor.GetBinaryForm(secDescBuf, 0);
+            if (!SetServiceObjectSecurity(serviceHandle, secInfo, secDescBuf))
+            {
+                throw new Exception("Failed to set service security descriptor",
+                    new Win32Exception(Marshal.GetLastWin32Error()));
+            }
+        }
+
+        public void GetCurrentUser(out string name, out SecurityIdentifier sid)
+        {
+            var identity = WindowsIdentity.GetCurrent();
+            if (identity == null)
+            {
+                throw new Exception("Unable to get current user");
+            }
+
+            name = identity.Name;
+            sid = identity.User;
+            if (sid == null)
+            {
+                throw new Exception($"Unable to lookup SID for current user: {name}");
             }
         }
 

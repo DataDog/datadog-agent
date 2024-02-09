@@ -18,17 +18,19 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,37 +41,31 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 
-// NetworkTracer is a factory for NPM's tracer
-var NetworkTracer = module.Factory{
-	Name:             config.NetworkTracerModule,
-	ConfigNamespaces: []string{"network_config", "service_monitoring_config", "data_streams_config"},
-	Fn: func(cfg *config.Config) (module.Module, error) {
-		ncfg := networkconfig.New()
+var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-		// Checking whether the current OS + kernel version is supported by the tracer
-		if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
-		}
+func createNetworkTracerModule(cfg *sysconfigtypes.Config) (module.Module, error) {
+	ncfg := networkconfig.New()
 
-		if ncfg.NPMEnabled {
-			log.Info("enabling network performance monitoring (NPM)")
-		}
-		if ncfg.ServiceMonitoringEnabled {
-			log.Info("enabling universal service monitoring (USM)")
-		}
-		if ncfg.DataStreamsEnabled {
-			log.Info("enabling data streams monitoring (DSM)")
-		}
+	// Checking whether the current OS + kernel version is supported by the tracer
+	if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
+		return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
+	}
 
-		t, err := tracer.NewTracer(ncfg)
+	if ncfg.NPMEnabled {
+		log.Info("enabling network performance monitoring (NPM)")
+	}
+	if ncfg.ServiceMonitoringEnabled {
+		log.Info("enabling universal service monitoring (USM)")
+	}
 
-		done := make(chan struct{})
-		if err == nil {
-			startTelemetryReporter(cfg, done)
-		}
+	t, err := tracer.NewTracer(ncfg)
 
-		return &networkTracer{tracer: t, done: done}, err
-	},
+	done := make(chan struct{})
+	if err == nil {
+		startTelemetryReporter(cfg, done)
+	}
+
+	return &networkTracer{tracer: t, done: done}, err
 }
 
 var _ module.Module = &networkTracer{}
@@ -83,6 +79,11 @@ type networkTracer struct {
 func (nt *networkTracer) GetStats() map[string]interface{} {
 	stats, _ := nt.tracer.GetStats()
 	return stats
+}
+
+// RegisterGRPC register system probe grpc server
+func (nt *networkTracer) RegisterGRPC(_ grpc.ServiceRegistrar) error {
+	return nil
 }
 
 // Register all networkTracer endpoints
@@ -99,7 +100,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 		contentType := req.Header.Get("Accept")
-		marshaler := encoding.GetMarshaler(contentType)
+		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
 		if nt.restartTimer != nil {
@@ -130,7 +131,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		contentType := req.Header.Get("Accept")
-		marshaler := encoding.GetMarshaler(contentType)
+		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 	})
 
@@ -189,14 +190,12 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			maps = strings.Split(listMaps, ",")
 		}
 
-		ebpfMaps, err := nt.tracer.DebugEBPFMaps(maps...)
+		err := nt.tracer.DebugEBPFMaps(w, maps...)
 		if err != nil {
 			log.Errorf("unable to retrieve eBPF maps: %s", err)
 			w.WriteHeader(500)
 			return
 		}
-
-		utils.WriteAsJSON(w, ebpfMaps)
 	})
 
 	httpMux.HandleFunc("/debug/conntrack/cached", func(w http.ResponseWriter, req *http.Request) {
@@ -238,10 +237,8 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, cache)
 	})
 
-	httpMux.HandleFunc("/debug/telemetry", func(w http.ResponseWriter, req *http.Request) {
-		metrics := telemetry.GetMetrics()
-		utils.WriteAsJSON(w, metrics)
-	})
+	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
+	httpMux.HandleFunc("/debug/usm_traced_programs", usm.TracedProgramsEndpoint)
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.
@@ -270,7 +267,7 @@ func (nt *networkTracer) Close() {
 }
 
 func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
-	args := []interface{}{client, count, connectionsCount, time.Now().Sub(start)}
+	args := []interface{}{client, count, connectionsCount, time.Since(start)}
 	msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
 	switch {
 	case count <= 5, count%20 == 0:
@@ -288,22 +285,25 @@ func getClientID(req *http.Request) string {
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections) {
 	defer network.Reclaim(cs)
 
-	buf, err := marshaler.Marshal(cs)
+	w.Header().Set("Content-type", marshaler.ContentType())
+
+	connectionsModeler := marshal.NewConnectionsModeler(cs)
+	defer connectionsModeler.Close()
+
+	err := marshaler.Marshal(cs, w, connectionsModeler)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)
 		return
 	}
 
-	w.Header().Set("Content-type", marshaler.ContentType())
-	w.Write(buf) //nolint:errcheck
-	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	log.Tracef("/connections: %d connections", len(cs.Conns))
 }
 
-func startTelemetryReporter(cfg *config.Config, done <-chan struct{}) {
+func startTelemetryReporter(_ *sysconfigtypes.Config, done <-chan struct{}) {
 	telemetry.SetStatsdClient(statsd.Client)
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {

@@ -1,0 +1,106 @@
+commit 66af35b1f05d73ed10cb30099ada463b99709058
+Author: David du Colombier <djc@datadoghq.com>
+Date:   Thu Jul 20 13:40:38 2023 +0200
+
+    Consider cgroup when determining memory usage
+    
+    This change modifies the oscap_sys_memusage function
+    to take into account the memory constraints of the
+    cgroup. Both cgroup and cgroup2 are supported.
+
+diff --git a/src/common/memusage.c b/src/common/memusage.c
+index f6baca329..6baa16e3d 100644
+--- a/src/common/memusage.c
++++ b/src/common/memusage.c
+@@ -48,9 +48,9 @@
+ #define GET_VM_FREE_PAGE_COUNT  "vm.stats.vm.v_free_count"
+ #define GET_VM_INACT_PAGE_COUNT "vm.stats.vm.v_inactive_count"
+ #define GET_VM_ACT_PAGE_COUNT   "vm.stats.vm.v_active_count"
++#endif
+ 
+ #define BYTES_TO_KIB(x) (x >> 10)
+-#endif
+ 
+ #include "debug_priv.h"
+ #include "memusage.h"
+@@ -173,6 +173,26 @@ static int read_status(const char *source, void *base, struct stat_parser *spt,
+ 	return processed == spt_size ? 0 : 1;
+ }
+ 
++static size_t get_sys_value(const char *source)
++{
++	FILE *f;
++	size_t v;
++
++	f = fopen(source, "r");
++	if (f == NULL) {
++		return (size_t)-1;
++	}
++
++	if (fscanf(f, "%zu", &v) != 1) {
++		fclose(f);
++		return (size_t)-1;
++	}
++
++	fclose(f);
++
++	return v;
++}
++
+ #define stat_sizet_field(name, stype, sfield)                           \
+ 	{ (name), &read_common_sizet, (ptrdiff_t)offsetof(stype, sfield) }
+ 
+@@ -294,14 +314,31 @@ int oscap_sys_memusage(struct sys_memusage *mu)
+ 	if (mu == NULL)
+ 		return -1;
+ #if defined(OS_LINUX)
+-	if (read_status(MEMUSAGE_LINUX_SYS_STATUS,
+-	                mu, __sys_stat_ptable,
+-	                (sizeof __sys_stat_ptable)/sizeof(struct stat_parser)) != 0)
+-	{
+-		return -1;
++	// cgroup
++	size_t cgroup_memory_usage = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP_USAGE);
++	size_t cgroup_memory_limit = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP_LIMIT);
++	if (cgroup_memory_usage != (size_t)-1 && cgroup_memory_limit != (size_t)-1) {
++		mu->mu_total = BYTES_TO_KIB(cgroup_memory_limit);
++		mu->mu_realfree = BYTES_TO_KIB(cgroup_memory_limit) - BYTES_TO_KIB(cgroup_memory_usage);
++	} else {
++		// cgroup2
++		size_t cgroup_memory_current = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP2_CURRENT);
++		size_t cgroup_memory_max = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP2_MAX);
++		if (cgroup_memory_current != (size_t)-1 && cgroup_memory_max != (size_t)-1) {
++			mu->mu_total = BYTES_TO_KIB(cgroup_memory_max);
++			mu->mu_realfree = BYTES_TO_KIB(cgroup_memory_max) - BYTES_TO_KIB(cgroup_memory_current);
++		} else {
++			if (read_status(MEMUSAGE_LINUX_SYS_STATUS,
++			                mu, __sys_stat_ptable,
++			                (sizeof __sys_stat_ptable)/sizeof(struct stat_parser)) != 0)
++			{
++				return -1;
++			}
++
++			mu->mu_realfree = mu->mu_free + mu->mu_cached + mu->mu_buffers;
++		}
+ 	}
+ 
+-	mu->mu_realfree = mu->mu_free + mu->mu_cached + mu->mu_buffers;
+ #elif defined(OS_FREEBSD)
+ 	if (freebsd_sys_memusage(mu))
+ 		return -1;
+diff --git a/src/common/memusage.h b/src/common/memusage.h
+index daa29fe57..aa8b9c9f0 100644
+--- a/src/common/memusage.h
++++ b/src/common/memusage.h
+@@ -8,6 +8,11 @@
+ # define MEMUSAGE_LINUX_PROC_ENV    "MEMUSAGE_PROC_STATUS"
+ # define MEMUSAGE_LINUX_SYS_STATUS "/proc/meminfo"
+ # define MEMUSAGE_LINUX_SYS_ENV "MEMUSAGE_SYS_STATUS"
++# define MEMUSAGE_LINUX_SYS_CGROUP_USAGE "/sys/fs/cgroup/memory/memory.usage_in_bytes"
++# define MEMUSAGE_LINUX_SYS_CGROUP_LIMIT "/sys/fs/cgroup/memory/memory.limit_in_bytes"
++# define MEMUSAGE_LINUX_SYS_CGROUP2_CURRENT "/sys/fs/cgroup/memory.current"
++# define MEMUSAGE_LINUX_SYS_CGROUP2_MAX "/sys/fs/cgroup/memory.max"
++
+ #endif /* OS_LINUX */
+ 
+ struct proc_memusage {

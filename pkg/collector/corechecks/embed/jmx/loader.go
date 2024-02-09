@@ -12,6 +12,8 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -23,7 +25,6 @@ type JMXCheckLoader struct{}
 
 // NewJMXCheckLoader creates a loader for go checks
 func NewJMXCheckLoader() (*JMXCheckLoader, error) {
-	state.runner.initRunner()
 	return &JMXCheckLoader{}, nil
 }
 
@@ -33,7 +34,7 @@ func (jl *JMXCheckLoader) Name() string {
 }
 
 // Load returns a JMX check
-func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (jl *JMXCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 
 	if !check.IsJMXInstance(config.Name, instance, config.InitConfig) {
@@ -62,7 +63,7 @@ func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.D
 		Name:          config.Name,
 		Provider:      config.Provider,
 	}
-	c = newJMXCheck(cf, config.Source)
+	c = newJMXCheck(senderManager, cf, config.Source)
 
 	return c, err
 }
@@ -71,8 +72,13 @@ func (jl *JMXCheckLoader) String() string {
 	return "JMX Check Loader"
 }
 
+// InitRunner inits the runner and injects the dogstatsd server component
+func InitRunner(server dogstatsdServer.Component) {
+	state.runner.initRunner(server)
+}
+
 func init() {
-	factory := func() (check.Loader, error) {
+	factory := func(sender.SenderManager) (check.Loader, error) {
 		return NewJMXCheckLoader()
 	}
 

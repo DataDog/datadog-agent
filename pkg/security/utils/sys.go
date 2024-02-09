@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package utils holds utils related files
 package utils
 
 import (
@@ -14,12 +15,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // CgroupSysPath returns the path to the provided file within the provided cgroup
 func CgroupSysPath(controller string, path string, file string) string {
-	return filepath.Join(util.HostSys("fs/cgroup/", controller, path, file))
+	return filepath.Join(kernel.SysFSRoot(), "fs/cgroup/", controller, path, file)
 }
 
 // ReadCgroupFile reads the content of a cgroup file

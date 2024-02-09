@@ -63,7 +63,8 @@ type TracerStatus struct {
 	Mac_header                      uint16
 	Fl4_offsets                     uint8
 	Fl6_offsets                     uint8
-	Pad_cgo_0                       [4]byte
+	Seen_failure                    uint8
+	Pad_cgo_0                       [3]byte
 }
 
 type State uint8
@@ -84,10 +85,9 @@ type ConntrackStatus struct {
 	Offset_status uint64
 	Offset_netns  uint64
 	Offset_ino    uint64
+	Err           uint64
 	Saddr         uint32
-	Status        uint32
 	Netns         uint32
-	Pad_cgo_0     [4]byte
 }
 type ConntrackState uint8
 
@@ -120,8 +120,13 @@ const (
 
 	GuessCtTupleOrigin GuessWhat = 0x14
 	GuessCtTupleReply  GuessWhat = 0x15
-	GuessCtStatus      GuessWhat = 0x16
 	GuessCtNet         GuessWhat = 0x17
 
 	GuessNotApplicable GuessWhat = 99999
+)
+
+const (
+	sizeofSKBuffSock            = 0x8
+	sizeofSKBuffTransportHeader = 0x2
+	sizeofSKBuffHead            = 0x8
 )

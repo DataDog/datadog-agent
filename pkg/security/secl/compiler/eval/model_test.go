@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
@@ -165,7 +166,7 @@ func (m *testModel) GetIterator(field Field) (Iterator, error) {
 	return nil, &ErrIteratorNotSupported{Field: field}
 }
 
-func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, error) {
+func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 	switch field {
 
 	case "network.ip":
@@ -191,9 +192,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 		return &CIDRArrayEvaluator{
 			EvalFnc: func(ctx *Context) []net.IPNet {
 				var ipnets []net.IPNet
-				for _, ip := range ctx.Event.(*testEvent).network.ips {
-					ipnets = append(ipnets, ip)
-				}
+				ipnets = append(ipnets, ctx.Event.(*testEvent).network.ips...)
 				return ipnets
 			},
 		}, nil

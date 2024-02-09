@@ -10,7 +10,7 @@ from typing import List
 
 from invoke import task
 
-from .flavor import AgentFlavor
+from tasks.flavor import AgentFlavor
 
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
@@ -38,7 +38,7 @@ ALL_TAGS = {
     "podman",
     "process",
     "python",
-    "secrets",
+    "serverless",
     "systemd",
     "trivy",
     "zk",
@@ -69,7 +69,6 @@ AGENT_TAGS = {
     "podman",
     "process",
     "python",
-    "secrets",
     "systemd",
     "trivy",
     "zk",
@@ -95,21 +94,19 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
 )
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = {"clusterchecks", "kubeapiserver", "orchestrator", "secrets", "zlib", "ec2", "gce"}
+CLUSTER_AGENT_TAGS = {"clusterchecks", "kubeapiserver", "orchestrator", "zlib", "ec2", "gce"}
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "secrets"}
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "secrets", "zlib"}
+DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orchestrator"}).difference(
-    {"otlp", "python", "trivy"}
-)
+PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess", "orchestrator"}).difference({"otlp", "python", "trivy"})
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
 PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
@@ -117,13 +114,16 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 )
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib", "ec2"}
+SECURITY_AGENT_TAGS = {"netcgo", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib", "ec2"}
+
+# SERVERLESS_TAGS lists the tags necessary to build serverless
+SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference({"python", "trivy", "systemd"})
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm"}).difference({"python", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman", "secrets"}
+TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}
 
 # TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
 TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
@@ -167,6 +167,7 @@ build_tags = {
         "dogstatsd": DOGSTATSD_TAGS,
         "process-agent": PROCESS_AGENT_TAGS,
         "security-agent": SECURITY_AGENT_TAGS,
+        "serverless": SERVERLESS_TAGS,
         "system-probe": SYSTEM_PROBE_TAGS,
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
@@ -197,7 +198,11 @@ build_tags = {
 
 
 def compute_build_tags_for_flavor(
-    build: str, arch: str, build_include: List[str], build_exclude: List[str], flavor: AgentFlavor = AgentFlavor.base
+    build: str,
+    arch: str,
+    build_include: List[str],
+    build_exclude: List[str],
+    flavor: AgentFlavor = AgentFlavor.base,
 ):
     """
     Given a flavor, an architecture, a list of tags to include and exclude, get the final list
@@ -238,7 +243,7 @@ def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.ba
     print(",".join(sorted(get_default_build_tags(build, arch, flavor))))
 
 
-def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
+def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base, platform=sys.platform):
     """
     Build the default list of tags based on the build type and current platform.
 
@@ -247,29 +252,29 @@ def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
     """
     include = build_tags.get(flavor).get(build)
     if include is None:
-        print("Warning: unrecognized build type, no build tags included.")
+        print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
         include = set()
 
-    return sorted(filter_incompatible_tags(include, arch=arch))
+    return sorted(filter_incompatible_tags(include, arch=arch, platform=platform))
 
 
-def filter_incompatible_tags(include, arch="x64"):
+def filter_incompatible_tags(include, arch="x64", platform=sys.platform):
     """
     Filter out tags incompatible with the platform.
     include can be a list or a set.
     """
 
     exclude = set()
-    if not sys.platform.startswith("linux"):
+    if not platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
-    if sys.platform == "win32":
+    if platform == "win32":
         exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
 
-    if sys.platform == "darwin":
+    if platform == "darwin":
         exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
 
-    if sys.platform == "win32" and arch == "x86":
+    if platform == "win32" and arch == "x86":
         exclude = exclude.union(WINDOWS_32BIT_EXCLUDE_TAGS)
 
     return get_build_tags(include, exclude)
@@ -289,12 +294,12 @@ def get_build_tags(include, exclude):
     known_include = ALL_TAGS.intersection(include)
     unknown_include = include - known_include
     for tag in unknown_include:
-        print(f"Warning: unknown build tag '{tag}' was filtered out from included tags list.")
+        print(f"Warning: unknown build tag '{tag}' was filtered out from included tags list.", file=sys.stderr)
 
     known_exclude = ALL_TAGS.intersection(exclude)
     unknown_exclude = exclude - known_exclude
     for tag in unknown_exclude:
-        print(f"Warning: unknown build tag '{tag}' was filtered out from excluded tags list.")
+        print(f"Warning: unknown build tag '{tag}' was filtered out from excluded tags list.", file=sys.stderr)
 
     return list(known_include - known_exclude)
 

@@ -29,9 +29,23 @@ spec:
       annotations: {}
     spec:
       serviceAccountName: datadog-cluster-agent
+      automountServiceAccountToken: true
+      initContainers:
+        - name: init-volume
+          image: "gcr.io/datadoghq/cluster-agent:7.49.1"
+          imagePullPolicy: IfNotPresent
+          command:
+            - cp
+            - -r
+          args:
+            - /etc/datadog-agent
+            - /opt
+          volumeMounts:
+            - name: config
+              mountPath: /opt/datadog-agent
       containers:
         - name: cluster-agent
-          image: "gcr.io/datadoghq/cluster-agent:7.43.0"
+          image: "gcr.io/datadoghq/cluster-agent:7.49.1"
           imagePullPolicy: IfNotPresent
           resources: {}
           ports:
@@ -41,7 +55,14 @@ spec:
             - containerPort: 5000
               name: agentmetrics
               protocol: TCP
+            - containerPort: 8000
+              name: datadog-webhook
+              protocol: TCP
           env:
+            - name: DD_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: DD_HEALTH_PORT
               value: "5556"
             - name: DD_API_KEY
@@ -54,12 +75,22 @@ spec:
               value: "yes"
             - name: DD_ADMISSION_CONTROLLER_ENABLED
               value: "true"
+            - name: DD_ADMISSION_CONTROLLER_WEBHOOK_NAME
+              value: "datadog-webhook"
             - name: DD_ADMISSION_CONTROLLER_MUTATE_UNLABELLED
               value: "false"
             - name: DD_ADMISSION_CONTROLLER_SERVICE_NAME
               value: datadog-cluster-agent-admission-controller
+            - name: DD_ADMISSION_CONTROLLER_INJECT_CONFIG_MODE
+              value: socket
+            - name: DD_ADMISSION_CONTROLLER_INJECT_CONFIG_LOCAL_SERVICE_NAME
+              value: datadog
             - name: DD_ADMISSION_CONTROLLER_FAILURE_POLICY
               value: "Ignore"
+            - name: DD_ADMISSION_CONTROLLER_PORT
+              value: "8000"
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "false"
             - name: DD_CLUSTER_CHECKS_ENABLED
               value: "true"
             - name: DD_EXTRA_CONFIG_PROVIDERS
@@ -70,6 +101,8 @@ spec:
               value: "INFO"
             - name: DD_LEADER_ELECTION
               value: "true"
+            - name: DD_LEADER_ELECTION_DEFAULT_RESOURCE
+              value: "configmap"
             - name: DD_LEADER_LEASE_NAME
               value: datadog-leader-election
             - name: DD_CLUSTER_AGENT_TOKEN_NAME
@@ -87,6 +120,12 @@ spec:
               value: "false"
             - name: DD_KUBE_RESOURCES_NAMESPACE
               value: default
+            - name: CHART_RELEASE_NAME
+              value: "datadog"
+            - name: AGENT_DAEMONSET
+              value: datadog
+            - name: CLUSTER_AGENT_DEPLOYMENT
+              value: datadog-cluster-agent
             - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
               value: "true"
             - name: DD_ORCHESTRATOR_EXPLORER_CONTAINER_SCRUBBING_ENABLED
@@ -111,7 +150,19 @@ spec:
             periodSeconds: 15
             successThreshold: 1
             timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
           volumeMounts:
+            - name: datadogrun
+              mountPath: /opt/datadog-agent/run
+              readOnly: false
+            - name: varlog
+              mountPath: /var/log/datadog
+              readOnly: false
+            - name: tmpdir
+              mountPath: /tmp
+              readOnly: false
             - name: installinfo
               subPath: install_info
               mountPath: /etc/datadog-agent/install_info
@@ -119,7 +170,15 @@ spec:
             - name: confd
               mountPath: /conf.d
               readOnly: true
+            - name: config
+              mountPath: /etc/datadog-agent
       volumes:
+        - name: datadogrun
+          emptyDir: {}
+        - name: varlog
+          emptyDir: {}
+        - name: tmpdir
+          emptyDir: {}
         - name: installinfo
           configMap:
             name: datadog-installinfo
@@ -129,6 +188,8 @@ spec:
             items:
               - key: kubernetes_state_core.yaml.default
                 path: kubernetes_state_core.yaml.default
+        - name: config
+          emptyDir: {}
       affinity:
         # Prefer scheduling the cluster agents on different nodes
         # to guarantee that the standby instance can immediately take the lead from a leader running of a faulty node.

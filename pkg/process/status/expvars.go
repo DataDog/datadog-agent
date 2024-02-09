@@ -5,6 +5,7 @@
 
 // This file provides methods to set various expvar values, which are then queried by the `status` command.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package status
 
 import (
@@ -20,10 +21,10 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -47,6 +48,11 @@ var (
 	infoPodQueueBytes         atomic.Int64
 	infoEnabledChecks         []string
 	infoDropCheckPayloads     []string
+
+	// WorkloadMetaExtractor stats
+	infoWlmExtractorCacheSize    atomic.Int64
+	infoWlmExtractorStaleDiffs   atomic.Int64
+	infoWlmExtractorDiffsDropped atomic.Int64
 )
 
 func publishUptime() interface{} {
@@ -68,6 +74,7 @@ func publishDockerSocket() interface{} {
 	return infoDockerSocket
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateDockerSocket(path string) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -80,6 +87,7 @@ func publishLastCollectTime() interface{} {
 	return infoLastCollectTime
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateLastCollectTime(t time.Time) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -98,6 +106,7 @@ func publishBool(v bool) expvar.Func {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateProcContainerCount(msgs []model.MessageBody) {
 	var procCount, containerCount int
 	for _, m := range msgs {
@@ -114,6 +123,7 @@ func UpdateProcContainerCount(msgs []model.MessageBody) {
 	infoContainerCount.Store(int64(containerCount))
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type QueueStats struct {
 	ProcessQueueSize      int
 	RtProcessQueueSize    int
@@ -127,6 +137,7 @@ type QueueStats struct {
 	PodQueueBytes         int64
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateQueueStats(stats *QueueStats) {
 	infoProcessQueueSize.Store(int64(stats.ProcessQueueSize))
 	infoRTProcessQueueSize.Store(int64(stats.RtProcessQueueSize))
@@ -140,10 +151,25 @@ func UpdateQueueStats(stats *QueueStats) {
 	infoPodQueueBytes.Store(stats.PodQueueBytes)
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateEnabledChecks(enabledChecks []string) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
 	infoEnabledChecks = enabledChecks
+}
+
+// WlmExtractorStats are stats from the WorkloadMetaExtractor
+type WlmExtractorStats struct {
+	CacheSize    int
+	StaleDiffs   int64
+	DiffsDropped int64
+}
+
+// UpdateWlmExtractorStats updates the expvar stats for the WorkloadMetaExtractor
+func UpdateWlmExtractorStats(stats WlmExtractorStats) {
+	infoWlmExtractorCacheSize.Store(int64(stats.CacheSize))
+	infoWlmExtractorStaleDiffs.Store(stats.StaleDiffs)
+	infoWlmExtractorDiffsDropped.Store(stats.DiffsDropped)
 }
 
 func publishEnabledChecks() interface{} {
@@ -154,7 +180,7 @@ func publishEnabledChecks() interface{} {
 
 func publishContainerID() interface{} {
 	cgroupFile := "/proc/self/cgroup"
-	if !util.PathExists(cgroupFile) {
+	if !filesystem.FileExists(cgroupFile) {
 		return nil
 	}
 	f, err := os.Open(cgroupFile)
@@ -205,6 +231,7 @@ func getEndpointsInfo(eps []apicfg.Endpoint) interface{} {
 	return endpointsInfo
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateDropCheckPayloads(drops []string) {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
@@ -220,35 +247,8 @@ func publishDropCheckPayloads() interface{} {
 	return infoDropCheckPayloads
 }
 
-// StatusInfo is a structure to get information from expvar and feed to template
-type StatusInfo struct {
-	Pid                             int                    `json:"pid"`
-	HostName                        string                 `json:"host"`
-	Uptime                          int                    `json:"uptime"`
-	MemStats                        struct{ Alloc uint64 } `json:"memstats"`
-	Version                         version.Version        `json:"version"`
-	DockerSocket                    string                 `json:"docker_socket"`
-	LastCollectTime                 string                 `json:"last_collect_time"`
-	ProcessCount                    int                    `json:"process_count"`
-	ContainerCount                  int                    `json:"container_count"`
-	ProcessQueueSize                int                    `json:"process_queue_size"`
-	RTProcessQueueSize              int                    `json:"rtprocess_queue_size"`
-	ConnectionsQueueSize            int                    `json:"connections_queue_size"`
-	EventQueueSize                  int                    `json:"event_queue_size"`
-	PodQueueSize                    int                    `json:"pod_queue_size"`
-	ProcessQueueBytes               int                    `json:"process_queue_bytes"`
-	RTProcessQueueBytes             int                    `json:"rtprocess_queue_bytes"`
-	ConnectionsQueueBytes           int                    `json:"connections_queue_bytes"`
-	EventQueueBytes                 int                    `json:"event_queue_bytes"`
-	PodQueueBytes                   int                    `json:"pod_queue_bytes"`
-	ContainerID                     string                 `json:"container_id"`
-	ProxyURL                        string                 `json:"proxy_url"`
-	LogFile                         string                 `json:"log_file"`
-	DropCheckPayloads               []string               `json:"drop_check_payloads"`
-	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
-}
-
-func InitExpvars(config ddconfig.ConfigReader, hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
+// InitExpvars initializes expvars
+func InitExpvars(config ddconfig.Reader, telemetry telemetry.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		expvar.NewString("host").Set(hostname)
 		expvar.NewInt("pid").Set(int64(os.Getpid()))
@@ -274,6 +274,10 @@ func InitExpvars(config ddconfig.ConfigReader, hostname string, processModuleEna
 		expvar.Publish("endpoints", expvar.Func(publishEndpoints(eps)))
 		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 		expvar.Publish("system_probe_process_module_enabled", publishBool(processModuleEnabled))
+		expvar.Publish("language_detection_enabled", publishBool(languageDetectionEnabled))
+		expvar.Publish("workloadmeta_extractor_cache_size", publishInt(&infoWlmExtractorCacheSize))
+		expvar.Publish("workloadmeta_extractor_stale_diffs", publishInt(&infoWlmExtractorStaleDiffs))
+		expvar.Publish("workloadmeta_extractor_diffs_dropped", publishInt(&infoWlmExtractorDiffsDropped))
 	})
 
 	// Run a profile & telemetry server.

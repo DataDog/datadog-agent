@@ -15,10 +15,10 @@ import (
 
 // listenPipe returns a listener on the given Windows Pipe, using the provided security
 // descriptor and buffer size.
-func listenPipe(path string, secdec string, bufferSize int) (net.Listener, error) {
+func listenPipe(path string, secdec string, bufferSize int, maxconn int) (net.Listener, error) {
 	ln, err := winio.ListenPipe(path, &winio.PipeConfig{
 		SecurityDescriptor: secdec,
 		InputBufferSize:    int32(bufferSize),
 	})
-	return NewMeasuredListener(ln, "pipe_connections"), err
+	return NewMeasuredListener(ln, "pipe_connections", maxconn), err
 }

@@ -3,45 +3,68 @@
 // Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
 // Copyright 2014-present Datadog, Inc.
 
-//go:build linux || darwin
-// +build linux darwin
-
-// Package processes regroups collecting information about existing processes
+// Package processes regroups collecting information about running processes.
 package processes
 
 import (
 	"strings"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/gohai/processes/gops"
 )
+
+// limit is the number of processes to collect by default
+const limit = 20
+
+// Info represents a list of process groups
+type Info []ProcessGroup
+
+// ProcessGroup represents the information about a single process group
+type ProcessGroup struct {
+	// Usernames is the sorted list of usernames of running processes in that groups.
+	Usernames []string
+	// PctCPU is the percentage of cpu used by the group.
+	PctCPU int
+	// PctMem is the percentage of memory used by the group.
+	PctMem float64
+	// VMS is the vms of the group.
+	VMS uint64
+	// RSS is the RSS used by the group.
+	RSS uint64
+	// Name is the name of the group.
+	Name string
+	// Pids is the list of pids in the group.
+	Pids []int32
+}
+
+// CollectInfo returns a list of process groups information or an error
+func CollectInfo() (Info, error) {
+	return getProcessGroups(limit)
+}
 
 // ProcessField is an untyped representation of a process group,
 // compatible with the legacy "processes" resource check.
 type ProcessField [7]interface{}
 
-// getProcesses return a JSON payload which is compatible with
-// the legacy "processes" resource check
-func getProcesses(limit int) ([]interface{}, error) {
-	processGroups, err := gops.TopRSSProcessGroups(limit)
-	if err != nil {
-		return nil, err
-	}
-
+// AsJSON collects the processes information.
+// Returns an object which can be converted to a JSON or an error if nothing could be collected.
+// Tries to collect as much information as possible.
+func (processGroups Info) AsJSON() (interface{}, []string, error) {
 	snapData := make([]ProcessField, len(processGroups))
 
 	for i, processGroup := range processGroups {
 		processField := ProcessField{
-			strings.Join(processGroup.Usernames(), ","),
-			0, // pct_cpu, requires two consecutive samples to be computed, so not fetched for now
-			processGroup.PctMem(),
-			processGroup.VMS(),
-			processGroup.RSS(),
-			processGroup.Name(),
-			len(processGroup.Pids()),
+			strings.Join(processGroup.Usernames, ","),
+			processGroup.PctCPU,
+			processGroup.PctMem,
+			processGroup.VMS,
+			processGroup.RSS,
+			processGroup.Name,
+			len(processGroup.Pids),
 		}
 		snapData[i] = processField
 	}
 
-	return []interface{}{time.Now().Unix(), snapData}, nil
+	// with the current implementation no warning can be returned
+	warnings := []string{}
+
+	return []interface{}{time.Now().Unix(), snapData}, warnings, nil
 }

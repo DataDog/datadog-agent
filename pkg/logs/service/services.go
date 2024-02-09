@@ -37,7 +37,7 @@ func (s *Services) AddService(service *Service) {
 
 	s.services = append(s.services, service)
 
-	added, _ := s.addedPerType[service.Type]
+	added := s.addedPerType[service.Type]
 	for _, ch := range append(added, s.allAdded...) {
 		ch <- service
 	}
@@ -57,7 +57,7 @@ func (s *Services) RemoveService(service *Service) {
 	}
 	s.services = remainingServices
 
-	removed, _ := s.removedPerType[service.Type]
+	removed := s.removedPerType[service.Type]
 	for _, ch := range append(removed, s.allRemoved...) {
 		ch <- service
 	}

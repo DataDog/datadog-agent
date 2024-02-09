@@ -14,16 +14,19 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 type cliParams struct {
@@ -43,10 +46,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForOneShot(command.LoggerName, command.DefaultLogLevel, true),
+					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -58,6 +62,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
@@ -96,7 +101,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	} else if cliParams.jsonStatus {
 		s = string(r)
 	} else {
-		formattedStatus, err := status.FormatDCAStatus(r)
+		formattedStatus, err := render.FormatDCAStatus(r)
 		if err != nil {
 			return err
 		}

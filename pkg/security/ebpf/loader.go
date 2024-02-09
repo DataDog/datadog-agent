@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package ebpf holds ebpf related files
 package ebpf
 
 import (
@@ -51,7 +52,7 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, bool, error) {
 	var err error
 	var runtimeCompiled bool
 	if l.config.RuntimeCompilationEnabled {
-		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper, l.useRingBuffer, l.statsdClient)
+		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper, l.useFentry, l.useRingBuffer, l.statsdClient)
 		if err != nil {
 			seclog.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
 		} else {

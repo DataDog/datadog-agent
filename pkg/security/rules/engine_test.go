@@ -3,19 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package rules holds rules related files
 package rules
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
 )
 
+// This test is less important now that remoteConfigProvidersFirst() exists, which enforces that the RC providers are first
 func TestRuleEngineGatherPolicyProviders(t *testing.T) {
 	type fields struct {
 		config *config.RuntimeSecurityConfig
@@ -29,14 +28,14 @@ func TestRuleEngineGatherPolicyProviders(t *testing.T) {
 		{
 			name:     "RC enabled",
 			fields:   fields{config: &config.RuntimeSecurityConfig{RemoteConfigurationEnabled: true}},
-			wantType: rconfig.PolicyProviderType,
-			wantLen:  2,
+			wantType: rules.PolicyProviderTypeRC,
+			wantLen:  3,
 		},
 		{
 			name:     "RC disabled",
 			fields:   fields{config: &config.RuntimeSecurityConfig{RemoteConfigurationEnabled: false}},
-			wantType: rules.PolicyProviderType,
-			wantLen:  1,
+			wantType: rules.PolicyProviderTypeDir,
+			wantLen:  2,
 		},
 	}
 
@@ -46,10 +45,10 @@ func TestRuleEngineGatherPolicyProviders(t *testing.T) {
 				config: tt.fields.config,
 			}
 
-			got := e.gatherPolicyProviders()
+			got := e.gatherDefaultPolicyProviders()
 
 			assert.Equal(t, tt.wantLen, len(got))
-			assert.Equal(t, tt.wantType, got[0].Type())
+			assert.Equal(t, tt.wantType, got[1].Type())
 		})
 	}
 }

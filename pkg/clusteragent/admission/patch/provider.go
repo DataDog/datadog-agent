@@ -12,16 +12,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 )
 
 type patchProvider interface {
 	start(stopCh <-chan struct{})
-	subscribe(kind TargetObjKind) chan PatchRequest
+	subscribe(kind TargetObjKind) chan Request
 }
 
-func newPatchProvider(rcClient *remote.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (patchProvider, error) {
-	if config.Datadog.GetBool("remote_configuration.enabled") {
+func newPatchProvider(rcClient *rcclient.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (patchProvider, error) {
+	if config.IsRemoteConfigEnabled(config.Datadog) {
 		return newRemoteConfigProvider(rcClient, isLeaderNotif, telemetryCollector, clusterName)
 	}
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider") {

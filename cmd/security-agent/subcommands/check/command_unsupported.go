@@ -5,6 +5,7 @@
 
 //go:build windows || !kubeapiserver
 
+// Package check holds check related files
 package check
 
 import (
@@ -14,10 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 )
 
-func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
+// SecurityAgentCommands returns security agent commands
+func SecurityAgentCommands(_ *command.GlobalParams) []*cobra.Command {
 	return nil
 }
 
-func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
+// ClusterAgentCommands returns cluster agent commands
+func ClusterAgentCommands(_ core.BundleParams) []*cobra.Command {
 	return nil
 }

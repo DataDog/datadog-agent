@@ -13,16 +13,20 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// StatKeeper is responsible for aggregating HTTP stats.
 type StatKeeper struct {
 	mux                         sync.Mutex
 	stats                       map[Key]*RequestStats
-	incomplete                  *incompleteBuffer
+	incomplete                  IncompleteBuffer
 	maxEntries                  int
+	quantizer                   *URLQuantizer
 	telemetry                   *Telemetry
+	connectionAggregator        *utils.ConnectionAggregator
 	enableStatusCodeAggregation bool
 
 	// replace rules for HTTP path
@@ -31,27 +35,37 @@ type StatKeeper struct {
 	// http path buffer
 	buffer []byte
 
-	// map containing interned path strings
-	// this is rotated  with the stats map
-	interned map[string]string
-
 	oversizedLogLimit *util.LogLimit
 }
 
-func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
+// NewStatkeeper returns a new StatKeeper.
+func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer IncompleteBuffer) *StatKeeper {
+	var quantizer *URLQuantizer
+	// For now we're only enabling path quantization for HTTP/1 traffic
+	if c.EnableUSMQuantization && telemetry.protocol == "http" {
+		quantizer = NewURLQuantizer()
+	}
+
+	var connectionAggregator *utils.ConnectionAggregator
+	if c.EnableUSMConnectionRollup {
+		connectionAggregator = utils.NewConnectionAggregator()
+	}
+
 	return &StatKeeper{
 		stats:                       make(map[Key]*RequestStats),
-		incomplete:                  newIncompleteBuffer(c, telemetry),
+		incomplete:                  incompleteBuffer,
 		maxEntries:                  c.MaxHTTPStatsBuffered,
+		quantizer:                   quantizer,
 		replaceRules:                c.HTTPReplaceRules,
 		enableStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
+		connectionAggregator:        connectionAggregator,
 		buffer:                      make([]byte, getPathBufferSize(c)),
-		interned:                    make(map[string]string),
 		telemetry:                   telemetry,
 		oversizedLogLimit:           util.NewLogLimit(10, time.Minute*10),
 	}
 }
 
+// Process processes a transaction and updates the stats accordingly.
 func (h *StatKeeper) Process(tx Transaction) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
@@ -64,20 +78,36 @@ func (h *StatKeeper) Process(tx Transaction) {
 	h.add(tx)
 }
 
-func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
-	h.mux.Lock()
-	defer h.mux.Unlock()
+// GetAndResetAllStats returns all the stats and resets the internal state.
+func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
+	var previousAggregationState *utils.ConnectionAggregator
+	func() {
+		h.mux.Lock()
+		defer h.mux.Unlock()
 
-	for _, tx := range h.incomplete.Flush(time.Now()) {
-		h.add(tx)
-	}
+		for _, tx := range h.incomplete.Flush(time.Now()) {
+			h.add(tx)
+		}
 
-	ret := h.stats // No deep copy needed since `h.stats` gets reset
-	h.stats = make(map[Key]*RequestStats)
-	h.interned = make(map[string]string)
-	return ret
+		// Rotate stats
+		stats = h.stats
+		h.stats = make(map[Key]*RequestStats)
+
+		// Rotate ConnectionAggregator
+		if h.connectionAggregator == nil {
+			// Feature not enabled
+			return
+		}
+
+		previousAggregationState = h.connectionAggregator
+		h.connectionAggregator = utils.NewConnectionAggregator()
+	}()
+
+	h.clearEphemeralPorts(previousAggregationState, stats)
+	return stats
 }
 
+// Close closes the stat keeper.
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
 }
@@ -85,16 +115,23 @@ func (h *StatKeeper) Close() {
 func (h *StatKeeper) add(tx Transaction) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
-		h.telemetry.malformed.Add(1)
+		h.telemetry.emptyPath.Add(1)
 		return
 	}
+
+	// Quantize HTTP path
+	// (eg. this turns /orders/123/view` into `/orders/*/view`)
+	if h.quantizer != nil {
+		rawPath = h.quantizer.Quantize(rawPath)
+	}
+
 	path, rejected := h.processHTTPPath(tx, rawPath)
 	if rejected {
 		return
 	}
 
 	if tx.Method() == MethodUnknown {
-		h.telemetry.malformed.Add(1)
+		h.telemetry.unknownMethod.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
 		}
@@ -103,14 +140,18 @@ func (h *StatKeeper) add(tx Transaction) {
 
 	latency := tx.RequestLatency()
 	if latency <= 0 {
-		h.telemetry.malformed.Add(1)
+		h.telemetry.invalidLatency.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("latency should never be equal to 0: %s", tx.String())
 		}
 		return
 	}
 
-	key := h.newKey(tx, path, fullPath)
+	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
+	if h.connectionAggregator != nil {
+		key.ConnectionKey = h.connectionAggregator.RollupKey(key.ConnectionKey)
+	}
+
 	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
@@ -125,17 +166,6 @@ func (h *StatKeeper) add(tx Transaction) {
 	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *StatKeeper) newKey(tx Transaction, path string, fullPath bool) Key {
-	return Key{
-		ConnectionKey: tx.ConnTuple(),
-		Path: Path{
-			Content:  path,
-			FullPath: fullPath,
-		},
-		Method: tx.Method(),
-	}
-}
-
 func pathIsMalformed(fullPath []byte) bool {
 	for _, r := range fullPath {
 		if !strconv.IsPrint(rune(r)) {
@@ -145,14 +175,14 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) (pathStr string, rejected bool) {
+func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
 			if r.Repl == "" {
 				// this is a "drop" rule
 				h.telemetry.rejected.Add(1)
-				return "", true
+				return nil, true
 			}
 
 			path = r.Re.ReplaceAll(path, []byte(r.Repl))
@@ -164,19 +194,29 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) (pathStr strin
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).ConnectionKey, tx.String())
+			log.Debugf("http path malformed: %+v %s", tx.ConnTuple(), tx.String())
 		}
-		h.telemetry.malformed.Add(1)
-		return "", true
+		h.telemetry.nonPrintableCharacters.Add(1)
+		return nil, true
 	}
-	return h.intern(path), false
+	return path, false
 }
 
-func (h *StatKeeper) intern(b []byte) string {
-	v, ok := h.interned[string(b)]
-	if !ok {
-		v = string(b)
-		h.interned[v] = v
+func (h *StatKeeper) clearEphemeralPorts(aggregator *utils.ConnectionAggregator, stats map[Key]*RequestStats) {
+	if aggregator == nil {
+		return
 	}
-	return v
+
+	// Re-index entries that were generated from multiple connections
+	// See comments on `ConnectionAggregator.ClearEphemeralPort()` for more context
+	for key, aggregation := range stats {
+		newConnKey := aggregator.ClearEphemeralPort(key.ConnectionKey)
+		if newConnKey == key.ConnectionKey {
+			continue
+		}
+
+		delete(stats, key)
+		key.ConnectionKey = newConnKey
+		stats[key] = aggregation
+	}
 }

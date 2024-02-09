@@ -71,177 +71,157 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
     return 0;
 }
 
-int __attribute__((always_inline)) kprobe_credentials_update_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_ENTRY0(setuid) {
+    return credentials_update(EVENT_SETUID);
+}
+
+HOOK_SYSCALL_EXIT(setuid) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setuid) {
+HOOK_SYSCALL_ENTRY0(setfsuid) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setuid) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setfsuid) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(seteuid) {
+HOOK_SYSCALL_ENTRY0(setreuid) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(seteuid) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setreuid) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setfsuid) {
+HOOK_SYSCALL_ENTRY0(setresuid) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setfsuid) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setresuid) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setreuid) {
+HOOK_SYSCALL_ENTRY0(setuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setreuid) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setuid16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setresuid) {
+HOOK_SYSCALL_ENTRY0(setfsuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setresuid) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setfsuid16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setuid16) {
+HOOK_SYSCALL_ENTRY0(setreuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setuid16) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setreuid16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(seteuid16) {
+HOOK_SYSCALL_ENTRY0(setresuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(seteuid16) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setresuid16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setfsuid16) {
-    return credentials_update(EVENT_SETUID);
-}
-
-SYSCALL_KRETPROBE(setfsuid16) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
-SYSCALL_KPROBE0(setreuid16) {
-    return credentials_update(EVENT_SETUID);
-}
-
-SYSCALL_KRETPROBE(setreuid16) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
-SYSCALL_KPROBE0(setresuid16) {
-    return credentials_update(EVENT_SETUID);
-}
-
-SYSCALL_KRETPROBE(setresuid16) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
-SYSCALL_KPROBE0(setgid) {
+HOOK_SYSCALL_ENTRY0(setgid) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setgid) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setgid) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setegid) {
+HOOK_SYSCALL_ENTRY0(setfsgid) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setegid) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setfsgid) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setfsgid) {
+HOOK_SYSCALL_ENTRY0(setregid) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setfsgid) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setregid) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setregid) {
+HOOK_SYSCALL_ENTRY0(setresgid) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setregid) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setresgid) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setresgid) {
+HOOK_SYSCALL_ENTRY0(setgid16) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setresgid) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setgid16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setgid16) {
+HOOK_SYSCALL_ENTRY0(setfsgid16) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setgid16) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setfsgid16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setegid16) {
+HOOK_SYSCALL_ENTRY0(setregid16) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setegid16) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setregid16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setfsgid16) {
+HOOK_SYSCALL_ENTRY0(setresgid16) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setfsgid16) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(setresgid16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setregid16) {
-    return credentials_update(EVENT_SETGID);
-}
-
-SYSCALL_KRETPROBE(setregid16) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
-SYSCALL_KPROBE0(setresgid16) {
-    return credentials_update(EVENT_SETGID);
-}
-
-SYSCALL_KRETPROBE(setresgid16) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
-SYSCALL_KPROBE0(capset) {
+HOOK_SYSCALL_ENTRY0(capset) {
     return credentials_update(EVENT_CAPSET);
 }
 
-SYSCALL_KRETPROBE(capset) {
-    return kprobe_credentials_update_ret(ctx);
+HOOK_SYSCALL_EXIT(capset) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_commit_creds_exit")
@@ -249,7 +229,7 @@ int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_e
     return credentials_update_ret(args, args->ret);
 }
 
-struct cred_ids {
+struct __attribute__((__packed__)) cred_ids {
     kuid_t uid;
     kgid_t gid;
     kuid_t suid;

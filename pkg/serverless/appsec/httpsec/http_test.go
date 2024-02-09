@@ -3,122 +3,155 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package httpsec_test
+package httpsec
 
 import (
-	"bytes"
-	"os"
-	"strconv"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
-	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
-	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
-	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLifecycleSubProcessor(t *testing.T) {
-	test := func(t *testing.T, appsecEnabled bool) {
-		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", strconv.FormatBool(appsecEnabled))
-		asm, _, err := appsec.New()
-		if err != nil {
-			t.Skipf("appsec disabled: %v", err)
-		}
+func TestParseBodyJson(t *testing.T) {
+	rawBody := "{ \"foo\": 1337 }"
+	payload := parseBody(
+		map[string][]string{
+			"content-type": {"application/json;charset=utf-8"},
+		},
+		&rawBody,
+		false,
+	)
 
-		var sp invocationlifecycle.InvocationSubProcessor
-		if appsecEnabled {
-			require.NotNil(t, asm)
-			sp = asm
-		} else {
-			require.Nil(t, asm)
-		}
+	require.Equal(t, map[string]any{
+		"foo": 1337., // JSON numbers are float64 in go
+	}, payload)
+}
 
-		var tracedPayload *api.Payload
-		testProcessor := &invocationlifecycle.LifecycleProcessor{
-			DetectLambdaLibrary: func() bool { return false },
-			ProcessTrace: func(payload *api.Payload) {
-				tracedPayload = payload
+func TestParseBodyUrlEncoded(t *testing.T) {
+	rawBody := "foo=1337&bar=b%20a%20z"
+	payload := parseBody(
+		map[string][]string{
+			"content-type": {"application/x-www-form-urlencoded"},
+		},
+		&rawBody,
+		false,
+	)
+
+	require.Equal(t, map[string][]string{"foo": {"1337"}, "bar": {"b a z"}}, payload)
+}
+
+func TestParseBodyBase64Json(t *testing.T) {
+	rawBody := "eyAiZm9vIjogMTMzNyB9"
+	payload := parseBody(
+		map[string][]string{
+			"content-type": {"application/json"},
+		},
+		&rawBody,
+		true,
+	)
+
+	require.Equal(t, map[string]any{
+		"foo": 1337., // JSON numbers are float64 in go
+	}, payload)
+}
+
+func TestParseBodyMultipartFormData(t *testing.T) {
+	rawBody := strings.Join(
+		[]string{
+			"--B0UND4RY",
+			"Content-Disposition: form-data; name=\"foo\"",
+			"",
+			"1337",
+			"--B0UND4RY",
+			"Content-Disposition: form-data; name=\"file1\"; filename=\"a.txt\"",
+			"Content-Type: text/plain",
+			"",
+			"Content of a.txt.",
+			"",
+			"--B0UND4RY",
+			"Content-Disposition: form-data; name=\"file2\"; filename=\"a.json\"",
+			"Content-Type: application/json",
+			"",
+			"{ \"foo\": 1337, \"bar\": \"baz\" }",
+			"--B0UND4RY",
+			"Content-Disposition: form-data; name=\"broken\"; filename=\"bad.json\"",
+			"Content-Type: application/vnd.api+json",
+			"",
+			"{ invalid: true }", // Intentionally not valid JSON
+			"--B0UND4RY--",
+			"",
+		}, "\r\n",
+	)
+	payload := parseBody(
+		map[string][]string{
+			"content-type": {"multipart/form-data; boundary=B0UND4RY"},
+		},
+		&rawBody,
+		false,
+	)
+
+	require.Equal(t, map[string]any{
+		"foo":   map[string]any{"data": nil},
+		"file1": map[string]any{"filename": "a.txt", "data": "Content of a.txt.\r\n"},
+		"file2": map[string]any{
+			"filename": "a.json",
+			"data": map[string]any{
+				"foo": 1337.,
+				"bar": "baz",
 			},
-			SubProcessor: sp,
-		}
-
-		t.Run("api-gateway", func(t *testing.T) {
-			// First invocation without any attack
-			testProcessor.OnInvokeStart(&invocationlifecycle.InvocationStartDetails{
-				InvokeEventRawPayload: getEventFromFile("api-gateway.json"),
-				InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
-			})
-			testProcessor.OnInvokeEnd(&invocationlifecycle.InvocationEndDetails{
-				EndTime: time.Now(),
-				IsError: false,
-			})
-			tags := testProcessor.GetTags()
-			require.Equal(t, "api-gateway", tags["function_trigger.event_source"])
-			require.Equal(t, "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod", tags["function_trigger.event_source_arn"])
-			require.Equal(t, "POST", tags["http.method"])
-			require.Equal(t, "70ixmpl4fl.execute-api.us-east-2.amazonaws.com", tags["http.url"])
-
-			// Second invocation containing attacks
-			testProcessor.OnInvokeStart(&invocationlifecycle.InvocationStartDetails{
-				InvokeEventRawPayload: getEventFromFile("api-gateway-appsec.json"),
-				InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
-			})
-			testProcessor.OnInvokeEnd(&invocationlifecycle.InvocationEndDetails{
-				EndTime: time.Now(),
-				IsError: false,
-			})
-			tags = testProcessor.GetTags()
-			require.Equal(t, "api-gateway", tags["function_trigger.event_source"])
-			require.Equal(t, "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod", tags["function_trigger.event_source_arn"])
-			require.Equal(t, "POST", tags["http.method"])
-			require.Equal(t, "70ixmpl4fl.execute-api.us-east-2.amazonaws.com", tags["http.url"])
-
-			if appsecEnabled {
-				require.Contains(t, tags, "_dd.appsec.json")
-				require.Equal(t, int32(sampler.PriorityUserKeep), tracedPayload.TracerPayload.Chunks[0].Priority)
-				require.Equal(t, 1.0, tracedPayload.TracerPayload.Chunks[0].Spans[0].Metrics["_dd.appsec.enabled"])
-			}
-		})
-	}
-
-	t.Run("appsec-enabled", func(t *testing.T) {
-		test(t, true)
-	})
-
-	t.Run("appsec-disabled", func(t *testing.T) {
-		test(t, false)
-	})
+		},
+		"broken": map[string]any{"filename": "bad.json", "data": nil},
+	}, payload)
 }
 
-// Helper function for reading test file
-func getEventFromFile(filename string) []byte {
-	event, err := os.ReadFile("../../trace/testdata/event_samples/" + filename)
-	if err != nil {
-		panic(err)
+func TestParseBodyXml(t *testing.T) {
+	rawBody := strings.Join(
+		[]string{
+			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+			"<dd:Message priority=\"0\" xmlns:dd=\"https://datadoghq.com\" xmlns:alt=\"https://datadoghq.com/phony-alt\">",
+			"  <Code>1337</Code>",
+			"  <!-- Now this is a nice comment! -->",
+			"  <alt:Text lang=\"en_US\"><![CDATA[This is a <test> message]]></alt:Text>",
+			"  And then some rogue text is here.",
+			"</dd:Message>",
+		}, "\n",
+	)
+
+	for _, ct := range []string{"application/xml", "text/xml", "application/xml;encoding=utf-8"} {
+		payload := parseBody(
+			map[string][]string{"content-type": {ct}},
+			&rawBody,
+			false,
+		)
+
+		require.Equal(t,
+			map[string]any{
+				"Message": map[string]any{
+					":ns":        "https://datadoghq.com",
+					"@xmlns:alt": "https://datadoghq.com/phony-alt",
+					"@xmlns:dd":  "https://datadoghq.com",
+					"@priority":  "0",
+					"children": []any{
+						map[string]any{
+							"Code": map[string]any{
+								"children": []any{"1337"},
+							},
+						},
+						map[string]string{
+							"#": "Now this is a nice comment!",
+						},
+						map[string]any{
+							"Text": map[string]any{
+								":ns":      "https://datadoghq.com/phony-alt",
+								"@lang":    "en_US",
+								"children": []any{"This is a <test> message"},
+							},
+						},
+						"And then some rogue text is here.",
+					},
+				},
+			},
+			payload,
+		)
 	}
-	var buf bytes.Buffer
-	buf.WriteString("a5a")
-	buf.Write(event)
-	buf.WriteString("0")
-	return buf.Bytes()
-}
-
-func TestInvocationSubProcessorNilInterface(t *testing.T) {
-	lp := &invocationlifecycle.LifecycleProcessor{
-		DetectLambdaLibrary: func() bool { return true },
-		SubProcessor:        (*httpsec.InvocationSubProcessor)(nil),
-	}
-
-	assert.True(t, lp.SubProcessor != nil)
-
-	lp.OnInvokeStart(&invocationlifecycle.InvocationStartDetails{
-		InvokeEventRawPayload: []byte(
-			`{"requestcontext":{"stage":"purple"},"httpmethod":"purple","resource":"purple"}`),
-	})
-
-	lp.OnInvokeEnd(&invocationlifecycle.InvocationEndDetails{})
 }

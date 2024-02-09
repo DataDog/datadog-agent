@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && !ebpf_bindata
+//go:build linux_bpf && !ebpf_bindata && !btfhubsync
 
+// Package ebpf holds ebpf related files
 package ebpf
 
 import (
@@ -20,8 +21,12 @@ import (
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/ebpf/bytecode/runtime/runtime-security.go runtime
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator -runtime-path ../../ebpf/bytecode/build/runtime/runtime-security.c -output ../../security/secl/model/consts_map_names.go -pkg-name model
 
-func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useRingBuffer bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
 	var cflags []string
+
+	if useFentry {
+		cflags = append(cflags, "-DUSE_FENTRY=1")
+	}
 
 	if useSyscallWrapper {
 		cflags = append(cflags, "-DUSE_SYSCALL_WRAPPER=1")
@@ -35,6 +40,8 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useRin
 
 	if useRingBuffer {
 		cflags = append(cflags, "-DUSE_RING_BUFFER=1")
+	} else {
+		cflags = append(cflags, "-DUSE_RING_BUFFER=0")
 	}
 
 	cflags = append(cflags, "-g")

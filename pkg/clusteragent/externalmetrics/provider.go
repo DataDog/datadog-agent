@@ -16,6 +16,7 @@ import (
 
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
@@ -58,8 +59,10 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 
 	refreshPeriod := config.Datadog.GetInt64("external_metrics_provider.refresh_period")
 	retrieverMetricsMaxAge := int64(math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
+	splitBatchBackoffOnErrors := config.Datadog.GetBool("external_metrics_provider.split_batches_with_backoff")
 	autogenNamespace := common.GetResourcesNamespace()
 	autogenEnabled := config.Datadog.GetBool("external_metrics_provider.enable_datadogmetric_autogen")
+	wpaEnabled := config.Datadog.GetBool("external_metrics_provider.wpa_controller")
 
 	provider := &datadogMetricProvider{
 		apiCl:            apiCl,
@@ -73,11 +76,16 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogClient failed with: %v", err)
 	}
 
-	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, retrieverMetricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store)
+	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, retrieverMetricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store, splitBatchBackoffOnErrors)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as MetricsRetriever failed with: %v", err)
 	}
 	go metricsRetriever.Run(ctx.Done())
+
+	var wpaInformer dynamicinformer.DynamicSharedInformerFactory
+	if wpaEnabled {
+		wpaInformer = apiCl.DynamicInformerFactory
+	}
 
 	// Start AutoscalerWatcher, only leader will flag DatadogMetrics as Active/Inactive
 	// WPAInformerFactory is nil when WPA is not used. AutoscalerWatcher will check value itself.
@@ -88,32 +96,31 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		autogenNamespace,
 		apiCl.Cl,
 		apiCl.InformerFactory,
-		apiCl.WPAInformerFactory,
+		wpaInformer,
 		le.IsLeader,
 		&provider.store,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("Unabled to create DatadogMetricProvider as AutoscalerWatcher failed with: %v", err)
 	}
-	apiCl.InformerFactory.Start(ctx.Done())
-	if apiCl.WPAInformerFactory != nil {
-		apiCl.WPAInformerFactory.Start(ctx.Done())
-	}
-	go autoscalerWatcher.Run(ctx.Done())
 
 	// We shift controller refresh period from retrieverRefreshPeriod to maximize the probability to have new data from DD
-	controller, err := NewDatadogMetricController(apiCl.DDClient, apiCl.DynamicInformerFactory, le.IsLeader, &provider.store)
+	controller, err := NewDatadogMetricController(apiCl.DynamicCl, apiCl.DynamicInformerFactory, le.IsLeader, &provider.store)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogMetric Controller failed with: %v", err)
 	}
 
 	// Start informers & controllers (informers can be started multiple times)
 	apiCl.DynamicInformerFactory.Start(ctx.Done())
+	apiCl.InformerFactory.Start(ctx.Done())
+
+	go autoscalerWatcher.Run(ctx.Done())
 	go controller.Run(ctx)
 
 	return provider, nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *datadogMetricProvider) GetExternalMetric(ctx context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	startTime := time.Now()
 	res, err := p.getExternalMetric(namespace, metricSelector, info)

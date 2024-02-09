@@ -37,12 +37,6 @@ __attribute__((always_inline)) void evaluate_security_profile_syscalls(void *arg
 
     // reset syscall id in case we're also dumping this workload
     event->syscall_data.syscall_id = 0;
-
-    if (profile->state == SECURITY_PROFILE_KILL) {
-        if (is_send_signal_available()) {
-            bpf_send_signal(9); // SIGKILL
-        }
-    }
 }
 
 #endif

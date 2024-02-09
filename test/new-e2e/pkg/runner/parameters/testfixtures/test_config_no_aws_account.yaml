@@ -1,0 +1,10 @@
+configParams:
+  aws:
+    keyPairName: "totoro"
+    publicKeyPath: "/Users/totoro/.ssh/id_rsa.pub"
+  agent:
+    apiKey: "00000000000000000000000000000000"
+options:
+stackParams:
+  ddinfra:
+    "agent/foo": 42

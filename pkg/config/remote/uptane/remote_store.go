@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/go-tuf/client"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 type role string

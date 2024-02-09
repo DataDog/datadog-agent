@@ -5,15 +5,16 @@
 
 //go:build linux
 
+// Package dump holds dump related files
 package dump
 
 import (
 	"bytes"
 	"fmt"
-	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // ActivityDumpGraphTemplate is the template used to generate graphs
@@ -39,20 +40,24 @@ var ActivityDumpGraphTemplate = `digraph {
 		{{ end }}
 }`
 
-// EncodeDOT encodes an activity dump in the DOT format
-func (ad *ActivityDump) EncodeDOT() (*bytes.Buffer, error) {
+// ToGraph convert the dump to a graph
+func (ad *ActivityDump) ToGraph() utils.Graph {
 	ad.Lock()
 	defer ad.Unlock()
 
 	title := fmt.Sprintf("%s: %s", ad.Metadata.Name, ad.getSelectorStr())
-	var resolver *process.Resolver
+	var resolver *process.EBPFResolver
 	if ad.adm != nil {
 		resolver = ad.adm.resolvers.ProcessResolver
 	}
-	data := ad.ActivityTree.PrepareGraphData(title, resolver)
-	t := template.Must(template.New("tmpl").Parse(ActivityDumpGraphTemplate))
-	raw := bytes.NewBuffer(nil)
-	if err := t.Execute(raw, data); err != nil {
+	return ad.ActivityTree.PrepareGraphData(title, resolver)
+}
+
+// EncodeDOT encodes an activity dump in the DOT format
+func (ad *ActivityDump) EncodeDOT() (*bytes.Buffer, error) {
+	graph := ad.ToGraph()
+	raw, err := graph.EncodeDOT(ActivityDumpGraphTemplate)
+	if err != nil {
 		return nil, fmt.Errorf("couldn't encode %s in %s: %w", ad.getSelectorStr(), config.Dot, err)
 	}
 	return raw, nil

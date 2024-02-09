@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,15 +19,16 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type mockAPI struct {
@@ -34,7 +36,8 @@ type mockAPI struct {
 }
 
 const (
-	httpError = "api: simulated HTTP error"
+	httpError    = "api: simulated HTTP error"
+	agentVersion = "9.9.9"
 )
 
 func (m *mockAPI) Fetch(ctx context.Context, request *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error) {
@@ -101,27 +104,92 @@ func (m *mockUptane) TUFVersionState() (uptane.TUFVersions, error) {
 	return args.Get(0).(uptane.TUFVersions), args.Error(1)
 }
 
+type mockRcTelemetryReporter struct {
+	mock.Mock
+}
+
+func (m *mockRcTelemetryReporter) IncRateLimit() {
+	m.Called()
+}
+
+func (m *mockRcTelemetryReporter) IncTimeout() {
+	m.Called()
+}
+
+func newMockRcTelemetryReporter() *mockRcTelemetryReporter {
+	m := &mockRcTelemetryReporter{}
+	m.On("IncRateLimit").Return()
+	m.On("IncBypassTimeout").Return()
+	return m
+}
+
 var testRCKey = msgpgo.RemoteConfigKey{
 	AppKey:     "fake_key",
 	OrgID:      2,
 	Datacenter: "dd.com",
 }
 
+// getTraceAgentDefaultEnv returns the default env for the trace agent
+func getTraceAgentDefaultEnv(c model.Reader) string {
+	defaultEnv := ""
+	if c.IsSet("apm_config.env") {
+		defaultEnv = c.GetString("apm_config.env")
+		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
+	} else if c.IsSet("env") {
+		defaultEnv = c.GetString("env")
+		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
+	} else {
+		for _, tag := range getConfiguredTags(c, false) {
+			if strings.HasPrefix(tag, "env:") {
+				defaultEnv = strings.TrimPrefix(tag, "env:")
+				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
+				return defaultEnv
+			}
+		}
+	}
+
+	return defaultEnv
+}
+
+// getConfiguredTags returns list of tags from a configuration, based on
+// `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
+// if includeDogdstatsd is true.
+func getConfiguredTags(c model.Reader, includeDogstatsd bool) []string {
+	tags := c.GetStringSlice("tags")
+	extraTags := c.GetStringSlice("extra_tags")
+
+	var dsdTags []string
+	if includeDogstatsd {
+		dsdTags = c.GetStringSlice("dogstatsd_tags")
+	}
+
+	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
+	combined = append(combined, tags...)
+	combined = append(combined, extraTags...)
+	combined = append(combined, dsdTags...)
+
+	return combined
+}
+
 func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.Clock) *Service {
-	config.Datadog.Set("hostname", "test-hostname")
-	defer config.Datadog.Set("hostname", "")
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+
+	cfg.SetWithoutSource("hostname", "test-hostname")
+	defer cfg.SetWithoutSource("hostname", "")
 
 	dir := t.TempDir()
-	config.Datadog.Set("run_path", dir)
+	cfg.SetWithoutSource("run_path", dir)
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
-	config.Datadog.Set("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
-	service, err := NewService()
+	cfg.SetWithoutSource("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
+	baseRawURL := "https://localhost"
+	traceAgentEnv := getTraceAgentDefaultEnv(cfg)
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	service, err := NewService(cfg, "abc", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, WithTraceAgentEnv(traceAgentEnv))
+	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
-	assert.NoError(t, err)
 	service.api = api
 	service.clock = clock
 	service.uptane = uptane
-	assert.NoError(t, err)
 	return service
 }
 
@@ -137,13 +205,14 @@ func TestServiceBackoffFailure(t *testing.T) {
 
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -162,7 +231,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 	// Sending the http error too
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -171,6 +240,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 		HasError:                     true,
 		Error:                        httpError,
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -216,13 +286,14 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	api = &mockAPI{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -344,13 +415,14 @@ func TestService(t *testing.T) {
 	}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -424,7 +496,7 @@ func TestService(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     1,
 		CurrentConfigSnapshotVersion: 2,
 		CurrentDirectorRootVersion:   4,
@@ -437,6 +509,7 @@ func TestService(t *testing.T) {
 		HasError:           false,
 		Error:              "",
 		OrgUuid:            "abcdef",
+		Tags:               []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
@@ -503,23 +576,23 @@ func TestServiceClientPredicates(t *testing.T) {
 	wrongServiceName := "wrong-service"
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		// must be delivered
-		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{}, 0)}},
-		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
+		"datadog/2/APM_SAMPLING/id/1": {Custom: customMeta([]*pbgo.TracerPredicateV1{}, 0)},
+		"datadog/2/APM_SAMPLING/id/2": {Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				RuntimeID: runtimeID,
 			},
-		}, 0)}},
+		}, 0)},
 		// must not be delivered
-		"datadog/2/TESTING1/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
+		"datadog/2/TESTING1/id/1": {Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				RuntimeID: runtimeIDFail,
 			},
-		}, 0)}},
-		"datadog/2/APPSEC/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
+		}, 0)},
+		"datadog/2/APPSEC/id/1": {Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				Service: wrongServiceName,
 			},
-		}, 0)}},
+		}, 0)},
 	},
 		nil,
 	)
@@ -532,7 +605,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     0,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentDirectorRootVersion:   0,
@@ -545,6 +618,7 @@ func TestServiceClientPredicates(t *testing.T) {
 		HasError:           false,
 		Error:              "",
 		OrgUuid:            "abcdef",
+		Tags:               []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
@@ -576,7 +650,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -584,6 +658,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	// No explicit refresh interval is provided by the backend
@@ -613,7 +688,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -621,6 +696,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	// An acceptable refresh interval is provided by the backend
@@ -650,7 +726,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -658,6 +734,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	// A too small refresh interval is provided by the backend (the refresh interval should not change)
@@ -687,7 +764,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -695,6 +772,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	// A too large refresh interval is provided by the backend (the refresh interval should not change)
@@ -727,7 +805,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -735,6 +813,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	// An interval is provided, but it should not be applied
@@ -789,9 +868,9 @@ func TestConfigExpiration(t *testing.T) {
 	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		// must be delivered
-		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta(nil, 0)}},
+		"datadog/2/APM_SAMPLING/id/1": {Custom: customMeta(nil, 0)},
 		// must not be delivered - expiration date is 9/21/2022
-		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta(nil, 1663732800)}},
+		"datadog/2/APM_SAMPLING/id/2": {Custom: customMeta(nil, 1663732800)},
 	},
 		nil,
 	)
@@ -804,7 +883,7 @@ func TestConfigExpiration(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     0,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentDirectorRootVersion:   0,
@@ -817,6 +896,7 @@ func TestConfigExpiration(t *testing.T) {
 		HasError:           false,
 		Error:              "",
 		OrgUuid:            "abcdef",
+		Tags:               []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end

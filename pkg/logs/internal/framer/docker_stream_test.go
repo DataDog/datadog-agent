@@ -11,11 +11,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // This file contains additional tests for line-breaking specifically relating
 // to DockerStream, and came with the move of this functionality from
-// ./pkg/logs/internal/tailers/docker/matcher.go.  Some are redundant with
+// ./pkg/logs/tailers/docker/matcher.go.  Some are redundant with
 // other tests in this package.
 
 func getDummyHeader(i int) []byte {
@@ -33,8 +35,8 @@ func dummyHeaderContent(tenPos int, data []byte) []byte {
 func TestDetectDockerHeader(t *testing.T) {
 	gotContent := []string{}
 	gotLens := []int{}
-	outputFn := func(content []byte, rawDataLen int) {
-		gotContent = append(gotContent, string(content))
+	outputFn := func(msg *message.Message, rawDataLen int) {
+		gotContent = append(gotContent, string(msg.GetContent()))
 		gotLens = append(gotLens, rawDataLen)
 	}
 
@@ -44,7 +46,8 @@ func TestDetectDockerHeader(t *testing.T) {
 		input := []byte("hello\n")
 		input = append(input, getDummyHeader(i)...) // docker header
 		input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
-		fr.Process(input)
+		msg := message.NewMessage(input, nil, "", 0)
+		fr.Process(msg)
 	}
 	assert.Equal(t, []string{
 		"hello",
@@ -62,8 +65,8 @@ func TestDetectDockerHeader(t *testing.T) {
 func TestDetectMultipleDockerHeader(t *testing.T) {
 	gotContent := []string{}
 	gotLens := []int{}
-	outputFn := func(content []byte, rawDataLen int) {
-		gotContent = append(gotContent, string(content))
+	outputFn := func(msg *message.Message, rawDataLen int) {
+		gotContent = append(gotContent, string(msg.GetContent()))
 		gotLens = append(gotLens, rawDataLen)
 	}
 
@@ -74,7 +77,8 @@ func TestDetectMultipleDockerHeader(t *testing.T) {
 		input = append(input, getDummyHeader(4+i%4)...) // docker header
 		input = append(input, []byte(fmt.Sprintf("2018-06-14T18:27:03.246999277Z app logs %d\n", i))...)
 	}
-	fr.Process(input)
+	msg := message.NewMessage(input, nil, "", 0)
+	fr.Process(msg)
 
 	for i := 0; i < 100; i++ {
 		data := []byte(fmt.Sprintf("2018-06-14T18:27:03.246999277Z app logs %d", i))
@@ -86,8 +90,8 @@ func TestDetectMultipleDockerHeader(t *testing.T) {
 func TestDetectMultipleDockerHeaderOnAChunkedLine(t *testing.T) {
 	gotContent := []string{}
 	gotLens := []int{}
-	outputFn := func(content []byte, rawDataLen int) {
-		gotContent = append(gotContent, string(content))
+	outputFn := func(message *message.Message, rawDataLen int) {
+		gotContent = append(gotContent, string(message.GetContent()))
 		gotLens = append(gotLens, rawDataLen)
 	}
 
@@ -110,7 +114,8 @@ func TestDetectMultipleDockerHeaderOnAChunkedLine(t *testing.T) {
 	input = append(input, []byte("2018-06-14T18:27:03.246999277Z the very end\n")...)
 	l2 := len(input)
 
-	fr.Process(input)
+	logMessage := message.NewMessage(input, nil, "", 0)
+	fr.Process(logMessage)
 
 	assert.Equal(t, []string{
 		string(input[:l1-1]),
@@ -122,8 +127,8 @@ func TestDetectMultipleDockerHeaderOnAChunkedLine(t *testing.T) {
 func TestDecoderNoNewLineBeforeDockerHeader(t *testing.T) {
 	gotContent := []string{}
 	gotLens := []int{}
-	outputFn := func(content []byte, rawDataLen int) {
-		gotContent = append(gotContent, string(content))
+	outputFn := func(msg *message.Message, rawDataLen int) {
+		gotContent = append(gotContent, string(msg.GetContent()))
 		gotLens = append(gotLens, rawDataLen)
 	}
 
@@ -133,7 +138,8 @@ func TestDecoderNoNewLineBeforeDockerHeader(t *testing.T) {
 		input := []byte("hello")
 		input = append(input, getDummyHeader(i)...) // docker header
 		input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
-		fr.Process(input)
+		logMessage := message.NewMessage(input, nil, "", 0)
+		fr.Process(logMessage)
 		assert.Equal(t, string(input[:len(input)-1]), gotContent[i-4])
 		assert.Equal(t, len(input), gotLens[i-4])
 	}

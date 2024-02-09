@@ -13,18 +13,19 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // ContainerConfigProvider implements the ConfigProvider interface for both pods and containers
 type ContainerConfigProvider struct {
-	workloadmetaStore workloadmeta.Store
+	workloadmetaStore workloadmeta.Component
 	configErrors      map[string]ErrorMsgSet                   // map[entity name]ErrorMsgSet
 	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu                sync.RWMutex
@@ -32,9 +33,9 @@ type ContainerConfigProvider struct {
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+func NewContainerConfigProvider(_ *config.ConfigurationProviders, wmeta workloadmeta.Component) (ConfigProvider, error) {
 	return &ContainerConfigProvider{
-		workloadmetaStore: workloadmeta.GetGlobalStore(),
+		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
 		configErrors:      make(map[string]ErrorMsgSet),
 	}, nil
@@ -55,11 +56,13 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 	// need to be generated before any associated services.
 	outCh := make(chan integration.ConfigChanges)
 
-	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(
-		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod, workloadmeta.KindContainer},
-		workloadmeta.SourceAll,
-		workloadmeta.EventTypeAll,
-	))
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod, workloadmeta.KindContainer},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeAll,
+	}
+
+	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(&filterParams))
 
 	go func() {
 		for {
@@ -76,8 +79,7 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 				// need to signal that an event has been
 				// received, for flow control reasons
 				outCh <- k.processEvents(evBundle)
-
-				close(evBundle.Ch)
+				evBundle.Acknowledge()
 			}
 		}
 	}()
@@ -149,6 +151,8 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 		}
 	}
 
+	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeContainer)
+
 	return changes
 }
 
@@ -181,7 +185,7 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 	case *workloadmeta.KubernetesPod:
 		containerIdentifiers := map[string]struct{}{}
 		containerNames := map[string]struct{}{}
-		for _, podContainer := range entity.Containers {
+		for _, podContainer := range entity.GetAllContainers() {
 			container, err := k.workloadmetaStore.GetContainer(podContainer.ID)
 			if err != nil {
 				log.Debugf("Pod %q has reference to non-existing container %q", entity.Name, podContainer.ID)
@@ -312,5 +316,5 @@ func findKubernetesInLabels(labels map[string]string) bool {
 }
 
 func init() {
-	RegisterProvider(names.KubeContainer, NewContainerConfigProvider)
+	RegisterProviderWithComponents(names.KubeContainer, NewContainerConfigProvider)
 }

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package model holds model related files
 package model
 
 import (
@@ -14,8 +15,10 @@ import (
 )
 
 func TestFlagsToString(t *testing.T) {
+	initConstants()
+
 	str := OpenFlags(syscall.O_EXCL | syscall.O_TRUNC).String()
-	if str != "O_EXCL | O_TRUNC" {
+	if str != "O_RDONLY | O_EXCL | O_TRUNC" {
 		t.Errorf("expected flags not found, got: %s", str)
 	}
 
@@ -25,12 +28,22 @@ func TestFlagsToString(t *testing.T) {
 	}
 
 	str = OpenFlags(syscall.O_EXCL | syscall.O_TRUNC | 1<<32).String()
-	if str != fmt.Sprintf("%d | O_EXCL | O_TRUNC", 1<<32) {
+	if str != fmt.Sprintf("O_RDONLY | %d | O_EXCL | O_TRUNC", 1<<32) {
 		t.Errorf("expected flags not found, got: %s", str)
 	}
 
 	str = OpenFlags(syscall.O_RDONLY).String()
 	if str != "O_RDONLY" {
+		t.Errorf("expected flags not found, got: %s", str)
+	}
+
+	str = OpenFlags(syscall.O_RDONLY | syscall.O_RDWR).String()
+	if str != "O_RDWR" {
+		t.Errorf("expected flags not found, got: %s", str)
+	}
+
+	str = OpenFlags(syscall.O_RDONLY | syscall.O_CLOEXEC).String()
+	if str != "O_RDONLY | O_CLOEXEC" {
 		t.Errorf("expected flags not found, got: %s", str)
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,8 +33,9 @@ const (
 
 // KubeServiceConfigProvider implements the ConfigProvider interface for the apiserver.
 type KubeServiceConfigProvider struct {
-	lister   listersv1.ServiceLister
-	upToDate bool
+	lister       listersv1.ServiceLister
+	upToDate     bool
+	configErrors map[string]ErrorMsgSet
 }
 
 // NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
@@ -51,14 +53,17 @@ func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvide
 	}
 
 	p := &KubeServiceConfigProvider{
-		lister: servicesInformer.Lister(),
+		lister:       servicesInformer.Lister(),
+		configErrors: make(map[string]ErrorMsgSet),
 	}
 
-	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
 		UpdateFunc: p.invalidateIfChanged,
 		DeleteFunc: p.invalidate,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
+	}
 
 	return p, nil
 }
@@ -69,6 +74,8 @@ func (k *KubeServiceConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (k *KubeServiceConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := k.lister.List(labels.Everything())
 	if err != nil {
@@ -76,10 +83,12 @@ func (k *KubeServiceConfigProvider) Collect(ctx context.Context) ([]integration.
 	}
 	k.upToDate = true
 
-	return parseServiceAnnotations(services)
+	return k.parseServiceAnnotations(services)
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (k *KubeServiceConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return k.upToDate, nil
 }
@@ -144,8 +153,10 @@ func valuesDiffer(first, second map[string]string, prefix string) bool {
 	return matchingInFirst != matchingInSecond
 }
 
-func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, error) {
+func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Service) ([]integration.Config, error) {
 	var configs []integration.Config
+
+	setServiceIDs := map[string]struct{}{}
 
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
@@ -154,9 +165,17 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		}
 
 		serviceID := apiserver.EntityForService(svc)
+		setServiceIDs[serviceID] = struct{}{}
 		svcConf, errors := utils.ExtractTemplatesFromPodAnnotations(serviceID, svc.Annotations, kubeServiceID)
-		for _, err := range errors {
-			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+		if len(errors) > 0 {
+			errMsgSet := make(ErrorMsgSet)
+			for _, err := range errors {
+				log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+				errMsgSet[err.Error()] = struct{}{}
+			}
+			k.configErrors[serviceID] = errMsgSet
+		} else {
+			delete(k.configErrors, serviceID)
 		}
 
 		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
@@ -171,14 +190,31 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		configs = append(configs, svcConf...)
 	}
 
+	k.cleanErrorsOfDeletedServices(setServiceIDs)
+
+	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeServices)
+
 	return configs, nil
+}
+
+func (k *KubeServiceConfigProvider) cleanErrorsOfDeletedServices(setCurrentServiceIDs map[string]struct{}) {
+	setServiceIDsWithErrors := map[string]struct{}{}
+	for serviceID := range k.configErrors {
+		setServiceIDsWithErrors[serviceID] = struct{}{}
+	}
+
+	for serviceID := range setServiceIDsWithErrors {
+		if _, exists := setCurrentServiceIDs[serviceID]; !exists {
+			delete(k.configErrors, serviceID)
+		}
+	}
 }
 
 func init() {
 	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider)
 }
 
-// GetConfigErrors is not implemented for the KubeServiceConfigProvider
+// GetConfigErrors returns a map of configuration errors for each Kubernetes service
 func (k *KubeServiceConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+	return k.configErrors
 }

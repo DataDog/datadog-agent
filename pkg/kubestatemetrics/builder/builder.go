@@ -115,11 +115,6 @@ func (b *Builder) WithContext(ctx context.Context) {
 	b.ctx = ctx
 }
 
-// DefaultGenerateStoresFunc returns default buildStore function
-func (b *Builder) DefaultGenerateStoresFunc() ksmtypes.BuildStoresFunc {
-	return b.GenerateStores
-}
-
 // WithGenerateStoresFunc configures a constom generate store function
 func (b *Builder) WithGenerateStoresFunc(f ksmtypes.BuildStoresFunc) {
 	b.ksmBuilder.WithGenerateStoresFunc(f)
@@ -147,7 +142,7 @@ func (b *Builder) WithAllowAnnotations(l map[string][]string) {
 
 // Build initializes and registers all enabled stores.
 // Returns metric writers.
-func (b *Builder) Build() []metricsstore.MetricsWriter {
+func (b *Builder) Build() metricsstore.MetricsWriterList {
 	return b.ksmBuilder.Build()
 }
 
@@ -169,7 +164,7 @@ func GenerateStores[T any](
 	expectedType interface{},
 	client T,
 	listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher,
-	useAPIServerCache bool,
+	useAPIServerCache bool, //nolint:revive // TODO fix revive unused-parameter
 ) []cache.Store {
 	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
 	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
@@ -193,6 +188,7 @@ func GenerateStores[T any](
 	return stores
 }
 
+// GenerateStores is used to generate new Metrics Store for the given metric families
 func (b *Builder) GenerateStores(
 	metricFamilies []generator.FamilyGenerator,
 	expectedType interface{},
@@ -205,9 +201,9 @@ func (b *Builder) GenerateStores(
 func (b *Builder) getCustomResourceClient(resourceName string) interface{} {
 	if client, ok := b.customResourceClients[resourceName]; ok {
 		return client
-	} else {
-		return b.kubeClient
 	}
+
+	return b.kubeClient
 }
 
 // GenerateCustomResourceStoresFunc use to generate new Metrics Store for Metrics Families

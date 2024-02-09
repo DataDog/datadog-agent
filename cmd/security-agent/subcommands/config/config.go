@@ -5,10 +5,12 @@
 
 //go:build kubeapiserver
 
+// Package config holds config related files
 package config
 
 import (
 	"fmt"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -16,8 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,6 +36,7 @@ type cliParams struct {
 	getClient settings.ClientBuilder
 }
 
+// Commands returns the config commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
@@ -53,8 +59,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
-				core.Bundle,
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -71,8 +78,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-						LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
-					core.Bundle,
+						SecretParams: secrets.NewEnabledParams(),
+						LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					core.Bundle(),
 				)
 			},
 		},
@@ -90,8 +98,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-						LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
-					core.Bundle,
+						SecretParams: secrets.NewEnabledParams(),
+						LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					core.Bundle(),
 				)
 			},
 		},
@@ -109,8 +118,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-						LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
-					core.Bundle,
+						SecretParams: secrets.NewEnabledParams(),
+						LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					core.Bundle(),
 				)
 			},
 		},
@@ -130,23 +140,17 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 	return settingshttp.NewClient(c, apiConfigURL, "security-agent"), nil
 }
 
-func showRuntimeConfiguration(log log.Component, config config.Component, params *cliParams) error {
-	c, err := params.getClient(params.command, params.args)
-	if err != nil {
-		return err
-	}
-
-	runtimeConfig, err := c.FullConfig()
+func showRuntimeConfiguration(_ log.Component, cfg config.Component, _ secrets.Component, _ *cliParams) error {
+	runtimeConfig, err := fetcher.SecurityAgentConfig(cfg)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println(runtimeConfig)
-
 	return nil
 }
 
-func setConfigValue(log log.Component, config config.Component, params *cliParams) error {
+func setConfigValue(_ log.Component, _ config.Component, _ secrets.Component, params *cliParams) error {
 	if len(params.args) != 2 {
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
@@ -170,7 +174,7 @@ func setConfigValue(log log.Component, config config.Component, params *cliParam
 	return nil
 }
 
-func getConfigValue(log log.Component, config config.Component, params *cliParams) error {
+func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, params *cliParams) error {
 	if len(params.args) != 1 {
 		return fmt.Errorf("a single setting name must be specified")
 	}
@@ -190,7 +194,7 @@ func getConfigValue(log log.Component, config config.Component, params *cliParam
 	return nil
 }
 
-func listRuntimeConfigurableValue(log log.Component, config config.Component, params *cliParams) error {
+func listRuntimeConfigurableValue(_ log.Component, _ config.Component, _ secrets.Component, params *cliParams) error {
 	c, err := params.getClient(params.command, params.args)
 	if err != nil {
 		return err

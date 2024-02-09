@@ -31,6 +31,7 @@ var (
 	magicGzip = []byte{0x1f, 0x8b, 0x08}
 )
 
+//nolint:revive
 const (
 	HELM_CHART_RELEASE_NAME       = "CHART_RELEASE_NAME"
 	HELM_CHART_RELEASE_NAMESPACE  = "DD_KUBE_RESOURCES_NAMESPACE"
@@ -46,11 +47,11 @@ type chartUserValues struct {
 
 // convertToYAMLBytes is a helper function to turn an object returned from `k8s.io/api/core/v1` into a readable YAML manifest
 func convertToYAMLBytes(input any) ([]byte, error) {
-	objJson, err := json.Marshal(input)
+	objJSON, err := json.Marshal(input)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to Marshal the object manifest: %w", err)
 	}
-	return yaml.JSONToYAML(objJson)
+	return yaml.JSONToYAML(objJSON)
 }
 
 // Retrieve a DaemonSet YAML from the API server for a given name and namespace, and returns the associated YAML manifest into a a byte array.
@@ -124,9 +125,7 @@ func getClusterAgentDeployment() ([]byte, error) {
 // getDeployedHelmConfigmap returns the configmap for a given release.
 // Only a single release for a given name can be deployed at one time.
 func getDeployedHelmConfigmap(cl *apiserver.APIClient, name string, namespace string) (*v1.ConfigMap, error) {
-	var selector string
-
-	selector = labels.Set{
+	selector := labels.Set{
 		"owner":  "helm",
 		"status": "deployed",
 		"name":   name,
@@ -144,9 +143,7 @@ func getDeployedHelmConfigmap(cl *apiserver.APIClient, name string, namespace st
 // getDeployedHelmSecret returns the secret for a given release.
 // Only a single release for a given name can be deployed at one time.
 func getDeployedHelmSecret(cl *apiserver.APIClient, name string, namespace string) (*v1.Secret, error) {
-	var selector string
-
-	selector = labels.Set{
+	selector := labels.Set{
 		"owner":  "helm",
 		"status": "deployed",
 		"name":   name,

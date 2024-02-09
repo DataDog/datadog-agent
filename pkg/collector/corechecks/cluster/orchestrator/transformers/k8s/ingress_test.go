@@ -73,8 +73,8 @@ func TestExtractIngress(t *testing.T) {
 					IngressClassName: pointer.Ptr("ingressClassName"),
 				},
 				Status: netv1.IngressStatus{
-					LoadBalancer: v1.LoadBalancerStatus{
-						Ingress: []v1.LoadBalancerIngress{
+					LoadBalancer: netv1.IngressLoadBalancerStatus{
+						Ingress: []netv1.IngressLoadBalancerIngress{
 							{Hostname: "foo.us-east-1.elb.amazonaws.com"},
 						},
 					},
@@ -141,10 +141,10 @@ func TestExtractIngressStatus(t *testing.T) {
 		"empty": {input: netv1.IngressStatus{}, expected: model.IngressStatus{Ingress: []*model.LoadBalancerIngress{}}},
 		"multiple ingress statuses": {
 			input: netv1.IngressStatus{
-				LoadBalancer: v1.LoadBalancerStatus{
-					Ingress: []v1.LoadBalancerIngress{
-						{IP: "ip1", Ports: []v1.PortStatus{{Port: 80, Error: &errMsg}}},
-						{Hostname: "hostname1", Ports: []v1.PortStatus{{Protocol: "TCP", Port: 8080}}},
+				LoadBalancer: netv1.IngressLoadBalancerStatus{
+					Ingress: []netv1.IngressLoadBalancerIngress{
+						{IP: "ip1", Ports: []netv1.IngressPortStatus{{Port: 80, Error: &errMsg}}},
+						{Hostname: "hostname1", Ports: []netv1.IngressPortStatus{{Protocol: "TCP", Port: 8080}}},
 						{IP: "ip2"},
 					},
 				},

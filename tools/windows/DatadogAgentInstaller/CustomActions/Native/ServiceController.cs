@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Security.AccessControl;
 using System.ServiceProcess;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,10 +29,10 @@ namespace Datadog.CustomActions.Native
             }
         }
 
-        public Tuple<string,string>[] GetServiceNames()
+        public Tuple<string, string>[] GetServiceNames()
         {
             return Services
-                .Select(svc => Tuple.Create(svc.ServiceName,svc.DisplayName))
+                .Select(svc => Tuple.Create(svc.ServiceName, svc.DisplayName))
                 .ToArray();
         }
 
@@ -67,6 +68,18 @@ namespace Datadog.CustomActions.Native
             }
         }
 
+        public CommonSecurityDescriptor GetAccessSecurity(string serviceName)
+        {
+            var svc = new System.ServiceProcess.ServiceController(serviceName);
+            return Win32NativeMethods.QueryServiceObjectSecurity(svc.ServiceHandle, SecurityInfos.DiscretionaryAcl);
+        }
+
+        public void SetAccessSecurity(string serviceName, CommonSecurityDescriptor securityDescriptor)
+        {
+            var svc = new System.ServiceProcess.ServiceController(serviceName);
+            Win32NativeMethods.SetServiceObjectSecurity(svc.ServiceHandle, SecurityInfos.DiscretionaryAcl, securityDescriptor);
+        }
+
         private async Task<ServiceControllerStatus> WaitForStatusChange(System.ServiceProcess.ServiceController svc, ServiceControllerStatus state, TimeSpan timeout)
         {
             using var cts = new CancellationTokenSource(timeout);
@@ -93,6 +106,11 @@ namespace Datadog.CustomActions.Native
         public void StopService(string serviceName, TimeSpan timeout)
         {
             var svc = new System.ServiceProcess.ServiceController(serviceName);
+            // If service is starting, wait for it to finish
+            if (svc.Status == ServiceControllerStatus.StartPending)
+            {
+                _ = WaitForStatusChange(svc, ServiceControllerStatus.StartPending, timeout).Result;
+            }
             if (!(svc.Status == ServiceControllerStatus.Stopped || svc.Status == ServiceControllerStatus.StopPending))
             {
                 svc.Stop();

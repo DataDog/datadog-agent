@@ -6,9 +6,11 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .flavor import AgentFlavor
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
+from tasks.agent import build as agent_build
+from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent"))
@@ -20,34 +22,52 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
+    install_path=None,
     flavor=AgentFlavor.base.name,
     incremental_build=False,
     major_version='7',
     python_runtimes='3',
     arch="x64",
     go_mod="mod",
+    bundle=True,
 ):
     """
     Build the process agent
     """
+    if bundle and sys.platform != "win32":
+        return agent_build(
+            ctx,
+            race=race,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            flavor=flavor,
+            major_version=major_version,
+            python_runtimes=python_runtimes,
+            arch=arch,
+            go_mod=go_mod,
+        )
+
     flavor = AgentFlavor[flavor]
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+    )
 
     # generate windows resources
     if sys.platform == 'win32':
-        windres_target = "pe-x86-64"
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        maj_ver, min_ver, patch_ver = ver.split(".")
-        resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
-
-        ctx.run(f"windmc --target {windres_target} -r {resdir} {resdir}/process-agent-msg.mc")
-
-        ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target {windres_target} -O coff -o cmd/process-agent/rsrc.syso"
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/process-agent/windows_resources/process-agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/process-agent/rsrc.syso",
         )
 
     goenv = {}
@@ -64,6 +84,9 @@ def build(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     build_tags = get_build_tags(build_include, build_exclude)
+
+    if os.path.exists(BIN_PATH):
+        os.remove(BIN_PATH)
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
@@ -155,16 +178,4 @@ def gen_mocks(ctx):
     """
     Generate mocks
     """
-
-    interfaces = {
-        "./pkg/process/runner": ["Submitter"],
-        "./pkg/process/checks": ["Check", "CheckWithRealTime"],
-        "./pkg/process/net": ["SysProbeUtil"],
-        "./pkg/process/procutil": ["Probe"],
-    }
-
-    for path, names in interfaces.items():
-        interface_regex = "|".join(f"^{i}\\$" for i in names)
-
-        with ctx.cd(path):
-            ctx.run(f"mockery --case snake --name=\"{interface_regex}\"")
+    ctx.run("mockery")

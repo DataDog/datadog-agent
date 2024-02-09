@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package v2 provides an ECS client for v2 of the API.
 package v2
 
 import (
@@ -31,25 +32,32 @@ const (
 	containerStatsPath       = "/stats"
 )
 
+// Client is an interface for ECS metadata v2 API clients.
+type Client interface {
+	GetContainerStats(ctx context.Context, id string) (*ContainerStats, error)
+	GetTask(ctx context.Context) (*Task, error)
+	GetTaskWithTags(ctx context.Context) (*Task, error)
+}
+
 // Client represents a client for a metadata v2 API endpoint.
-type Client struct {
+type client struct {
 	agentURL string
 }
 
 // NewClient creates a new client for the specified metadata v2 API endpoint.
-func NewClient(agentURL string) *Client {
-	return &Client{
+func NewClient(agentURL string) Client {
+	return &client{
 		agentURL: agentURL,
 	}
 }
 
 // NewDefaultClient creates a new client for the default metadata v2 API endpoint.
-func NewDefaultClient() *Client {
+func NewDefaultClient() Client {
 	return NewClient(defaultAgentURL)
 }
 
 // GetContainerStats returns stastics for a container.
-func (c *Client) GetContainerStats(ctx context.Context, id string) (*ContainerStats, error) {
+func (c *client) GetContainerStats(ctx context.Context, id string) (*ContainerStats, error) {
 	var stats map[string]*ContainerStats
 	// There is a difference in reported JSON in v 1.4.0 vs v1.3.0 so we should
 	// avoid using /v2/stats/{container_id}
@@ -65,16 +73,16 @@ func (c *Client) GetContainerStats(ctx context.Context, id string) (*ContainerSt
 }
 
 // GetTask returns the current task.
-func (c *Client) GetTask(ctx context.Context) (*Task, error) {
+func (c *client) GetTask(ctx context.Context) (*Task, error) {
 	return c.getTaskMetadataAtPath(ctx, taskMetadataPath)
 }
 
 // GetTaskWithTags returns the current task, including propagated resource tags.
-func (c *Client) GetTaskWithTags(ctx context.Context) (*Task, error) {
+func (c *client) GetTaskWithTags(ctx context.Context) (*Task, error) {
 	return c.getTaskMetadataAtPath(ctx, taskMetadataWithTagsPath)
 }
 
-func (c *Client) get(ctx context.Context, path string, v interface{}) error {
+func (c *client) get(ctx context.Context, path string, v interface{}) error {
 	client := http.Client{Timeout: common.MetadataTimeout()}
 	url, err := c.makeURL(path)
 	if err != nil {
@@ -112,7 +120,7 @@ func (c *Client) get(ctx context.Context, path string, v interface{}) error {
 	return nil
 }
 
-func (c *Client) getTaskMetadataAtPath(ctx context.Context, path string) (*Task, error) {
+func (c *client) getTaskMetadataAtPath(ctx context.Context, path string) (*Task, error) {
 	var t Task
 	if err := c.get(ctx, path, &t); err != nil {
 		return nil, err
@@ -120,7 +128,7 @@ func (c *Client) getTaskMetadataAtPath(ctx context.Context, path string) (*Task,
 	return &t, nil
 }
 
-func (c *Client) makeURL(requestPath string) (string, error) {
+func (c *client) makeURL(requestPath string) (string, error) {
 	u, err := url.Parse(c.agentURL)
 	if err != nil {
 		return "", err

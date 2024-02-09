@@ -1,4 +1,3 @@
-api_key: 00000000000000000000000000000000
 auth_token_file_path: /tmp/agent-auth-token
 hostname: smp-regression
 
@@ -14,8 +13,7 @@ cloud_provider_metadata: []
 apm_config:
   enabled: true
   apm_dd_url: http://127.0.0.1:9091
-
-  # disable ingest sampling
-  max_traces_per_second: 0
-  errors_per_second: 0
-  max_events_per_second: 0
+  # set an arbitrarily high sample set
+  max_traces_per_second: 1000000
+  errors_per_second: 1000000
+  max_events_per_second: 1000000

@@ -46,7 +46,11 @@ func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient dynamic
 	waitForWPACRD(wpaClient)
 
 	// mutate the Autoscaler controller to embed an informer against the WPAs
-	h.enableWPA(wpaInformerFactory)
+	if err := h.enableWPA(wpaInformerFactory); err != nil {
+		log.Errorf("impossible to enable WPQ: %v", err)
+		return
+	}
+
 	defer h.WPAqueue.ShutDown()
 
 	log.Infof("Starting WPA Controller ... ")
@@ -123,7 +127,7 @@ func waitForWPACRD(wpaClient dynamic_client.Interface) {
 }
 
 // enableWPA adds the handlers to the AutoscalersController to support WPAs
-func (h *AutoscalersController) enableWPA(wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
+func (h *AutoscalersController) enableWPA(wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) error {
 	log.Info("Enabling WPA controller")
 
 	genericInformer := wpaInformerFactory.ForResource(gvrWPA)
@@ -131,16 +135,19 @@ func (h *AutoscalersController) enableWPA(wpaInformerFactory dynamic_informer.Dy
 	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
 	h.wpaLister = genericInformer.Lister()
 	h.wpaListerSynced = genericInformer.Informer().HasSynced
-	genericInformer.Informer().AddEventHandler(
+	if _, err := genericInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addWPAutoscaler,
 			UpdateFunc: h.updateWPAutoscaler,
 			DeleteFunc: h.deleteWPAutoscaler,
 		},
-	)
+	); err != nil {
+		return err
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.wpaEnabled = true
+	return nil
 }
 
 func (h *AutoscalersController) isWPAEnabled() bool {
@@ -233,6 +240,7 @@ func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 	h.enqueueWPA(newAutoscaler)
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
 	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {

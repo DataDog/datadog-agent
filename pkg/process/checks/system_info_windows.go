@@ -7,7 +7,6 @@ package checks
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
@@ -21,54 +20,46 @@ import (
 // change until a restart. This bit of information should be passed along with
 // the process messages.
 func CollectSystemInfo() (*model.SystemInfo, error) {
-	hi, err := platform.GetArchInfo()
-	if err != nil {
-		return nil, err
-	}
-	cpuInfo, err := cpu.GetCpuInfo()
-	if err != nil {
-		return nil, err
-	}
+	hi := platform.CollectInfo()
+	cpuInfo := cpu.CollectInfo()
 	mi, err := winutil.VirtualMemory()
 	if err != nil {
 		return nil, err
 	}
-	physCount, _ := strconv.ParseInt(cpuInfo["cpu_pkgs"], 10, 64)
+	physCount, err := cpuInfo.CPUPkgs.Value()
+	if err != nil {
+		return nil, fmt.Errorf("gohai cpuInfo.CPUPkgs: %w", err)
+	}
+
 	// logicalcount will be the total number of logical processors on the system
 	// i.e. physCount * coreCount * 1 if not HT CPU
 	//      physCount * coreCount * 2 if an HT CPU.
-	logicalCount, _ := strconv.ParseInt(cpuInfo["cpu_logical_processors"], 10, 64)
+	logicalCount := cpuInfo.CPULogicalProcessors.ValueOrDefault()
 
-	// shouldn't be possible, as `cpu.GetCpuInfo()` should return an error in this case
+	// shouldn't be possible, as `cpuInfo.CPUPkgs.Value()` should return an error in this case
 	// but double check before risking a divide by zero
 	if physCount == 0 {
 		return nil, fmt.Errorf("Returned zero physical processors")
 	}
-	logicalCountPerPhys := logicalCount / physCount
-	clockSpeed, _ := strconv.ParseInt(cpuInfo["mhz"], 10, 64)
-	l2Cache, _ := strconv.ParseInt(cpuInfo["cache_size_l2"], 10, 64)
 	cpus := make([]*model.CPUInfo, 0)
-	for i := int64(0); i < physCount; i++ {
+	logicalCountPerPhys := logicalCount / physCount
+	for i := uint64(0); i < physCount; i++ {
 		cpus = append(cpus, &model.CPUInfo{
-			Number:     int32(i),
-			Vendor:     cpuInfo["vendor_id"],
-			Family:     cpuInfo["family"],
-			Model:      cpuInfo["model"],
-			PhysicalId: "",
-			CoreId:     "",
-			Cores:      int32(logicalCountPerPhys),
-			Mhz:        int64(clockSpeed),
-			CacheSize:  int32(l2Cache),
+			Cores: int32(logicalCountPerPhys),
 		})
 	}
 
+	kernelName := hi.KernelName.ValueOrDefault()
+	osName := hi.OS.ValueOrDefault()
+	platformFamily := hi.Family.ValueOrDefault()
+	kernelRelease := hi.KernelRelease.ValueOrDefault()
 	m := &model.SystemInfo{
 		Uuid: "",
 		Os: &model.OSInfo{
-			Name:          hi["kernel_name"],
-			Platform:      hi["os"],
-			Family:        hi["family"],
-			Version:       hi["kernel_release"],
+			Name:          kernelName,
+			Platform:      osName,
+			Family:        platformFamily,
+			Version:       kernelRelease,
 			KernelVersion: "",
 		},
 		Cpus:        cpus,

@@ -13,6 +13,6 @@ import (
 )
 
 // GetAccountID returns the account ID of the current AWS instance
-func GetAccountID(ctx context.Context) (string, error) {
+func GetAccountID(_ context.Context) (string, error) {
 	return "", fmt.Errorf("ec2 is disabled in the binary")
 }

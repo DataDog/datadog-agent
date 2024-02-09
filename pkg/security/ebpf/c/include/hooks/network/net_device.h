@@ -17,9 +17,9 @@ int __attribute__((always_inline)) start_veth_state_machine() {
     return 0;
 }
 
-SEC("kprobe/rtnl_create_link")
-int kprobe_rtnl_create_link(struct pt_regs *ctx) {
-    struct rtnl_link_ops *ops = (struct rtnl_link_ops*)PT_REGS_PARM4(ctx);
+HOOK_ENTRY("rtnl_create_link")
+int hook_rtnl_create_link(ctx_t *ctx) {
+    struct rtnl_link_ops *ops = (struct rtnl_link_ops*)CTX_PARM4(ctx);
     if (!ops) {
         return 0;
     }
@@ -41,58 +41,58 @@ int kprobe_rtnl_create_link(struct pt_regs *ctx) {
     return start_veth_state_machine();
 }
 
-SEC("kprobe/register_netdevice")
-int kprobe_register_netdevice(struct pt_regs *ctx) {
+HOOK_ENTRY("register_netdevice")
+int hook_register_netdevice(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
     struct register_netdevice_cache_t entry = {
-        .device = (struct net_device *)PT_REGS_PARM1(ctx),
+        .device = (struct net_device *)CTX_PARM1(ctx),
     };
     bpf_map_update_elem(&register_netdevice_cache, &id, &entry, BPF_ANY);
     return 0;
 };
 
-SEC("kprobe/dev_get_valid_name")
-int kprobe_dev_get_valid_name(struct pt_regs *ctx) {
+HOOK_ENTRY("dev_get_valid_name")
+int hook_dev_get_valid_name(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
     struct register_netdevice_cache_t *entry = bpf_map_lookup_elem(&register_netdevice_cache, &id);
     if (entry != NULL) {
-        struct net *net = (struct net *)PT_REGS_PARM1(ctx);
+        struct net *net = (struct net *)CTX_PARM1(ctx);
         entry->ifindex.netns = get_netns_from_net(net);
     }
     return 0;
 };
 
-SEC("kprobe/dev_new_index")
-int kprobe_dev_new_index(struct pt_regs *ctx) {
+HOOK_ENTRY("dev_new_index")
+int hook_dev_new_index(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
 
     struct register_netdevice_cache_t *entry = bpf_map_lookup_elem(&register_netdevice_cache, &id);
     if (entry != NULL) {
-        struct net *net = (struct net *)PT_REGS_PARM1(ctx);
+        struct net *net = (struct net *)CTX_PARM1(ctx);
         entry->ifindex.netns = get_netns_from_net(net);
     }
     return 0;
 };
 
-SEC("kretprobe/dev_new_index")
-int kretprobe_dev_new_index(struct pt_regs *ctx) {
+HOOK_EXIT("dev_new_index")
+int rethook_dev_new_index(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
 
     struct register_netdevice_cache_t *entry = bpf_map_lookup_elem(&register_netdevice_cache, &id);
     if (entry != NULL) {
-        entry->ifindex.ifindex = (u32)PT_REGS_RC(ctx);
+        entry->ifindex.ifindex = (u32)CTX_PARMRET(ctx, 1);
     }
     return 0;
 };
 
-SEC("kprobe/__dev_get_by_index")
-int kprobe___dev_get_by_index(struct pt_regs *ctx) {
+HOOK_ENTRY("__dev_get_by_index")
+int hook___dev_get_by_index(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
-    struct net *net = (struct net *)PT_REGS_PARM1(ctx);
+    struct net *net = (struct net *)CTX_PARM1(ctx);
 
     struct device_ifindex_t entry = {
         .netns = get_netns_from_net(net),
-        .ifindex = (u32)PT_REGS_PARM2(ctx),
+        .ifindex = (u32)CTX_PARM2(ctx),
     };
 
     struct register_netdevice_cache_t *cache = bpf_map_lookup_elem(&register_netdevice_cache, &id);
@@ -104,15 +104,15 @@ int kprobe___dev_get_by_index(struct pt_regs *ctx) {
     return 0;
 };
 
-SEC("kprobe/__dev_get_by_name")
-int kprobe___dev_get_by_name(struct pt_regs *ctx) {
+HOOK_ENTRY("__dev_get_by_name")
+int hook___dev_get_by_name(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
-    struct net *net = (struct net *)PT_REGS_PARM1(ctx);
+    struct net *net = (struct net *)CTX_PARM1(ctx);
 
     struct device_name_t name = {
         .netns = get_netns_from_net(net),
     };
-    bpf_probe_read_str(&name.name[0], sizeof(name.name), (void *)PT_REGS_PARM2(ctx));
+    bpf_probe_read_str(&name.name[0], sizeof(name.name), (void *)CTX_PARM2(ctx));
 
     struct device_ifindex_t *ifindex = bpf_map_lookup_elem(&veth_device_name_to_ifindex, &name);
     if (ifindex == NULL) {
@@ -128,10 +128,10 @@ int kprobe___dev_get_by_name(struct pt_regs *ctx) {
     return 0;
 };
 
-SEC("kretprobe/register_netdevice")
-int kretprobe_register_netdevice(struct pt_regs *ctx) {
+HOOK_EXIT("register_netdevice")
+int rethook_register_netdevice(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
-    int ret = PT_REGS_RC(ctx);
+    int ret = CTX_PARMRET(ctx, 1);
     if (ret != 0) {
         // interface registration failed, remove cache entry
         bpf_map_delete_elem(&register_netdevice_cache, &id);
@@ -230,9 +230,9 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
     return 0;
 };
 
-__attribute__((always_inline)) int trace_dev_change_net_namespace(struct pt_regs *ctx) {
+__attribute__((always_inline)) int trace_dev_change_net_namespace(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
-    struct net *net = (struct net *)PT_REGS_PARM2(ctx);
+    struct net *net = (struct net *)CTX_PARM2(ctx);
 
     // lookup cache
     struct device_ifindex_t *ifindex = bpf_map_lookup_elem(&netdevice_lookup_cache, &id);
@@ -273,13 +273,13 @@ __attribute__((always_inline)) int trace_dev_change_net_namespace(struct pt_regs
     return 0;
 }
 
-SEC("kprobe/dev_change_net_namespace")
-int kprobe_dev_change_net_namespace(struct pt_regs *ctx) {
+HOOK_ENTRY("dev_change_net_namespace")
+int hook_dev_change_net_namespace(ctx_t *ctx) {
     return trace_dev_change_net_namespace(ctx);
 };
 
-SEC("kprobe/__dev_change_net_namespace")
-int kprobe___dev_change_net_namespace(struct pt_regs *ctx) {
+HOOK_ENTRY("__dev_change_net_namespace")
+int hook___dev_change_net_namespace(ctx_t *ctx) {
     return trace_dev_change_net_namespace(ctx);
 }
 

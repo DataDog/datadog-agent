@@ -7,20 +7,29 @@ include:
   - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
+  - /.gitlab/source_test_stats.yml
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
+  - /.gitlab/cancel-prev-pipelines.yml
+  - /.gitlab/do_not_merge.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
+  - /.gitlab/e2e_pre_test.yml
   - /.gitlab/kitchen_testing.yml
+  - /.gitlab/kitchen_tests_upload.yml
+  - /.gitlab/new-e2e_testing.yml
+  - /.gitlab/new-e2e_common/testing.yml
+  - /.gitlab/install_script_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
   - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
   - /.gitlab/dev_container_deploy.yml
   - /.gitlab/deploy_common.yml
-  - /.gitlab/deploy_6.yml
-  - /.gitlab/deploy_7.yml
+  - /.gitlab/deploy_containers.yml
+  - /.gitlab/deploy_packages.yml
+  - /.gitlab/deploy_cws_instrumentation.yml
   - /.gitlab/deploy_dca.yml
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
@@ -35,14 +44,13 @@ include:
   - /.gitlab/functional_test_junit_upload.yml
   - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
-  # FIXME: our current Gitlab version doesn't support importing a file more than once
-  # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
-  # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/functional_test/common.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
+  - /.gitlab/rc_jobs/rc_kubernetes_deploy.yml
+  - /.gitlab/rc_jobs/post_rc_tasks.yml
 
 default:
   retry:
@@ -52,13 +60,18 @@ default:
       - stuck_or_timeout_failure
       - unknown_failure
       - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure
 
 stages:
+  - .pre
   - setup
   - maintenance_jobs
   - deps_build
   - deps_fetch
   - source_test
+  - source_test_stats
   - source_test_junit_upload
   - binary_build
   - package_deps_build
@@ -67,31 +80,37 @@ stages:
   - benchmarks
   - package_build
   - kitchen_deploy
+  - e2e_pre_test
+  - e2e_pre_test_junit_upload
   - kitchen_testing
+  - kitchen_tests_upload
   - pkg_metrics
   - container_build
   - container_scan
   - check_deploy
   - dev_container_deploy
-  - deploy6
-  - deploy7
-  - trigger_release
+  - deploy_containers
+  - deploy_packages
+  - deploy_cws_instrumentation
   - deploy_dca
+  - trigger_release
   - choco_build
   - choco_deploy
   - internal_image_deploy
+  - install_script_testing
   - e2e
   - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test
+  - functional_test_sysprobe
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
+  - post_rc_build
+  - check_merge
   - notify
 
 variables:
-  #Do not change this - must be the repository name for Kubernetes runners to work
-  KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
@@ -111,6 +130,7 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
   SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
   DEB_S3_BUCKET: apt.datad0g.com
@@ -118,14 +138,13 @@ variables:
   MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
-  BUCKET_BRANCH: nightly  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
+  BUCKET_BRANCH: dev # path inside the staging s3 buckets to release to: 'dev', 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
-  DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
+  DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
   S3_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
@@ -140,6 +159,7 @@ variables:
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
+  BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
@@ -149,21 +169,24 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_WINBUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_ARMBUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v14597610-8d767dd
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v17432894-4fdacd4
-  DATADOG_AGENT_BUILDERS: v16852259-65c480c
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: d44e03d53b06
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v27950662-17e84032
+  # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
+  # and check the job creating the image to make sure you have the right SHA prefix
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 9f1c04270e18
+  DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -186,8 +209,17 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
-  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-08d9716d20480186e"
-  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-044d1c0f7ab0e3537"
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-00e807c0351f270b7"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0be4fd85ce146ab3b"
+  RUN_E2E_TESTS: "manual" # Should be "auto", "manual", "off" it will change the trigger condition for new-e2e tests on branch != main
+  # skip known flaky tests by default
+  GO_TEST_SKIP_FLAKE: "true"
+
+  # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
+  ARTIFACT_DOWNLOAD_ATTEMPTS: 2
+  EXECUTOR_JOB_SECTION_ATTEMPTS: 2
+  GET_SOURCES_ATTEMPTS: 2
+  RESTORE_CACHE_ATTEMPTS: 2
 
 #
 # Condition mixins for simplification of rules
@@ -224,6 +256,9 @@ variables:
 
 .if_not_nightly_repo_branch: &if_not_nightly_repo_branch
   if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly"
+
+.if_not_nightly_or_dev_repo_branch: &if_not_nightly_or_dev_repo_branch
+  if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly" && $BUCKET_BRANCH != "dev"
 
 .if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
   if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
@@ -267,6 +302,15 @@ variables:
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
 
+.if_not_e2e: &if_not_e2e
+  if: $RUN_KITCHEN_TESTS == "false"
+
+.if_auto_e2e: &if_auto_e2e
+  if: $RUN_E2E_TESTS == "auto"
+
+.if_disable_e2e: &if_disable_e2e
+  if: $RUN_E2E_TESTS == "off"
+
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
 
@@ -284,11 +328,17 @@ variables:
 .if_scheduled_main: &if_scheduled_main
   if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
 
+# Rule to trigger jobs only when a branch matches the mergequeue pattern.
+.if_mergequeue: &if_mergequeue
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+
 #
 # Workflow rules
 # Rules used to define whether a pipeline should run, and with which variables
 #
 
+# WARNING: Do not change below if you want to globally disable the caching proxy (all branches would need to be rebased for it to be effectively disabled).
+# Instead use the break-glass mechanism by looking for the "Remotely disable Artifactory" doc in Confluence.
 workflow:
   rules:
     - <<: *if_triggered_pipeline
@@ -299,14 +349,15 @@ workflow:
       variables:
         USE_CACHING_PROXY_PYTHON: "true"
         USE_CACHING_PROXY_RUBY: "true"
+        GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
       variables:
         USE_CACHING_PROXY_PYTHON: "true"
         USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_deploy
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
-        USE_CACHING_PROXY_RUBY: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - if: $CI_COMMIT_TAG == null
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
@@ -318,26 +369,38 @@ workflow:
 #
 
 .manual:
+  - <<: *if_mergequeue
+    when: never
   - when: manual
     allow_failure: true
 
 .on_a6:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_6
 
 .on_a6_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_6
     when: manual
     allow_failure: true
 
 .on_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_7
 
 .on_a7_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_7
     when: manual
     allow_failure: true
 
 .on_dev_branch_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_main_branch
     when: never
   - <<: *if_tagged_commit
@@ -364,6 +427,8 @@ workflow:
   - <<: *if_main_branch
 
 .on_tag_or_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_tagged_commit
   - <<: *if_version_7
 
@@ -384,6 +449,12 @@ workflow:
   - <<: *if_not_version_6
     when: never
   - <<: *if_deploy
+
+.on_deploy_a6_failure:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+    when: on_failure
 
 .on_deploy_a6_rc:
   - <<: *if_not_version_6
@@ -468,6 +539,12 @@ workflow:
     when: never
   - <<: *if_deploy
 
+.on_deploy_a7_failure:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+    when: on_failure
+
 .on_deploy_a7_rc:
   - <<: *if_not_version_7
     when: never
@@ -502,6 +579,8 @@ workflow:
 # rule to trigger job for internal image deployment if deploy is set or
 # manually if not
 .on_deploy_a7_internal_or_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
@@ -605,14 +684,14 @@ workflow:
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_not_nightly_repo_branch
+  - <<: *if_not_nightly_or_dev_repo_branch
     when: never
   - <<: *if_deploy
 
 .on_deploy_nightly_repo_branch_a7:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_not_nightly_repo_branch
+  - <<: *if_not_nightly_or_dev_repo_branch
     when: never
   - <<: *if_deploy
 
@@ -719,6 +798,10 @@ workflow:
     when: never
   - when: on_success
 
+.except_no_tests_no_deploy:
+  - if: $RUN_KITCHEN_TESTS == "false" && $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
+    when: never
+
 .on_a6_except_deploy:
   - <<: *if_not_version_6
     when: never
@@ -736,6 +819,14 @@ workflow:
 .on_main_or_release_branch:
   - <<: *if_main_branch
   - <<: *if_release_branch
+
+.except_main_or_release_branch:
+  - <<: *if_main_branch
+    when: never
+  - <<: *if_release_branch
+    when: never
+  - <<: *if_mergequeue
+    when: never
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
@@ -808,10 +899,19 @@ workflow:
     when: never
   - <<: *if_kitchen
 
+.on_all_new-e2e_tests_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_kitchen
+
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
 # available versions, stored in DEFAULT_KITCHEN_OSVERS
 .on_default_kitchen_tests_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_kitchen
@@ -819,7 +919,19 @@ workflow:
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
+.on_default_new-e2e_tests_a7:
+  - <<: *if_mergequeue
+    when: never
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+  - <<: *if_default_kitchen
+    variables:
+      E2E_OSVERS: $E2E_BRANCH_OSVERS
+
 .on_default_kitchen_tests_a7_always:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_kitchen
@@ -838,36 +950,113 @@ workflow:
 
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
+    allow_failure: true
+  - <<: *if_mergequeue
+    when: never
   - changes:
-      - pkg/ebpf/**/*
-      - pkg/security/**/*
-      - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
-      - test/kitchen/test/integration/security-agent-test/**/*
-      - test/kitchen/test/integration/security-agent-stress/**/*
-      - .gitlab/functional_test/security_agent.yml
+      paths:
+        - pkg/ebpf/**/*
+        - pkg/security/**/*
+        - pkg/eventmonitor/**/*
+        - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
+        - test/kitchen/test/integration/security-agent-test/**/*
+        - test/kitchen/test/integration/security-agent-stress/**/*
+        - .gitlab/functional_test/security_agent.yml
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
 
-.on_system_probe_changes_or_manual:
+.on_windows_installer_changes_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
   - changes:
-      - pkg/collector/corechecks/ebpf/**/*
-      - pkg/ebpf/**/*
-      - pkg/network/**/*
-      - pkg/util/kernel/**/*
-      - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-      - test/kitchen/test/integration/system-probe-test/**/*
-      - test/kitchen/test/integration/win-sysprobe-test/**/*
-      - .gitlab/functional_test/system_probe.yml
-      - .gitlab/kernel_version_testing/system_probe.yml
-      - test/new-e2e/system-probe/**/*
-      - test/new-e2e/scenarios/system-probe/**/*
-      - test/new-e2e/runner/**/*
-      - test/new-e2e-utils/**/*
-      - test/new-e2e/go.mod
+      paths:
+        - tools/windows/DatadogAgentInstaller/**/*
+        - .gitlab/new-e2e_testing/windows.yml
+        - test/new-e2e/tests/windows/install-test/**/*
+        - tasks/msi.py
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_system_probe_or_e2e_changes_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - pkg/collector/corechecks/ebpf/**/*
+        - pkg/ebpf/**/*
+        - pkg/network/**/*
+        - pkg/process/monitor/*
+        - pkg/util/kernel/**/*
+        - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
+        - test/kitchen/test/integration/system-probe-test/**/*
+        - test/kitchen/test/integration/win-sysprobe-test/**/*
+        - .gitlab/functional_test/system_probe_windows.yml
+        - .gitlab/functional_test_sysprobe/system_probe.yml
+        - .gitlab/kernel_version_testing/system_probe.yml
+        - test/new-e2e/system-probe/**/*
+        - test/new-e2e/scenarios/system-probe/**/*
+        - test/new-e2e/runner/**/*
+        - test/new-e2e-utils/**/*
+        - test/new-e2e/go.mod
+        - tasks/system_probe.py
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_e2e_changes_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/test-infra-definition/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_container_or_e2e_changes_or_manual:
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - comp/core/tagger/**/*
+        - comp/core/workloadmeta/**/*
+        - pkg/autodiscovery/listeners/**/*
+        - pkg/autodiscovery/providers/**/*
+        - pkg/collector/corechecks/cluster/**/*
+        - pkg/collector/corechecks/containers/**/*
+        - pkg/collector/corechecks/containerimage/**/*
+        - pkg/collector/corechecks/containerlifecycle/**/*
+        - pkg/collector/corechecks/kubernetes/**/*
+        - pkg/collector/corechecks/sbom/**/*
+        - pkg/util/clusteragent/**/*
+        - pkg/util/containerd/**/*
+        - pkg/util/containers/**/*
+        - pkg/util/docker/**/*
+        - pkg/util/ecs/**/*
+        - pkg/util/kubernetes/**/*
+        - pkg/util/cgroups/**/*
+        - test/new-e2e/tests/containers/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
 
 .on_install_script_release_manual:
   - <<: *if_not_version_7
@@ -888,8 +1077,42 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_scheduled_main:
+  - <<: *if_scheduled_main
+
 .on_scheduled_main_or_manual:
   - <<: *if_scheduled_main
     when: always
   - when: manual
     allow_failure: true
+
+.on_main_or_rc_and_no_skip_e2e:
+  - <<: *if_not_e2e
+    when: never
+  - <<: *if_tagged_commit
+    when: on_success
+  - <<: *if_main_branch
+    when: on_success
+
+.except_mergequeue:
+  - <<: *if_mergequeue
+    when: never
+
+.if_run_e2e_tests:
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_auto_e2e
+
+.on_omnibus_change:
+  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - changes:
+      paths:
+        - omnibus/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_go-version_change:
+  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - changes:
+      paths:
+        - .go-version
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916

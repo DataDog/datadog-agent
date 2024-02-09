@@ -11,9 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -30,22 +34,15 @@ func demuxTestOptions() AgentDemultiplexerOptions {
 	return opts
 }
 
-// Check whether we are built with the +orchestrator build tag
-func orchestratorEnabled(log log.Component) bool {
-	return buildOrchestratorForwarder(log) != nil
-}
-
 func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 	require := require.New(t)
 
 	opts := demuxTestOptions()
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
+	demux := deps.Demultiplexer
 
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
-	require.Equal(demux, demultiplexerInstance)
-
 	demux.Stop(false)
 }
 
@@ -56,37 +53,39 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// forwarders since we're not in a cluster-agent environment
 
 	opts := demuxTestOptions()
-	modules := fx.Options(defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	deps := fxutil.Test[AggregatorTestDeps](t, modules)
-	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+
+	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
+	demux := deps.Demultiplexer
 
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.Nil(demux.forwarders.orchestrator)
+	_, found := demux.forwarders.orchestrator.Get()
+	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
 	// options no event platform forwarder
 
 	opts = demuxTestOptions()
-	opts.UseEventPlatformForwarder = false
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
-	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+	deps = createDemuxDeps(t, opts, eventplatformimpl.Params{UseEventPlatformForwarder: false})
+	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.Nil(demux.forwarders.eventPlatform)
-	require.Nil(demux.forwarders.orchestrator)
+	_, found = demux.forwarders.eventPlatform.Get()
+	require.False(found)
+	_, found = demux.forwarders.orchestrator.Get()
+	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
 	// options noop event platform forwarder
 
 	opts = demuxTestOptions()
-	opts.UseNoopEventPlatformForwarder = true
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
-	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+	deps = createDemuxDeps(t, opts, eventplatformimpl.Params{UseNoopEventPlatformForwarder: true})
+	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.Nil(demux.forwarders.orchestrator)
+	_, found = demux.forwarders.orchestrator.Get()
+	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
@@ -96,64 +95,62 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	cre := pkgconfig.Datadog.Get("clc_runner_enabled")
 	ecp := pkgconfig.Datadog.Get("extra_config_providers")
 	defer func() {
-		pkgconfig.Datadog.Set("orchestrator_explorer.enabled", oee)
-		pkgconfig.Datadog.Set("clc_runner_enabled", cre)
-		pkgconfig.Datadog.Set("extra_config_providers", ecp)
+		pkgconfig.Datadog.SetWithoutSource("orchestrator_explorer.enabled", oee)
+		pkgconfig.Datadog.SetWithoutSource("clc_runner_enabled", cre)
+		pkgconfig.Datadog.SetWithoutSource("extra_config_providers", ecp)
 	}()
-	pkgconfig.Datadog.Set("orchestrator_explorer.enabled", true)
-	pkgconfig.Datadog.Set("clc_runner_enabled", true)
-	pkgconfig.Datadog.Set("extra_config_providers", []string{"clusterchecks"})
+	pkgconfig.Datadog.SetWithoutSource("orchestrator_explorer.enabled", true)
+	pkgconfig.Datadog.SetWithoutSource("clc_runner_enabled", true)
+	pkgconfig.Datadog.SetWithoutSource("extra_config_providers", []string{"clusterchecks"})
 
 	// since we're running the tests with -tags orchestrator and we've enabled the
 	// needed feature above, we should have an orchestrator forwarder instantiated now
 
 	opts = demuxTestOptions()
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
-	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
+	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	if orchestratorEnabled(deps.Log) {
-		require.NotNil(demux.forwarders.orchestrator)
-	} else {
-		require.Nil(demux.forwarders.orchestrator)
-	}
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
 	// options no orchestrator forwarder
 
 	opts = demuxTestOptions()
-	opts.UseOrchestratorForwarder = false
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
-	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+	params := orchestratorForwarderImpl.NewDisabledParams()
+	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params, eventplatformimpl.NewDefaultParams())
+	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.Nil(demux.forwarders.orchestrator)
+	_, found = demux.forwarders.orchestrator.Get()
+	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
 	// options noop orchestrator forwarder
 
 	opts = demuxTestOptions()
-	opts.UseNoopOrchestratorForwarder = true
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
-	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+	params = orchestratorForwarderImpl.NewNoopParams()
+	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params, eventplatformimpl.NewDefaultParams())
+	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.NotNil(demux.forwarders.orchestrator)
+	_, found = demux.forwarders.orchestrator.Get()
+	require.True(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
 	// no options to disable it, but the feature is not enabled
 
-	pkgconfig.Datadog.Set("orchestrator_explorer.enabled", false)
+	pkgconfig.Datadog.SetWithoutSource("orchestrator_explorer.enabled", false)
 
 	opts = demuxTestOptions()
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
-	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
+	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.Nil(demux.forwarders.orchestrator)
+	_, found = demux.forwarders.orchestrator.Get()
+	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 }
@@ -165,8 +162,8 @@ func TestDemuxSerializerCreated(t *testing.T) {
 	// forwarders since we're not in a cluster-agent environment
 
 	opts := demuxTestOptions()
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
+	demux := deps.Demultiplexer
 
 	require.NotNil(demux)
 	require.NotNil(demux.sharedSerializer)
@@ -182,8 +179,8 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, opts, "")
+	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
+	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
@@ -217,15 +214,15 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 	pc := pkgconfig.Datadog.GetInt("dogstatsd_pipeline_count")
 	aa := pkgconfig.Datadog.GetInt("dogstatsd_pipeline_autoadjust")
 	defer func() {
-		pkgconfig.Datadog.Set("dogstatsd_pipeline_count", pc)
-		pkgconfig.Datadog.Set("dogstatsd_pipeline_autoadjust", aa)
+		pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", pc)
+		pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_autoadjust", aa)
 	}()
 
 	assert := assert.New(t)
 
 	// auto-adjust
 
-	pkgconfig.Datadog.Set("dogstatsd_pipeline_autoadjust", true)
+	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_autoadjust", true)
 
 	dsdWorkers, pipelines := getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(8, dsdWorkers)
@@ -245,8 +242,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// no auto-adjust
 
-	pkgconfig.Datadog.Set("dogstatsd_pipeline_autoadjust", false)
-	pkgconfig.Datadog.Set("dogstatsd_pipeline_count", pc) // default value
+	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
+	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", pc) // default value
 
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(14, dsdWorkers)
@@ -266,8 +263,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// no auto-adjust + pipeline count
 
-	pkgconfig.Datadog.Set("dogstatsd_pipeline_autoadjust", false)
-	pkgconfig.Datadog.Set("dogstatsd_pipeline_count", 4)
+	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
+	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", 4)
 
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(11, dsdWorkers)
@@ -280,4 +277,36 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(4)
 	assert.Equal(2, dsdWorkers)
 	assert.Equal(4, pipelines)
+}
+
+func createDemuxDeps(t *testing.T, opts AgentDemultiplexerOptions, eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
+	return createDemuxDepsWithOrchestratorFwd(t, opts, orchestratorForwarderImpl.NewDefaultParams(), eventPlatformParams)
+}
+
+type internalDemutiplexerDeps struct {
+	TestDeps
+	OrchestratorForwarder orchestratorForwarder.Component
+	Eventplatform         eventplatform.Component
+}
+
+func createDemuxDepsWithOrchestratorFwd(
+	t *testing.T,
+	opts AgentDemultiplexerOptions,
+	orchestratorParams orchestratorForwarderImpl.Params,
+	eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
+	modules := fx.Options(
+		defaultforwarder.MockModule(),
+		core.MockBundle(),
+		orchestratorForwarderImpl.Module(),
+		fx.Supply(orchestratorParams),
+		eventplatformimpl.Module(),
+		eventplatformreceiverimpl.Module(),
+		fx.Supply(eventPlatformParams),
+	)
+	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
+
+	return aggregatorDeps{
+		TestDeps:      deps.TestDeps,
+		Demultiplexer: InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, ""),
+	}
 }

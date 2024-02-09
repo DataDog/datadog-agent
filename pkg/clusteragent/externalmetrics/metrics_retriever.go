@@ -12,35 +12,45 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	invalidMetricErrorMessage         string = "%v, query was: %s"
-	invalidMetricOutdatedErrorMessage string = "Query returned outdated result, check MaxAge setting, query: %s"
-	invalidMetricNotFoundErrorMessage string = "Unexpected error, query data not found in result, query: %s"
-	invalidMetricGlobalErrorMessage   string = "Global error (all queries) from backend, invalid syntax in query? Check Cluster Agent leader logs for details"
-	metricRetrieverStoreID            string = "mr"
+	invalidMetricErrorMessage                  string = "%v, query was: %s"
+	invalidMetricErrorWithRetriesMessage       string = "%v, query was: %s, will retry after %s."
+	invalidMetricOutdatedErrorMessage          string = "Query returned outdated result, check MaxAge setting, query: %s"
+	invalidMetricNotFoundErrorMessage          string = "Unexpected error, query data not found in result, query: %s"
+	invalidMetricGlobalErrorMessage            string = "Global error (all queries) from backend, invalid syntax in query? Check Cluster Agent leader logs for details"
+	invalidMetricGlobalErrorWithRetriesMessage string = "Global error (all queries, batch size %d) from backend, invalid syntax in query? Check Cluster Agent leader logs for details. Will retry after %s."
+	metricRetrieverStoreID                     string = "mr"
 )
+
+// Backoff range for number of retries R:
+// For R < 6 random(2^(R-1) * 30, 2^R * 30)
+// Otherwise 1800sec
+var backoffPolicy backoff.Policy = backoff.NewExpBackoffPolicy(2, 30, 1800, 2, false)
 
 // MetricsRetriever is responsible for querying and storing external metrics
 type MetricsRetriever struct {
-	refreshPeriod int64
-	metricsMaxAge int64
-	processor     autoscalers.ProcessorInterface
-	store         *DatadogMetricsInternalStore
-	isLeader      func() bool
+	refreshPeriod             int64
+	metricsMaxAge             int64
+	splitBatchBackoffOnErrors bool
+	processor                 autoscalers.ProcessorInterface
+	store                     *DatadogMetricsInternalStore
+	isLeader                  func() bool
 }
 
 // NewMetricsRetriever returns a new MetricsRetriever
-func NewMetricsRetriever(refreshPeriod, metricsMaxAge int64, processor autoscalers.ProcessorInterface, isLeader func() bool, store *DatadogMetricsInternalStore) (*MetricsRetriever, error) {
+func NewMetricsRetriever(refreshPeriod, metricsMaxAge int64, processor autoscalers.ProcessorInterface, isLeader func() bool, store *DatadogMetricsInternalStore, splitBatchBackoffOnErrors bool) (*MetricsRetriever, error) {
 	return &MetricsRetriever{
-		refreshPeriod: refreshPeriod,
-		metricsMaxAge: metricsMaxAge,
-		processor:     processor,
-		store:         store,
-		isLeader:      isLeader,
+		refreshPeriod:             refreshPeriod,
+		metricsMaxAge:             metricsMaxAge,
+		processor:                 processor,
+		store:                     store,
+		isLeader:                  isLeader,
+		splitBatchBackoffOnErrors: splitBatchBackoffOnErrors,
 	}, nil
 }
 
@@ -62,8 +72,42 @@ func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 }
 
 func (mr *MetricsRetriever) retrieveMetricsValues() {
-	// We only update active DatadogMetrics
-	datadogMetrics := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool { return datadogMetric.Active })
+
+	if mr.splitBatchBackoffOnErrors {
+		// We only update active DatadogMetrics
+		// We split metrics in two slices, those with errors and those without.
+		// Query first slice one by one, other as batch.
+		// TODO: consider implementing one-pass splitting in the store
+		datadogMetrics := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
+			return datadogMetric.Active && datadogMetric.Error == nil
+		})
+
+		// Do all errors warrant separate query? probably no, but we run them separately because:
+		// Backoff should be applied to each metrics separately.
+		// Only way to differentiate error from a global error is via comparing error strings.
+		datadogMetricsErr := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
+			return datadogMetric.Active && datadogMetric.Error != nil
+		})
+
+		// First split then query because store state is shared and query mutates it
+		mr.retrieveMetricsValuesSlice(datadogMetrics)
+
+		// Now test each metric query separately respecting its backoff retry duration elapse value.
+		for _, metrics := range datadogMetricsErr {
+			if time.Now().After(metrics.RetryAfter) {
+				singleton := []model.DatadogMetricInternal{metrics}
+				mr.retrieveMetricsValuesSlice(singleton)
+			}
+		}
+	} else {
+		// We only update active DatadogMetrics
+		datadogMetrics := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool { return datadogMetric.Active })
+		mr.retrieveMetricsValuesSlice(datadogMetrics)
+	}
+}
+
+func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.DatadogMetricInternal) {
+
 	if len(datadogMetrics) == 0 {
 		log.Debugf("No active DatadogMetric, nothing to refresh")
 		return
@@ -97,13 +141,16 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 		}
 
 		query := datadogMetric.Query()
-		timeWindow := MaybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
+		timeWindow := maybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
 		results := resultsByTimeWindow[timeWindow]
 
 		if queryResult, found := results[query]; found {
 			log.Debugf("QueryResult from DD for %q: %v", query, queryResult)
 
 			if queryResult.Valid {
+				if mr.splitBatchBackoffOnErrors {
+					datadogMetricFromStore.Retries = 0
+				}
 				datadogMetricFromStore.Value = queryResult.Value
 				datadogMetricFromStore.DataTime = time.Unix(queryResult.Timestamp, 0).UTC()
 
@@ -122,12 +169,23 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 				}
 			} else {
 				datadogMetricFromStore.Valid = false
-				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricErrorMessage, queryResult.Error, query)
+				if mr.splitBatchBackoffOnErrors {
+					incrementRetries(datadogMetricFromStore)
+					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricErrorWithRetriesMessage,
+						queryResult.Error, query, datadogMetricFromStore.RetryAfter.Format(time.RFC3339))
+				} else {
+					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricErrorMessage, queryResult.Error, query)
+				}
 			}
 		} else {
 			datadogMetricFromStore.Valid = false
 			if globalError {
-				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorMessage)
+				if mr.splitBatchBackoffOnErrors {
+					incrementRetries(datadogMetricFromStore)
+					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, len(datadogMetrics), datadogMetricFromStore.RetryAfter.Format(time.RFC3339))
+				} else {
+					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorMessage)
+				}
 			} else {
 				// This should never happen as `QueryExternalMetric` is filling all missing series
 				// if no global error.
@@ -140,7 +198,14 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 	}
 }
 
-func MaybeAdjustTimeWindowForQuery(timeWindow time.Duration) time.Duration {
+func incrementRetries(metricsInternal *model.DatadogMetricInternal) {
+	metricsInternal.Retries++
+	timeNow := time.Now().UTC()
+	backoffDuration := backoffPolicy.GetBackoffDuration(metricsInternal.Retries)
+	metricsInternal.RetryAfter = timeNow.Add(backoffDuration)
+}
+
+func maybeAdjustTimeWindowForQuery(timeWindow time.Duration) time.Duration {
 	configMaxAge := autoscalers.GetDefaultMaxAge()
 	if configMaxAge > timeWindow {
 		timeWindow = configMaxAge
@@ -170,7 +235,7 @@ func getBatchedQueriesByTimeWindow(datadogMetrics []model.DatadogMetricInternal)
 	unique := make(map[string]struct{}, len(datadogMetrics))
 	for _, datadogMetric := range datadogMetrics {
 		query := datadogMetric.Query()
-		timeWindow := MaybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
+		timeWindow := maybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
 
 		key := query + "-" + timeWindow.String()
 		if _, found := unique[key]; !found {

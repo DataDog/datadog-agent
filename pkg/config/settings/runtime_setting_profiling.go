@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -19,28 +20,36 @@ type ProfilingRuntimeSetting struct {
 	SettingName string
 	Service     string
 
-	Config       config.ConfigReaderWriter
+	Config       config.ReaderWriter
 	ConfigPrefix string
 }
 
+// NewProfilingRuntimeSetting returns a new ProfilingRuntimeSetting
+func NewProfilingRuntimeSetting(settingName string, service string) *ProfilingRuntimeSetting {
+	return &ProfilingRuntimeSetting{
+		SettingName: settingName,
+		Service:     service,
+	}
+}
+
 // Description returns the runtime setting's description
-func (l ProfilingRuntimeSetting) Description() string {
+func (l *ProfilingRuntimeSetting) Description() string {
 	return "Enable/disable profiling on the agent, valid values are: true, false, restart"
 }
 
 // Hidden returns whether this setting is hidden from the list of runtime settings
-func (l ProfilingRuntimeSetting) Hidden() bool {
+func (l *ProfilingRuntimeSetting) Hidden() bool {
 	return true
 }
 
 // Name returns the name of the runtime setting
-func (l ProfilingRuntimeSetting) Name() string {
+func (l *ProfilingRuntimeSetting) Name() string {
 	return l.SettingName
 }
 
 // Get returns the current value of the runtime setting
-func (l ProfilingRuntimeSetting) Get() (interface{}, error) {
-	var cfg config.ConfigReaderWriter = config.Datadog
+func (l *ProfilingRuntimeSetting) Get() (interface{}, error) {
+	var cfg config.ReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
 	}
@@ -48,15 +57,15 @@ func (l ProfilingRuntimeSetting) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (l ProfilingRuntimeSetting) Set(v interface{}) error {
+func (l *ProfilingRuntimeSetting) Set(v interface{}, source model.Source) error {
 	var profile bool
 	var err error
 
 	if v, ok := v.(string); ok && strings.ToLower(v) == "restart" {
-		if err := l.Set(false); err != nil {
+		if err := l.Set(false, source); err != nil {
 			return err
 		}
-		return l.Set(true)
+		return l.Set(true, source)
 	}
 
 	profile, err = GetBool(v)
@@ -65,7 +74,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		return fmt.Errorf("Unsupported type for profile runtime setting: %v", err)
 	}
 
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
 	}
@@ -87,8 +96,12 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		// invocation, as many of these settings may have changed at runtime.
 		v, _ := version.Agent()
 
+		tags := cfg.GetStringSlice(l.ConfigPrefix + "internal_profiling.extra_tags")
+		tags = append(tags, fmt.Sprintf("version:%v", v))
+
 		settings := profiling.Settings{
 			ProfilingURL:         site,
+			Socket:               cfg.GetString(l.ConfigPrefix + "internal_profiling.unix_socket"),
 			Env:                  cfg.GetString(l.ConfigPrefix + "env"),
 			Service:              l.Service,
 			Period:               cfg.GetDuration(l.ConfigPrefix + "internal_profiling.period"),
@@ -97,15 +110,16 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			BlockProfileRate:     cfg.GetInt(l.ConfigPrefix + "internal_profiling.block_profile_rate"),
 			WithGoroutineProfile: cfg.GetBool(l.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"),
 			WithDeltaProfiles:    cfg.GetBool(l.ConfigPrefix + "internal_profiling.delta_profiles"),
-			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+			Tags:                 tags,
+			CustomAttributes:     cfg.GetStringSlice(l.ConfigPrefix + "internal_profiling.custom_attributes"),
 		}
 		err := profiling.Start(settings)
 		if err == nil {
-			cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", true)
+			cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", true, source)
 		}
 	} else {
 		profiling.Stop()
-		cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", false)
+		cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", false, source)
 	}
 
 	return nil

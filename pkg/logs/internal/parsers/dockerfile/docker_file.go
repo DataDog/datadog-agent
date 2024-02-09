@@ -42,16 +42,12 @@ type logLine struct {
 type dockerFileFormat struct{}
 
 // Parse implements Parser#Parse
-func (p *dockerFileFormat) Parse(data []byte) (parsers.Message, error) {
+func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error) {
 	var log *logLine
-	err := json.Unmarshal(data, &log)
+	err := json.Unmarshal(msg.GetContent(), &log)
 	if err != nil {
-		return parsers.Message{
-			Content:   data,
-			Status:    message.StatusInfo,
-			Timestamp: "",
-			IsPartial: false,
-		}, fmt.Errorf("cannot parse docker message, invalid JSON: %v", err)
+		msg.Status = message.StatusInfo
+		return msg, fmt.Errorf("cannot parse docker message, invalid JSON: %v", err)
 	}
 
 	var status string
@@ -74,12 +70,11 @@ func (p *dockerFileFormat) Parse(data []byte) (parsers.Message, error) {
 			partial = true
 		}
 	}
-	return parsers.Message{
-		Content:   content,
-		Status:    status,
-		Timestamp: log.Time,
-		IsPartial: partial,
-	}, nil
+	msg.SetContent(content)
+	msg.Status = status
+	msg.ParsingExtra.IsPartial = partial
+	msg.ParsingExtra.Timestamp = log.Time
+	return msg, nil
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine

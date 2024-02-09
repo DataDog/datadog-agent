@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package orchestrator
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -72,6 +74,7 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	setCacheInformationDCAMode(status)
 	setCollectionIsWorkingDCAMode(status)
 	setManifestBufferInformationDCAMode(status)
+	setSkippedResourcesInformationDCAMode(status)
 
 	// rewriting DCA Mode in case we are running in cluster check mode.
 	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && config.Datadog.GetBool("cluster_checks.enabled") {
@@ -125,7 +128,7 @@ func setCacheInformationDCAMode(status map[string]interface{}) {
 	cacheStats := make(map[string]stats)
 
 	// get cache efficiency
-	for _, node := range orchestrator.NodeTypes() {
+	for _, node := range pkgorchestratormodel.NodeTypes() {
 		if value, found := orchestrator.KubernetesResourceCache.Get(orchestrator.BuildStatsKey(node)); found {
 			orcStats := value.(orchestrator.CheckStats)
 			totalMiss := cacheMiss[orcStats.String()]
@@ -190,4 +193,21 @@ func setManifestBufferInformationDCAMode(status map[string]interface{}) {
 	delete(manifestBuffer, "BufferFlushed")
 	status["ManifestBuffer"] = manifestBuffer
 
+}
+
+func setSkippedResourcesInformationDCAMode(status map[string]interface{}) {
+	skippedResourcesJSON := []byte(expvar.Get("orchestrator-skipped-resources").String())
+	skippedResources := make(map[string]string)
+	err := json.Unmarshal(skippedResourcesJSON, &skippedResources)
+	if err != nil {
+		return
+	}
+
+	skippedResourcesFiltered := make(map[string]string)
+	for informerName, reason := range skippedResources {
+		if reason != "" {
+			skippedResourcesFiltered[informerName] = reason
+		}
+	}
+	status["SkippedResources"] = skippedResourcesFiltered
 }

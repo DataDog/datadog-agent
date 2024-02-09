@@ -4,6 +4,7 @@ Processes
 > PID: {{ .Pid }} NSPID: {{ .NsPid }} PPID: {{ .Command.Ppid }}
   Container ID: {{ .ContainerId }}
   Exe: {{ .Command.Exe }}
+  Command Name: {{ .Command.Comm }}
   Args:{{ range .Command.Args}} '{{.}}'{{ end }}
   Cwd: {{ .Command.Cwd }}
 {{- with .User }}

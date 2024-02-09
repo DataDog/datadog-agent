@@ -19,12 +19,6 @@ const (
 	DefaultServiceAccountCAPath    = DefaultServiceAccountPath + "/ca.crt"
 )
 
-// IsServiceAccountTokenAvailable returns if a service account token is available on disk
-func IsServiceAccountTokenAvailable() bool {
-	_, err := os.Stat(DefaultServiceAccountPath)
-	return err == nil
-}
-
 // GetBearerToken reads the serviceaccount token
 func GetBearerToken(authTokenPath string) (string, error) {
 	token, err := os.ReadFile(authTokenPath)
@@ -52,7 +46,7 @@ func GetCertificateAuthority(certPath string) (*x509.CertPool, error) {
 	}
 	caCertPool := x509.NewCertPool()
 	ok := caCertPool.AppendCertsFromPEM(caCert)
-	if ok == false {
+	if !ok {
 		return caCertPool, fmt.Errorf("fail to load certificate authority: %s", certPath)
 	}
 	return caCertPool, nil

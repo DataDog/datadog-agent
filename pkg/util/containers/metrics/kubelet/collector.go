@@ -13,84 +13,81 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 const (
+	collectorID       = "kubelet"
+	collectorPriority = 2
+
 	contStatsCachePrefix    = "cs-"
 	contNetStatsCachePrefix = "cns-"
 	refreshCacheKey         = "refresh"
 
-	kubeletCollectorID     = "kubelet"
 	kubeletCallTimeout     = 10 * time.Second
 	kubeletCacheGCInterval = 30 * time.Second
 )
 
 func init() {
-	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
-		ID: kubeletCollectorID,
-		// Lowest priority as Kubelet stats are less detailed as we don't rely on cAdvisor
-		Priority: 2,
-		// Only runtimes implementing the CRI interface
-		Runtimes: []string{provider.RuntimeNameCRIO, provider.RuntimeNameContainerd, provider.RuntimeNameDocker},
-		Factory: func() (provider.Collector, error) {
-			return newKubeletCollector()
+	provider.RegisterCollector(provider.CollectorFactory{
+		ID: collectorID,
+		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
+			return newKubeletCollector(cache)
 		},
-		DelegateCache: false,
 	})
 }
 
 type kubeletCollector struct {
 	kubeletClient kutil.KubeUtilInterface
-	metadataStore workloadmeta.Store
+	metadataStore workloadmeta.Component
 	statsCache    provider.Cache
 	refreshLock   sync.Mutex
 }
 
-func newKubeletCollector() (*kubeletCollector, error) {
+func newKubeletCollector(*provider.Cache) (provider.CollectorMetadata, error) {
+	var collectorMetadata provider.CollectorMetadata
+
 	if !config.IsFeaturePresent(config.Kubernetes) {
-		return nil, provider.ErrPermaFail
+		return collectorMetadata, provider.ErrPermaFail
 	}
 
 	client, err := kutil.GetKubeUtil()
 	if err != nil {
-		return nil, provider.ConvertRetrierErr(err)
+		return collectorMetadata, provider.ConvertRetrierErr(err)
 	}
 
-	return &kubeletCollector{
+	collector := &kubeletCollector{
 		kubeletClient: client,
 		statsCache:    *provider.NewCache(kubeletCacheGCInterval),
+		// TODO(components): stop using globals, rely on injected workloadmeta component.
 		metadataStore: workloadmeta.GetGlobalStore(),
+	}
+
+	collectors := &provider.Collectors{
+		Stats:   provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+		Network: provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+	}
+
+	return provider.CollectorMetadata{
+		ID: collectorID,
+		Collectors: provider.CollectorCatalog{
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), ""):                                 collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(provider.RuntimeFlavorKata)): collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRIO), ""):                                       collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameDocker), ""):                                     collectors,
+		},
 	}, nil
 }
 
-// ID returns the collector ID.
-func (kc *kubeletCollector) ID() string {
-	return kubeletCollectorID
-}
-
-// GetContainerIDForPID returns a container ID for given PID.
-// ("", nil) will be returned if no error but the containerd ID was not found.
-func (kc *kubeletCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
-	// Not implemented
-	return "", nil
-}
-
-// GetSelfContainerID returns the container ID for current container.
-// ("", nil) will be returned if not possible to get ID for current container.
-func (kc *kubeletCollector) GetSelfContainerID() (string, error) {
-	return "", nil
-}
-
 // GetContainerStats returns stats by container ID.
-func (kc *kubeletCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (kc *kubeletCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	currentTime := time.Now()
 
 	containerStats, found, err := kc.statsCache.Get(currentTime, contStatsCachePrefix+containerID, cacheValidity)
@@ -117,20 +114,8 @@ func (kc *kubeletCollector) GetContainerStats(containerNS, containerID string, c
 	return nil, nil
 }
 
-// GetContainerPIDStats returns pid stats by container ID.
-func (kc *kubeletCollector) GetContainerPIDStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerPIDStats, error) {
-	// Not available
-	return nil, nil
-}
-
-// GetContainerOpenFilesCount returns open files count by container ID.
-func (kc *kubeletCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
-	// Not available
-	return nil, nil
-}
-
 // GetContainerNetworkStats returns network stats by container ID.
-func (kc *kubeletCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (kc *kubeletCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	currentTime := time.Now()
 
 	containerNetworkStats, found, err := kc.statsCache.Get(currentTime, contNetStatsCachePrefix+containerID, cacheValidity)
@@ -218,8 +203,9 @@ func (kc *kubeletCollector) processStatsSummary(currentTime time.Time, statsSumm
 		}
 
 		// In stats/summary we only have container name, need to remap to CID
-		nameToCID := make(map[string]string, len(metaPod.Containers))
-		for _, metaContainer := range metaPod.Containers {
+		wlmContainers := metaPod.GetAllContainers()
+		nameToCID := make(map[string]string, len(wlmContainers))
+		for _, metaContainer := range wlmContainers {
 			nameToCID[metaContainer.Name] = metaContainer.ID
 		}
 
@@ -255,6 +241,8 @@ func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outConta
 		outContainerStats.Memory = &provider.ContainerMemStats{
 			UsageTotal: pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.UsageBytes),
 			RSS:        pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.RSSBytes),
+			Pgfault:    pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.PageFaults),
+			Pgmajfault: pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.MajorPageFaults),
 		}
 
 		// On Linux `RSS` is set. On Windows only `WorkingSetBytes` is set

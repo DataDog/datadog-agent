@@ -5,6 +5,8 @@
 
 //go:build kubeapiserver
 
+// Package common provides common functionality to interact with a Kubernetes
+// cluster.
 package common
 
 import (

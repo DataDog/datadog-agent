@@ -7,32 +7,39 @@ package settings
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // ProfilingGoroutines wraps runtime.SetBlockProfileRate setting
 type ProfilingGoroutines struct {
-	Config       config.ConfigReaderWriter
+	Config       config.ReaderWriter
 	ConfigPrefix string
+	ConfigKey    string
+}
+
+// NewProfilingGoroutines returns a new ProfilingGoroutines
+func NewProfilingGoroutines() *ProfilingGoroutines {
+	return &ProfilingGoroutines{ConfigKey: "internal_profiling_goroutines"}
 }
 
 // Name returns the name of the runtime setting
-func (r ProfilingGoroutines) Name() string {
-	return "internal_profiling_goroutines"
+func (r *ProfilingGoroutines) Name() string {
+	return r.ConfigKey
 }
 
 // Description returns the runtime setting's description
-func (r ProfilingGoroutines) Description() string {
+func (r *ProfilingGoroutines) Description() string {
 	return "This setting controls whether internal profiling will collect goroutine stacktraces (requires profiling restart)"
 }
 
 // Hidden returns whether this setting is hidden from the list of runtime settings
-func (r ProfilingGoroutines) Hidden() bool {
+func (r *ProfilingGoroutines) Hidden() bool {
 	return true
 }
 
 // Get returns the current value of the runtime setting
-func (r ProfilingGoroutines) Get() (interface{}, error) {
-	var cfg config.ConfigReaderWriter = config.Datadog
+func (r *ProfilingGoroutines) Get() (interface{}, error) {
+	var cfg config.ReaderWriter = config.Datadog
 	if r.Config != nil {
 		cfg = r.Config
 	}
@@ -40,17 +47,17 @@ func (r ProfilingGoroutines) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (r ProfilingGoroutines) Set(value interface{}) error {
+func (r *ProfilingGoroutines) Set(value interface{}, source model.Source) error {
 	enabled, err := GetBool(value)
 	if err != nil {
 		return err
 	}
 
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if r.Config != nil {
 		cfg = r.Config
 	}
-	cfg.Set(r.ConfigPrefix+"internal_profiling.enable_goroutine_stacktraces", enabled)
+	cfg.Set(r.ConfigPrefix+"internal_profiling.enable_goroutine_stacktraces", enabled, source)
 
 	return nil
 }

@@ -8,7 +8,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE0(splice) {
+HOOK_SYSCALL_ENTRY0(splice) {
     struct policy_t policy = fetch_policy(EVENT_SPLICE);
     if (is_discarded_by_process(policy.mode, EVENT_SPLICE)) {
         return 0;
@@ -33,21 +33,21 @@ int hook_get_pipe_info(ctx_t *ctx) {
     if (!syscall->splice.file_found) {
         struct file *f = (struct file*) CTX_PARM1(ctx);
         syscall->splice.dentry = get_file_dentry(f);
-        set_file_inode(syscall->splice.dentry, &syscall->splice.file, 0);
         syscall->splice.file.path_key.mount_id = get_file_mount_id(f);
+        set_file_inode(syscall->splice.dentry, &syscall->splice.file, 0);
     }
 
     return 0;
 }
 
-SEC("kretprobe/get_pipe_info")
-int kretprobe_get_pipe_info(struct pt_regs *ctx) {
+HOOK_EXIT("get_pipe_info")
+int rethook_get_pipe_info(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SPLICE);
     if (!syscall) {
         return 0;
     }
 
-    struct pipe_inode_info *info = (struct pipe_inode_info *)PT_REGS_RC(ctx);
+    struct pipe_inode_info *info = (struct pipe_inode_info *)CTX_PARMRET(ctx, 2);
     if (info == NULL) {
         // this is not a pipe, so most likely a file, resolve its path now
         syscall->splice.file_found = 1;
@@ -57,7 +57,7 @@ int kretprobe_get_pipe_info(struct pt_regs *ctx) {
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
 
-        resolve_dentry(ctx, DR_KPROBE);
+        resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
         // if the tail call fails, we need to pop the syscall cache entry
         pop_syscall(EVENT_SPLICE);
@@ -91,7 +91,7 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
     }
 
     if (filter_syscall(syscall, splice_approvers)) {
-        return discard_syscall(syscall);
+        return 0;
     }
 
     struct splice_event_t event = {
@@ -100,7 +100,7 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
         .pipe_entry_flag = syscall->splice.pipe_entry_flag,
         .pipe_exit_flag = syscall->splice.pipe_exit_flag,
     };
-    fill_file_metadata(syscall->splice.dentry, &event.file.metadata);
+    fill_file(syscall->splice.dentry, &event.file);
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
@@ -111,8 +111,8 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(splice) {
-    return sys_splice_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(splice) {
+    return sys_splice_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 SEC("tracepoint/handle_sys_splice_exit")

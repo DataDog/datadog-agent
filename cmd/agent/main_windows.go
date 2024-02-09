@@ -7,11 +7,8 @@ package main
 
 import (
 	_ "expvar"
-	"fmt"
 	_ "net/http/pprof"
 	"os"
-
-	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -19,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
 func main() {
@@ -26,16 +24,9 @@ func main() {
 	// if command line arguments are supplied, even in a non interactive session,
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.
-	if len(os.Args) == 1 {
-		isIntSess, err := svc.IsAnInteractiveSession()
-		if err != nil {
-			fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
-		}
-		if !isIntSess {
-			common.EnableLoggingToFile()
-			service.RunService(false)
-			return
-		}
+	if len(os.Args) == 1 && servicemain.RunningAsWindowsService() {
+		servicemain.Run(service.NewWindowsService())
+		return
 	}
 	defer log.Flush()
 

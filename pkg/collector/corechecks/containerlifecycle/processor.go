@@ -12,11 +12,11 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -25,10 +25,10 @@ type processor struct {
 	sender          sender.Sender
 	podsQueue       *queue
 	containersQueue *queue
-	store           workloadmeta.Store
+	store           workloadmeta.Component
 }
 
-func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Store) *processor {
+func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component) *processor {
 	return &processor{
 		sender:          sender,
 		podsQueue:       newQueue(chunkSize),
@@ -44,7 +44,7 @@ func (p *processor) start(ctx context.Context, pollInterval time.Duration) {
 
 // processEvents handles workloadmeta events, supports pods and container unset events.
 func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
-	close(evBundle.Ch)
+	evBundle.Acknowledge()
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
@@ -190,7 +190,7 @@ func (p *processor) containerLifecycleEvent(msgs []*contlcycle.EventsPayload) {
 			continue
 		}
 
-		p.sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerLifecycle)
+		p.sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerLifecycle)
 	}
 }
 

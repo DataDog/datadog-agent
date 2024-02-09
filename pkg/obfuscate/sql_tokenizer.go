@@ -178,6 +178,10 @@ const (
 	DBMSSQLServer = "mssql"
 	// DBMSPostgres is a PostgreSQL Server
 	DBMSPostgres = "postgresql"
+	// DBMSMySQL is a MySQL Server
+	DBMSMySQL = "mysql"
+	// DBMSOracle is an Oracle Server
+	DBMSOracle = "oracle"
 )
 
 const escapeCharacter = '\\'
@@ -475,6 +479,18 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				// want to cover for this use-case too (e.g. $1$some text$1$).
 				return tkn.scanPreparedStatement('$')
 			}
+
+			// A special case for a string starts with single $ but does not end with $.
+			// For example in SQLServer, you can have "MG..... OUTPUT $action, inserted.*"
+			// $action in the OUTPUT clause of a MERGE statement is a special identifier
+			// that returns one of three values for each row: 'INSERT', 'UPDATE', or 'DELETE'.
+			// See: https://docs.microsoft.com/en-us/sql/t-sql/statements/merge-transact-sql?view=sql-server-ver15
+			if tkn.cfg.DBMS == DBMSSQLServer && isLetter(tkn.lastChar) {
+				// When the DBMS is SQLServer and the last character is a letter,
+				// we should scan an identifier instead of a string.
+				return tkn.scanIdentifier()
+			}
+
 			kind, tok := tkn.scanDollarQuotedString()
 			if kind == DollarQuotedFunc {
 				// this is considered an embedded query, we should try and
@@ -594,6 +610,7 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	return ID, t
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte) {
 	for tkn.advance(); tkn.lastChar != ')' && tkn.lastChar != EndChar; tkn.advance() {
 	}
@@ -606,6 +623,7 @@ func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte)
 	return Variable, tkn.bytes()
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (tkn *SQLTokenizer) scanFormatParameter(prefix rune) (TokenKind, []byte) {
 	tkn.advance()
 	return Variable, tkn.bytes()
@@ -659,6 +677,7 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 	return DollarQuotedString, buf.Bytes()
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) {
 	// a prepared statement expect a digit identifier like $1
 	if !isDigit(tkn.lastChar) {
@@ -676,6 +695,7 @@ func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) 
 	return PreparedStatement, buff
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (TokenKind, []byte) {
 	for tkn.lastChar != '}' && tkn.lastChar != EndChar {
 		tkn.advance()
@@ -805,6 +825,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 	return kind, buf.Bytes()
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (tkn *SQLTokenizer) scanCommentType1(prefix string) (TokenKind, []byte) {
 	for tkn.lastChar != EndChar {
 		if tkn.lastChar == '\n' {

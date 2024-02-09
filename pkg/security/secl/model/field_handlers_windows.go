@@ -5,9 +5,12 @@
 // Code generated - DO NOT EDIT.
 
 //go:build windows
-// +build windows
 
 package model
+
+import (
+	"time"
+)
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
 func (ev *Event) ResolveFields() {
@@ -20,18 +23,115 @@ func (ev *Event) ResolveFieldsForAD() {
 }
 func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
+	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
+	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
+	}
+	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
+	_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+	_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveUser(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
+	_ = ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
-	case "":
-		_ = ev.FieldHandlers.ResolveEventTimestamp(ev)
+	case "exec":
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
+	case "exit":
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 	}
 }
 
 type FieldHandlers interface {
-	ResolveEventTimestamp(ev *Event) int
+	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
+	ResolveContainerID(ev *Event, e *ContainerContext) string
+	ResolveContainerTags(ev *Event, e *ContainerContext) []string
+	ResolveEventTime(ev *Event, e *BaseEvent) time.Time
+	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
+	ResolveFileBasename(ev *Event, e *FileEvent) string
+	ResolveFilePath(ev *Event, e *FileEvent) string
+	ResolveProcessCmdLine(ev *Event, e *Process) string
+	ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string
+	ResolveProcessCreatedAt(ev *Event, e *Process) int
+	ResolveProcessEnvp(ev *Event, e *Process) []string
+	ResolveProcessEnvs(ev *Event, e *Process) []string
+	ResolveService(ev *Event, e *BaseEvent) string
+	ResolveUser(ev *Event, e *Process) string
 	// custom handlers not tied to any fields
 	ExtraFieldHandlers
 }
 type DefaultFieldHandlers struct{}
 
-func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) int { return int(ev.TimestampRaw) }
+func (dfh *DefaultFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
+	return int(e.CreatedAt)
+}
+func (dfh *DefaultFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string {
+	return e.ID
+}
+func (dfh *DefaultFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
+	return e.Tags
+}
+func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event, e *BaseEvent) time.Time {
+	return e.Timestamp
+}
+func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event, e *BaseEvent) int {
+	return int(e.TimestampRaw)
+}
+func (dfh *DefaultFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) string {
+	return e.BasenameStr
+}
+func (dfh *DefaultFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
+	return e.PathnameStr
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessCmdLine(ev *Event, e *Process) string {
+	return e.CmdLine
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string {
+	return e.CmdLineScrubbed
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
+	return int(e.CreatedAt)
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string { return e.Envp }
+func (dfh *DefaultFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string { return e.Envs }
+func (dfh *DefaultFieldHandlers) ResolveService(ev *Event, e *BaseEvent) string     { return e.Service }
+func (dfh *DefaultFieldHandlers) ResolveUser(ev *Event, e *Process) string          { return e.User }

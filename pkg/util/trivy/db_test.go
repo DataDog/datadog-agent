@@ -64,7 +64,7 @@ func TestBoltDB_Delete(t *testing.T) {
 	deletedValues := 0
 	keysToDelete := []string{"key1", "key3"}
 	err = db.Delete(keysToDelete, func(_ string, _ []byte) error {
-		deletedValues += 1
+		deletedValues++
 		return nil
 	})
 	require.NoError(t, err)

@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from invoke.exceptions import Exit
 
-from .remote_api import APIError, RemoteAPI
+from tasks.libs.common.remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
 
@@ -120,6 +120,13 @@ class Gitlab(RemoteAPI):
         Cancels a given pipeline.
         """
         path = f"/projects/{quote(self.project_name, safe='')}/pipelines/{pipeline_id}/cancel"
+        return self.make_request(path, json_output=True, method="POST")
+
+    def cancel_job(self, job_id):
+        """
+        Cancels a given job
+        """
+        path = f"/projects/{quote(self.project_name, safe='')}/jobs/{job_id}/cancel"
         return self.make_request(path, json_output=True, method="POST")
 
     def commit(self, commit_sha):

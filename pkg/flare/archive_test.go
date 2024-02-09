@@ -24,9 +24,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func TestGoRoutines(t *testing.T) {
@@ -43,7 +43,7 @@ func TestGoRoutines(t *testing.T) {
 }
 
 func TestIncludeSystemProbeConfig(t *testing.T) {
-	common.SetupConfigWithWarnings("./test/datadog-agent.yaml", "")
+	common.SetupConfigForTest("./test/datadog-agent.yaml")
 	// create system-probe.yaml file because it's in .gitignore
 	_, err := os.Create("./test/system-probe.yaml")
 	require.NoError(t, err, "couldn't create system-probe.yaml")
@@ -57,7 +57,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 }
 
 func TestIncludeConfigFiles(t *testing.T) {
-	common.SetupConfigWithWarnings("./test", "")
+	common.SetupConfigForTest("./test")
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
@@ -68,7 +68,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 }
 
 func TestIncludeConfigFilesWithPrefix(t *testing.T) {
-	common.SetupConfigWithWarnings("./test", "")
+	common.SetupConfigForTest("./test")
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getConfigFiles(mock.Fb, searchPaths{"prefix": "./test/confd"})
@@ -88,7 +88,7 @@ func TestRegistryJSON(t *testing.T) {
 	srcDir := createTestFile(t, "registry.json")
 
 	confMock := config.Mock(t)
-	confMock.Set("logs_config.run_path", filepath.Dir(srcDir))
+	confMock.SetWithoutSource("logs_config.run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getRegistryJSON(mock.Fb)
@@ -103,9 +103,9 @@ func setupIPCAddress(t *testing.T, URL string) *config.MockConfig {
 	require.NoError(t, err)
 
 	confMock := config.Mock(t)
-	confMock.Set("ipc_address", host)
-	confMock.Set("cmd_port", port)
-	confMock.Set("process_config.cmd_port", port)
+	confMock.SetWithoutSource("cmd_host", host)
+	confMock.SetWithoutSource("cmd_port", port)
+	confMock.SetWithoutSource("process_config.cmd_port", port)
 
 	return confMock
 }
@@ -172,7 +172,7 @@ func TestVersionHistory(t *testing.T) {
 	srcDir := createTestFile(t, "version-history.json")
 
 	confMock := config.Mock(t)
-	confMock.Set("run_path", filepath.Dir(srcDir))
+	confMock.SetWithoutSource("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getVersionHistory(mock.Fb)
@@ -275,9 +275,9 @@ func TestProcessAgentChecks(t *testing.T) {
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.process_collection.enabled", true)
-		cfg.Set("process_config.container_collection.enabled", true)
-		cfg.Set("process_config.process_discovery.enabled", true)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 
 		handler := func(w http.ResponseWriter, r *http.Request) {
 			var err error

@@ -27,6 +27,7 @@ type PIDFD C.pid_fd_t
 type UDPRecvSock C.udp_recv_sock_t
 type BindSyscallArgs C.bind_syscall_args_t
 type ProtocolStack C.protocol_stack_t
+type ProtocolStackWrapper C.protocol_stack_wrapper_t
 
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64
@@ -58,4 +59,5 @@ type ClassificationProgram = uint32
 const (
 	ClassificationQueues ClassificationProgram = C.CLASSIFICATION_QUEUES_PROG
 	ClassificationDBs    ClassificationProgram = C.CLASSIFICATION_DBS_PROG
+	ClassificationGRPC   ClassificationProgram = C.CLASSIFICATION_GRPC_PROG
 )

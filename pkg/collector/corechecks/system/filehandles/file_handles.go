@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build !windows && !freebsd
+//go:build !windows && !freebsd && !darwin
 
 package filehandles
 
@@ -15,9 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-const fileHandlesCheckName = "file_handle"
+// CheckName is the name of the check
+const CheckName = "file_handle"
 
 // For testing
 var fileNrHandle = "/proc/sys/fs/file-nr"
@@ -86,12 +88,13 @@ func (c *fhCheck) Run() error {
 	return nil
 }
 
-func fhFactory() check.Check {
-	return &fhCheck{
-		CheckBase: core.NewCheckBase(fileHandlesCheckName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(fileHandlesCheckName, fhFactory)
+func newCheck() check.Check {
+	return &fhCheck{
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }

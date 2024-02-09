@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package tcp
 
 import (
@@ -19,8 +20,8 @@ import (
 
 	"golang.org/x/net/proxy"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,12 +36,14 @@ type ConnectionManager struct {
 	endpoint  config.Endpoint
 	mutex     sync.Mutex
 	firstConn sync.Once
+	status    statusinterface.Status
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(endpoint config.Endpoint) *ConnectionManager {
+func NewConnectionManager(endpoint config.Endpoint, status statusinterface.Status) *ConnectionManager {
 	return &ConnectionManager{
 		endpoint: endpoint,
+		status:   status,
 	}
 }
 
@@ -68,7 +71,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 	var err error
 	for {
 		if err != nil {
-			status.AddGlobalWarning(statusConnectionError, fmt.Sprintf("Connection to the log intake cannot be established: %v", err))
+			cm.status.AddGlobalWarning(statusConnectionError, fmt.Sprintf("Connection to the log intake cannot be established: %v", err))
 		}
 		if retries > 0 {
 			log.Debugf("Connect attempt #%d", retries)
@@ -107,7 +110,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 		log.Debugf("connected to %v", cm.address())
 
-		if cm.endpoint.UseSSL {
+		if cm.endpoint.GetUseSSL() {
 			sslConn := tls.Client(conn, &tls.Config{
 				ServerName: cm.endpoint.Host,
 			})
@@ -121,7 +124,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 
 		go cm.handleServerClose(conn)
-		status.RemoveGlobalWarning(statusConnectionError)
+		cm.status.RemoveGlobalWarning(statusConnectionError)
 		return conn, nil
 	}
 }

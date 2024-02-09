@@ -5,22 +5,27 @@
 
 //go:build linux && trivy
 
+// Package sbom holds sbom related files
 package sbom
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -38,28 +43,26 @@ const SBOMSource = "runtime-security-agent"
 
 const maxSBOMGenerationRetries = 3
 
+// SBOM defines an SBOM
 type SBOM struct {
 	sync.RWMutex
 
-	report *trivy.TrivyReport
-	files  map[string]*Package
+	report *trivy.Report
+	files  map[uint64]*Package
 
 	Host        string
 	Source      string
 	Service     string
 	ContainerID string
+	workloadKey string
 
 	deleted        *atomic.Bool
 	scanSuccessful *atomic.Bool
 	cgroup         *cgroupModel.CacheEntry
 }
 
-// getWorkloadKey (thread unsafe) returns a key to indentify the workload
-func (s *SBOM) getWorkloadKey() string {
-	if s.cgroup == nil {
-		return ""
-	}
-	return s.cgroup.WorkloadSelector.Image + ":" + s.cgroup.WorkloadSelector.Tag
+func getWorkloadKey(selector *cgroupModel.WorkloadSelector) string {
+	return selector.Image + ":" + selector.Tag
 }
 
 // IsComputed returns true if SBOM was successfully generated
@@ -79,12 +82,13 @@ func (s *SBOM) reset() {
 }
 
 // NewSBOM returns a new empty instance of SBOM
-func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEntry) (*SBOM, error) {
+func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
 	return &SBOM{
-		files:          make(map[string]*Package),
+		files:          make(map[uint64]*Package),
 		Host:           host,
 		Source:         source,
 		ContainerID:    id,
+		workloadKey:    workloadKey,
 		deleted:        atomic.NewBool(false),
 		scanSuccessful: atomic.NewBool(false),
 		cgroup:         cgroup,
@@ -100,6 +104,7 @@ type Resolver struct {
 	scannerChan    chan *SBOM
 	statsdClient   statsd.ClientInterface
 	sbomScanner    *sbomscanner.Scanner
+	hostRootDevice uint64
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -127,12 +132,23 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
 
+	hostProcRootPath := utils.ProcRootPath(1)
+	fi, err := os.Stat(hostProcRootPath)
+	if err != nil {
+		return nil, fmt.Errorf("stat failed for `%s`: couldn't stat host proc root path: %w", hostProcRootPath, err)
+	}
+	stat, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil, fmt.Errorf("stat failed for `%s`: couldn't stat host proc root path", hostProcRootPath)
+	}
+
 	resolver := &Resolver{
 		statsdClient:          statsdClient,
 		sboms:                 make(map[string]*SBOM),
 		sbomsCache:            sbomsCache,
 		scannerChan:           make(chan *SBOM, 100),
 		sbomScanner:           sbomScanner,
+		hostRootDevice:        stat.Dev,
 		sbomGenerations:       atomic.NewUint64(0),
 		sbomsCacheHit:         atomic.NewUint64(0),
 		sbomsCacheMiss:        atomic.NewUint64(0),
@@ -157,7 +173,7 @@ func (r *Resolver) prepareContextTags() {
 	r.contextTags = append(r.contextTags, fmt.Sprintf("host:%s", r.hostname))
 
 	// merge tags from config
-	for _, tag := range coreconfig.GetConfiguredTags(coreconfig.Datadog, true) {
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}
@@ -187,7 +203,7 @@ func (r *Resolver) Start(ctx context.Context) {
 			case sbom := <-r.scannerChan:
 				if err := retry.Do(func() error {
 					return r.analyzeWorkload(sbom)
-				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(20*time.Millisecond)); err != nil {
+				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond)); err != nil {
 					seclog.Errorf(err.Error())
 				}
 			}
@@ -216,7 +232,7 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 
 	seclog.Infof("SBOM successfully generated from %s", root)
 
-	trivyReport, ok := result.Report.(*trivy.TrivyReport)
+	trivyReport, ok := result.Report.(*trivy.Report)
 	if !ok {
 		return fmt.Errorf("failed to convert report for %s", root)
 	}
@@ -236,6 +252,14 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 		return nil
 	}
 
+	// bail out if the workload has been analyzed while queued up
+	r.sbomsCacheLock.RLock()
+	if r.sbomsCache.Contains(sbom.workloadKey) {
+		r.sbomsCacheLock.RUnlock()
+		return nil
+	}
+	r.sbomsCacheLock.RUnlock()
+
 	var lastErr error
 	var scanned bool
 	for _, rootCandidatePID := range sbom.cgroup.GetPIDs() {
@@ -252,13 +276,27 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 			continue
 		}
 
-		lastErr = r.generateSBOM(utils.ProcRootPath(int32(rootCandidatePID)), sbom)
+		containerProcRootPath := utils.ProcRootPath(rootCandidatePID)
+		if sbom.ContainerID != "" {
+			fi, err := os.Stat(containerProcRootPath)
+			if err != nil {
+				return fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path: %w", containerProcRootPath, err)
+			}
+			stat, ok := fi.Sys().(*syscall.Stat_t)
+			if !ok {
+				return fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path", containerProcRootPath)
+			}
+			if stat.Dev == r.hostRootDevice {
+				return fmt.Errorf("couldn't generate sbom: filesystem of container '%s' matches the host root filesystem", sbom.ContainerID)
+			}
+		}
+
+		lastErr = r.generateSBOM(containerProcRootPath, sbom)
 		if lastErr == nil {
 			scanned = true
 			break
-		} else {
-			seclog.Errorf("couldn't generate SBOM: %v", lastErr)
 		}
+		seclog.Errorf("couldn't generate SBOM: %v", lastErr)
 	}
 	if lastErr != nil {
 		return lastErr
@@ -268,7 +306,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	}
 
 	// cleanup file cache
-	sbom.files = make(map[string]*Package)
+	sbom.files = make(map[uint64]*Package)
 
 	// build file cache
 	for _, result := range sbom.report.Results {
@@ -280,7 +318,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 			}
 			for _, file := range resultPkg.SystemInstalledFiles {
 				seclog.Tracef("indexing %s as %+v", file, pkg)
-				sbom.files[file] = pkg
+				sbom.files[murmur3.StringSum64(file)] = pkg
 			}
 		}
 	}
@@ -290,6 +328,11 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 
 	// mark the SBOM ass successful
 	sbom.scanSuccessful.Store(true)
+
+	// add to cache
+	r.sbomsCacheLock.Lock()
+	r.sbomsCache.Add(sbom.workloadKey, sbom)
+	r.sbomsCacheLock.Unlock()
 
 	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, len(sbom.files))
 	return nil
@@ -308,9 +351,9 @@ func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Pa
 	sbom.Lock()
 	defer sbom.Unlock()
 
-	pkg := sbom.files[file.PathnameStr]
+	pkg := sbom.files[murmur3.StringSum64(file.PathnameStr)]
 	if pkg == nil && strings.HasPrefix(file.PathnameStr, "/usr") {
-		pkg = sbom.files[file.PathnameStr[4:]]
+		pkg = sbom.files[murmur3.StringSum64(file.PathnameStr[4:])]
 	}
 
 	return pkg
@@ -318,8 +361,8 @@ func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Pa
 
 // newWorkloadEntry (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache
 // entry
-func (r *Resolver) newWorkloadEntry(id string, cgroup *cgroupModel.CacheEntry) (*SBOM, error) {
-	sbom, err := NewSBOM(r.hostname, r.source, id, cgroup)
+func (r *Resolver) newWorkloadEntry(id string, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
+	sbom, err := NewSBOM(r.hostname, r.source, id, cgroup, workloadKey)
 	if err != nil {
 		return nil, err
 	}
@@ -342,15 +385,13 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	r.sbomsCacheLock.Lock()
 	defer r.sbomsCacheLock.Unlock()
 
-	if workloadKey := sbom.getWorkloadKey(); workloadKey != "" {
-		cachedSBOM, ok := r.sbomsCache.Get(workloadKey)
-		if ok {
-			// copy report and file cache (keeping a reference is fine, we won't be modifying the content)
-			sbom.files = cachedSBOM.files
-			sbom.report = cachedSBOM.report
-			r.sbomsCacheHit.Inc()
-			return
-		}
+	cachedSBOM, ok := r.sbomsCache.Get(sbom.workloadKey)
+	if ok {
+		// copy report and file cache (keeping a reference is fine, we won't be modifying the content)
+		sbom.files = cachedSBOM.files
+		sbom.report = cachedSBOM.report
+		r.sbomsCacheHit.Inc()
+		return
 	}
 	r.sbomsCacheMiss.Inc()
 
@@ -362,15 +403,15 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 }
 
 // OnWorkloadSelectorResolvedEvent is used to handle the creation of a new cgroup with its resolved tags
-func (r *Resolver) OnWorkloadSelectorResolvedEvent(sbom *cgroupModel.CacheEntry) {
-	r.Retain(sbom.ID, sbom)
-}
-
-// Retain increments the reference counter of the SBOM of a sbom
-func (r *Resolver) Retain(id string, cgroup *cgroupModel.CacheEntry) {
+func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntry) {
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 
+	if cgroup == nil {
+		return
+	}
+
+	id := cgroup.ID
 	// We don't scan hosts for now
 	if len(id) == 0 {
 		return
@@ -378,12 +419,14 @@ func (r *Resolver) Retain(id string, cgroup *cgroupModel.CacheEntry) {
 
 	_, ok := r.sboms[id]
 	if !ok {
-		sbom, err := r.newWorkloadEntry(id, cgroup)
+		workloadKey := getWorkloadKey(cgroup.GetWorkloadSelectorCopy())
+		sbom, err := r.newWorkloadEntry(id, cgroup, workloadKey)
 		if err != nil {
 			seclog.Errorf("couldn't create new SBOM entry for sbom '%s': %v", id, err)
 		}
 		r.queueWorkload(sbom)
 	}
+	//nolint:gosimple // TODO(SEC) Fix gosimple linter
 	return
 }
 
@@ -396,11 +439,11 @@ func (r *Resolver) GetWorkload(id string) *SBOM {
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
-func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
-	r.Delete(sbom.ID)
+func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
+	r.Delete(cgroup.ID)
 }
 
-// Delete removes the SBOM of the provided cgroup
+// Delete removes the SBOM of the provided cgroup id
 func (r *Resolver) Delete(id string) {
 	sbom := r.GetWorkload(id)
 	if sbom == nil {
@@ -428,8 +471,8 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 		return
 	}
 
-	// compute sbom key before reset
-	sbomKey := sbom.getWorkloadKey()
+	// save the sbom key before reset
+	sbomKey := sbom.workloadKey
 
 	// cleanup and insert SBOM in cache
 	sbom.reset()
@@ -440,6 +483,7 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	r.sbomsCache.Add(sbomKey, sbom)
 }
 
+// SendStats sends stats
 func (r *Resolver) SendStats() error {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()

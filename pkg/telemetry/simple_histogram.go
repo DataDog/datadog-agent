@@ -6,13 +6,12 @@
 package telemetry
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 // SimpleHistogram tracks how many times something is happening.
 type SimpleHistogram interface {
-	// Observe the value to the Histogram value.
-	Observe(value float64)
+	telemetryComponent.SimpleHistogram
 }
 
 // NewSimpleHistogram creates a new SimpleHistogram with default options.
@@ -22,16 +21,5 @@ func NewSimpleHistogram(subsystem, name, help string, buckets []float64) SimpleH
 
 // NewSimpleHistogramWithOpts creates a new SimpleHistogram.
 func NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts Options) SimpleHistogram {
-	name = opts.NameWithSeparator(subsystem, name)
-
-	pc := prometheus.NewHistogram(prometheus.HistogramOpts{
-		Subsystem: subsystem,
-		Name:      name,
-		Help:      help,
-		Buckets:   buckets,
-	})
-
-	telemetryRegistry.MustRegister(pc)
-
-	return pc
+	return telemetryComponent.GetCompatComponent().NewSimpleHistogramWithOpts(subsystem, name, help, buckets, telemetryComponent.Options(opts))
 }

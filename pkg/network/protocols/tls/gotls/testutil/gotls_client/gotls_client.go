@@ -3,48 +3,56 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package main is a simple client for the gotls_server.
 package main
 
 import (
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 )
 
 func main() {
-	if len(os.Args) < 3 {
-		log.Fatalf("usage: %s <server_addr> <number_of_requests>", os.Args[0])
+	useHTTP2 := flag.Bool("http2", false, "enable HTTP2")
+	flag.Parse()
+
+	args := flag.Args()
+	if len(args) < 2 {
+		log.Fatalf("usage: %s <server_addr> <number_of_requests> [optional -http2]", os.Args[0])
 	}
 
-	serverAddr := os.Args[1]
-	reqCount, err := strconv.Atoi(os.Args[2])
+	serverAddr := args[0]
+	reqCount, err := strconv.Atoi(args[1])
 	if err != nil || reqCount < 0 {
-		log.Fatalf("invalid value %q for number of request", os.Args[2])
+		log.Fatalf("invalid value %q for number of requests", args[1])
 	}
 
-	client := http.Client{
-		Transport: &http.Transport{
-			ForceAttemptHTTP2: false,
-			TLSNextProto:      make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+	transport := &http.Transport{
+		ForceAttemptHTTP2: *useHTTP2,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
 		},
 	}
 
+	if !*useHTTP2 {
+		transport.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)
+	}
+
+	client := http.Client{
+		Transport: transport,
+	}
+
+	defer client.CloseIdleConnections()
 	in := make([]byte, 1)
 	_, err = io.ReadFull(os.Stdin, in)
 	if err != nil {
 		log.Fatalf("could not read from stdin: %s", err)
 	}
-
-	// Needed to give time to the tracer to hook GoTLS functions
-	time.Sleep(5 * time.Second)
 
 	for i := 0; i < reqCount; i++ {
 		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, http.StatusOK, i), nil)
@@ -57,7 +65,7 @@ func main() {
 			log.Fatalf("could not do HTTPS request: %s", err)
 		}
 
-		_, err = io.ReadAll(resp.Body)
+		_, err = io.Copy(io.Discard, resp.Body)
 		if err != nil {
 			log.Fatalf("could not read response body: %s", err)
 		}

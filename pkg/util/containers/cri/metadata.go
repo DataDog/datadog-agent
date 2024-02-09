@@ -7,22 +7,14 @@
 
 package cri
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
-)
-
-func init() {
-	container.RegisterMetadataProvider("cri", getMetadata)
-}
-
-func getMetadata() (map[string]string, error) {
-	metadata := make(map[string]string)
+// GetMetadata returns the metadata for CRI runtime such as cri_name and cri_version.
+func GetMetadata() (map[string]string, error) {
 	cu, err := GetUtil()
 	if err != nil {
-		return metadata, err
+		return nil, err
 	}
-	metadata["cri_name"] = cu.GetRuntime()
-	metadata["cri_version"] = cu.GetRuntimeVersion()
-
-	return metadata, nil
+	return map[string]string{
+		"cri_name":    cu.GetRuntime(),
+		"cri_version": cu.GetRuntimeVersion(),
+	}, nil
 }
