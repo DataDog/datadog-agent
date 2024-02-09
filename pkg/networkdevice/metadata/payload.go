@@ -137,7 +137,7 @@ type NetworkPathHop struct {
 }
 
 type NetworkPathSource struct {
-	AgentHostname string `json:"agent_hostname"`
+	Hostname string `json:"hostname"`
 }
 
 type NetworkPathDestination struct {

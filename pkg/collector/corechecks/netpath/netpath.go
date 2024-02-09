@@ -196,7 +196,7 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 	tr := metadata.NetworkPath{
 		Timestamp: time.Now().UnixMilli(),
 		Source: metadata.NetworkPathSource{
-			AgentHostname: hname,
+			Hostname: hname,
 		},
 		Destination: metadata.NetworkPathDestination{
 			Hostname: destinationHost,
@@ -464,7 +464,7 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 	traceroutePath := metadata.NetworkPath{
 		Timestamp: time.Now().UnixMilli(),
 		Source: metadata.NetworkPathSource{
-			AgentHostname: hname,
+			Hostname: hname,
 		},
 		Destination: metadata.NetworkPathDestination{
 			Hostname:  destinationHost,
