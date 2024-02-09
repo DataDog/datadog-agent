@@ -11,12 +11,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
@@ -29,8 +31,9 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
-	Log    log.Component
-	Config config.Component
+	Log      log.Component
+	Config   config.Component
+	Hostname hostname.Component
 }
 
 type diagnoseSenderManager struct {
@@ -49,7 +52,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 		return senderManager, nil
 	}
 
-	hostnameDetected, err := hostname.Get(context.TODO())
+	hostnameDetected, err := sender.deps.Hostname.Get(context.TODO())
 	if err != nil {
 		return nil, sender.deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
@@ -58,17 +61,18 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 0
 	opts.DontStartForwarders = true
-	opts.UseNoopEventPlatformForwarder = true
 
 	log := sender.deps.Log
 	config := sender.deps.Config
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
-	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	orchestratorForwarder := optional.NewOptionPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname))
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
 		forwarder,
-		&orchestratorForwarder,
+		orchestratorForwarder,
 		opts,
+		eventPlatformForwarder,
 		hostnameDetected)
 
 	sender.senderManager.Set(senderManager)

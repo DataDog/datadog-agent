@@ -89,6 +89,14 @@ func NewCollector(senderManager sender.SenderManager, cancelCheckTimeout time.Du
 		checkInstances:     int64(0),
 		cancelCheckTimeout: cancelCheckTimeout,
 	}
+	InitPython(paths...)
+
+	log.Debug("Collector up and running!")
+	return c
+}
+
+// Sets up the Python environment
+func InitPython(paths ...string) {
 	pyVer, pyHome, pyPath := pySetup(paths...)
 
 	// print the Python info if the interpreter was embedded
@@ -102,9 +110,6 @@ func NewCollector(senderManager sender.SenderManager, cancelCheckTimeout time.Du
 	if err := pyPrepareEnv(); err != nil {
 		log.Errorf("Unable to perform additional configuration of the python environment: %v", err)
 	}
-
-	log.Debug("Collector up and running!")
-	return c
 }
 
 // AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.

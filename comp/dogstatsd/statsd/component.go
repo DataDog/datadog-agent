@@ -10,7 +10,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
-// team: agent-shared-components
+// team: agent-metrics-logs
 
 // Component is the component type.
 type Component interface {

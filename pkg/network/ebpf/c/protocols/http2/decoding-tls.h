@@ -120,7 +120,7 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
     // we skip it.
     if (is_path_index(index)) {
         update_path_size_telemetry(http2_tel, str_len);
-    } else if (!is_status_index(index)) {
+    } else if ((!is_status_index(index)) && (!is_method_index(index))) {
         goto end;
     }
 
@@ -133,7 +133,7 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
     }
 
     if (info->data_off + str_len > info->data_end) {
-        __sync_fetch_and_add(&http2_tel->path_exceeds_frame, 1);
+        __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
         goto end;
     }
 
@@ -314,7 +314,8 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
             if (is_method_index(current_header->index)) {
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method = current_header->index;
+                current_stream->request_method.static_table_entry = current_header->index;
+                current_stream->request_method.finalized = true;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (is_status_index(current_header->index)) {
                 current_stream->status_code.static_table_entry = current_header->index;
@@ -344,6 +345,12 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
+            } else if (is_method_index(dynamic_value->original_index)) {
+                current_stream->request_started = bpf_ktime_get_ns();
+                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
+                current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->request_method.length = current_header->new_dynamic_value_size;
+                current_stream->request_method.finalized = true;
             }
         } else {
             // We're in new dynamic header or new dynamic header not indexed states.
@@ -363,6 +370,12 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
+            } else if (is_method_index(current_header->original_index)) {
+                current_stream->request_started = bpf_ktime_get_ns();
+                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
+                current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->request_method.length = current_header->new_dynamic_value_size;
+                current_stream->request_method.finalized = true;
             }
         }
     }
@@ -458,6 +471,15 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
     //  4. We failed reading any frame. Aborting.
 
     // Frame-header-remainder.
+    if (frame_state != NULL && frame_state->header_length == HTTP2_FRAME_HEADER_SIZE) {
+        // A case where we read an interesting valid frame header in the previous call, and now we're trying to read the
+        // rest of the frame payload. But, since we already read a valid frame, we just fill it as an interesting frame,
+        // and continue to the next tail call.
+        // Copy the cached frame header to the current frame.
+        bpf_memcpy((char *)current_frame, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
+        frame_state->remainder = 0;
+        return true;
+    }
     if (frame_state->header_length > 0) {
         tls_fix_header_frame(info, (char *)current_frame, frame_state);
         if (format_http2_frame_header(current_frame)) {
@@ -609,22 +631,6 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         return 0;
     }
 
-    // A case where we read an interesting valid frame header in the previous call, and now we're trying to read the
-    // rest of the frame payload. But, since we already read a valid frame, we just fill it as an interesting frame,
-    // and continue to the next tail call.
-    if (frame_state != NULL && frame_state->header_length == HTTP2_FRAME_HEADER_SIZE) {
-        // Copy the cached frame header to the current frame.
-        bpf_memcpy((char *)&current_frame, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
-        // Delete the cached frame header.
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
-        // Save the frame as an interesting frame (a.k.a, restoring the state we had in the previous call).
-        // We need to do so, as we're zeroing the iteration_value at the beginning of this function.
-        iteration_value->frames_array[0].frame = current_frame;
-        iteration_value->frames_array[0].offset = 0;
-        iteration_value->frames_count = 1;
-        // Continuing to the next tail call.
-        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FILTER);
-    }
     if (!tls_get_first_frame(&dispatcher_args_copy, frame_state, &current_frame, http2_tel)) {
         return 0;
     }
@@ -655,6 +661,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
             bpf_memcpy(new_frame_state.buf, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
         }
 
+        iteration_value->frames_count = 0;
         bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
         // Not calling the next tail call as we have nothing to process.
         return 0;
