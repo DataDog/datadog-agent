@@ -31,6 +31,7 @@ func NewGetCommand(cl **client.Client) (cmd *cobra.Command) {
 		NewGetSBOMCommand(cl),
 		NewGetTracesCommand(cl),
 		NewGetAPMStatsCommand(cl),
+		NewGetMetadataCommand(cl),
 	)
 
 	return cmd
