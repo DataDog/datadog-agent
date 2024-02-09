@@ -61,9 +61,9 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/tinylib/msgp v1.1.8
 	go.opentelemetry.io/collector v0.91.0 // indirect
-	go.opentelemetry.io/collector/component v0.91.0
-	go.opentelemetry.io/collector/config/configtelemetry v0.91.0 // indirect
-	go.opentelemetry.io/collector/confmap v0.91.0
+	go.opentelemetry.io/collector/component v0.92.0
+	go.opentelemetry.io/collector/config/configtelemetry v0.92.0 // indirect
+	go.opentelemetry.io/collector/confmap v0.92.0
 	go.opentelemetry.io/collector/consumer v0.91.0
 	go.opentelemetry.io/collector/exporter v0.91.0
 	go.opentelemetry.io/collector/extension v0.91.0 // indirect
