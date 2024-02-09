@@ -82,6 +82,7 @@ e2e_installer_test_junit_upload:
     - new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64
     - new-e2e-windows-agent-msi-windows-server-a6-x86_64
     - new-e2e-windows-agent-msi-windows-server-a7-x86_64
+    - new-e2e-windows-agent-domain-tests-a7-x86_64
 
 e2e_pre_test_junit_upload:
   extends: .e2e_test_junit_template

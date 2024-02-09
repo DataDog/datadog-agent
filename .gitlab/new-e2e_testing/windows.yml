@@ -1,10 +1,24 @@
-# NOTE: If a new job is added, be sure to upate .gitlab/e2e_test_junit_upload.yml
+# NOTE: If a new job is added, be sure to update .gitlab/e2e_test_junit_upload.yml
 
 .new-e2e_windows_msi:
   variables:
     TARGETS: ./tests/windows/install-test
     TEAM: windows-agent
     EXTRA_PARAMS: --run 'TestMSI/Agent*/TestUpgrade$'
+  before_script:
+    # WINDOWS_AGENT_VERSION is used to verify the installed agent version
+    # Must run before new_e2e_template changes the aws profile
+    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    - !reference [.new_e2e_template, before_script]
+  script:
+    # LAST_STABLE_VERSION is used for upgrade test
+    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
+    - !reference [.new_e2e_template, script]
+
+.new-e2e_windows_domain_test:
+  variables:
+    TARGETS: ./tests/windows/domain-test
+    TEAM: windows-agent
   before_script:
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
@@ -43,6 +57,17 @@ new-e2e-windows-agent-msi-windows-server-a7-x86_64:
   extends:
     - .new_e2e_template
     - .new-e2e_windows_msi
+    - .new-e2e_windows_a7_x86_64
+    - .new-e2e_agent_a7
+  rules:
+    - !reference [.on_default_new-e2e_tests_a7]
+    - !reference [.on_windows_installer_changes_or_manual]
+
+new-e2e-windows-agent-domain-tests-a7-x86_64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_windows_domain_test
     - .new-e2e_windows_a7_x86_64
     - .new-e2e_agent_a7
   rules:
