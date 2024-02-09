@@ -39,22 +39,33 @@ when submitting your PR:
 
 <details open>
 <summary>Contributor Checklist</summary>
-- Have a proper commit history (we advise you to rebase if needed).
-- Write tests for the code you wrote.
-- Preferably make sure that all tests pass locally.
-- Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.
-- Use [Reno](#reno) to create a release note.
-- Open your PR against the `main` branch.
-- Provide adequate QA/testing plan information.
+
+- [ ] Have a proper commit history (we advise you to rebase if needed).
+
+- [ ] Write tests for the code you wrote.
+
+- [ ] Preferably make sure that all tests pass locally.
+
+- [ ] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.
+
+- [ ] Use [Reno](#reno) to create a release note.
+
+- [ ] Open your PR against the `main` branch.
+
+- [ ] Provide adequate QA/testing plan information.
 </details>
 <br>
 
 <details>
 <summary open>Reviewer Checklist</summary>
-- The added code comes with tests.
-- The CI is green.
-- All applicable labels are set on the PR (see [PR labels list](#pr-labels)).
-- If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.
+
+- [ ] The added code comes with tests.
+
+- [ ] The CI is green.
+
+- [ ] All applicable labels are set on the PR (see [PR labels list](#pr-labels)).
+
+- [ ] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.
 </details>
 <br>
 
