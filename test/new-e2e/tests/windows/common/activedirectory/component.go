@@ -64,7 +64,7 @@ func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *
 			return err
 		}
 
-		timeProvider, err := time.NewProvider(ctx, comp.namer.ResourceName("time-provider"), &time.ProviderArgs{}, nil)
+		timeProvider, err := time.NewProvider(ctx, comp.namer.ResourceName("time-provider"), &time.ProviderArgs{}, pulumi.DeletedWith(host))
 		if err != nil {
 			return err
 		}
