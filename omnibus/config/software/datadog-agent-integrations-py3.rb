@@ -84,19 +84,6 @@ build do
           "--index-url #{package_index_url}/built --extra-index-url #{package_index_url}/external "\
           "-r #{lockfile}"
 
-  # Patch libraries to add an rpath pointing at the Agent's embedded environment's libraries.
-  # This is necessary to make the health check help us ensure we have no unexpected dependencies outside
-  # of the Agent's environment in cases where specific libraries can't be packaged with the wheel.
-  if linux_target?
-    libraries_to_patch = [
-      "#{install_dir}/embedded/lib/python*/site-packages/confluent_kafka/cimpl.cpython-*.so",
-      "#{install_dir}/embedded/lib/python*/site-packages/confluent_kafka.libs/librdkafka-*.so.1"
-    ]
-    for library in libraries_to_patch
-      command "patchelf --add-rpath '#{install_dir}/embedded/lib' #{library}"
-    end
-  end
-
   # Prepare build env for integrations
   wheel_build_dir = windows_safe_path(project_dir, ".wheels")
   build_deps_dir = windows_safe_path(project_dir, ".build_deps")

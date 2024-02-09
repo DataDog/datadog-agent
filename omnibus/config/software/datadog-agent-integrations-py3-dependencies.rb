@@ -11,10 +11,6 @@ if arm_target?
   dependency 'libxslt'
 end
 
-if not windows_target?
-  dependency 'cyrus-sasl'
-end
-
 if linux_target?
   # odbc drivers used by the SQL Server integration
   dependency 'freetds'
