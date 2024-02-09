@@ -132,6 +132,9 @@ func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
+	s.T().Skip("skipping due to flakiness")
+	// MsMpEng.exe process missing IO stats
+
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
