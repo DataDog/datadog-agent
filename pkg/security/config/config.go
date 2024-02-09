@@ -245,6 +245,25 @@ func NewConfig() (*Config, error) {
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	sysconfig.Adjust(coreconfig.SystemProbe)
 
+	eventTypeStrings := map[string]model.EventType{}
+
+	var eventType model.EventType
+	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
+		eventType = model.EventType(i)
+		eventTypeStrings[eventType.String()] = eventType
+	}
+
+	// parseEventTypeStringSlice converts a string list to a list of event types
+	parseEventTypeStringSlice := func(eventTypes []string) []model.EventType {
+		var output []model.EventType
+		for _, eventTypeStr := range eventTypes {
+			if eventType := eventTypeStrings[eventTypeStr]; eventType != model.UnknownEventType {
+				output = append(output, eventType)
+			}
+		}
+		return output
+	}
+
 	rsConfig := &RuntimeSecurityConfig{
 		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
@@ -453,17 +472,6 @@ func ParseEvalEventType(eventType eval.EventType) model.EventType {
 	return model.UnknownEventType
 }
 
-// parseEventTypeStringSlice converts a string list to a list of event types
-func parseEventTypeStringSlice(eventTypes []string) []model.EventType {
-	var output []model.EventType
-	for _, eventTypeStr := range eventTypes {
-		if eventType := eventTypeStrings[eventTypeStr]; eventType != model.UnknownEventType {
-			output = append(output, eventType)
-		}
-	}
-	return output
-}
-
 // parseEventTypeDurations converts a map of durations indexed by event types
 func parseEventTypeDurations(cfg coreconfig.Config, prefix string) map[model.EventType]time.Duration {
 	eventTypeMap := cfg.GetStringMap(prefix)
@@ -494,16 +502,4 @@ func GetFamilyAddress(path string) (string, string) {
 		return "unix", path
 	}
 	return "tcp", path
-}
-
-var (
-	eventTypeStrings = map[string]model.EventType{}
-)
-
-func init() {
-	var eventType model.EventType
-	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
-		eventType = model.EventType(i)
-		eventTypeStrings[eventType.String()] = eventType
-	}
 }
