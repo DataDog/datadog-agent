@@ -488,13 +488,12 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 		client := NewClient(ts.URL)
-		agg, err := client.GetMetadata()
+		payloads, err := client.GetMetadata()
 		require.NoError(t, err)
 		const expectedHostname = "i-0473fb6c2bd4591b4"
-		assert.NotEmpty(t, agg.ContainsPayloadName(expectedHostname))
-		assert.Empty(t, agg.ContainsPayloadName("totoro"))
-		assert.Len(t, agg.GetPayloadsByName(expectedHostname), 3)
-		for _, p := range agg.GetPayloadsByName(expectedHostname) {
+		assert.NotEmpty(t, payloads)
+		assert.Len(t, payloads, 3)
+		for _, p := range payloads {
 			assert.Equal(t, expectedHostname, p.Hostname)
 		}
 	})

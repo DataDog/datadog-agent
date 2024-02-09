@@ -24,15 +24,12 @@ func NewGetMetadataCommand(cl **client.Client) (cmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
-
-			for _, name := range metadata.GetNames() {
-				for _, payload := range metadata.GetPayloadsByName(name) {
-					output, err := json.MarshalIndent(payload, "", "  ")
-					if err != nil {
-						return err
-					}
-					fmt.Println(string(output))
+			for _, payload := range metadata {
+				output, err := json.MarshalIndent(payload, "", "  ")
+				if err != nil {
+					return err
 				}
+				fmt.Println(string(output))
 			}
 			return nil
 		},

@@ -703,7 +703,8 @@ func (c *Client) FilterSBOMs(id string, options ...MatchOpt[*aggregator.SBOMPayl
 	return filteredSBOMs, nil
 }
 
-func (c *Client) GetMetadata() (*aggregator.MetadataAggregator, error) {
+// GetMetadata fetches fakeintake on `/api/v1/metadata` endpoint and returns a list of metadata payloads
+func (c *Client) GetMetadata() ([]*aggregator.MetadataPayload, error) {
 	payloads, err := c.getFakePayloads(metadataEndpoint)
 	if err != nil {
 		return nil, err
@@ -712,7 +713,11 @@ func (c *Client) GetMetadata() (*aggregator.MetadataAggregator, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &c.metadataAggregator, nil
+	metadata := make([]*aggregator.MetadataPayload, 0, len(c.metadataAggregator.GetNames()))
+	for _, name := range c.metadataAggregator.GetNames() {
+		metadata = append(metadata, c.metadataAggregator.GetPayloadsByName(name)...)
+	}
+	return metadata, nil
 }
 
 // GetOrchestratorResources fetches fakeintake on `/api/v2/orch` endpoint and returns

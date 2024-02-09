@@ -50,7 +50,10 @@ func ParseMetadataPayload(payload api.Payload) (metadataPayloads []*MetadataPayl
 	var metadataPayload = &MetadataPayload{
 		collectedTime: payload.Timestamp,
 	}
-	json.Unmarshal(enflated, metadataPayload)
+	err = json.Unmarshal(enflated, metadataPayload)
+	if err != nil {
+		return nil, err
+	}
 
 	return []*MetadataPayload{metadataPayload}, nil
 }
