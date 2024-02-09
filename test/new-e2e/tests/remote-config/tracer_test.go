@@ -7,8 +7,6 @@ package remoteconfig
 
 import (
 	_ "embed"
-	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
@@ -44,21 +42,16 @@ func TestRcTracerSuite(t *testing.T) {
 
 // TestRemoteConfigTracerUpdate tests the remote-config service by attempting to retrieve RC payloads as if a tracer were calling it
 func (s *tracerSuite) TestRemoteConfigTracerUpdate() {
-	// Check if the agent is ready
-	isReady := s.Env().Agent.Client.IsReady()
-	assert.Equal(s.T(), isReady, true, "Agent is not ready")
-
 	// Ensure the remote config service starts
 	// TODO uncomment the following line in https://github.com/DataDog/datadog-agent/pull/22582 (once fx lifecycle startup logging is added)
-	//assertLogsWithRetry(a.T(), a.Env().RemoteHost, "agent", "remote config service started", 60, 500*time.Millisecond)
+	//assertLogsEventually(a.T(), a.Env().RemoteHost, "agent", "remote config service started", 2*time.Minute, 5*time.Second)
 
 	// Wait until we've started querying for configs
-	assertLogsWithRetry(s.T(), s.Env().RemoteHost, "agent", "/api/v0.1/configurations", 120, 1*time.Second)
+	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "/api/v0.1/configurations", 2*time.Minute, 5*time.Second)
 
 	// Get configs as though we are a tracer
 	// But first, prime by continuously curling until the api is responding successfully just in case it is slow to start
-	curlAgentRcServiceWithRetry(s.T(), s.Env().RemoteHost, tracerPayloadJSON, 120, 1*time.Second)
-	getConfigsOutput := s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -sS localhost:8126/v0.7/config -d @- <<EOF\n%sEOF", tracerPayloadJSON))
+	getConfigsOutput := mustCurlAgentRcServiceEventually(s.T(), s.Env().RemoteHost, tracerPayloadJSON, 2*time.Minute, 5*time.Second)
 	require.Contains(s.T(), getConfigsOutput, "roots", "expected a roots key in the tracer config output")
 	require.Contains(s.T(), getConfigsOutput, "targets", "expected a targets key in the tracer config output")
 

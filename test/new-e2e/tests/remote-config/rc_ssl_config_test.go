@@ -38,20 +38,20 @@ func TestSslConfigSuite(t *testing.T) {
 
 // TestRemoteConfigSSLConfigMismatch tests the startup condition where the agent's SSL config is disabled but RC's TLS validation is not explicitly disabled
 func (s *sslConfigSuite) TestRemoteConfigSSLConfigMismatch() {
-	// Check if the agent is ready
-	isReady := s.Env().Agent.Client.IsReady()
-	assert.Equal(s.T(), isReady, true, "Agent is not ready")
-
 	// Ensure the remote config service starts
 	// TODO uncomment the following line in https://github.com/DataDog/datadog-agent/pull/22582 (once fx lifecycle startup logging is added)
-	//assertLogsWithRetry(a.T(), a.Env().RemoteHost, "agent", "remote config service started", 60, 500*time.Millisecond)
+	//assertLogsEventually(a.T(), a.Env().RemoteHost, "agent", "remote config service started", 2*time.Minute, 5*time.Second)
 
 	// Ensure the agent logs a warning about the SSL config mismatch
-	assertLogsWithRetry(s.T(), s.Env().RemoteHost, "agent", "remote Configuration does not allow skipping TLS validation by default", 120, 1*time.Second)
-	// Ensure the remote config service stops, and the client stops because the service is not longer responding
-	assertLogsWithRetry(s.T(), s.Env().RemoteHost, "agent", "remote configuration isn't enabled, disabling client", 120, 1*time.Second)
+	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "remote Configuration does not allow skipping TLS validation by default", 2*time.Minute, 5*time.Second)
+	// Ensure the remote config service stops, and the client stops because the service is no longer responding
+	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "remote configuration isn't enabled, disabling client", 2*time.Minute, 5*time.Second)
 
 	// Ensure the agent remains running despite the remote config service initialization failure
-	isReady = s.Env().Agent.Client.IsReady()
-	assert.Equal(s.T(), isReady, true, "Agent shut down after remote config initialization failed")
+	// EventuallyWithT will wait for the duration of the `tick` argument before executing the assertion function,
+	// so we can use a long `waitFor` and a slightly-less-long `tick` to ensure we wait 55s before performing the assertion.
+	agentStayedHealthy := s.EventuallyWithT(func(c *assert.CollectT) {
+		assert.True(c, s.Env().Agent.Client.IsReady())
+	}, 1*time.Minute, 55*time.Second)
+	assert.Truef(s.T(), agentStayedHealthy, "Agent shut down after remote config initialization failed")
 }

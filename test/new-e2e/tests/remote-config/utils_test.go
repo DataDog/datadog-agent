@@ -7,44 +7,32 @@ package remoteconfig
 
 import (
 	_ "embed"
-	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"strings"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
-
-	"github.com/cenkalti/backoff"
-	"github.com/stretchr/testify/require"
 )
 
-// assertLogsWithRetry will verify that a given `agentName` component's logs contain a pattern.
+// assertLogsEventually will verify that a given `agentName` component's logs contain a pattern.
 // It will continually retry until the `expectedLogPattern` is found or the `maxRetries` is reached,
 // waiting `retryInterval` between each attempt.
 // If the `expectedLogPattern` is not found or an error occurs, the calling test will fail.
-func assertLogsWithRetry(t *testing.T, rh *components.RemoteHost, agentName string, expectedLogPattern string, maxRetries int, retryInterval time.Duration) {
-	err := backoff.Retry(func() error {
+func assertLogsEventually(t *testing.T, rh *components.RemoteHost, agentName string, expectedLogPattern string, waitFor time.Duration, tick time.Duration) {
+	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
 		output, err := rh.Execute(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
-		if err != nil {
-			return err
+		if assert.NoError(c, err) {
+			assert.Contains(c, output, expectedLogPattern)
 		}
-		if strings.Contains(output, expectedLogPattern) {
-			return nil
-		}
-		return errors.New("pattern not found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(retryInterval), uint64(maxRetries)))
-
-	require.NoError(t, err, fmt.Sprintf("failed to find log with pattern `%s`", expectedLogPattern))
+	}, waitFor, tick, "failed to find log with pattern `%s`", expectedLogPattern)
 }
 
-func curlAgentRcServiceWithRetry(t *testing.T, rh *components.RemoteHost, payload string, maxRetries int, retryInterval time.Duration) {
-	err := backoff.Retry(func() error {
-		_, err := rh.Execute(fmt.Sprintf("curl -sS localhost:8126/v0.7/config -d @- <<EOF\n%sEOF", payload))
-		if err != nil {
-			return err
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(retryInterval), uint64(maxRetries)))
-
-	require.NoError(t, err, "failed to curl remote config service")
+func mustCurlAgentRcServiceEventually(t *testing.T, rh *components.RemoteHost, payload string, waitFor time.Duration, tick time.Duration) string {
+	var output string
+	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
+		curl, err := rh.Execute(fmt.Sprintf("curl -sS localhost:8126/v0.7/config -d @- <<EOF\n%sEOF", payload))
+		assert.NoError(c, err)
+		output = curl
+	}, waitFor, tick, "could not curl remote config service")
+	return output
 }

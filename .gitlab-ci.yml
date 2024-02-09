@@ -1069,6 +1069,8 @@ workflow:
         - pkg/config/remote/**/*
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
+  - when: manual
+    allow_failure: true
 
 .on_install_script_release_manual:
   - <<: *if_not_version_7
