@@ -42,6 +42,9 @@ func main() {
 
 	objectFiles := make(map[string]string)
 	directory := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
+	if directory == "" {
+		log.Fatalf("DD_SYSTEM_PROBE_BPF_DIR env var not set")
+	}
 	if err := filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err

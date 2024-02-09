@@ -28,6 +28,7 @@ import (
 
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -517,6 +518,21 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 }
 
 //nolint:deadcode,unused
+func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
+	b, err := serializers.MarshalEvent(ev)
+	return string(b), err
+}
+
+//nolint:deadcode,unused
+func (tm *testModule) debugEvent(ev *model.Event) string {
+	b, err := tm.marshalEvent(ev)
+	if err != nil {
+		return err.Error()
+	}
+	return string(b)
+}
+
+//nolint:deadcode,unused
 func assertTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
 	tb.Helper()
 	return assert.Equal(tb, id, r.ID, "wrong triggered rule")
@@ -724,6 +740,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
 		"EBPFLessEnabled":                            ebpfLessEnabled,
+		"FIMEnabled":                                 opts.enableFIM,  // should only be enabled/disabled on windows
 	}); err != nil {
 		return nil, nil, err
 	}

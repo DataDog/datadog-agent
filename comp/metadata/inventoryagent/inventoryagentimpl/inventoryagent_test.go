@@ -307,7 +307,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 
 func TestFetchSecurityAgent(t *testing.T) {
 	defer func() {
-		fetchSecurityConfig = configFetcher.FetchSecurityAgentConfig
+		fetchSecurityConfig = configFetcher.SecurityAgentConfig
 	}()
 	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
 		return "", fmt.Errorf("some error")
@@ -331,4 +331,40 @@ func TestFetchSecurityAgent(t *testing.T) {
 
 	assert.True(t, ia.data["feature_cspm_enabled"].(bool))
 	assert.True(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
+}
+
+func TestFetchProcessAgent(t *testing.T) {
+	defer func(original func(cfg pkgconfigmodel.Reader) (string, error)) {
+		fetchProcessConfig = original
+	}(fetchProcessConfig)
+
+	fetchProcessConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return "", fmt.Errorf("some error")
+	}
+
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchProcessAgentMetadata()
+
+	assert.False(t, ia.data["feature_process_enabled"].(bool))
+	assert.False(t, ia.data["feature_process_language_detection_enabled"].(bool))
+	// default to true in the process agent configuration
+	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
+
+	fetchProcessConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return `
+process_config:
+  process_collection:
+    enabled: true
+  container_collection:
+    enabled: true
+language_detection:
+  enabled: true
+`, nil
+	}
+
+	ia.fetchProcessAgentMetadata()
+
+	assert.True(t, ia.data["feature_process_enabled"].(bool))
+	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
+	assert.True(t, ia.data["feature_process_language_detection_enabled"].(bool))
 }

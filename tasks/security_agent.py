@@ -753,8 +753,8 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.5.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32.0")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
             ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
 
             plugin_opts = " ".join(

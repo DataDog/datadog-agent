@@ -9,147 +9,158 @@
 package probe
 
 import (
-	"fmt"
 	"os"
+	"os/user"
+	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/etw"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
-// createTestProbe and teardownTestProbe are implemented in the file test, but
-// the same one can be used.
+func processUntilRegOpen(t *testing.T, et *etwTester) {
 
-func (p *WindowsProbe) runTestEtwRegistry(ch chan interface{}) error {
-	mypid := os.Getpid()
-	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
+	skippedObjects := make(map[fileObjectPointer]struct{})
+	defer func() {
+		et.loopExited <- struct{}{}
+	}()
+	et.loopStarted <- struct{}{}
+	for {
 
-		// since this is for testing, skip any notification not from our pid
-		if e.EventHeader.ProcessID != uint32(mypid) {
+		select {
+		case <-et.stopLoop:
 			return
-		}
-		switch e.EventHeader.ProviderID {
-		case etw.DDGUID(p.regguid):
-			switch e.EventHeader.EventDescriptor.ID {
-			case idRegCreateKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
-					select {
-					case ch <- cka:
-						// message sent
-					default:
-						// message dropped.  Which is OK.  In the test code, we want to leave the receive loop
-						// running, but only catch messages when we're expecting them
-						fmt.Printf("Dropped message\n")
+
+		case n := <-et.notify:
+
+			switch n.(type) {
+			case *createKeyArgs:
+				et.notifications = append(et.notifications, n)
+				return
+			case *createHandleArgs:
+				ca := n.(*createHandleArgs)
+				// we get all sorts of notifications of DLLs being loaded.
+				// skip those
+
+				// check the last 4 chars of the filename
+				if l := len(ca.fileName); l >= 4 {
+					// see if it's a .dll
+					ext := ca.fileName[l-4:]
+
+					// check to see if it's a dll
+					if strings.EqualFold(ext, ".dll") {
+						skippedObjects[ca.fileObject] = struct{}{}
+						// don't add
+						continue
 					}
 				}
-			case idRegOpenKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
-					log.Debugf("Got idRegOpenKey %s", cka.string())
-				}
+			case *cleanupArgs:
+				ca := n.(*cleanupArgs)
 
-			case idRegDeleteKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Infof("Got idRegDeleteKey %v", dka.string())
+				// check to see if we already saw the createHandle for this, and if
+				// so, just skip
+				if _, ok := skippedObjects[ca.fileObject]; ok {
+					continue
 				}
-			case idRegFlushKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Infof("Got idRegFlushKey %v", dka.string())
-				}
-			case idRegCloseKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Debugf("Got idRegCloseKey %s", dka.string())
-					delete(regPathResolver, dka.keyObject)
-				}
-			case idQuerySecurityKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Infof("Got idQuerySecurityKey %v", dka.keyName)
-				}
-			case idSetSecurityKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Infof("Got idSetSecurityKey %v", dka.keyName)
-				}
-			case idRegSetValueKey:
-				if svk, err := parseSetValueKey(e); err == nil {
-					log.Infof("Got idRegSetValueKey %s", svk.string())
+			case *closeArgs:
+				ca := n.(*closeArgs)
+				// check to see if we already saw the createHandle for this, and if
+				// so, just skip
+				if _, ok := skippedObjects[ca.fileObject]; ok {
+					// remove it from the map, since it's being closed.  it could be
+					// reused.
+					delete(skippedObjects, ca.fileObject)
+					continue
 				}
 
 			}
+			et.notifications = append(et.notifications, n)
 		}
-	})
-	return err
-}
+	}
 
+}
 func TestETWRegistryNotifications(t *testing.T) {
-	os.Getpid()
 	wp, err := createTestProbe()
-	assert.NoError(t, err)
-	assert.NotNil(t, wp)
+	require.NoError(t, err)
+	require.NotNil(t, wp)
+
+	// get the current user sid, since we're going to use the current user registry.
+	u, err := user.Current()
+	require.NoError(t, err)
+
+	sidstr := u.Uid
+
+	// teardownTestProe calls the stop function on etw, which will
+	// in turn wait on wp.fimgw
 	defer teardownTestProbe(wp)
 
-	loopstarted := make(chan struct{})
-	endloop := make(chan struct{})
-	notifications := make(chan interface{})
+	et := createEtwTester(wp)
+
 	wp.fimwg.Add(1)
 	go func() {
 		defer wp.fimwg.Done()
-		err := wp.runTestEtwRegistry(notifications)
+		var once sync.Once
+		mypid := os.Getpid()
+
+		err := et.p.setupEtw(func(n interface{}, pid uint32) {
+			once.Do(func() {
+				close(et.etwStarted)
+			})
+			if pid != uint32(mypid) {
+				return
+			}
+			select {
+			case et.notify <- n:
+				// message sent
+			default:
+			}
+		})
 		assert.NoError(t, err)
 	}()
-
-	//t.Run("testCreateFile", func(t *testing.T) {
-
-	var notified atomic.Bool
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// listen for the notifications
-		loopstarted <- struct{}{}
-		for {
-			select {
-			case <-endloop:
-				return
-
-			case n := <-notifications:
-				switch n.(type) {
-				case *createKeyArgs:
-					cka := n.(*createKeyArgs)
-					assert.NotNil(t, cka)
-
-					notified.Store(true)
-					return
-				}
-			}
-		}
+		processUntilRegOpen(t, et)
 	}()
-	// wait till we're sure the listening loop is running
-	<-loopstarted
 
+	// wait until we're sure that the ETW listener is up and running.
+	// as noted above, this _could_ cause an infinite deadlock if no notifications are received.
+	// but, since we're getting the notifications from the entire system, we should be getting
+	// a steady stream as soon as it's fired up.
+	<-et.etwStarted
+	<-et.loopStarted
+
+	keyname := "Software\\Test"
+	expected := "\\REGISTRY\\USER\\" + sidstr + "\\" + keyname
 	// create the key
-	key, _, err := registry.CreateKey(windows.HKEY_CURRENT_USER, "Software\\Test", windows.KEY_READ|windows.KEY_WRITE)
+	key, _, err := registry.CreateKey(windows.HKEY_CURRENT_USER, keyname, windows.KEY_READ|windows.KEY_WRITE)
 	assert.NoError(t, err)
 	if err == nil {
 		defer key.Close()
 	}
-	assert.Eventually(t, func() bool {
-		return notified.Load()
-	}, 2*time.Second, 250*time.Millisecond, "did not get notification")
 
-	select {
-	case endloop <- struct{}{}:
-		// message sent
-	default:
-		// message dropped.  Which is OK.  In the test code, we want to leave the receive loop
-		// running, but only catch messages when we're expecting them
+	assert.Eventually(t, func() bool {
+		select {
+		case <-et.loopExited:
+			return true
+		}
+		return false
+	}, 4*time.Second, 250*time.Millisecond, "did not get notification")
+
+	stopLoop(et, &wg)
+
+	assert.Equal(t, 1, len(et.notifications), "expected 1 notifications, got %d", len(et.notifications))
+
+	if c, ok := et.notifications[0].(*createKeyArgs); ok {
+		assert.Equal(t, expected, c.computedFullPath, "expected %s, got %s", expected, c.computedFullPath)
+	} else {
+		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
 	}
-	wg.Wait()
-	//})
 }

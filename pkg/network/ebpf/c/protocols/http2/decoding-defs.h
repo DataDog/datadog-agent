@@ -70,7 +70,7 @@
 #define HTTP2_END_OF_STREAM 0x1
 
 // Http2 max batch size.
-#define HTTP2_BATCH_SIZE 17
+#define HTTP2_BATCH_SIZE 15
 
 // The max number of events we can have in a single page in the batch_events array.
 // See more details in the comments of the USM_EVENTS_INIT.
@@ -135,6 +135,9 @@ typedef struct {
 // If the path is huffman encoded then the length is 2, but if it is not, then the length is 3.
 #define HTTP2_STATUS_CODE_MAX_LEN 3
 
+// Max length of the method is 7.
+#define HTTP2_METHOD_MAX_LEN 7
+
 typedef struct {
     __u8 raw_buffer[HTTP2_STATUS_CODE_MAX_LEN];
     bool is_huffman_encoded;
@@ -144,11 +147,20 @@ typedef struct {
 } status_code_t;
 
 typedef struct {
+    __u8 raw_buffer[HTTP2_METHOD_MAX_LEN];
+    bool is_huffman_encoded;
+
+    __u8 static_table_entry;
+    __u8 length;
+    bool finalized;
+} method_t;
+
+typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
 
     status_code_t status_code;
-    __u8 request_method;
+    method_t request_method;
     __u8 path_size;
     bool request_end_of_stream;
     bool is_huffman_encoded;
@@ -210,7 +222,7 @@ typedef struct {
 // response_seen                        Count of HTTP/2 responses seen
 // end_of_stream                        Count of END STREAM flag seen
 // end_of_stream_rst                    Count of RST flags seen
-// path_exceeds_frame                   Count of times we couldn't retrieve the path due to reaching the end of the frame.
+// literal_value_exceeds_frame          Count of times we couldn't retrieve the literal value due to reaching the end of the frame.
 // exceeding_max_interesting_frames		Count of times we reached the max number of frames per iteration.
 // exceeding_max_frames_to_filter		Count of times we have left with more frames to filter than the max number of frames to filter.
 // path_size_bucket                     Count of path sizes and divided into buckets.
@@ -219,7 +231,7 @@ typedef struct {
     __u64 response_seen;
     __u64 end_of_stream;
     __u64 end_of_stream_rst;
-    __u64 path_exceeds_frame;
+    __u64 literal_value_exceeds_frame;
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
