@@ -343,32 +343,56 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	return finalConfig, nil
 }
 
-// allowlistHandles restricts what config settings may be updated
-// tests can override this to exercise functionality: by setting this to nil, allow all handles
+// allowlistPaths restricts what config settings may be updated
+// tests can override this to exercise functionality: by setting this to nil, allow all settings
 // NOTE: Related feature to `authorizedConfigPathsCore` in `comp/api/api/apiimpl/internal/config/endpoint.go`
-var allowlistHandles = map[string]struct{}{"api_key": {}}
+var allowlistPaths = map[string]struct{}{"api_key": {}}
+
+// matchesAllowlist returns whether the handle is allowed, by matching all setting paths that
+// handle appears at against the allowlist
+func (r *secretResolver) matchesAllowlist(handle string) bool {
+	// is allowlist is disabled, consider every handle a match
+	if allowlistPaths == nil {
+		return true
+	}
+	for _, secretCtx := range r.origin[handle] {
+		if _, ok := allowlistPaths[strings.Join(secretCtx.path, "/")]; ok {
+			return true
+		}
+	}
+	// the handle does not appear for a setting that is in the allowlist
+	return false
+}
 
 func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool) secretRefreshInfo {
 	var handleInfoList []handleInfo
 
 	// notify subscriptions about the changes to secrets
 	for handle, secretValue := range secretResponse {
-		// if allowlist is enabled and the handle is not contained in it, skip it
-		if useAllowlist && allowlistHandles != nil {
-			if _, ok := allowlistHandles[handle]; !ok {
-				continue
-			}
-		}
 		oldValue := r.cache[handle]
 		// if value hasn't changed, don't send notifications
 		if oldValue == secretValue {
 			continue
 		}
+
+		// if allowlist is enabled and the config setting path is not contained in it, skip it
+		if useAllowlist && !r.matchesAllowlist(handle) {
+			continue
+		}
+
 		places := make([]handlePlace, 0, len(r.origin[handle]))
 		for _, secretCtx := range r.origin[handle] {
 			for _, sub := range r.subscriptions {
+				secretPath := strings.Join(secretCtx.path, "/")
+				// only update setting paths that match the allowlist
+				if useAllowlist && allowlistPaths != nil {
+					if _, ok := allowlistPaths[secretPath]; !ok {
+						continue
+					}
+				}
+				// notify subscribers that secret has changed
 				sub(handle, secretCtx.origin, secretCtx.path, oldValue, secretValue)
-				places = append(places, handlePlace{Context: secretCtx.origin, Path: strings.Join(secretCtx.path, "/")})
+				places = append(places, handlePlace{Context: secretCtx.origin, Path: secretPath})
 			}
 		}
 		handleInfoList = append(handleInfoList, handleInfo{Name: handle, Places: places})
@@ -391,10 +415,10 @@ func (r *secretResolver) Refresh() (string, error) {
 
 	// get handles from the cache that match the allowlist
 	newHandles := maps.Keys(r.cache)
-	if allowlistHandles != nil {
+	if allowlistPaths != nil {
 		filteredHandles := make([]string, 0, len(newHandles))
 		for _, handle := range newHandles {
-			if _, ok := allowlistHandles[handle]; ok {
+			if r.matchesAllowlist(handle) {
 				filteredHandles = append(filteredHandles, handle)
 			}
 		}
