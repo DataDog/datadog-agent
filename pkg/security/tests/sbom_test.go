@@ -10,6 +10,7 @@ package tests
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"os/exec"
 	"testing"
 
@@ -22,6 +23,7 @@ import (
 
 func TestSBOM(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flavor.SetFlavor(flavor.SecurityAgent)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
