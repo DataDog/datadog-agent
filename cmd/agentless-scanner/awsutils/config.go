@@ -130,8 +130,7 @@ func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aw
 	return delegateCfg
 }
 
-// GetSelfEC2InstanceIndentity returns the identity of the current EC2 instance.
-func GetSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentityDocumentOutput, error) {
+func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentityDocumentOutput, error) {
 	// TODO: we could cache this information instead of polling imds every time
 	imdsclient := imds.NewFromConfig(loadDefaultConfig(ctx))
 	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
