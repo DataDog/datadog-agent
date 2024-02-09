@@ -1,12 +1,7 @@
 <!--
 * New contributors are highly encouraged to read our
   [CONTRIBUTING](/CONTRIBUTING.md) documentation.
-* The pull request:
-  * Should only fix one issue or add one feature at a time.
-  * Must update the test suite for the relevant functionality.
-  * Should pass all status checks before being reviewed or merged.
-* Commit titles should be prefixed with general area of pull request's change.
-
+* Both Contributor and Reviewer Checklists are available at https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#pull-requests.
 -->
 ### What does this PR do?
 
@@ -43,12 +38,4 @@
 <!--
 * Write here in detail or link to detailed instructions on how this change can
   be tested/QAd/validated, including any environment setup.
--->
-
-### Reviewer's Checklist
-<!--
-* Authors can use this list as a reference to ensure that there are no problems
-  during the review but the signing off is to be done by the reviewer(s).
-
-Note: Adding GitHub labels is only possible for contributors with write access.
 -->

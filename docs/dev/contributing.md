@@ -58,6 +58,8 @@ when submitting your PR:
 </details>
 <br>
 
+> [!NOTE]
+> Adding GitHub labels is only possible for contributors with write access.
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing
 an error and don't think it's your fault, it may not be! [Join us on Slack][slack]
