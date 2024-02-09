@@ -27,6 +27,12 @@ const (
 	fakeGroupPath  = "/tmp/fake_group"
 )
 
+func SkipIfNotEBPFLess(t *testing.T) {
+	if !ebpfLessEnabled {
+		t.Skip("only supports ebpfless")
+	}
+}
+
 func SkipIfNotAvailable(t *testing.T) {
 	if ebpfLessEnabled {
 		if testEnvironment == DockerEnvironment {

@@ -222,7 +222,7 @@ typedef struct {
 // response_seen                        Count of HTTP/2 responses seen
 // end_of_stream                        Count of END STREAM flag seen
 // end_of_stream_rst                    Count of RST flags seen
-// path_exceeds_frame                   Count of times we couldn't retrieve the path due to reaching the end of the frame.
+// literal_value_exceeds_frame          Count of times we couldn't retrieve the literal value due to reaching the end of the frame.
 // exceeding_max_interesting_frames		Count of times we reached the max number of frames per iteration.
 // exceeding_max_frames_to_filter		Count of times we have left with more frames to filter than the max number of frames to filter.
 // path_size_bucket                     Count of path sizes and divided into buckets.
@@ -231,7 +231,7 @@ typedef struct {
     __u64 response_seen;
     __u64 end_of_stream;
     __u64 end_of_stream_rst;
-    __u64 path_exceeds_frame;
+    __u64 literal_value_exceeds_frame;
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
