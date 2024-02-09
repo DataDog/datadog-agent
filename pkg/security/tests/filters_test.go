@@ -18,6 +18,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -716,5 +718,60 @@ func TestFilterDiscarderRetention(t *testing.T) {
 
 	if diff := time.Since(start); uint64(diff) < uint64(probe.DiscardRetention)-uint64(time.Second) {
 		t.Fatalf("discarder retention (%s) not reached: %s", time.Duration(uint64(probe.DiscardRetention)-uint64(time.Second)), diff)
+	}
+}
+
+func TestFilterBpfCmd(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_bpf_map_create",
+		Expression: fmt.Sprintf(`bpf.cmd == BPF_MAP_CREATE && process.file.name == "%s"`, path.Base(executable)),
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var m *ebpf.Map
+	defer func() {
+		if m != nil {
+			m.Close()
+		}
+	}()
+
+	test.WaitSignal(t, func() error {
+		m, err = ebpf.NewMap(&ebpf.MapSpec{Name: "test_bpf_map", Type: ebpf.Array, KeySize: 4, ValueSize: 4, MaxEntries: 1})
+		if err != nil {
+			return err
+		}
+		return nil
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_bpf_map_create")
+	})
+
+	err = test.GetProbeEvent(func() error {
+		if m.Update(uint32(0), uint32(1), ebpf.UpdateAny) != nil {
+			return err
+		}
+		return nil
+	}, func(event *model.Event) bool {
+		if event.GetType() == "bpf" {
+			t.Fatal("shouldn't get a bpf event")
+			return true
+		}
+		return false
+	}, 2*time.Second, model.BPFEventType)
+	if err != nil {
+		if otherErr, ok := err.(ErrTimeout); !ok {
+			t.Fatal(otherErr)
+		}
 	}
 }
