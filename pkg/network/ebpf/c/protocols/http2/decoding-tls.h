@@ -133,7 +133,7 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
     }
 
     if (info->data_off + str_len > info->data_end) {
-        __sync_fetch_and_add(&http2_tel->path_exceeds_frame, 1);
+        __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
         goto end;
     }
 
