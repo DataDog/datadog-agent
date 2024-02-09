@@ -2,7 +2,7 @@
     "base_branch": "main",
     "current_milestone": "7.52.0",
     "last_stable": {
-        "6": "6.50.1",
+        "6": "6.99.0",
         "7": "7.50.1"
     },
     "nightly": {
