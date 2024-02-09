@@ -303,18 +303,11 @@
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
-<<<<<<< HEAD
-/pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
-/pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
-/pkg/collector/corechecks/net/          @DataDog/agent-platform
-/pkg/collector/corechecks/netpath/      @DataDog/network-device-monitoring
-=======
 /pkg/collector/corechecks/embed/apm/            @Datadog/agent-platform @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
->>>>>>> main
 /pkg/collector/corechecks/oracle-dbm        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
