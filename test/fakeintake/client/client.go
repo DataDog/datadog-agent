@@ -73,6 +73,7 @@ const (
 	apmStatsEndpoint             = "/api/v0.2/stats"
 	orchestratorEndpoint         = "/api/v2/orch"
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
+	metadataEndpoint             = "/api/v1/metadata"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
@@ -96,6 +97,7 @@ type Client struct {
 	apmStatsAggregator             aggregator.APMStatsAggregator
 	orchestratorAggregator         aggregator.OrchestratorAggregator
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
+	metadataAggregator             aggregator.MetadataAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -117,6 +119,7 @@ func NewClient(fakeIntakeURL string) *Client {
 		apmStatsAggregator:             aggregator.NewAPMStatsAggregator(),
 		orchestratorAggregator:         aggregator.NewOrchestratorAggregator(),
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
+		metadataAggregator:             aggregator.NewMetadataAggregator(),
 	}
 }
 
@@ -698,6 +701,18 @@ func (c *Client) FilterSBOMs(id string, options ...MatchOpt[*aggregator.SBOMPayl
 		}
 	}
 	return filteredSBOMs, nil
+}
+
+func (c *Client) GetMetadata() (*aggregator.MetadataAggregator, error) {
+	payloads, err := c.getFakePayloads(metadataEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	err = c.metadataAggregator.UnmarshallPayloads(payloads)
+	if err != nil {
+		return nil, err
+	}
+	return &c.metadataAggregator, nil
 }
 
 // GetOrchestratorResources fetches fakeintake on `/api/v2/orch` endpoint and returns
