@@ -27,7 +27,7 @@ import (
 
 var generateFixture = flag.Bool("generate", false, "generate fixture")
 
-// A PyaloadItem is the interface for payload items stored in a generic aggregator
+// A PayloadItem is the interface for payload items stored in a generic aggregator
 type PayloadItem interface {
 	name() string
 	GetTags() []string
