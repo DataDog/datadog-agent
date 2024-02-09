@@ -17,24 +17,29 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	languageDetectionProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// LanguageDetectionModule is the language detection module factory
 var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
 		return &languageDetectionModule{
-			languageDetector: languagedetection.NewPrivilegedLanguageDetector(),
+			languageDetector: privileged.NewLanguageDetector(),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return false
 	},
 }
 
 type languageDetectionModule struct {
-	languageDetector languagedetection.PrivilegedLanguageDetector
+	languageDetector privileged.LanguageDetector
 }
 
 func (l *languageDetectionModule) GetStats() map[string]interface{} {
@@ -47,7 +52,7 @@ func (l *languageDetectionModule) Register(router *module.Router) error {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (l *languageDetectionModule) RegisterGRPC(_ *grpc.Server) error {
+func (l *languageDetectionModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

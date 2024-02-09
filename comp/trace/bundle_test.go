@@ -6,49 +6,76 @@
 package trace
 
 import (
+	"context"
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-apm
 
 func TestBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		// instantiate all of the core components, since this is not done
-		// automatically.
-		fx.Invoke(func(r config.Component) {}),
-		fx.Invoke(func(coreconfig.Component) {}),
-		// supply the necessary parameters to populate the agent and trace
-		// configs in the agent.
-		fx.Supply(coreconfig.Params{}),
-		Bundle))
+	fxutil.TestBundle(t, Bundle(),
+		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
+		fx.Supply(core.BundleParams{}),
+		core.Bundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.Module(),
+		statsd.Module(),
+		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
+		secretsimpl.MockModule(),
+		fx.Supply(tagger.NewFakeTaggerParams()),
+		tagger.Module(),
+		fx.Supply(&agent.Params{}),
+	)
 }
 
-func TestBundle(t *testing.T) {
+func TestMockBundleDependencies(t *testing.T) {
 	os.Setenv("DD_APP_KEY", "abc1234")
 	defer func() { os.Unsetenv("DD_APP_KEY") }()
 
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		// instantiate all of the core components, since this is not done
-		// automatically.
-		fx.Invoke(func(r config.Component) {}),
-		fx.Invoke(func(coreconfig.Component) {}),
-		// supply the necessary parameters to populate the agent and trace
-		// configs in the agent.
-		fx.Supply(coreconfig.Params{}),
-		MockBundle,
-	))
-	cfg := config.Object()
+	// Only for test purposes to avoid setting a different default value.
+	os.Setenv("DDTEST_DEFAULT_LOG_FILE_PATH", config.DefaultLogFilePath)
+	defer func() { os.Unsetenv("DDTEST_DEFAULT_LOG_FILE_PATH") }()
 
-	require.NotNil(t, cfg)
+	cfg := fxutil.Test[config.Component](t, fx.Options(
+		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
+		fx.Supply(core.BundleParams{}),
+		traceMockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.Module(),
+		fx.Invoke(func(_ config.Component) {}),
+		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
+		statsd.MockModule(),
+		fx.Supply(&agent.Params{}),
+		fx.Invoke(func(_ agent.Component) {}),
+		MockBundle(),
+		tagger.Module(),
+		fx.Supply(tagger.NewTaggerParams()),
+	))
+
+	require.NotNil(t, cfg.Object())
 }
+
+var traceMockBundle = core.MakeMockBundle(
+	fx.Provide(func() logimpl.Params {
+		return logimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+	}),
+	logimpl.TraceMockModule(),
+)

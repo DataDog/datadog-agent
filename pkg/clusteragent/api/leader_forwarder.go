@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package api contains the telemetry of the Cluster Agent API and implements
+// the forwarding of queries from Cluster Agent followers to the leader.
 package api
 
 import (
@@ -26,6 +28,9 @@ const (
 	respForwarded = "X-DCA-Forwarded"
 )
 
+// globalLeaderForwarder is the global LeaderForwarder instance
+var globalLeaderForwarder *LeaderForwarder
+
 // LeaderForwarder allows to forward queries from follower to leader
 type LeaderForwarder struct {
 	transport http.RoundTripper
@@ -35,12 +40,11 @@ type LeaderForwarder struct {
 	apiPort   string
 }
 
-// NewLeaderForwarder returns a new LeaderForwarder
+// NewLeaderForwarder initializes a new LeaderForwarder instance and is used for test purposes
 func NewLeaderForwarder(apiPort, maxConnections int) *LeaderForwarder {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := config.NewLogWriter(4, seelog.DebugLvl)
-
-	lf := &LeaderForwarder{
+	return &LeaderForwarder{
 		apiPort: strconv.Itoa(apiPort),
 		transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
@@ -60,8 +64,20 @@ func NewLeaderForwarder(apiPort, maxConnections int) *LeaderForwarder {
 		},
 		logger: stdLog.New(logWriter, "Error while forwarding to leader DCA: ", 0), // log errors to seelog,
 	}
+}
 
-	return lf
+// NewGlobalLeaderForwarder initializes the global LeaderForwarder instance
+func NewGlobalLeaderForwarder(apiPort, maxConnections int) {
+	if globalLeaderForwarder != nil {
+		return
+	}
+
+	globalLeaderForwarder = NewLeaderForwarder(apiPort, maxConnections)
+}
+
+// GetGlobalLeaderForwarder returns the global LeaderForwarder instance
+func GetGlobalLeaderForwarder() *LeaderForwarder {
+	return globalLeaderForwarder
 }
 
 // Forward forwards a query to leader if available

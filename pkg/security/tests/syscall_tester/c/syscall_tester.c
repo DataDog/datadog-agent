@@ -159,24 +159,25 @@ int ptrace_traceme() {
     return EXIT_SUCCESS;
 }
 
-void sig_handler(int signum){
-    exit(0);
-}
-
-int test_signal_sigusr(int sig) {
-    pid_t child = fork();
-    if (child == 0) {
-        signal(sig, sig_handler);
-        sleep(60);
-
-        return EXIT_SUCCESS;
+int test_signal_sigusr(int child, int sig) {
+    int do_fork = child == 0;
+    if (do_fork) {
+        child = fork();
+        if (child == 0) {
+            sleep(5);
+            return EXIT_SUCCESS;
+        }
     }
 
     int ret = kill(child, sig);
     if (ret < 0) {
         return ret;
     }
-    return wait(NULL);
+
+    if (do_fork)
+        wait(NULL);
+
+    return ret;
 }
 
 int test_signal_eperm(void) {
@@ -202,10 +203,19 @@ int test_signal(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
+    int pid = 0;
+    if (argc > 2) {
+        pid = atoi(argv[2]);
+        if (pid < 1) {
+            fprintf(stderr, "invalid pid: %s\n", argv[2]);
+            return EXIT_FAILURE;
+        }
+    }
+
     if (!strcmp(argv[1], "sigusr"))
-        return test_signal_sigusr(SIGUSR1);
-    if (!strcmp(argv[1], "sigusr2"))
-        return test_signal_sigusr(SIGUSR2);
+        return test_signal_sigusr(pid, SIGUSR1);
+    else if (!strcmp(argv[1], "sigusr2"))
+        return test_signal_sigusr(pid, SIGUSR2);
     else if (!strcmp(argv[1], "eperm"))
         return test_signal_eperm();
     fprintf(stderr, "%s: Unknown argument: %s.\n", __FUNCTION__, argv[1]);
@@ -370,7 +380,10 @@ int test_bind_af_inet(int argc, char** argv) {
     }
 
     addr.sin_port = htons(4242);
-    bind(s, (struct sockaddr*)&addr, sizeof(addr));
+    if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("Failed to bind port");
+        return EXIT_FAILURE;
+    }
 
     close (s);
     return EXIT_SUCCESS;
@@ -403,7 +416,10 @@ int test_bind_af_inet6(int argc, char** argv) {
     }
 
     addr.sin6_port = htons(4242);
-    bind(s, (struct sockaddr*)&addr, sizeof(addr));
+    if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("Failed to bind port");
+        return EXIT_FAILURE;
+    }
 
     close(s);
     return EXIT_SUCCESS;
@@ -423,7 +439,6 @@ int test_bind_af_unix(void) {
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, TEST_BIND_AF_UNIX_SERVER_PATH, strlen(TEST_BIND_AF_UNIX_SERVER_PATH));
     int ret = bind(s, (struct sockaddr*)&addr, sizeof(addr));
-    printf("bind retval: %i\n", ret);
     if (ret)
         perror("bind");
 
@@ -464,13 +479,13 @@ int test_forkexec(int argc, char **argv) {
             }
             return EXIT_SUCCESS;
         } else if (strcmp(subcmd, "mmap") == 0) {
-            mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+            open("/dev/null", O_RDONLY);
             return EXIT_SUCCESS;
         }
     } else if (argc == 1) {
         int child = fork();
         if (child == 0) {
-            mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+            open("/dev/null", O_RDONLY);
             return EXIT_SUCCESS;
         } else if (child > 0) {
             wait(NULL);
@@ -538,27 +553,20 @@ int test_unlink(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+sigset_t set;
 int test_set_signal_handler(int argc, char** argv) {
-    sigset_t set;
-    int sig;
-    int *sigptr = &sig;
-    int ret_val;
-
     sigemptyset(&set);
     sigaddset(&set, SIGUSR2);
-    sigprocmask( SIG_BLOCK, &set, NULL );
+    int ret = sigprocmask( SIG_BLOCK, &set, NULL );
 
-    return EXIT_SUCCESS;
+    return ret;
 }
 
 int test_wait_signal(int argc, char** argv) {
-    sigset_t set;
     int sig;
     int *sigptr = &sig;
     int ret_val;
 
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR2);
     return sigwait(&set, sigptr);
 }
 
@@ -592,14 +600,15 @@ int test_exec_in_pthread(int argc, char **argv) {
 
 int test_sleep(int argc, char **argv) {
     if (argc != 2) {
-        fprintf(stderr, "Please specify at a sleep duration\n");
+        fprintf(stderr, "%s: Please pass a duration in seconds.\n", __FUNCTION__);
         return EXIT_FAILURE;
     }
     int duration = atoi(argv[1]);
     if (duration <= 0) {
         fprintf(stderr, "Please specify at a valid sleep duration\n");
     }
-    sleep(duration);
+    for (int i = 0; i < duration; i++)
+        sleep(1);
     return EXIT_SUCCESS;
 }
 
@@ -638,6 +647,22 @@ int test_memfd_create(int argc, char **argv) {
     }
 
     return EXIT_SUCCESS;
+}
+
+int test_new_netns_exec(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify at least an executable path\n");
+        return EXIT_FAILURE;
+    }
+
+    if (unshare(CLONE_NEWNET)) {
+        perror("unshare");
+        return EXIT_FAILURE;
+    }
+
+    execv(argv[1], argv + 1);
+    fprintf(stderr, "execv failed: %s\n", argv[1]);
+    return EXIT_FAILURE;
 }
 
 int main(int argc, char **argv) {
@@ -707,13 +732,15 @@ int main(int argc, char **argv) {
             exit_code = test_sleep(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "new_netns_exec") == 0) {
+            exit_code = test_new_netns_exec(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;
         }
 
-        if (exit_code == EXIT_FAILURE) {
-            fprintf(stderr, "Command `%s` failed: %d\n", cmd, exit_code);
+        if (exit_code != EXIT_SUCCESS) {
+            fprintf(stderr, "Command `%s` failed: %d (errno: %s)\n", cmd, exit_code, strerror(errno));
             return exit_code;
         }
 

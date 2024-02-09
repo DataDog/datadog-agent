@@ -86,7 +86,7 @@ if [ -e "$CONF_DIR/datadog.conf" ] || [ -e "$CONF_DIR/datadog.yaml" ]; then
     sudo -Hu "$INSTALL_USER" launchctl unload -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist" || true
 
     # Save old conf
-    rm -rvf /tmp/checks.d/* /tmp/conf.d/* /tmp/datadog.conf /tmp/datadog.yaml
+    rm -rvf /tmp/checks.d /tmp/conf.d /tmp/datadog.conf /tmp/datadog.yaml
     mkdir -vp /tmp/checks.d
     mkdir -vp /tmp/conf.d
     cp -vf $CONF_DIR/datadog.conf /tmp

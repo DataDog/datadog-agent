@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package admission implements the admission controller managed by the Cluster Agent.
 package admission
 
 import (
@@ -17,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -30,7 +30,6 @@ type ControllerContext struct {
 	SecretInformers     informers.SharedInformerFactory
 	WebhookInformers    informers.SharedInformerFactory
 	Client              kubernetes.Interface
-	DiscoveryClient     discovery.DiscoveryInterface
 	StopCh              chan struct{}
 }
 
@@ -57,12 +56,12 @@ func StartControllers(ctx ControllerContext) error {
 		secretConfig,
 	)
 
-	nsSelectorEnabled, err := useNamespaceSelector(ctx.DiscoveryClient)
+	nsSelectorEnabled, err := useNamespaceSelector(ctx.Client.Discovery())
 	if err != nil {
 		return err
 	}
 
-	v1Enabled, err := UseAdmissionV1(ctx.DiscoveryClient)
+	v1Enabled, err := UseAdmissionV1(ctx.Client.Discovery())
 	if err != nil {
 		return err
 	}

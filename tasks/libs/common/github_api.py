@@ -24,8 +24,8 @@ class GithubAPI:
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, repository=""):
-        self._auth = self._chose_auth()
+    def __init__(self, repository="", public_repo=False):
+        self._auth = self._chose_auth(public_repo)
         self._github = Github(auth=self._auth)
         self._repository = self._github.get_repo(repository)
 
@@ -51,7 +51,7 @@ class GithubAPI:
         """
         Creates a PR in the given Github repository.
         """
-        return self._repository.create_pull(title=pr_title, body=pr_body, base=base_branch, target=target_branch)
+        return self._repository.create_pull(title=pr_title, body=pr_body, base=base_branch, head=target_branch)
 
     def update_pr(self, pull_number, milestone_number, labels):
         """
@@ -73,6 +73,30 @@ class GithubAPI:
             if milestone.title == milestone_name:
                 return milestone
         return None
+
+    def is_release_note_needed(self, pull_number):
+        """
+        Check if labels are ok for skipping QA
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        labels = [label.name for label in pr.get_labels()]
+        if "changelog/no-changelog" in labels:
+            return False
+        return True
+
+    def contains_release_note(self, pull_number):
+        """
+        Look in modified files for a release note
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        for file in pr.get_files():
+            if (
+                file.filename.startswith("releasenotes/notes/")
+                or file.filename.startswith("releasenotes-dca/notes/")
+                or file.filename.startswith("releasenotes-installscript/notes")
+            ):
+                return True
+        return False
 
     def get_pulls(self, milestone=None, labels=None):
         if milestone is None:
@@ -147,21 +171,34 @@ class GithubAPI:
 
         return self.download_from_url(headers["location"], destination_dir, run.id)
 
-    def latest_workflow_run_for_ref(self, workflow_name, ref):
+    def workflow_run_for_ref_after_date(self, workflow_name, ref, oldest_date):
         """
-        Gets latest workflow run for a given reference
+        Gets all the workflow triggered after a given date
         """
         workflow = self._repository.get_workflow(workflow_name)
         runs = workflow.get_runs(branch=ref)
-        return max(runs, key=lambda run: run.created_at, default=None)
+        recent_runs = [run for run in runs if run.created_at > oldest_date]
 
-    def _chose_auth(self):
+        return sorted(recent_runs, key=lambda run: run.created_at, reverse=True)
+
+    def latest_release(self) -> str:
+        release = self._repository.get_latest_release()
+        return release.title
+
+    def get_rate_limit_info(self):
+        """
+        Gets the current rate limit info.
+        """
+        return self._github.rate_limiting
+
+    def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
             - Personal access token through GITHUB_TOKEN environment variable
             - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
               variables (can also use GITHUB_INSTALLATION_ID to save a request)
             - A token from macOS keychain
+            - A fake login user/password to reach public repositories
         """
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
@@ -179,6 +216,8 @@ class GithubAPI:
                     raise Exit(message='No usable installation found', code=1)
                 installation_id = installations[0]
             return appAuth.get_installation_auth(int(installation_id))
+        if public_repo:
+            return Auth.Login("user", "password")
         if platform.system() == "Darwin":
             try:
                 output = (

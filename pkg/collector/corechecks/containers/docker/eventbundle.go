@@ -14,12 +14,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	//nolint:revive // TODO(CINT) Fix revive linter
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -75,8 +76,8 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error)
 		),
 		Priority:       event.EventPriorityNormal,
 		Host:           hostname,
-		SourceTypeName: dockerCheckName,
-		EventType:      dockerCheckName,
+		SourceTypeName: CheckName,
+		EventType:      CheckName,
 		AlertType:      b.alertType,
 		Ts:             b.maxTimestamp.Unix(),
 		AggregationKey: fmt.Sprintf("docker:%s", b.imageName),

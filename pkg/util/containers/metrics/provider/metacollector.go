@@ -6,50 +6,39 @@
 package provider
 
 import (
+	"sort"
+	"sync"
 	"time"
 )
 
 // MetaCollector is a special collector that uses all available collectors, by priority order.
-type MetaCollector interface {
-	// GetContainerIDForPID returns a container ID for given PID.
-	// ("", nil) will be returned if no error but the containerd ID was not found.
-	GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error)
-
-	// GetSelfContainerID returns the container ID for current container.
-	// ("", nil) will be returned if not possible to get ID for current container.
-	GetSelfContainerID() (string, error)
-}
-
 type metaCollector struct {
-	orderedCollectorLister func() []*collectorReference
+	lock                           sync.RWMutex
+	selfContainerIDcollectors      []CollectorRef[SelfContainerIDRetriever]
+	containerIDFromPIDcollectors   []CollectorRef[ContainerIDForPIDRetriever]
+	containerIDFromInodeCollectors []CollectorRef[ContainerIDForInodeRetriever]
 }
 
-func newMetaCollector(collectorLister func() []*collectorReference) *metaCollector {
-	return &metaCollector{
-		orderedCollectorLister: collectorLister,
-	}
+func newMetaCollector() *metaCollector {
+	return &metaCollector{}
 }
 
-// GetContainerIDForPID returns a container ID for given PID.
-func (mc *metaCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
-	for _, collector := range mc.orderedCollectorLister() {
-		val, err := collector.collector.GetContainerIDForPID(pid, cacheValidity)
-		if err != nil {
-			return "", err
-		}
+func (mc *metaCollector) collectorsUpdatedCallback(collectorsCatalog CollectorCatalog) {
+	mc.lock.Lock()
+	defer mc.lock.Unlock()
 
-		if val != "" {
-			return val, nil
-		}
-	}
-
-	return "", nil
+	mc.selfContainerIDcollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[SelfContainerIDRetriever] { return c.SelfContainerID })
+	mc.containerIDFromPIDcollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[ContainerIDForPIDRetriever] { return c.ContainerIDForPID })
+	mc.containerIDFromInodeCollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[ContainerIDForInodeRetriever] { return c.ContainerIDForInode })
 }
 
 // GetSelfContainerID returns the container ID for current container.
 func (mc *metaCollector) GetSelfContainerID() (string, error) {
-	for _, collector := range mc.orderedCollectorLister() {
-		val, err := collector.collector.GetSelfContainerID()
+	mc.lock.RLock()
+	defer mc.lock.RUnlock()
+
+	for _, collectorRef := range mc.selfContainerIDcollectors {
+		val, err := collectorRef.Collector.GetSelfContainerID()
 		if err != nil {
 			return "", err
 		}
@@ -62,15 +51,67 @@ func (mc *metaCollector) GetSelfContainerID() (string, error) {
 	return "", nil
 }
 
-// Not implemented as metaCollector implements Collector interface to allow wrapping in collectorCache
-func (mc *metaCollector) ID() string {
-	panic("Should never be called")
+// GetContainerIDForPID returns a container ID for given PID.
+func (mc *metaCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	mc.lock.RLock()
+	defer mc.lock.RUnlock()
+
+	for _, collectorRef := range mc.containerIDFromPIDcollectors {
+		val, err := collectorRef.Collector.GetContainerIDForPID(pid, cacheValidity)
+		if err != nil {
+			return "", err
+		}
+
+		if val != "" {
+			return val, nil
+		}
+	}
+
+	return "", nil
 }
 
-func (mc *metaCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
-	panic("Should never be called")
+// GetContainerIDForInode returns a container ID for given Inode.
+// ("", nil) will be returned if no error but the containerd ID was not found.
+func (mc *metaCollector) GetContainerIDForInode(inode uint64, cacheValidity time.Duration) (string, error) {
+	mc.lock.RLock()
+	defer mc.lock.RUnlock()
+
+	for _, collectorRef := range mc.containerIDFromInodeCollectors {
+		val, err := collectorRef.Collector.GetContainerIDForInode(inode, cacheValidity)
+		if err != nil {
+			return "", err
+		}
+
+		if val != "" {
+			return val, nil
+		}
+	}
+
+	return "", nil
 }
 
-func (mc *metaCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
-	panic("Should never be called")
+func buildUniqueCollectors[T comparable](collectorsCatalog CollectorCatalog, getter func(*Collectors) CollectorRef[T]) []CollectorRef[T] {
+	// We don't need to optimize performances too much as this is called only a handful of times
+	var zero T
+	uniqueCollectors := make(map[CollectorRef[T]]struct{})
+	var sortedCollectors []CollectorRef[T]
+
+	for _, collectors := range collectorsCatalog {
+		if collectors != nil {
+			collectorRef := getter(collectors)
+			if collectorRef.Collector != zero {
+				uniqueCollectors[collectorRef] = struct{}{}
+			}
+		}
+	}
+
+	for collectorRef := range uniqueCollectors {
+		sortedCollectors = append(sortedCollectors, collectorRef)
+	}
+
+	sort.Slice(sortedCollectors, func(i, j int) bool {
+		return sortedCollectors[i].Priority < sortedCollectors[j].Priority
+	})
+
+	return sortedCollectors
 }

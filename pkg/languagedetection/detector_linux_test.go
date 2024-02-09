@@ -8,13 +8,14 @@
 package languagedetection
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"path"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -76,8 +77,8 @@ func TestBinaryAnalysisClient(t *testing.T) {
 	}
 
 	cfg := config.Mock(t)
-	cfg.Set("system_probe_config.language_detection.enabled", true)
-	cfg.Set("system_probe_config.sysprobe_socket", socketPath)
+	cfg.SetWithoutSource("system_probe_config.language_detection.enabled", true)
+	cfg.SetWithoutSource("system_probe_config.sysprobe_socket", socketPath)
 
 	res := DetectLanguage(procs, cfg)
 	assert.Equal(t, languagemodels.Python, res[0].Name)

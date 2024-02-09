@@ -13,14 +13,16 @@ import (
 	"strconv"
 	"strings"
 
+	authenticationv1 "k8s.io/api/authentication/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/dynamic"
 )
 
 const (
@@ -77,7 +79,7 @@ var (
 )
 
 // InjectConfig adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
-func InjectConfig(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error) {
+func InjectConfig(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ kubernetes.Interface) ([]byte, error) {
 	return mutate(rawPod, ns, injectConfig, dc)
 }
 
@@ -85,15 +87,15 @@ func InjectConfig(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error
 func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	var injectedConfig, injectedEntity bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity))
+		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity), "", "")
 	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod")
+		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod", "", "")
 		return errors.New("cannot inject config into nil pod")
 	}
 
-	if !shouldInjectConf(pod) {
+	if !shouldInject(pod) {
 		return nil
 	}
 
@@ -110,30 +112,13 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		injectedEnv = injectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedEnv || injectedVol
 	default:
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode")
+		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode", "", "")
 		return fmt.Errorf("invalid injection mode %q", mode)
 	}
 
 	injectedEntity = injectEnv(pod, ddEntityIDEnvVar)
 
 	return nil
-}
-
-// shouldInjectConf returns whether the config should be injected
-// based on the pod labels and the cluster agent config
-func shouldInjectConf(pod *corev1.Pod) bool {
-	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
-		switch val {
-		case "true":
-			return true
-		case "false":
-			return false
-		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, podString(pod))
-			return false
-		}
-	}
-	return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
 
 // injectionMode returns the injection mode based on the global mode and pod labels

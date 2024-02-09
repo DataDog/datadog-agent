@@ -25,7 +25,10 @@ func initRuntimeSettings() error {
 	if err := commonsettings.RegisterRuntimeSetting(&commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(&commonsettings.ProfilingGoroutines{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {
+	profilingGoRoutines := commonsettings.NewProfilingGoroutines()
+	profilingGoRoutines.Config = pkgconfig.SystemProbe
+	profilingGoRoutines.ConfigPrefix = configPrefix
+	if err := commonsettings.RegisterRuntimeSetting(profilingGoRoutines); err != nil {
 		return err
 	}
 	if err := commonsettings.RegisterRuntimeSetting(&commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {

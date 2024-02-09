@@ -23,11 +23,15 @@ func getUDSAncillarySize() int {
 }
 
 // enableUDSPassCred returns a "not implemented" error on non-linux hosts
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func enableUDSPassCred(conn *net.UnixConn) error {
 	return ErrLinuxOnly
 }
 
 // processUDSOrigin returns a "not implemented" error on non-linux hosts
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func processUDSOrigin(oob []byte) (int, string, error) {
 	return 0, packets.NoOrigin, ErrLinuxOnly
 }

@@ -4,15 +4,6 @@
 #include "ktypes.h"
 #include "bpf_builtins.h"
 
-/* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
-typedef struct __attribute__((packed)) {
-    __u8 app;
-    __u16 version;
-    __u16 length;
-} tls_record_t;
-
-#define TLS_HEADER_SIZE sizeof(tls_record_t)
-
 #define SSL_VERSION20 0x0200
 #define SSL_VERSION30 0x0300
 #define TLS_VERSION10 0x0301
@@ -20,59 +11,51 @@ typedef struct __attribute__((packed)) {
 #define TLS_VERSION12 0x0303
 #define TLS_VERSION13 0x0304
 
-#define TLS_CHANGE_CIPHER 0x14
-#define TLS_ALERT 0x15
 #define TLS_HANDSHAKE 0x16
-#define TLS_APPLICATION_DATA 0x17
 
-// For tls 1.0, 1.1 and 1.3 maximum allowed size of the TLS fragment
-// is 2^14. However, for tls 1.2 maximum size is (2^14)+1024.
-#define MAX_TLS_FRAGMENT_LENGTH ((1<<14)+1024)
+/* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
 
-static __always_inline bool is_valid_tls_app(u8 app) {
-    return (app == TLS_CHANGE_CIPHER) || (app == TLS_ALERT) || (app == TLS_HANDSHAKE) || (app == TLS_APPLICATION_DATA);
-}
+// TLS record layer header structure
+typedef struct {
+    __u8 content_type;
+    __u16 version;
+    __u16 length;
+} __attribute__((packed)) tls_record_header_t;
 
-static __always_inline bool is_valid_tls_version(__u16 version) {
-    return (version == SSL_VERSION20) || (version == SSL_VERSION30) || (version == TLS_VERSION10) || (version == TLS_VERSION11) || (version == TLS_VERSION12) || (version == TLS_VERSION13);
-}
+typedef struct {
+    __u8 handshake_type;
+    __u32 length : 24;
+    __u16 version;
+} __attribute__((packed)) tls_hello_message_t;
 
-static __always_inline bool is_payload_length_valid(__u8 app, __u16 tls_len, __u32 buf_size) {
-    /* check only for application data layer */
-    if (app != TLS_APPLICATION_DATA) {
-        return true;
-    }
-
-    if (buf_size < (sizeof(tls_record_t)+tls_len)) {
-        return false;
-    }
-
-    return true;
-}
+#define TLS_HANDSHAKE_CLIENT_HELLO 0x01
+#define TLS_HANDSHAKE_SERVER_HELLO 0x02
 
 static __always_inline bool is_tls(const char* buf, __u32 buf_size) {
-    if (buf_size < TLS_HEADER_SIZE) {
+    if (buf_size < (sizeof(tls_record_header_t)+sizeof(tls_hello_message_t))) {
         return false;
     }
 
-    tls_record_t *tls_record = (tls_record_t *)buf;
-    if (!is_valid_tls_app(tls_record->app)) {
+    tls_record_header_t *tls_record_header = (tls_record_header_t *)buf;
+    if (tls_record_header->content_type != TLS_HANDSHAKE) {
         return false;
     }
 
-    if (!is_valid_tls_version(tls_record->version)) {
+    tls_hello_message_t *tls_hello_message = (tls_hello_message_t *)(buf + sizeof(tls_record_header_t));
+    if (tls_hello_message->handshake_type != TLS_HANDSHAKE_CLIENT_HELLO && tls_hello_message->handshake_type != TLS_HANDSHAKE_SERVER_HELLO) {
         return false;
     }
 
-    if (tls_record->length > MAX_TLS_FRAGMENT_LENGTH) {
-        return false;
+    switch (tls_hello_message->version) {
+        case SSL_VERSION20:
+        case SSL_VERSION30:
+        case TLS_VERSION10:
+        case TLS_VERSION11:
+        case TLS_VERSION12:
+        case TLS_VERSION13:
+            return true;
     }
-
-    if (!is_payload_length_valid(tls_record->app, tls_record->length, buf_size)) {
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 #endif

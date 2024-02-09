@@ -98,7 +98,7 @@ struct cgroup_tracing_event_t {
     struct kevent_t event;
     struct container_context_t container;
     struct activity_dump_config config;
-    u32 cookie;
+    u64 cookie;
 };
 
 struct utimes_event_t {
@@ -373,6 +373,15 @@ struct unlink_event_t {
     struct file_t file;
     u32 flags;
     u32 padding;
+};
+
+struct chdir_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct file_t file;
 };
 
 #endif

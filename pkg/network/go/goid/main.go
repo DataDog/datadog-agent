@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package goid provides a function to get the current goroutine ID.
 package goid
 
 // This generates GetGoroutineIDOffset's implementation in ./goid_offset.go:

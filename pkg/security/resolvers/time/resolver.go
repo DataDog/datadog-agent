@@ -63,8 +63,12 @@ func (tr *Resolver) ApplyBootTime(timestamp time.Time) time.Time {
 // ComputeMonotonicTimestamp converts an absolute time to a kernel monotonic timestamp
 func (tr *Resolver) ComputeMonotonicTimestamp(timestamp time.Time) int64 {
 	if !timestamp.IsZero() {
-		offset := tr.getUptimeOffset()
-		return timestamp.Sub(tr.bootTime.Add(offset)).Nanoseconds()
+		return timestamp.Sub(tr.GetBootTime()).Nanoseconds()
 	}
 	return 0
+}
+
+// GetBootTime returns boot time
+func (tr *Resolver) GetBootTime() time.Time {
+	return tr.bootTime.Add(tr.getUptimeOffset())
 }

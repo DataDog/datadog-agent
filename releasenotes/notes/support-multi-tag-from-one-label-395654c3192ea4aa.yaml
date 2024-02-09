@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add logic to support multiple tags created by a single label/annotaion. 
+    For example, add the following config to extract tags for chart_name and app_chart_name. 
+      podLabelsAsTags: 
+        chart_name: chart_name, app_chart_name 
+    Note: the format must be a comma-separated list of tags.

@@ -13,6 +13,7 @@ import (
 // Buffer is a buffer of packets that will automatically flush to the given
 // output channel when it is full or after a configurable duration.
 type Buffer struct {
+	listenerID    string
 	packets       Packets
 	flushTimer    *time.Ticker
 	bufferSize    uint
@@ -22,8 +23,9 @@ type Buffer struct {
 }
 
 // NewBuffer creates a new buffer of packets of specified size
-func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets) *Buffer {
+func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets, listenerID string) *Buffer {
 	pb := &Buffer{
+		listenerID:    listenerID,
 		bufferSize:    bufferSize,
 		flushTimer:    time.NewTicker(flushTimer),
 		outputChannel: outputChannel,
@@ -40,7 +42,7 @@ func (pb *Buffer) flushLoop() {
 		case <-pb.flushTimer.C:
 			pb.m.Lock()
 			pb.flush()
-			tlmBufferFlushedTimer.Inc()
+			tlmBufferFlushedTimer.Inc(pb.listenerID)
 			pb.m.Unlock()
 		case <-pb.closeChannel:
 			return
@@ -52,26 +54,45 @@ func (pb *Buffer) flushLoop() {
 func (pb *Buffer) Append(packet *Packet) {
 	pb.m.Lock()
 	defer pb.m.Unlock()
+
+	packet.ListenerID = pb.listenerID
+	tlmBufferSizeBytes.Add(float64(packet.SizeInBytes()+packet.DataSizeInBytes()), pb.listenerID)
+
 	pb.packets = append(pb.packets, packet)
+
+	tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerID)
+
 	if uint(len(pb.packets)) >= pb.bufferSize {
 		pb.flush()
-		tlmBufferFlushedFull.Inc()
+		tlmBufferFlushedFull.Inc(pb.listenerID)
 	}
 }
 
 func (pb *Buffer) flush() {
 	if len(pb.packets) > 0 {
 		t1 := time.Now()
+
+		TelemetryTrackPackets(pb.packets, pb.listenerID)
+		tlmBufferSizeBytes.Add(-float64(pb.packets.SizeInBytes()+pb.packets.DataSizeInBytes()), pb.listenerID)
+
 		pb.outputChannel <- pb.packets
 		t2 := time.Now()
-		tlmListenerChannel.Observe(float64(t2.Sub(t1).Nanoseconds()))
+		tlmListenerChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), pb.listenerID)
 
-		tlmChannelSize.Set(float64(len(pb.outputChannel)))
 		pb.packets = make(Packets, 0, pb.bufferSize)
 	}
+	tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerID)
+	tlmChannelSize.Set(float64(len(pb.outputChannel)))
+
 }
 
 // Close closes the packet buffer
 func (pb *Buffer) Close() {
 	close(pb.closeChannel)
+	if pb.listenerID != "" {
+		tlmBufferSize.Delete(pb.listenerID)
+		tlmChannelSize.Delete(pb.listenerID)
+		tlmBufferFlushedFull.Delete(pb.listenerID)
+		tlmBufferFlushedTimer.Delete(pb.listenerID)
+	}
 }

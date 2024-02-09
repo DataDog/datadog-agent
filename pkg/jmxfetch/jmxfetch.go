@@ -5,6 +5,7 @@
 
 //go:build jmx
 
+//nolint:revive // TODO(AML) Fix revive linter
 package jmxfetch
 
 import (
@@ -20,12 +21,12 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -72,6 +73,7 @@ type JMXFetch struct {
 	Command            string
 	Reporter           JMXReporter
 	Checks             []string
+	DSD                dogstatsdServer.Component
 	IPCPort            int
 	IPCHost            string
 	Output             func(...interface{})
@@ -129,8 +131,8 @@ func (j *JMXFetch) Monitor() {
 		if !limiter.canRestart(time.Now()) {
 			msg := fmt.Sprintf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up", limiter.maxRestarts, limiter.interval)
 			log.Errorf(msg)
-			s := status.JMXStartupError{LastError: msg, Timestamp: time.Now().Unix()}
-			status.SetJMXStartupError(s)
+			s := jmxStatus.StartupError{LastError: msg, Timestamp: time.Now().Unix()}
+			jmxStatus.SetStartupError(s)
 			return
 		}
 
@@ -198,7 +200,7 @@ func (j *JMXFetch) Start(manage bool) error {
 	case ReporterJSON:
 		reporter = "json"
 	default:
-		if global.DSD != nil && global.DSD.UdsListenerRunning() {
+		if j.DSD != nil && j.DSD.UdsListenerRunning() {
 			reporter = fmt.Sprintf("statsd:unix://%s", config.Datadog.GetString("dogstatsd_socket"))
 		} else {
 			bindHost := config.GetBindHost()
@@ -268,7 +270,10 @@ func (j *JMXFetch) Start(manage bool) error {
 		jmxLogLevel = "INFO"
 	}
 
-	ipcHost := config.Datadog.GetString("cmd_host")
+	ipcHost, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
 	ipcPort := config.Datadog.GetInt("cmd_port")
 	if j.IPCHost != "" {
 		ipcHost = j.IPCHost
@@ -295,6 +300,10 @@ func (j *JMXFetch) Start(manage bool) error {
 
 	if config.Datadog.GetBool("jmx_statsd_telemetry_enabled") {
 		subprocessArgs = append(subprocessArgs, "--statsd_telemetry")
+	}
+
+	if config.Datadog.GetBool("jmx_telemetry_enabled") {
+		subprocessArgs = append(subprocessArgs, "--jmxfetch_telemetry")
 	}
 
 	if config.Datadog.GetBool("jmx_statsd_client_use_non_blocking") {

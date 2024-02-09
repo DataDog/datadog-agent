@@ -50,9 +50,6 @@ type SecurityProfile struct {
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
 
-	// Status is the status of the profile
-	Status model.Status
-
 	// Version is the version of a Security Profile
 	Version string
 
@@ -109,13 +106,6 @@ func (p *SecurityProfile) generateSyscallsFilters() [64]byte {
 	return output
 }
 
-func (p *SecurityProfile) generateKernelSecurityProfileDefinition() [16]byte {
-	var output [16]byte
-	model.ByteOrder.PutUint64(output[0:8], p.profileCookie)
-	model.ByteOrder.PutUint32(output[8:12], uint32(p.Status))
-	return output
-}
-
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	for _, workload := range p.Instances {
@@ -128,11 +118,11 @@ func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 
 // IsEventTypeValid is used to control which event types should trigger anomaly detection alerts
 func (p *SecurityProfile) IsEventTypeValid(evtType model.EventType) bool {
-	return slices.Contains[model.EventType](p.anomalyDetectionEvents, evtType)
+	return slices.Contains(p.anomalyDetectionEvents, evtType)
 }
 
 // NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the activity tree
-func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode) {
+func (p *SecurityProfile) NewProcessNodeCallback(_ *activity_tree.ProcessNode) {
 	// TODO: debounce and regenerate profile filters & programs
 }
 
@@ -177,7 +167,6 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 			Tag:  p.selector.Tag,
 		},
 		ProfileCookie: p.profileCookie,
-		Status:        p.Status.String(),
 		Version:       p.Version,
 		Metadata: &api.MetadataMessage{
 			Name: p.Metadata.Name,

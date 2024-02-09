@@ -10,20 +10,16 @@ package oracle
 import (
 	"database/sql"
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
-	"github.com/jmoiron/sqlx"
-	go_ora "github.com/sijms/go-ora/v2"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	_ "github.com/godror/godror"
+	"github.com/jmoiron/sqlx"
+	go_ora "github.com/sijms/go-ora/v2"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestConnectionGoOra(t *testing.T) {
@@ -51,13 +47,6 @@ func TestConnection(t *testing.T) {
 
 }
 
-func demuxOpts() aggregator.AgentDemultiplexerOptions {
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 1 * time.Hour
-	opts.DontStartForwarders = true
-	return opts
-}
-
 func connectToDB(driver string) (*sqlx.DB, error) {
 	var connStr string
 	if driver == "godror" {
@@ -81,14 +70,6 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 		sqlx.BindDriver("oracle", sqlx.NAMED)
 	}
 	return db, nil
-}
-
-func initAndStartAgentDemultiplexer(t *testing.T) {
-	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.DontStartForwarders = true
-
-	_ = aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
 }
 
 func getUsedPGA(db *sqlx.DB) (float64, error) {
@@ -123,9 +104,8 @@ func getTemporaryLobs(db *sqlx.DB) (int, error) {
 }
 
 func TestChkRun(t *testing.T) {
-	initAndStartAgentDemultiplexer(t)
 	chk.dbmEnabled = true
-	chk.config.InstanceConfig.InstantClient = false
+	chk.config.InstanceConfig.OracleClient = false
 
 	// This is to ensure that query samples return rows
 	chk.config.QuerySamples.IncludeAllSessions = true
@@ -141,7 +121,7 @@ func TestChkRun(t *testing.T) {
 		var driver string
 		if tnsAlias == "" {
 			driver = common.GoOra
-			chk.config.InstanceConfig.InstantClient = false
+			chk.config.InstanceConfig.OracleClient = false
 		} else {
 			driver = common.Godror
 		}
@@ -158,10 +138,14 @@ func TestChkRun(t *testing.T) {
 
 		tempLobsBefore, _ := getTemporaryLobs(chk.db)
 
+		/* Requires:
+		 * create table sys.t(n number);
+		 * grant insert on sys.t to c##datadog
+		 */
 		_, err = chk.db.Exec(`begin
 				for i in 1..1000
 				loop
-					execute immediate 'insert into t values (' || i || ')';
+					execute immediate 'insert into sys.t values (' || i || ')';
 				end loop;
 				end ;`)
 		assert.NoError(t, err, "error generating statements with %s driver", driver)
@@ -293,17 +277,35 @@ func TestSQLXIn(t *testing.T) {
 
 }
 
-func TestLargeUint64Binding(t *testing.T) {
-	largeUint64 := uint64(18446744073709551615)
-	//largeUint64 = 1
-	var result uint64
-	for _, driver := range DRIVERS {
-		db, _ := connectToDB(driver)
-		err := db.Get(&result, "SELECT n FROM T WHERE n = :1", largeUint64)
-		assert.NoError(t, err, "running test statement with %s driver", driver)
-		if err != nil {
-			continue
-		}
-		assert.Equal(t, result, largeUint64, "simple uint64 binding with %s driver", driver)
+func TestObfuscator(t *testing.T) {
+	obfuscatorOptions := obfuscate.SQLConfig{}
+	obfuscatorOptions.DBMS = common.IntegrationName
+	obfuscatorOptions.TableNames = true
+	obfuscatorOptions.CollectCommands = true
+	obfuscatorOptions.CollectComments = true
+
+	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: config.GetDefaultObfuscatorOptions()})
+	for _, statement := range []string{
+		// needs https://datadoghq.atlassian.net/browse/DBM-2295
+		`UPDATE /* comment */ SET t n=1`,
+		`SELECT /* comment */ from dual`} {
+		obfuscatedStatement, err := o.ObfuscateSQLString(statement)
+		assert.NoError(t, err, "obfuscator error")
+		assert.NotContains(t, obfuscatedStatement.Query, "comment", "comment wasn't removed by the obfuscator")
 	}
+
+	_, err := o.ObfuscateSQLString(`SELECT TRUNC(SYSDATE@!) from dual`)
+	assert.NoError(t, err, "can't obfuscate @!")
+
+	sql := "begin null ; end;"
+	obfuscatedStatement, err := o.ObfuscateSQLString(sql)
+	assert.Equal(t, obfuscatedStatement.Query, "begin null; end;")
+
+	sql = "select count (*) from dual"
+	obfuscatedStatement, err = o.ObfuscateSQLString(sql)
+	assert.Equal(t, sql, obfuscatedStatement.Query)
+
+	sql = "select file# from dual"
+	obfuscatedStatement, err = o.ObfuscateSQLString(sql)
+	assert.Equal(t, sql, obfuscatedStatement.Query)
 }

@@ -8,7 +8,7 @@ package utils
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
@@ -18,7 +18,7 @@ type MetadataProviders struct {
 }
 
 // GetMetadataProviders returns the "metadata_providers" set in the configuration
-func GetMetadataProviders(c config.ConfigReader) ([]MetadataProviders, error) {
+func GetMetadataProviders(c pkgconfigmodel.Reader) ([]MetadataProviders, error) {
 	var mp []MetadataProviders
 	return mp, c.UnmarshalKey("metadata_providers", &mp)
 }

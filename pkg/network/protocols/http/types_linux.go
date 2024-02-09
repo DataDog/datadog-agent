@@ -24,19 +24,23 @@ type SslReadArgs struct {
 	Buf *byte
 }
 
+type EbpfEvent struct {
+	Tuple ConnTuple
+	Http  EbpfTx
+}
 type EbpfTx struct {
-	Tup                  ConnTuple
 	Request_started      uint64
-	Request_method       uint8
-	Response_status_code uint16
 	Response_last_seen   uint64
-	Request_fragment     [160]byte
-	Tcp_seq              uint32
 	Tags                 uint64
+	Tcp_seq              uint32
+	Response_status_code uint16
+	Request_method       uint8
+	Pad_cgo_0            [1]byte
+	Request_fragment     [208]byte
 }
 
 const (
-	BufferSize = 0xa0
+	BufferSize = 0xd0
 )
 
 type ConnTag = uint64

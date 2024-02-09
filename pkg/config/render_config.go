@@ -55,6 +55,7 @@ type context struct {
 	DataStreamsModule                bool // Sub-module of System Probe
 	PrometheusScrape                 bool
 	OTLP                             bool
+	APMInjection                     bool
 }
 
 func mkContext(buildType string) context {
@@ -149,6 +150,11 @@ func mkContext(buildType string) context {
 		return context{
 			OS:            runtime.GOOS,
 			SecurityAgent: true,
+		}
+	case "apm-injection":
+		return context{
+			OS:           runtime.GOOS,
+			APMInjection: true,
 		}
 	}
 

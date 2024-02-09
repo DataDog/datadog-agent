@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package rcclient
+package rcclient //nolint:revive // TODO(RC) Fix revive linter
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -23,10 +23,12 @@ type Component interface {
 	// SubscribeAgentTask subscribe the remote-config client to AGENT_TASK
 	SubscribeAgentTask()
 	// Subscribe is the generic way to start listening to a specific product update
+	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newRemoteConfigClient),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newRemoteConfigClient))
+}

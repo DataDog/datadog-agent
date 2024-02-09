@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -112,6 +113,47 @@ func TestProcess(t *testing.T) {
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
 		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["sql.query"])
+	})
+
+	t.Run("ReplacerMetrics", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.ReplaceTags = []*config.ReplaceRule{
+			{
+				Name: "request.zipcode",
+				Re:   regexp.MustCompile(".*"),
+				Repl: "...",
+			},
+			{
+				Name: "*",
+				Re:   regexp.MustCompile("1337"),
+				Repl: "5555",
+			},
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		now := time.Now()
+		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "resource",
+			Type:     "web",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"request.zipcode": 12345, "request.secret": 1337, "safe.data": 42},
+			Meta:     map[string]string{"keep.me": "very-normal-not-sensitive-data"},
+		}
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		})
+
+		assert.Equal(t, 5555.0, span.Metrics["request.secret"])
+		assert.Equal(t, "...", span.Meta["request.zipcode"])
+		assert.Equal(t, "very-normal-not-sensitive-data", span.Meta["keep.me"])
+		assert.Equal(t, 42.0, span.Metrics["safe.data"])
 	})
 
 	t.Run("Blacklister", func(t *testing.T) {
@@ -321,9 +363,10 @@ func TestProcess(t *testing.T) {
 	})
 
 	t.Run("aas", func(t *testing.T) {
+		t.Setenv("APPSVC_RUN_ZIP", "true")
+		t.Setenv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED", "false")
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		cfg.InAzureAppServices = true
 		ctx, cancel := context.WithCancel(context.Background())
 		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
@@ -343,17 +386,10 @@ func TestProcess(t *testing.T) {
 		}
 
 		for _, chunk := range tp.Chunks {
-			for i, span := range chunk.Spans {
-				if i == 0 {
-					// root span should contain all aas tags
-					for tag := range traceutil.GetAppServicesTags() {
-						assert.Contains(t, span.Meta, tag)
-					}
-				} else {
-					// other spans should only contain site name and type
-					assert.Contains(t, span.Meta, "aas.site.name")
-					assert.Contains(t, span.Meta, "aas.site.type")
-				}
+			for _, span := range chunk.Spans {
+				assert.Contains(t, span.Meta, "aas.resource.id")
+				assert.Contains(t, span.Meta, "aas.site.name")
+				assert.Contains(t, span.Meta, "aas.site.type")
 			}
 		}
 	})
@@ -741,78 +777,190 @@ func TestClientComputedTopLevel(t *testing.T) {
 }
 
 func TestFilteredByTags(t *testing.T) {
-	for _, tt := range []*struct {
-		require []*config.Tag
-		reject  []*config.Tag
-		span    pb.Span
-		drop    bool
+	for name, tt := range map[string]*struct {
+		require      []*config.Tag
+		reject       []*config.Tag
+		requireRegex []*config.TagRegex
+		rejectRegex  []*config.TagRegex
+		span         pb.Span
+		drop         bool
 	}{
-		{
+		"keep-span-with-tag-from-required-list": {
 			require: []*config.Tag{{K: "key", V: "val"}},
 			span:    pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:    false,
 		},
-		{
+		"keep-span-with-tag-value-diff-rejected-list": {
 			reject: []*config.Tag{{K: "key", V: "val"}},
 			span:   pb.Span{Meta: map[string]string{"key": "val4"}},
 			drop:   false,
 		},
-		{
+		"keep-span-with-tag-diff-rejected-list": {
 			reject: []*config.Tag{{K: "something", V: "else"}},
 			span:   pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:   false,
 		},
-		{
+		"keep-span-with-tag-from-required-list-and-tag-value-diff-rejected-list": {
 			require: []*config.Tag{{K: "something", V: "else"}},
 			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
 			span:    pb.Span{Meta: map[string]string{"something": "else", "bad-key": "other-value"}},
 			drop:    false,
 		},
-		{
+		"keep-span-with-tag-from-required-list-whithout-value-and-tag-value-diff-rejected-list": {
 			require: []*config.Tag{{K: "key", V: "value"}, {K: "key-only"}},
 			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
 			span:    pb.Span{Meta: map[string]string{"key": "value", "key-only": "but-also-value", "bad-key": "not-bad-value"}},
 			drop:    false,
 		},
-		{
+		"drop-span-with-tag-value-diff-required-list": {
 			require: []*config.Tag{{K: "key", V: "val"}},
 			span:    pb.Span{Meta: map[string]string{"key": "val2"}},
 			drop:    true,
 		},
-		{
+		"drop-span-with-tag-key-diff-required-list": {
 			require: []*config.Tag{{K: "something", V: "else"}},
 			span:    pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:    true,
 		},
-		{
+		"drop-span-with-tag-from-rejected-list-without-value": {
 			require: []*config.Tag{{K: "valid"}, {K: "test"}},
 			reject:  []*config.Tag{{K: "test"}},
 			span:    pb.Span{Meta: map[string]string{"test": "random", "valid": "random"}},
 			drop:    true,
 		},
-		{
+		"drop-span-with-tag-value-diff-required-list-and-tag-from-rejected-list": {
 			require: []*config.Tag{{K: "valid-key", V: "valid-value"}, {K: "test"}},
 			reject:  []*config.Tag{{K: "test"}},
 			span:    pb.Span{Meta: map[string]string{"test": "random", "valid-key": "wrong-value"}},
 			drop:    true,
 		},
-		{
+		"drop-span-with-tag-value-from-rejected-list": {
 			reject: []*config.Tag{{K: "key", V: "val"}},
 			span:   pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:   true,
 		},
-		{
+		"drop-span-with-tag-from-required-list-but-with-tag-from-rejected-list-without-value": {
 			require: []*config.Tag{{K: "something", V: "else"}, {K: "key-only"}},
 			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}, {K: "bad-key-only"}},
 			span:    pb.Span{Meta: map[string]string{"something": "else", "key-only": "but-also-value", "bad-key-only": "random"}},
 			drop:    true,
 		},
+		"drop-span-with-tag-from-rejected-regexp-list": {
+			require:      []*config.Tag{{K: "key", V: "valid"}},
+			requireRegex: []*config.TagRegex{{K: "something", V: regexp.MustCompile("^else[0-9]{1}$")}},
+			span:         pb.Span{Meta: map[string]string{"key": "valid", "something": "else11"}},
+			drop:         true,
+		},
+		"drop-span-with-tag-from-rejected-regexp-list-but-without-tag-from-rejected-list": {
+			reject:      []*config.Tag{{K: "test", V: "bad"}},
+			rejectRegex: []*config.TagRegex{{K: "bad-key", V: regexp.MustCompile("^bad-value$")}},
+			span:        pb.Span{Meta: map[string]string{"bad-key": "bad-value"}},
+			drop:        true,
+		},
+		"keep-span-with-tag-from-required-regexp-list": {
+			requireRegex: []*config.TagRegex{{K: "key", V: regexp.MustCompile("^val[0-9]{1}$")}},
+			span:         pb.Span{Meta: map[string]string{"key": "val1"}},
+			drop:         false,
+		},
+		"keep-span-with-tag-value-diff-rejected-regexp-list": {
+			rejectRegex: []*config.TagRegex{{K: "key", V: regexp.MustCompile("^val$")}},
+			span:        pb.Span{Meta: map[string]string{"key": "val4"}},
+			drop:        false,
+		},
+		"keep-span-with-tag-key-value-diff-rejected-regexp-list": {
+			rejectRegex: []*config.TagRegex{{K: "something", V: regexp.MustCompile("^else$")}},
+			span:        pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:        false,
+		},
+		"keep-span-with-tag-from-required-regexp-list-and-tag-value-diff-rejected-regexp-list": {
+			requireRegex: []*config.TagRegex{{K: "something", V: regexp.MustCompile("^else$")}},
+			rejectRegex:  []*config.TagRegex{{K: "bad-key", V: regexp.MustCompile("^bad-value$")}},
+			span:         pb.Span{Meta: map[string]string{"something": "else", "bad-key": "other-value"}},
+			drop:         false,
+		},
+		"keep-span-with-tag-from-required-regexp-list-without-value-and-tag-value-diff-rejected-regexp-list": {
+			requireRegex: []*config.TagRegex{{K: "key", V: regexp.MustCompile("^value$")}, {K: "key-only"}},
+			rejectRegex:  []*config.TagRegex{{K: "bad-key", V: regexp.MustCompile("^bad-value$")}},
+			span:         pb.Span{Meta: map[string]string{"key": "value", "key-only": "but-also-value", "bad-key": "not-bad-value"}},
+			drop:         false,
+		},
+		"drop-span-with-tag-value-diff-required-regexp-list": {
+			requireRegex: []*config.TagRegex{{K: "key", V: regexp.MustCompile("^val$")}},
+			span:         pb.Span{Meta: map[string]string{"key": "val2"}},
+			drop:         true,
+		},
+		"drop-span-with-tag-key-diff-required-regexp-list": {
+			requireRegex: []*config.TagRegex{{K: "something", V: regexp.MustCompile("^else$")}},
+			span:         pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:         true,
+		},
+		"drop-span-with-tag-from-rejected-regexp-list-without-value": {
+			requireRegex: []*config.TagRegex{{K: "valid"}, {K: "test"}},
+			rejectRegex:  []*config.TagRegex{{K: "test"}},
+			span:         pb.Span{Meta: map[string]string{"test": "random", "valid": "random"}},
+			drop:         true,
+		},
+		"drop-span-with-tag-value-diff-required-regexp-list-and-tag-from-required-regexp-list-without-value": {
+			requireRegex: []*config.TagRegex{{K: "valid-key", V: regexp.MustCompile("^valid-value$")}, {K: "test"}},
+			rejectRegex:  []*config.TagRegex{{K: "test"}},
+			span:         pb.Span{Meta: map[string]string{"test": "random", "valid-key": "wrong-value"}},
+			drop:         true,
+		},
+		"drop-span-with-tag-from-rejected-regexp-list-and-without-required-regexp-list": {
+			rejectRegex: []*config.TagRegex{{K: "key", V: regexp.MustCompile("^val$")}},
+			span:        pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:        true,
+		},
+		"drop-span-with-tag-from-required-regexp-list-but-with-tag-from-rejected-regexp-list-without-value": {
+			requireRegex: []*config.TagRegex{{K: "something", V: regexp.MustCompile("^else$")}, {K: "key-only"}},
+			rejectRegex:  []*config.TagRegex{{K: "bad-key", V: regexp.MustCompile("^bad-value$")}, {K: "bad-key-only"}},
+			span:         pb.Span{Meta: map[string]string{"something": "else", "key-only": "but-also-value", "bad-key-only": "random"}},
+			drop:         true,
+		},
 	} {
-		t.Run("", func(t *testing.T) {
-			if filteredByTags(&tt.span, tt.require, tt.reject) != tt.drop {
+		t.Run(name, func(t *testing.T) {
+			if filteredByTags(&tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex) != tt.drop {
 				t.Fatal()
 			}
 		})
+	}
+}
+
+func BenchmarkFilteredByTags(b *testing.B) {
+	type FilteredByTagTestData struct {
+		require      []*config.Tag
+		reject       []*config.Tag
+		requireRegex []*config.TagRegex
+		rejectRegex  []*config.TagRegex
+		span         pb.Span
+	}
+
+	b.Run("FilteredByTags", func(b *testing.B) {
+		tt := FilteredByTagTestData{
+			require: []*config.Tag{{K: "key1", V: "val1"}, {K: "key2", V: "val2"}},
+			reject:  []*config.Tag{{K: "key3", V: "val3"}},
+			span:    pb.Span{Meta: map[string]string{"key1": "val1", "key2": "val2"}},
+		}
+
+		runTraceFilteringBenchmark(b, &tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex)
+	})
+
+	b.Run("FilteredByRegexTags", func(b *testing.B) {
+		tt := FilteredByTagTestData{
+			requireRegex: []*config.TagRegex{{K: "key1", V: regexp.MustCompile("^val1$")}, {K: "key2", V: regexp.MustCompile("^val2$")}},
+			rejectRegex:  []*config.TagRegex{{K: "key3", V: regexp.MustCompile("^val3$")}},
+			span:         pb.Span{Meta: map[string]string{"key1": "val1", "key2": "val2"}},
+		}
+
+		runTraceFilteringBenchmark(b, &tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex)
+	})
+}
+
+func runTraceFilteringBenchmark(b *testing.B, root *pb.Span, require []*config.Tag, reject []*config.Tag, requireRegex []*config.TagRegex, rejectRegex []*config.TagRegex) {
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		filteredByTags(root, require, reject, requireRegex, rejectRegex)
 	}
 }
 
@@ -1046,7 +1194,7 @@ func TestSample(t *testing.T) {
 			keepWithFeature: true,
 			dropped:         false,
 		},
-		"autodrop-sampled": {
+		"autodrop-error-sampled": {
 			trace:           genSpan("", sampler.PriorityAutoDrop, 1),
 			keep:            true,
 			keepWithFeature: true,
@@ -1069,19 +1217,45 @@ func TestSample(t *testing.T) {
 			conf:              cfg,
 		}
 		t.Run(name, func(t *testing.T) {
-			before := tt.trace.TraceChunk.ShallowCopy()
-			_, keep, sampled := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
-			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
-			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
+			assert.Equal(t, tt.dropped, tt.trace.TraceChunk.DroppedTrace)
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			_, keep, sampled = a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
-			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
-			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
+			assert.Equal(t, tt.dropped, tt.trace.TraceChunk.DroppedTrace)
 		})
 	}
+}
+
+func TestSampleManualUserDropNoAnalyticsEvents(t *testing.T) {
+	// This test exists to confirm previous behavior where we did not extract nor tag analytics events on
+	// user manual drop traces
+	now := time.Now()
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{}), MaxEPS: 1000}
+	root := &pb.Span{
+		Service:  "serv1",
+		Start:    now.UnixNano(),
+		Duration: (100 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{"_top_level": 1, "_dd1.sr.eausr": 1},
+		Error:    0, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
+		Meta:     map[string]string{},
+	}
+	pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+	pt.TraceChunk.Priority = -1
+
+	a := &Agent{
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:       sampler.NewRareSampler(config.New()),
+		EventProcessor:    newEventProcessor(cfg),
+		conf:              cfg,
+	}
+	keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	assert.False(t, keep)
+	assert.Empty(t, pt.Root.Metrics["_dd.analyzed"])
 }
 
 func TestPartialSamplingFree(t *testing.T) {
@@ -1302,7 +1476,7 @@ Loop:
 			TraceChunk: chunk,
 			Root:       root,
 		}
-		numEvents, _ := processor.Process(pt)
+		_, numEvents, _ := processor.Process(pt)
 		totalSampled += int(numEvents)
 
 		<-eventTicker.C
@@ -1333,7 +1507,7 @@ func BenchmarkAgentTraceProcessingWithFiltering(b *testing.B) {
 }
 
 // worst case scenario: spans are tested against multiple rules without any match.
-// this means we won't compesate the overhead of filtering by dropping traces
+// this means we won't compesate the overhead of TestFilteredByTagsing by dropping traces
 func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
 	c := config.New()
 	c.Endpoints[0].APIKey = "test"
@@ -1708,9 +1882,9 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	}
 	// before := traceutil.CopyTraceChunk(pt.TraceChunk)
 	before := pt.TraceChunk.ShallowCopy()
-	numEvents, keep, sampled := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	keep, numEvents := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
 	assert.True(t, keep) // Score Sampler should keep the trace.
-	assert.False(t, sampled.TraceChunk.DroppedTrace)
+	assert.False(t, pt.TraceChunk.DroppedTrace)
 	assert.Equal(t, before, pt.TraceChunk)
 	assert.EqualValues(t, numEvents, 0)
 }
@@ -2015,4 +2189,151 @@ func TestSpanSampling(t *testing.T) {
 			assert.Equal(t, len(tc.payload.Chunks[0].Spans), len(stats.Traces[0].TraceChunk.Spans))
 		})
 	}
+}
+
+func TestSingleSpanPlusAnalyticsEvents(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	// Disable the rare sampler. Otherwise, it would consider every first
+	// priority==0 chunk as rare.
+	cfg.RareSamplerEnabled = false
+	cfg.TargetTPS = 0
+	cfg.AnalyzedRateByServiceLegacy = map[string]float64{
+		"testsvc": 1.0,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	traceAgent := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	singleSpanMetrics := map[string]float64{
+		sampler.KeySpanSamplingMechanism:       8,
+		sampler.KeySamplingRateEventExtraction: 1.0,
+	}
+	root := &pb.Span{
+		Service:  "testsvc",
+		Name:     "parent",
+		TraceID:  1,
+		SpanID:   1,
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: time.Millisecond.Nanoseconds(),
+	}
+	payload := &traceutil.ProcessedTrace{
+		Root: root,
+		TraceChunk: &pb.TraceChunk{
+			Spans: []*pb.Span{
+				root,
+				{
+					Service:  "testsvc",
+					Name:     "child",
+					TraceID:  1,
+					SpanID:   2,
+					ParentID: 1,
+					Metrics:  singleSpanMetrics,
+					Error:    0,
+					Start:    time.Now().Add(-time.Second).UnixNano(),
+					Duration: time.Millisecond.Nanoseconds(),
+				},
+			},
+			Priority: int32(sampler.PriorityAutoDrop),
+		},
+	}
+	var b bytes.Buffer
+	oldLogger := log.SetLogger(log.NewBufferLogger(&b))
+	defer func() { log.SetLogger(oldLogger) }()
+	keep, numEvents := traceAgent.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), payload)
+	assert.Equal(t, "[WARN] Detected both analytics events AND single span sampling in the same trace. Single span sampling wins because App Analytics is deprecated.", b.String())
+	assert.False(t, keep) //The sampling decision was FALSE but the trace itself is marked as not dropped
+	assert.False(t, payload.TraceChunk.DroppedTrace)
+	assert.Equal(t, 1, numEvents)
+}
+
+func TestSetFirstTraceTags(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	traceAgent := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	root := &pb.Span{
+		Service:  "testsvc",
+		Name:     "parent",
+		TraceID:  1,
+		SpanID:   1,
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: time.Millisecond.Nanoseconds(),
+	}
+
+	t.Run("NoConfigNoAction", func(t *testing.T) {
+		traceAgent.setFirstTraceTags(root)
+		_, ok := root.Meta[tagInstallID]
+		assert.False(t, ok)
+		_, ok = root.Meta[tagInstallType]
+		assert.False(t, ok)
+		_, ok = root.Meta[tagInstallTime]
+		assert.False(t, ok)
+	})
+
+	cfg.InstallSignature.InstallID = "be7b577b-00d9-50a4-aa8d-345df57fd6f5"
+	cfg.InstallSignature.InstallType = "manual"
+	cfg.InstallSignature.InstallTime = time.Now().Unix()
+	traceAgent = NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	t.Run("SettingTagsFromInstallSignature", func(t *testing.T) {
+		traceAgent.setFirstTraceTags(root)
+		assert.Equal(t, cfg.InstallSignature.InstallID, root.Meta[tagInstallID])
+		assert.Equal(t, cfg.InstallSignature.InstallType, root.Meta[tagInstallType])
+		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), root.Meta[tagInstallTime])
+
+		// Also make sure the tags are only set once per agent instance,
+		// calling setFirstTraceTags on another span by the same agent should have no effect
+		anotherRoot := &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+		}
+		traceAgent.setFirstTraceTags(anotherRoot)
+		_, ok := anotherRoot.Meta[tagInstallID]
+		assert.False(t, ok)
+		_, ok = anotherRoot.Meta[tagInstallType]
+		assert.False(t, ok)
+		_, ok = anotherRoot.Meta[tagInstallTime]
+		assert.False(t, ok)
+
+		// However, calling setFirstTraceTags on another span from a different service should set the tags again
+		differentServiceRoot := &pb.Span{
+			Service:  "discombobulator",
+			Name:     "parent",
+			TraceID:  2,
+			SpanID:   2,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+		}
+		traceAgent.setFirstTraceTags(differentServiceRoot)
+		assert.Equal(t, cfg.InstallSignature.InstallID, differentServiceRoot.Meta[tagInstallID])
+		assert.Equal(t, cfg.InstallSignature.InstallType, differentServiceRoot.Meta[tagInstallType])
+		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), differentServiceRoot.Meta[tagInstallTime])
+	})
+
+	traceAgent = NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	t.Run("NotClobberingExistingTags", func(t *testing.T) {
+		timestamp := cfg.InstallSignature.InstallTime - 3600
+		// Make the root span contain some tag values that conflict with what the agent has on record
+		root = &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+			Meta: map[string]string{
+				tagInstallType: "k8s_single_step",
+				tagInstallTime: strconv.FormatInt(timestamp, 10),
+			},
+		}
+
+		traceAgent.setFirstTraceTags(root)
+		assert.Equal(t, cfg.InstallSignature.InstallID, root.Meta[tagInstallID])
+		assert.Equal(t, "k8s_single_step", root.Meta[tagInstallType])
+		assert.Equal(t, strconv.FormatInt(timestamp, 10), root.Meta[tagInstallTime])
+	})
 }

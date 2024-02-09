@@ -75,7 +75,7 @@ func (h *reOrdererHeap) greater(i, j int) bool {
 	return h.heap[i].timestamp > h.heap[j].timestamp
 }
 
-func (h *reOrdererHeap) up(node *reOrdererNode, i int, metric *Metric) {
+func (h *reOrdererHeap) up(i int, metric *Metric) {
 	var parent int
 	for {
 		parent = (i - 1) / 2
@@ -117,7 +117,7 @@ func (h *reOrdererHeap) enqueue(record *perf.Record, tm uint64, generation uint6
 	metric.TotalOp++
 
 	h.heap = append(h.heap, node)
-	h.up(node, len(h.heap)-1, metric)
+	h.up(len(h.heap)-1, metric)
 }
 
 func (h *reOrdererHeap) dequeue(handler func(record *perf.Record), generation uint64, metric *Metric, opts *Opts) {
@@ -248,7 +248,7 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 }
 
 // HandleEvent handle event form perf ring
-func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
+func (r *ReOrderer) HandleEvent(record *perf.Record, _ *manager.PerfMap, _ *manager.Manager) {
 	select {
 	case r.queue <- record:
 		return

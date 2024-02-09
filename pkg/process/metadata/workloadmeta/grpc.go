@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -25,11 +26,13 @@ import (
 )
 
 // DuplicateConnectionErr is an error that explains the connection was closed because another client tried to connect
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 var DuplicateConnectionErr = errors.New("the stream was closed because another client called StreamEntities")
 
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
-	config    config.ConfigReader
+	config    config.Reader
 	extractor *WorkloadMetaExtractor
 	server    *grpc.Server
 	// The address of the server set by start(). Primarily used for testing. May be nil if start() has not been called.
@@ -50,11 +53,12 @@ var (
 )
 
 // NewGRPCServer creates a new instance of a GRPCServer
-func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor) *GRPCServer {
+func NewGRPCServer(config config.Reader, extractor *WorkloadMetaExtractor) *GRPCServer {
 	l := &GRPCServer{
 		config:    config,
 		extractor: extractor,
 		server: grpc.NewServer(
+			grpc.Creds(insecure.NewCredentials()),
 			grpc.KeepaliveParams(keepalive.ServerParameters{
 				Time: keepaliveInterval,
 			}),
@@ -103,6 +107,7 @@ func (l *GRPCServer) Start() error {
 	return nil
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *GRPCServer) Addr() net.Addr {
 	return l.addr
 }
@@ -196,7 +201,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 }
 
 // getListener returns a listening connection
-func getListener(cfg config.ConfigReader) (net.Listener, error) {
+func getListener(cfg config.Reader) (net.Listener, error) {
 	host, err := config.GetIPCAddress()
 	if err != nil {
 		return nil, err
@@ -206,7 +211,7 @@ func getListener(cfg config.ConfigReader) (net.Listener, error) {
 	return net.Listen("tcp", address)
 }
 
-func getGRPCStreamPort(cfg config.ConfigReader) int {
+func getGRPCStreamPort(cfg config.Reader) int {
 	grpcPort := cfg.GetInt("process_config.language_detection.grpc_port")
 	if grpcPort <= 0 {
 		log.Warnf("Invalid process_config.language_detection.grpc_port -- %d, using default port %d", grpcPort, config.DefaultProcessEntityStreamPort)
@@ -223,7 +228,7 @@ func processEntityToEventSet(proc *ProcessEntity) *pbgo.ProcessEventSet {
 
 	return &pbgo.ProcessEventSet{
 		Pid:          proc.Pid,
-		ContainerId:  proc.ContainerId,
+		ContainerID:  proc.ContainerId,
 		Nspid:        proc.NsPid,
 		CreationTime: proc.CreationTime,
 		Language:     language,

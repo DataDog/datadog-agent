@@ -1,5 +1,3 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers $GOFILE
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -9,6 +7,8 @@
 package selftests
 
 import (
+	json "encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -17,22 +17,34 @@ import (
 )
 
 const (
-	policySource  = "self-test"                          // nolint: deadcode, unused
-	policyVersion = "1.0.0"                              // nolint: deadcode, unused
-	policyName    = "datadog-agent-cws-self-test-policy" // nolint: deadcode, unused
-	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"   // nolint: deadcode, unused
+	policySource  = "self-test"                          //nolint: deadcode, unused
+	policyVersion = "1.0.0"                              //nolint: deadcode, unused
+	policyName    = "datadog-agent-cws-self-test-policy" //nolint: deadcode, unused
+	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"   //nolint: deadcode, unused
 
 	// PolicyProviderType name of the self test policy provider
 	PolicyProviderType = "selfTesterPolicyProvider"
 )
 
 // SelfTestEvent is used to report a self test result
-// easyjson:json
 type SelfTestEvent struct {
 	events.CustomEventCommonFields
 	Success    []string                                `json:"succeeded_tests"`
 	Fails      []string                                `json:"failed_tests"`
 	TestEvents map[string]*serializers.EventSerializer `json:"test_events"`
+}
+
+// ToJSON marshal using json format
+func (t SelfTestEvent) ToJSON() ([]byte, error) {
+	// cleanup the serialization of potentially nil slices
+	if t.Success == nil {
+		t.Success = []string{}
+	}
+	if t.Fails == nil {
+		t.Fails = []string{}
+	}
+
+	return json.Marshal(t)
 }
 
 // NewSelfTestEvent returns the rule and the result of the self test
@@ -49,7 +61,7 @@ func NewSelfTestEvent(success []string, fails []string, testEvents map[string]*s
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (t *SelfTester) SetOnNewPoliciesReadyCb(cb func()) {
+func (t *SelfTester) SetOnNewPoliciesReadyCb(_ func()) {
 }
 
 // Type return the type of this policy provider
@@ -64,5 +76,5 @@ func (t *SelfTester) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 }
 
 // EventDiscarderFound implement the rule engine interface
-func (t *SelfTester) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+func (t *SelfTester) EventDiscarderFound(_ *rules.RuleSet, _ eval.Event, _ eval.Field, _ eval.EventType) {
 }

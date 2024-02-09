@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package containerlifecycle implements the container lifecycle check.
 package containerlifecycle
 
 import (
@@ -10,26 +11,24 @@ import (
 	"errors"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	checkName           = "container_lifecycle"
+	// CheckName is the name of the check
+	CheckName           = "container_lifecycle"
 	maxChunkSize        = 100
 	defaultPollInterval = 10
 )
-
-func init() {
-	core.RegisterCheck(checkName, CheckFactory)
-}
 
 // Config holds the container_lifecycle check configuration
 type Config struct {
@@ -45,7 +44,7 @@ func (c *Config) Parse(data []byte) error {
 // Check reports container lifecycle events
 type Check struct {
 	core.CheckBase
-	workloadmetaStore workloadmeta.Store
+	workloadmetaStore workloadmeta.Component
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
@@ -92,24 +91,26 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
+	containerFilterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
+		Source:    workloadmeta.SourceRuntime,
+		EventType: workloadmeta.EventTypeUnset,
+	}
 	contEventsCh := c.workloadmetaStore.Subscribe(
-		checkName+"-cont",
+		CheckName+"-cont",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindContainer},
-			workloadmeta.SourceRuntime,
-			workloadmeta.EventTypeUnset,
-		),
+		workloadmeta.NewFilter(&containerFilterParams),
 	)
 
+	podFilterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod},
+		Source:    workloadmeta.SourceNodeOrchestrator,
+		EventType: workloadmeta.EventTypeUnset,
+	}
 	podEventsCh := c.workloadmetaStore.Subscribe(
-		checkName+"-pod",
+		CheckName+"-pod",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-			workloadmeta.SourceNodeOrchestrator,
-			workloadmeta.EventTypeUnset,
-		),
+		workloadmeta.NewFilter(&podFilterParams),
 	)
 
 	pollInterval := time.Duration(c.instance.PollInterval) * time.Second
@@ -117,14 +118,21 @@ func (c *Check) Run() error {
 	processorCtx, stopProcessor := context.WithCancel(context.Background())
 	c.processor.start(processorCtx, pollInterval)
 
+	defer stopProcessor()
 	for {
 		select {
-		case eventBundle := <-contEventsCh:
+		case eventBundle, ok := <-contEventsCh:
+			if !ok {
+				return nil
+			}
 			c.processor.processEvents(eventBundle)
-		case eventBundle := <-podEventsCh:
+		case eventBundle, ok := <-podEventsCh:
+			if !ok {
+				stopProcessor()
+				return nil
+			}
 			c.processor.processEvents(eventBundle)
 		case <-c.stopCh:
-			stopProcessor()
 			return nil
 		}
 	}
@@ -136,12 +144,14 @@ func (c *Check) Stop() { close(c.stopCh) }
 // Interval returns 0, it makes container_lifecycle a long-running check
 func (c *Check) Interval() time.Duration { return 0 }
 
-// CheckFactory registers the container_lifecycle check
-func CheckFactory() check.Check {
-	return &Check{
-		CheckBase:         core.NewCheckBase(checkName),
-		workloadmetaStore: workloadmeta.GetGlobalStore(),
-		instance:          &Config{},
-		stopCh:            make(chan struct{}),
-	}
+// Factory returns a new check factory
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &Check{
+			CheckBase:         core.NewCheckBase(CheckName),
+			workloadmetaStore: store,
+			instance:          &Config{},
+			stopCh:            make(chan struct{}),
+		}
+	})
 }

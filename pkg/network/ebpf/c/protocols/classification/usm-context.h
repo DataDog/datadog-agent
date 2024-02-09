@@ -42,7 +42,7 @@ typedef struct {
 // words, there is a chance that ingress and egress packets can be processed
 // concurrently on the same CPU, which is why have a dedicated per CPU map entry
 // for each direction in order to avoid data corruption.
-BPF_PERCPU_ARRAY_MAP(classification_buf, __u32, usm_context_t, 2)
+BPF_PERCPU_ARRAY_MAP(classification_buf, usm_context_t, 2)
 #else
 BPF_ARRAY_MAP(classification_buf, __u8, 1)
 #endif
@@ -85,7 +85,7 @@ static __always_inline usm_context_t* usm_context(struct __sk_buff *skb) {
 
     // sanity check
     if (usm_context->owner != skb) {
-        log_debug("invalid usm context\n");
+        log_debug("invalid usm context");
         return NULL;
     }
 

@@ -18,17 +18,9 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
-
-var (
-	maxPayloadSizeDefault = config.Datadog.GetInt("serializer_max_payload_size")
-)
-
-func resetDefaults() {
-	config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSizeDefault)
-}
 
 func decompressPayload(payload []byte) ([]byte, error) {
 	r, err := zlib.NewReader(bytes.NewReader(payload))
@@ -53,8 +45,9 @@ func payloadToString(payload []byte) string {
 }
 
 func TestCompressorSimple(t *testing.T) {
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
-	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+	mockConfig := pkgconfigsetup.Conf()
+	maxPayloadSize := mockConfig.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := mockConfig.GetInt("serializer_max_uncompressed_payload_size")
 	c, err := NewCompressor(
 		&bytes.Buffer{}, &bytes.Buffer{},
 		maxPayloadSize, maxUncompressedSize,
@@ -113,7 +106,7 @@ func TestOnePayloadSimple(t *testing.T) {
 		Footer: "]}",
 	}
 
-	builder := NewJSONPayloadBuilder(true)
+	builder := NewJSONPayloadBuilder(true, pkgconfigsetup.Conf())
 	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
@@ -127,10 +120,10 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 		Header: "{[",
 		Footer: "]}",
 	}
-	config.Datadog.SetDefault("serializer_max_payload_size", 22)
-	defer resetDefaults()
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetDefault("serializer_max_payload_size", 22)
 
-	builder := NewJSONPayloadBuilder(true)
+	builder := NewJSONPayloadBuilder(true, mockConfig)
 	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
@@ -144,10 +137,10 @@ func TestTwoPayload(t *testing.T) {
 		Header: "{[",
 		Footer: "]}",
 	}
-	config.Datadog.SetDefault("serializer_max_payload_size", 22)
-	defer resetDefaults()
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetDefault("serializer_max_payload_size", 22)
 
-	builder := NewJSONPayloadBuilder(true)
+	builder := NewJSONPayloadBuilder(true, mockConfig)
 	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 2)
@@ -162,10 +155,10 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 		Header: "{[",
 		Footer: "]}",
 	}
-	defer resetDefaults()
+	mockConfig := pkgconfigsetup.Conf()
 
-	builderLocked := NewJSONPayloadBuilder(true)
-	builderUnLocked := NewJSONPayloadBuilder(false)
+	builderLocked := NewJSONPayloadBuilder(true, mockConfig)
+	builderUnLocked := NewJSONPayloadBuilder(false, mockConfig)
 	payloads1, err := BuildJSONPayload(builderLocked, m)
 	require.NoError(t, err)
 	payloads2, err := BuildJSONPayload(builderUnLocked, m)
@@ -175,10 +168,10 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 }
 
 func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
-	config.Datadog.Set("serializer_max_uncompressed_payload_size", 40)
-	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", nil)
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", 40)
 	marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
-	builder := NewJSONPayloadBuilder(false)
+	builder := NewJSONPayloadBuilder(false, mockConfig)
 	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(
 		marshaler,
 		DropItemOnErrItemTooBig)
@@ -201,8 +194,8 @@ type IterableStreamJSONMarshalerMock struct {
 	maxIndex int
 }
 
-func (i *IterableStreamJSONMarshalerMock) WriteHeader(stream *jsoniter.Stream) error { return nil }
-func (i *IterableStreamJSONMarshalerMock) WriteFooter(stream *jsoniter.Stream) error { return nil }
+func (i *IterableStreamJSONMarshalerMock) WriteHeader(*jsoniter.Stream) error { return nil }
+func (i *IterableStreamJSONMarshalerMock) WriteFooter(*jsoniter.Stream) error { return nil }
 func (i *IterableStreamJSONMarshalerMock) WriteCurrentItem(stream *jsoniter.Stream) error {
 	stream.WriteString(fmt.Sprintf("Item%v", i.index))
 	return nil

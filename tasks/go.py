@@ -2,7 +2,6 @@
 Golang related tasks go here
 """
 
-import datetime
 import glob
 import os
 import shutil
@@ -12,10 +11,10 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
-from .licenses import get_licenses_list
-from .modules import DEFAULT_MODULES, generate_dummy_package
-from .utils import get_build_flags
+from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.libs.common.utils import get_build_flags, timed
+from tasks.licenses import get_licenses_list
+from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -31,6 +30,7 @@ GOARCH_MAPPING = {
 
 def run_golangci_lint(
     ctx,
+    module_path,
     targets,
     rtloader_root=None,
     build_tags=None,
@@ -40,6 +40,7 @@ def run_golangci_lint(
     timeout=None,
     verbose=False,
     golangci_lint_kwargs="",
+    headless_mode: bool = False,
 ):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
@@ -53,17 +54,18 @@ def run_golangci_lint(
     # Always add `test` tags while linting as test files are also linted
     tags.extend(UNIT_TEST_TAGS)
 
-    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
+    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
     verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
     for target in targets:
-        print(f"running golangci on {target}")
+        if not headless_mode:
+            print(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
         tags_arg = " ".join(sorted(set(tags)))
         timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
         result = ctx.run(
-            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" {golangci_lint_kwargs} {target}/...',
+            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
             env=env,
             warn=True,
         )
@@ -95,13 +97,11 @@ def deps(ctx, verbose=False):
     """
 
     print("downloading dependencies")
-    start = datetime.datetime.now()
-    verbosity = ' -x' if verbose else ''
-    for mod in DEFAULT_MODULES.values():
-        with ctx.cd(mod.full_path()):
-            ctx.run(f"go mod download{verbosity}")
-    dep_done = datetime.datetime.now()
-    print(f"go mod download, elapsed: {dep_done - start}")
+    with timed("go mod download"):
+        verbosity = ' -x' if verbose else ''
+        for mod in DEFAULT_MODULES.values():
+            with ctx.cd(mod.full_path()):
+                ctx.run(f"go mod download{verbosity}")
 
 
 @task
@@ -111,26 +111,23 @@ def deps_vendored(ctx, verbose=False):
     """
 
     print("vendoring dependencies")
-    start = datetime.datetime.now()
-    verbosity = ' -v' if verbose else ''
+    with timed("go mod vendor"):
+        verbosity = ' -v' if verbose else ''
 
-    ctx.run(f"go mod vendor{verbosity}")
-    ctx.run(f"go mod tidy{verbosity} -compat=1.17")
+        ctx.run(f"go mod vendor{verbosity}")
+        ctx.run(f"go mod tidy{verbosity}")
 
-    # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
-    # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
-    # For this reason, we need to use a 3rd party tool to copy these files.
-    # We won't need this if/when we change to non-vendored modules
-    ctx.run(f'modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{verbosity}')
+        # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
+        # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
+        # For this reason, we need to use a 3rd party tool to copy these files.
+        # We won't need this if/when we change to non-vendored modules
+        ctx.run(f'modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{verbosity}')
 
-    # If github.com/DataDog/datadog-agent gets vendored too - nuke it
-    # This may happen because of the introduction of nested modules
-    if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
-        print("Removing vendored github.com/DataDog/datadog-agent")
-        shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
-
-    dep_done = datetime.datetime.now()
-    print(f"go mod vendor, elapsed: {dep_done - start}")
+        # If github.com/DataDog/datadog-agent gets vendored too - nuke it
+        # This may happen because of the introduction of nested modules
+        if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
+            print("Removing vendored github.com/DataDog/datadog-agent")
+            shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
 
 
 @task
@@ -373,8 +370,8 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
         errors_found = []
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
-                ctx.run("go mod tidy -compat=1.17")
-                res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
+                ctx.run("go mod tidy")
+                res = ctx.run("git diff --exit-code go.mod go.sum", warn=True)
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
@@ -384,7 +381,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
 
         with ctx.cd(dummy_folder):
-            ctx.run("go mod tidy -compat=1.17")
+            ctx.run("go mod tidy")
             res = ctx.run("go build main.go", warn=True)
             if res.exited is None or res.exited > 0:
                 errors_found.append("could not build test module importing external modules")
@@ -401,13 +398,13 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
 def tidy_all(ctx):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy -compat=1.17")
+            ctx.run("go mod tidy")
 
 
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.20.7 linux/amd64"
+    # result is like "go version go1.21.7 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

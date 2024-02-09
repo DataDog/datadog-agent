@@ -15,6 +15,8 @@ import (
 const (
 	// MaxArgEnvSize maximum size of one argument or environment variable
 	MaxArgEnvSize = 256
+	// MaxArgsEnvsSize maximum number of args and/or envs
+	MaxArgsEnvsSize = 128
 )
 
 // ArgsEnvs raw value for args and envs
@@ -76,6 +78,24 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 	}
 
 	return p.filteredEnvs, p.Truncated
+}
+
+// FilterEnvs returns an array of environment variable key value pairs matching the desired keys
+func FilterEnvs(allEnvVars []string, desiredKeys map[string]bool) []string {
+	if len(allEnvVars) == 0 {
+		return nil
+	}
+
+	filteredEnvs := make([]string, 0, len(desiredKeys))
+
+	for _, value := range allEnvVars {
+		k, _, _ := strings.Cut(value, "=")
+		if desiredKeys[k] {
+			filteredEnvs = append(filteredEnvs, value)
+		}
+	}
+
+	return filteredEnvs
 }
 
 func (p *EnvsEntry) toMap() {

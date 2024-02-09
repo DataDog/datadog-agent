@@ -19,10 +19,13 @@ import (
 	"strings"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -30,7 +33,13 @@ func init() {
 	diagnosis.Register("connectivity-datadog-core-endpoints", diagnose)
 }
 
-func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
+func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
+	datadogConfig := config.Datadog
+	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config", datadogConfig)
+	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
+}
+
+func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 
 	// Create domain resolvers
 	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)
@@ -50,6 +59,29 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 	client := forwarder.NewHTTPClient(config.Datadog)
 
+	// Create diagnosis for logs
+	if config.Datadog.GetBool("logs_enabled") {
+		endpoints, err := getLogsHTTPEndpoints()
+
+		if err != nil {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Result:      diagnosis.DiagnosisFail,
+				Name:        "Endpoints configuration",
+				Diagnosis:   "Misconfiguration of agent endpoints",
+				Remediation: "Please validate agent configuration",
+				RawError:    err.Error(),
+			})
+		} else {
+			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, config.Datadog)
+
+			name := fmt.Sprintf("Connectivity to %s", url)
+			diag := createDiagnosis(name, url, "", err)
+
+			diagnoses = append(diagnoses, diag)
+		}
+
+	}
+
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
 		// Go through all API Keys of a domain and send an HTTP request on each endpoint
@@ -63,18 +95,8 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 				// Check if there is a response and if it's valid
 				report, reportErr := verifyEndpointResponse(statusCode, responseBody, err)
-				d := diagnosis.Diagnosis{
-					Name: "Connectivity to " + logURL,
-				}
-				if reportErr == nil {
-					d.Result = diagnosis.DiagnosisSuccess
-					d.Diagnosis = fmt.Sprintf("Connectivity to `%s` is Ok\n%s", logURL, report)
-				} else {
-					d.Result = diagnosis.DiagnosisFail
-					d.Diagnosis = fmt.Sprintf("Connection to `%s` failed\n%s", logURL, report)
-					d.Remediation = "Please validate Agent configuration and firewall to access " + logURL
-					d.RawError = reportErr.Error()
-				}
+				diagnosisName := "Connectivity to " + logURL
+				d := createDiagnosis(diagnosisName, logURL, report, reportErr)
 
 				// Prepend http trace on error or if in verbose mode
 				if len(httpTraces) > 0 && (diagCfg.Verbose || reportErr != nil) {
@@ -85,6 +107,34 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 		}
 	}
 	return diagnoses
+}
+
+func createDiagnosis(name string, logURL string, report string, err error) diagnosis.Diagnosis {
+	d := diagnosis.Diagnosis{
+		Name: name,
+	}
+
+	if err == nil {
+		d.Result = diagnosis.DiagnosisSuccess
+		diagnosisWithoutReport := fmt.Sprintf("Connectivity to `%s` is Ok", logURL)
+		d.Diagnosis = createDiagnosisString(diagnosisWithoutReport, report)
+	} else {
+		d.Result = diagnosis.DiagnosisFail
+		diagnosisWithoutReport := fmt.Sprintf("Connection to `%s` failed", logURL)
+		d.Diagnosis = createDiagnosisString(diagnosisWithoutReport, report)
+		d.Remediation = "Please validate Agent configuration and firewall to access " + logURL
+		d.RawError = err.Error()
+	}
+
+	return d
+}
+
+func createDiagnosisString(diagnosis string, report string) string {
+	if len(report) == 0 {
+		return diagnosis
+	}
+
+	return fmt.Sprintf("%v\n%v", diagnosis, report)
 }
 
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
@@ -136,8 +186,8 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) (str
 			scrubber.ScrubLine(err.Error()), noResponseHints(err)), err
 	}
 
-	var verifyReport string = ""
-	var newErr error = nil
+	var verifyReport string
+	var newErr error
 	if statusCode >= 400 {
 		newErr = fmt.Errorf("bad request")
 		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))

@@ -10,19 +10,19 @@ package docker
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-func getProcessorFilter(legacyFilter *containers.Filter) generic.ContainerFilter {
+func getProcessorFilter(legacyFilter *containers.Filter, store workloadmeta.Component) generic.ContainerFilter {
 	// Reject all containers that are not run by Docker
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.RuntimeContainerFilter{Runtime: workloadmeta.ContainerRuntimeDocker},
-			generic.LegacyContainerFilter{OldFilter: legacyFilter},
+			generic.LegacyContainerFilter{OldFilter: legacyFilter, Store: store},
 		},
 	}
 }

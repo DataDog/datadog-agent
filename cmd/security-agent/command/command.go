@@ -17,9 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 )
 
-// GlobalParams defines global parameters
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfigFilePaths []string
+	ConfigFilePaths      []string
+	SysProbeConfFilePath string
 }
 
 // SubcommandFactory returns a sub-command factory
@@ -28,10 +32,14 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 // LoggerName defines the logger name
 const LoggerName = "SECURITY"
 
-var defaultSecurityAgentConfigFilePaths = []string{
-	path.Join(commonpath.DefaultConfPath, "datadog.yaml"),
-	path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
-}
+var (
+	defaultSecurityAgentConfigFilePaths = []string{
+		path.Join(commonpath.DefaultConfPath, "datadog.yaml"),
+		path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
+	}
+
+	defaultSysProbeConfPath = path.Join(commonpath.DefaultConfPath, "system-probe.yaml")
+)
 
 // MakeCommand makes the top-level Cobra command for this command.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
@@ -57,6 +65,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	}
 
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfigFilePaths, flags.CfgPath, "c", defaultSecurityAgentConfigFilePaths, "paths to yaml configuration files")
+	SecurityAgentCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, defaultSysProbeConfPath, "path to system-probe.yaml config")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, flags.NoColor, "n", false, "disable color output")
 
 	for _, factory := range subcommandFactories {

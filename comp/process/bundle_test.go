@@ -6,6 +6,7 @@
 package process
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,29 +14,28 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var mockCoreBundleParams = core.BundleParams{
 	ConfigParams: configComp.NewParams("", configComp.WithConfigMissingOK(true)),
-	LogParams:    log.LogForOneShot("PROCESS", "trace", false),
+	LogParams:    logimpl.ForOneShot("PROCESS", "trace", false),
 }
 
 func TestBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		fx.Supply(
-			fx.Annotate(t, fx.As(new(testing.TB))),
-
-			mockCoreBundleParams,
-		),
-
-		// Start the runner
-		fx.Invoke(func(r runner.Component) {}),
-
-		Bundle,
-	))
+	fxutil.TestBundle(t, Bundle(),
+		fx.Supply(mockCoreBundleParams),
+		fx.Supply(workloadmeta.NewParams()),
+		fx.Provide(func() types.CheckComponent { return nil }),
+		core.MockBundle(),
+		fx.Supply(tagger.NewFakeTaggerParams()),
+		fx.Provide(func() context.Context { return context.TODO() }),
+	)
 }
 
 func TestBundleOneShot(t *testing.T) {
@@ -65,7 +65,12 @@ func TestBundleOneShot(t *testing.T) {
 
 			mockCoreBundleParams,
 		),
-		Bundle,
+		// sets a static hostname to avoid grpc call to get hostname from core-agent
+		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
+			"hostname": "testhost",
+		}}),
+		core.MockBundle(),
+		Bundle(),
 	)
 	require.NoError(t, err)
 }

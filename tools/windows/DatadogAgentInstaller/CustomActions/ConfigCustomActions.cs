@@ -159,7 +159,7 @@ namespace Datadog.CustomActions
             /// <returns>True if all patterns match.</returns>
             public bool IsMatch(string input)
             {
-                int matchIndex = 0;
+                var matchIndex = 0;
                 foreach (var r in _regexReplacersInOrder)
                 {
                     var match = r.Regex.Match(input, matchIndex);
@@ -193,7 +193,7 @@ namespace Datadog.CustomActions
             /// <exception cref="Exception">Throws an exception if any pattern fails to match.</exception>
             public string DoReplace(string input, string propertyValue)
             {
-                int matchIndex = 0;
+                var matchIndex = 0;
                 foreach (var r in _regexReplacersInOrder)
                 {
                     var match = r.Regex.Match(input, matchIndex);
@@ -244,7 +244,7 @@ namespace Datadog.CustomActions
 
         static string FormatTags(string value)
         {
-            string newTagLine = $"{Environment.NewLine} - ";
+            var newTagLine = $"{Environment.NewLine} - ";
             var tagsConfiguration = new StringBuilder();
             tagsConfiguration.Append("tags: ");
             tagsConfiguration.Append(newTagLine);
@@ -342,34 +342,55 @@ namespace Datadog.CustomActions
         private static ActionResult WriteConfig(ISession session)
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
-            var datadogYaml = Path.Combine(configFolder, "datadog.yaml");
-            var systemProbeYaml = Path.Combine(configFolder, "system-probe.yaml");
-
             try
             {
-                if (!File.Exists(systemProbeYaml))
-                {
-                    File.Copy(systemProbeYaml + ".example", systemProbeYaml);
-                }
+                var copyFileFn = new Action<string>(c => File.Copy(c + ".example", c));
 
-                if (File.Exists(datadogYaml))
-                {
-                    session.Log($"{datadogYaml} exists, not modifying it.");
-                    return ActionResult.Success;
-                }
-                string yaml;
-                using (var input = new StreamReader(Path.Combine(configFolder, "datadog.yaml.example")))
-                {
-                    yaml = input.ReadToEnd();
-                }
+                var configFiles =
+                    new[]
+                        {
+                            "system-probe.yaml",
+                            "security-agent.yaml",
+                            Path.Combine("runtime-security.d", "default.policy"),
+                            "apm-inject.yaml"
+                        }
+                        .Select(c => new { Path = c, CreateFn = copyFileFn })
+                        .Concat(new[]
+                        {
+                            new
+                            {
+                                Path = "datadog.yaml",
+                                CreateFn = new Action<string>(c =>
+                                {
+                                    string yaml;
+                                    using (var input = new StreamReader(Path.Combine(configFolder, "datadog.yaml.example")))
+                                    {
+                                        yaml = input.ReadToEnd();
+                                    }
 
-                yaml = ReplaceProperties(yaml, session);
+                                    yaml = ReplaceProperties(yaml, session);
 
-                using (var output = new StreamWriter(datadogYaml))
+                                    using var output = new StreamWriter(c);
+                                    output.Write(yaml);
+                                })
+                            }
+                        });
+                foreach (var c in configFiles)
                 {
-                    output.Write(yaml);
-                }
+                    var configPath = Path.Combine(configFolder, c.Path);
+                    if (File.Exists(configPath + ".example"))
+                    {
+                        if (!File.Exists(configPath))
+                        {
+                            c.CreateFn(configPath);
+                        }
+                        else
+                        {
+                            session.Log($"{configPath} exists, not modifying it.");
+                        }
+                    }
 
+                }
             }
             catch (Exception e)
             {

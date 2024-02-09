@@ -13,9 +13,12 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
@@ -27,28 +30,34 @@ type ProfileData map[string][]byte
 type dependencies struct {
 	fx.In
 
-	Log       log.Component
-	Config    config.Component
-	Params    Params
-	Providers []helpers.FlareProvider `group:"flare"`
+	Log                   log.Component
+	Config                config.Component
+	Diagnosesendermanager diagnosesendermanager.Component
+	InvAgent              inventoryagent.Component // TODO: (components) - Temporary dependencies until the status page is a Component and we don't need to call it in 'CompleteFlare'.
+	Params                Params
+	Providers             []types.FlareCallback `group:"flare"`
 }
 
 type flare struct {
-	log       log.Component
-	config    config.Component
-	params    Params
-	providers []helpers.FlareProvider
+	log                   log.Component
+	config                config.Component
+	diagnosesendermanager diagnosesendermanager.Component
+	invAgent              inventoryagent.Component
+	params                Params
+	providers             []types.FlareCallback
 }
 
-func newFlare(deps dependencies) (Component, rcclient.ListenerProvider, error) {
+func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, error) {
 	f := &flare{
-		log:       deps.Log,
-		config:    deps.Config,
-		params:    deps.Params,
-		providers: deps.Providers,
+		log:                   deps.Log,
+		config:                deps.Config,
+		params:                deps.Params,
+		providers:             deps.Providers,
+		diagnosesendermanager: deps.Diagnosesendermanager,
+		invAgent:              deps.InvAgent,
 	}
 
-	rcListener := rcclient.ListenerProvider{
+	rcListener := rcclient.TaskListenerProvider{
 		Listener: f.onAgentTaskEvent,
 	}
 
@@ -75,15 +84,15 @@ func (f *flare) onAgentTaskEvent(taskType rcclient.TaskType, task rcclient.Agent
 
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
-	_, err = f.Send(filePath, caseID, userHandle, "remote-config")
+	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
 	return true, err
 }
 
 // Send sends a flare archive to Datadog
-func (f *flare) Send(flarePath string, caseID string, email string, source string) (string, error) {
+func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
 	// The `source` is the reason why the flare was created, for now it's either local or remote-config
-	return helpers.SendTo(flarePath, caseID, email, source, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config))
+	return helpers.SendTo(flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
 }
 
 // Create creates a new flare and returns the path to the final archive file.
@@ -107,19 +116,21 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data)
 	}
 
-	// Adding legacy and internal providers. Registering then as FlareProvider through FX create cycle dependencies.
+	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.
 	providers := append(
 		f.providers,
-		helpers.FlareProvider{Callback: pkgFlare.CompleteFlare},
-		helpers.FlareProvider{Callback: f.collectLogsFiles},
-		helpers.FlareProvider{Callback: f.collectConfigFiles},
+		func(fb types.FlareBuilder) error {
+			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent)
+		},
+		f.collectLogsFiles,
+		f.collectConfigFiles,
 	)
 
 	for _, p := range providers {
-		err = p.Callback(fb)
+		err = p(fb)
 		if err != nil {
 			f.log.Errorf("error calling '%s' for flare creation: %s",
-				runtime.FuncForPC(reflect.ValueOf(p.Callback).Pointer()).Name(), // reflect p.Callback function name
+				runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name(), // reflect p.Callback function name
 				err)
 		}
 	}

@@ -16,37 +16,32 @@
 package sysprobeconfig
 
 import (
-	"go.uber.org/fx"
-
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/fx"
 )
 
 // team: ebpf-platform
 
 // Component is the component type.
 type Component interface {
-	config.ConfigReader
+	config.Reader
 
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings
 
 	// SysProbeObject returns the wrapper sysconfig
-	SysProbeObject() *sysconfig.Config
+	SysProbeObject() *sysconfigtypes.Config
 }
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
+// NoneModule return a None optional type for sysprobeconfig.Component.
+//
+// This helper allows code that needs a disabled Optional type for sysprobeconfig to get it. The helper is split from
+// the implementation to avoid linking with the dependencies from sysprobeconfig.
+func NoneModule() fxutil.Module {
+	return fxutil.Component(fx.Provide(func() optional.Option[Component] {
+		return optional.NewNoneOption[Component]()
+	}))
 }
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newConfig),
-)
-
-// MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)

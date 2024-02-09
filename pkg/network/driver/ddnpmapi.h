@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x16
+#define DD_NPMDRIVER_VERSION       0x17
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -147,6 +147,15 @@ typedef struct _flow_handle_stats {
     volatile LONG64         classify_multiple_response;
     volatile LONG64         classify_response_no_request;
 
+    // count notifications with neither flow handle nor context at
+    // which layers
+    volatile LONG64         no_state_at_ale_auth_connect;
+    volatile LONG64         no_state_at_ale_auth_recv;
+    volatile LONG64         no_state_at_ale_flow_established;
+    volatile LONG64         no_state_at_ale_endpoint_closure;
+    volatile LONG64         no_state_at_inbound_transport;
+    volatile LONG64         no_state_at_outbound_transport;
+
 } FLOW_STATS;
 
 typedef struct _transport_handle_stats {
@@ -165,6 +174,8 @@ typedef struct _http_handle_stats {
     volatile LONG64       txns_skipped_max_exceeded;
     volatile LONG64       ndis_buffer_non_contiguous;
     volatile LONG64       flows_ignored_as_etw;
+    volatile LONG64       txn_zero_latency;
+    volatile LONG64       txn_batched_on_read;
 
 } HTTP_STATS;
 
@@ -247,6 +258,7 @@ typedef struct _tcpFlowData {
 */
 typedef struct _userFlowData {
     uint64_t          flowHandle;
+    uint64_t          flowCookie;
     uint64_t          processId;
     uint16_t          addressFamily; // AF_INET or AF_INET6
     uint16_t          protocol;

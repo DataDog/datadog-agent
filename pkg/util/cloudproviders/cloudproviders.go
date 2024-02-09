@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package cloudproviders provides utilities to detect the cloud provider.
 package cloudproviders
 
 import (
@@ -10,8 +11,8 @@ import (
 	"errors"
 	"sync"
 
+	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,43 +32,40 @@ import (
 type cloudProviderDetector struct {
 	name              string
 	callback          func(context.Context) bool
-	accountIdCallback func(context.Context) (string, error)
+	accountIDCallback func(context.Context) (string, error)
+}
+
+var cloudProviderDetectors = []cloudProviderDetector{
+	{name: ec2.CloudProviderName, callback: ec2.IsRunningOn, accountIDCallback: ec2.GetAccountID},
+	{name: gce.CloudProviderName, callback: gce.IsRunningOn, accountIDCallback: gce.GetProjectID},
+	{name: azure.CloudProviderName, callback: azure.IsRunningOn, accountIDCallback: azure.GetSubscriptionID},
+	{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
+	{name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
+	{name: oracle.CloudProviderName, callback: oracle.IsRunningOn},
+	{name: ibm.CloudProviderName, callback: ibm.IsRunningOn},
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
-func DetectCloudProvider(ctx context.Context) {
-	detectors := []cloudProviderDetector{
-		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
-		{name: gce.CloudProviderName, callback: gce.IsRunningOn, accountIdCallback: gce.GetProjectID},
-		{name: azure.CloudProviderName, callback: azure.IsRunningOn, accountIdCallback: azure.GetSubscriptionID},
-		{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
-		{name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
-		{name: oracle.CloudProviderName, callback: oracle.IsRunningOn},
-		{name: ibm.CloudProviderName, callback: ibm.IsRunningOn},
-	}
-
-	collectAccountID := config.Datadog.GetBool("inventories_collect_cloud_provider_account_id")
-
-	for _, cloudDetector := range detectors {
+func DetectCloudProvider(ctx context.Context, collectAccountID bool, l logComp.Component) (string, string) {
+	for _, cloudDetector := range cloudProviderDetectors {
 		if cloudDetector.callback(ctx) {
-			inventories.SetAgentMetadata(inventories.HostCloudProvider, cloudDetector.name)
-			log.Infof("Cloud provider %s detected", cloudDetector.name)
+			l.Infof("Cloud provider %s detected", cloudDetector.name)
 
 			// fetch the account ID for this cloud provider
-			if collectAccountID && cloudDetector.accountIdCallback != nil {
-				accountID, err := cloudDetector.accountIdCallback(ctx)
+			if collectAccountID && cloudDetector.accountIDCallback != nil {
+				accountID, err := cloudDetector.accountIDCallback(ctx)
 				if err != nil {
-					log.Debugf("Could not detect cloud provider account ID: %v", err)
+					l.Debugf("Could not detect cloud provider account ID: %v", err)
 				} else if accountID != "" {
-					log.Infof("Detecting `%s` from %s cloud provider: %+q", inventories.HostCloudProviderAccountID, cloudDetector.name, accountID)
-					inventories.SetHostMetadata(inventories.HostCloudProviderAccountID, accountID)
+					l.Infof("Detecting cloud provider account ID from %s: %+q", cloudDetector.name, accountID)
+					return cloudDetector.name, accountID
 				}
 			}
-
-			return
+			return cloudDetector.name, ""
 		}
 	}
-	log.Info("No cloud provider detected")
+	l.Info("No cloud provider detected")
+	return "", ""
 }
 
 type cloudProviderNTPDetector struct {
@@ -161,4 +159,30 @@ func GetPublicIPv4(ctx context.Context) (string, error) {
 	}
 	log.Infof("No public IPv4 address found")
 	return "", errors.New("No public IPv4 address found")
+}
+
+var sourceDetectors = map[string]func() string{
+	ec2.CloudProviderName: ec2.GetSourceName,
+}
+
+// GetSource returns the source used to pull information from the current cloud provider. For now only EC2 is
+// supported. Example of sources for EC2: "IMDSv1", "IMDSv2", "DMI", ...
+func GetSource(cloudProviderName string) string {
+	if callback, ok := sourceDetectors[cloudProviderName]; ok {
+		return callback()
+	}
+	return ""
+}
+
+var hostIDDetectors = map[string]func(context.Context) string{
+	ec2.CloudProviderName: ec2.GetHostID,
+}
+
+// GetHostID returns the ID for a cloud provider for the current host. The host ID is unique to the cloud provider and
+// is different from the hostname. For now only EC2 is supported.
+func GetHostID(ctx context.Context, cloudProviderName string) string {
+	if callback, ok := hostIDDetectors[cloudProviderName]; ok {
+		return callback(ctx)
+	}
+	return ""
 }

@@ -10,6 +10,7 @@ package offsetguess
 import (
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -20,10 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var zero uint64
+var tcpv6Enabled, udpv6Enabled bool
 
 // These constants should be in sync with the equivalent definitions in the ebpf program.
 const (
@@ -37,6 +40,8 @@ const (
 
 	notApplicable = 99999 // An arbitrary large number to indicate that the value should be ignored
 )
+
+var ipv6Config sync.Once
 
 var stateString = map[State]string{
 	StateUninitialized: "uninitialized",
@@ -74,10 +79,10 @@ var whatString = map[GuessWhat]string{
 
 	GuessCtTupleOrigin: "conntrack origin tuple",
 	GuessCtTupleReply:  "conntrack reply tuple",
-	GuessCtStatus:      "conntrack status",
 	GuessCtNet:         "conntrack network namespace",
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 type OffsetGuesser interface {
 	Manager() *manager.Manager
 	Probes(c *config.Config) (map[string]struct{}, error)
@@ -108,6 +113,7 @@ type fieldValues struct {
 	sportFl6 uint16
 	dportFl6 uint16
 
+	//nolint:unused // TODO(NET) Fix unused linter
 	ctStatus uint32
 }
 
@@ -120,6 +126,30 @@ func idPair(name probes.ProbeFuncName) manager.ProbeIdentificationPair {
 
 func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
 	enabled[name] = struct{}{}
+}
+
+func boolToUint64(in bool) uint64 {
+	if in {
+		return 1
+	}
+	return 0
+}
+
+func getIpv6Configuration(c *config.Config) (bool, bool) {
+	ipv6Config.Do(func() {
+		tcpv6Enabled = c.CollectTCPv6Conns
+		udpv6Enabled = c.CollectUDPv6Conns
+		if c.CollectUDPv6Conns {
+			kv, err := kernel.HostVersion()
+			if err != nil {
+				return
+			}
+			if kv >= kernel.VersionCode(5, 18, 0) {
+				udpv6Enabled = false
+			}
+		}
+	})
+	return tcpv6Enabled, udpv6Enabled
 }
 
 func setupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf bytecode.AssetReader) error {
@@ -162,6 +192,7 @@ func setupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf byteco
 	return nil
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func RunOffsetGuessing(cfg *config.Config, buf bytecode.AssetReader, newGuesser func() (OffsetGuesser, error)) (editors []manager.ConstantEditor, err error) {
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
 	start := time.Now()

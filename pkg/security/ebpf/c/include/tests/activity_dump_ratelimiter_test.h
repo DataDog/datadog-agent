@@ -20,7 +20,7 @@ int test_ad_ratelimiter_basic()
     ctx.counter = 0;
     ctx.current_period = now;
     ctx.algo_id = RL_ALGO_BASIC; // force algo basic
-    u32 cookie = 0;
+    u64 cookie = 0;
     bpf_map_update_elem(&activity_dump_rate_limiters, &cookie, &ctx, BPF_ANY);
 
     for (int period_cpt = 0; period_cpt < NUMBER_OF_PERIOD_PER_TEST; period_cpt++, now += SEC_TO_NS(2)) {
@@ -55,7 +55,7 @@ int test_ad_ratelimiter_basic_half()
     ctx.counter = 0;
     ctx.current_period = now;
     ctx.algo_id = RL_ALGO_BASIC_HALF; // force algo basic half
-    u32 cookie = 0;
+    u64 cookie = 0;
     bpf_map_update_elem(&activity_dump_rate_limiters, &cookie, &ctx, BPF_ANY);
 
     for (int period_cpt = 0; period_cpt < NUMBER_OF_PERIOD_PER_TEST; period_cpt++, now += SEC_TO_NS(1)) {
@@ -89,7 +89,7 @@ __attribute__((always_inline)) int test_ad_ratelimiter_variable_droprate(int alg
     ctx.counter = 0;
     ctx.current_period = now;
     ctx.algo_id = algo; // force algo
-    u32 cookie = 0;
+    u64 cookie = 0;
     bpf_map_update_elem(&activity_dump_rate_limiters, &cookie, &ctx, BPF_ANY);
 
     for (int period_cpt = 0; period_cpt < NUMBER_OF_PERIOD_PER_TEST; period_cpt++, now += SEC_TO_NS(2)) {

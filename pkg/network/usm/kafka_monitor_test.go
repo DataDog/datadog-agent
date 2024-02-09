@@ -11,10 +11,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/stretchr/testify/suite"
 	"io"
 	"net"
 	nethttp "net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -65,36 +65,44 @@ type kafkaParsingTestAttributes struct {
 type kafkaParsingValidation struct {
 	expectedNumberOfProduceRequests int
 	expectedNumberOfFetchRequests   int
-	expectedApiVersionProduce       int
-	expectedApiVersionFetch         int
+	expectedAPIVersionProduce       int
+	expectedAPIVersionFetch         int
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < http.MinimumKernelVersion {
-		t.Skip(fmt.Sprintf("Kafka feature not available on pre %s kernels", http.MinimumKernelVersion.String()))
+		t.Skipf("Kafka feature not available on pre %s kernels", http.MinimumKernelVersion.String())
 	}
 }
 
-func TestKafkaProtocolParsing(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", testKafkaProtocolParsing)
+type KafkaProtocolParsingSuite struct {
+	suite.Suite
+	testIndex int
 }
 
-func testKafkaProtocolParsing(t *testing.T) {
+func (s *KafkaProtocolParsingSuite) getTopicName() string {
+	s.testIndex++
+	return fmt.Sprintf("%s-%d", "franz-kafka", s.testIndex)
+}
+
+func TestKafkaProtocolParsing(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
+	serverHost := "127.0.0.1"
+	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
+
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		suite.Run(t, new(KafkaProtocolParsingSuite))
+	})
+}
+
+func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
+	t := s.T()
 
 	clientHost := "localhost"
 	targetHost := "127.0.0.1"
 	serverHost := "127.0.0.1"
-
-	testIndex := 0
-	// Kafka does not allow us to delete topic, but to mark them for deletion, so we have to generate a unique topic
-	// per a test.
-	getTopicName := func() string {
-		testIndex++
-		return fmt.Sprintf("%s-%d", "franz-kafka", testIndex)
-	}
 
 	kafkaTeardown := func(t *testing.T, ctx testContext) {
 		if _, ok := ctx.extras["client"]; !ok {
@@ -102,17 +110,11 @@ func testKafkaProtocolParsing(t *testing.T) {
 		}
 		if client, ok := ctx.extras["client"].(*kafka.Client); ok {
 			defer client.Client.Close()
-			for k, value := range ctx.extras {
-				if strings.HasPrefix(k, "topic_name") {
-					_ = client.DeleteTopic(value.(string))
-				}
-			}
 		}
 	}
 
 	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
 	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
-	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
 
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
@@ -128,7 +130,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
-					"topic_name": getTopicName(),
+					"topic_name": s.getTopicName(),
 				},
 			},
 			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
@@ -141,8 +143,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 						kgo.ConsumeTopics(topicName),
 					},
 				})
-				ctx.extras["client"] = client
 				require.NoError(t, err)
+				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -164,8 +166,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2,
 					expectedNumberOfFetchRequests:   4,
-					expectedApiVersionProduce:       8,
-					expectedApiVersionFetch:         11,
+					expectedAPIVersionProduce:       8,
+					expectedAPIVersionFetch:         11,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -178,7 +180,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
-					"topic_name": getTopicName(),
+					"topic_name": s.getTopicName(),
 				},
 			},
 			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
@@ -191,8 +193,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 						kgo.ClientID(""),
 					},
 				})
-				ctx.extras["client"] = client
 				require.NoError(t, err)
+				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -206,8 +208,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2,
 					expectedNumberOfFetchRequests:   0,
-					expectedApiVersionProduce:       5,
-					expectedApiVersionFetch:         0,
+					expectedAPIVersionProduce:       5,
+					expectedAPIVersionFetch:         0,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -220,7 +222,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
-					"topic_name": getTopicName(),
+					"topic_name": s.getTopicName(),
 				},
 			},
 			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
@@ -233,8 +235,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 						kgo.ClientID(""),
 					},
 				})
-				ctx.extras["client"] = client
 				require.NoError(t, err)
+				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
 				numberOfIterations := 1000
@@ -250,8 +252,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: numberOfIterations * 2,
 					expectedNumberOfFetchRequests:   0,
-					expectedApiVersionProduce:       8,
-					expectedApiVersionFetch:         0,
+					expectedAPIVersionProduce:       8,
+					expectedAPIVersionFetch:         0,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -264,7 +266,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
-					"topic_name": getTopicName(),
+					"topic_name": s.getTopicName(),
 				},
 			},
 			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
@@ -277,8 +279,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 						kgo.ClientID(""),
 					},
 				})
-				ctx.extras["client"] = client
 				require.NoError(t, err)
+				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -299,7 +301,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 					resp, err := httpClient.Do(req)
 					require.NoError(t, err)
 					// Have to read the response body to ensure the client will be able to properly close the connection.
-					io.ReadAll(resp.Body)
+					io.Copy(io.Discard, resp.Body)
 					resp.Body.Close()
 				}
 				srvDoneFn()
@@ -339,8 +341,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 					kafkaParsingValidation{
 						expectedNumberOfProduceRequests: 2,
 						expectedNumberOfFetchRequests:   0,
-						expectedApiVersionProduce:       8,
-						expectedApiVersionFetch:         0,
+						expectedAPIVersionProduce:       8,
+						expectedAPIVersionFetch:         0,
 					})
 			},
 			teardown: kafkaTeardown,
@@ -359,7 +361,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
-					"topic_name": getTopicName(),
+					"topic_name": s.getTopicName(),
 				},
 			},
 			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
@@ -372,8 +374,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 						kgo.ClientID(""),
 					},
 				})
-				ctx.extras["client"] = client
 				require.NoError(t, err)
+				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -452,13 +454,11 @@ func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.Req
 		require.Equal(t, topicName, kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
-			require.Equal(t, uint16(validation.expectedApiVersionProduce), kafkaKey.RequestVersion)
+			require.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
 			numberOfProduceRequests += kafkaStat.Count
-			break
 		case kafka.FetchAPIKey:
-			require.Equal(t, uint16(validation.expectedApiVersionFetch), kafkaKey.RequestVersion)
+			require.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
 			numberOfFetchRequests += kafkaStat.Count
-			break
 		default:
 			require.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}
@@ -487,7 +487,7 @@ func getDefaultTestConfiguration() *config.Config {
 }
 
 func newKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(func() {

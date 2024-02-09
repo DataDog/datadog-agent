@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -34,6 +35,16 @@ type scanRequest struct {
 	collector collectors.Collector
 	opts      sbom.ScanOptions
 	ch        chan<- sbom.ScanResult
+}
+
+// sendResult sends a ScanResult to the channel associated with the scan request.
+// This function should not be blocking
+func (request *scanRequest) sendResult(result *sbom.ScanResult) {
+	select {
+	case request.ch <- *result:
+	default:
+		log.Errorf("Failed to push scanner result for '%s' into channel", request.ID())
+	}
 }
 
 // Scanner defines the scanner
@@ -104,18 +115,18 @@ func (s *Scanner) start(ctx context.Context) {
 				}
 				telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 
-				sendResult := func(scanResult sbom.ScanResult) {
-					select {
-					case request.ch <- scanResult:
-					default:
-						log.Errorf("Failed to push scanner result for '%s' into channel", request.ID())
-					}
-
-				}
-
 				collector := request.collector
 				if err := s.enoughDiskSpace(request.opts); err != nil {
-					sendResult(sbom.ScanResult{Error: fmt.Errorf("failed to check current disk usage: %w", err)})
+					var imgMeta *workloadmeta.ContainerImageMetadata
+					// It should always be true
+					if imageRequest, ok := request.ScanRequest.(sbom.ImageScanRequest); ok {
+						imgMeta = imageRequest.GetImgMetadata()
+					}
+					result := sbom.ScanResult{
+						ImgMeta: imgMeta,
+						Error:   fmt.Errorf("failed to check current disk usage: %w", err),
+					}
+					request.sendResult(&result)
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "disk_space")
 					continue
 				}
@@ -137,7 +148,7 @@ func (s *Scanner) start(ctx context.Context) {
 					telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
 				}
 				cancel()
-				sendResult(scanResult)
+				request.sendResult(&scanResult)
 				if request.opts.WaitAfter != 0 {
 					t := time.NewTimer(request.opts.WaitAfter)
 					select {
@@ -160,7 +171,7 @@ func (s *Scanner) Start(ctx context.Context) {
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its
 // collectors.
-func NewScanner(cfg config.Config) *Scanner {
+func NewScanner(config.Config) *Scanner {
 	return &Scanner{
 		scanQueue: make(chan scanRequest, 2000),
 		disk:      filesystem.NewDisk(),

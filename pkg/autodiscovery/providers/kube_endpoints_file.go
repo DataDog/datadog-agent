@@ -97,6 +97,8 @@ func NewKubeEndpointsFileConfigProvider(*config.ConfigurationProviders) (ConfigP
 
 // Collect returns the check configurations defined in Yaml files.
 // Only configs with advanced AD identifiers targeting kubernetes endpoints are handled by this collector.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *KubeEndpointsFileConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	p.setUpToDate(true)
 
@@ -104,6 +106,8 @@ func (p *KubeEndpointsFileConfigProvider) Collect(ctx context.Context) ([]integr
 }
 
 // IsUpToDate returns whether the config provider needs to be polled.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *KubeEndpointsFileConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	p.RLock()
 	defer p.RUnlock()

@@ -3,86 +3,18 @@ kitchen_tests_upload_common:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   allow_failure: true
-  when: always
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
   dependencies:
-    - kitchen_amazonlinux_install_script_agent-a6_arm64
-    - kitchen_amazonlinux_install_script_agent-a6_x64
-    - kitchen_amazonlinux_install_script_agent-a7_arm64
-    - kitchen_amazonlinux_install_script_agent-a7_x64
-    - kitchen_centos_fips_install_script_agent-a6
-    - kitchen_centos_fips_install_script_agent-a7
-    - kitchen_centos_fips_install_script_dogstatsd-a7
-    - kitchen_centos_fips_install_script_iot_agent-a7
-    - kitchen_centos_fips_upgrade6_agent-a6
-    - kitchen_centos_fips_upgrade6_agent-a7
-    - kitchen_centos_fips_upgrade7_agent-a7
-    - kitchen_centos_fips_upgrade7_iot_agent-a7
-    - kitchen_centos_install_script_agent-a6
-    - kitchen_centos_install_script_agent-a7
-    - kitchen_centos_install_script_dogstatsd-a7
-    - kitchen_centos_install_script_iot_agent-a7
     - kitchen_centos_process_agent-a7
-    - kitchen_centos_upgrade5_agent-a6
-    - kitchen_centos_upgrade5_agent-a7
-    - kitchen_centos_upgrade6_agent-a6
-    - kitchen_centos_upgrade6_agent-a7
-    - kitchen_centos_upgrade7_agent-a7
-    - kitchen_centos_upgrade7_iot_agent-a7
-    - kitchen_debian_install_script_agent-a6_arm64
-    - kitchen_debian_install_script_agent-a6_x64
-    - kitchen_debian_install_script_agent-a7_arm64
-    - kitchen_debian_install_script_agent-a7_x64
-    - kitchen_debian_install_script_dogstatsd-a7
-    - kitchen_debian_install_script_heroku_agent-a6
-    - kitchen_debian_install_script_heroku_agent-a7
-    - kitchen_debian_install_script_iot_agent-a7
     - kitchen_debian_process_agent-a7
-    - kitchen_debian_upgrade5_agent-a6
-    - kitchen_debian_upgrade5_agent-a7
-    - kitchen_debian_upgrade6_agent-a6
-    - kitchen_debian_upgrade6_agent-a7
-    - kitchen_debian_upgrade7_agent-a7
-    - kitchen_debian_upgrade7_iot_agent-a7
-    - kitchen_suse_install_script_agent-a6
-    - kitchen_suse_install_script_agent-a7
-    - kitchen_suse_install_script_dogstatsd-a7
-    - kitchen_suse_install_script_iot_agent-a7
-    - kitchen_suse_process_agent-a7
-    - kitchen_suse_upgrade6_agent-a6
-    - kitchen_suse_upgrade6_agent-a7
-    - kitchen_suse_upgrade7_agent-a7
-    - kitchen_suse_upgrade7_iot_agent-a7
-    - kitchen_ubuntu_install_script_agent-a6_arm64
-    - kitchen_ubuntu_install_script_agent-a6_x64
-    - kitchen_ubuntu_install_script_agent-a7_arm64
-    - kitchen_ubuntu_install_script_agent-a7_x64
-    - kitchen_ubuntu_install_script_dogstatsd-a7
-    - kitchen_ubuntu_install_script_iot_agent-a7
+    - kitchen_suse_process_agent_x64-a7
     - kitchen_ubuntu_process_agent-a7
-    - kitchen_ubuntu_upgrade5_agent-a6
-    - kitchen_ubuntu_upgrade5_agent-a7
-    - kitchen_ubuntu_upgrade6_agent-a6
-    - kitchen_ubuntu_upgrade6_agent-a7
-    - kitchen_ubuntu_upgrade7_agent-a7
-    - kitchen_ubuntu_upgrade7_iot_agent-a7
-    - kitchen_windows_chef_agent-a6
-    - kitchen_windows_chef_agent-a7
     - kitchen_windows_installer_agent-a6
     - kitchen_windows_installer_agent-a7
     - kitchen_windows_installer_npm_driver-a7
     - kitchen_windows_installer_npm_install_scenarios-a7
-    - kitchen_windows_ng_installer_agent-a6
-    - kitchen_windows_ng_installer_agent-a7
-    - kitchen_windows_ng_installer_npm_driver-a7
-    - kitchen_windows_ng_installer_npm_install_scenarios-a7
-    - kitchen_windows_old_chef_agent-a6
-    - kitchen_windows_old_chef_agent-a7
-    - kitchen_windows_old_installer_npm_driver-a7
-    - kitchen_windows_old_upgrade5_agent-a6
-    - kitchen_windows_old_upgrade5_agent-a7
-    - kitchen_windows_old_upgrade6_agent-a6
-    - kitchen_windows_old_upgrade6_agent-a7
-    - kitchen_windows_old_upgrade7_agent-a7
     - kitchen_windows_process_agent-a7
     - kitchen_windows_upgrade5_agent-a6
     - kitchen_windows_upgrade5_agent-a7
@@ -92,7 +24,7 @@ kitchen_tests_upload_common:
   variables:
     DD_ENV: ci
   script:
-    - set +x   
+    - set +x
     - find . -name "kitchen-rspec-common-*.tar.gz"
     - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     - set -x

@@ -6,15 +6,20 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"expvar"
 	"fmt"
 	"net/http"
+	"runtime/pprof"
+	"strings"
 
 	gorilla "github.com/gorilla/mux"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/stats"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -26,7 +31,7 @@ import (
 const maxGRPCServerMessage = 100 * 1024 * 1024
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
+func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component) error {
 	conn, err := net.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return fmt.Errorf("error creating IPC socket: %s", err)
@@ -37,7 +42,11 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 
 	mux := gorilla.NewRouter()
 	if cfg.GRPCServerEnabled {
-		grpcServer = grpc.NewServer(grpc.MaxRecvMsgSize(maxGRPCServerMessage), grpc.MaxSendMsgSize(maxGRPCServerMessage))
+		grpcServer = grpc.NewServer(
+			grpc.MaxRecvMsgSize(maxGRPCServerMessage),
+			grpc.MaxSendMsgSize(maxGRPCServerMessage),
+			grpc.StatsHandler(&pprofGRPCStatsHandler{}),
+		)
 	}
 
 	err = module.Register(cfg, mux, grpcServer, modules.All)
@@ -47,8 +56,7 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 
 	// Register stats endpoint
 	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
-		stats := module.GetStats()
-		utils.WriteAsJSON(w, stats)
+		utils.WriteAsJSON(w, module.GetStats())
 	}))
 
 	setupConfigHandlers(mux)
@@ -74,7 +82,7 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 
 	go func() {
 		err = srv.Serve(conn.GetListener())
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Errorf("error creating HTTP server: %s", err)
 		}
 	}()
@@ -86,4 +94,29 @@ func init() {
 	expvar.Publish("modules", expvar.Func(func() interface{} {
 		return module.GetStats()
 	}))
+}
+
+type pprofGRPCStatsHandler struct{}
+
+func (p *pprofGRPCStatsHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) context.Context {
+	parts := strings.Split(info.FullMethodName, "/")
+	if len(parts) >= 1 {
+		moduleName := module.NameFromGRPCServiceName(parts[0])
+		if moduleName != "" {
+			return pprof.WithLabels(ctx, pprof.Labels("module", moduleName))
+		}
+	}
+	return ctx
+}
+
+func (p *pprofGRPCStatsHandler) HandleRPC(_ context.Context, _ stats.RPCStats) {
+	// intentionally empty
+}
+
+func (p *pprofGRPCStatsHandler) TagConn(ctx context.Context, _ *stats.ConnTagInfo) context.Context {
+	return ctx
+}
+
+func (p *pprofGRPCStatsHandler) HandleConn(_ context.Context, _ stats.ConnStats) {
+	// intentionally empty
 }

@@ -7,17 +7,17 @@
 
 package winutil
 
+// EpochDifferenceSecs is the difference between windows and unix epochs in 100ns intervals
 // From GetUnixTimestamp() datadog-windows-filter\ddfilter\http\http_callbacks.c
-// difference between windows and unix epochs in 100ns intervals
 // 11644473600s * 1000ms/s * 1000us/ms * 10 intervals/us
-const EPOCH_DIFFERENCE_SECS uint64 = 116444736000000000
+const EpochDifferenceSecs uint64 = 116444736000000000
 
 // FileTimeToUnixNano translates Windows FileTime to nanoseconds since Unix epoch
 func FileTimeToUnixNano(ft uint64) uint64 {
-	return (ft - EPOCH_DIFFERENCE_SECS) * 100
+	return (ft - EpochDifferenceSecs) * 100
 }
 
 // FileTimeToUnix translates Windows FileTime to seconds since Unix epoch
 func FileTimeToUnix(ft uint64) uint64 {
-	return (ft - EPOCH_DIFFERENCE_SECS) / 10000000
+	return (ft - EpochDifferenceSecs) / 10000000
 }

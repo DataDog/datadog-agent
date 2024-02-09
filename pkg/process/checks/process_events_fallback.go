@@ -14,7 +14,7 @@ import (
 )
 
 // NewProcessEventsCheck returns an instance of the ProcessEventsCheck.
-func NewProcessEventsCheck(config config.ConfigReader) *ProcessEventsCheck {
+func NewProcessEventsCheck(config config.Reader) *ProcessEventsCheck {
 	return &ProcessEventsCheck{
 		config: config,
 	}
@@ -22,11 +22,11 @@ func NewProcessEventsCheck(config config.ConfigReader) *ProcessEventsCheck {
 
 // ProcessEventsCheck collects process lifecycle events such as exec and exit signals
 type ProcessEventsCheck struct {
-	config config.ConfigReader
+	config config.Reader
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, _ *HostInfo) error {
+func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, _ *HostInfo, _ bool) error {
 	return nil
 }
 
@@ -50,6 +50,8 @@ func (e *ProcessEventsCheck) Realtime() bool { return false }
 func (e *ProcessEventsCheck) ShouldSaveLastRun() bool { return true }
 
 // Run fetches process lifecycle events that have been stored in-memory since the last check run
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 func (e *ProcessEventsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	return nil, errors.New("the process_events check is not supported on this system")
 }

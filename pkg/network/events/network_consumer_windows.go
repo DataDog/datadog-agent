@@ -5,20 +5,24 @@
 
 //go:build windows
 
+// Package events handles process events
 package events
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 )
 
 // NetworkConsumer describes a process monitoring object
 type NetworkConsumer struct{}
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (n *NetworkConsumer) Start() error {
 	return fmt.Errorf("network consumer is only supported on linux")
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (n *NetworkConsumer) Stop() {}
 
 // ID returns id for process monitor

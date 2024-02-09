@@ -16,6 +16,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
+// RunServer runs a kafka server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"KAFKA_ADDR=" + serverAddr,
@@ -24,5 +25,5 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(`.*started \(kafka.server.KafkaServer\).*`), 3*time.Minute)
+	return protocolsUtils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(`.*started \(kafka.server.KafkaServer\).*`), 1*time.Minute, 3)
 }

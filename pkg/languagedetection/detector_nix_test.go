@@ -10,8 +10,9 @@ package languagedetection
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 func TestDetectLanguage(t *testing.T) {
@@ -117,6 +118,45 @@ func TestDetectLanguage(t *testing.T) {
 			expected := []*languagemodels.Language{{Name: tc.expected}}
 			assert.Equal(t, expected, DetectLanguage(process, nil))
 		})
+	}
+}
+
+func TestDetectLanguageBulk(t *testing.T) {
+	cmds := []struct {
+		cmdline  []string
+		comm     string
+		expected languagemodels.LanguageName
+	}{
+		{
+			cmdline:  []string{"java", "-Djruby.home=/usr/share/jruby", "-Djruby.lib=/usr/share/jruby/lib", "org.jruby.Main", "prog.rb"},
+			comm:     "java",
+			expected: languagemodels.Ruby,
+		},
+		{
+			cmdline:  []string{"node", "/etc/app/index.js"},
+			comm:     "node",
+			expected: languagemodels.Node,
+		},
+		{
+			cmdline:  []string{"pyret", "main.pyret"},
+			comm:     "pyret",
+			expected: languagemodels.Unknown,
+		},
+		{
+			cmdline:  []string{"/usr/bin/Java", "-Xfoo=true", "org.elasticsearch.bootstrap.Elasticsearch"},
+			comm:     "java",
+			expected: languagemodels.Java,
+		},
+	}
+
+	procs := make([]languagemodels.Process, 0, len(cmds))
+	for _, cmd := range cmds {
+		procs = append(procs, makeProcess(cmd.cmdline, cmd.comm))
+	}
+
+	langs := DetectLanguage(procs, nil)
+	for i, lang := range langs {
+		assert.Equal(t, cmds[i].expected, lang.Name)
 	}
 }
 

@@ -1,0 +1,129 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+// Code generated - DO NOT EDIT.
+
+{{range .BuildTags }}//{{.}}{{end}}
+
+package {{.Name}}
+
+import (
+    {{range .Imports }}
+        "{{.}}"
+    {{end}}
+    "time"
+
+    "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+)
+
+{{range $Name, $Field := .Fields}}
+
+{{ $pascalCaseName := PascalCaseFieldName $Name }}
+
+{{$accessorReturnType := $Field.OrigType}}
+{{ if $Field.Handler}}
+    {{$accessorReturnType = $Field.ReturnType}}
+{{ end }}
+
+{{ if or ($Field.Iterator) ($Field.IsArray) }}
+    {{$accessorReturnType = $accessorReturnType | printf "[]%s" }}
+{{ end }}
+
+// Get{{$pascalCaseName}} returns the value of the field, resolving if necessary
+func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
+    {{if ne $Field.Event "*"}}
+        if ev.GetEventType().String() != "{{$Field.Event}}" {
+            return {{ GetDefaultValueOfType $accessorReturnType}}
+        }
+    {{end}}
+
+    {{$Field | GeneratePrefixNilChecks $.AllFields $accessorReturnType}}
+
+    {{if $Field.Iterator}}
+        var values {{ $accessorReturnType }}
+
+        ctx := eval.NewContext(ev)
+
+        iterator := &{{$Field.Iterator.ReturnType}}{}
+        ptr := iterator.Front(ctx)
+
+        for ptr != nil {
+            {{if $Field.Iterator.IsOrigTypePtr}}
+                element := (*{{$Field.Iterator.OrigType}})(ptr)
+            {{else}}
+                elementPtr := (*{{$Field.Iterator.OrigType}})(ptr)
+                element := *elementPtr
+            {{end}}
+
+            {{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
+
+            {{$Return := $SubName | printf "element%s"}}
+            {{if $Field.Handler}}
+                {{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
+                {{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
+                {{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
+            {{end}}
+
+            {{if $Field.IsLength}}
+            {{$Return = ".length" | TrimSuffix $Return}}
+            {{end}}
+
+            {{if and $Field.Handler (and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")) }}
+			    result := int({{$Return}})
+            {{else}}
+                {{if $Field.IsLength}}
+                    result := len({{$Return}})
+                {{else}}
+                    result := {{$Return}}
+                {{end}}
+            {{end}}
+
+            {{if not $Field.GetArrayPrefix}}
+            values = append(values, result)
+            {{else}}
+            values = append(values, result...)
+            {{end}}
+
+            ptr = iterator.Next()
+        }
+
+        return values
+    {{else}}
+
+        {{$Return := $Field.Name | printf "ev.%s"}}
+
+        {{$Checks := $Field | GetChecks $.AllFields}}
+        {{range $Check := $Checks}}
+        {{$Check = $Check | printf "ev.%s"}}
+        if !{{$Check}}() {
+            return {{ GetDefaultValueOfType $accessorReturnType}}
+        }
+        {{end}}
+
+        {{if $Field.IsLength}}
+            {{$Return = ".length" | TrimSuffix $Field.Name | printf "len(ev.%s)"}}
+        {{end}}
+
+        {{if $Field.Handler}}
+            {{$Ptr := "&"}}
+            {{$Parent := index $.AllFields $Field.Prefix}}
+            {{- if or (not $Parent) $Parent.IsOrigTypePtr}}
+                {{$Ptr = ""}}
+            {{end}}
+
+            {{$Prefix := $Field.Prefix}}
+            {{ if not $Prefix }}
+                {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
+            {{- else if $Field.IsLength }}
+                {{$Return = print "len(ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix "))"}}
+            {{ else }}
+                {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
+            {{end}}
+        {{end}}
+
+        return {{$Return}}
+
+    {{end}}
+}
+{{end}}

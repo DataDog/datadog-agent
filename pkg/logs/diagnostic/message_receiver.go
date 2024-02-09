@@ -8,19 +8,20 @@ package diagnostic
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // MessageReceiver interface to handle messages for diagnostics
 type MessageReceiver interface {
-	HandleMessage(message.Message, string, []byte)
+	HandleMessage(*message.Message, []byte, string)
 }
 
 type messagePair struct {
-	msg         *message.Message
-	redactedMsg []byte
-	eventType   string
+	msg       *message.Message
+	rendered  []byte
+	eventType string
 }
 
 // BufferedMessageReceiver handles in coming log messages and makes them available for diagnostics
@@ -41,9 +42,11 @@ type Filters struct {
 
 // NewBufferedMessageReceiver creates a new MessageReceiver. It takes an optional Formatter as a parameter, and defaults
 // to using logFormatter if not supplied.
-func NewBufferedMessageReceiver(f Formatter) *BufferedMessageReceiver {
+func NewBufferedMessageReceiver(f Formatter, hostname hostnameinterface.Component) *BufferedMessageReceiver {
 	if f == nil {
-		f = &logFormatter{}
+		f = &logFormatter{
+			hostname: hostname,
+		}
 	}
 	return &BufferedMessageReceiver{
 		inputChan: make(chan messagePair, config.ChanSize),
@@ -93,11 +96,15 @@ func (b *BufferedMessageReceiver) IsEnabled() bool {
 }
 
 // HandleMessage buffers a message for diagnostic processing
-func (b *BufferedMessageReceiver) HandleMessage(m message.Message, eventType string, redactedMsg []byte) {
+func (b *BufferedMessageReceiver) HandleMessage(m *message.Message, rendered []byte, eventType string) {
 	if !b.IsEnabled() {
 		return
 	}
-	b.inputChan <- messagePair{&m, redactedMsg, eventType}
+	b.inputChan <- messagePair{
+		msg:       m,
+		rendered:  rendered,
+		eventType: eventType,
+	}
 }
 
 // Filter writes the buffered events from the input channel formatted as a string to the output channel
@@ -109,7 +116,7 @@ func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{})
 			select {
 			case msgPair := <-b.inputChan:
 				if shouldHandleMessage(&msgPair, filters) {
-					out <- b.formatter.Format(msgPair.msg, msgPair.eventType, msgPair.redactedMsg)
+					out <- b.formatter.Format(msgPair.msg, msgPair.eventType, msgPair.rendered)
 				}
 			case <-done:
 				return

@@ -19,15 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
 const (
-	systemdCheckName = "systemd"
+	// CheckName is the name of the check// CheckName
+	CheckName = "systemd"
 
 	unitActiveState = "active"
 	unitLoadedState = "loaded"
@@ -305,7 +306,9 @@ func (c *SystemdCheck) submitVersion(conn *dbus.Conn) {
 	}
 	checkID := string(c.ID())
 	log.Debugf("Submit version %v for checkID %v", version, checkID)
-	inventories.SetCheckMetadata(checkID, "version.raw", version)
+	if inv, err := check.GetInventoryChecksContext(); err == nil {
+		inv.Set(checkID, "version.raw", version)
+	}
 }
 
 func (c *SystemdCheck) submitMetrics(sender sender.Sender, conn *dbus.Conn) error {
@@ -558,13 +561,14 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 	return nil
 }
 
-func systemdFactory() check.Check {
-	return &SystemdCheck{
-		stats:     &defaultSystemdStats{},
-		CheckBase: core.NewCheckBase(systemdCheckName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(systemdCheckName, systemdFactory)
+func newCheck() check.Check {
+	return &SystemdCheck{
+		stats:     &defaultSystemdStats{},
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }

@@ -6,9 +6,10 @@
 package snmp
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 
@@ -408,6 +409,27 @@ func Test_CollectTopology_withRootCollectTopologyTrue(t *testing.T) {
 	err := config.Datadog.ReadConfig(strings.NewReader(`
 snmp_listener:
   collect_topology: true
+  configs:
+   - network: 127.1.0.0/30
+     collect_topology: true
+   - network: 127.2.0.0/30
+     collect_topology: false
+   - network: 127.3.0.0/30
+`))
+	assert.NoError(t, err)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, true, conf.Configs[0].CollectTopology)
+	assert.Equal(t, false, conf.Configs[1].CollectTopology)
+	assert.Equal(t, true, conf.Configs[2].CollectTopology)
+}
+
+func Test_CollectTopology_withRootCollectTopologyUnset(t *testing.T) {
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
   configs:
    - network: 127.1.0.0/30
      collect_topology: true

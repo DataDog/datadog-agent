@@ -50,8 +50,8 @@ struct file_metadata_t {
 
 struct file_t {
     struct path_key_t path_key;
+    u32 dev;
     u32 flags;
-    u32 padding;
     struct file_metadata_t metadata;
 };
 

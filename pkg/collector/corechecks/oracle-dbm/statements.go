@@ -21,184 +21,7 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-/*
- * We are selecting from sql_fulltext instead of sql_text because sql_text doesn't preserve the new lines.
- * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
- * For such statements, we will have to get the text from v$sql which has the complete text.
- */
-const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, max(s.sql_id) sql_id, 
-	sum(parse_calls) as parse_calls,
-	sum(disk_reads) as disk_reads,
-	sum(direct_writes) as direct_writes,
-	sum(direct_reads) as direct_reads,
-	sum(buffer_gets) as buffer_gets,
-	sum(rows_processed) as rows_processed,
-	sum(serializable_aborts) as serializable_aborts,
-	sum(fetches) as fetches,
-	sum(executions) as executions,
-	sum(end_of_fetch_count) as end_of_fetch_count,
-	sum(loads) as loads,
-	sum(version_count) as version_count,
-	sum(invalidations) as invalidations,
-	sum(px_servers_executions) as px_servers_executions,
-	sum(cpu_time) as cpu_time,
-	sum(elapsed_time) as elapsed_time,
-	sum(application_wait_time) as application_wait_time,
-	sum(concurrency_wait_time) as concurrency_wait_time,
-	sum(cluster_wait_time) as cluster_wait_time,
-	sum(user_io_wait_time) as user_io_wait_time,
-	sum(plsql_exec_time) as plsql_exec_time,
-	sum(java_exec_time) as java_exec_time,
-	sum(sorts) as sorts,
-	sum(sharable_mem) as sharable_mem,
-	sum(typecheck_mem) as typecheck_mem,
-	sum(io_cell_offload_eligible_bytes) as io_cell_offload_eligible_bytes,
-	sum(io_interconnect_bytes) as io_interconnect_bytes,
-	sum(physical_read_requests) as physical_read_requests,
-	sum(physical_read_bytes) as physical_read_bytes,
-	sum(physical_write_requests) as physical_write_requests,
-	sum(physical_write_bytes) as physical_write_bytes,
-	sum(io_cell_uncompressed_bytes) as io_cell_uncompressed_bytes,
-	sum(io_cell_offload_returned_bytes) as io_cell_offload_returned_bytes,
-	sum(avoided_executions) as avoided_executions
-FROM v$sqlstats s, v$containers c 
-WHERE s.con_id = c.con_id (+) AND force_matching_signature != 0
-GROUP BY s.con_id, c.name, force_matching_signature, plan_hash_value 
-HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
-FETCH FIRST :limit ROWS ONLY`
-
-// queryForceMatchingSignatureLastActive Querying force_matching_signature = 0
-const queryForceMatchingSignatureLastActive = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, 
-	max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, sq.sql_id,
-	sum(parse_calls) as parse_calls,
-	sum(disk_reads) as disk_reads,
-	sum(direct_writes) as direct_writes,
-	sum(direct_reads) as direct_reads,
-	sum(buffer_gets) as buffer_gets,
-	sum(rows_processed) as rows_processed,
-	sum(serializable_aborts) as serializable_aborts,
-	sum(fetches) as fetches,
-	sum(executions) as executions,
-	sum(end_of_fetch_count) as end_of_fetch_count,
-	sum(loads) as loads,
-	sum(version_count) as version_count,
-	sum(invalidations) as invalidations,
-	sum(px_servers_executions) as px_servers_executions,
-	sum(cpu_time) as cpu_time,
-	sum(elapsed_time) as elapsed_time,
-	sum(application_wait_time) as application_wait_time,
-	sum(concurrency_wait_time) as concurrency_wait_time,
-	sum(cluster_wait_time) as cluster_wait_time,
-	sum(user_io_wait_time) as user_io_wait_time,
-	sum(plsql_exec_time) as plsql_exec_time,
-	sum(java_exec_time) as java_exec_time,
-	sum(sorts) as sorts,
-	sum(sharable_mem) as sharable_mem,
-	sum(typecheck_mem) as typecheck_mem,
-	sum(io_cell_offload_eligible_bytes) as io_cell_offload_eligible_bytes,
-	sum(io_interconnect_bytes) as io_interconnect_bytes,
-	sum(physical_read_requests) as physical_read_requests,
-	sum(physical_read_bytes) as physical_read_bytes,
-	sum(physical_write_requests) as physical_write_requests,
-	sum(physical_write_bytes) as physical_write_bytes,
-	sum(io_cell_uncompressed_bytes) as io_cell_uncompressed_bytes,
-	sum(io_cell_offload_returned_bytes) as io_cell_offload_returned_bytes,
-	sum(avoided_executions) as avoided_executions
-FROM v$sqlstats s, v$containers c, ( 
-    SELECT * 
-    FROM ( 
-        SELECT force_matching_signature, sql_id, row_number ( ) over ( partition by force_matching_signature ORDER BY last_active_time DESC ) rowno
-    FROM v$sqlstats 
-    WHERE last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature != 0
-) 
-WHERE rowno = 1
-) sq 
-WHERE s.con_id = c.con_id (+) AND sq.force_matching_signature = s.force_matching_signature 
-GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_id 
-FETCH FIRST :limit ROWS ONLY`
-
-// querySQLID force_matching_signature = 0
-const querySQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, 
-	dbms_lob.substr(sql_fulltext, 1000, 1) sql_text, length(sql_text) sql_text_length, 
-	parse_calls,
-	disk_reads,
-	direct_writes,
-	direct_reads,
-	buffer_gets,
-	rows_processed,
-	serializable_aborts,
-	fetches,
-	executions,
-	end_of_fetch_count,
-	loads,
-	version_count,
-	invalidations,
-	px_servers_executions,
-	cpu_time,
-	elapsed_time,
-	application_wait_time,
-	concurrency_wait_time,
-	cluster_wait_time,
-	user_io_wait_time,
-	plsql_exec_time,
-	java_exec_time,
-	sorts,
-	sharable_mem,
-	typecheck_mem,
-	io_cell_offload_eligible_bytes,
-	io_interconnect_bytes,
-	physical_read_requests,
-	physical_read_bytes,
-	physical_write_requests,
-	physical_write_bytes,
-	io_cell_uncompressed_bytes,
-	io_cell_offload_returned_bytes,
-	avoided_executions
-FROM v$sqlstats s, v$containers c 
-WHERE s.con_id = c.con_id (+) AND last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature = 0
-FETCH FIRST :limit ROWS ONLY`
-
-// including sql_id for indexed access
-const PLAN_QUERY = `SELECT /* DD */
-	timestamp,
-	operation,
-	options,
-	object_name,
-	object_type,
-	object_alias,
-	optimizer,
-	id,
-	parent_id,
-	depth,
-	position,
-	search_columns,
-	cost,
-	cardinality,
-	bytes,
-	partition_start,
-	partition_stop,
-	other,
-	cpu_cost,
-	io_cost,
-	temp_space,
-	access_predicates,
-	filter_predicates,
-	projection,
-	executions,
-	last_starts,
-	last_output_rows,
-	last_cr_buffer_gets,
-	last_disk_reads,
-	last_disk_writes,
-	last_elapsed_time,
-	last_memory_used,
-	last_degree,
-	last_tempseg_size
-FROM v$sql_plan_statistics_all s
-WHERE 
-  sql_id = :1 AND plan_hash_value = :2 AND con_id = :3
-ORDER BY id, position`
-
+//nolint:revive // TODO(DBM) Fix revive linter
 type StatementMetricsKeyDB struct {
 	ConID                  int    `db:"CON_ID"`
 	PDBName                string `db:"PDB_NAME"`
@@ -207,6 +30,7 @@ type StatementMetricsKeyDB struct {
 	PlanHashValue          uint64 `db:"PLAN_HASH_VALUE"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type StatementMetricsMonotonicCountDB struct {
 	ParseCalls                 float64 `db:"PARSE_CALLS"`
 	DiskReads                  float64 `db:"DISK_READS"`
@@ -242,21 +66,23 @@ type StatementMetricsMonotonicCountDB struct {
 	AvoidedExecutions          float64 `db:"AVOIDED_EXECUTIONS"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type StatementMetricsGaugeDB struct {
 	VersionCount float64 `db:"VERSION_COUNT"`
 	SharableMem  float64 `db:"SHARABLE_MEM"`
 	TypecheckMem float64 `db:"TYPECHECK_MEM"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type StatementMetricsDB struct {
 	StatementMetricsKeyDB
 	SQLText       string `db:"SQL_TEXT"`
 	SQLTextLength int16  `db:"SQL_TEXT_LENGTH"`
-	SQLID         string `db:"SQL_ID"`
 	StatementMetricsMonotonicCountDB
 	StatementMetricsGaugeDB
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type QueryRow struct {
 	QuerySignature string   `json:"query_signature,omitempty" dbm:"query_signature,primary"`
 	Tables         []string `json:"dd_tables,omitempty" dbm:"table,tag"`
@@ -264,6 +90,7 @@ type QueryRow struct {
 	Comments       []string `json:"dd_comments,omitempty" dbm:"comments,tag"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleRowMonotonicCount struct {
 	ParseCalls                 float64 `json:"parse_calls,omitempty"`
 	DiskReads                  float64 `json:"disk_reads,omitempty"`
@@ -299,6 +126,7 @@ type OracleRowMonotonicCount struct {
 	AvoidedExecutions          float64 `json:"avoided_executions,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleRowGauge struct {
 	VersionCount float64 `json:"version_count,omitempty"`
 	SharableMem  float64 `json:"sharable_mem,omitempty"`
@@ -322,6 +150,7 @@ type OracleRow struct {
 	OracleRowGauge
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type MetricsPayload struct {
 	Host                  string   `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
 	Timestamp             float64  `json:"timestamp,omitempty"`
@@ -334,11 +163,13 @@ type MetricsPayload struct {
 	OracleVersion string      `json:"oracle_version,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type FQTDBMetadata struct {
 	Tables   []string `json:"dd_tables"`
 	Commands []string `json:"dd_commands"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type FQTDB struct {
 	Instance       string        `json:"instance"`
 	QuerySignature string        `json:"query_signature"`
@@ -346,10 +177,12 @@ type FQTDB struct {
 	FQTDBMetadata  FQTDBMetadata `json:"metadata"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type FQTDBOracle struct {
 	CDBName string `json:"cdb_name,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type FQTPayload struct {
 	Timestamp    float64     `json:"timestamp,omitempty"`
 	Host         string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
@@ -361,6 +194,7 @@ type FQTPayload struct {
 	FQTDBOracle  FQTDBOracle `json:"oracle"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OraclePlan struct {
 	PlanHashValue          uint64  `json:"plan_hash_value,omitempty"`
 	SQLID                  string  `json:"sql_id,omitempty"`
@@ -373,25 +207,28 @@ type OraclePlan struct {
 	ForceMatchingSignature string  `json:"force_matching_signature,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanStatementMetadata struct {
 	Tables   []string `json:"tables"`
 	Commands []string `json:"commands"`
 	Comments []string `json:"comments"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanDefinition struct {
-	Operation        string  `json:"operation,omitempty"`
-	Options          string  `json:"options,omitempty"`
-	ObjectOwner      string  `json:"object_owner,omitempty"`
-	ObjectName       string  `json:"object_name,omitempty"`
-	ObjectAlias      string  `json:"object_alias,omitempty"`
-	ObjectType       string  `json:"object_type,omitempty"`
-	PlanStepId       int64   `json:"id,omitempty"`
-	ParentId         int64   `json:"parent_id,omitempty"`
-	Depth            int64   `json:"depth,omitempty"`
-	Position         int64   `json:"position,omitempty"`
+	Operation   string `json:"operation,omitempty"`
+	Options     string `json:"options,omitempty"`
+	ObjectOwner string `json:"object_owner,omitempty"`
+	ObjectName  string `json:"object_name,omitempty"`
+	ObjectAlias string `json:"object_alias,omitempty"`
+	ObjectType  string `json:"object_type,omitempty"`
+	//nolint:revive // TODO(DBM) Fix revive linter
+	PlanStepId       int64   `json:"id"`
+	ParentId         int64   `json:"parent_id"`
+	Depth            int64   `json:"depth"`
+	Position         int64   `json:"position"`
 	SearchColumns    int64   `json:"search_columns,omitempty"`
-	Cost             float64 `json:"cost,omitempty"`
+	Cost             float64 `json:"cost"`
 	Cardinality      float64 `json:"cardinality,omitempty"`
 	Bytes            float64 `json:"bytes,omitempty"`
 	PartitionStart   string  `json:"partition_start,omitempty"`
@@ -413,11 +250,13 @@ type PlanDefinition struct {
 	LastTempsegSize  uint64  `json:"actual_tempseg_size,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanPlanDB struct {
 	Definition []PlanDefinition `json:"definition"`
 	Signature  string           `json:"signature"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanDB struct {
 	Instance       string                `json:"instance,omitempty"`
 	Plan           PlanPlanDB            `json:"plan,omitempty"`
@@ -426,6 +265,7 @@ type PlanDB struct {
 	Metadata       PlanStatementMetadata `json:"metadata,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanPayload struct {
 	Timestamp    float64    `json:"timestamp,omitempty"`
 	Host         string     `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
@@ -437,6 +277,7 @@ type PlanPayload struct {
 	OraclePlan   OraclePlan `json:"oracle"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanGlobalRow struct {
 	SQLID         string         `db:"SQL_ID"`
 	ChildNumber   sql.NullInt64  `db:"CHILD_NUMBER"`
@@ -446,6 +287,8 @@ type PlanGlobalRow struct {
 	Executions    sql.NullString `db:"EXECUTIONS"`
 	PDBName       sql.NullString `db:"PDB_NAME"`
 }
+
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanStepRows struct {
 	Operation        sql.NullString  `db:"OPERATION"`
 	Options          sql.NullString  `db:"OPTIONS"`
@@ -479,6 +322,8 @@ type PlanStepRows struct {
 	LastDegree       *uint64         `db:"LAST_DEGREE"`
 	LastTempsegSize  *uint64         `db:"LAST_TEMPSEG_SIZE"`
 }
+
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanRows struct {
 	PlanGlobalRow
 	PlanStepRows
@@ -491,6 +336,24 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 	}
 }
 
+func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue *string, statement StatementMetricsDB, c *Check, o *obfuscate.Obfuscator) {
+	if dbValue.Valid && dbValue.String != "" {
+		obfuscated, err := o.ObfuscateSQLString(dbValue.String)
+		if err == nil {
+			*payloadValue = obfuscated.Query
+		} else {
+			*payloadValue = fmt.Sprintf("%s obfuscation error %d", predicateType, len(dbValue.String))
+			//*payloadValue = dbValue.String
+			logEntry := fmt.Sprintf("%s %s for sql_id: %s, plan_hash_value: %d", c.logPrompt, *payloadValue, statement.SQLID, statement.PlanHashValue)
+			if c.config.ExecutionPlans.LogUnobfuscatedPlans {
+				logEntry = fmt.Sprintf("%s unobfuscated filter: %s", logEntry, dbValue.String)
+			}
+			log.Error(logEntry)
+		}
+	}
+}
+
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) StatementMetrics() (int, error) {
 	if !checkIntervalExpired(&c.statementsLastRun, c.config.QueryMetrics.CollectionInterval) {
 		return 0, nil
@@ -499,48 +362,57 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("GetSender statements metrics")
+		log.Errorf("%s GetSender statements metrics %s", c.logPrompt, err)
 		return 0, err
 	}
 
 	SQLCount := 0
 	var oracleRows []OracleRow
 	var planErrors uint16
+	queries := getStatementMetricsQueries(c)
 	if c.config.QueryMetrics.Enabled {
 		var statementMetrics []StatementMetricsDB
 		var sql string
 		if c.config.QueryMetrics.DisableLastActive {
-			sql = QUERY_FMS_RANDOM
+			sql = queries[fmsRandomQuery]
 		} else {
-			sql = queryForceMatchingSignatureLastActive
+			sql = queries[fmsLastActiveQuery]
 		}
+
+		var lookback int64
+		if c.config.QueryMetrics.Lookback != 0 {
+			lookback = c.config.QueryMetrics.Lookback
+		} else {
+			lookback = 2 * c.config.QueryMetrics.CollectionInterval
+		}
+
 		err := selectWrapper(
 			c,
 			&statementMetrics,
 			sql,
-			2*c.config.QueryMetrics.CollectionInterval,
+			lookback,
 			c.config.QueryMetrics.DBRowsLimit,
 		)
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for force_matching_signature: %w %s", err, sql)
 		}
-		log.Tracef("number of collected metrics with force_matching_signature %+v", len(statementMetrics))
+		log.Debugf("%s number of collected metrics with force_matching_signature %+v", c.logPrompt, len(statementMetrics))
 
 		statementMetricsAll := make([]StatementMetricsDB, len(statementMetrics))
 		copy(statementMetricsAll, statementMetrics)
 
-		sql = querySQLID
+		sql = queries[sqlIDQuery]
 		err = selectWrapper(
 			c,
 			&statementMetrics,
 			sql,
-			2*c.config.QueryMetrics.CollectionInterval,
+			lookback,
 			c.config.QueryMetrics.DBRowsLimit,
 		)
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for SQL_IDs: %w %s", err, sql)
 		}
-		log.Tracef("number of collected metrics with SQL_ID %+v", len(statementMetrics))
+		log.Debugf("%s number of collected metrics with SQL_ID %+v", c.logPrompt, len(statementMetrics))
 		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
 		SQLCount = len(statementMetricsAll)
 
@@ -555,10 +427,34 @@ func (c *Check) StatementMetrics() (int, error) {
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
-		for _, statementMetricRow := range statementMetricsAll {
+		sendPlan := true
+		for i, statementMetricRow := range statementMetricsAll {
+			var trace bool
+			for _, t := range c.config.QueryMetrics.Trackers {
+				if len(t.ContainsText) > 0 {
+					for _, q := range t.ContainsText {
+						if strings.Contains(statementMetricRow.SQLText, q) {
+							trace = true
+						} else {
+							trace = false
+							break
+						}
+					}
+					if trace {
+						break
+					}
+				}
+			}
+			if trace {
+				log.Infof("%s qm_tracker queried: %+v", c.logPrompt, statementMetricRow)
+			}
+
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
 			if exists {
+				if trace {
+					log.Infof("%s qm_tracker previous: %+v %+v", c.logPrompt, statementMetricRow.StatementMetricsKeyDB, previousMonotonic)
+				}
 				diff = OracleRowMonotonicCount{}
 				if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {
 					continue
@@ -584,7 +480,7 @@ func (c *Check) StatementMetrics() (int, error) {
 				if diff.Fetches = statementMetricRow.Fetches - previousMonotonic.Fetches; diff.Fetches < 0 {
 					continue
 				}
-				if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions <= 0 {
+				if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions < 0 {
 					continue
 				}
 				if diff.EndOfFetchCount = statementMetricRow.EndOfFetchCount - previousMonotonic.EndOfFetchCount; diff.EndOfFetchCount < 0 {
@@ -663,16 +559,10 @@ func (c *Check) StatementMetrics() (int, error) {
 			queryRow := QueryRow{}
 			var SQLStatement string
 
-			if statementMetricRow.SQLTextLength == 1000 {
+			if statementMetricRow.SQLTextLength == MaxSQLFullTextVSQLStats {
 				err := getFullSQLText(c, &SQLStatement, "sql_id", statementMetricRow.SQLID)
 				if err != nil {
-					log.Errorf("failed to get the full text %s for sql_id %s", err, statementMetricRow.SQLID)
-				}
-				if SQLStatement == "" && statementMetricRow.ForceMatchingSignature != "" {
-					err := getFullSQLText(c, &SQLStatement, "force_matching_signature", statementMetricRow.ForceMatchingSignature)
-					if err != nil {
-						log.Errorf("failed to get the full text %s for force_matching_signature %s", err, statementMetricRow.ForceMatchingSignature)
-					}
+					log.Errorf("%s failed to get the full text %s for sql_id %s", c.logPrompt, err, statementMetricRow.SQLID)
 				}
 				if SQLStatement != "" {
 					statementMetricRow.SQLText = SQLStatement
@@ -704,48 +594,78 @@ func (c *Check) StatementMetrics() (int, error) {
 			}
 
 			oracleRows = append(oracleRows, oracleRow)
-
-			if c.fqtEmitted != nil {
-				if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
-					FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
-					FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
-					FQTDBOracle := FQTDBOracle{
-						CDBName: c.cdbName,
-					}
-					FQTPayload := FQTPayload{
-						Timestamp:    float64(time.Now().UnixMilli()),
-						Host:         c.dbHostname,
-						AgentVersion: c.agentVersion,
-						Source:       common.IntegrationName,
-						Tags:         c.tagsString,
-						DBMType:      "fqt",
-						FQTDB:        FQTDB,
-						FQTDBOracle:  FQTDBOracle,
-					}
-					FQTPayloadBytes, err := json.Marshal(FQTPayload)
-					if err != nil {
-						log.Errorf("Error marshalling fqt payload: %s", err)
-					}
-					log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
-					sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
-					c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
-				}
-			} else {
-				log.Error("Internal error: fqtEmitted = nil. The check might have been restarted. Ignore if it doesn't appear anymore.")
+			if trace {
+				log.Infof("%s qm_tracker payload: %+v", c.logPrompt, oracleRow)
 			}
 
-			if c.config.ExecutionPlans.Enabled {
+			if c.fqtEmitted == nil {
+				c.fqtEmitted = getFqtEmittedCache()
+			}
+
+			if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
+				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
+				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
+				FQTDBOracle := FQTDBOracle{
+					CDBName: c.cdbName,
+				}
+				FQTPayload := FQTPayload{
+					Timestamp:    float64(time.Now().UnixMilli()),
+					Host:         c.dbHostname,
+					AgentVersion: c.agentVersion,
+					Source:       common.IntegrationName,
+					Tags:         c.tagsString,
+					DBMType:      "fqt",
+					FQTDB:        FQTDB,
+					FQTDBOracle:  FQTDBOracle,
+				}
+				FQTPayloadBytes, err := json.Marshal(FQTPayload)
+				if err != nil {
+					log.Errorf("%s Error marshalling fqt payload: %s", c.logPrompt, err)
+				}
+				log.Debugf("%s Query metrics fqt payload %s", c.logPrompt, string(FQTPayloadBytes))
+				sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
+				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
+			}
+
+			if c.config.ExecutionPlans.Enabled && sendPlan {
+				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
+					sendPlan = false
+				}
+
 				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
+				if c.planEmitted == nil {
+					c.planEmitted = getPlanEmittedCache(c)
+				}
 				_, found := c.planEmitted.Get(planCacheKey)
-				if c.config.QueryMetrics.PlanCacheRetention == 0 || !found {
+				if c.config.ExecutionPlans.PlanCacheRetention == 0 || !found {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
-					err = selectWrapper(c, &planStepsDB, PLAN_QUERY, statementMetricRow.SQLID, statementMetricRow.PlanHashValue, statementMetricRow.ConID)
+
+					var planQuery string
+					if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
+						planQuery = planQuery12
+						err = selectWrapper(c, &planStepsDB, planQuery, statementMetricRow.SQLID, statementMetricRow.PlanHashValue, statementMetricRow.ConID)
+					} else {
+						planQuery = planQuery11
+						err = selectWrapper(c, &planStepsDB, planQuery, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+					}
 
 					if err == nil {
 						if len(planStepsDB) > 0 {
-							for _, stepRow := range planStepsDB {
+							var firstChildNumber int64
+							for i, stepRow := range planStepsDB {
+								if !stepRow.ChildNumber.Valid {
+									log.Errorf("%s invalid child numner in execution plan", c.logPrompt)
+									break
+								}
+								if i == 0 {
+									firstChildNumber = stepRow.ChildNumber.Int64
+								} else {
+									if firstChildNumber != stepRow.ChildNumber.Int64 {
+										break
+									}
+								}
 								var stepPayload PlanDefinition
 								if stepRow.Operation.Valid {
 									stepPayload.Operation = stepRow.Operation.String
@@ -804,24 +724,8 @@ func (c *Check) StatementMetrics() (int, error) {
 								if stepRow.TempSpace.Valid {
 									stepPayload.TempSpace = stepRow.TempSpace.Float64
 								}
-								if stepRow.AccessPredicates.Valid {
-									obfuscated, err := o.ObfuscateSQLString(stepRow.AccessPredicates.String)
-									if err == nil {
-										stepPayload.AccessPredicates = obfuscated.Query
-									} else {
-										stepPayload.AccessPredicates = "obfuscation error"
-										log.Errorf("Access obfuscation error")
-									}
-								}
-								if stepRow.FilterPredicates.Valid {
-									obfuscated, err := o.ObfuscateSQLString(stepRow.FilterPredicates.String)
-									if err == nil {
-										stepPayload.FilterPredicates = obfuscated.Query
-									} else {
-										stepPayload.FilterPredicates = "obfuscation error"
-										log.Errorf("Filter obfuscation error")
-									}
-								}
+								handlePredicate("access", stepRow.AccessPredicates, &stepPayload.AccessPredicates, statementMetricRow, c, o)
+								handlePredicate("filter", stepRow.FilterPredicates, &stepPayload.FilterPredicates, statementMetricRow, c, o)
 								if stepRow.Projection.Valid {
 									stepPayload.Projection = stepRow.Projection.String
 								}
@@ -900,23 +804,23 @@ func (c *Check) StatementMetrics() (int, error) {
 							}
 							planPayloadBytes, err := json.Marshal(planPayload)
 							if err != nil {
-								log.Errorf("Error marshalling plan payload: %s", err)
+								log.Errorf("%s Error marshalling plan payload: %s", c.logPrompt, err)
 							}
 
 							sender.EventPlatformEvent(planPayloadBytes, "dbm-samples")
-							log.Tracef("Plan payload %+v", string(planPayloadBytes))
+							log.Debugf("%s Plan payload %+v", c.logPrompt, string(planPayloadBytes))
 							c.planEmitted.Set(planCacheKey, "1", cache.DefaultExpiration)
 						} else {
-							log.Infof("Plan for SQL_ID %s and plan_hash_value: %d not found", statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+							log.Infof("%s Plan for SQL_ID %s and plan_hash_value: %d not found", c.logPrompt, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 						}
 					} else {
 						planErrors++
-						log.Errorf("failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+						log.Errorf("%s failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", c.logPrompt, err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 					}
 				}
+
 			}
 		}
-
 		c.copyToPreviousMap(newCache)
 	} else {
 		heartbeatStatement := "__other__"
@@ -932,38 +836,39 @@ func (c *Check) StatementMetrics() (int, error) {
 		}
 		oracleRows = append(oracleRows, oracleRow)
 	}
+
+	c.lastOracleRows = make([]OracleRow, len(oracleRows))
+	copy(c.lastOracleRows, oracleRows)
+
 	payload := MetricsPayload{
 		Host:                  c.dbHostname,
 		Timestamp:             float64(time.Now().UnixMilli()),
 		MinCollectionInterval: c.checkInterval,
 		Tags:                  c.tags,
 		AgentVersion:          c.agentVersion,
+		AgentHostname:         c.agentHostname,
 		OracleRows:            oracleRows,
 		OracleVersion:         c.dbVersion,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Errorf("Error marshalling query metrics payload: %s", err)
+		log.Errorf("%s Error marshalling query metrics payload: %s", c.logPrompt, err)
 		return 0, err
 	}
 
-	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+	log.Debugf("%s Query metrics payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
-	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
+	sendMetricWithDefaultTags(c, gauge, "dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()))
 	if c.config.ExecutionPlans.Enabled {
-		sender.Gauge("dd.oracle.plan_errors.count", float64(planErrors), "", c.tags)
+		sendMetricWithDefaultTags(c, gauge, "dd.oracle.plan_errors.count", float64(planErrors))
 	}
 	sender.Commit()
-
-	c.statementsFilter.SQLIDs = nil
-	c.statementsFilter.ForceMatchingSignatures = nil
-	c.statementsCache.SQLIDs = nil
-	c.statementsCache.forceMatchingSignatures = nil
 
 	if planErrors > 0 {
 		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan errors: %d", SQLCount, planErrors)
 	}
+
 	return SQLCount, nil
 }

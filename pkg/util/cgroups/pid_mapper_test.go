@@ -99,6 +99,18 @@ var dindProcCgroup = `14:name=systemd:/docker/88ea268ece65a02d68b169fd74bcbcb427
 1:cpuset:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
 0::/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/system.slice/containerd.service`
 
+var ecsFargateCgroup = `11:perf_event:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
+10:hugetlb:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
+9:memory:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
+8:net_cls,net_prio:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
+7:freezer:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
+6:devices:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
+5:cpu,cpuacct:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
+4:blkio:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
+3:pids:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
+2:cpuset:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
+1:name=systemd:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820`
+
 func TestProcPidMapperCgroupV1(t *testing.T) {
 	fakeFsPath := t.TempDir()
 	paths := []string{
@@ -198,6 +210,11 @@ func TestIdentiferFromCgroupReferences(t *testing.T) {
 			name:        "docker in docker",
 			fileContent: dindProcCgroup,
 			expectedID:  "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e",
+		},
+		{
+			name:        "ecs fargate",
+			fileContent: ecsFargateCgroup,
+			expectedID:  "8474ac4cec7a4f488834b00591271ec3-3054012820",
 		},
 	}
 

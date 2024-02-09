@@ -4,6 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package server implements a component to run the dogstatsd capture/replay
+//
+//nolint:revive // TODO(AML) Fix revive linter
 package replay
 
 import (
@@ -50,11 +52,13 @@ type Mock interface {
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newTrafficCapture),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newTrafficCapture))
+}
 
-// // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMockTrafficCapture),
-)
+// MockModule defines the fx options for the mock component.
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMockTrafficCapture))
+}

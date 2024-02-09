@@ -5,9 +5,7 @@
 
 package generic
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-)
+import "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 
 // MetricsAdapter provides a way to change metrics and tags before sending them out
 type MetricsAdapter interface {
@@ -23,11 +21,20 @@ type ContainerAccessor interface {
 }
 
 // MetadataContainerAccessor implements ContainerLister interface using Workload meta service
-type MetadataContainerAccessor struct{}
+type MetadataContainerAccessor struct {
+	store workloadmeta.Component
+}
+
+// NewMetadataContainerAccessor returns a new MetadataContainerAccessor
+func NewMetadataContainerAccessor(store workloadmeta.Component) MetadataContainerAccessor {
+	return MetadataContainerAccessor{
+		store: store,
+	}
+}
 
 // ListRunning returns all running containers
 func (l MetadataContainerAccessor) ListRunning() []*workloadmeta.Container {
-	return workloadmeta.GetGlobalStore().ListContainersWithFilter(workloadmeta.GetRunningContainers)
+	return l.store.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 }
 
 // GenericMetricsAdapter implements MetricsAdapter API in a basic way.

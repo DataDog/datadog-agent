@@ -17,23 +17,17 @@ build do
   license "Carnegie Mellon University license"
   license_file "https://raw.githubusercontent.com/cyrusimap/cyrus-sasl/master/COPYING"
 
-  env = {
-    "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-    "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-  }
+  env = with_standard_compiler_flags(with_embedded_path)
 
-  configure_command = ["./configure",
-                        "--prefix=#{install_dir}/embedded",
-                        "--with-dblib=lmdb"]
+  configure_opts = ["--with-dblib=lmdb"]
 
-  if osx?
+  if osx_target?
     # https://github.com/Homebrew/homebrew-core/blob/e2071268473bcddaf72f8e3f7aa4153a18d1ccfa/Formula/cyrus-sasl.rb
-    configure_command = configure_command.append("--disable-macos-framework")
+    configure_opts = configure_opts.append("--disable-macos-framework")
   end
 
-  command configure_command.join(" "), env: env
-  command "make", :env => env
+  configure(*configure_opts, env: env)
+  command "make -j #{workers}", :env => env
   command "make install", :env => env
 
 end

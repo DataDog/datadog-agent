@@ -19,13 +19,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -35,9 +38,10 @@ import (
 type serverDeps struct {
 	fx.In
 
-	Server Component
-	Config configComponent.Component
-	Log    log.Component
+	Server        Component
+	Config        configComponent.Component
+	Log           log.Component
+	Demultiplexer demultiplexer.FakeSamplerMock
 }
 
 func fulfillDeps(t testing.TB) serverDeps {
@@ -46,15 +50,16 @@ func fulfillDeps(t testing.TB) serverDeps {
 
 func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle,
-		serverDebug.MockModule,
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{
 			Overrides: overrides,
 			Features:  features,
 		}),
 		fx.Supply(Params{Serverless: false}),
-		replay.MockModule,
-		Module,
+		replay.MockModule(),
+		Module(),
+		demultiplexerimpl.FakeSamplerMockModule(),
 	))
 }
 
@@ -64,14 +69,15 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle,
-		serverDebug.MockModule,
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{
 			Params: configComponent.Params{ConfFilePath: yaml},
 		}),
 		fx.Supply(Params{Serverless: false}),
-		replay.MockModule,
-		Module,
+		replay.MockModule(),
+		Module(),
+		demultiplexerimpl.FakeSamplerMockModule(),
 	))
 }
 
@@ -81,10 +87,7 @@ func TestNewServer(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 	requireStart(t, deps.Server, demux)
 
 	deps.Server.Stop()
@@ -97,9 +100,7 @@ func TestStopServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 	requireStart(t, deps.Server, demux)
 	deps.Server.Stop()
 
@@ -123,6 +124,8 @@ func TestStopServer(t *testing.T) {
 // properly protected from multiple accesses by `cachedTlmLock`.
 // The main purpose of this test is to detect early if a future code change is
 // introducing a data race.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func TestNoRaceOriginTagMaps(t *testing.T) {
 	const N = 100
 	s := &server{cachedOriginCounters: make(map[string]cachedOriginCounter)}
@@ -149,15 +152,7 @@ func TestUDPReceive(t *testing.T) {
 	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 10 * time.Millisecond
-	opts.DontStartForwarders = true
-	opts.UseNoopEventPlatformForwarder = true
-	opts.EnableNoAggregationPipeline = true
-
-	demux := aggregator.InitTestAgentDemultiplexerWithOpts(deps.Log, defaultforwarder.NewOptions(deps.Config, deps.Log, nil), opts)
-	defer demux.Stop(false)
+	demux := deps.Demultiplexer
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -439,8 +434,7 @@ func TestUDPForward(t *testing.T) {
 
 	defer pc.Close()
 
-	demux := mockDemultiplexer(deps.Config, deps.Log)
-	defer demux.Stop(false)
+	demux := deps.Demultiplexer
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -471,9 +465,7 @@ func TestHistToDist(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -559,8 +551,7 @@ func TestE2EParsing(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
+	demux := deps.Demultiplexer
 	requireStart(t, deps.Server, demux)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
@@ -580,7 +571,7 @@ func TestE2EParsing(t *testing.T) {
 	cfg["dogstatsd_eol_required"] = []string{"udp"}
 
 	deps = fulfillDepsWithConfigOverride(t, cfg)
-	demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(deps.Log, 10*time.Millisecond)
+	demux = deps.Demultiplexer
 	requireStart(t, deps.Server, demux)
 
 	conn, err = net.Dial("udp", deps.Server.UDPLocalAddr())
@@ -594,7 +585,6 @@ func TestE2EParsing(t *testing.T) {
 	assert.Equal(t, 0, len(timedSamples))
 	deps.Server.Stop()
 	demux.Reset()
-	demux.Stop(false)
 }
 
 func TestExtraTags(t *testing.T) {
@@ -604,8 +594,7 @@ func TestExtraTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
+	demux := createDemultiplexer(t)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -634,8 +623,7 @@ func TestStaticTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
+	demux := createDemultiplexer(t)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -666,19 +654,18 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	deps := fulfillDepsWithConfigYaml(t, datadogYaml)
 	s := deps.Server.(*server)
-	cw := deps.Config.(config.ConfigWriter)
-	cw.Set("dogstatsd_port", listeners.RandomPortName)
+	cw := deps.Config.(config.Writer)
+	cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
 	samples := []metrics.MetricSample{}
 
-	demux := mockDemultiplexer(deps.Config, deps.Log)
-	defer demux.Stop(false)
+	demux := deps.Demultiplexer
 	requireStart(t, s, demux)
 
 	assert.Nil(t, s.mapper)
 
-	parser := newParser(deps.Config, newFloat64ListPool())
-	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
+	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 }
@@ -779,20 +766,19 @@ dogstatsd_mapper_profiles:
 			deps := fulfillDepsWithConfigYaml(t, scenario.config)
 
 			s := deps.Server.(*server)
-			cw := deps.Config.(config.ConfigReaderWriter)
+			cw := deps.Config.(config.ReaderWriter)
 
-			cw.Set("dogstatsd_port", listeners.RandomPortName)
+			cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
-			demux := mockDemultiplexer(deps.Config, deps.Log)
-			defer demux.Stop(false)
+			demux := deps.Demultiplexer
 			requireStart(t, s, demux)
 
 			assert.Equal(t, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				parser := newParser(deps.Config, newFloat64ListPool())
-				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", false)
+				parser := newParser(deps.Config, newFloat64ListPool(), 1)
+				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
 					actualSamples = append(actualSamples, MetricSample{Name: sample.Name, Tags: sample.Tags, Mtype: sample.Mtype, Value: sample.Value})
@@ -818,7 +804,7 @@ func TestNewServerExtraTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
-	demux := mockDemultiplexer(deps.Config, deps.Log)
+	demux := deps.Demultiplexer
 	requireStart(t, s, demux)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 	s.Stop()
@@ -828,7 +814,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	cfg["tags"] = "hello:world"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
-	demux = mockDemultiplexer(deps.Config, deps.Log)
+	demux = deps.Demultiplexer
 	requireStart(t, s, demux)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 	s.Stop()
@@ -838,13 +824,12 @@ func TestNewServerExtraTags(t *testing.T) {
 	cfg["dogstatsd_tags"] = "hello:world extra:tags"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
-	demux = mockDemultiplexer(deps.Config, deps.Log)
+	demux = deps.Demultiplexer
 	requireStart(t, s, demux)
 	require.Len(s.extraTags, 2, "two tags should have been read")
 	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
 	require.Equal(s.extraTags[1], "hello:world", "the tag hello:world should be set")
 	s.Stop()
-	demux.Stop(false)
 }
 
 func TestProcessedMetricsOrigin(t *testing.T) {
@@ -857,8 +842,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		s := deps.Server.(*server)
 		assert := assert.New(t)
 
-		demux := mockDemultiplexer(deps.Config, deps.Log)
-		defer demux.Stop(false)
+		demux := deps.Demultiplexer
 		requireStart(t, s, demux)
 
 		s.Stop()
@@ -866,14 +850,14 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(deps.Config, newFloat64ListPool())
+		parser := newParser(deps.Config, newFloat64ListPool(), 1)
 		samples := []metrics.MetricSample{}
-		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", false)
+		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", "1", false)
 		assert.NoError(err)
 		assert.Len(samples, 1)
 
 		// one thing should have been stored when we parse a metric
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "container_id://test_container", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "container_id://test_container", "1", true)
 		assert.NoError(err)
 		assert.Len(samples, 2)
 		assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
@@ -881,7 +865,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
 
 		// when we parse another metric (different value) with same origin, cache should contain only one entry
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://test_container", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://test_container", "2", true)
 		assert.NoError(err)
 		assert.Len(samples, 3)
 		assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
@@ -891,7 +875,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://test_container"})
 
 		// when we parse another metric (different value) but with a different origin, we should store a new entry
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://another_container", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://another_container", "3", true)
 		assert.NoError(err)
 		assert.Len(samples, 4)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached")
@@ -905,7 +889,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 
 		// oldest one should be removed once we reach the limit of the cache
 		maxOriginCounters = 2
-		samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", "3", true)
 		assert.NoError(err)
 		assert.Len(samples, 5)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, one has been evicted already")
@@ -919,7 +903,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 
 		// oldest one should be removed once we reach the limit of the cache
 		maxOriginCounters = 2
-		samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", "4", true)
 		assert.NoError(err)
 		assert.Len(samples, 6)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, two have been evicted already")
@@ -933,18 +917,19 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 	}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	deps := fulfillDeps(t)
 	s := deps.Server.(*server)
 	assert := assert.New(t)
-	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
+	requireStart(t, s, deps.Demultiplexer)
 	s.Stop()
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	parser.dsdOriginEnabled = true
 
 	// Metric
-	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", false)
+	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", "", false)
 	assert.NoError(err)
 	assert.Len(metrics, 1)
 	assert.Equal("container_id://metric-container", metrics[0].OriginFromClient)
@@ -979,14 +964,14 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	s := deps.Server.(*server)
 	assert := assert.New(t)
 
-	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
+	requireStart(t, s, deps.Demultiplexer)
 	s.Stop()
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	parser.dsdOriginEnabled = true
 
 	// Metric
-	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", false)
+	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", "", false)
 	assert.NoError(err)
 	assert.Len(metrics, 1)
 	if enabled {
@@ -1033,4 +1018,9 @@ func requireStart(t *testing.T, s Component, demux aggregator.Demultiplexer) {
 	require.NoError(t, err, "cannot start DSD")
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning())
+}
+
+func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(),
+		demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

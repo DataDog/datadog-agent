@@ -256,14 +256,12 @@ func (t *Tailer) Stop() {
 
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
-//
-// This is only used on UNIX.
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
-	bytesReadAtRotationTime := t.Source().BytesRead.Get()
+	bytesReadAtRotationTime := t.bytesRead.Get()
 	go func() {
 		time.Sleep(t.closeTimeout)
-		if newBytesRead := t.Source().BytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
+		if newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
 			log.Infof("After rotation close timeout (%s), an additional %d bytes were read from file %q", t.closeTimeout, newBytesRead, t.file.Path)
 			fileStat, err := t.osFile.Stat()
 			if err != nil {
@@ -347,7 +345,7 @@ func (t *Tailer) forwardMessages() {
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
 		// Ignore empty lines once the registry offset is updated
-		if len(output.Content) == 0 {
+		if len(output.GetContent()) == 0 {
 			continue
 		}
 		// Make the write to the output chan cancellable to be able to stop the tailer
@@ -355,7 +353,8 @@ func (t *Tailer) forwardMessages() {
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp):
+		// XXX(remy): is it ok recreating a message like this here?
+		case t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp):
 		case <-t.forwardContext.Done():
 		}
 	}
@@ -395,14 +394,17 @@ func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetId() string {
 	return t.file.GetScanKey()
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetType() string {
 	return "file"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
 }

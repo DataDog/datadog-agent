@@ -26,10 +26,6 @@ type ciProfile struct {
 
 // NewCIProfile creates a new CI profile
 func NewCIProfile() (Profile, error) {
-	// Create workspace directory
-	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
-		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)
-	}
 	ciSecretPrefix := os.Getenv("CI_SECRET_PREFIX")
 	if len(ciSecretPrefix) == 0 {
 		ciSecretPrefix = defaultCISecretPrefix
@@ -67,15 +63,13 @@ func NewCIProfile() (Profile, error) {
 
 	ciEnvironments := strings.Split(environmentsStr, " ")
 
+	// get output root from env, if not found, empty string "" will tell base profile to use default
+	outputRoot := os.Getenv("CI_PROJECT_DIR")
+
 	return ciProfile{
-		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore),
+		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore, outputRoot),
 		ciUniqueID:  "ci-" + pipelineID + "-" + projectID,
 	}, nil
-}
-
-// RootWorkspacePath returns the root directory for CI Pulumi workspace
-func (p ciProfile) RootWorkspacePath() string {
-	return workspaceFolder
 }
 
 // NamePrefix returns a prefix to name objects based on a CI unique ID

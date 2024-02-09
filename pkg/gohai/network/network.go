@@ -78,7 +78,7 @@ func ifacesToJSON(ifaces []Interface) (interface{}, []string) {
 		for key, value := range values {
 			if val, err := value.Value(); err == nil {
 				ifaceJSON[key] = val
-			} else {
+			} else if !errors.Is(err, ErrAddressNotFound) {
 				warnings = append(warnings, fmt.Sprintf("%s: %s: %v", iface.Name, key, err))
 			}
 		}
@@ -100,7 +100,7 @@ func (netInfo *Info) AsJSON() (interface{}, []string, error) {
 
 	if ipv6, err := netInfo.IPAddressV6.Value(); err == nil {
 		ret["ipaddressv6"] = ipv6
-	} else {
+	} else if !errors.Is(err, ErrAddressNotFound) {
 		warnings = append(warnings, err.Error())
 	}
 

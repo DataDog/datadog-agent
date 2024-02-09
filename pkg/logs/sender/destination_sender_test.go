@@ -29,6 +29,7 @@ func (m *mockDestination) Start(input chan *message.Payload, output chan *messag
 	return m.stopChan
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestDestinationSender(t *testing.T) {
 
 	output := make(chan *message.Payload)
@@ -93,12 +94,14 @@ func TestDestinationSenderStopsRetrying(t *testing.T) {
 	}()
 
 	// retry the send until it succeeds
+	//nolint:revive // TODO(AML) Fix revive linter
 	for !d.Send(&message.Payload{}) {
 	}
 
 	<-gotPayload
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestDestinationSenderDeadlock(t *testing.T) {
 	output := make(chan *message.Payload)
 	dest := &mockDestination{}

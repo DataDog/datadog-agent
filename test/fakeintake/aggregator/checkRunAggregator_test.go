@@ -18,9 +18,15 @@ import (
 var checkRunData []byte
 
 func TestCheckRun(t *testing.T) {
-	t.Run("parseCheckRunPayload should return error on invalid data", func(t *testing.T) {
-		checks, err := ParseCheckRunPayload(api.Payload{Data: []byte(""), Encoding: encodingDeflate})
-		assert.Error(t, err)
+	t.Run("parseCheckRunPayload empty JSON object should be ignored", func(t *testing.T) {
+		checks, err := ParseCheckRunPayload(api.Payload{Data: []byte("{}"), Encoding: encodingEmpty})
+		assert.NoError(t, err)
+		assert.Empty(t, checks)
+	})
+
+	t.Run("parseCheckRunPayload should ignore single check run (non array object)", func(t *testing.T) {
+		checks, err := ParseCheckRunPayload(api.Payload{Data: []byte("{\"check\": \"test\", \"status\": 0}"), Encoding: encodingEmpty})
+		assert.NoError(t, err)
 		assert.Empty(t, checks)
 	})
 

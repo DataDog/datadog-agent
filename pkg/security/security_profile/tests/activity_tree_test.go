@@ -9,7 +9,11 @@
 package securityprofiletests
 
 import (
+	"errors"
+	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +24,7 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
 type testIteration struct {
@@ -83,7 +88,7 @@ func matchResultTree(at *activity_tree.ActivityTree, toMatch map[string][]string
 
 func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCacheEntry {
 	// setting process
-	process := model.NewEmptyProcessCacheEntry(42, 42, false)
+	process := model.NewPlaceholderProcessCacheEntry(42, 42, false)
 	process.ContainerID = containerID
 	process.FileEvent.PathnameStr = test.processPath
 	process.FileEvent.BasenameStr = filepath.Base(test.processPath)
@@ -98,7 +103,7 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 	}
 
 	// setting process ancestor
-	process.Ancestor = model.NewEmptyProcessCacheEntry(41, 41, false)
+	process.Ancestor = model.NewPlaceholderProcessCacheEntry(41, 41, false)
 	process.Ancestor.ContainerID = containerID
 	process.Ancestor.FileEvent.PathnameStr = test.parentProcessPath
 	process.Ancestor.FileEvent.BasenameStr = filepath.Base(test.parentProcessPath)
@@ -119,9 +124,9 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 
 	// setting process granpa
 	if test.completeLineage {
-		process.Ancestor.Ancestor = model.NewEmptyProcessCacheEntry(1, 1, false)
+		process.Ancestor.Ancestor = model.NewPlaceholderProcessCacheEntry(1, 1, false)
 	} else {
-		process.Ancestor.Ancestor = model.NewEmptyProcessCacheEntry(40, 40, false)
+		process.Ancestor.Ancestor = model.NewPlaceholderProcessCacheEntry(40, 40, false)
 	}
 	process.Ancestor.Ancestor.FileEvent.PathnameStr = "/usr/bin/systemd"
 	process.Ancestor.Ancestor.FileEvent.BasenameStr = "systemd"
@@ -140,7 +145,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 	tests := []testIteration{
 
-		// check process with broken lineage (parent with pid != 1)
+		// check process with broken lineage (parent with pid != 1 && containerID != "")
 		{
 			testName:              "broken_lineage",
 			resetActivityTree:     true,
@@ -163,7 +168,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			differentContainerID:  true,
 			resultNodeShouldBeNil: true,
 			resultNewProcessNode:  false,
-			resultErr:             activity_tree.ErrContainerIDNotEqual,
+			resultErr:             nil,
 			resultTree:            map[string][]string{},
 		},
 
@@ -697,7 +702,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 						process := craftFakeProcess(defaultContainerID, &ti)
 
-						node, _, newProcessNode, err := at.CreateProcessNode(process, []*model.ProcessCacheEntry{}, gentype, dryRun, nil)
+						node, newProcessNode, err := at.CreateProcessNode(process, gentype, dryRun, nil)
 
 						assert.Equal(t, ti.resultErr, err)
 						assert.Equal(t, ti.resultNewProcessNode, newProcessNode)
@@ -717,4 +722,63 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			}
 		}
 	}
+}
+
+var sharedTestSuiteDir = "./testdata/"
+
+func listTests(dir string) ([]string, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return []string{}, err
+	}
+	tests := []string{}
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		if strings.Contains(file.Name(), "_input_tree.json") {
+			tests = append(tests, strings.ReplaceAll(file.Name(), "_input_tree.json", ""))
+		}
+	}
+	return tests, nil
+}
+
+func TestActivityTree_InsertExecEvents(t *testing.T) {
+	tests, err := listTests(sharedTestSuiteDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range tests {
+		adInputTree := dump.NewEmptyActivityDump(nil)
+		adInputTree.Decode(path.Join(sharedTestSuiteDir, test+"_input_tree.json"))
+
+		adWantedTree := dump.NewEmptyActivityDump(nil)
+		adWantedTree.Decode(path.Join(sharedTestSuiteDir, test+"_wanted_tree.json"))
+
+		inputEvent, err := serializers.DecodeEvent(path.Join(sharedTestSuiteDir, test+"_input_event.json"))
+		if err != nil {
+			t.Fatal(err)
+		} else if inputEvent == nil {
+			t.Fatal(errors.New("Empty event"))
+		}
+
+		t.Run(test, func(t *testing.T) {
+			_, _, err := adInputTree.ActivityTree.CreateProcessNode(inputEvent.ProcessCacheEntry, activity_tree.Runtime, false, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var builder strings.Builder
+			adInputTree.ActivityTree.Debug(&builder)
+			result := strings.TrimSpace(builder.String())
+
+			builder.Reset()
+			adWantedTree.ActivityTree.Debug(&builder)
+			wantedResult := strings.TrimSpace(builder.String())
+
+			assert.Equalf(t, wantedResult, result, "the generated tree didn't match the expected output")
+		})
+	}
+
 }

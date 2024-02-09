@@ -21,9 +21,6 @@ const (
 
 // NewLocalProfile creates a new local profile
 func NewLocalProfile() (Profile, error) {
-	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
-		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)
-	}
 	envValueStore := parameters.NewEnvStore(EnvPrefix)
 
 	configPath, err := getConfigFilePath()
@@ -46,7 +43,17 @@ func NewLocalProfile() (Profile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return localProfile{baseProfile: newProfile("e2elocal", strings.Split(environments, " "), store, nil)}, nil
+	outputDir := getLocalOutputDir()
+	return localProfile{baseProfile: newProfile("e2elocal", strings.Split(environments, " "), store, nil, outputDir)}, nil
+}
+
+func getLocalOutputDir() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// let base profile handle the default
+		return ""
+	}
+	return homeDir
 }
 
 func getConfigFilePath() (string, error) {
@@ -67,11 +74,6 @@ func getConfigFilePath() (string, error) {
 
 type localProfile struct {
 	baseProfile
-}
-
-// RootWorkspacePath returns the root directory for local Pulumi workspace
-func (p localProfile) RootWorkspacePath() string {
-	return workspaceFolder
 }
 
 // NamePrefix returns a prefix to name objects based on local username

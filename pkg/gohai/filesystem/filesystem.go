@@ -31,7 +31,7 @@ var (
 	ErrTimeoutExceeded = errors.New("timeout exceeded")
 )
 
-// Collect returns the list of mounted filesystems as an object which can be used to generate a JSON
+// AsJSON returns an interface which can be marshalled to a JSON and contains the value of non-errored fields.
 func (mounts Info) AsJSON() (interface{}, []string, error) {
 	results := make([]interface{}, len(mounts))
 	for idx, mount := range mounts {

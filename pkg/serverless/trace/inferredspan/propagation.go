@@ -7,13 +7,14 @@ package inferredspan
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-lambda-go/events"
+	json "github.com/json-iterator/go"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -56,7 +57,7 @@ func extractTraceContext(event events.SQSMessage) *convertedTraceContext {
 
 	if rawTrace == nil {
 		if ddMessageAttribute, ok := event.MessageAttributes[datadogHeader]; ok {
-			rawTrace = extractTraceContextFromPureSqsEvent(ddMessageAttribute)
+			rawTrace = extractTraceContextFromDatadogHeader(ddMessageAttribute)
 		} else {
 			rawTrace = extractTraceContextFromSNSSQSEvent(event)
 		}
@@ -73,7 +74,7 @@ func extractTraceContextFromSNSSQSEvent(firstRecord events.SQSMessage) *rawTrace
 		return nil
 	}
 
-	ddCustomPayloadValue, ok := messageBody.MessageAttributes["_datadog"]
+	ddCustomPayloadValue, ok := messageBody.MessageAttributes[datadogHeader]
 	if !ok {
 		log.Debug("No Datadog trace context found")
 		return nil
@@ -99,7 +100,7 @@ func extractTraceContextFromSNSSQSEvent(firstRecord events.SQSMessage) *rawTrace
 	return &traceData
 }
 
-func extractTraceContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribute) *rawTraceContext {
+func extractTraceContextFromDatadogHeader(ddPayloadValue events.SQSMessageAttribute) *rawTraceContext {
 	var traceData rawTraceContext
 	if ddPayloadValue.DataType == "String" {
 		err := json.Unmarshal([]byte(*ddPayloadValue.StringValue), &traceData)
@@ -107,12 +108,20 @@ func extractTraceContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribu
 			log.Debug("Error unmarshaling payload value: ", err)
 			return nil
 		}
-	} else {
-		log.Debug("Unsupported DataType in _datadog payload")
-		return nil
+		return &traceData
+	}
+	// SNS => SQS => Lambda with SQS's subscription to SNS has enabled RAW MESSAGE DELIVERY option
+	if ddPayloadValue.DataType == "Binary" {
+		err := json.Unmarshal(ddPayloadValue.BinaryValue, &traceData) // No need to decode base64 because already decoded
+		if err != nil {
+			log.Debug("Error unmarshaling the decoded binary: ", err)
+			return nil
+		}
+		return &traceData
 	}
 
-	return &traceData
+	log.Debug("Unsupported DataType in _datadog payload")
+	return nil
 }
 
 func extractTraceContextfromAWSTraceHeader(value string) *rawTraceContext {

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build unix
-// +build unix
 
 // Package model holds model related files
 package model
@@ -23,20 +22,47 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		pc.Ancestor.Release()
 	}
 
+	pc.hasValidLineage = nil
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
 	parent.Retain()
 }
 
-// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
-func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
+func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
+	var (
+		pid, ppid uint32
+		ctrID     string
+		err       error
+	)
+
 	for pc != nil {
+		if pc.hasValidLineage != nil {
+			return *pc.hasValidLineage, pc.lineageError
+		}
+
+		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerID
+
+		if pc.IsParentMissing {
+			err = &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: ctrID}
+		}
+
 		if pc.Pid == 1 {
-			return true
+			if pc.Ancestor == nil {
+				return err == nil, err
+			}
+			return false, &ErrProcessWrongParentNode{PID: pid, PPID: pc.Ancestor.Pid, ContainerID: ctrID}
 		}
 		pc = pc.Ancestor
 	}
-	return false
+
+	return false, &ErrProcessIncompleteLineage{PID: pid, PPID: ppid, ContainerID: ctrID}
+}
+
+// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
+func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
+	res, err := hasValidLineage(pc)
+	pc.hasValidLineage, pc.lineageError = &res, err
+	return res, err
 }
 
 // Exit a process
@@ -73,6 +99,22 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	copyProcessContext(pc, entry)
 }
 
+// GetContainerPIDs return the pids
+func (pc *ProcessCacheEntry) GetContainerPIDs() []uint32 {
+	var pids []uint32
+
+	for pc != nil {
+		if pc.ContainerID == "" {
+			break
+		}
+		pids = append(pids, pc.Pid)
+
+		pc = pc.Ancestor
+	}
+
+	return pids
+}
+
 // SetParentOfForkChild set the parent of a fork child
 func (pc *ProcessCacheEntry) SetParentOfForkChild(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
@@ -106,17 +148,37 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 		pc.EnvsEntry.Equals(entry.EnvsEntry))
 }
 
-// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
-func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
-	entry := &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
-
+func (pc *ProcessCacheEntry) markFileEventAsResolved() {
 	// mark file path as resolved
-	entry.FileEvent.SetPathnameStr("")
-	entry.FileEvent.SetBasenameStr("")
+	pc.FileEvent.SetPathnameStr("")
+	pc.FileEvent.SetBasenameStr("")
 
 	// mark interpreter as resolved too
-	entry.LinuxBinprm.FileEvent.SetPathnameStr("")
-	entry.LinuxBinprm.FileEvent.SetBasenameStr("")
+	pc.LinuxBinprm.FileEvent.SetPathnameStr("")
+	pc.LinuxBinprm.FileEvent.SetBasenameStr("")
+}
 
+// NewPlaceholderProcessCacheEntry returns a new empty process cache entry for failed process resolutions
+func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	entry := &ProcessCacheEntry{
+		ProcessContext: ProcessContext{
+			Process: Process{
+				PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker},
+				Source:     ProcessCacheEntryFromPlaceholder,
+			},
+		},
+	}
+	entry.markFileEventAsResolved()
 	return entry
+}
+
+var processContextZero = ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{Source: ProcessCacheEntryFromPlaceholder}}}
+
+// GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
+func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	processContextZero.Pid = pid
+	processContextZero.Tid = tid
+	processContextZero.IsKworker = isKworker
+	processContextZero.markFileEventAsResolved()
+	return &processContextZero
 }

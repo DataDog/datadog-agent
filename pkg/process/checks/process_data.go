@@ -23,12 +23,14 @@ type ProcessData struct {
 	extractors []metadata.Extractor
 }
 
-func NewProcessData(cfg config.ConfigReader) *ProcessData {
+// NewProcessData returns a new ProcessData from the given config
+func NewProcessData(cfg config.Reader) *ProcessData {
 	return &ProcessData{
 		probe: newProcessProbe(cfg),
 	}
 }
 
+// NewProcessDataWithMockProbe returns a new ProcessData with a mock probe
 func NewProcessDataWithMockProbe(t *testing.T) (*ProcessData, *mocks.Probe) {
 	probe := mocks.NewProbe(t)
 	return &ProcessData{

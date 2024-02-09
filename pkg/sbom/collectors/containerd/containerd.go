@@ -13,13 +13,13 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/containerd/containerd"
 )
@@ -34,6 +34,11 @@ type ScanRequest struct {
 	Image            containerd.Image
 	ContainerdClient cutil.ContainerdItf
 	FromFilesystem   bool
+}
+
+// GetImgMetadata returns the image metadata
+func (r *ScanRequest) GetImgMetadata() *workloadmeta.ContainerImageMetadata {
+	return r.ImageMeta
 }
 
 // Collector returns the collector name
@@ -61,7 +66,7 @@ type Collector struct {
 
 // CleanCache cleans the cache
 func (c *Collector) CleanCache() error {
-	return c.trivyCollector.GetCacheCleaner().Clean()
+	return c.trivyCollector.CleanCache()
 }
 
 // Init initializes the collector

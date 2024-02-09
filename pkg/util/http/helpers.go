@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func parseResponse(res *http.Response, method string, URL string) (string, error) {
@@ -29,9 +31,9 @@ func parseResponse(res *http.Response, method string, URL string) (string, error
 }
 
 // Get is a high level helper to query an URL and return its body as a string
-func Get(ctx context.Context, URL string, headers map[string]string, timeout time.Duration) (string, error) {
+func Get(ctx context.Context, URL string, headers map[string]string, timeout time.Duration, cfg pkgconfigmodel.Reader) (string, error) {
 	client := http.Client{
-		Transport: CreateHTTPTransport(),
+		Transport: CreateHTTPTransport(cfg),
 		Timeout:   timeout,
 	}
 
@@ -53,9 +55,9 @@ func Get(ctx context.Context, URL string, headers map[string]string, timeout tim
 }
 
 // Put is a high level helper to query an URL using the PUT method and return its body as a string
-func Put(ctx context.Context, URL string, headers map[string]string, body []byte, timeout time.Duration) (string, error) {
+func Put(ctx context.Context, URL string, headers map[string]string, body []byte, timeout time.Duration, cfg pkgconfigmodel.Reader) (string, error) {
 	client := http.Client{
-		Transport: CreateHTTPTransport(),
+		Transport: CreateHTTPTransport(cfg),
 		Timeout:   timeout,
 	}
 

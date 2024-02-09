@@ -16,12 +16,15 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -58,19 +61,34 @@ func (s dumpFilesSlice) Less(i, j int) bool {
 
 // ActivityDumpLocalStorage is used to manage ActivityDumps storage
 type ActivityDumpLocalStorage struct {
-	localDumps *simplelru.LRU[string, *[]string]
+	sync.Mutex
+	deletedCount *atomic.Uint64
+	localDumps   *simplelru.LRU[string, *[]string]
 }
 
 // NewActivityDumpLocalStorage creates a new ActivityDumpLocalStorage instance
-func NewActivityDumpLocalStorage(cfg *config.Config) (ActivityDumpStorage, error) {
-	lru, err := simplelru.NewLRU(cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files *[]string) {
+func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (ActivityDumpStorage, error) {
+	adls := &ActivityDumpLocalStorage{
+		deletedCount: atomic.NewUint64(0),
+	}
+
+	var err error
+	adls.localDumps, err = simplelru.NewLRU(cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files *[]string) {
 		if len(*files) == 0 {
 			return
 		}
+
+		// notify the security profile directory provider that we're about to delete a profile
+		if m.securityProfileManager != nil {
+			m.securityProfileManager.OnLocalStorageCleanup(*files)
+		}
+
 		// remove everything
 		for _, f := range *files {
 			_ = os.Remove(f)
 		}
+
+		adls.deletedCount.Add(1)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create the dump LRU: %w", err)
@@ -127,13 +145,11 @@ func NewActivityDumpLocalStorage(cfg *config.Config) (ActivityDumpStorage, error
 		// insert the dumps in cache (will trigger clean up if necessary)
 		for _, ad := range dumps {
 			newFiles := ad.Files
-			lru.Add(ad.Name, &newFiles)
+			adls.localDumps.Add(ad.Name, &newFiles)
 		}
 	}
 
-	return &ActivityDumpLocalStorage{
-		localDumps: lru,
-	}, nil
+	return adls, nil
 }
 
 // GetStorageType returns the storage type of the ActivityDumpLocalStorage
@@ -143,6 +159,9 @@ func (storage *ActivityDumpLocalStorage) GetStorageType() config.StorageType {
 
 // Persist saves the provided buffer to the persistent storage
 func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
+	storage.Lock()
+	defer storage.Unlock()
+
 	outputPath := request.GetOutputPath(ad.Metadata.Name)
 
 	if request.Compression {
@@ -193,4 +212,17 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpLocalStorage) SendTelemetry(sender sender.Sender) {}
+func (storage *ActivityDumpLocalStorage) SendTelemetry(sender sender.Sender) {
+	storage.Lock()
+	defer storage.Unlock()
+
+	// send the count of dumps stored locally
+	if count := storage.localDumps.Len(); count > 0 {
+		sender.Gauge(metrics.MetricActivityDumpLocalStorageCount, float64(count), "", []string{})
+	}
+
+	// send the count of recently deleted dumps
+	if count := storage.deletedCount.Swap(0); count > 0 {
+		sender.Count(metrics.MetricActivityDumpLocalStorageDeleted, float64(count), "", []string{})
+	}
+}

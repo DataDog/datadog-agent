@@ -11,7 +11,7 @@ package probes
 import manager "github.com/DataDog/ebpf-manager"
 
 // iouringProbes is the list of probes that are used for iouring monitoring
-func getIouringProbes(fentry bool) []*manager.Probe {
+func getIouringProbes() []*manager.Probe {
 	return []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

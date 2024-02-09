@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package daemon
 
 import (
@@ -11,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -39,6 +40,8 @@ type Daemon struct {
 
 	MetricAgent *metrics.ServerlessMetricAgent
 
+	LogsAgent logsAgent.ServerlessLogsAgent
+
 	TraceAgent *trace.ServerlessTraceAgent
 
 	ColdStartCreator *trace.ColdStartSpanCreator
@@ -57,8 +60,8 @@ type Daemon struct {
 	// through configuration.
 	useAdaptiveFlush bool
 
-	// stopped represents whether the Daemon has been stopped
-	stopped bool
+	// Stopped represents whether the Daemon has been Stopped
+	Stopped bool
 
 	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
 	LambdaLibraryDetected bool
@@ -149,7 +152,7 @@ func wrapOtlpError(handle http.Handler) http.Handler {
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
 // that the runtime is done, and may also flush telemetry.
 func (d *Daemon) HandleRuntimeDone() {
-	if !d.ShouldFlush(flush.Stopping, time.Now()) {
+	if !d.ShouldFlush(flush.Stopping) {
 		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
 		d.TellDaemonRuntimeDone()
 		return
@@ -171,11 +174,11 @@ func (d *Daemon) HandleRuntimeDone() {
 }
 
 // ShouldFlush indicated whether or a flush is needed
-func (d *Daemon) ShouldFlush(moment flush.Moment, t time.Time) bool {
-	return d.flushStrategy.ShouldFlush(moment, t)
+func (d *Daemon) ShouldFlush(moment flush.Moment) bool {
+	return d.flushStrategy.ShouldFlush(moment, time.Now())
 }
 
-// GetFlushStrategy returns the flush stategy
+// GetFlushStrategy returns the flush strategy
 func (d *Daemon) GetFlushStrategy() string {
 	return d.flushStrategy.String()
 }
@@ -196,15 +199,22 @@ func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
 	d.MetricAgent.SetExtraTags(d.ExtraTags.Tags)
 }
 
+// SetLogsAgent sets the logs agent instance running when it is ready.
+func (d *Daemon) SetLogsAgent(logsAgent logsAgent.ServerlessLogsAgent) {
+	d.LogsAgent = logsAgent
+}
+
 // SetTraceAgent sets the Agent instance for submitting traces
 func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (d *Daemon) SetOTLPAgent(otlpAgent *otlp.ServerlessOTLPAgent) {
 	d.OTLPAgent = otlpAgent
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
 	d.ColdStartCreator = creator
 }
@@ -240,9 +250,11 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 
 	timedOut := waitWithTimeout(&wg, FlushTimeout)
 	if timedOut {
-		log.Debug("Timed out while flushing")
+		log.Warn("Timed out while flushing")
+		d.flushStrategy.Failure(time.Now())
 	} else {
 		log.Debug("Finished flushing")
+		d.flushStrategy.Success()
 	}
 	cancel()
 
@@ -285,7 +297,9 @@ func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
 	d.logsFlushMutex.Lock()
 	flushStartTime := time.Now().Unix()
 	log.Debugf("Beginning logs flush at time %d", flushStartTime)
-	logs.Flush(ctx)
+	if d.LogsAgent != nil {
+		d.LogsAgent.Flush(ctx)
+	}
 	log.Debugf("Finished logs flush that was started at time %d", flushStartTime)
 	wg.Done()
 	d.logsFlushMutex.Unlock()
@@ -297,11 +311,11 @@ func (d *Daemon) Stop() {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
 
-	if d.stopped {
+	if d.Stopped {
 		log.Debug("Daemon.Stop() was called, but Daemon was already stopped")
 		return
 	}
-	d.stopped = true
+	d.Stopped = true
 
 	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
 	log.Debug("Waiting to shut down HTTP server")
@@ -319,7 +333,9 @@ func (d *Daemon) Stop() {
 
 	// Once the HTTP server is shut down, it is safe to shut down the agents
 	// Otherwise, we might try to handle API calls after the agent has already been shut down
-	d.TriggerFlush(true)
+	if d.ShouldFlush(flush.Stopping) {
+		d.TriggerFlush(true)
+	}
 
 	log.Debug("Shutting down agents")
 
@@ -339,7 +355,9 @@ func (d *Daemon) Stop() {
 		d.OTLPAgent.Stop()
 	}
 
-	logs.Stop()
+	if d.LogsAgent != nil {
+		d.LogsAgent.Stop()
+	}
 	log.Debug("Serverless agent shutdown complete")
 }
 
@@ -380,7 +398,7 @@ func (d *Daemon) WaitForDaemon() {
 	// If we are flushing at the end of the invocation, we need to wait for the invocation itself to end
 	// before we finish handling it. Otherwise, the daemon does not actually need to wait for the runtime to
 	// complete the invocation before it is done.
-	if d.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
+	if d.ShouldFlush(flush.Stopping) {
 		d.RuntimeWg.Wait()
 	}
 }

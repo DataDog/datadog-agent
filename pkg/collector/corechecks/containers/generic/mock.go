@@ -3,15 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package generic
 
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // MockContainerAccessor is a dummy ContainerLister for tests
@@ -33,7 +35,7 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 	mockProvider := mock.NewMetricsProvider()
 	mockCollector := mock.NewCollector("testCollector")
 	for _, runtime := range provider.AllLinuxRuntimes {
-		mockProvider.RegisterConcreteCollector(runtime, mockCollector)
+		mockProvider.RegisterConcreteCollector(provider.NewRuntimeMetadata(string(runtime), ""), mockCollector)
 	}
 	for cID, entry := range metricsContainers {
 		mockCollector.SetContainerEntry(cID, entry)

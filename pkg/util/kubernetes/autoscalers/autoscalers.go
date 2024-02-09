@@ -5,6 +5,8 @@
 
 //go:build kubeapiserver
 
+// Package autoscalers provides helpers to work with Kubernetes HPA objects and
+// external metrics.
 package autoscalers
 
 import (

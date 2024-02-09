@@ -15,6 +15,7 @@ namespace Datadog.CustomActions.RollbackData
     {
         private readonly ISession _session;
         private readonly IFileSystemServices _fileSystemServices;
+        private readonly IServiceController _serviceController;
         private readonly string _storageName;
         private readonly string _dataPath;
 
@@ -41,10 +42,11 @@ namespace Datadog.CustomActions.RollbackData
             }
         }
 
-        public RollbackDataStore(ISession session, string name, IFileSystemServices fileSystemServices)
+        public RollbackDataStore(ISession session, string name, IFileSystemServices fileSystemServices, IServiceController serviceController)
         {
             _session = session;
             _fileSystemServices = fileSystemServices;
+            _serviceController = serviceController;
             _storageName = name;
             _dataPath = CreateStoragePath();
 
@@ -55,7 +57,8 @@ namespace Datadog.CustomActions.RollbackData
             : this(
                 session,
                 name,
-                new FileSystemServices()
+                new FileSystemServices(),
+                new ServiceController()
             )
         {
         }
@@ -132,9 +135,9 @@ namespace Datadog.CustomActions.RollbackData
         public void Restore()
         {
             Load();
-            for (int i = RollbackActions.Count - 1; i >= 0; i--)
+            for (var i = RollbackActions.Count - 1; i >= 0; i--)
             {
-                RollbackActions[i].Restore(_session, _fileSystemServices);
+                RollbackActions[i].Restore(_session, _fileSystemServices, _serviceController);
             }
         }
 

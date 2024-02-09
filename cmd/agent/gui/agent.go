@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package gui contains the gui subcommand
 package gui
 
 import (
@@ -20,17 +21,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Adds the specific handlers for /agent/ endpoints
-func agentHandler(r *mux.Router, flare flare.Component) {
+func agentHandler(r *mux.Router, flare flare.Component, statusComponent status.Component) {
 	r.HandleFunc("/ping", http.HandlerFunc(ping)).Methods("POST")
-	r.HandleFunc("/status/{type}", http.HandlerFunc(getStatus)).Methods("POST")
+	r.HandleFunc("/status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("POST")
 	r.HandleFunc("/version", http.HandlerFunc(getVersion)).Methods("POST")
 	r.HandleFunc("/hostname", http.HandlerFunc(getHostname)).Methods("POST")
 	r.HandleFunc("/log/{flip}", http.HandlerFunc(getLog)).Methods("POST")
@@ -42,35 +44,39 @@ func agentHandler(r *mux.Router, flare flare.Component) {
 }
 
 // Sends a simple reply (for checking connection to server)
-func ping(w http.ResponseWriter, r *http.Request) {
+func ping(w http.ResponseWriter, _ *http.Request) {
 	elapsed := time.Now().Unix() - startTimestamp
 	w.Write([]byte(strconv.FormatInt(elapsed, 10)))
 }
 
 // Sends the current agent status
-func getStatus(w http.ResponseWriter, r *http.Request) {
+func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
 	statusType := mux.Vars(r)["type"]
 
+	var (
+		stats []byte
+		err   error
+	)
 	verbose := r.URL.Query().Get("verbose") == "true"
-	status, e := status.GetStatus(verbose)
-	if e != nil {
-		log.Errorf("Error getting status: " + e.Error())
-		w.Write([]byte("Error getting status: " + e.Error()))
-		return
+	if statusType == "collector" {
+		stats, err = statusComponent.GetStatusBySection(status.CollectorSection, "html", verbose)
+	} else {
+		stats, err = statusComponent.GetStatus("html", verbose, status.CollectorSection)
 	}
-	json, _ := json.Marshal(status)
-	html, e := renderStatus(json, statusType)
-	if e != nil {
-		w.Write([]byte("Error generating status html: " + e.Error()))
+
+	if err != nil {
+		log.Errorf("Error getting status: " + err.Error())
+		w.Write([]byte("Error getting status: " + err.Error()))
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+	w.Write(stats)
+
 }
 
 // Sends the current agent version
-func getVersion(w http.ResponseWriter, r *http.Request) {
+func getVersion(w http.ResponseWriter, _ *http.Request) {
 	version, e := version.Agent()
 	if e != nil {
 		log.Errorf("Error getting version: " + e.Error())
@@ -149,7 +155,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 		return
 	}
 
-	res, e := flare.Send(filePath, payload.CaseID, payload.Email, "local")
+	res, e := flare.Send(filePath, payload.CaseID, payload.Email, helpers.NewLocalFlareSource())
 	if e != nil {
 		w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + e.Error()))
 		log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + e.Error())
@@ -161,7 +167,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 }
 
 // Restarts the agent using the appropriate (platform-specific) restart function
-func restartAgent(w http.ResponseWriter, r *http.Request) {
+func restartAgent(w http.ResponseWriter, _ *http.Request) {
 	log.Infof("got restart function")
 	e := restart()
 	if e != nil {
@@ -193,7 +199,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 }
 
 // Sends the configuration (aka datadog.yaml) file
-func getConfigFile(w http.ResponseWriter, r *http.Request) {
+func getConfigFile(w http.ResponseWriter, _ *http.Request) {
 	path := config.Datadog.ConfigFileUsed()
 	settings, e := os.ReadFile(path)
 	if e != nil {

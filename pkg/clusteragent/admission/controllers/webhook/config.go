@@ -5,6 +5,8 @@
 
 //go:build kubeapiserver
 
+// Package webhook implements the webhook controller of the Cluster Agent's
+// Admission Controller.
 package webhook
 
 import (

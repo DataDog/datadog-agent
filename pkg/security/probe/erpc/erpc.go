@@ -17,8 +17,8 @@ import (
 const (
 	rpcCmd = 0xdeadc001
 
-	// ERPCMaxDataSize maximum size of data of a request
-	ERPCMaxDataSize = 256
+	// ERPCDefaultDataSize default size of data of a request
+	ERPCDefaultDataSize = 256
 )
 
 const (
@@ -26,11 +26,11 @@ const (
 	DiscardInodeOp = iota + 1
 	// DiscardPidOp discards a pid
 	DiscardPidOp
-	// ResolveSegmentOp resolves the requested segment
+	// ResolveSegmentOp resolves the requested segment (DEPRECATED)
 	ResolveSegmentOp
 	// ResolvePathOp resolves the requested path
 	ResolvePathOp
-	// ResolveParentOp resolves the parent of the provide path key
+	// ResolveParentOp resolves the parent of the provide path key (DEPRECATED)
 	ResolveParentOp
 	// RegisterSpanTLSOP is used for span TLS registration
 	RegisterSpanTLSOP
@@ -42,6 +42,8 @@ const (
 	BumpDiscardersRevision
 	// GetRingbufUsage is used to retrieve the ring buffer usage
 	GetRingbufUsage
+	// UserSessionContextOp is used to inject the Kubernetes User context
+	UserSessionContextOp
 )
 
 // ERPC defines a krpc object
@@ -51,8 +53,18 @@ type ERPC struct {
 
 // Request defines a EPRC request
 type Request struct {
-	OP   uint8
-	Data [ERPCMaxDataSize]byte
+	OP uint8
+	// Data contains the content of the request
+	// DISCLAIMER: this has to be a byte array, otherwise `unsafe.Pointer(req)` will point to a memory region that
+	// contains a slice header
+	Data [ERPCDefaultDataSize]byte
+}
+
+// NewERPCRequest returns a new eRPC request with a data section of the provided size
+func NewERPCRequest(op uint8) *Request {
+	return &Request{
+		OP: op,
+	}
 }
 
 // Request generates an ioctl syscall with the required request

@@ -16,7 +16,9 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -60,7 +62,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
 			if tc.override {
-				mockConfig.Set("process_config.queue_size", tc.queueSize)
+				mockConfig.SetWithoutSource("process_config.queue_size", tc.queueSize)
 			}
 			deps := newSubmitterDepsWithConfig(t, mockConfig)
 			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
@@ -108,7 +110,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
 			if tc.override {
-				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
+				mockConfig.SetWithoutSource("process_config.rt_queue_size", tc.queueSize)
 			}
 			deps := newSubmitterDepsWithConfig(t, mockConfig)
 			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
@@ -155,7 +157,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
 			if tc.override {
-				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
+				mockConfig.SetWithoutSource("process_config.process_queue_bytes", tc.queueBytes)
 			}
 			deps := newSubmitterDepsWithConfig(t, mockConfig)
 			s, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
@@ -196,6 +198,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ContainerCountHeader: "3",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
 				headers.RequestIDHeader:      requestID,
+				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 		{
@@ -211,6 +214,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "3",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
+				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 		{
@@ -226,6 +230,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "2",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
+				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 		{
@@ -241,6 +246,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "5",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
+				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 		{
@@ -252,6 +258,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "0",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
+				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 		{
@@ -265,6 +272,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ContentTypeHeader:      headers.ProtobufContentType,
 				headers.EVPOriginHeader:        "process-agent",
 				headers.EVPOriginVersionHeader: version.AgentVersion,
+				headers.AgentStartTime:         strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 	}
@@ -333,5 +341,5 @@ func newSubmitterDepsWithConfig(t *testing.T, config ddconfig.Config) submitterD
 }
 
 func getForwardersMockModules(configOverrides map[string]interface{}) fx.Option {
-	return fx.Options(config.MockModule, fx.Replace(config.MockParams{Overrides: configOverrides}), forwarders.MockModule, log.MockModule)
+	return fx.Options(config.MockModule(), fx.Replace(config.MockParams{Overrides: configOverrides}), forwardersimpl.MockModule(), logimpl.MockModule())
 }

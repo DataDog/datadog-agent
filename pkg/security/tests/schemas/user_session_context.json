@@ -1,0 +1,41 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "user_session_context.json",
+    "type": "object",
+    "properties": {
+        "process": {
+            "type": "object",
+            "user_session": {
+                "type": "object",
+                "id": {
+                    "type": "integer"
+                },
+                "k8s_username": {
+                    "type": "string"
+                },
+                "k8s_uid": {
+                    "type": "string"
+                },
+                "k8s_groups": {
+                    "type": "array"
+                },
+                "k8s_extra": {
+                    "type": "object"
+                },
+                "required": [
+                    "id",
+                    "k8s_username",
+                    "k8s_uid",
+                    "k8s_groups",
+                    "k8s_extra"
+                ]
+            },
+            "required": [
+                "user_session"
+            ]
+        }
+    },
+    "required": [
+        "process"
+    ]
+}

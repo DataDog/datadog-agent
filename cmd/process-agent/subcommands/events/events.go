@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package events
 
 import (
@@ -18,6 +19,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -71,8 +73,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runEventListener,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-
-				process.Bundle,
+				core.Bundle(),
+				process.Bundle(),
 			)
 		},
 		SilenceUsage: true,
@@ -85,8 +87,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runEventStore,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-
-				process.Bundle,
+				core.Bundle(),
+				process.Bundle(),
 			)
 		},
 		SilenceUsage: true,

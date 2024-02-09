@@ -9,8 +9,9 @@ import (
 	"encoding/json"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -18,30 +19,30 @@ import (
 type LogsConfigKeys struct {
 	prefix       string
 	vectorPrefix string
-	config       coreConfig.ConfigReader
+	config       pkgconfigmodel.Reader
 }
 
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
-func defaultLogsConfigKeys(config coreConfig.ConfigReader) *LogsConfigKeys {
+func defaultLogsConfigKeys(config pkgconfigmodel.Reader) *LogsConfigKeys {
 	return NewLogsConfigKeys("logs_config.", config)
 }
 
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
-func defaultLogsConfigKeysWithVectorOverride(config coreConfig.ConfigReader) *LogsConfigKeys {
+func defaultLogsConfigKeysWithVectorOverride(config pkgconfigmodel.Reader) *LogsConfigKeys {
 	return NewLogsConfigKeysWithVector("logs_config.", "logs.", config)
 }
 
 // NewLogsConfigKeys returns a new logs configuration keys set
-func NewLogsConfigKeys(configPrefix string, config coreConfig.ConfigReader) *LogsConfigKeys {
+func NewLogsConfigKeys(configPrefix string, config pkgconfigmodel.Reader) *LogsConfigKeys {
 	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: "", config: config}
 }
 
 // NewLogsConfigKeysWithVector returns a new logs configuration keys set with vector config keys enabled
-func NewLogsConfigKeysWithVector(configPrefix, vectorPrefix string, config coreConfig.ConfigReader) *LogsConfigKeys {
+func NewLogsConfigKeysWithVector(configPrefix, vectorPrefix string, config pkgconfigmodel.Reader) *LogsConfigKeys {
 	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: vectorPrefix, config: config}
 }
 
-func (l *LogsConfigKeys) getConfig() coreConfig.ConfigReader {
+func (l *LogsConfigKeys) getConfig() pkgconfigmodel.Reader {
 	return l.config
 }
 
@@ -49,7 +50,7 @@ func (l *LogsConfigKeys) getConfigKey(key string) string {
 	return l.prefix + key
 }
 
-func isSetAndNotEmpty(config coreConfig.ConfigReader, key string) bool {
+func isSetAndNotEmpty(config pkgconfigmodel.Reader, key string) bool {
 	return config.IsSet(key) && len(config.GetString(key)) > 0
 }
 
@@ -123,9 +124,9 @@ func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 // getLogsAPIKey provides the dd api key used by the main logs agent sender.
 func (l *LogsConfigKeys) getLogsAPIKey() string {
 	if configKey := l.getConfigKey("api_key"); l.isSetAndNotEmpty(configKey) {
-		return configUtils.SanitizeAPIKey(l.getConfig().GetString(configKey))
+		return pkgconfigutils.SanitizeAPIKey(l.getConfig().GetString(configKey))
 	}
-	return configUtils.SanitizeAPIKey(l.getConfig().GetString("api_key"))
+	return pkgconfigutils.SanitizeAPIKey(l.getConfig().GetString("api_key"))
 }
 
 func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
@@ -166,8 +167,8 @@ func (l *LogsConfigKeys) batchWait() time.Duration {
 	key := l.getConfigKey("batch_wait")
 	batchWait := l.getConfig().GetInt(key)
 	if batchWait < 1 || 10 < batchWait {
-		log.Warnf("Invalid %s: %v should be in [1, 10], fallback on %v", key, batchWait, coreConfig.DefaultBatchWait)
-		return coreConfig.DefaultBatchWait * time.Second
+		log.Warnf("Invalid %s: %v should be in [1, 10], fallback on %v", key, batchWait, pkgconfigsetup.DefaultBatchWait)
+		return pkgconfigsetup.DefaultBatchWait * time.Second
 	}
 	return (time.Duration(batchWait) * time.Second)
 }
@@ -176,8 +177,8 @@ func (l *LogsConfigKeys) batchMaxConcurrentSend() int {
 	key := l.getConfigKey("batch_max_concurrent_send")
 	batchMaxConcurrentSend := l.getConfig().GetInt(key)
 	if batchMaxConcurrentSend < 0 {
-		log.Warnf("Invalid %s: %v should be >= 0, fallback on %v", key, batchMaxConcurrentSend, coreConfig.DefaultBatchMaxConcurrentSend)
-		return coreConfig.DefaultBatchMaxConcurrentSend
+		log.Warnf("Invalid %s: %v should be >= 0, fallback on %v", key, batchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxConcurrentSend)
+		return pkgconfigsetup.DefaultBatchMaxConcurrentSend
 	}
 	return batchMaxConcurrentSend
 }
@@ -186,8 +187,8 @@ func (l *LogsConfigKeys) batchMaxSize() int {
 	key := l.getConfigKey("batch_max_size")
 	batchMaxSize := l.getConfig().GetInt(key)
 	if batchMaxSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxSize, coreConfig.DefaultBatchMaxSize)
-		return coreConfig.DefaultBatchMaxSize
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxSize, pkgconfigsetup.DefaultBatchMaxSize)
+		return pkgconfigsetup.DefaultBatchMaxSize
 	}
 	return batchMaxSize
 }
@@ -196,8 +197,8 @@ func (l *LogsConfigKeys) batchMaxContentSize() int {
 	key := l.getConfigKey("batch_max_content_size")
 	batchMaxContentSize := l.getConfig().GetInt(key)
 	if batchMaxContentSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxContentSize, coreConfig.DefaultBatchMaxContentSize)
-		return coreConfig.DefaultBatchMaxContentSize
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxContentSize, pkgconfigsetup.DefaultBatchMaxContentSize)
+		return pkgconfigsetup.DefaultBatchMaxContentSize
 	}
 	return batchMaxContentSize
 }
@@ -206,8 +207,8 @@ func (l *LogsConfigKeys) inputChanSize() int {
 	key := l.getConfigKey("input_chan_size")
 	inputChanSize := l.getConfig().GetInt(key)
 	if inputChanSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, inputChanSize, coreConfig.DefaultInputChanSize)
-		return coreConfig.DefaultInputChanSize
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, inputChanSize, pkgconfigsetup.DefaultInputChanSize)
+		return pkgconfigsetup.DefaultInputChanSize
 	}
 	return inputChanSize
 }
@@ -216,8 +217,8 @@ func (l *LogsConfigKeys) senderBackoffFactor() float64 {
 	key := l.getConfigKey("sender_backoff_factor")
 	senderBackoffFactor := l.getConfig().GetFloat64(key)
 	if senderBackoffFactor < 2 {
-		log.Warnf("Invalid %s: %v should be >= 2, fallback on %v", key, senderBackoffFactor, coreConfig.DefaultLogsSenderBackoffFactor)
-		return coreConfig.DefaultLogsSenderBackoffFactor
+		log.Warnf("Invalid %s: %v should be >= 2, fallback on %v", key, senderBackoffFactor, pkgconfigsetup.DefaultLogsSenderBackoffFactor)
+		return pkgconfigsetup.DefaultLogsSenderBackoffFactor
 	}
 	return senderBackoffFactor
 }
@@ -226,8 +227,8 @@ func (l *LogsConfigKeys) senderBackoffBase() float64 {
 	key := l.getConfigKey("sender_backoff_base")
 	senderBackoffBase := l.getConfig().GetFloat64(key)
 	if senderBackoffBase <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, senderBackoffBase, coreConfig.DefaultLogsSenderBackoffBase)
-		return coreConfig.DefaultLogsSenderBackoffBase
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, senderBackoffBase, pkgconfigsetup.DefaultLogsSenderBackoffBase)
+		return pkgconfigsetup.DefaultLogsSenderBackoffBase
 	}
 	return senderBackoffBase
 }
@@ -236,8 +237,8 @@ func (l *LogsConfigKeys) senderBackoffMax() float64 {
 	key := l.getConfigKey("sender_backoff_max")
 	senderBackoffMax := l.getConfig().GetFloat64(key)
 	if senderBackoffMax <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, senderBackoffMax, coreConfig.DefaultLogsSenderBackoffMax)
-		return coreConfig.DefaultLogsSenderBackoffMax
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, senderBackoffMax, pkgconfigsetup.DefaultLogsSenderBackoffMax)
+		return pkgconfigsetup.DefaultLogsSenderBackoffMax
 	}
 	return senderBackoffMax
 }
@@ -246,8 +247,8 @@ func (l *LogsConfigKeys) senderRecoveryInterval() int {
 	key := l.getConfigKey("sender_recovery_interval")
 	recoveryInterval := l.getConfig().GetInt(key)
 	if recoveryInterval <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, recoveryInterval, coreConfig.DefaultLogsSenderBackoffRecoveryInterval)
-		return coreConfig.DefaultLogsSenderBackoffRecoveryInterval
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, recoveryInterval, pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval)
+		return pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval
 	}
 	return recoveryInterval
 }

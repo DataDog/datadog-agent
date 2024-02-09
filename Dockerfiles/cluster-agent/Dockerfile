@@ -1,8 +1,8 @@
 ########################################
 # Preparation stage: layout and chmods #
 ########################################
-ARG BASE_IMAGE_UBUNTU_VERSION=23.04
-ARG BASE_IMAGE_UBUNTU_NAME=lunar
+ARG BASE_IMAGE_UBUNTU_VERSION=23.10
+ARG BASE_IMAGE_UBUNTU_NAME=mantic
 FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION as builder
 ARG TARGETARCH
 LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
@@ -13,10 +13,10 @@ LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 WORKDIR /output
 
 COPY datadog-cluster-agent.$TARGETARCH opt/datadog-agent/bin/datadog-cluster-agent
-COPY --chmod=744 ./conf.d etc/datadog-agent/conf.d
+COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
 COPY ./security-agent-policies/compliance/containers/ etc/datadog-agent/compliance.d
-COPY --chmod=744 ./install_info etc/datadog-agent/install_info
+COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
 
@@ -52,12 +52,12 @@ ARG CIBUILD
 # indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
 # should be reliable enough in combination and also well maintained.
 RUN if [ "$CIBUILD" = "true" ]; then \
-  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
-  echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
-  sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-         -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-         -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
-  fi
+    echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
+    echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
+    sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+    -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+    -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
+    fi
 
 ENV PATH="/opt/datadog-agent/bin/:$PATH" \
     DOCKER_DD_AGENT="true" \
@@ -83,7 +83,8 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
     && touch /var/log/datadog/.placeholder \
     && touch /tmp/.placeholder \
     && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ \
-    && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/
+    && chmod g+r,g+w,g+X -R /var/log/datadog/ /conf.d /tmp/ \
+    && chmod g+r,g-w,g+X,o-w -R /etc/datadog-agent/
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so

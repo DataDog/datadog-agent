@@ -7,10 +7,10 @@ package api
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -372,6 +372,8 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		req.Header.Set("Content-Type", "text/json")
+		req.Header.Set("Accept-Encoding", "gzip")
+		req.Header.Set("Content-Encoding", "gzip")
 		req.Header.Set("Unexpected-Header", "To-Be-Discarded")
 		req.Header.Set("DD-CI-PROVIDER-NAME", "Allowed-Header")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
@@ -382,6 +384,8 @@ func TestEVPProxyForwarder(t *testing.T) {
 		proxyreq := proxyreqs[0]
 		assert.Equal(t, "", proxyreq.Header.Get("User-Agent")) // User Agent is always set, even if empty
 		assert.Equal(t, "text/json", proxyreq.Header.Get("Content-Type"))
+		assert.Equal(t, "gzip", proxyreq.Header.Get("Accept-Encoding"))
+		assert.Equal(t, "gzip", proxyreq.Header.Get("Content-Encoding"))
 		assert.Equal(t, "Allowed-Header", proxyreq.Header.Get("DD-CI-PROVIDER-NAME"))
 		assert.NotContains(t, proxyreq.Header, "Unexpected-Header")
 		assert.NotContains(t, proxyreq.Header, "X-Datadog-EVP-Subdomain")

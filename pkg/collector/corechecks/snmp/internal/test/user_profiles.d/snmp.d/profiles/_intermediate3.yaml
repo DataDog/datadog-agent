@@ -1,0 +1,7 @@
+extends:
+  - _intermediate2.yaml
+
+metrics:
+  - symbol:
+      OID: 1.2.3.5
+      name: user_intermediate3_metric

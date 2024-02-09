@@ -11,6 +11,9 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -18,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -50,13 +54,13 @@ func init() {
 type CheckScheduler struct {
 	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
 	loaders        []check.Loader
-	collector      *Collector
+	collector      optional.Option[Collector]
 	senderManager  sender.SenderManager
 	m              sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector *Collector, senderManager sender.SenderManager) *CheckScheduler {
+func InitCheckScheduler(collector optional.Option[Collector], senderManager sender.SenderManager) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
@@ -73,14 +77,19 @@ func InitCheckScheduler(collector *Collector, senderManager sender.SenderManager
 
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
-	checks := s.GetChecksFromConfigs(configs, true)
-	for _, c := range checks {
-		_, err := s.collector.RunCheck(c)
-		if err != nil {
-			log.Errorf("Unable to run Check %s: %v", c, err)
-			errorStats.setRunError(c.ID(), err.Error())
-			continue
+
+	if coll, ok := s.collector.Get(); ok {
+		checks := s.GetChecksFromConfigs(configs, true)
+		for _, c := range checks {
+			_, err := coll.RunCheck(c)
+			if err != nil {
+				log.Errorf("Unable to run Check %s: %v", c, err)
+				errorStats.setRunError(c.ID(), err.Error())
+				continue
+			}
 		}
+	} else {
+		log.Errorf("Collector not available, unable to schedule checks")
 	}
 }
 
@@ -96,14 +105,18 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 		ids := s.configToChecks[digest]
 		stopped := map[checkid.ID]struct{}{}
 		for _, id := range ids {
-			// `StopCheck` might time out so we don't risk to block
-			// the polling loop forever
-			err := s.collector.StopCheck(id)
-			if err != nil {
-				log.Errorf("Error stopping check %s: %s", id, err)
-				errorStats.setRunError(id, err.Error())
+			if coll, ok := s.collector.Get(); ok {
+				// `StopCheck` might time out so we don't risk to block
+				// the polling loop forever
+				err := coll.StopCheck(id)
+				if err != nil {
+					log.Errorf("Error stopping check %s: %s", id, err)
+					errorStats.setRunError(id, err.Error())
+				} else {
+					stopped[id] = struct{}{}
+				}
 			} else {
-				stopped[id] = struct{}{}
+				log.Errorf("Collector not available, unable to stop check %s", id)
 			}
 		}
 
@@ -126,8 +139,8 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 
 // Stop handles clean stop of registered schedulers
 func (s *CheckScheduler) Stop() {
-	if s.collector != nil {
-		s.collector.Stop()
+	if coll, ok := s.collector.Get(); ok {
+		coll.Stop()
 	}
 }
 
@@ -220,7 +233,8 @@ func GetChecksByNameForConfigs(checkName string, configs []integration.Config) [
 		return checks
 	}
 	// try to also match `FooCheck` if `foo` was passed
-	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
+	titled := cases.Title(language.English, cases.NoLower).String(checkName)
+	titleCheck := fmt.Sprintf("%s%s", titled, "Check")
 
 	for _, c := range checkScheduler.GetChecksFromConfigs(configs, false) {
 		if checkName == c.String() || titleCheck == c.String() {

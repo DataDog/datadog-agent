@@ -15,10 +15,13 @@ import (
 )
 
 const (
+	// User is the username to use for authentication
 	User = "root"
+	// Pass is the password to use for authentication
 	Pass = "password"
 )
 
+// RunServer runs a mongo server in a docker container
 func RunServer(t testing.TB, serverAddress, serverPort string) error {
 	env := []string{
 		"MONGO_ADDR=" + serverAddress,
@@ -27,5 +30,5 @@ func RunServer(t testing.TB, serverAddress, serverPort string) error {
 		"MONGO_PASSWORD=" + Pass,
 	}
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "mongo", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "mongo", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)), protocolsUtils.DefaultTimeout, 3)
 }

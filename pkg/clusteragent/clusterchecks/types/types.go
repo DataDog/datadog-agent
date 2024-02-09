@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package types implements the types used by the Cluster checks dispatching
+// functionality.
 package types
 
 import (
@@ -35,6 +37,14 @@ type RebalanceResponse struct {
 
 	DestNodeName string `json:"dest_node_name"`
 	DestDiff     int    `json:"dest_diff"`
+}
+
+// IsolateResponse holds the DCA response for an isolate request
+type IsolateResponse struct {
+	CheckID    string `json:"check_id"`
+	CheckNode  string `json:"check_node"`
+	IsIsolated bool   `json:"is_isolated"`
+	Reason     string `json:"reason"`
 }
 
 // ConfigResponse holds the DCA response for a config query
@@ -90,11 +100,13 @@ type CLCRunnerStats struct {
 	LastExecFailed       bool `json:"LastExecFailed"`
 }
 
+// Workers is used to unmarshal the workers info of each CLC Runner
 type Workers struct {
 	Count     int                   `json:"Count"`
 	Instances map[string]WorkerInfo `json:"Instances"`
 }
 
+// WorkerInfo is used to unmarshal the utilization of each worker
 type WorkerInfo struct {
 	Utilization float64 `json:"Utilization"`
 }

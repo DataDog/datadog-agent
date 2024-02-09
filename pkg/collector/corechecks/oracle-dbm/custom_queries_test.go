@@ -9,27 +9,20 @@ package oracle
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 )
 
 var chk Check
-
-var HOST = "localhost"
-var PORT = 1521
-var USER = "c##datadog"
-var PASSWORD = "datadog"
-var SERVICE_NAME = "XE"
-var TNS_ALIAS = "XE"
-var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/testutil/etc/netadmin"
 
 func TestBasic(t *testing.T) {
 	chk = Check{}
@@ -44,8 +37,8 @@ service_name: %s
 tns_alias: %s
 tns_admin: %s
 `, HOST, PORT, USER, PASSWORD, SERVICE_NAME, TNS_ALIAS, TNS_ADMIN))
-
-	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
 	require.NoError(t, err)
 
 	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
@@ -63,7 +56,6 @@ func TestCustomQueries(t *testing.T) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 	defer db.Close()
-	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
 
 	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -80,16 +72,36 @@ func TestCustomQueries(t *testing.T) {
 		Columns:      columns,
 	}
 
-	initAndStartAgentDemultiplexer(t)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	chk, err := initCheck(t, senderManager, "localhost", 1523, "a", "a", "a")
 	chk.Run()
 
-	sender := mocksender.NewMockSender(chk.ID())
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.SetupAcceptAll()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-	chk.config.CustomQueries = []config.CustomQuery{q}
+	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
 
 	err = chk.CustomQueries()
 	assert.NoError(t, err, "failed to execute custom query")
 	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.c1", []string{"c2:A"})
+}
+
+func TestFloat(t *testing.T) {
+	c, s := newRealCheck(t, `custom_queries:
+  - metric_prefix: oracle.custom_query.test
+    query: |
+      select 'TAG1', 1.012345 value from dual
+    columns:
+      - name: name
+        type: tag
+      - name: value
+        type: gauge
+`)
+	err := c.Run()
+	require.NoError(t, err)
+	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	s.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.value", []string{"name:TAG1"})
+	s.AssertMetric(t, "Gauge", "oracle.custom_query.test.value", 1.012345, c.dbHostname, []string{})
 }

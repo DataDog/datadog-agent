@@ -7,6 +7,7 @@ package compliance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -75,11 +76,12 @@ type CheckEvent struct {
 	RuleVersion  int                    `json:"agent_rule_version,omitempty"`
 	FrameworkID  string                 `json:"agent_framework_id,omitempty"`
 	Evaluator    Evaluator              `json:"evaluator,omitempty"`
-	ExpireAt     time.Time              `json:"expire_at,omitempty"`
+	ExpireAt     *time.Time             `json:"expire_at,omitempty"`
 	Result       CheckResult            `json:"result,omitempty"`
 	ResourceType string                 `json:"resource_type,omitempty"`
 	ResourceID   string                 `json:"resource_id,omitempty"`
 	Container    *CheckContainerMeta    `json:"container,omitempty"`
+	K8SManaged   *string                `json:"k8s_managed,omitempty"`
 	Tags         []string               `json:"tags"`
 	Data         map[string]interface{} `json:"data"`
 
@@ -88,12 +90,13 @@ type CheckEvent struct {
 
 // ResourceLog is the data structure holding a resource configuration data.
 type ResourceLog struct {
-	AgentVersion string      `json:"agent_version,omitempty"`
-	ExpireAt     time.Time   `json:"expire_at,omitempty"`
-	ResourceType string      `json:"resource_type,omitempty"`
-	ResourceID   string      `json:"resource_id,omitempty"`
-	ResourceData interface{} `json:"resource_data,omitempty"`
-	Tags         []string    `json:"tags"`
+	AgentVersion string              `json:"agent_version,omitempty"`
+	ExpireAt     *time.Time          `json:"expire_at,omitempty"`
+	ResourceType string              `json:"resource_type,omitempty"`
+	ResourceID   string              `json:"resource_id,omitempty"`
+	ResourceData interface{}         `json:"resource_data,omitempty"`
+	Container    *CheckContainerMeta `json:"container,omitempty"`
+	Tags         []string            `json:"tags"`
 }
 
 func (e *CheckEvent) String() string {
@@ -119,14 +122,12 @@ func NewCheckError(
 	rule *Rule,
 	benchmark *Benchmark,
 ) *CheckEvent {
-	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
 	return &CheckEvent{
 		AgentVersion: version.AgentVersion,
 		RuleID:       rule.ID,
 		FrameworkID:  benchmark.FrameworkID,
 		ResourceID:   resourceID,
 		ResourceType: resourceType,
-		ExpireAt:     expireAt,
 		Evaluator:    evaluator,
 		Result:       CheckError,
 		Data:         map[string]interface{}{"error": errReason.Error()},
@@ -145,14 +146,12 @@ func NewCheckEvent(
 	rule *Rule,
 	benchmark *Benchmark,
 ) *CheckEvent {
-	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
 	return &CheckEvent{
 		AgentVersion: version.AgentVersion,
 		RuleID:       rule.ID,
 		FrameworkID:  benchmark.FrameworkID,
 		ResourceID:   resourceID,
 		ResourceType: resourceType,
-		ExpireAt:     expireAt,
 		Evaluator:    evaluator,
 		Result:       result,
 		Data:         data,
@@ -168,12 +167,12 @@ func NewCheckSkipped(
 	rule *Rule,
 	benchmark *Benchmark,
 ) *CheckEvent {
-	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
 	return &CheckEvent{
 		AgentVersion: version.AgentVersion,
 		RuleID:       rule.ID,
 		FrameworkID:  benchmark.FrameworkID,
-		ExpireAt:     expireAt,
+		ResourceID:   resourceID,
+		ResourceType: resourceType,
 		Evaluator:    evaluator,
 		Result:       CheckSkipped,
 		Data:         map[string]interface{}{"error": skipReason.Error()},
@@ -182,14 +181,25 @@ func NewCheckSkipped(
 
 // NewResourceLog returns a ResourceLog.
 func NewResourceLog(resourceID, resourceType string, resource interface{}) *ResourceLog {
-	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
 	return &ResourceLog{
 		AgentVersion: version.AgentVersion,
-		ExpireAt:     expireAt,
 		ResourceType: resourceType,
 		ResourceID:   resourceID,
 		ResourceData: resource,
 	}
+}
+
+// ErrIncompatibleEnvironment is returns by the resolver to signal that the
+// given rule's inputs are not resolvable in the current environment.
+var ErrIncompatibleEnvironment = errors.New("environment not compatible this type of input")
+
+// CheckEventFromError wraps any error into a correct CheckEvent, detecting if
+// the underlying error should be marked as skipped or not.
+func CheckEventFromError(evaluator Evaluator, rule *Rule, benchmark *Benchmark, err error) *CheckEvent {
+	if errors.Is(err, ErrIncompatibleEnvironment) {
+		return NewCheckSkipped(evaluator, fmt.Errorf("skipping input resolution for rule=%s: %w", rule.ID, err), "", "", rule, benchmark)
+	}
+	return NewCheckError(evaluator, fmt.Errorf("input resolution error for rule=%s: %w", rule.ID, err), "", "", rule, benchmark)
 }
 
 // RuleScope defines the different context in which the rule is allowed to run.
@@ -233,6 +243,7 @@ type (
 		Audit         *InputSpecAudit         `yaml:"audit,omitempty" json:"audit,omitempty"`
 		Docker        *InputSpecDocker        `yaml:"docker,omitempty" json:"docker,omitempty"`
 		KubeApiserver *InputSpecKubeapiserver `yaml:"kubeApiserver,omitempty" json:"kubeApiserver,omitempty"`
+		Package       *InputSpecPackage       `yaml:"package,omitempty" json:"package,omitempty"`
 		XCCDF         *InputSpecXCCDF         `yaml:"xccdf,omitempty" json:"xccdf,omitempty"`
 		Constants     *InputSpecConstants     `yaml:"constants,omitempty" json:"constants,omitempty"`
 
@@ -281,6 +292,12 @@ type (
 			Verb         string `yaml:"verb" json:"verb"`
 			ResourceName string `yaml:"resourceName,omitempty" json:"resourceName,omitempty"`
 		} `yaml:"apiRequest" json:"apiRequest"`
+	}
+
+	// InputSpecPackage defines the names of the software packages that need
+	// to be resolved
+	InputSpecPackage struct {
+		Names []string `yaml:"names" json:"names"`
 	}
 
 	// InputSpecXCCDF describes the spec to resolve a XCCDF evaluation result.

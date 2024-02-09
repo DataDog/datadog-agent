@@ -5,6 +5,7 @@
 
 //go:build cgo && linux
 
+// Package ebpf contains all the ebpf-based checks.
 package ebpf
 
 import (
@@ -19,14 +20,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	ebpfCheckName = "ebpf"
+	// CheckName is the name of the check
+	CheckName = "ebpf"
 )
 
 // EBPFCheckConfig is the config of the EBPF check
@@ -40,16 +43,16 @@ type EBPFCheck struct {
 	core.CheckBase
 }
 
-// EBPFCheckFactory is exported for integration testing
-func EBPFCheckFactory() check.Check {
-	return &EBPFCheck{
-		CheckBase: core.NewCheckBase(ebpfCheckName),
-		config:    &EBPFCheckConfig{},
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(ebpfCheckName, EBPFCheckFactory)
+func newCheck() check.Check {
+	return &EBPFCheck{
+		CheckBase: core.NewCheckBase(CheckName),
+		config:    &EBPFCheckConfig{},
+	}
 }
 
 // Parse parses the check configuration
@@ -102,6 +105,12 @@ func (m *EBPFCheck) Run() error {
 	totalMapMaxSize, totalMapRSS := uint64(0), uint64(0)
 	moduleTotalMapMaxSize, moduleTotalMapRSS := make(map[string]uint64), make(map[string]uint64)
 	reportBaseMap := func(mapStats ebpfcheck.EBPFMapStats) {
+		totalMapMaxSize += mapStats.MaxSize
+		totalMapRSS += mapStats.RSS
+		if mapStats.Module == "unknown" {
+			return
+		}
+
 		tags := []string{
 			"map_name:" + mapStats.Name,
 			"map_type:" + mapStats.Type.String(),
@@ -112,34 +121,17 @@ func (m *EBPFCheck) Run() error {
 		if mapStats.RSS > 0 {
 			sender.Gauge("ebpf.maps.memory_rss", float64(mapStats.RSS), "", tags)
 		}
-		totalMapMaxSize += mapStats.MaxSize
-		totalMapRSS += mapStats.RSS
+		if mapStats.Entries >= 0 {
+			sender.Gauge("ebpf.maps.entry_count", float64(mapStats.Entries), "", tags)
+		}
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS
 
-		log.Debugf("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
+		log.Tracef("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
 	}
 
 	for _, mapInfo := range stats.Maps {
 		reportBaseMap(mapInfo)
-	}
-
-	for _, pbInfo := range stats.PerfBuffers {
-		reportBaseMap(pbInfo.EBPFMapStats)
-		for _, cpub := range pbInfo.CPUBuffers {
-			cputags := []string{
-				"map_name:" + pbInfo.Name,
-				"map_type:" + pbInfo.Type.String(),
-				"module:" + pbInfo.Module,
-				fmt.Sprintf("cpu_num:%d", cpub.CPU),
-			}
-			if cpub.RSS > 0 {
-				sender.Gauge("ebpf.maps.memory_rss_percpu", float64(cpub.RSS), "", cputags)
-			}
-			if cpub.Size > 0 {
-				sender.Gauge("ebpf.maps.memory_max_percpu", float64(cpub.Size), "", cputags)
-			}
-		}
 	}
 
 	if totalMapMaxSize > 0 {
@@ -149,30 +141,40 @@ func (m *EBPFCheck) Run() error {
 		sender.Gauge("ebpf.maps.memory_rss_total", float64(totalMapRSS), "", nil)
 	}
 	for mod, max := range moduleTotalMapMaxSize {
+		if mod == "unknown" {
+			continue
+		}
 		sender.Gauge("ebpf.maps.memory_max_permodule_total", float64(max), "", []string{"module:" + mod})
 	}
 	for mod, rss := range moduleTotalMapRSS {
+		if mod == "unknown" {
+			continue
+		}
 		sender.Gauge("ebpf.maps.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
 	}
 
 	totalProgRSS := uint64(0)
 	moduleTotalProgRSS := make(map[string]uint64)
+	moduleTotalXlatedLen := make(map[string]uint64)
+	moduleTotalVerifiedCount := make(map[string]uint64)
 	for _, progInfo := range stats.Programs {
+		totalProgRSS += progInfo.RSS
+		if progInfo.Module == "unknown" {
+			continue
+		}
+
 		tags := []string{
 			"program_name:" + progInfo.Name,
 			"program_type:" + progInfo.Type.String(),
 			"module:" + progInfo.Module,
 		}
-		if progInfo.Tag != "" {
-			tags = append(tags, "program_tag:"+progInfo.Tag)
-		}
 		var debuglogs []string
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(seelog.TraceLvl) {
 			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type.String()}
 		}
 
 		gauges := map[string]float64{
-			"xlated_instruction_count":   float64(progInfo.XlatedProgLen),
+			"xlated_instruction_len":     float64(progInfo.XlatedProgLen),
 			"verified_instruction_count": float64(progInfo.VerifiedInsns),
 			"memory_rss":                 float64(progInfo.RSS),
 		}
@@ -181,12 +183,13 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.Gauge("ebpf.programs."+k, v, "", tags)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
-		totalProgRSS += progInfo.RSS
 		moduleTotalProgRSS[progInfo.Module] += progInfo.RSS
+		moduleTotalXlatedLen[progInfo.Module] += uint64(progInfo.XlatedProgLen)
+		moduleTotalVerifiedCount[progInfo.Module] += uint64(progInfo.VerifiedInsns)
 
 		monos := map[string]float64{
 			"runtime_ns":       float64(progInfo.Runtime.Nanoseconds()),
@@ -198,20 +201,39 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.MonotonicCountWithFlushFirstValue("ebpf.programs."+k, v, "", tags, true)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
 
-		if log.ShouldLog(seelog.DebugLvl) {
-			log.Debugf("ebpf check: %s", strings.Join(debuglogs, " "))
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
 		}
 	}
 	if totalProgRSS > 0 {
 		sender.Gauge("ebpf.programs.memory_rss_total", float64(totalProgRSS), "", nil)
 	}
 	for mod, rss := range moduleTotalProgRSS {
+		if mod == "unknown" {
+			continue
+		}
 		sender.Gauge("ebpf.programs.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
+	}
+	for mod, xlatedLen := range moduleTotalXlatedLen {
+		if mod == "unknown" {
+			continue
+		}
+		if xlatedLen > 0 {
+			sender.Gauge("ebpf.programs.xlated_instruction_len_permodule_total", float64(xlatedLen), "", []string{"module:" + mod})
+		}
+	}
+	for mod, verifiedCount := range moduleTotalVerifiedCount {
+		if mod == "unknown" {
+			continue
+		}
+		if verifiedCount > 0 {
+			sender.Gauge("ebpf.programs.verified_instruction_count_permodule_total", float64(verifiedCount), "", []string{"module:" + mod})
+		}
 	}
 
 	sender.Commit()

@@ -27,8 +27,8 @@ func init() {
 }
 
 // NewCookie returns a new random cookie
-func NewCookie() uint32 {
-	return rand.Uint32()
+func NewCookie() uint64 {
+	return uint64(rand.Uint32())<<32 | uint64(time.Now().UnixNano())
 }
 
 // RandNonZeroUint64 returns a new non-zero uint64

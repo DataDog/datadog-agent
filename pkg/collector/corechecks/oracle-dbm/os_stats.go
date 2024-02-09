@@ -10,19 +10,23 @@ package oracle
 import (
 	"fmt"
 
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"strings"
 )
 
+//nolint:revive // TODO(DBM) Fix revive linter
 const OSSTATS_QUERY = `SELECT stat_name, value
   FROM v$osstat WHERE stat_name in ('NUM_CPUS','PHYSICAL_MEMORY_BYTES')`
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OSStatsRowDB struct {
 	StatName string  `db:"STAT_NAME"`
 	Value    float64 `db:"VALUE"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) OS_Stats() error {
 	s, err := c.GetSender()
 	if err != nil {
@@ -49,15 +53,15 @@ func (c *Check) OS_Stats() error {
 		if r.StatName == "NUM_CPUS" {
 			numCPUsFound = true
 		}
-		s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, name), value, "", c.tags)
+		sendMetricWithDefaultTags(c, gauge, fmt.Sprintf("%s.%s", common.IntegrationName, name), value)
 	}
 
 	var cpuCount float64
 	if !numCPUsFound {
 		if err := c.db.Get(&cpuCount, "SELECT value FROM v$parameter WHERE name = 'cpu_count'"); err == nil {
-			s.Gauge(fmt.Sprintf("%s.num_cpus", common.IntegrationName), cpuCount, "", c.tags)
+			sendMetricWithDefaultTags(c, gauge, fmt.Sprintf("%s.num_cpus", common.IntegrationName), cpuCount)
 		} else {
-			log.Errorf("failed to get cpu_count: %s", err)
+			log.Errorf("%s failed to get cpu_count: %s", c.logPrompt, err)
 		}
 	}
 

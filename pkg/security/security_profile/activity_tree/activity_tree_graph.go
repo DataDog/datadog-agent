@@ -37,7 +37,7 @@ var (
 )
 
 // PrepareGraphData returns a graph from the activity tree
-func (at *ActivityTree) PrepareGraphData(title string, resolver *process.Resolver) utils.Graph {
+func (at *ActivityTree) PrepareGraphData(title string, resolver *process.EBPFResolver) utils.Graph {
 	data := utils.Graph{
 		Title: title,
 		Nodes: make(map[utils.GraphID]*utils.Node),
@@ -50,11 +50,11 @@ func (at *ActivityTree) PrepareGraphData(title string, resolver *process.Resolve
 	return data
 }
 
-func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, resolver *process.Resolver) utils.GraphID {
+func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, resolver *process.EBPFResolver) utils.GraphID {
 	var args string
 	var argv []string
 	if resolver != nil {
-		argv, _ = resolver.GetProcessScrubbedArgv(&p.Process)
+		argv, _ = resolver.GetProcessArgvScrubbed(&p.Process)
 	} else {
 		argv, _ = process.GetProcessArgv(&p.Process)
 	}

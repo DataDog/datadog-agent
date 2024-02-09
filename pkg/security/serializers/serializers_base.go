@@ -8,8 +8,6 @@
 package serializers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -51,6 +49,8 @@ type EventContextSerializer struct {
 	Async bool `json:"async,omitempty"`
 	// The list of rules that the event matched (only valid in the context of an anomaly)
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
+	// Origin of the event
+	Origin string `json:"origin,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -143,43 +143,16 @@ type ExitEventSerializer struct {
 	Code uint32 `json:"code"`
 }
 
-// SecurityProfileContextSerializer serializes the security profile context in an event
-type SecurityProfileContextSerializer struct {
-	// Name of the security profile
-	Name string `json:"name"`
-	// Status defines in which state the security profile was when the event was triggered
-	Status string `json:"status"`
-	// Version of the profile in use
-	Version string `json:"version"`
-	// List of tags associated to this profile
-	Tags []string `json:"tags"`
-}
-
 // BaseEventSerializer serializes an event to JSON
 // easyjson:json
 type BaseEventSerializer struct {
 	EventContextSerializer `json:"evt,omitempty"`
 	Date                   utils.EasyjsonTime `json:"date,omitempty"`
 
-	*FileEventSerializer              `json:"file,omitempty"`
-	*DNSEventSerializer               `json:"dns,omitempty"`
-	*NetworkContextSerializer         `json:"network,omitempty"`
-	*ExitEventSerializer              `json:"exit,omitempty"`
-	*ProcessContextSerializer         `json:"process,omitempty"`
-	*DDContextSerializer              `json:"dd,omitempty"`
-	*ContainerContextSerializer       `json:"container,omitempty"`
-	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
-}
-
-func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *SecurityProfileContextSerializer {
-	tags := make([]string, len(e.Tags))
-	copy(tags, e.Tags)
-	return &SecurityProfileContextSerializer{
-		Name:    e.Name,
-		Version: e.Version,
-		Status:  e.Status.String(),
-		Tags:    tags,
-	}
+	*FileEventSerializer        `json:"file,omitempty"`
+	*ExitEventSerializer        `json:"exit,omitempty"`
+	*ProcessContextSerializer   `json:"process,omitempty"`
+	*ContainerContextSerializer `json:"container,omitempty"`
 }
 
 func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
@@ -194,35 +167,8 @@ func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 	for tagName, tagValue := range r.RuleTags {
 		mrs.Tags = append(mrs.Tags, tagName+":"+tagValue)
 	}
+
 	return mrs
-}
-
-func newDDContextSerializer(e *model.Event) *DDContextSerializer {
-	s := &DDContextSerializer{
-		SpanID:  e.SpanContext.SpanID,
-		TraceID: e.SpanContext.TraceID,
-	}
-	if s.SpanID != 0 || s.TraceID != 0 {
-		return s
-	}
-
-	ctx := eval.NewContext(e)
-	it := &model.ProcessAncestorsIterator{}
-	ptr := it.Front(ctx)
-
-	for ptr != nil {
-		pce := (*model.ProcessCacheEntry)(ptr)
-
-		if pce.SpanID != 0 || pce.TraceID != 0 {
-			s.SpanID = pce.SpanID
-			s.TraceID = pce.TraceID
-			break
-		}
-
-		ptr = it.Next()
-	}
-
-	return s
 }
 
 // nolint: deadcode, unused
@@ -256,18 +202,6 @@ func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFami
 	}
 }
 
-// nolint: deadcode, unused
-func newNetworkContextSerializer(e *model.Event) *NetworkContextSerializer {
-	return &NetworkContextSerializer{
-		Device:      newNetworkDeviceSerializer(e),
-		L3Protocol:  model.L3Protocol(e.NetworkContext.L3Protocol).String(),
-		L4Protocol:  model.L4Protocol(e.NetworkContext.L4Protocol).String(),
-		Source:      newIPPortSerializer(&e.NetworkContext.Source),
-		Destination: newIPPortSerializer(&e.NetworkContext.Destination),
-		Size:        e.NetworkContext.Size,
-	}
-}
-
 func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 	return &ExitEventSerializer{
 		Cause: model.ExitCause(e.Exit.Cause).String(),
@@ -276,18 +210,18 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 }
 
 // NewBaseEventSerializer creates a new event serializer based on the event type
-func NewBaseEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *BaseEventSerializer {
+func NewBaseEventSerializer(event *model.Event) *BaseEventSerializer {
 	pc := event.ProcessContext
 
 	eventType := model.EventType(event.Type)
 
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
-			Name: eventType.String(),
+			Name:   eventType.String(),
+			Origin: event.Origin,
 		},
-		ProcessContextSerializer: newProcessContextSerializer(pc, event, resolvers),
-		DDContextSerializer:      newDDContextSerializer(event),
-		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTime(event)),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event),
+		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
@@ -298,13 +232,6 @@ func NewBaseEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) 
 	}
 
 	s.Category = model.GetEventTypeCategory(eventType.String())
-	if s.Category == model.NetworkCategory {
-		s.NetworkContextSerializer = newNetworkContextSerializer(event)
-	}
-
-	if event.SecurityProfileContext.Name != "" {
-		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
-	}
 
 	switch eventType {
 	case model.ExitEventType:

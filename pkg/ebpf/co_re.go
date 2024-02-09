@@ -11,36 +11,55 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"path/filepath"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/btf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+type coreAssetLoader struct {
+	coreDir   string
+	btfLoader *orderedBTFLoader
+	telemetry struct {
+		success telemetry.Counter
+		error   telemetry.Counter
+	}
+}
 
 // LoadCOREAsset attempts to find kernel BTF, reads the CO-RE object file, and then calls the callback function with the
 // asset and BTF options pre-filled. You should attempt to load the CO-RE program in the startFn func for telemetry to
 // be correctly recorded.
-func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
-	var telemetry COREResult
+func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
+	loader, err := coreLoader(NewConfig())
+	if err != nil {
+		return err
+	}
+	return loader.loadCOREAsset(filename, startFn)
+}
+
+func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
+	var result ebpftelemetry.COREResult
 	base := strings.TrimSuffix(filename, path.Ext(filename))
 	defer func() {
-		StoreCORETelemetryForAsset(base, telemetry)
+		c.reportTelemetry(base, result)
 	}()
 
-	var btfData *btf.Spec
-	btfData, telemetry = GetBTF(cfg.BTFPath, cfg.BPFDir)
-	if btfData == nil {
-		return fmt.Errorf("could not find BTF data on host")
-	}
-	defer btf.FlushKernelSpec()
-
-	buf, err := bytecode.GetReader(filepath.Join(cfg.BPFDir, "co-re"), filename)
+	btfData, result, err := c.btfLoader.Get()
 	if err != nil {
-		telemetry = AssetReadError
+		return fmt.Errorf("BTF load: %w", err)
+	}
+	if btfData == nil {
+		return fmt.Errorf("no BTF data")
+	}
+
+	buf, err := bytecode.GetReader(c.coreDir, filename)
+	if err != nil {
+		result = ebpftelemetry.AssetReadError
 		return fmt.Errorf("error reading %s: %s", filename, err)
 	}
 	defer buf.Close()
@@ -49,6 +68,7 @@ func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetRead
 		VerifierOptions: bpflib.CollectionOptions{
 			Programs: bpflib.ProgramOptions{
 				KernelTypes: btfData,
+				LogSize:     10 * 1024 * 1024,
 			},
 		},
 	}
@@ -57,10 +77,66 @@ func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetRead
 	if err != nil {
 		var ve *bpflib.VerifierError
 		if errors.As(err, &ve) {
-			telemetry = VerifierError
+			result = ebpftelemetry.VerifierError
 		} else {
-			telemetry = LoaderError
+			result = ebpftelemetry.LoaderError
 		}
 	}
 	return err
+}
+
+func (c *coreAssetLoader) reportTelemetry(assetName string, result ebpftelemetry.COREResult) {
+	ebpftelemetry.StoreCORETelemetryForAsset(assetName, result)
+
+	var err error
+	platform, err := getBTFPlatform()
+	if err != nil {
+		return
+	}
+	platformVersion, err := kernel.PlatformVersion()
+	if err != nil {
+		return
+	}
+	kernelVersion, err := kernel.Release()
+	if err != nil {
+		return
+	}
+	arch, err := kernel.Machine()
+	if err != nil {
+		return
+	}
+
+	// capacity should match number of tags
+	tags := make([]string, 0, 6)
+	tags = append(tags, platform.String(), platformVersion, kernelVersion, arch, assetName)
+	if ebpftelemetry.BTFResult(result) < ebpftelemetry.BtfNotFound {
+		switch ebpftelemetry.BTFResult(result) {
+		case ebpftelemetry.SuccessCustomBTF:
+			tags = append(tags, "custom")
+		case ebpftelemetry.SuccessEmbeddedBTF:
+			tags = append(tags, "embedded")
+		case ebpftelemetry.SuccessDefaultBTF:
+			tags = append(tags, "default")
+		default:
+			return
+		}
+		c.telemetry.success.Inc(tags...)
+		return
+	}
+
+	if ebpftelemetry.BTFResult(result) == ebpftelemetry.BtfNotFound {
+		tags = append(tags, "btf_not_found")
+	} else {
+		switch result {
+		case ebpftelemetry.AssetReadError:
+			tags = append(tags, "asset_read")
+		case ebpftelemetry.VerifierError:
+			tags = append(tags, "verifier")
+		case ebpftelemetry.LoaderError:
+			tags = append(tags, "loader")
+		default:
+			return
+		}
+	}
+	c.telemetry.error.Inc(tags...)
 }

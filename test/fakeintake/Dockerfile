@@ -2,27 +2,33 @@
 # syntax=docker/dockerfile:1
 
 ## Build
-FROM golang:1.19-buster AS build
+FROM golang:1.21.7-alpine3.18 AS build
+
+# need gcc to build with CGO_ENABLED=1
+# need musl-dev to get stdlib.h
+RUN apk add musl-dev gcc
 
 WORKDIR /app
 
-COPY go.mod ./
-COPY go.sum ./
+COPY test/fakeintake/go.mod test/fakeintake/go.sum ./
+
+# every datadog-agent module imported by the fakeintake has to be copied in the build image
+COPY pkg/proto /pkg/proto
+
 RUN go mod download
 
-COPY server/*.go ./server/
-COPY api/*.go ./api/
-COPY app/*.go ./app/
-COPY aggregator/*.go ./aggregator/
+COPY test/fakeintake .
 
-RUN go build -o /build app/main.go
+# need to explicitely run with CGO enabled
+ENV CGO_ENABLED=1
+RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
-FROM ubuntu:22.04
+FROM alpine:3.18
 
-WORKDIR /
+RUN apk add curl
 
-COPY --from=build /build /fakeintake
+COPY --from=build /fakeintake /fakeintake
 
 EXPOSE 80
 

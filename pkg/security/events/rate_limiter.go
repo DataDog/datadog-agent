@@ -34,6 +34,7 @@ const (
 var (
 	defaultPerRuleLimiters = map[eval.RuleID]Limiter{
 		RulesetLoadedRuleID:             NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		HeartbeatRuleID:                 NewStdLimiter(rate.Inf, 1), // No limit on heartbeat
 		AbnormalPathRuleID:              NewStdLimiter(rate.Every(30*time.Second), 1),
 		NoProcessContextErrorRuleID:     NewStdLimiter(rate.Every(30*time.Second), 1),
 		BrokenProcessLineageErrorRuleID: NewStdLimiter(rate.Every(30*time.Second), 1),

@@ -1,6 +1,9 @@
 ---
 .build_serverless_common:
   stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]

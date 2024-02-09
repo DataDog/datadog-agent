@@ -33,6 +33,12 @@ var (
 	// Tags: rule_id
 	MetricRateLimiterAllow = newRuntimeMetric(".rules.rate_limiter.allow")
 
+	// Rule Suppression metrics
+
+	// MetricRulesSuppressed is the name of the metric used to count the number of events marked as suppressed
+	// Tags: rule_id
+	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
+
 	// Syscall monitoring metrics
 
 	// MetricSyscalls is the name of the metric used to count each syscall executed on the host
@@ -155,6 +161,9 @@ var (
 	// MetricProcessEventBrokenLineage is the name of the metric used to report a broken lineage
 	// Tags: -
 	MetricProcessEventBrokenLineage = newRuntimeMetric(".process_resolver.event_broken_lineage")
+	// MetricProcessInodeError is the name of the metric used to report a broken lineage with a inode mismatch
+	// Tags: -
+	MetricProcessInodeError = newRuntimeMetric(".process_resolver.inode_error")
 
 	// Mount resolver metrics
 
@@ -212,6 +221,16 @@ var (
 	// MetricActivityDumpNotYetProfiledWorkload is the name of the metric used to report the count of workload not yet profiled
 	// Tags: -
 	MetricActivityDumpNotYetProfiledWorkload = newAgentMetric(".activity_dump.not_yet_profiled_workload")
+	// MetricActivityDumpWorkloadDenyListHits is the name of the metric used to report the count of dumps that were dismissed because their workload is in the deny list
+	// Tags: -
+	MetricActivityDumpWorkloadDenyListHits = newRuntimeMetric(".activity_dump.workload_deny_list_hits")
+	// MetricActivityDumpLocalStorageCount is the name of the metric used to count the number of dumps stored locally
+	// Tags: -
+	MetricActivityDumpLocalStorageCount = newAgentMetric(".activity_dump.local_storage.count")
+	// MetricActivityDumpLocalStorageDeleted is the name of the metric used to track the deletion of workload entries in
+	// the local storage.
+	// Tags: -
+	MetricActivityDumpLocalStorageDeleted = newAgentMetric(".activity_dump.local_storage.deleted")
 
 	// SBOM resolver metrics
 
@@ -251,6 +270,10 @@ var (
 	// MetricSecurityProfileEventFiltering is the name of the metric used to report the count of Security Profile event filtered
 	// Tags: event_type, profile_state ('no_profile', 'unstable', 'unstable_event_type', 'stable', 'auto_learning', 'workload_warmup'), in_profile ('true', 'false' or none)
 	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")
+	// MetricSecurityProfileDirectoryProviderCount is the name of the metric used to track the count of profiles in the cache
+	// of the Profile directory provider
+	// Tags: -
+	MetricSecurityProfileDirectoryProviderCount = newAgentMetric(".activity_dump.directory_provider.count")
 
 	// Hash resolver metrics
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package integration contains the type that represents a configuration.
 package integration
 
 import (
@@ -20,7 +21,7 @@ import (
 )
 
 const (
-	// Used in unit tests
+	// FakeConfigHash is used in unit tests
 	FakeConfigHash = 1
 )
 
@@ -362,6 +363,7 @@ func (c *Config) Digest() string {
 	return strconv.FormatUint(c.IntDigest(), 16)
 }
 
+// IntDigest returns a hash value representing the data stored in the configuration.
 func (c *Config) IntDigest() uint64 {
 	h := murmur3.New64()
 	_, _ = h.Write([]byte(c.Name))

@@ -18,12 +18,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
-	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
@@ -41,28 +42,30 @@ func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
 
 func TestStatus(t *testing.T) {
 	testTime := time.Now()
-	expectedStatus := status.Status{
+	statusData := map[string]status.Status{}
+	statusInfo := status.Status{
 		Date: float64(testTime.UnixNano()),
 		Core: status.CoreStatus{
-			Metadata: host.Payload{
+			Metadata: hostMetadataUtils.Payload{
 				Meta: &hostMetadataUtils.Meta{},
 			},
 		},
 		Expvars: status.ProcessExpvars{},
 	}
+	statusData["processAgentStatus"] = statusInfo
 
-	server := fakeStatusServer(t, expectedStatus)
+	server := fakeStatusServer(t, statusInfo)
 	defer server.Close()
 
 	// Build what the expected status should be
-	j, err := json.Marshal(expectedStatus)
+	j, err := json.Marshal(statusData)
 	require.NoError(t, err)
-	expectedOutput, err := ddstatus.FormatProcessAgentStatus(j)
+	expectedOutput, err := render.FormatProcessAgentStatus(j)
 	require.NoError(t, err)
 
 	// Build the actual status
 	var statusBuilder strings.Builder
-	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder, status.OverrideTime(testTime))
+	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder)
 
 	assert.Equal(t, expectedOutput, statusBuilder.String())
 }
@@ -70,7 +73,7 @@ func TestStatus(t *testing.T) {
 func TestNotRunning(t *testing.T) {
 	// Use different ports in case the host is running a real agent
 	cfg := config.Mock(t)
-	cfg.Set("process_config.cmd_port", 8082)
+	cfg.SetWithoutSource("process_config.cmd_port", 8082)
 
 	addressPort, err := config.GetProcessAPIAddressPort()
 	require.NoError(t, err)
@@ -86,7 +89,7 @@ func TestNotRunning(t *testing.T) {
 // a connection error
 func TestError(t *testing.T) {
 	cfg := config.Mock(t)
-	cfg.Set("ipc_address", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
+	cfg.SetWithoutSource("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
 	_, ipcError := config.GetIPCAddress()
 
 	var errText, expectedErrText strings.Builder
@@ -100,4 +103,12 @@ func TestError(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedErrText.String(), errText.String())
+}
+
+func TestRunStatusCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"status"},
+		runStatus,
+		func() {})
 }

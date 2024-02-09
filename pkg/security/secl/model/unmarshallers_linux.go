@@ -9,6 +9,7 @@ package model
 import (
 	"encoding/binary"
 	"fmt"
+	"math/bits"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 
 func validateReadSize(size, read int) (int, error) {
 	if size != read {
-		return 0, ErrIncorrectDataSize
+		return 0, fmt.Errorf("expected %d, read %d: %w", size, read, ErrIncorrectDataSize)
 	}
 	return read, nil
 }
@@ -185,7 +186,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 
 // UnmarshalPidCacheBinary unmarshalls Unmarshal pid_cache_t
 func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
-	const size = 64
+	const size = 80
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -193,28 +194,31 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	var read int
 
 	// Unmarshal pid_cache_t
-	cookie := ByteOrder.Uint32(data[0:4])
+	cookie := ByteOrder.Uint64(data[0:SizeOfCookie])
 	if cookie > 0 {
 		e.Cookie = cookie
 	}
-	e.PPid = ByteOrder.Uint32(data[4:8])
+	e.PPid = ByteOrder.Uint32(data[8:12])
 
-	e.ForkTime = unmarshalTime(data[8:16])
-	e.ExitTime = unmarshalTime(data[16:24])
+	// padding
+
+	e.ForkTime = unmarshalTime(data[16:24])
+	e.ExitTime = unmarshalTime(data[24:32])
+	e.UserSession.ID = ByteOrder.Uint64(data[32:40])
 
 	// Unmarshal the credentials contained in pid_cache_t
-	read, err := UnmarshalBinary(data[24:], &e.Credentials)
+	read, err := UnmarshalBinary(data[40:], &e.Credentials)
 	if err != nil {
 		return 0, err
 	}
-	read += 24
+	read += 40
 
 	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 256 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 272 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -338,16 +342,14 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	}
 	data = data[n:]
 
-	e.Flags = int32(ByteOrder.Uint32(data[0:4]))
+	e.Device = ByteOrder.Uint32(data[0:4])
 
-	// +4 for padding
+	e.Flags = int32(ByteOrder.Uint32(data[4:8]))
 
 	e.UID = ByteOrder.Uint32(data[8:12])
 	e.GID = ByteOrder.Uint32(data[12:16])
 	e.NLink = ByteOrder.Uint32(data[16:20])
 	e.Mode = ByteOrder.Uint16(data[20:22])
-
-	// +2 for padding
 
 	timeSec := ByteOrder.Uint64(data[24:32])
 	timeNsec := ByteOrder.Uint64(data[32:40])
@@ -388,34 +390,32 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 64 {
+	if len(data) < 56 {
 		return 0, ErrNotEnoughData
 	}
 
-	n, err := m.ParentPathKey.UnmarshalBinary(data)
+	n, err := m.RootPathKey.UnmarshalBinary(data)
 	if err != nil {
 		return 0, err
 	}
 	data = data[n:]
 
-	n, err = m.RootPathKey.UnmarshalBinary(data)
+	n, err = m.ParentPathKey.UnmarshalBinary(data)
 	if err != nil {
 		return 0, err
 	}
 	data = data[n:]
 
 	m.Device = ByteOrder.Uint32(data[0:4])
-	m.MountID = ByteOrder.Uint32(data[4:8])
-	m.BindSrcMountID = ByteOrder.Uint32(data[8:12])
-
-	// +4 for padding
-
-	m.FSType, err = UnmarshalString(data[16:], 16)
+	m.BindSrcMountID = ByteOrder.Uint32(data[4:8])
+	m.FSType, err = UnmarshalString(data[8:], 16)
 	if err != nil {
 		return 0, err
 	}
 
-	return 64, nil
+	m.MountID = m.RootPathKey.MountID
+
+	return 56, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -426,6 +426,11 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	return e.Mount.UnmarshalBinary(data)
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *ChdirEvent) UnmarshalBinary(data []byte) (int, error) {
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -692,22 +697,41 @@ func (p *BPFProgram) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	for _, b := range data[56:64] {
-		p.Tag += fmt.Sprintf("%x", b)
-	}
+	p.Tag = parseSHA1Tag(data[56:64])
 	return 64, nil
 }
 
-func parseHelpers(helpers []uint64) []uint32 {
-	var rep []uint32
-	var add bool
-
-	if len(helpers) < 3 {
-		return rep
+// parseSHA1Tag parses the short sha1 digest from the kernel event
+func parseSHA1Tag(data []byte) string {
+	if len(data) != 8 {
+		return ""
 	}
 
+	var builder strings.Builder
+	builder.Grow(16)
+
+	for _, b := range data {
+		if _, err := fmt.Fprintf(&builder, "%02x", b); err != nil {
+			// should really never happen when writing to a string.Builder
+			return ""
+		}
+	}
+	return builder.String()
+}
+
+func parseHelpers(helpers []uint64) []uint32 {
+	if len(helpers) < 3 {
+		return nil
+	}
+
+	var popcnt int
+	for _, h := range helpers {
+		popcnt += bits.OnesCount64(h)
+	}
+	rep := make([]uint32, 0, popcnt)
+
 	for i := 0; i < 192; i++ {
-		add = false
+		add := false
 		if i < 64 {
 			if helpers[0]&(1<<i) == (1 << i) {
 				add = true
@@ -884,8 +908,8 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ConfigCookie = ByteOrder.Uint32(data[cursor : cursor+4])
-	return cursor + 4, nil
+	e.ConfigCookie = ByteOrder.Uint64(data[cursor : cursor+8])
+	return cursor + 8, nil
 }
 
 // EventUnmarshalBinary unmarshals a binary representation of itself

@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NDM) Fix revive linter
 package devicecheck
 
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -22,14 +24,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
@@ -38,7 +45,12 @@ const (
 	serviceCheckName        = "snmp.can_check"
 	deviceReachableMetric   = "snmp.device.reachable"
 	deviceUnreachableMetric = "snmp.device.unreachable"
+	pingReachableMetric     = "networkdevice.ping.reachable"
+	pingUnreachableMetric   = "networkdevice.ping.unreachable"
+	pingPacketLoss          = "networkdevice.ping.packet_loss"
+	pingAvgRttMetric        = "networkdevice.ping.avg_rtt"
 	deviceHostnamePrefix    = "device:"
+	checkDurationThreshold  = 30 // Thirty seconds
 )
 
 // define timeNow as variable to make it possible to mock it during test
@@ -46,12 +58,15 @@ var timeNow = time.Now
 
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
-	config                 *checkconfig.CheckConfig
-	sender                 *report.MetricSender
-	session                session.Session
-	sessionCloseErrorCount *atomic.Uint64
-	savedDynamicTags       []string
-	nextAutodetectMetrics  time.Time
+	config                  *checkconfig.CheckConfig
+	sender                  *report.MetricSender
+	session                 session.Session
+	devicePinger            pinger.Pinger
+	sessionCloseErrorCount  *atomic.Uint64
+	savedDynamicTags        []string
+	nextAutodetectMetrics   time.Time
+	diagnoses               *diagnoses.Diagnoses
+	interfaceBandwidthState report.InterfaceBandwidthState
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -63,11 +78,22 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		return nil, fmt.Errorf("failed to configure session: %s", err)
 	}
 
+	var devicePinger pinger.Pinger
+	if newConfig.PingEnabled {
+		devicePinger, err = createPinger(newConfig.PingConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create pinger: %s", err)
+		}
+	}
+
 	return &DeviceCheck{
-		config:                 newConfig,
-		session:                sess,
-		sessionCloseErrorCount: atomic.NewUint64(0),
-		nextAutodetectMetrics:  timeNow(),
+		config:                  newConfig,
+		session:                 sess,
+		devicePinger:            devicePinger,
+		sessionCloseErrorCount:  atomic.NewUint64(0),
+		nextAutodetectMetrics:   timeNow(),
+		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
+		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
 	}, nil
 }
 
@@ -76,9 +102,24 @@ func (d *DeviceCheck) SetSender(sender *report.MetricSender) {
 	d.sender = sender
 }
 
+// SetInterfaceBandwidthState sets the interface bandwidth state
+func (d *DeviceCheck) SetInterfaceBandwidthState(state report.InterfaceBandwidthState) {
+	d.interfaceBandwidthState = state
+}
+
+// GetInterfaceBandwidthState returns interface bandwidth state
+func (d *DeviceCheck) GetInterfaceBandwidthState() report.InterfaceBandwidthState {
+	return d.interfaceBandwidthState
+}
+
 // GetIPAddress returns device IP
 func (d *DeviceCheck) GetIPAddress() string {
 	return d.config.IPAddress
+}
+
+// GetDeviceID returns device ID
+func (d *DeviceCheck) GetDeviceID() string {
+	return d.config.DeviceID
 }
 
 // GetIDTags returns device IDTags
@@ -107,6 +148,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
+	var pingStatus metadata.DeviceStatus
 
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
 	tags := common.CopyStrings(staticTags)
@@ -125,11 +167,39 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
 	}
 
+	// Get a system appropriate ping check
+	if d.devicePinger != nil {
+		log.Tracef("%s: pinging host", d.config.IPAddress)
+		pingResult, err := d.devicePinger.Ping(d.config.IPAddress)
+		if err != nil {
+			// if the ping fails, send no metrics/metadata, log and add diagnosis
+			log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
+			d.diagnoses.Add("error", "SNMP_FAILED_TO_PING_DEVICE", "Agent encountered an error when pinging this network device. Check agent logs for more details.")
+		} else {
+			// if ping succeeds, set pingCanConnect for use in metadata and send metrics
+			log.Debugf("%s: ping returned: %+v", d.config.IPAddress, pingResult)
+			if pingResult.CanConnect {
+				pingStatus = metadata.DeviceStatusReachable
+			} else {
+				pingStatus = metadata.DeviceStatusUnreachable
+			}
+			d.submitPingMetrics(pingResult, tags)
+		}
+	} else {
+		log.Tracef("%s: SNMP ping disabled for host", d.config.IPAddress)
+	}
+
 	if d.config.CollectDeviceMetadata {
 		if deviceReachable {
 			deviceStatus = metadata.DeviceStatusReachable
 		} else {
 			deviceStatus = metadata.DeviceStatusUnreachable
+		}
+
+		checkDuration := time.Since(startTime).Seconds()
+
+		if checkDuration > checkDurationThreshold {
+			d.diagnoses.Add("warn", "SNMP_HIGH_CHECK_DURATION", fmt.Sprintf("Check duration is high for this device, last check took %.2f seconds.", checkDuration))
 		}
 
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
@@ -138,11 +208,15 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
 		deviceMetadataTags = append(deviceMetadataTags, common.GetAgentVersionTag())
 
-		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		deviceDiagnosis := d.diagnoses.Report()
+
+		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus, pingStatus, deviceDiagnosis)
 	}
 
 	d.submitTelemetryMetrics(startTime, tags)
 	d.setDeviceHostExternalTags()
+	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.UnixNano())
+
 	return checkErr
 }
 
@@ -164,6 +238,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	// Create connection
 	connErr := d.session.Connect()
 	if connErr != nil {
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
 		return false, tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
 	defer func() {
@@ -178,6 +253,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	getNextValue, err := d.session.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
 	if err != nil {
 		deviceReachable = false
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_POLL_DEVICE", "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.")
 		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
 	} else {
 		deviceReachable = true
@@ -188,6 +264,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 
 	err = d.detectMetricsToMonitor(d.session)
 	if err != nil {
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_DETECT_PROFILE", "Agent failed to detect a profile for this network device.")
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
 
@@ -227,7 +304,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
+		profile, err := profile.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
@@ -243,7 +320,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 	return nil
 }
 
-func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []checkconfig.MetricTagConfig) {
+func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfig, []profiledefinition.MetricTagConfig) {
 	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
@@ -252,8 +329,8 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 		root.DebugPrint()
 	}
 
-	var metricConfigs []checkconfig.MetricsConfig
-	var metricTagConfigs []checkconfig.MetricTagConfig
+	var metricConfigs []profiledefinition.MetricsConfig
+	var metricTagConfigs []profiledefinition.MetricTagConfig
 
 	// If a metric name has already been encountered, we won't try to add it again.
 	alreadySeenMetrics := make(map[string]bool)
@@ -272,7 +349,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 					metricConfigs = append(metricConfigs, newMetricConfig)
 				}
 			} else if metricConfig.IsColumn() {
-				newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
+				newMetricConfig.Symbols = []profiledefinition.SymbolConfig{}
 				for _, symbol := range metricConfig.Symbols {
 					if !alreadySeenMetrics[symbol.Name] && root.NonLeafNodeExist(symbol.OID) {
 						alreadySeenMetrics[symbol.Name] = true
@@ -285,7 +362,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 			}
 		}
 		for _, metricTag := range profileConfig.Definition.MetricTags {
-			if root.LeafExist(metricTag.OID) || root.LeafExist(metricTag.Column.OID) {
+			if root.LeafExist(metricTag.Symbol.OID) {
 				if metricTag.Tag != "" {
 					if alreadyGlobalTags[metricTag.Tag] {
 						continue
@@ -323,4 +400,27 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
+}
+
+// GetDiagnoses collects diagnoses for diagnose CLI
+func (d *DeviceCheck) GetDiagnoses() []diagnosis.Diagnosis {
+	return d.diagnoses.ReportAsAgentDiagnoses()
+}
+
+// createPinger creates a pinger using the passed configuration
+func createPinger(cfg pinger.Config) (pinger.Pinger, error) {
+	// if OS is Windows or Mac, we should override UseRawSocket
+	if runtime.GOOS == "windows" {
+		cfg.UseRawSocket = true
+	} else if runtime.GOOS == "darwin" {
+		cfg.UseRawSocket = false
+	}
+	return pinger.New(cfg)
+}
+
+func (d *DeviceCheck) submitPingMetrics(pingResult *pinger.Result, tags []string) {
+	d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgRtt/time.Millisecond), tags)
+	d.sender.Gauge(pingReachableMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
+	d.sender.Gauge(pingUnreachableMetric, common.BoolToFloat64(!pingResult.CanConnect), tags)
+	d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
 }

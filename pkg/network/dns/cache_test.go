@@ -8,6 +8,7 @@
 package dns
 
 import (
+	cryptorand "crypto/rand"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -322,7 +323,7 @@ func randomAddressGen() func() util.Address {
 	b := make([]byte, 4)
 	return func() util.Address {
 		for {
-			if _, err := rand.Read(b); err != nil {
+			if _, err := cryptorand.Read(b); err != nil {
 				continue
 			}
 

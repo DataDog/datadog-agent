@@ -5,26 +5,35 @@ on:
   push:
     branches:
       - main
-      - 7.[0-9][0-9].x
+      - "[0-9]+.[0-9]+.x"
+      - mq-working-branch-*
     paths:
-      - 'pkg/gohai/**'
+      - "pkg/gohai/**"
   pull_request:
     paths:
-      - 'pkg/gohai/**'
+      - "pkg/gohai/**"
 
 jobs:
   gohai_test:
     strategy:
       matrix:
         # Use oldest and latest available ubuntu, macos and windows
-        os: [ubuntu-20.04, ubuntu-latest, macos-11, macos-latest, windows-2019, windows-latest]
+        os:
+          [
+            ubuntu-20.04,
+            ubuntu-latest,
+            macos-11,
+            macos-latest,
+            windows-2019,
+            windows-latest,
+          ]
         # Run tests with both the agent's version and gohai's pinned version
         go-file: [.go-version, pkg/gohai/go.mod]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-go@v3
-      with:
-        go-version-file: ${{ matrix.go-file }}
-    - name: Test
-      run: cd pkg/gohai && go test ./...
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v3
+        with:
+          go-version-file: ${{ matrix.go-file }}
+      - name: Test
+        run: cd pkg/gohai && go test -tags=test ./...

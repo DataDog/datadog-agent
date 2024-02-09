@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -24,30 +25,42 @@ type Component interface {
 	// AddScheduler adds an AD scheduler to the logs agent
 	AddScheduler(scheduler schedulers.Scheduler)
 
-	// IsRunning returns true if the logs agent is running
-	IsRunning() bool
+	// Get the logs sources
+	GetSources() *sources.LogSources
 
 	// GetMessageReceiver gets the diagnostic message receiver
 	GetMessageReceiver() *diagnostic.BufferedMessageReceiver
-
-	// Flush synchronously flushes the pipelines managed by the Logs Agent.
-	Flush(ctx context.Context)
 
 	// GetPipelineProvider gets the pipeline provider
 	GetPipelineProvider() pipeline.Provider
 }
 
+// ServerlessLogsAgent is a compat version of the component for the serverless agent
+type ServerlessLogsAgent interface {
+	Component
+	Start() error
+	Stop()
+
+	// Flush flushes synchronously the pipelines managed by the Logs Agent.
+	Flush(ctx context.Context)
+}
+
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
+
+	SetSources(sources *sources.LogSources)
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newLogsAgent),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newLogsAgent))
+}
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock),
+		fx.Provide(func(m Mock) Component { return m }))
+}

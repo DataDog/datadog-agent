@@ -8,34 +8,22 @@
 package ebpf
 
 import (
-	"bytes"
-	"encoding"
-	"encoding/binary"
-	"errors"
-	"fmt"
-	"reflect"
 	"sync"
 	"time"
-	"unsafe"
 
 	cebpf "github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // MapCleaner is responsible for periodically sweeping an eBPF map
 // and deleting entries that satisfy a certain predicate function supplied by the user
-type MapCleaner struct {
-	emap *cebpf.Map
-	key  interface{}
-	val  interface{}
-	once sync.Once
+type MapCleaner[K any, V any] struct {
+	emap      *maps.GenericMap[K, V]
+	batchSize uint32
 
-	// we resort to unsafe.Pointers because by doing so the underlying eBPF
-	// library avoids marshaling the key/value variables while traversing the map
-	keyPtr unsafe.Pointer
-	valPtr unsafe.Pointer
+	once sync.Once
 
 	// termination
 	stopOnce sync.Once
@@ -43,33 +31,47 @@ type MapCleaner struct {
 }
 
 // NewMapCleaner instantiates a new MapCleaner
-func NewMapCleaner(emap *cebpf.Map, key, val interface{}) (*MapCleaner, error) {
-	// we force types to be of pointer kind because of the reasons mentioned above
-	if reflect.ValueOf(key).Kind() != reflect.Ptr {
-		return nil, fmt.Errorf("%T is not a pointer kind", key)
+func NewMapCleaner[K any, V any](emap *cebpf.Map, defaultBatchSize uint32) (*MapCleaner[K, V], error) {
+	batchSize := defaultBatchSize
+	if defaultBatchSize > emap.MaxEntries() {
+		batchSize = emap.MaxEntries()
 	}
-	if reflect.ValueOf(val).Kind() != reflect.Ptr {
-		return nil, fmt.Errorf("%T is not a pointer kind", val)
+	if batchSize == 0 {
+		batchSize = 1
 	}
 
-	return &MapCleaner{
-		emap:   emap,
-		key:    key,
-		val:    val,
-		keyPtr: unsafe.Pointer(reflect.ValueOf(key).Elem().Addr().Pointer()),
-		valPtr: unsafe.Pointer(reflect.ValueOf(val).Elem().Addr().Pointer()),
-		done:   make(chan struct{}),
+	m, err := maps.Map[K, V](emap)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MapCleaner[K, V]{
+		emap:      m,
+		batchSize: batchSize,
+		done:      make(chan struct{}),
 	}, nil
 }
 
 // Clean eBPF map
 // `interval` determines how often the eBPF map is scanned;
-// `shouldClean` is a predicate method that determines whether or not a certain
+// `shouldClean` is a predicate method that determines whether a certain
 // map entry should be deleted. the callback argument `nowTS` can be directly
 // compared to timestamps generated using the `bpf_ktime_get_ns()` helper;
-func (mc *MapCleaner) Clean(interval time.Duration, shouldClean func(nowTS int64, k, v interface{}) bool) {
+// `preClean` callback (optional, can pass nil) is invoked before the map is scanned; if it returns false,
+// the map is not scanned; this can be used to synchronize with other maps, or preform preliminary checks.
+// `postClean` callback (optional, can pass nil) is invoked after the map is scanned, to allow resource cleanup.
+func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, postClean func(), shouldClean func(nowTS int64, k K, v V) bool) {
 	if mc == nil {
 		return
+	}
+
+	// Since kernel 5.6, the eBPF library supports batch operations on maps, which reduces the number of syscalls
+	// required to clean the map. We use the new batch operations if they are supported (we check with a feature test instead
+	// of a version comparison because some distros have backported this API), and fallback to
+	// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
+	cleaner := mc.cleanWithoutBatches
+	if maps.BatchAPISupported() {
+		cleaner = mc.cleanWithBatches
 	}
 
 	mc.once.Do(func() {
@@ -84,18 +86,25 @@ func (mc *MapCleaner) Clean(interval time.Duration, shouldClean func(nowTS int64
 					if err != nil {
 						break
 					}
-					mc.clean(now, shouldClean)
+					// Allowing to prepare for the cleanup.
+					if preClean != nil && !preClean() {
+						continue
+					}
+					cleaner(now, shouldClean)
+					// Allowing cleanup after the cleanup.
+					if postClean != nil {
+						postClean()
+					}
 				case <-mc.done:
 					return
 				}
 			}
-
 		}()
 	})
 }
 
 // Stop stops the map cleaner
-func (mc *MapCleaner) Stop() {
+func (mc *MapCleaner[K, V]) Stop() {
 	if mc == nil {
 		return
 	}
@@ -107,85 +116,69 @@ func (mc *MapCleaner) Stop() {
 	})
 }
 
-func (mc *MapCleaner) clean(nowTS int64, shouldClean func(nowTS int64, k, v interface{}) bool) {
-	keySize := int(mc.emap.KeySize())
-	keysToDelete := make([][]byte, 0, 128)
-	totalCount, deletedCount := 0, 0
+func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool) {
 	now := time.Now()
 
-	entries := mc.emap.Iterate()
-	for entries.Next(mc.keyPtr, mc.valPtr) {
-		totalCount++
+	var keysToDelete []K
+	var key K
+	var val V
+	totalCount, deletedCount := 0, 0
+	it := mc.emap.IterateWithBatchSize(int(mc.batchSize))
 
-		if !shouldClean(nowTS, mc.key, mc.val) {
+	for it.Next(&key, &val) {
+		if !shouldClean(nowTS, key, val) {
 			continue
 		}
 
-		marshalledKey, err := marshalBytes(mc.key, keySize)
-		if err != nil {
-			continue
-		}
-
-		// we accumulate alll keys to delete because it isn't safe to delete map
-		// entries during the traversal. the main downside of doing so is that all
-		// fields from the key type must be exported in order to be marshaled (unless
-		// the key type implements the `encoding.BinaryMarshaler` interface)
-		keysToDelete = append(keysToDelete, marshalledKey)
+		keysToDelete = append(keysToDelete, key)
 	}
 
-	for _, key := range keysToDelete {
-		err := mc.emap.Delete(key)
+	var deletionError error
+	if len(keysToDelete) > 0 {
+		deletedCount, deletionError = mc.emap.BatchDelete(keysToDelete)
+	}
+
+	elapsed := time.Since(now)
+	log.Debugf(
+		"finished cleaning map=%s entries_checked=%d entries_deleted=%d deletion_error='%v' elapsed=%s",
+		mc.emap,
+		totalCount,
+		deletedCount,
+		deletionError,
+		elapsed,
+	)
+}
+
+func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool) {
+	now := time.Now()
+
+	var keysToDelete []K
+	var key K
+	var val V
+	totalCount, deletedCount := 0, 0
+
+	entries := mc.emap.Iterate()
+	for entries.Next(&key, &val) {
+		totalCount++
+		if !shouldClean(nowTS, key, val) {
+			continue
+		}
+		keysToDelete = append(keysToDelete, key)
+	}
+
+	for _, k := range keysToDelete {
+		err := mc.emap.Delete(&k)
 		if err == nil {
 			deletedCount++
 		}
 	}
 
-	iterationErr := entries.Err()
 	elapsed := time.Since(now)
 	log.Debugf(
-		"finished cleaning map=%s entries_checked=%d entries_deleted=%d iteration_error=%v elapsed=%s",
+		"finished cleaning map=%s entries_checked=%d entries_deleted=%d elapsed=%s",
 		mc.emap,
 		totalCount,
 		deletedCount,
-		iterationErr,
 		elapsed,
 	)
-}
-
-// marshalBytes converts an arbitrary value into a byte buffer.
-//
-// Returns an error if the given value isn't representable in exactly
-// length bytes.
-//
-// copied from: https://github.com/cilium/ebpf/blob/master/marshalers.go
-func marshalBytes(data interface{}, length int) (buf []byte, err error) {
-	if data == nil {
-		return nil, errors.New("can't marshal a nil value")
-	}
-
-	switch value := data.(type) {
-	case encoding.BinaryMarshaler:
-		buf, err = value.MarshalBinary()
-	case string:
-		buf = []byte(value)
-	case []byte:
-		buf = value
-	case unsafe.Pointer:
-		err = errors.New("can't marshal from unsafe.Pointer")
-	default:
-		var wr bytes.Buffer
-		err = binary.Write(&wr, native.Endian, value)
-		if err != nil {
-			err = fmt.Errorf("encoding %T: %v", value, err)
-		}
-		buf = wr.Bytes()
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if len(buf) != length {
-		return nil, fmt.Errorf("%T doesn't marshal to %d bytes", data, length)
-	}
-	return buf, nil
 }

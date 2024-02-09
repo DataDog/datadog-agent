@@ -4,12 +4,16 @@ generator:
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
       addr: "127.0.0.1:10000"
       variant: "datadog_log"
-      bytes_per_second: "500 Mb"
+      bytes_per_second: "50 Mb"
       block_sizes: ["8Kb", "4Kb", "2Kb", "1Kb", "512b", "256b", "128b"]
-      maximum_prebuild_cache_size_bytes: "256 Mb"
+      maximum_prebuild_cache_size_bytes: "400 Mb"
 
 blackhole:
   - tcp:
       binding_addr: "127.0.0.1:9091"
   - http:
       binding_addr: "127.0.0.1:9092"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"

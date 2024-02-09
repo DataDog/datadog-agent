@@ -43,6 +43,9 @@ func newTestSpan() *pb.Span {
 		},
 		ParentID: 1111,
 		Type:     "http",
+		SpanLinks: []*pb.SpanLink{
+			{TraceID: uint64(3), TraceIDHigh: uint64(2), SpanID: uint64(1), Attributes: map[string]string{"link.name": "name"}, Tracestate: "", Flags: uint32(0)},
+		},
 	}
 }
 
@@ -129,6 +132,29 @@ func TestNormalizeEmptyName(t *testing.T) {
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, s.Name, traceutil.DefaultSpanName)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: *atomic.NewInt64(1)}), ts)
+}
+
+func TestNormalizeSpanLinkName(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+
+	// Normalize a span that contains an empty link name
+	emptyLinkNameSpan := newTestSpan()
+	emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"] = ""
+	assert.NoError(t, a.normalize(ts, emptyLinkNameSpan))
+	assert.Equal(t, emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"], traceutil.DefaultSpanName)
+
+	// Normalize a span that contains an invalid link name
+	invalidLinkNameSpan := newTestSpan()
+	invalidLinkNameSpan.SpanLinks[0].Attributes["link.name"] = "!@#$%^&*()_+"
+	assert.NoError(t, a.normalize(ts, invalidLinkNameSpan))
+	assert.Equal(t, invalidLinkNameSpan.SpanLinks[0].Attributes["link.name"], traceutil.DefaultSpanName)
+
+	// Normalize a span that contains a valid link name
+	validLinkNameSpan := newTestSpan()
+	validLinkNameSpan.SpanLinks[0].Attributes["link.name"] = "valid_name"
+	assert.NoError(t, a.normalize(ts, validLinkNameSpan))
+	assert.Equal(t, validLinkNameSpan.SpanLinks[0].Attributes["link.name"], "valid_name")
 }
 
 func TestNormalizeLongName(t *testing.T) {
@@ -499,7 +525,7 @@ func TestNormalizeChunkPopulatingOrigin(t *testing.T) {
 	traceutil.SetMeta(root, "_dd.origin", "rum")
 	chunk := testutil.TraceChunkWithSpan(root)
 	chunk.Origin = ""
-	normalizeChunk(chunk, root)
+	setChunkAttributesFromRoot(chunk, root)
 	assert.Equal("rum", chunk.Origin)
 }
 
@@ -509,7 +535,7 @@ func TestNormalizeChunkNotPopulatingOrigin(t *testing.T) {
 	traceutil.SetMeta(root, "_dd.origin", "rum")
 	chunk := testutil.TraceChunkWithSpan(root)
 	chunk.Origin = "lambda"
-	normalizeChunk(chunk, root)
+	setChunkAttributesFromRoot(chunk, root)
 	assert.Equal("lambda", chunk.Origin)
 }
 
@@ -519,7 +545,7 @@ func TestNormalizeChunkPopulatingSamplingPriority(t *testing.T) {
 	traceutil.SetMetric(root, "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
 	chunk := testutil.TraceChunkWithSpan(root)
 	chunk.Priority = int32(sampler.PriorityNone)
-	normalizeChunk(chunk, root)
+	setChunkAttributesFromRoot(chunk, root)
 	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
 }
 
@@ -529,7 +555,7 @@ func TestNormalizeChunkNotPopulatingSamplingPriority(t *testing.T) {
 	traceutil.SetMetric(root, "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
 	chunk := testutil.TraceChunkWithSpan(root)
 	chunk.Priority = int32(sampler.PriorityAutoDrop)
-	normalizeChunk(chunk, root)
+	setChunkAttributesFromRoot(chunk, root)
 	assert.EqualValues(sampler.PriorityAutoDrop, chunk.Priority)
 }
 
@@ -542,7 +568,7 @@ func TestNormalizePopulatePriorityFromAnySpan(t *testing.T) {
 	chunk.Spans[0].Metrics = nil
 	chunk.Spans[2].Metrics = nil
 	traceutil.SetMetric(chunk.Spans[1], "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
-	normalizeChunk(chunk, root)
+	setChunkAttributesFromRoot(chunk, root)
 	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
 }
 

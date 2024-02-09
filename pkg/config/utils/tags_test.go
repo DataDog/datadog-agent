@@ -6,50 +6,56 @@
 package utils
 
 import (
+	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetConfiguredaTags(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.InitConfig(mockConfig)
 
 	set1 := []string{"1", "2", "3"}
 
-	mockConfig.Set("tags", set1)
+	mockConfig.SetWithoutSource("tags", set1)
 	assert.Equal(t, set1, GetConfiguredTags(mockConfig, false))
 }
 
 func TestGetConfiguredaTagsExtraTags(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.InitConfig(mockConfig)
 
 	set1 := []string{"1", "2", "3"}
 
-	mockConfig.Set("extra_tags", set1)
+	mockConfig.SetWithoutSource("extra_tags", set1)
 	assert.Equal(t, set1, GetConfiguredTags(mockConfig, false))
 }
 
 func TestGetConfiguredaTagsDSD(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.InitConfig(mockConfig)
 
 	set1 := []string{"1", "2", "3"}
 
-	mockConfig.Set("dogstatsd_tags", set1)
+	mockConfig.SetWithoutSource("dogstatsd_tags", set1)
 	assert.Equal(t, []string{}, GetConfiguredTags(mockConfig, false))
 	assert.Equal(t, set1, GetConfiguredTags(mockConfig, true))
 }
 
 func TestGetConfiguredaTagsCombined(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.InitConfig(mockConfig)
 
 	set1 := []string{"1", "2", "3"}
 	set2 := []string{"4", "5", "6"}
 	set3 := []string{"7", "8", "9"}
 
-	mockConfig.Set("tags", set1)
-	mockConfig.Set("extra_tags", set2)
-	mockConfig.Set("dogstatsd_tags", set3)
+	mockConfig.SetWithoutSource("tags", set1)
+	mockConfig.SetWithoutSource("extra_tags", set2)
+	mockConfig.SetWithoutSource("dogstatsd_tags", set3)
 
 	expected := append(set1, set2...)
 	assert.Equal(t, expected, GetConfiguredTags(mockConfig, false))

@@ -1,0 +1,35 @@
+From 1d7e7c7865e7dad242a24acbe54633ada01602fa Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Renaud=20M=C3=A9trich?= <rmetrich@redhat.com>
+Date: Fri, 22 Sep 2023 14:19:55 +0200
+Subject: [PATCH 16/16] Fix incorrect openscap-cpe-oval result filename
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When using `oscap xccdf eval --oval-results` command, the oval result
+file is not expected one (`openscap-cpe-oval.xml.result.xml`), but
+`%2Fusr%2Fshare%2Fopenscap%2Fcpe%2Fopenscap-cpe-oval.xml.result.xml`.
+
+Signed-off-by: Renaud Métrich <rmetrich@redhat.com>
+---
+ src/CPE/cpe_session.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/CPE/cpe_session.c b/src/CPE/cpe_session.c
+index f3c1dfe25..691b8d636 100644
+--- a/src/CPE/cpe_session.c
++++ b/src/CPE/cpe_session.c
+@@ -114,7 +114,9 @@ struct oval_agent_session *cpe_session_lookup_oval_session(struct cpe_session *c
+ 			return NULL;
+ 		}
+ 
+-		session = oval_agent_new_session(oval_model, prefixed_href);
++		char *base_name = oscap_basename(prefixed_href);
++		session = oval_agent_new_session(oval_model, base_name);
++		free(base_name);
+ 		if (session == NULL) {
+ 			oscap_seterr(OSCAP_EFAMILY_OSCAP, "Cannot create OVAL session for '%s' for CPE applicability checking", prefixed_href);
+ 			return NULL;
+-- 
+2.34.1
+

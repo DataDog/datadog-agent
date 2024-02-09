@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,29 +30,31 @@ var (
 
 // Telemetry
 var stateTelemetry = struct {
-	closedConnDropped     *nettelemetry.StatCounterWrapper
-	connDropped           *nettelemetry.StatCounterWrapper
-	statsUnderflows       *nettelemetry.StatCounterWrapper
-	statsCookieCollisions *nettelemetry.StatCounterWrapper
-	timeSyncCollisions    *nettelemetry.StatCounterWrapper
-	dnsStatsDropped       *nettelemetry.StatCounterWrapper
-	httpStatsDropped      *nettelemetry.StatCounterWrapper
-	http2StatsDropped     *nettelemetry.StatCounterWrapper
-	kafkaStatsDropped     *nettelemetry.StatCounterWrapper
-	dnsPidCollisions      *nettelemetry.StatCounterWrapper
-	udpDirectionFixes     telemetry.Counter
+	closedConnDropped      *telemetry.StatCounterWrapper
+	connDropped            *telemetry.StatCounterWrapper
+	statsUnderflows        *telemetry.StatCounterWrapper
+	statsCookieCollisions  *telemetry.StatCounterWrapper
+	timeSyncCollisions     *telemetry.StatCounterWrapper
+	dnsStatsDropped        *telemetry.StatCounterWrapper
+	httpStatsDropped       *telemetry.StatCounterWrapper
+	http2StatsDropped      *telemetry.StatCounterWrapper
+	kafkaStatsDropped      *telemetry.StatCounterWrapper
+	dnsPidCollisions       *telemetry.StatCounterWrapper
+	incomingDirectionFixes telemetry.Counter
+	outgoingDirectionFixes telemetry.Counter
 }{
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
-	telemetry.NewCounter(stateModuleName, "udp_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+	telemetry.NewCounter(stateModuleName, "incoming_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes for incoming connections"),
+	telemetry.NewCounter(stateModuleName, "outgoing_direction_fixes", []string{}, "Counter measuring the number of udp/tcp direction fixes for outgoing connections"),
 }
 
 const (
@@ -115,11 +116,10 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Conns    []ConnectionStats
-	HTTP     map[http.Key]*http.RequestStats
-	HTTP2    map[http.Key]*http.RequestStats
-	Kafka    map[kafka.Key]*kafka.RequestStat
-	DNSStats dns.StatsByKeyByNameByType
+	Conns []ConnectionStats
+	HTTP  map[http.Key]*http.RequestStats
+	HTTP2 map[http.Key]*http.RequestStats
+	Kafka map[kafka.Key]*kafka.RequestStat
 }
 
 type lastStateTelemetry struct {
@@ -137,13 +137,96 @@ type lastStateTelemetry struct {
 
 const minClosedCapacity = 1024
 
+type closedConnections struct {
+	// conns are ordered by placing all the empty connections at the end of the slice
+	conns []ConnectionStats
+	// byCookie is used to search for the index of a ConnectionStats in conns
+	byCookie map[StatCookie]int
+	// the index of first empty connection in conns
+	emptyStart int
+}
+
+// Inserts a connection into conns and byCookie:
+// This function checks whether conns has reached the maxClosedConns limit. If it has, it drops an empty connection.
+// If the limit has not been reached, it places the connection in conns.
+// All empty connections are placed at the end. If it is not empty, it will be placed
+// at the index of the first empty connection, and the first empty connection will be placed at the end.
+// If there are no empty connections, it will be appended at the end.
+func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
+	// If we have reached the limit, drop an empty connection
+	if uint32(len(cc.conns)) >= maxClosedConns {
+		stateTelemetry.closedConnDropped.Inc(c.Type.String())
+		cc.dropEmpty(c)
+		return
+	}
+	// If the connection is empty append at the end
+	if isEmpty(c) {
+		cc.conns = append(cc.conns, c)
+		cc.byCookie[c.Cookie] = len(cc.conns) - 1
+		return
+	}
+
+	// Insert the connection before empty connections
+	if cc.emptyStart < len(cc.conns) {
+		emptyConn := cc.conns[cc.emptyStart]
+		cc.conns[cc.emptyStart] = c
+		cc.conns = append(cc.conns, emptyConn)
+		cc.byCookie[c.Cookie] = cc.emptyStart
+		cc.byCookie[emptyConn.Cookie] = len(cc.conns) - 1
+		cc.emptyStart++
+		return
+	}
+	// If there are no empty connections, append at the end
+	cc.conns = append(cc.conns, c)
+	cc.byCookie[c.Cookie] = len(cc.conns) - 1
+	cc.emptyStart = len(cc.conns)
+}
+
+// Drops the first empty connection:
+// This method drops the incoming connection if it's empty or there are no empty connections in conns.
+// If neither of these conditions are true, it will drop the first empty connection and replace it with
+// the incoming connection.
+func (cc *closedConnections) dropEmpty(c ConnectionStats) {
+	if isEmpty(c) || cc.emptyStart == len(cc.conns) {
+		return
+	}
+	delete(cc.byCookie, cc.conns[cc.emptyStart].Cookie)
+	cc.conns[cc.emptyStart] = c
+	cc.byCookie[c.Cookie] = cc.emptyStart
+	cc.emptyStart++
+}
+
+// Replaces connection c with the connection at index i:
+// If the conn at i is the latest, or c is empty and the connection at i is not,
+// it will not complete the replacement.
+// Otherwise it checks if the connection at i is empty and will be replaced with a non-empty conn.
+// If this is true, it will replace the connection and move it to where the first empty conn is.
+// If there isn't a change of state (both are empty or non-empty) it will simply replace the conn.
+func (cc *closedConnections) replaceAt(i int, c ConnectionStats) {
+	// pick the latest one
+	if c.LastUpdateEpoch <= cc.conns[i].LastUpdateEpoch {
+		return
+	}
+	// If c is empty and connn[i] is not, do not replace
+	if isEmpty(c) && i < cc.emptyStart {
+		return
+	}
+	// If conn[i] is empty and c is not, replace with the first empty connection
+	if !isEmpty(c) && i >= cc.emptyStart {
+		cc.conns[cc.emptyStart], cc.conns[i] = cc.conns[i], cc.conns[cc.emptyStart]
+		cc.byCookie[cc.conns[i].Cookie] = i
+		cc.conns[cc.emptyStart] = c
+		cc.byCookie[c.Cookie] = cc.emptyStart
+		cc.emptyStart++
+		return
+	}
+	cc.conns[i] = c
+}
+
 type client struct {
 	lastFetch time.Time
-
-	closedConnectionsKeys map[StatCookie]int
-
-	closedConnections []ConnectionStats
-	stats             map[StatCookie]StatCounters
+	closed    *closedConnections
+	stats     map[StatCookie]StatCounters
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
@@ -153,13 +236,13 @@ type client struct {
 }
 
 func (c *client) Reset() {
-	half := cap(c.closedConnections) / 2
-	if closedLen := len(c.closedConnections); closedLen > minClosedCapacity && closedLen < half {
-		c.closedConnections = make([]ConnectionStats, half)
+	half := cap(c.closed.conns) / 2
+	if closedLen := len(c.closed.conns); closedLen > minClosedCapacity && closedLen < half {
+		c.closed.conns = make([]ConnectionStats, half)
 	}
 
-	c.closedConnections = c.closedConnections[:0]
-	c.closedConnectionsKeys = make(map[StatCookie]int)
+	c.closed.conns = c.closed.conns[:0]
+	c.closed.byCookie = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
@@ -203,6 +286,7 @@ func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats 
 	}
 }
 
+//nolint:unused // TODO(NET) Fix unused linter
 func (ns *networkState) getClients() []string {
 	ns.Lock()
 	defer ns.Unlock()
@@ -267,7 +351,11 @@ func (ns *networkState) GetDelta(
 	// Update all connections with relevant up-to-date stats for client
 	active, closed := ns.mergeConnections(id, active)
 
-	aggr := newConnectionAggregator((len(closed) + len(active)) / 2)
+	if len(dnsStats) > 0 {
+		ns.storeDNSStats(dnsStats)
+	}
+
+	aggr := newConnectionAggregator((len(closed)+len(active))/2, client.dnsStats)
 	active = filterConnections(active, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
@@ -279,10 +367,6 @@ func (ns *networkState) GetDelta(
 	aggr.finalize()
 
 	ns.determineConnectionIntraHost(slice.NewChain(active, closed))
-
-	if len(dnsStats) > 0 {
-		ns.storeDNSStats(dnsStats)
-	}
 
 	for protocolType, protocolStats := range usmStats {
 		switch protocolType {
@@ -299,11 +383,10 @@ func (ns *networkState) GetDelta(
 	}
 
 	return Delta{
-		Conns:    append(active, closed...),
-		HTTP:     client.httpStatsDelta,
-		HTTP2:    client.http2StatsDelta,
-		DNSStats: client.dnsStats,
-		Kafka:    client.kafkaStatsDelta,
+		Conns: append(active, closed...),
+		HTTP:  client.httpStatsDelta,
+		HTTP2: client.http2StatsDelta,
+		Kafka: client.kafkaStatsDelta,
 	}
 }
 
@@ -470,24 +553,14 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			if i, ok := client.closedConnectionsKeys[c.Cookie]; ok {
-				if ns.mergeConnectionStats(&client.closedConnections[i], &c) {
+			if i, ok := client.closed.byCookie[c.Cookie]; ok {
+				if ns.mergeConnectionStats(&client.closed.conns[i], &c) {
 					stateTelemetry.statsCookieCollisions.Inc()
-					// pick the latest one
-					if c.LastUpdateEpoch > client.closedConnections[i].LastUpdateEpoch {
-						client.closedConnections[i] = c
-					}
+					client.closed.replaceAt(i, c)
 				}
 				continue
 			}
-
-			if uint32(len(client.closedConnections)) >= ns.maxClosedConns {
-				stateTelemetry.closedConnDropped.Inc(c.Type.String())
-				continue
-			}
-
-			client.closedConnections = append(client.closedConnections, c)
-			client.closedConnectionsKeys[c.Cookie] = len(client.closedConnections) - 1
+			client.closed.insert(c, ns.maxClosedConns)
 		}
 	}
 }
@@ -507,10 +580,10 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 	// Fast-path for common case (one client registered)
 	if len(ns.clients) == 1 {
 		for _, c := range ns.clients {
-			if len(c.dnsStats) == 0 {
+			if len(c.dnsStats) == 0 && getDeepDNSStatsCount(stats) <= ns.maxDNSStats {
 				c.dnsStats = stats
+				return
 			}
-			return
 		}
 	}
 
@@ -519,7 +592,6 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 		for key, statsByDomain := range stats {
 			for domain, statsByQtype := range statsByDomain {
 				for qtype, dnsStats := range statsByQtype {
-
 					if _, ok := client.dnsStats[key]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {
 							stateTelemetry.dnsStatsDropped.Inc()
@@ -527,6 +599,7 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 						}
 						client.dnsStats[key] = make(map[dns.Hostname]map[dns.QueryType]dns.Stats)
 					}
+
 					if _, ok := client.dnsStats[key][domain]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {
 							stateTelemetry.dnsStatsDropped.Inc()
@@ -544,14 +617,17 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 							prev.CountByRcode[rcode] += count
 						}
 						client.dnsStats[key][domain][qtype] = prev
-					} else {
-						if dnsStatsThisClient >= ns.maxDNSStats {
-							stateTelemetry.dnsStatsDropped.Inc()
-							continue
-						}
-						client.dnsStats[key][domain][qtype] = dnsStats
-						dnsStatsThisClient++
+						continue
 					}
+
+					// new stat
+					if dnsStatsThisClient >= ns.maxDNSStats {
+						stateTelemetry.dnsStatsDropped.Inc()
+						continue
+					}
+
+					client.dnsStats[key][domain][qtype] = dnsStats
+					dnsStatsThisClient++
 				}
 			}
 		}
@@ -562,7 +638,7 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
-			if len(client.httpStatsDelta) == 0 {
+			if len(client.httpStatsDelta) == 0 && len(allStats) <= ns.maxHTTPStats {
 				// optimization for the common case:
 				// if there is only one client and no previous state, no memory allocation is needed
 				client.httpStatsDelta = allStats
@@ -592,7 +668,7 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
-			if len(client.http2StatsDelta) == 0 {
+			if len(client.http2StatsDelta) == 0 && len(allStats) <= ns.maxHTTPStats {
 				// optimization for the common case:
 				// if there is only one client and no previous state, no memory allocation is needed
 				client.http2StatsDelta = allStats
@@ -624,7 +700,7 @@ func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats
 func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStat) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
-			if len(client.kafkaStatsDelta) == 0 {
+			if len(client.kafkaStatsDelta) == 0 && len(allStats) <= ns.maxKafkaStats {
 				// optimization for the common case:
 				// if there is only one client and no previous state, no memory allocation is needed
 				client.kafkaStatsDelta = allStats
@@ -655,17 +731,16 @@ func (ns *networkState) getClient(clientID string) *client {
 	if c, ok := ns.clients[clientID]; ok {
 		return c
 	}
-
+	closedConnections := &closedConnections{conns: make([]ConnectionStats, 0, minClosedCapacity), byCookie: make(map[StatCookie]int)}
 	c := &client{
-		lastFetch:             time.Now(),
-		stats:                 make(map[StatCookie]StatCounters),
-		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
-		closedConnectionsKeys: make(map[StatCookie]int),
-		dnsStats:              dns.StatsByKeyByNameByType{},
-		httpStatsDelta:        map[http.Key]*http.RequestStats{},
-		http2StatsDelta:       map[http.Key]*http.RequestStats{},
-		kafkaStatsDelta:       map[kafka.Key]*kafka.RequestStat{},
-		lastTelemetries:       make(map[ConnTelemetryType]int64),
+		lastFetch:       time.Now(),
+		stats:           make(map[StatCookie]StatCounters),
+		closed:          closedConnections,
+		dnsStats:        dns.StatsByKeyByNameByType{},
+		httpStatsDelta:  map[http.Key]*http.RequestStats{},
+		http2StatsDelta: map[http.Key]*http.RequestStats{},
+		kafkaStatsDelta: map[kafka.Key]*kafka.RequestStat{},
+		lastTelemetries: make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c
 	return c
@@ -684,7 +759,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 	// filter closed connections, keeping those that have changed or have not
 	// been aggregated into another connection
-	closed = filterConnections(client.closedConnections, func(closedConn *ConnectionStats) bool {
+	closed = filterConnections(client.closed.conns, func(closedConn *ConnectionStats) bool {
 		cookie := closedConn.Cookie
 		if activeConn := activeByCookie[cookie]; activeConn != nil {
 			if ns.mergeConnectionStats(closedConn, activeConn) {
@@ -705,6 +780,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 		ns.updateConnWithStats(client, cookie, closedConn)
 
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if closedConn.Last.IsZero() {
 			// not reporting an "empty" connection
 			return false
@@ -726,6 +802,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 		newStats[c.Cookie] = client.stats[c.Cookie]
 
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if c.Last.IsZero() {
 			// not reporting an "empty" connection
 			return false
@@ -786,7 +863,7 @@ func (ns *networkState) RemoveExpiredClients(now time.Time) {
 
 	for id, c := range ns.clients {
 		if c.lastFetch.Add(ns.clientExpiry).Before(now) {
-			log.Debugf("expiring client: %s, had %d stats and %d closed connections", id, len(c.stats), len(c.closedConnections))
+			log.Debugf("expiring client: %s, had %d stats and %d closed connections", id, len(c.stats), len(c.closed.conns))
 			delete(ns.clients, id)
 			ClientPool.RemoveExpiredClient(id)
 		}
@@ -813,7 +890,7 @@ func (ns *networkState) GetStats() map[string]interface{} {
 	for id, c := range ns.clients {
 		clientInfo[id] = map[string]int{
 			"stats":              len(c.stats),
-			"closed_connections": len(c.closedConnections),
+			"closed_connections": len(c.closed.conns),
 			"last_fetch":         int(c.lastFetch.Unix()),
 		}
 	}
@@ -915,7 +992,12 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 			_, conn.IntraHost = lAddrs[keyWithRAddr]
 		}
 
-		fixConnectionDirection(conn)
+		switch conn.Direction {
+		case OUTGOING:
+			fixOutgoingConnectionDirection(conn)
+		case INCOMING:
+			fixIncomingConnectionDirection(conn)
+		}
 
 		if conn.IntraHost &&
 			conn.Direction == INCOMING &&
@@ -949,7 +1031,7 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 	})
 }
 
-// fixConnectionDirection fixes connection direction
+// fixIncomingConnectionDirection fixes connection direction
 // for UDP incoming connections.
 //
 // Some UDP connections can be assigned an incoming
@@ -968,7 +1050,7 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 // incoming. For remote connections, only
 // destination ports < 1024 are considered
 // non-ephemeral.
-func fixConnectionDirection(c *ConnectionStats) {
+func fixIncomingConnectionDirection(c *ConnectionStats) {
 	// fix only incoming UDP connections
 	if c.Direction != INCOMING || c.Type != UDP {
 		return
@@ -986,7 +1068,29 @@ func fixConnectionDirection(c *ConnectionStats) {
 	}
 	if sourceEphemeral && destNotEphemeral {
 		c.Direction = OUTGOING
-		stateTelemetry.udpDirectionFixes.Inc()
+		stateTelemetry.incomingDirectionFixes.Inc()
+	}
+}
+
+// fixOutgoingConnectionDirection potentially fixes the direction for outgoing connections
+//
+// When the system-probe starts up there is a race that occurs where port mappings are missing when they
+// are bound after the `/proc/net` state is read but before the probes are registered.  When that happens, the
+// connections will be marked as outgoing
+//
+// This function attempts to mitigate that by checking if an outgoing connection is from a non-ephemeral port to
+// an ephemeral port on an intra-host connection
+func fixOutgoingConnectionDirection(c *ConnectionStats) {
+	if c.Direction != OUTGOING || !c.IntraHost {
+		return
+	}
+
+	sourceNotEphemeral := IsPortInEphemeralRange(c.Family, c.Type, c.SPort) != EphemeralTrue
+	destEphemeral := IsPortInEphemeralRange(c.Family, c.Type, c.DPort) == EphemeralTrue
+
+	if sourceNotEphemeral && destEphemeral {
+		c.Direction = INCOMING
+		stateTelemetry.outgoingDirectionFixes.Inc()
 	}
 }
 
@@ -997,14 +1101,16 @@ type aggregateConnection struct {
 }
 
 type connectionAggregator struct {
-	conns map[string][]*aggregateConnection
-	buf   []byte
+	conns    map[string][]*aggregateConnection
+	buf      []byte
+	dnsStats dns.StatsByKeyByNameByType
 }
 
-func newConnectionAggregator(size int) *connectionAggregator {
+func newConnectionAggregator(size int, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
 	return &connectionAggregator{
-		conns: make(map[string][]*aggregateConnection, size),
-		buf:   make([]byte, ConnectionByteKeyMaxLen),
+		conns:    make(map[string][]*aggregateConnection, size),
+		buf:      make([]byte, ConnectionByteKeyMaxLen),
+		dnsStats: dnsStats,
 	}
 }
 
@@ -1014,6 +1120,20 @@ func (a *connectionAggregator) canAggregateIPTranslation(t1, t2 *IPTranslation) 
 
 func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack) bool {
 	return p1.IsUnknown() || p2.IsUnknown() || p1 == p2
+}
+
+func (a *connectionAggregator) dns(c *ConnectionStats) map[dns.Hostname]map[dns.QueryType]dns.Stats {
+	key, isDNS := DNSKey(c)
+	if !isDNS {
+		return nil
+	}
+
+	if stats, ok := a.dnsStats[key]; ok {
+		delete(a.dnsStats, key)
+		return stats
+	}
+
+	return nil
 }
 
 // Aggregate aggregates a connection. The connection is only
@@ -1028,6 +1148,10 @@ func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack)
 //   - the other connection's protocol stack is not unknown AND equal
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	key := string(c.ByteKey(a.buf))
+
+	// get dns stats for connection
+	c.DNSStats = a.dns(c)
+
 	aggrConns, ok := a.conns[key]
 	if !ok {
 		a.conns[key] = []*aggregateConnection{
@@ -1047,19 +1171,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 			continue
 		}
 
-		aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
-		aggrConn.Last = aggrConn.Last.Add(c.Last)
-		aggrConn.rttSum += uint64(c.RTT)
-		aggrConn.rttVarSum += uint64(c.RTTVar)
-		aggrConn.count++
-		if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
-			aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
-		}
-		if aggrConn.IPTranslation == nil {
-			aggrConn.IPTranslation = c.IPTranslation
-		}
-		aggrConn.ProtocolStack.MergeWith(c.ProtocolStack)
-
+		aggrConn.merge(c)
 		return true
 	}
 
@@ -1071,6 +1183,52 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	})
 
 	return false
+}
+
+func (ac *aggregateConnection) merge(c *ConnectionStats) {
+	ac.Monotonic = ac.Monotonic.Add(c.Monotonic)
+	ac.Last = ac.Last.Add(c.Last)
+	ac.rttSum += uint64(c.RTT)
+	ac.rttVarSum += uint64(c.RTTVar)
+	ac.count++
+	if ac.LastUpdateEpoch < c.LastUpdateEpoch {
+		ac.LastUpdateEpoch = c.LastUpdateEpoch
+	}
+	if ac.IPTranslation == nil {
+		ac.IPTranslation = c.IPTranslation
+	}
+
+	ac.ProtocolStack.MergeWith(c.ProtocolStack)
+
+	if ac.DNSStats == nil {
+		ac.DNSStats = c.DNSStats
+	} else {
+		for hostname, statsByQuery := range c.DNSStats {
+			hostStats := ac.DNSStats[hostname]
+			if hostStats == nil {
+				hostStats = make(map[dns.QueryType]dns.Stats)
+				ac.DNSStats[hostname] = hostStats
+			}
+			for q, stats := range statsByQuery {
+				queryStats, ok := hostStats[q]
+				if !ok {
+					hostStats[q] = stats
+					continue
+				}
+
+				queryStats.FailureLatencySum += stats.FailureLatencySum
+				queryStats.SuccessLatencySum += stats.SuccessLatencySum
+				queryStats.Timeouts += stats.Timeouts
+				for rcode, count := range stats.CountByRcode {
+					queryStats.CountByRcode[rcode] += count
+				}
+				hostStats[q] = queryStats
+			}
+		}
+	}
+
+	// no need to hold on to dns stats on the aggregated connection
+	c.DNSStats = nil
 }
 
 func (a *connectionAggregator) finalize() {
@@ -1106,4 +1264,10 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	a.ProtocolStack.MergeWith(b.ProtocolStack)
 
 	return false
+}
+
+func isEmpty(conn ConnectionStats) bool {
+	return conn.Monotonic.RecvBytes == 0 && conn.Monotonic.RecvPackets == 0 &&
+		conn.Monotonic.SentBytes == 0 && conn.Monotonic.SentPackets == 0 &&
+		conn.Monotonic.Retransmits == 0
 }

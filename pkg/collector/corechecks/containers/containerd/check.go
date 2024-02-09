@@ -10,10 +10,15 @@ package containerd
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -24,12 +29,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 const (
-	containerdCheckName = "containerd"
+	// CheckName is the name of the check
+	CheckName           = "containerd"
+	pullImageGrpcMethod = "PullImage"
 	cacheValidity       = 2 * time.Second
 )
+
+var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
 
 // ContainerdCheck grabs containerd metrics and events
 type ContainerdCheck struct {
@@ -39,24 +50,26 @@ type ContainerdCheck struct {
 	subscriber      *subscriber
 	containerFilter *containers.Filter
 	client          cutil.ContainerdItf
+	httpClient      http.Client
+	store           workloadmeta.Component
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
-	ContainerdFilters []string `yaml:"filters"`
-	CollectEvents     bool     `yaml:"collect_events"`
+	ContainerdFilters   []string `yaml:"filters"`
+	CollectEvents       bool     `yaml:"collect_events"`
+	OpenmetricsEndpoint string   `yaml:"openmetrics_endpoint"`
 }
 
-func init() {
-	corechecks.RegisterCheck(containerdCheckName, ContainerdFactory)
-}
-
-// ContainerdFactory is used to create register the check and initialize it.
-func ContainerdFactory() check.Check {
-	return &ContainerdCheck{
-		CheckBase: corechecks.NewCheckBase(containerdCheckName),
-		instance:  &ContainerdConfig{},
-	}
+// Factory is used to create register the check and initialize it.
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &ContainerdCheck{
+			CheckBase: corechecks.NewCheckBase(CheckName),
+			instance:  &ContainerdConfig{},
+			store:     store,
+		}
+	})
 }
 
 // Parse is used to get the configuration set by the user
@@ -85,7 +98,8 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, integrat
 		return err
 	}
 
-	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(c.containerFilter))
+	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
+	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store))
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
 
@@ -116,6 +130,10 @@ func (c *ContainerdCheck) Run() error {
 		_ = c.Warnf("Error collecting metrics: %s", err)
 	}
 
+	if err := c.scrapeOpenmetricsEndpoint(sender); err != nil {
+		_ = c.Warnf("Error collecting image pull metrics: %s", err)
+	}
+
 	c.collectEvents(sender)
 
 	return nil
@@ -133,7 +151,61 @@ func (c *ContainerdCheck) runContainerdCustom(sender sender.Sender) error {
 
 	for _, namespace := range namespaces {
 		if err := c.collectImageSizes(sender, c.client, namespace); err != nil {
-			log.Infof("Failed to collect images size, err: %s", err)
+			log.Infof("Failed to scrape containerd openmetrics endpoint, err: %s", err)
+		}
+	}
+
+	return nil
+}
+
+func toSnakeCase(s string) string {
+	snake := matchAllCap.ReplaceAllString(s, "${1}_${2}")
+	return strings.ToLower(snake)
+}
+
+func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error {
+
+	if c.instance.OpenmetricsEndpoint == "" {
+		return nil
+	}
+
+	openmetricsEndpoint := fmt.Sprintf("%s/v1/metrics", c.instance.OpenmetricsEndpoint)
+	resp, err := c.httpClient.Get(openmetricsEndpoint)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	parsedMetrics, err := prometheus.ParseMetrics(body)
+	if err != nil {
+		return err
+	}
+
+	for _, mf := range parsedMetrics {
+		for _, sample := range mf.Samples {
+			if sample == nil {
+				continue
+			}
+
+			metric := sample.Metric
+
+			metricName, ok := metric["__name__"]
+
+			if !ok {
+				continue
+			}
+
+			transform, found := defaultContainerdOpenmetricsTransformers[string(metricName)]
+
+			if found {
+				transform(sender, string(metricName), *sample)
+			}
 		}
 	}
 

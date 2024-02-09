@@ -30,7 +30,7 @@ var (
 )
 
 func resetPackageVars() {
-	config.Datadog.Set("ec2_metadata_timeout", initialTimeout)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", initialTimeout)
 	metadataURL = initialMetadataURL
 	tokenURL = initialTokenURL
 	token = httputils.NewAPIToken(getToken)
@@ -90,7 +90,7 @@ func TestGetInstanceID(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	// API errors out, should return error
@@ -165,9 +165,9 @@ func TestGetHostAliases(t *testing.T) {
 
 			config.Mock(t)
 			if tc.disableDMI {
-				config.Datadog.Set("ec2_use_dmi", false)
+				config.Datadog.SetWithoutSource("ec2_use_dmi", false)
 			} else {
-				config.Datadog.Set("ec2_use_dmi", true)
+				config.Datadog.SetWithoutSource("ec2_use_dmi", true)
 			}
 
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -184,7 +184,7 @@ func TestGetHostAliases(t *testing.T) {
 			defer ts.Close()
 
 			metadataURL = ts.URL
-			config.Datadog.Set("ec2_metadata_timeout", 1000)
+			config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 			defer resetPackageVars()
 
 			ctx := context.Background()
@@ -208,7 +208,7 @@ func TestGetHostname(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	// API errors out, should return error
@@ -311,7 +311,7 @@ func TestGetToken(t *testing.T) {
 
 	defer ts.Close()
 	tokenURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	token, err := token.Get(ctx)
@@ -369,7 +369,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	tokenURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	ips, err := GetPublicIPv4(ctx)
@@ -435,7 +435,7 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	tokenURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	ips, err := GetPublicIPv4(context.Background())
@@ -461,7 +461,7 @@ func TestGetNTPHostsFromIMDS(t *testing.T) {
 
 func TestGetNTPHostsDMI(t *testing.T) {
 	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", true)
+	config.Datadog.SetWithoutSource("ec2_use_dmi", true)
 
 	setupDMIForEC2(t)
 	defer resetPackageVars()
@@ -473,7 +473,7 @@ func TestGetNTPHostsDMI(t *testing.T) {
 
 func TestGetNTPHostsEC2UUID(t *testing.T) {
 	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", true)
+	config.Datadog.SetWithoutSource("ec2_use_dmi", true)
 
 	dmi.SetupMock(t, "ec2something", "", "", "")
 	defer resetPackageVars()
@@ -485,7 +485,7 @@ func TestGetNTPHostsEC2UUID(t *testing.T) {
 
 func TestGetNTPHostsDisabledDMI(t *testing.T) {
 	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", false)
+	config.Datadog.SetWithoutSource("ec2_use_dmi", false)
 
 	// DMI without EC2 UUID
 	dmi.SetupMock(t, "something", "something", "i-myinstance", DMIBoardVendor)
@@ -530,8 +530,8 @@ func TestMetadataSourceIMDS(t *testing.T) {
 	tokenURL = ts.URL
 	defer resetPackageVars()
 	config.Mock(t)
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
-	config.Datadog.Set("ec2_prefer_imdsv2", true)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_prefer_imdsv2", true)
 
 	assert.True(t, IsRunningOn(ctx))
 	assert.Equal(t, metadataSourceIMDSv2, currentMetadataSource)
@@ -539,7 +539,7 @@ func TestMetadataSourceIMDS(t *testing.T) {
 	// trying IMDSv1
 	hostnameFetcher.Reset()
 	currentMetadataSource = metadataSourceNone
-	config.Datadog.Set("ec2_prefer_imdsv2", false)
+	config.Datadog.SetWithoutSource("ec2_prefer_imdsv2", false)
 
 	assert.True(t, IsRunningOn(ctx))
 	assert.Equal(t, metadataSourceIMDSv1, currentMetadataSource)
@@ -547,7 +547,7 @@ func TestMetadataSourceIMDS(t *testing.T) {
 
 func TestMetadataSourceUUID(t *testing.T) {
 	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", true)
+	config.Datadog.SetWithoutSource("ec2_use_dmi", true)
 
 	ctx := context.Background()
 
@@ -569,7 +569,7 @@ func TestMetadataSourceUUID(t *testing.T) {
 
 func TestMetadataSourceDMI(t *testing.T) {
 	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", true)
+	config.Datadog.SetWithoutSource("ec2_use_dmi", true)
 
 	ctx := context.Background()
 
@@ -583,7 +583,7 @@ func TestMetadataSourceDMI(t *testing.T) {
 
 func TestMetadataSourceDMIPreventFallback(t *testing.T) {
 	config.Mock(t)
-	config.Datadog.Set("ec2_use_dmi", true)
+	config.Datadog.SetWithoutSource("ec2_use_dmi", true)
 
 	ctx := context.Background()
 

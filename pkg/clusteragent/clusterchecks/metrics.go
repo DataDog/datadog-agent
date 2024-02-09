@@ -44,7 +44,7 @@ var (
 		[]string{"node", le.JoinLeaderLabel}, "Busyness of a node per the number of metrics submitted and average duration of all checks run",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	configsInfo = telemetry.NewGaugeWithOpts("cluster_checks", "configs_info",
-		[]string{"node", "check_id", le.JoinLeaderLabel}, "Information about the dispatched checks (node, check ID)",
+		[]string{"node", "check_name", "check_id", le.JoinLeaderLabel}, "Information about the dispatched checks (node, check name, check ID)",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	predictedUtilization = telemetry.NewGaugeWithOpts("cluster_checks", "predicted_utilization",
 		[]string{"node", le.JoinLeaderLabel}, "Utilization predicted by the rebalance algorithm",

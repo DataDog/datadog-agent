@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	//nolint:revive // TODO(AML) Fix revive linter
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -80,6 +81,8 @@ func init() {
 }
 
 // PythonCheckLoader is a specific loader for checks living in Python modules
+//
+//nolint:revive // TODO(AML) Fix revive linter
 type PythonCheckLoader struct{}
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
@@ -97,6 +100,8 @@ func getRtLoaderError() error {
 }
 
 // Load returns Python loader name
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (cl *PythonCheckLoader) Name() string {
 	return "python"
 }
@@ -205,6 +210,10 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
 		C.rtloader_decref(rtloader, checkClass)
 		C.rtloader_decref(rtloader, checkModule)
+
+		if errors.Is(err, check.ErrSkipCheckInstance) {
+			return nil, err
+		}
 
 		addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
 		return c, fmt.Errorf("could not configure check instance for python check %s: %s", moduleName, err.Error())

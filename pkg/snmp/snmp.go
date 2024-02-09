@@ -32,16 +32,17 @@ const (
 
 // ListenerConfig holds global configuration for SNMP discovery
 type ListenerConfig struct {
-	Workers               int      `mapstructure:"workers"`
-	DiscoveryInterval     int      `mapstructure:"discovery_interval"`
-	AllowedFailures       int      `mapstructure:"discovery_allowed_failures"`
-	Loader                string   `mapstructure:"loader"`
-	CollectDeviceMetadata bool     `mapstructure:"collect_device_metadata"`
-	CollectTopology       bool     `mapstructure:"collect_topology"`
-	MinCollectionInterval uint     `mapstructure:"min_collection_interval"`
-	Namespace             string   `mapstructure:"namespace"`
-	UseDeviceISAsHostname bool     `mapstructure:"use_device_id_as_hostname"`
-	Configs               []Config `mapstructure:"configs"`
+	Workers               int                        `mapstructure:"workers"`
+	DiscoveryInterval     int                        `mapstructure:"discovery_interval"`
+	AllowedFailures       int                        `mapstructure:"discovery_allowed_failures"`
+	Loader                string                     `mapstructure:"loader"`
+	CollectDeviceMetadata bool                       `mapstructure:"collect_device_metadata"`
+	CollectTopology       bool                       `mapstructure:"collect_topology"`
+	MinCollectionInterval uint                       `mapstructure:"min_collection_interval"`
+	Namespace             string                     `mapstructure:"namespace"`
+	UseDeviceISAsHostname bool                       `mapstructure:"use_device_id_as_hostname"`
+	Configs               []Config                   `mapstructure:"configs"`
+	PingConfig            snmpintegration.PingConfig `mapstructure:"ping"`
 
 	// legacy
 	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
@@ -79,6 +80,8 @@ type Config struct {
 	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 
+	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
+
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
 	VersionLegacy      string `mapstructure:"version"`
@@ -87,6 +90,10 @@ type Config struct {
 	AuthProtocolLegacy string `mapstructure:"authentication_protocol"`
 	PrivKeyLegacy      string `mapstructure:"privacy_key"`
 	PrivProtocolLegacy string `mapstructure:"privacy_protocol"`
+}
+
+type intOrBoolPtr interface {
+	*int | *bool
 }
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig
@@ -110,7 +117,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 	)
 	// Set defaults before unmarshalling
 	snmpConfig.CollectDeviceMetadata = true
-	snmpConfig.CollectTopology = false // TODO: Set this to `true` when GA
+	snmpConfig.CollectTopology = true
 	if err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
 		return snmpConfig, err
 	}
@@ -156,6 +163,13 @@ func NewListenerConfig() (ListenerConfig, error) {
 		if config.MinCollectionInterval == 0 {
 			config.MinCollectionInterval = snmpConfig.MinCollectionInterval
 		}
+
+		// Ping config
+		config.PingConfig.Enabled = firstNonNil(config.PingConfig.Enabled, snmpConfig.PingConfig.Enabled)
+		config.PingConfig.Linux.UseRawSocket = firstNonNil(config.PingConfig.Linux.UseRawSocket, snmpConfig.PingConfig.Linux.UseRawSocket)
+		config.PingConfig.Interval = firstNonNil(config.PingConfig.Interval, snmpConfig.PingConfig.Interval)
+		config.PingConfig.Timeout = firstNonNil(config.PingConfig.Timeout, snmpConfig.PingConfig.Timeout)
+		config.PingConfig.Count = firstNonNil(config.PingConfig.Count, snmpConfig.PingConfig.Count)
 
 		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace, coreconfig.Datadog.GetString("network_devices.namespace"))
 		config.Community = firstNonEmpty(config.Community, config.CommunityLegacy)
@@ -270,4 +284,14 @@ func firstNonEmpty(strings ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstNonNil[T intOrBoolPtr](params ...T) T {
+	for _, p := range params {
+		if p != nil {
+			return p
+		}
+	}
+
+	return nil
 }

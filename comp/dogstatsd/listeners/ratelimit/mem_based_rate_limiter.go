@@ -47,7 +47,7 @@ var ballast []byte //nolint:unused
 var ballastOnce sync.Once
 
 // BuildMemBasedRateLimiter builds a new instance of *MemBasedRateLimiter
-func BuildMemBasedRateLimiter(cfg config.ConfigReader) (*MemBasedRateLimiter, error) {
+func BuildMemBasedRateLimiter(cfg config.Reader) (*MemBasedRateLimiter, error) {
 	var memoryUsage memoryUsage
 	var err error
 	if memoryUsage, err = newCgroupMemoryUsage(); err == nil {
@@ -90,7 +90,7 @@ func BuildMemBasedRateLimiter(cfg config.ConfigReader) (*MemBasedRateLimiter, er
 	)
 }
 
-func getConfigFloat(cfg config.ConfigReader, subkey string) float64 {
+func getConfigFloat(cfg config.Reader, subkey string) float64 {
 	return cfg.GetFloat64("dogstatsd_mem_based_rate_limiter." + subkey)
 }
 

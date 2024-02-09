@@ -7,6 +7,7 @@ package processor
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -42,7 +43,11 @@ type jsonServerlessLambda struct {
 }
 
 // Encode encodes a message into a JSON byte array.
-func (j *jsonServerlessEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
+func (j *jsonServerlessEncoder) Encode(msg *message.Message, hostname string) error {
+	if msg.State != message.StateRendered {
+		return fmt.Errorf("message passed to encoder isn't rendered")
+	}
+
 	ts := time.Now().UTC()
 	if !msg.ServerlessExtra.Timestamp.IsZero() {
 		ts = msg.ServerlessExtra.Timestamp
@@ -57,16 +62,23 @@ func (j *jsonServerlessEncoder) Encode(msg *message.Message, redactedMsg []byte)
 		}
 	}
 
-	return json.Marshal(jsonServerlessPayload{
+	encoded, err := json.Marshal(jsonServerlessPayload{
 		Message: jsonServerlessMessage{
-			Message: toValidUtf8(redactedMsg),
+			Message: toValidUtf8(msg.GetContent()),
 			Lambda:  lambdaPart,
 		},
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
-		Hostname:  msg.GetHostname(),
+		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
 		Tags:      msg.Origin.TagsToString(),
 	})
+
+	if err != nil {
+		return fmt.Errorf("can't encode the message: %v", err)
+	}
+
+	msg.SetEncoded(encoded)
+	return nil
 }

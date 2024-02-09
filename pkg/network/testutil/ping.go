@@ -8,15 +8,31 @@ package testutil
 import (
 	"fmt"
 	"net"
-	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// MustPingTCP is a wrapper around PingTCP that guarantees a non-nil
+// connection is returned
+func MustPingTCP(tb require.TestingT, ip net.IP, port int) net.Conn {
+	c := PingTCP(tb, ip, port)
+	require.NotNil(tb, c, "pinged tcp connection must not be nil")
+	return c
+}
+
+// MustPingUDP is a wrapper around PingUDP that guarantees a non-nil
+// connection is returned
+func MustPingUDP(tb require.TestingT, ip net.IP, port int) net.Conn {
+	c := PingUDP(tb, ip, port)
+	require.NotNil(tb, c, "pinged udp connection must not be nil")
+	return c
+}
+
 // PingTCP connects to the provided IP address over TCP/TCPv6, sends the string "ping",
 // reads from the connection, and returns the open connection for further use/inspection.
-func PingTCP(tb testing.TB, ip net.IP, port int) net.Conn {
+func PingTCP(tb require.TestingT, ip net.IP, port int) net.Conn {
 	addr := fmt.Sprintf("%s:%d", ip, port)
 	network := "tcp"
 	if isIpv6(ip) {
@@ -25,21 +41,28 @@ func PingTCP(tb testing.TB, ip net.IP, port int) net.Conn {
 	}
 
 	conn, err := net.DialTimeout(network, addr, time.Second)
-	require.NoError(tb, err)
-	tb.Cleanup(func() { conn.Close() })
+	if !assert.NoError(tb, err) {
+		return nil
+	}
 
 	_, err = conn.Write([]byte("ping"))
-	require.NoError(tb, err)
+	if !assert.NoError(tb, err) {
+		return nil
+	}
+
 	bs := make([]byte, 10)
 	_, err = conn.Read(bs)
-	require.NoError(tb, err)
+
+	if !assert.NoError(tb, err) {
+		return nil
+	}
 
 	return conn
 }
 
 // PingUDP connects to the provided IP address over UDP/UDPv6, sends the string "ping",
 // and returns the open connection for further use/inspection.
-func PingUDP(tb testing.TB, ip net.IP, port int) net.Conn {
+func PingUDP(tb require.TestingT, ip net.IP, port int) net.Conn {
 	network := "udp"
 	if isIpv6(ip) {
 		network = "udp6"
@@ -49,11 +72,19 @@ func PingUDP(tb testing.TB, ip net.IP, port int) net.Conn {
 		Port: port,
 	}
 	conn, err := net.DialUDP(network, nil, addr)
-	require.NoError(tb, err)
-	tb.Cleanup(func() { conn.Close() })
+	if !assert.NoError(tb, err) {
+		return nil
+	}
 
 	_, err = conn.Write([]byte("ping"))
-	require.NoError(tb, err)
+	if !assert.NoError(tb, err) {
+		return nil
+	}
+
+	bs := make([]byte, 10)
+	n, err := conn.Read(bs)
+	assert.NoError(tb, err)
+	assert.Equal(tb, []byte("pong"), bs[:n])
 
 	return conn
 }

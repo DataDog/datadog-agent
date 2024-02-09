@@ -11,13 +11,19 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func TestParseKubeServiceAnnotations(t *testing.T) {
@@ -120,7 +126,8 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
-			cfgs, _ := parseServiceAnnotations([]*v1.Service{tc.service})
+			provider := KubeServiceConfigProvider{}
+			cfgs, _ := provider.parseServiceAnnotations([]*v1.Service{tc.service})
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})
 	}
@@ -215,6 +222,140 @@ func TestInvalidateIfChanged(t *testing.T) {
 			upToDate, err := provider.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, !tc.invalidate, upToDate)
+		})
+	}
+}
+
+func TestGetConfigErrors_KubeServices(t *testing.T) {
+	serviceWithErrors := v1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind: kubernetes.ServiceKind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withErrors",
+			Namespace: "default",
+			UID:       "123",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/service.check_names":  "[\"some_check\"]",
+				"ad.datadoghq.com/service.init_configs": "[{}]",
+				"ad.datadoghq.com/service.instances":    "[{\"url\" \"%%host%%\"}]", // Invalid JSON (missing ":" after "url")
+			},
+		},
+	}
+
+	serviceWithoutErrors := v1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind: kubernetes.ServiceKind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withoutErrors",
+			Namespace: "default",
+			UID:       "456",
+			Annotations: map[string]string{ // No errors
+				"ad.datadoghq.com/service.check_names":  "[\"some_check\"]",
+				"ad.datadoghq.com/service.init_configs": "[{}]",
+				"ad.datadoghq.com/service.instances":    "[{\"url\": \"%%host%%\"}]",
+			},
+		},
+	}
+
+	tests := []struct {
+		name                        string
+		currentErrors               map[string]ErrorMsgSet
+		collectedServices           []runtime.Object
+		expectedNumCollectedConfigs int
+		expectedErrorsAfterCollect  map[string]ErrorMsgSet
+	}{
+		{
+			name:          "case without errors",
+			currentErrors: map[string]ErrorMsgSet{},
+			collectedServices: []runtime.Object{
+				&serviceWithoutErrors,
+			},
+			expectedNumCollectedConfigs: 1,
+			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+		},
+		{
+			name: "service that has been deleted and had errors",
+			currentErrors: map[string]ErrorMsgSet{
+				"kube_service://default/deletedService": {"error1": struct{}{}},
+			},
+			collectedServices: []runtime.Object{
+				&serviceWithoutErrors,
+			},
+			expectedNumCollectedConfigs: 1,
+			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+		},
+		{
+			name: "service with error that has been fixed",
+			currentErrors: map[string]ErrorMsgSet{
+				"kube_service://default/withoutErrors": {"error1": struct{}{}},
+			},
+			collectedServices: []runtime.Object{
+				&serviceWithoutErrors,
+			},
+			expectedNumCollectedConfigs: 1,
+			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+		},
+		{
+			name:          "service that did not have an error but now does",
+			currentErrors: map[string]ErrorMsgSet{},
+			collectedServices: []runtime.Object{
+				&serviceWithErrors,
+			},
+			expectedNumCollectedConfigs: 0,
+			expectedErrorsAfterCollect: map[string]ErrorMsgSet{
+				"kube_service://default/withErrors": {
+					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
+				},
+			},
+		},
+		{
+			name: "service that had an error and still does",
+			currentErrors: map[string]ErrorMsgSet{
+				"kube_service://default/withErrors": {
+					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
+				},
+			},
+			collectedServices: []runtime.Object{
+				&serviceWithErrors,
+			},
+			expectedNumCollectedConfigs: 0,
+			expectedErrorsAfterCollect: map[string]ErrorMsgSet{
+				"kube_service://default/withErrors": {
+					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
+				},
+			},
+		},
+		{
+			name:                        "nothing collected",
+			currentErrors:               map[string]ErrorMsgSet{},
+			collectedServices:           []runtime.Object{},
+			expectedNumCollectedConfigs: 0,
+			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kubeClient := fake.NewSimpleClientset(test.collectedServices...)
+			factory := informers.NewSharedInformerFactory(kubeClient, time.Duration(0))
+			lister := factory.Core().V1().Services().Lister()
+
+			stop := make(chan struct{})
+			defer close(stop)
+			factory.Start(stop)
+			factory.WaitForCacheSync(stop)
+
+			provider := KubeServiceConfigProvider{
+				lister:       lister,
+				configErrors: test.currentErrors,
+			}
+
+			configs, err := provider.Collect(context.TODO())
+			require.NoError(t, err)
+			require.Len(t, configs, test.expectedNumCollectedConfigs)
+			assert.Equal(t, test.expectedErrorsAfterCollect, provider.GetConfigErrors())
 		})
 	}
 }

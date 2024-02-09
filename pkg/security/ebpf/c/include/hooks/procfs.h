@@ -7,7 +7,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/utils.h"
 
-// used during the snapshot thus this kprobe will present only at the snapshot
+// used by both snapshot and process resolver fallback
 HOOK_ENTRY("security_inode_getattr")
 int hook_security_inode_getattr(ctx_t *ctx) {
     if (!is_runtime_request()) {
@@ -45,7 +45,7 @@ int hook_security_inode_getattr(ctx_t *ctx) {
         .flags = flags,
     };
 
-    fill_file_metadata(dentry, &entry.metadata);
+    fill_file(dentry, &entry);
 
     bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_NOEXIST);
 
@@ -67,8 +67,11 @@ int hook_path_get(ctx_t *ctx) {
         return 0;
     }
 
+    u64 f_path_offset;
+    LOAD_CONSTANT("file_f_path_offset", f_path_offset);
+
     struct path *p = (struct path *)CTX_PARM1(ctx);
-    struct file *sock_file = (void *)p - offsetof(struct file, f_path);
+    struct file *sock_file = (void *)p - f_path_offset;
     struct pid_route_t route = {};
 
     struct socket *sock;

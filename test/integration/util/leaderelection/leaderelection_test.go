@@ -110,7 +110,7 @@ func TestSuiteAPIServer(t *testing.T) {
 
 		mockConfig := config.Mock(t)
 		config.SetFeatures(t, config.Kubernetes)
-		mockConfig.Set("leader_election_default_resource", tt.leaderElectionDefaultResource)
+		mockConfig.SetWithoutSource("leader_election_default_resource", tt.leaderElectionDefaultResource)
 
 		// Start compose stack
 		compose := &utils.ComposeConf{
@@ -126,7 +126,7 @@ func TestSuiteAPIServer(t *testing.T) {
 		pwd, err := os.Getwd()
 		require.Nil(t, err)
 		s.kubeConfigPath = filepath.Join(pwd, "testdata", "kubeconfig.json")
-		mockConfig.Set("kubernetes_kubeconfig_path", s.kubeConfigPath)
+		mockConfig.SetWithoutSource("kubernetes_kubeconfig_path", s.kubeConfigPath)
 		_, err = os.Stat(s.kubeConfigPath)
 		require.Nil(t, err, fmt.Sprintf("%v", err))
 
@@ -188,7 +188,11 @@ func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderel
 	leaderelection.ResetGlobalLeaderEngine()
 	telemetryComponent.GetCompatComponent().Reset()
 
-	leader, err := leaderelection.GetCustomLeaderEngine(holderIdentity, time.Second*30)
+	leader := leaderelection.CreateGlobalLeaderEngine(context.Background())
+	leader.HolderIdentity = holderIdentity
+	leader.LeaseDuration = time.Second * 30
+
+	_, err := leaderelection.GetLeaderEngine()
 	require.Nil(suite.T(), err)
 	return leader
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -24,6 +24,7 @@ func (lo LoaderOne) Name() string {
 	return "loader_one"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (lo LoaderOne) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
@@ -35,6 +36,7 @@ func (lt LoaderTwo) Name() string {
 	return "loader_two"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (lt LoaderTwo) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
@@ -46,6 +48,7 @@ func (lt *LoaderThree) Name() string {
 	return "loader_three"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (lt *LoaderThree) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
@@ -62,7 +65,7 @@ func TestLoaderCatalog(t *testing.T) {
 	RegisterLoader(20, factory1)
 	RegisterLoader(10, factory2)
 	RegisterLoader(30, factory3)
-	senderManager := aggregator.GetSenderManager()
+	senderManager := mocksender.CreateDefaultDemultiplexer()
 	require.Len(t, LoaderCatalog(senderManager), 2)
 	assert.Equal(t, l1, LoaderCatalog(senderManager)[1])
 	assert.Equal(t, l2, LoaderCatalog(senderManager)[0])

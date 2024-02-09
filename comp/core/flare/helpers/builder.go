@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package helpers contains helpers for the flare component.
 package helpers
 
 import (
@@ -14,12 +15,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mholt/archiver/v3"
+
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/mholt/archiver/v3"
 )
 
 const (
@@ -76,7 +79,7 @@ func newBuilder(root string, hostname string, localFlare bool) (*builder, error)
 // NewFlareBuilder returns a new FlareBuilder ready to be used. You need to call the Save method to archive all the data
 // pushed to the flare as well as cleanup the temporary directories created. Not calling 'Save' after NewFlareBuilder
 // will leave temporary directory on the file system.
-func NewFlareBuilder(localFlare bool) (FlareBuilder, error) {
+func NewFlareBuilder(localFlare bool) (types.FlareBuilder, error) {
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return nil, fmt.Errorf("Could not create temp dir for flare: %s", err)

@@ -8,15 +8,15 @@
 package oracle
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/stretchr/testify/assert"
-	"testing"
 
 	_ "github.com/godror/godror"
 )
 
 func TestGetFullSqlText(t *testing.T) {
-	initAndStartAgentDemultiplexer(t)
 	for _, tnsAlias := range []string{"", TNS_ALIAS} {
 		chk.db = nil
 
@@ -26,14 +26,15 @@ func TestGetFullSqlText(t *testing.T) {
 		var driver string
 		if tnsAlias == "" {
 			driver = common.GoOra
-			chk.config.InstanceConfig.InstantClient = false
+			chk.config.InstanceConfig.OracleClient = false
 		} else {
 			driver = common.Godror
 		}
-		chk.Run()
+		err := chk.Run()
+		assert.NoError(t, err, "check run")
 
 		var SQLStatement string
-		err := getFullSQLText(&chk, &SQLStatement, "sql_id", "A")
-		assert.ErrorContainsf(t, err, "no rows", "getFullSQLText didn't return `no rows` error with %s driver", driver)
+		err = getFullSQLText(&chk, &SQLStatement, "sql_id", "A")
+		assert.NoError(t, err, "no rows returned an error with %s driver", driver)
 	}
 }

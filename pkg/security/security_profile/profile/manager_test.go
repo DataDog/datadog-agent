@@ -46,7 +46,7 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 	event.Timestamp = t0.Add(ti.eventTimestampRaw)
 
 	// setting process
-	event.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(42, 42, false)
+	event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
 	event.ProcessCacheEntry.ContainerID = defaultContainerID
 	event.ProcessCacheEntry.FileEvent.PathnameStr = ti.eventProcessPath
 	event.ProcessCacheEntry.FileEvent.Inode = 42
@@ -55,6 +55,7 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 	switch ti.eventType {
 	case model.ExecEventType:
 		event.Exec.Process = &event.ProcessCacheEntry.ProcessContext.Process
+		//nolint:gosimple // TODO(SEC) Fix gosimple linter
 		break
 	case model.DNSEventType:
 		event.DNS.Name = ti.eventDNSReq
@@ -62,11 +63,12 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 		event.DNS.Class = 1 // INET
 		event.DNS.Size = uint16(len(ti.eventDNSReq))
 		event.DNS.Count = 1
+		//nolint:gosimple // TODO(SEC) Fix gosimple linter
 		break
 	}
 
 	// setting process ancestor
-	event.ProcessCacheEntry.Ancestor = model.NewEmptyProcessCacheEntry(1, 1, false)
+	event.ProcessCacheEntry.Ancestor = model.NewPlaceholderProcessCacheEntry(1, 1, false)
 	event.ProcessCacheEntry.Ancestor.FileEvent.PathnameStr = "systemd"
 	event.ProcessCacheEntry.Ancestor.FileEvent.Inode = 41
 	event.ProcessCacheEntry.Ancestor.Args = "foo"
@@ -105,9 +107,19 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		// and for dns:
 		{
-			name:                "warmup-dns/not-warmup",
+			name:                "warmup-dns/insert-dns-process",
 			result:              AutoLearning,
 			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo0",
+		},
+		{
+			name:                "warmup-dns/not-warmup",
+			result:              AutoLearning,
+			newProfile:          false,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
 			eventTimestampRaw:   0,
@@ -116,14 +128,57 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventDNSReq:         "foo.bar",
 		},
 		{
+			name:                "warmup-dns/insert-dns-process2",
+			result:              AutoLearning,
+			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo0",
+		},
+		{
 			name:                "warmup-dns/warmup",
 			result:              WorkloadWarmup,
-			newProfile:          true,
+			newProfile:          false,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod + time.Second,
 			addFakeProcessNodes: 0,
 			eventTimestampRaw:   0,
 			eventType:           model.DNSEventType,
 			eventProcessPath:    "/bin/foo0",
+			eventDNSReq:         "foo.baz",
+		},
+
+		// dont insert dns process if not already present:
+		{
+			name:                "dont-insert-dns-process/add-first-exec-event",
+			result:              AutoLearning,
+			newProfile:          true,
+			containerCreatedAt:  time.Minute * -5,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   time.Second,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo0",
+		},
+		{
+			name:                "dont-insert-dns-process/wait-stable-period",
+			result:              StableEventType,
+			newProfile:          false,
+			containerCreatedAt:  time.Minute * -5,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   time.Second*2 + AnomalyDetectionMinimumStablePeriod,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo1",
+		},
+		{
+			name:                "dont-insert-dns-process/reject-dns-process",
+			result:              AutoLearning,
+			newProfile:          false,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.DNSEventType,
+			eventProcessPath:    "/bin/bar",
 			eventDNSReq:         "foo.baz",
 		},
 
@@ -186,14 +241,24 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			addFakeProcessNodes: 0,
 			eventTimestampRaw:   time.Second,
 			eventType:           model.DNSEventType,
-			eventProcessPath:    "/bin/foo",
+			eventProcessPath:    "/bin/foo0",
 			eventDNSReq:         "foo0.bar",
 		},
 		// and for dns:
 		{
-			name:                "stable-dns/add-first-event",
+			name:                "stable-dns/insert-dns-process",
 			result:              AutoLearning,
 			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo",
+		},
+		{
+			name:                "stable-dns/add-first-event",
+			result:              AutoLearning,
+			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
 			eventTimestampRaw:   time.Second,
@@ -258,9 +323,19 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 
 		// checking unstable period for exec:
 		{
-			name:                "unstable-exec/wait-unstable-period",
+			name:                "unstable-exec/insert-dns-process",
 			result:              AutoLearning,
 			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo0",
+		},
+		{
+			name:                "unstable-exec/wait-unstable-period",
+			result:              AutoLearning,
+			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
 			eventTimestampRaw:   0,
@@ -297,14 +372,24 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			addFakeProcessNodes: 0,
 			eventTimestampRaw:   time.Second,
 			eventType:           model.DNSEventType,
-			eventProcessPath:    "/bin/foo",
+			eventProcessPath:    "/bin/foo0",
 			eventDNSReq:         "foo0.bar",
 		},
 		// and for dns:
 		{
-			name:                "unstable-dns/wait-unstable-period",
+			name:                "unstable-dns/insert-dns-process",
 			result:              AutoLearning,
 			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo",
+		},
+		{
+			name:                "unstable-dns/wait-unstable-period",
+			result:              AutoLearning,
+			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
 			eventTimestampRaw:   0,
@@ -420,9 +505,19 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		// and for dns:
 		{
+			name:                "profile-at-max-size-dns/insert-dns-process",
+			result:              AutoLearning,
+			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo",
+		},
+		{
 			name:                "profile-at-max-size-dns/add-first-event",
 			result:              WorkloadWarmup,
-			newProfile:          true,
+			newProfile:          false,
 			containerCreatedAt:  0,
 			addFakeProcessNodes: 0,
 			eventTimestampRaw:   time.Second,
@@ -475,22 +570,42 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventDNSReq:         "foo1.bar",
 		},
 		{
+			name:                "profile-at-max-size-dns/insert-dns-process2",
+			result:              AutoLearning,
+			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo",
+		},
+		{
 			name:                "profile-at-max-size-dns/warmup-NOT-at-max-size",
 			result:              WorkloadWarmup,
-			newProfile:          true,
+			newProfile:          false,
 			containerCreatedAt:  0,
-			addFakeProcessNodes: MaxNbProcess - 1,
+			addFakeProcessNodes: MaxNbProcess - 2,
 			eventTimestampRaw:   time.Second,
 			eventType:           model.DNSEventType,
 			eventProcessPath:    "/bin/foo",
 			eventDNSReq:         "foo2.bar",
 		},
 		{
-			name:                "profile-at-max-size-dns/NOT-at-max-size",
+			name:                "profile-at-max-size-dns/insert-dns-process3",
 			result:              AutoLearning,
 			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo",
+		},
+		{
+			name:                "profile-at-max-size-dns/NOT-at-max-size",
+			result:              AutoLearning,
+			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
-			addFakeProcessNodes: MaxNbProcess - 1,
+			addFakeProcessNodes: MaxNbProcess - 2,
 			eventTimestampRaw:   time.Second,
 			eventType:           model.DNSEventType,
 			eventProcessPath:    "/bin/foo",
@@ -499,9 +614,19 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 
 		// checking from max-size to stable, for exec:
 		{
+			name:                "profile-at-max-size-to-stable-exec/insert-dns-process",
+			result:              AutoLearning,
+			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo",
+		},
+		{
 			name:                "profile-at-max-size-to-stable-exec/max-size",
 			result:              ProfileAtMaxSize,
-			newProfile:          true,
+			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
 			eventTimestampRaw:   time.Second,
@@ -531,9 +656,19 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		// and for dns:
 		{
+			name:                "profile-at-max-size-to-stable-dns/insert-dns-process",
+			result:              AutoLearning,
+			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo",
+		},
+		{
 			name:                "profile-at-max-size-to-stable-dns/max-size",
 			result:              ProfileAtMaxSize,
-			newProfile:          true,
+			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
 			eventTimestampRaw:   time.Second,
@@ -565,9 +700,19 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 
 		// from checking max-size to unstable for exec:
 		{
+			name:                "profile-at-max-size-to-unstable-exec/insert-dns-process",
+			result:              AutoLearning,
+			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo",
+		},
+		{
 			name:                "profile-at-max-size-to-unstable-exec/max-size",
 			result:              ProfileAtMaxSize,
-			newProfile:          true,
+			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
 			eventTimestampRaw:   time.Second,
@@ -609,9 +754,29 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		// and for dns:
 		{
+			name:                "profile-at-max-size-to-unstable-dns/insert-dns-process",
+			result:              AutoLearning,
+			newProfile:          true,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo",
+		},
+		{
+			name:                "profile-at-max-size-to-unstable-dns/insert-dns-process2",
+			result:              AutoLearning,
+			newProfile:          false,
+			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   0,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo0",
+		},
+		{
 			name:                "profile-at-max-size-to-unstable-dns/max-size",
 			result:              ProfileAtMaxSize,
-			newProfile:          true,
+			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
 			eventTimestampRaw:   time.Second,

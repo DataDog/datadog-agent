@@ -7,12 +7,12 @@ package run
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
-func initRuntimeSettings(serverDebug dogstatsdDebug.Component) error {
+func initRuntimeSettings(serverDebug dogstatsddebug.Component) error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting()); err != nil {
 		return err
@@ -33,6 +33,16 @@ func initRuntimeSettings(serverDebug dogstatsdDebug.Component) error {
 		return err
 	}
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingGoroutines()); err != nil {
+		return err
+	}
+	if err := commonsettings.RegisterRuntimeSetting(
+		settings.NewHighAvailabilityRuntimeSetting("ha.enabled", "Enable/disable High Availability support."),
+	); err != nil {
+		return err
+	}
+	if err := commonsettings.RegisterRuntimeSetting(
+		settings.NewHighAvailabilityRuntimeSetting("ha.failover", "Enable/disable redirection of telemetry data to failover region."),
+	); err != nil {
 		return err
 	}
 	return commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"))

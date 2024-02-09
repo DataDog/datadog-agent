@@ -32,6 +32,8 @@ func getFile() (string, error) {
 func TestLoadCheckConfig(t *testing.T) {
 	ctx := context.Background()
 
+	InitRunner(nil)
+
 	jl, err := NewJMXCheckLoader()
 	assert.Nil(t, err)
 	assert.NotNil(t, jl)
@@ -57,7 +59,7 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	for _, cfg := range cfgs {
 		for _, instance := range cfg.Instances {
-			if loadedCheck, err := jl.Load(aggregator.GetSenderManager(), cfg, instance); err == nil {
+			if loadedCheck, err := jl.Load(aggregator.NewNoOpSenderManager(), cfg, instance); err == nil {
 				checks = append(checks, loadedCheck)
 			} else {
 				numOtherInstances++

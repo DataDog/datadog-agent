@@ -76,9 +76,16 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		},
 		{
 			ProgArrayName: dentryCallbackProgs,
-			Key:           DentryResolverMountCallbackKprobeKey,
+			Key:           DentryResolverMountStageOneCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_dr_mount_callback",
+				EBPFFuncName: "tail_call_target_dr_mount_stage_one_callback",
+			},
+		},
+		{
+			ProgArrayName: dentryCallbackProgs,
+			Key:           DentryResolverMountStageTwoCallbackKprobeKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tail_call_target_dr_mount_stage_two_callback",
 			},
 		},
 		{
@@ -132,16 +139,9 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		},
 		{
 			ProgArrayName: dentryCallbackProgs,
-			Key:           DentryResolverUnshareMntNSStageOneCallbackKprobeKey,
+			Key:           DentryResolverChdirCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_dr_unshare_mntns_stage_one_callback",
-			},
-		},
-		{
-			ProgArrayName: dentryCallbackProgs,
-			Key:           DentryResolverUnshareMntNSStageTwoCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_dr_unshare_mntns_stage_two_callback",
+				EBPFFuncName: "tail_call_target_dr_chdir_callback",
 			},
 		},
 	}...)
@@ -164,9 +164,16 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		},
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
-			Key:           DentryResolverMountCallbackTracepointKey,
+			Key:           DentryResolverMountStageOneCallbackTracepointKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tracepoint_dr_mount_callback",
+				EBPFFuncName: "tracepoint_dr_mount_stage_one_callback",
+			},
+		},
+		{
+			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
+			Key:           DentryResolverMountStageTwoCallbackTracepointKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint_dr_mount_stage_two_callback",
 			},
 		},
 		{
@@ -181,6 +188,13 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 			Key:           DentryResolverRenameCallbackTracepointKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "tracepoint_dr_rename_callback",
+			},
+		},
+		{
+			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
+			Key:           DentryResolverChdirCallbackTracepointKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint_dr_chdir_callback",
 			},
 		},
 	}...)
@@ -198,20 +212,6 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 				Key:           DentryResolverERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "tail_call_target_dentry_resolver_erpc" + ebpfSuffix,
-				},
-			},
-			{
-				ProgArrayName: dentryResolverProgs,
-				Key:           DentryResolverParentERPCKey,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tail_call_target_dentry_resolver_parent_erpc" + ebpfSuffix,
-				},
-			},
-			{
-				ProgArrayName: dentryResolverProgs,
-				Key:           DentryResolverSegmentERPCKey,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tail_call_target_dentry_resolver_segment_erpc" + ebpfSuffix,
 				},
 			},
 		}...)

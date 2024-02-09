@@ -29,7 +29,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     struct proc_cache_t new_entry = {};
     struct proc_cache_t *old_entry;
     u8 new_cookie = 0;
-    u32 cookie = 0;
+    u64 cookie = 0;
 
     // Retrieve the cookie of the process
     struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &pid);
@@ -43,7 +43,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         }
     } else {
         new_cookie = 1;
-        cookie = bpf_get_prandom_u32();
+        cookie = rand64();
     }
 
     struct dentry *container_d;

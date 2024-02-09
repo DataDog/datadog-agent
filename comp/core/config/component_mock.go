@@ -20,7 +20,7 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -28,11 +28,12 @@ import (
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
-	config.ConfigWriter
+	pkgconfigmodel.Writer
 }
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-	fx.Supply(MockParams{}),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock),
+		fx.Supply(MockParams{}))
+}

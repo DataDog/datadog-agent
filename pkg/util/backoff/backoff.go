@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package backoff provides backoff mechanisms
 package backoff
 
 import (
@@ -36,22 +37,10 @@ type ExpBackoffPolicy struct {
 	MaxErrors int
 }
 
-// ConstantBackoffPolicy contains a constant backoff duration
-type ConstantBackoffPolicy struct {
-	backoffTime time.Duration
-}
-
 const secondsFloat = float64(time.Second)
 
 func randomBetween(min, max float64) float64 {
 	return rand.Float64()*(max-min) + min
-}
-
-// NewConstantBackoffPolicy constructs new Backoff object with a given duration (used in serverless)
-func NewConstantBackoffPolicy(backoffTime time.Duration) Policy {
-	return &ConstantBackoffPolicy{
-		backoffTime,
-	}
 }
 
 // NewExpBackoffPolicy constructs new Backoff object with given parameters
@@ -106,22 +95,5 @@ func (e *ExpBackoffPolicy) DecError(numErrors int) int {
 	if numErrors < 0 {
 		return 0
 	}
-	return numErrors
-}
-
-// GetBackoffDuration returns amount of time to sleep after numErrors error
-func (c *ConstantBackoffPolicy) GetBackoffDuration(numErrors int) time.Duration {
-	return c.backoffTime
-}
-
-// IncError is a no-op here
-func (c *ConstantBackoffPolicy) IncError(numErrors int) int {
-	numErrors++
-	return numErrors
-}
-
-// DecError is a no-op here
-func (c *ConstantBackoffPolicy) DecError(numErrors int) int {
-	numErrors--
 	return numErrors
 }

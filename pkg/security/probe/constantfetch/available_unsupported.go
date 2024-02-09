@@ -17,12 +17,8 @@ import (
 )
 
 // GetAvailableConstantFetchers returns available constant fetchers
-func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient statsd.ClientInterface) []ConstantFetcher {
+func GetAvailableConstantFetchers(_ *config.Config, kv *kernel.Version, _ statsd.ClientInterface) []ConstantFetcher {
 	fetchers := make([]ConstantFetcher, 0)
-
-	if coreFetcher, err := NewBTFConstantFetcherFromCurrentKernel(); err == nil {
-		fetchers = append(fetchers, coreFetcher)
-	}
 
 	btfhubFetcher, err := NewBTFHubConstantFetcher(kv)
 	if err != nil {

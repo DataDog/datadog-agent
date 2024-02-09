@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"path"
@@ -19,6 +20,9 @@ import (
 	"syscall"
 	"time"
 
+	// shirou/gopsutil uses different logic for getting the memory maps Path
+	// it assumes space-separation and the path is last
+	// DD: combines 6th+ fields into the path
 	legacyprocess "github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
@@ -58,6 +62,10 @@ func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *mode
 	}
 }
 
+// maxFDsPerProcessSnapshot represents the maximum number of FDs we will collect per process while snapshotting
+// this value was selected because it represents the default upper bound for the number of FDs a linux process can have
+const maxFDsPerProcessSnapshot = 1024
+
 func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
@@ -65,9 +73,28 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
 	}
 
-	var files []string
+	var (
+		isSampling = false
+		preAlloc   = len(fileFDs)
+	)
+
+	if len(fileFDs) > maxFDsPerProcessSnapshot {
+		isSampling = true
+		preAlloc = 1024
+	}
+
+	files := make([]string, 0, preAlloc)
 	for _, fd := range fileFDs {
-		files = append(files, fd.Path)
+		if len(files) >= maxFDsPerProcessSnapshot {
+			break
+		}
+
+		if !isSampling || rand.Int63n(int64(len(fileFDs))) < maxFDsPerProcessSnapshot {
+			files = append(files, fd.Path)
+		}
+	}
+	if isSampling {
+		seclog.Warnf("sampled open files while snapshotting (pid: %v): kept %d of %d files", p.Pid, len(files), len(fileFDs))
 	}
 
 	// list the mmaped files of the process
@@ -75,13 +102,15 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 	if err != nil {
 		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
 	}
+	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
+	mmapedFiles = slices.Compact(mmapedFiles)
 
+	files = append(files, mmapedFiles...)
 	if len(files) == 0 {
 		return
 	}
-	files = append(files, mmapedFiles...)
 
-	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
+	slices.Sort(files)
 	files = slices.Compact(files)
 
 	// insert files

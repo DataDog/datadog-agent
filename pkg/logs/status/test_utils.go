@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package status
 
 import (
@@ -16,7 +18,7 @@ import (
 )
 
 // InitStatus initialize a status builder
-func InitStatus(coreConfig pkgConfig.ConfigReader, sources *sources.LogSources) {
+func InitStatus(coreConfig pkgConfig.Reader, sources *sources.LogSources) {
 	var isRunning = atomic.NewBool(true)
 	tracker := tailers.NewTailerTracker()
 	endpoints, _ := config.BuildEndpoints(coreConfig, config.HTTPConnectivityFailure, "test-track", "test-proto", "test-source")

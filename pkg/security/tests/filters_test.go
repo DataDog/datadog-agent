@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -45,6 +45,8 @@ func openTestFile(test *testModule, testFile string, flags int) (int, error) {
 }
 
 func TestFilterOpenBasenameApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
@@ -55,7 +57,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,6 +102,8 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 }
 
 func TestFilterOpenLeafDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -107,7 +111,7 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 		Expression: `open.filename =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,6 +164,8 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 // This test is basically the same as TestFilterOpenLeafDiscarder but activity dumps are enabled.
 // This means that the event is actually forwarded to user space, but the rule should not be evaluated
 func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -167,7 +173,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 		Expression: `open.filename =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{enableActivityDump: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{enableActivityDump: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +249,7 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,14 +306,20 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 }
 
 func TestFilterOpenParentDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	testFilterOpenParentDiscarder(t, "parent")
 }
 
 func TestFilterOpenGrandParentDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	testFilterOpenParentDiscarder(t, "grandparent", "parent")
 }
 
 func TestFilterDiscarderMask(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mask_open_rule",
@@ -319,7 +331,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,6 +392,8 @@ func TestFilterDiscarderMask(t *testing.T) {
 }
 
 func TestFilterRenameFileDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -387,7 +401,7 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 		Expression: `open.filename =~ "{{.Root}}/a*/test"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -464,6 +478,8 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 }
 
 func TestFilterRenameFolderDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -471,7 +487,7 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 		Expression: `open.filename =~ "{{.Root}}/a*/test"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,12 +560,14 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 }
 
 func TestFilterOpenFlagsApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.flags & (O_SYNC | O_NOCTTY) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -597,6 +615,8 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 }
 
 func TestFilterDiscarderRetention(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -610,7 +630,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}

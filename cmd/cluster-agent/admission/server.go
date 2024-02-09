@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package admission runs the admission controller managed by the Cluster Agent.
 package admission
 
 import (
@@ -13,14 +14,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	stdLog "log"
 	"net/http"
 	"time"
+
+	authenticationv1 "k8s.io/api/authentication/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 
 	admiv1 "k8s.io/api/admission/v1"
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
@@ -33,7 +38,7 @@ import (
 
 const jsonContentType = "application/json"
 
-type admissionFunc func([]byte, string, dynamic.Interface) ([]byte, error)
+type admissionFunc func(raw []byte, name string, namespace string, info *authenticationv1.UserInfo, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error)
 
 // Server TODO <container-integrations>
 type Server struct {
@@ -70,9 +75,9 @@ func (s *Server) initDecoder() {
 
 // Register adds an admission webhook handler.
 // Register must be called to register the desired webhook handlers before calling Run.
-func (s *Server) Register(uri string, f admissionFunc, dc dynamic.Interface) {
+func (s *Server) Register(uri string, f admissionFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
 	s.mux.HandleFunc(uri, func(w http.ResponseWriter, r *http.Request) {
-		s.mutateHandler(w, r, f, dc)
+		s.mutateHandler(w, r, f, dc, apiClient)
 	})
 }
 
@@ -83,9 +88,11 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 		tlsMinVersion = tls.VersionTLS10
 	}
 
+	logWriter, _ := config.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.Datadog.GetInt("admission_controller.port")),
-		Handler: s.mux,
+		Addr:     fmt.Sprintf(":%d", config.Datadog.GetInt("admission_controller.port")),
+		Handler:  s.mux,
+		ErrorLog: stdLog.New(logWriter, "Error from the admission controller http API server: ", 0),
 		TLSConfig: &tls.Config{
 			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				secretNs := common.GetResourcesNamespace()
@@ -112,7 +119,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 
 // mutateHandler contains the main logic responsible for handling mutation requests.
 // It supports both v1 and v1beta1 requests.
-func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc, dc dynamic.Interface) {
+func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
 	metrics.WebhooksReceived.Inc()
 
 	start := time.Now()
@@ -156,7 +163,7 @@ func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFun
 		}
 		admissionReviewResp := &admiv1.AdmissionReview{}
 		admissionReviewResp.SetGroupVersionKind(*gvk)
-		jsonPatch, err := mutateFunc(admissionReviewReq.Request.Object.Raw, admissionReviewReq.Request.Namespace, dc)
+		jsonPatch, err := mutateFunc(admissionReviewReq.Request.Object.Raw, admissionReviewReq.Request.Name, admissionReviewReq.Request.Namespace, &admissionReviewReq.Request.UserInfo, dc, apiClient)
 		admissionReviewResp.Response = mutationResponse(jsonPatch, err)
 		admissionReviewResp.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReviewResp
@@ -167,7 +174,7 @@ func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFun
 		}
 		admissionReviewResp := &admiv1beta1.AdmissionReview{}
 		admissionReviewResp.SetGroupVersionKind(*gvk)
-		jsonPatch, err := mutateFunc(admissionReviewReq.Request.Object.Raw, admissionReviewReq.Request.Namespace, dc)
+		jsonPatch, err := mutateFunc(admissionReviewReq.Request.Object.Raw, admissionReviewReq.Request.Name, admissionReviewReq.Request.Namespace, &admissionReviewReq.Request.UserInfo, dc, apiClient)
 		admissionReviewResp.Response = responseV1ToV1beta1(mutationResponse(jsonPatch, err))
 		admissionReviewResp.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReviewResp

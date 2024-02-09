@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -76,8 +77,10 @@ func init() {
 	noaggExpvars.Set("Flush", &expvarNoAggFlush)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
-	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel) *noAggregationStreamWorker {
+	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
+) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
 		flushConfig:          flushConfig,
@@ -102,6 +105,7 @@ func (w *noAggregationStreamWorker) addSamples(samples metrics.MetricSampleBatch
 	if len(samples) == 0 {
 		return
 	}
+	// FIXME: instrument
 	w.samplesChan <- samples
 }
 
@@ -192,7 +196,7 @@ func (w *noAggregationStreamWorker) run() {
 							}
 
 							// enrich metric sample tags
-							sample.GetTags(w.taggerBuffer, w.metricBuffer)
+							sample.GetTags(w.taggerBuffer, w.metricBuffer, tagger.EnrichTags)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 
 							// if the value is a rate, we have to account for the 10s interval

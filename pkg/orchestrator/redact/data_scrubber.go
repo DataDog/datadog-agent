@@ -3,14 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package redact
 
 import (
 	"bytes"
+	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	// regexSensitiveParamInJSON is using non greedy operators in the value capture
+	// group to work around missing support for look behind assertions in Go.
+	regexSensitiveParamInJSON = `(?P<before_value>"%s"\s*:\s*)(?P<value>".*?[^\\]+?")`
+
+	redactedAnnotationValue = "-"
+	redactedSecret          = "********"
 )
 
 var (
@@ -28,8 +39,9 @@ type DataScrubber struct {
 	// RegexSensitivePatterns are custom regex patterns which are currently not exposed externally
 	RegexSensitivePatterns []*regexp.Regexp
 	// LiteralSensitivePatterns are custom words which use to match against
-	LiteralSensitivePatterns []string
-	scrubbedCmdLines         map[string][]string
+	LiteralSensitivePatterns         []string
+	regexSensitiveWordsInAnnotations []*regexp.Regexp
+	scrubbedCmdLines                 map[string][]string
 }
 
 // NewDefaultDataScrubber creates a DataScrubber with the default behavior: enabled
@@ -41,18 +53,38 @@ func NewDefaultDataScrubber() *DataScrubber {
 		scrubbedCmdLines:         make(map[string][]string),
 	}
 
+	newDataScrubber.setupAnnotationRegexps(defaultSensitiveWords)
+
 	return newDataScrubber
+}
+
+func (ds *DataScrubber) setupAnnotationRegexps(words []string) {
+	for _, word := range words {
+		r := regexp.MustCompile(fmt.Sprintf(regexSensitiveParamInJSON, regexp.QuoteMeta(word)))
+		ds.regexSensitiveWordsInAnnotations = append(ds.regexSensitiveWordsInAnnotations, r)
+	}
 }
 
 // ContainsSensitiveWord returns true if the given string contains
 // a sensitive word
-func (ds *DataScrubber) ContainsSensitiveWord(word string) bool {
+func (ds *DataScrubber) ContainsSensitiveWord(s string) bool {
 	for _, pattern := range ds.LiteralSensitivePatterns {
-		if strings.Contains(strings.ToLower(word), pattern) {
+		if strings.Contains(strings.ToLower(s), pattern) {
 			return true
 		}
 	}
 	return false
+}
+
+// ScrubAnnotationValue obfuscate sensitive information from an annotation
+// value.
+func (ds *DataScrubber) ScrubAnnotationValue(annotationValue string) string {
+	for _, r := range ds.regexSensitiveWordsInAnnotations {
+		if r.MatchString(annotationValue) {
+			annotationValue = r.ReplaceAllString(annotationValue, fmt.Sprintf(`${before_value}"%s"`, redactedSecret))
+		}
+	}
+	return annotationValue
 }
 
 // ScrubSimpleCommand hides the argument value for any key which matches a "sensitive word" pattern.
@@ -71,7 +103,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 	for _, pattern := range ds.RegexSensitivePatterns {
 		if pattern.MatchString(rawCmdline) {
 			regexChanged = true
-			rawCmdline = pattern.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
+			rawCmdline = pattern.ReplaceAllString(rawCmdline, fmt.Sprintf(`${key}${delimiter}%s`, redactedSecret))
 		}
 	}
 
@@ -105,10 +137,10 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 				if v >= 0 {
 					// password:1234  password=1234 ==> password=****** || password:******
 					// password::::====1234 ==> password:******
-					newCmdline[index] = cmd[:v+1] + "********"
+					newCmdline[index] = cmd[:v+1] + redactedSecret
 					// replace from v to end of string with ********
 					break
-				} else {
+				} else { //nolint:revive // TODO(CAPP) Fix revive linter
 					// password 1234 password ******
 					nextReplacementIndex := index + 1
 					if nextReplacementIndex < len(newCmdline) {
@@ -127,7 +159,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 			index++
 		}
 		if index < len(newCmdline) {
-			newCmdline[index] = "********"
+			newCmdline[index] = redactedSecret
 		}
 	}
 
@@ -142,6 +174,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 // AddCustomSensitiveWords adds custom sensitive words on the DataScrubber object
 func (ds *DataScrubber) AddCustomSensitiveWords(words []string) {
 	ds.LiteralSensitivePatterns = append(ds.LiteralSensitivePatterns, words...)
+	ds.setupAnnotationRegexps(words)
 }
 
 // AddCustomSensitiveRegex adds custom sensitive regex on the DataScrubber object

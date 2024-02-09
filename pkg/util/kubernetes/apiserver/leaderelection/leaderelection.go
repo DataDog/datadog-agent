@@ -5,6 +5,8 @@
 
 //go:build kubeapiserver
 
+// Package leaderelection provides functions related with the leader election
+// mechanism offered in Kubernetes.
 package leaderelection
 
 import (
@@ -18,6 +20,7 @@ import (
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -43,6 +46,7 @@ var globalLeaderEngine *LeaderEngine
 // LeaderEngine is a structure for the LeaderEngine client to run leader election
 // on Kubernetes clusters
 type LeaderEngine struct {
+	ctx       context.Context
 	initRetry retry.Retrier
 
 	running bool
@@ -68,13 +72,15 @@ type LeaderEngine struct {
 	leaderMetric telemetry.Gauge
 }
 
-func newLeaderEngine() *LeaderEngine {
+func newLeaderEngine(ctx context.Context) *LeaderEngine {
 	return &LeaderEngine{
+		ctx:             ctx,
 		LeaseName:       config.Datadog.GetString("leader_lease_name"),
 		LeaderNamespace: common.GetResourcesNamespace(),
 		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
 		leaderMetric:    metrics.NewLeaderMetric(),
 		subscribers:     []chan struct{}{},
+		LeaseDuration:   defaultLeaderLeaseDuration,
 	}
 }
 
@@ -85,17 +91,31 @@ func ResetGlobalLeaderEngine() {
 	telemetryComponent.GetCompatComponent().Reset()
 }
 
-// GetLeaderEngine returns a leader engine client with default parameters.
-func GetLeaderEngine() (*LeaderEngine, error) {
-	return GetCustomLeaderEngine("", defaultLeaderLeaseDuration)
+// Initialize initializes the leader engine
+func (le *LeaderEngine) initialize() *retry.Error {
+	err := globalLeaderEngine.initRetry.TriggerRetry()
+	if err != nil {
+		log.Debugf("Leader Election init error: %s", err)
+	}
+	return err
 }
 
-// GetCustomLeaderEngine wraps GetLeaderEngine for testing purposes.
-func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEngine, error) {
+// GetLeaderEngine returns an initialized leader engine.
+func GetLeaderEngine() (*LeaderEngine, error) {
 	if globalLeaderEngine == nil {
-		globalLeaderEngine = newLeaderEngine()
-		globalLeaderEngine.HolderIdentity = holderIdentity
-		globalLeaderEngine.LeaseDuration = ttl
+		return nil, fmt.Errorf("Global Leader Engine was not created")
+	}
+	err := globalLeaderEngine.initialize()
+	if err != nil {
+		return nil, err
+	}
+	return globalLeaderEngine, nil
+}
+
+// CreateGlobalLeaderEngine returns a non initialized leader engine client
+func CreateGlobalLeaderEngine(ctx context.Context) *LeaderEngine {
+	if globalLeaderEngine == nil {
+		globalLeaderEngine = newLeaderEngine(ctx)
 		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "leaderElection",
 			AttemptMethod:     globalLeaderEngine.init,
@@ -104,19 +124,14 @@ func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEng
 			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
-	err := globalLeaderEngine.initRetry.TriggerRetry()
-	if err != nil {
-		log.Debugf("Leader Election init error: %s", err)
-		return nil, err
-	}
-	return globalLeaderEngine, nil
+	return globalLeaderEngine
 }
 
 func (le *LeaderEngine) init() error {
 	var err error
 
 	if le.HolderIdentity == "" {
-		le.HolderIdentity, err = getSelfPodName()
+		le.HolderIdentity, err = common.GetSelfPodName()
 		if err != nil {
 			log.Debugf("cannot get pod name: %s", err)
 			return err
@@ -139,7 +154,7 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	serverVersion, err := common.KubeServerVersion(apiClient.DiscoveryCl, 10*time.Second)
+	serverVersion, err := common.KubeServerVersion(apiClient.Cl.Discovery(), 10*time.Second)
 	if err == nil && semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.14.0") < 0 {
 		log.Warn("[DEPRECATION WARNING] DataDog will drop support of Kubernetes older than v1.14. Please update to a newer version to ensure proper functionality and security.")
 	}
@@ -147,7 +162,7 @@ func (le *LeaderEngine) init() error {
 	le.coreClient = apiClient.Cl.CoreV1()
 	le.coordClient = apiClient.Cl.CoordinationV1()
 
-	usingLease, err := CanUseLeases(apiClient.DiscoveryCl)
+	usingLease, err := CanUseLeases(apiClient.Cl.Discovery())
 	if err != nil {
 		log.Errorf("Unable to retrieve available resources: %v", err)
 		return err
@@ -213,7 +228,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 func (le *LeaderEngine) runLeaderElection() {
 	for {
 		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
-		le.leaderElector.Run(context.Background())
+		le.leaderElector.Run(le.ctx)
 		log.Info("Leader election lost")
 	}
 }
@@ -229,11 +244,16 @@ func (le *LeaderEngine) GetLeader() string {
 
 // GetLeaderIP returns the IP the leader can be reached at, assuming its
 // identity is its pod name. Returns empty if we are the leader.
-// The result is not cached.
+// The result is cached and will not return an error if the leader does not exist anymore.
 func (le *LeaderEngine) GetLeaderIP() (string, error) {
 	leaderName := le.GetLeader()
 	if leaderName == "" || leaderName == le.HolderIdentity {
 		return "", nil
+	}
+
+	cacheKey := "ip://" + leaderName
+	if ip, found := cache.Cache.Get(cacheKey); found {
+		return ip.(string), nil
 	}
 
 	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
@@ -244,6 +264,8 @@ func (le *LeaderEngine) GetLeaderIP() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	cache.Cache.Set(cacheKey, target.IP, 5*time.Minute)
+
 	return target.IP, nil
 }
 
@@ -335,7 +357,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 	if err != nil {
 		return led, err
 	}
-	usingLease, err := CanUseLeases(client.DiscoveryCl)
+	usingLease, err := CanUseLeases(client.Cl.Discovery())
 	if err != nil {
 		return led, err
 	}

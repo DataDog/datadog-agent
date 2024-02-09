@@ -6,15 +6,16 @@ import glob
 import os
 import platform
 import shutil
+import sys
 import tempfile
 
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags, get_default_build_tags
-from .cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
-from .go import deps
-from .utils import load_release_versions
+from tasks.build_tags import get_build_tags, get_default_build_tags
+from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
+from tasks.go import deps
+from tasks.libs.common.utils import load_release_versions
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -90,6 +91,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     """
     Run integration tests for cluster-agent
     """
+    if sys.platform == 'win32':
+        raise Exit(message='cluster-agent integration tests are not supported on Windows', code=0)
+
     if install_deps:
         deps(ctx)
 

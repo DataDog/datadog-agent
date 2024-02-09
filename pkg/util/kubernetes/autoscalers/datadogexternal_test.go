@@ -8,6 +8,7 @@
 package autoscalers
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -263,6 +264,42 @@ func TestDatadogExternalQuery(t *testing.T) {
 					require.WithinDuration(t, time.Now(), time.Unix(points[n].Timestamp, 0), 5*time.Second)
 				}
 			}
+		})
+	}
+}
+
+func TestIsRateLimitError(t *testing.T) {
+
+	tests := []struct {
+		name        string
+		err         error
+		isRateLimit bool
+	}{
+		{
+			name:        "nil error",
+			err:         nil,
+			isRateLimit: false,
+		},
+		{
+			name:        "empty error",
+			err:         errors.New(""),
+			isRateLimit: false,
+		},
+		{
+			name:        "rate limit error",
+			err:         errors.New("429 Too Many Requests"),
+			isRateLimit: true,
+		},
+		{
+			name:        "rate limit error variant",
+			err:         errors.New("API error 429 Too Many Requests: "),
+			isRateLimit: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, isRateLimitError(test.err), test.isRateLimit)
 		})
 	}
 }

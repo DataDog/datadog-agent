@@ -12,14 +12,14 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(clusterName string, taggerInstance tagger.Tagger, types []collectedEventType) eventTransformer {
+func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType) eventTransformer {
 	collectedTypes := make([]collectedEventType, 0, len(types))
 	for _, f := range types {
 		if f.Kind == "" && f.Source == "" {
@@ -33,14 +33,14 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Tagger, t
 	return &unbundledTransformer{
 		clusterName:    clusterName,
 		collectedTypes: collectedTypes,
-		taggerInstance: tagger.GetDefaultTagger(),
+		taggerInstance: taggerInstance,
 	}
 }
 
 type unbundledTransformer struct {
 	clusterName    string
 	collectedTypes []collectedEventType
-	taggerInstance tagger.Tagger
+	taggerInstance tagger.Component
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
@@ -84,7 +84,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			Priority:       event.EventPriorityNormal,
 			Host:           hostInfo.hostname,
 			SourceTypeName: "kubernetes",
-			EventType:      kubernetesAPIServerCheckName,
+			EventType:      CheckName,
 			Ts:             int64(ev.LastTimestamp.Unix()),
 			Tags:           tagsAccumulator.Get(),
 			AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", involvedObject.UID),
@@ -104,8 +104,8 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 	}
 	switch obj.Kind {
 	case podKind:
-		entityId := fmt.Sprintf("kubernetes_pod_uid://%s", obj.UID)
-		entity, err := c.taggerInstance.GetEntity(entityId)
+		entityID := fmt.Sprintf("kubernetes_pod_uid://%s", obj.UID)
+		entity, err := c.taggerInstance.GetEntity(entityID)
 		if err != nil {
 			return
 		}

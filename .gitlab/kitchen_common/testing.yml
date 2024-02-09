@@ -9,6 +9,9 @@
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
   retry: 1
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "6Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
 
 .kitchen_common_with_junit:
   extends:
@@ -94,14 +97,6 @@
   script:
     - tasks/run-test-kitchen.sh chef-test $AGENT_MAJOR_VERSION
 
-.kitchen_test_step_by_step:
-  script:
-    - tasks/run-test-kitchen.sh step-by-step-test $AGENT_MAJOR_VERSION
-
-.kitchen_test_install_script:
-  script:
-    - tasks/run-test-kitchen.sh install-script-test $AGENT_MAJOR_VERSION
-
 .kitchen_test_upgrade5:
   script:
     - tasks/run-test-kitchen.sh upgrade5-test $AGENT_MAJOR_VERSION
@@ -126,23 +121,6 @@
 .kitchen_datadog_agent_flavor:
   variables:
     AGENT_FLAVOR: "datadog-agent"
-
-# For non-main Agent installs, KITCHEN_PLATFORM_SUFFIX needs to be set
-# to a unique name. See test/kitchen/drivers/azure_driver.yml for details.
-.kitchen_datadog_iot_agent_flavor:
-  variables:
-    AGENT_FLAVOR: "datadog-iot-agent"
-    KITCHEN_PLATFORM_SUFFIX: "iot"
-
-.kitchen_datadog_heroku_agent_flavor:
-  variables:
-    AGENT_FLAVOR: "datadog-heroku-agent"
-    KITCHEN_PLATFORM_SUFFIX: "heroku"
-
-.kitchen_datadog_dogstatsd_flavor:
-  variables:
-    AGENT_FLAVOR: "datadog-dogstatsd"
-    KITCHEN_PLATFORM_SUFFIX: "dsd"
 
 # Kitchen: Azure locations
 # -------------------------------
@@ -183,41 +161,6 @@
     - .kitchen_azure_location_north_central_us
     - .kitchen_ec2_location_us_east_1
 
-.kitchen_test_step_by_step_agent:
-  extends:
-    - .kitchen_test_step_by_step
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_install_script_agent:
-  extends:
-    - .kitchen_test_install_script
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_south_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_install_script_iot_agent:
-  extends:
-    - .kitchen_test_install_script
-    - .kitchen_datadog_iot_agent_flavor
-    - .kitchen_azure_location_west_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_install_script_heroku_agent:
-  extends:
-    - .kitchen_test_install_script
-    - .kitchen_datadog_heroku_agent_flavor
-    - .kitchen_azure_location_west_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_install_script_dogstatsd:
-  extends:
-    - .kitchen_test_install_script
-    - .kitchen_datadog_dogstatsd_flavor
-    - .kitchen_azure_location_west_central_us
-    - .kitchen_ec2_location_us_east_1
-
 .kitchen_test_upgrade5_agent:
   extends:
     - .kitchen_test_upgrade5
@@ -236,12 +179,5 @@
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_west_central_us
-    - .kitchen_ec2_location_us_east_1
-
-.kitchen_test_upgrade7_iot_agent:
-  extends:
-    - .kitchen_test_upgrade7
-    - .kitchen_datadog_iot_agent_flavor
     - .kitchen_azure_location_south_central_us
     - .kitchen_ec2_location_us_east_1

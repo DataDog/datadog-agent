@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package main is the entrypoint for system-probe process
 package main
 
 import (
@@ -23,6 +24,7 @@ import (
 )
 
 type service struct {
+	servicemain.DefaultSettings
 	errChan <-chan error
 	ctxChan chan context.Context
 }
@@ -67,6 +69,6 @@ func main() {
 	defer log.Flush()
 
 	rootCmd := command.MakeCommand(subcommands.SysprobeSubcommands())
-	setDefaultCommandIfNonePresent(rootCmd)
+	command.SetDefaultCommandIfNonePresent(rootCmd)
 	os.Exit(runcmd.Run(rootCmd))
 }

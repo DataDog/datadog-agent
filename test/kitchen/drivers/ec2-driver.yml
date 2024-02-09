@@ -8,8 +8,8 @@ provisioner:
   <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
   download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
   product_version: 14.15.6
-  <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "arm64" %>
-  # There is no arm64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
+  <% elsif (ENV['KITCHEN_PLATFORM'] == "amazonlinux" || ENV['KITCHEN_PLATFORM'] == "suse") && ENV['KITCHEN_ARCH'] == "arm64" %>
+  # There is no arm64 distribution of Chef 14 for Amazon Linux 2022 nor SLES 15. Use the CentOS package instead
   download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.aarch64.rpm
   product_version: 14.15.6
   <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "x86_64" %>
@@ -112,6 +112,12 @@ platforms:
       enable_cws: <%= ENV['KITCHEN_CWS'] == "true" && cws_supported_platforms.include?(platform[0]) %>
     <% if ENV["KITCHEN_CWS_PLATFORM"] %>
     cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
+    <% end %>
+    <% if ENV["DOCKER_REGISTRY_LOGIN"] && ENV["DOCKER_REGISTRY_PASSWORD"] %>
+    docker:
+      registry: <%= ENV["DOCKER_REGISTRY_URL"] %>
+      username: <%= ENV["DOCKER_REGISTRY_LOGIN"] %>
+      password: <%%= ENV["DOCKER_REGISTRY_PASSWORD"] %>
     <% end %>
   <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
   provisioner:

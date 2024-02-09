@@ -12,17 +12,16 @@ build do
   license = "MIT"
   license_file = "https://git.kernel.org/pub/scm/fs/ext2/e2fsprogs.git/tree/lib/et/com_err.c"
 
-  env = {
-    "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-  }
+  env = with_standard_compiler_flags(with_embedded_path)
 
-  # For libcom_err, we need to build e2fsprogs (since libcom_err is a subpackage of it), 
+  # For libcom_err, we need to build e2fsprogs (since libcom_err is a subpackage of it),
   # and manually move the contents of libcom_err into the Agent
   # Build e2fsprogs in a temp directory
-  command "./configure --prefix=#{install_dir}/embedded/temp_dir --enable-elf-shlibs", :env => env
-  command "make", :env => env
+  configure_options = [
+    "--enable-elf-shlibs"
+  ]
+  configure(*configure_options, prefix: "#{install_dir}/embedded/temp_dir", :env => env)
+  command "make -j #{workers}", :env => env
 
   # Move libcom_err files directly
   copy "lib/et/libcom_err.so.2.1", "#{install_dir}/embedded/lib/"
@@ -33,7 +32,7 @@ build do
   copy "lib/et/com_err.pc", "#{install_dir}/embedded/lib/"
 
   copy "lib/et/com_err.h", "#{install_dir}/embedded/include/"
-  
+
   copy "lib/et/compile_et", "#{install_dir}/embedded/bin/"
 
   # Remove the temp_dir

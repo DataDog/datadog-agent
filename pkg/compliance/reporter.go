@@ -6,12 +6,13 @@
 package compliance
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -23,25 +24,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // LogReporter is responsible for sending compliance logs to DataDog backends.
 type LogReporter struct {
-	logSource *sources.LogSource
-	logChan   chan *message.Message
-	endpoints *config.Endpoints
-	tags      []string
+	hostname         string
+	pipelineProvider pipeline.Provider
+	auditor          *auditor.RegistryAuditor
+	logSource        *sources.LogSource
+	logChan          chan *message.Message
+	endpoints        *config.Endpoints
+	tags             []string
 }
 
 // NewLogReporter instantiates a new log LogReporter
-func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) (*LogReporter, error) {
-	hostname, err := hostname.Get(context.Background())
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
+func NewLogReporter(hostname string, sourceName, sourceType, runPath string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
 	health := health.RegisterLiveness(sourceType)
 
 	// setup the auditor
@@ -49,11 +47,8 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agent.NewStatusProvider(), hostnameimpl.NewHostnameService(), coreconfig.Datadog)
 	pipelineProvider.Start()
-
-	stopper.Add(pipelineProvider)
-	stopper.Add(auditor)
 
 	logSource := sources.NewLogSource(
 		sourceName,
@@ -79,11 +74,20 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	}
 
 	return &LogReporter{
-		logSource: logSource,
-		logChan:   logChan,
-		endpoints: endpoints,
-		tags:      tags,
-	}, nil
+		hostname:         hostname,
+		pipelineProvider: pipelineProvider,
+		auditor:          auditor,
+		logSource:        logSource,
+		logChan:          logChan,
+		endpoints:        endpoints,
+		tags:             tags,
+	}
+}
+
+// Stop stops the LogReporter
+func (r *LogReporter) Stop() {
+	r.pipelineProvider.Stop()
+	r.auditor.Stop()
 }
 
 // Endpoints returns the endpoints associated with the log reporter.
@@ -101,5 +105,6 @@ func (r *LogReporter) ReportEvent(event interface{}) {
 	origin := message.NewOrigin(r.logSource)
 	origin.SetTags(r.tags)
 	msg := message.NewMessage(buf, origin, message.StatusInfo, time.Now().UnixNano())
+	msg.Hostname = r.hostname
 	r.logChan <- msg
 }

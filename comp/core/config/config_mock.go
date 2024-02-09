@@ -12,7 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"go.uber.org/fx"
 )
 
@@ -27,45 +30,48 @@ func (m mockDependencies) getParams() *Params {
 	return &p
 }
 
+func (m mockDependencies) getSecretResolver() secrets.Component {
+	return nil
+}
+
 // newMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
 func newMock(deps mockDependencies, t testing.TB) (Component, error) {
-	backupConfig := config.NewConfig("", "", strings.NewReplacer())
-	backupConfig.CopyConfig(config.Datadog)
+	backupConfig := pkgconfigmodel.NewConfig("", "", strings.NewReplacer())
+	backupConfig.CopyConfig(pkgconfigsetup.Datadog)
 
-	config.Datadog.CopyConfig(config.NewConfig("mock", "XXXX", strings.NewReplacer()))
+	pkgconfigsetup.Datadog.CopyConfig(pkgconfigmodel.NewConfig("mock", "XXXX", strings.NewReplacer()))
 
-	config.SetFeatures(t, deps.Params.Features...)
+	env.SetFeatures(t, deps.Params.Features...)
 
 	// call InitConfig to set defaults.
-	config.InitConfig(config.Datadog)
+	pkgconfigsetup.InitConfig(pkgconfigsetup.Datadog)
 	c := &cfg{
-		Config: config.Datadog,
+		Config: pkgconfigsetup.Datadog,
 	}
 
 	if !deps.Params.SetupConfig {
-
 		if deps.Params.ConfFilePath != "" {
-			config.Datadog.SetConfigType("yaml")
-			err := config.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfFilePath))
+			pkgconfigsetup.Datadog.SetConfigType("yaml")
+			err := pkgconfigsetup.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfFilePath))
 			if err != nil {
 				// The YAML was invalid, fail initialization of the mock config.
 				return nil, err
 			}
 		}
 	} else {
-		warnings, _ := setupConfig(deps)
+		warnings, _ := setupConfig(pkgconfigsetup.Datadog, deps)
 		c.warnings = warnings
 	}
 
 	// Overrides are explicit and will take precedence over any other
 	// setting
 	for k, v := range deps.Params.Overrides {
-		config.Datadog.Set(k, v)
+		pkgconfigsetup.Datadog.SetWithoutSource(k, v)
 	}
 
 	// swap the existing config back at the end of the test.
-	t.Cleanup(func() { config.Datadog.CopyConfig(backupConfig) })
+	t.Cleanup(func() { pkgconfigsetup.Datadog.CopyConfig(backupConfig) })
 
 	return c, nil
 }

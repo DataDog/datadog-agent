@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package main is the program to fixup cgo generated types
 package main
 
 import (
@@ -24,7 +25,7 @@ func main() {
 
 	// Convert []int8 to []byte in multiple generated fields from the kernel, to simplify
 	// conversion to string; see golang.org/issue/20753
-	convertInt8ArrayToByteArrayRegex := regexp.MustCompile(`(Request_fragment|Topic_name|Buf|Cgroup)(\s+)\[(\d+)\]u?int8`)
+	convertInt8ArrayToByteArrayRegex := regexp.MustCompile(`(Request_fragment|Topic_name|Buf|Cgroup|RemoteAddr|LocalAddr)(\s+)\[(\d+)\]u?int8`)
 	b = convertInt8ArrayToByteArrayRegex.ReplaceAll(b, []byte("$1$2[$3]byte"))
 
 	b, err = format.Source(b)

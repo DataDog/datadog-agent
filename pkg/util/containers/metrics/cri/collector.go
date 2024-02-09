@@ -19,18 +19,16 @@ import (
 )
 
 const (
-	criCollectorID = "cri"
+	collectorID       = "cri"
+	collectorPriority = 3
 )
 
 func init() {
-	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
-		ID:       criCollectorID,
-		Priority: 1, // Less than the "system" collector, so we can rely on cgroups directly if possible
-		Runtimes: []string{provider.RuntimeNameCRIO},
-		Factory: func() (provider.Collector, error) {
-			return newCRICollector()
+	provider.RegisterCollector(provider.CollectorFactory{
+		ID: collectorID,
+		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
+			return newCRICollector(cache)
 		},
-		DelegateCache: true,
 	})
 }
 
@@ -38,25 +36,34 @@ type criCollector struct {
 	client cri.CRIClient
 }
 
-func newCRICollector() (*criCollector, error) {
+func newCRICollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
+	var collectorMetadata provider.CollectorMetadata
+
 	if !config.IsFeaturePresent(config.Cri) {
-		return nil, provider.ErrPermaFail
+		return collectorMetadata, provider.ErrPermaFail
 	}
 
 	client, err := cri.GetUtil()
 	if err != nil {
-		return nil, provider.ConvertRetrierErr(err)
+		return collectorMetadata, provider.ConvertRetrierErr(err)
 	}
 
-	return &criCollector{client: client}, nil
-}
+	collector := &criCollector{client: client}
+	collectors := &provider.Collectors{
+		Stats: provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+	}
 
-// ID returns the collector ID.
-func (collector *criCollector) ID() string {
-	return criCollectorID
+	return provider.CollectorMetadata{
+		ID: collectorID,
+		Collectors: provider.CollectorCatalog{
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRIO), ""): provider.MakeCached(collectorID, cache, collectors),
+		},
+	}, nil
 }
 
 // GetContainerStats returns stats by container ID.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (collector *criCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := collector.getCriContainerStats(containerID)
 	if err != nil {
@@ -82,30 +89,6 @@ func (collector *criCollector) GetContainerStats(containerNS, containerID string
 	}
 
 	return containerStats, nil
-}
-
-// GetContainerOpenFilesCount returns open files count by container ID.
-func (collector *criCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
-	// Not available
-	return nil, nil
-}
-
-// GetContainerNetworkStats returns network stats by container ID.
-func (collector *criCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
-	// Not available
-	return nil, nil
-}
-
-// GetContainerIDForPID returns the container ID for given PID
-func (collector *criCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
-	// Not available
-	return "", nil
-}
-
-// GetSelfContainerID returns current process container ID
-func (collector *criCollector) GetSelfContainerID() (string, error) {
-	// Not available
-	return "", nil
 }
 
 func (collector *criCollector) getCriContainerStats(containerID string) (*v1.ContainerStats, error) {

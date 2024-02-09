@@ -8,7 +8,6 @@
 package common
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -29,20 +27,11 @@ var (
 	// AC is the global object orchestrating checks' loading and running
 	AC *autodiscovery.AutoConfig
 
-	// Coll is the global collector instance
-	Coll *collector.Collector
-
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server
 
 	// MetadataScheduler is responsible to orchestrate metadata collection
 	MetadataScheduler *metadata.Scheduler
-
-	// MainCtx is the main agent context passed to components
-	MainCtx context.Context
-
-	// MainCtxCancel cancels the main agent context
-	MainCtxCancel context.CancelFunc
 )
 
 // GetPythonPaths returns the paths (in order of precedence) from where the agent
@@ -58,7 +47,7 @@ func GetPythonPaths() []string {
 }
 
 // GetVersion returns the version of the agent in a http response json
-func GetVersion(w http.ResponseWriter, r *http.Request) {
+func GetVersion(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.Agent()
 	j, _ := json.Marshal(av)

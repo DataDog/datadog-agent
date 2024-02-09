@@ -28,6 +28,11 @@
           "property_doc_link": "event-async-doc"
         },
         {
+          "name": "event.service",
+          "definition": "Service associated with the event",
+          "property_doc_link": "event-service-doc"
+        },
+        {
           "name": "event.timestamp",
           "definition": "Timestamp of the event",
           "property_doc_link": "event-timestamp-doc"
@@ -391,6 +396,21 @@
           "name": "process.ancestors.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         },
         {
           "name": "process.args",
@@ -1083,6 +1103,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.parent.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.parent.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "process.parent.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "process.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -1111,6 +1146,21 @@
           "name": "process.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "process.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "process.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -1213,6 +1263,120 @@
           "name": "capset.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "capset-cap_permitted-doc"
+        }
+      ]
+    },
+    {
+      "name": "chdir",
+      "definition": "A process changed the current directory",
+      "type": "File",
+      "from_agent_version": "7.52",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "chdir.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "chdir.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "chdir.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "chdir.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "chdir.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "chdir.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "chdir.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "chdir.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "chdir.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "chdir.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "chdir.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "chdir.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "chdir.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chdir.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "chdir.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "chdir.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "chdir.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "chdir.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "chdir.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "chdir.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "chdir.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
         }
       ]
     },
@@ -1929,6 +2093,21 @@
           "name": "exec.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -2308,6 +2487,21 @@
           "name": "exit.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -2935,6 +3129,11 @@
           "property_doc_link": "common-syscallevent-retval-doc"
         },
         {
+          "name": "mount.root.path",
+          "definition": "Root path of the mount",
+          "property_doc_link": "mount-root-path-doc"
+        },
+        {
           "name": "mount.source.path",
           "definition": "Source path of a bind mount",
           "property_doc_link": "mount-source-path-doc"
@@ -3465,6 +3664,21 @@
           "name": "ptrace.tracee.ancestors.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         },
         {
           "name": "ptrace.tracee.args",
@@ -4157,6 +4371,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.parent.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "ptrace.tracee.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -4185,6 +4414,21 @@
           "name": "ptrace.tracee.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -5249,6 +5493,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.ancestors.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "signal.target.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -5939,6 +6198,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.parent.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "signal.target.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -5967,6 +6241,21 @@
           "name": "signal.target.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "signal.target.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "signal.target.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         },
         {
           "name": "signal.type",
@@ -6559,6 +6848,7 @@
       "type": "int",
       "definition": "Change time (ctime) of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -6854,6 +7144,7 @@
       "type": "string",
       "definition": "File's filesystem",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7013,6 +7304,7 @@
       "type": "int",
       "definition": "GID of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7084,6 +7376,7 @@
       "type": "string",
       "definition": "Group of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7133,6 +7426,7 @@
       "type": "string",
       "definition": "[Experimental] List of cryptographic hashes computed for this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7182,6 +7476,7 @@
       "type": "bool",
       "definition": "Indicator of the file layer, for example, in an OverlayFS",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7231,6 +7526,7 @@
       "type": "int",
       "definition": "Inode of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7333,11 +7629,79 @@
       "examples": []
     },
     {
+      "name": "*.k8s_groups",
+      "link": "common-usersessioncontext-k8s_groups-doc",
+      "type": "string",
+      "definition": "Kubernetes groups of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.k8s_uid",
+      "link": "common-usersessioncontext-k8s_uid-doc",
+      "type": "string",
+      "definition": "Kubernetes UID of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.k8s_username",
+      "link": "common-usersessioncontext-k8s_username-doc",
+      "type": "string",
+      "definition": "Kubernetes username of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.length",
       "link": "common-string-length-doc",
       "type": "int",
       "definition": "Length of the corresponding string",
       "prefixes": [
+        "chdir.file.name",
+        "chdir.file.path",
         "chmod.file.name",
         "chmod.file.path",
         "chown.file.name",
@@ -7426,6 +7790,7 @@
       "type": "int",
       "definition": "Mode of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7475,6 +7840,7 @@
       "type": "int",
       "definition": "Modification time (mtime) of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7524,6 +7890,7 @@
       "type": "int",
       "definition": "Mount ID of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7573,6 +7940,7 @@
       "type": "string",
       "definition": "File's basename",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7627,6 +7995,7 @@
       "type": "string",
       "definition": "[Experimental] Name of the package that provided this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7676,6 +8045,7 @@
       "type": "string",
       "definition": "[Experimental] Full version of the source package of the package that provided this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7725,6 +8095,7 @@
       "type": "string",
       "definition": "[Experimental] Full version of the package that provided this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7774,6 +8145,7 @@
       "type": "string",
       "definition": "File's path",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7892,6 +8264,7 @@
       "prefixes": [
         "bind",
         "bpf",
+        "chdir",
         "chmod",
         "chown",
         "link",
@@ -7922,6 +8295,7 @@
       "type": "int",
       "definition": "Rights of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8037,6 +8411,7 @@
       "type": "int",
       "definition": "UID of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8113,6 +8488,7 @@
       "type": "string",
       "definition": "User of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8481,6 +8857,18 @@
       "examples": []
     },
     {
+      "name": "event.service",
+      "link": "event-service-doc",
+      "type": "string",
+      "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "event.timestamp",
       "link": "event-timestamp-doc",
       "type": "int",
@@ -8641,6 +9029,18 @@
       "link": "mount-mountpoint-path-doc",
       "type": "string",
       "definition": "Path of the mount point",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.root.path",
+      "link": "mount-root-path-doc",
+      "type": "string",
+      "definition": "Root path of the mount",
       "prefixes": [
         "mount"
       ],
@@ -10289,6 +10689,21 @@
         },
         {
           "name": "BPF_PROG_TYPE_SK_LOOKUP",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Boolean constants",
+      "link": "boolean-constants",
+      "description": "Boolean constants are the supported boolean constants.",
+      "all": [
+        {
+          "name": "true",
+          "architecture": "all"
+        },
+        {
+          "name": "false",
           "architecture": "all"
         }
       ]
@@ -12736,21 +13151,6 @@
         {
           "name": "PTRACE_POKEMTETAGS",
           "architecture": "arm64"
-        }
-      ]
-    },
-    {
-      "name": "SecL constants",
-      "link": "secl-constants",
-      "description": "SecL constants are the supported generic SecL constants.",
-      "all": [
-        {
-          "name": "true",
-          "architecture": "all"
-        },
-        {
-          "name": "false",
-          "architecture": "all"
         }
       ]
     },

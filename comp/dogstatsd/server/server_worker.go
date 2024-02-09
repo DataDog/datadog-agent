@@ -6,6 +6,7 @@
 package server
 
 import (
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -31,7 +32,7 @@ type worker struct {
 	samples metrics.MetricSampleBatch
 }
 
-func newWorker(s *server) *worker {
+func newWorker(s *server, workerNum int) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer)
@@ -42,7 +43,7 @@ func newWorker(s *server) *worker {
 	return &worker{
 		server:  s,
 		batcher: batcher,
-		parser:  newParser(s.config, s.sharedFloat64List),
+		parser:  newParser(s.config, s.sharedFloat64List, workerNum),
 		samples: make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 	}
 }
@@ -55,11 +56,12 @@ func (w *worker) run() {
 		case <-w.server.health.C:
 		case <-w.server.serverlessFlushChan:
 			w.batcher.flush()
-		case packets := <-w.server.packetsIn:
+		case ps := <-w.server.packetsIn:
+			packets.TelemetryUntrackPackets(ps)
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets
-			w.samples = w.server.parsePackets(w.batcher, w.parser, packets, w.samples)
+			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples)
 		}
 
 	}

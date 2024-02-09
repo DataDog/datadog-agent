@@ -8,28 +8,28 @@
 package probe
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
-	"fmt"
 	"os"
 	"reflect"
 	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 var (
@@ -259,16 +259,24 @@ func TestProvider_Provide(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
 
+			store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+				core.MockBundle(),
+				fx.Supply(context.Background()),
+				collectors.GetCatalog(),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2(),
+			))
+
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := local.NewFakeTagger()
+			fakeTagger := tagger.SetupFakeTagger(t)
+			defer fakeTagger.ResetTagger()
 			for entity, tags := range probeTags {
 				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
 			}
-			tagger.SetDefaultTagger(fakeTagger)
 
-			store, err := storePopulatedFromFile(tt.podsFile)
+			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils())
 			if err != nil {
 				t.Errorf("unable to populate store from file at: %s, err: %v", tt.podsFile, err)
 			}
@@ -315,84 +323,4 @@ func TestProvider_Provide(t *testing.T) {
 			}
 		})
 	}
-}
-
-func storePopulatedFromFile(filename string) (*workloadmetatesting.Store, error) {
-	store := workloadmetatesting.NewStore()
-
-	if filename == "" {
-		return store, nil
-	}
-
-	podList, err := os.ReadFile(filename)
-	if err != nil {
-		return store, fmt.Errorf("unable to load pod list, err: %w", err)
-	}
-	var pods *kubelet.PodList
-	err = json.Unmarshal(podList, &pods)
-	if err != nil {
-		return store, fmt.Errorf("unable to load pod list, err: %w", err)
-	}
-
-	for _, pod := range pods.Items {
-		podContainers := make([]workloadmeta.OrchestratorContainer, 0, len(pod.Status.Containers))
-
-		for _, container := range pod.Status.Containers {
-			if container.ID == "" {
-				// A container without an ID has not been created by
-				// the runtime yet, so we ignore them until it's
-				// detected again.
-				continue
-			}
-
-			image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
-			if err != nil {
-				if err == containers.ErrImageIsSha256 {
-					// try the resolved image ID if the image name in the container
-					// status is a SHA256. this seems to happen sometimes when
-					// pinning the image to a SHA256
-					image, _ = workloadmeta.NewContainerImage(container.ImageID, container.ImageID)
-				}
-			}
-
-			_, containerID := containers.SplitEntityName(container.ID)
-			podContainer := workloadmeta.OrchestratorContainer{
-				ID:   containerID,
-				Name: container.Name,
-			}
-			podContainer.Image, _ = workloadmeta.NewContainerImage(container.ImageID, container.Image)
-
-			podContainer.Image.ID = container.ImageID
-
-			podContainers = append(podContainers, podContainer)
-			store.Set(&workloadmeta.Container{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   containerID,
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: container.Name,
-					Labels: map[string]string{
-						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
-					},
-				},
-				Image: image,
-			})
-		}
-
-		store.Set(&workloadmeta.KubernetesPod{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindKubernetesPod,
-				ID:   pod.Metadata.UID,
-			},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:        pod.Metadata.Name,
-				Namespace:   pod.Metadata.Namespace,
-				Annotations: pod.Metadata.Annotations,
-				Labels:      pod.Metadata.Labels,
-			},
-			Containers: podContainers,
-		})
-	}
-	return store, err
 }

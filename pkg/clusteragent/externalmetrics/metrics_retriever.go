@@ -141,7 +141,7 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 		}
 
 		query := datadogMetric.Query()
-		timeWindow := MaybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
+		timeWindow := maybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
 		results := resultsByTimeWindow[timeWindow]
 
 		if queryResult, found := results[query]; found {
@@ -205,7 +205,7 @@ func incrementRetries(metricsInternal *model.DatadogMetricInternal) {
 	metricsInternal.RetryAfter = timeNow.Add(backoffDuration)
 }
 
-func MaybeAdjustTimeWindowForQuery(timeWindow time.Duration) time.Duration {
+func maybeAdjustTimeWindowForQuery(timeWindow time.Duration) time.Duration {
 	configMaxAge := autoscalers.GetDefaultMaxAge()
 	if configMaxAge > timeWindow {
 		timeWindow = configMaxAge
@@ -235,7 +235,7 @@ func getBatchedQueriesByTimeWindow(datadogMetrics []model.DatadogMetricInternal)
 	unique := make(map[string]struct{}, len(datadogMetrics))
 	for _, datadogMetric := range datadogMetrics {
 		query := datadogMetric.Query()
-		timeWindow := MaybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
+		timeWindow := maybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
 
 		key := query + "-" + timeWindow.String()
 		if _, found := unique[key]; !found {

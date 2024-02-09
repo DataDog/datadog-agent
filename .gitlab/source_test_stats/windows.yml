@@ -1,0 +1,12 @@
+stats-fast-tests-windows-x64:
+  stage: source_test_stats
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["tests_windows-x64-fast", "tests_windows-x64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
+  script:
+    - set +x
+    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
+    - inv -e send-unit-tests-stats tests_windows-x64

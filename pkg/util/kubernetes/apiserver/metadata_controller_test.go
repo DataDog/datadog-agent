@@ -102,12 +102,12 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc1"),
+						"pod1_name": sets.New("svc1"),
 					},
 				},
 				"node2": {
 					"default": {
-						"pod2_name": sets.NewString("svc1"),
+						"pod2_name": sets.New("svc1"),
 					},
 				},
 			},
@@ -130,13 +130,13 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc1"),
-						"pod3_name": sets.NewString("svc1"),
+						"pod1_name": sets.New("svc1"),
+						"pod3_name": sets.New("svc1"),
 					},
 				},
 				"node2": {
 					"default": {
-						"pod2_name": sets.NewString("svc1"),
+						"pod2_name": sets.New("svc1"),
 					},
 				},
 			},
@@ -158,12 +158,12 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc1"),
+						"pod1_name": sets.New("svc1"),
 					},
 				},
 				"node2": {
 					"default": {
-						"pod2_name": sets.NewString("svc1"),
+						"pod2_name": sets.New("svc1"),
 					},
 				},
 			},
@@ -184,12 +184,12 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc1", "svc2"),
+						"pod1_name": sets.New("svc1", "svc2"),
 					},
 				},
 				"node2": {
 					"default": {
-						"pod2_name": sets.NewString("svc1"),
+						"pod2_name": sets.New("svc1"),
 					},
 				},
 			},
@@ -203,7 +203,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc2"),
+						"pod1_name": sets.New("svc2"),
 					},
 				},
 			},
@@ -223,7 +223,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{ // no changes to cluster metadata
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc2"),
+						"pod1_name": sets.New("svc2"),
 					},
 				},
 			},
@@ -243,7 +243,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{ // no changes to cluster metadata
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc2"),
+						"pod1_name": sets.New("svc2"),
 					},
 				},
 			},
@@ -450,7 +450,7 @@ func TestMetadataController(t *testing.T) {
 		return true
 	})
 
-	cl := &APIClient{Cl: client, timeoutSeconds: 5}
+	cl := &APIClient{Cl: client, defaultClientTimeout: 5}
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
 		fullmapper, errList := GetMetadataMapBundleOnAllNodes(cl)
@@ -465,7 +465,6 @@ func TestMetadataController(t *testing.T) {
 		assert.Contains(t, services, "nginx-1")
 		return true
 	})
-
 }
 
 func newFakeMetadataController(client kubernetes.Interface) (*MetadataController, informers.SharedInformerFactory) {

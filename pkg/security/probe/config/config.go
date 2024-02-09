@@ -128,6 +128,9 @@ type Config struct {
 
 	// StatsPollingInterval determines how often metrics should be polled
 	StatsPollingInterval time.Duration
+
+	// SyscallsMonitorEnabled defines if syscalls monitoring metrics should be collected
+	SyscallsMonitorEnabled bool
 }
 
 // NewConfig returns a new Config object
@@ -159,6 +162,7 @@ func NewConfig() (*Config, error) {
 		EnvsWithValue:                getStringSlice("envs_with_value"),
 		NetworkEnabled:               getBool("network.enabled"),
 		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+		SyscallsMonitorEnabled:       getBool("syscalls_monitor.enabled"),
 
 		// event server
 		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),

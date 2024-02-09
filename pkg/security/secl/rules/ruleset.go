@@ -15,11 +15,12 @@ import (
 
 	"github.com/spf13/cast"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/hashicorp/go-multierror"
 )
 
 // MacroID represents the ID of a macro
@@ -79,17 +80,18 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID                     RuleID             `yaml:"id"`
-	Version                string             `yaml:"version"`
-	Expression             string             `yaml:"expression"`
-	Description            string             `yaml:"description"`
-	Tags                   map[string]string  `yaml:"tags"`
-	AgentVersionConstraint string             `yaml:"agent_version"`
-	Filters                []string           `yaml:"filters"`
-	Disabled               bool               `yaml:"disabled"`
-	Combine                CombinePolicy      `yaml:"combine"`
-	Actions                []ActionDefinition `yaml:"actions"`
-	Every                  time.Duration      `yaml:"every"`
+	ID                     RuleID              `yaml:"id"`
+	Version                string              `yaml:"version"`
+	Expression             string              `yaml:"expression"`
+	Description            string              `yaml:"description"`
+	Tags                   map[string]string   `yaml:"tags"`
+	AgentVersionConstraint string              `yaml:"agent_version"`
+	Filters                []string            `yaml:"filters"`
+	Disabled               bool                `yaml:"disabled"`
+	Combine                CombinePolicy       `yaml:"combine"`
+	Actions                []*ActionDefinition `yaml:"actions"`
+	Every                  time.Duration       `yaml:"every"`
+	Silent                 bool                `yaml:"silent"`
 	Policy                 *Policy
 }
 
@@ -106,7 +108,13 @@ func (rd *RuleDefinition) GetTag(tagKey string) (string, bool) {
 func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	switch rd2.Combine {
 	case OverridePolicy:
-		rd.Expression = rd2.Expression
+		// keep the old expression if the new one is empty
+		expression := rd.Expression
+
+		*rd = *rd2
+		if rd2.Expression == "" {
+			rd.Expression = expression
+		}
 	default:
 		if !rd2.Disabled {
 			return &ErrRuleLoad{Definition: rd2, Err: ErrDefinitionIDConflict}
@@ -114,40 +122,6 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	}
 	rd.Disabled = rd2.Disabled
 	return nil
-}
-
-// ActionDefinition describes a rule action section
-type ActionDefinition struct {
-	Set *SetDefinition `yaml:"set"`
-}
-
-// Check returns an error if the action in invalid
-func (a *ActionDefinition) Check() error {
-	if a.Set == nil {
-		return errors.New("missing 'set' section in action")
-	}
-
-	if a.Set.Name == "" {
-		return errors.New("action name is empty")
-	}
-
-	if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
-		return errors.New("either 'value' or 'field' must be specified")
-	}
-
-	return nil
-}
-
-// Scope describes the scope variables
-type Scope string
-
-// SetDefinition describes the 'set' section of a rule action
-type SetDefinition struct {
-	Name   string      `yaml:"name"`
-	Value  interface{} `yaml:"value"`
-	Field  string      `yaml:"field"`
-	Append bool        `yaml:"append"`
-	Scope  Scope       `yaml:"scope"`
 }
 
 // Rule describes a rule of a ruleset
@@ -233,7 +207,7 @@ func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*Macro
 func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, macroDef *MacroDefinition) (*eval.Macro, error) {
 	var err error
 
-	if macro := rs.evalOpts.MacroStore.Get(macroDef.ID); macro != nil {
+	if rs.evalOpts.MacroStore.Contains(macroDef.ID) {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: ErrDefinitionIDConflict}
 	}
 
@@ -267,10 +241,6 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDef
 		}
 	}
 
-	if err := rs.generatePartials(); err != nil {
-		result = multierror.Append(result, fmt.Errorf("couldn't generate partials for rule: %w", err))
-	}
-
 	return result
 }
 
@@ -284,7 +254,8 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 				continue
 			}
 
-			if action.Set != nil {
+			switch {
+			case action.Set != nil:
 				varName := action.Set.Name
 				if action.Set.Scope != "" {
 					varName = string(action.Set.Scope) + "." + varName
@@ -453,6 +424,25 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 		}
 	}
 
+	for _, action := range rule.Definition.Actions {
+		// compile action filter
+		if action.Filter != nil {
+			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
+				return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
+			}
+		}
+
+		if action.Set != nil && action.Set.Field != "" {
+			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
+				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
+				if err != nil {
+					return nil, err
+				}
+				rs.fieldEvaluators[action.Set.Field] = evaluator
+			}
+		}
+	}
+
 	for _, event := range rule.GetEvaluator().EventTypes {
 		bucket, exists := rs.eventRuleBuckets[event]
 		if !exists {
@@ -469,19 +459,6 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
 	rs.rules[ruleDef.ID] = rule
-
-	// Generate evaluator for fields that are used in variables
-	for _, action := range rule.Definition.Actions {
-		if action.Set != nil && action.Set.Field != "" {
-			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
-				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
-				if err != nil {
-					return nil, err
-				}
-				rs.fieldEvaluators[action.Set.Field] = evaluator
-			}
-		}
-	}
 
 	return rule.Rule, nil
 }
@@ -605,9 +582,10 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 	return IsDiscarder(ctx, field, bucket.rules)
 }
 
-func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
+func (rs *RuleSet) runRuleActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.Definition.Actions {
 		switch {
+		// action.Kill has to handled by a ruleset listener
 		case action.Set != nil:
 			name := string(action.Set.Scope)
 			if name != "" {
@@ -673,7 +651,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 			rs.NotifyRuleMatch(rule, event)
 			result = true
 
-			if err := rs.runRuleActions(ctx, rule); err != nil {
+			if err := rs.runRuleActions(event, ctx, rule); err != nil {
 				rs.logger.Errorf("Error while executing rule actions: %s", err)
 			}
 		}
@@ -734,21 +712,6 @@ NewFields:
 		}
 		rs.fields = append(rs.fields, newField)
 	}
-}
-
-// generatePartials generates the partials of the ruleset. A partial is a boolean evalution function that only depends
-// on one field. The goal of partial is to determine if a rule depends on a specific field, so that we can decide if
-// we should create an in-kernel filter for that field.
-func (rs *RuleSet) generatePartials() error {
-	// Compute the partials of each rule
-	for _, bucket := range rs.eventRuleBuckets {
-		for _, rule := range bucket.GetRules() {
-			if err := rule.GenPartials(); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // StopEventCollector stops the event collector

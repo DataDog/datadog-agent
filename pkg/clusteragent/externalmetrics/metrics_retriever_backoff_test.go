@@ -30,10 +30,12 @@ type mockedProcessorWithBackoff struct {
 	queryCapture    [][]string
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *mockedProcessorWithBackoff) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
 	return nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *mockedProcessorWithBackoff) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
 	p.extQueryCounter++
 	// Sort for slice comparison
@@ -46,12 +48,13 @@ func (p *mockedProcessorWithBackoff) QueryExternalMetric(queries []string, timeW
 
 	if p.errIndex == len(p.err)-1 {
 		return p.points, p.err[p.errIndex]
-	} else {
-		p.errIndex++
-		return p.points, p.err[p.errIndex]
 	}
+
+	p.errIndex++
+	return p.points, p.err[p.errIndex]
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *mockedProcessorWithBackoff) ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
 	return nil
 }
@@ -67,6 +70,7 @@ type metricsFixtureWithBackoff struct {
 	extQueryBatches [][]string
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *metricsFixtureWithBackoff) runWithBackoff(t *testing.T, testTime time.Time) {
 	t.Helper()
 

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix issue introduced in 7.47 that allowed all users to start/stop the
+    Windows Datadog Agent services. The Windows installer now, as in versions
+    before 7.47, grants this permission explicitly to ddagentuser.

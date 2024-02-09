@@ -10,6 +10,6 @@ typedef enum {
 typedef struct {
     __u32 offset;
     __u32 length;
-} header_info_t;
+} frame_info_t;
 
 #endif

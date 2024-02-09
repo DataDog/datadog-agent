@@ -9,6 +9,7 @@ package oracle
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -35,7 +36,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		oracleDriver = "godror"
 	} else {
 		//godror ezconnect string
-		if c.config.InstanceConfig.InstantClient {
+		if c.config.InstanceConfig.OracleClient {
 			oracleDriver = "godror"
 			protocolString := ""
 			walletString := ""
@@ -56,87 +57,26 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 	c.driver = oracleDriver
 
-	log.Infof("driver: %s", oracleDriver)
+	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)
 
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
+		_, err := handleRefusedConnection(c, db, err)
 		return nil, fmt.Errorf("failed to connect to oracle instance: %w", err)
 	}
 	err = db.Ping()
 	if err != nil {
+		_, err := handleRefusedConnection(c, db, err)
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
 
 	db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 
-	if c.cdbName == "" {
-		row := db.QueryRow("SELECT /* DD */ lower(name) FROM v$database")
-		err = row.Scan(&c.cdbName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query db name: %w", err)
-		}
-		c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
-	}
-
-	if c.dbHostname == "" || c.dbVersion == "" {
-		// host_name is null on Oracle Autonomous Database
-		row := db.QueryRow("SELECT /* DD */ nvl(host_name, instance_name), version_full FROM v$instance")
-		var dbHostname string
-		err = row.Scan(&dbHostname, &c.dbVersion)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
-		}
-		if c.config.ReportedHostname != "" {
-			c.dbHostname = c.config.ReportedHostname
-		} else {
-			c.dbHostname = dbHostname
-		}
-		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
-	}
-
-	if c.filePath == "" {
-		r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
-		var path string
-		err = r.Scan(&path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query path: %w", err)
-		}
-		if path == "/rdsdbdata" {
-			c.isRDS = true
-		}
-	}
-
-	r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
-	var connectionType string
-	err = r.Scan(&connectionType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query connection type: %w", err)
-	}
-	var cloudRows int
-	if connectionType == "PDB" {
-		c.connectedToPdb = true
-		r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
-		err := r.Scan(&cloudRows)
-		if err != nil {
-			log.Errorf("failed to query v$pdbs: %s", err)
-		}
-		if cloudRows == 1 {
-			r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
-			err := r.Scan(&cloudRows)
-			if err != nil {
-				log.Errorf("failed to query cdb_services: %s", err)
-			}
-		}
-	}
-	if cloudRows == 1 {
-		c.isOracleCloud = true
-	}
-
 	if c.config.AgentSQLTrace.Enabled {
 		db.SetMaxOpenConns(1)
 		_, err := db.Exec("ALTER SESSION SET tracefile_identifier='DDAGENT'")
 		if err != nil {
-			log.Warnf("failed to set tracefile_identifier: %v", err)
+			log.Warnf("%s failed to set tracefile_identifier: %v", c.logPrompt, err)
 		}
 
 		/* We are concatenating values instead of passing parameters, because there seems to be a problem
@@ -146,10 +86,10 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		binds := assertBool(c.config.AgentSQLTrace.Binds)
 		waits := assertBool(c.config.AgentSQLTrace.Waits)
 		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
-		log.Trace("trace statement: %s", setEventsStatement)
+		log.Trace("%s trace statement: %s", c.logPrompt, setEventsStatement)
 		_, err = db.Exec(setEventsStatement)
 		if err != nil {
-			log.Errorf("failed to set SQL trace: %v", err)
+			log.Errorf("%s failed to set SQL trace: %v", c.logPrompt, err)
 		}
 		if c.config.AgentSQLTrace.TracedRuns == 0 {
 			c.config.AgentSQLTrace.TracedRuns = DEFAULT_SQL_TRACED_RUNS
@@ -162,7 +102,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 func closeDatabase(c *Check, db *sqlx.DB) {
 	if db != nil {
 		if err := db.Close(); err != nil {
-			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
+			log.Warnf("%s failed to close oracle connection: %s", c.logPrompt, err.Error())
 		}
 	}
 }
@@ -181,8 +121,11 @@ func connectGoOra(c *Check) (*go_ora.Connection, error) {
 }
 
 func closeGoOraConnection(c *Check) {
+	if c.connection == nil {
+		return
+	}
 	err := c.connection.Close()
 	if err != nil {
-		log.Warnf("failed to close go-ora connection | server=[%s]: %s", c.config.Server, err.Error())
+		log.Warnf("%s failed to close go-ora connection: %s", c.logPrompt, err.Error())
 	}
 }

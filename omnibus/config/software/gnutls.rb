@@ -15,7 +15,7 @@
 #
 
 name "gnutls"
-default_version "3.7.8"
+default_version "3.7.10"
 
 dependency 'nettle'
 dependency 'gmp'
@@ -25,7 +25,7 @@ license "LGPL-2.1"
 license_file "doc/COPYING.LESSER"
 skip_transitive_dependency_licensing true
 
-version("3.7.8") { source sha256: "c58ad39af0670efe6a8aee5e3a8b2331a1200418b64b7c51977fb396d4617114" }
+version("3.7.10") { source sha256: "b6e4e8bac3a950a3a1b7bdb0904979d4ab420a81e74de8636dd50b467d36f5a9" }
 
 ship_source_offer true
 

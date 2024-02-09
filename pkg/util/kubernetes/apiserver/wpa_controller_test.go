@@ -25,6 +25,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	//nolint:revive // TODO(CAPP) Fix revive linter
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -60,7 +61,7 @@ func init() {
 // TestupdateExternalMetrics checks the reconciliation between the local cache and the global store logic
 func TestUpdateWPA(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("kube_resources_namespace", "nsfoo")
+	mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
 
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
@@ -234,7 +235,7 @@ func TestWPAController(t *testing.T) {
 	wpaName := "wpa_1"
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("kube_resources_namespace", "nsfoo")
+	mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
 
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()

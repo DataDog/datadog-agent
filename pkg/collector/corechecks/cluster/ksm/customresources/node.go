@@ -10,7 +10,6 @@ package customresources
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,10 +17,13 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/constant"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 var descNodeLabelsDefaultLabels = []string{"node"}
@@ -43,29 +45,35 @@ func (f *extendedNodeFactory) Name() string {
 }
 
 // CreateClient is not implemented
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedNodeFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended node metric family generators
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedNodeFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	// At the time of writing this, this is necessary in order for us to have access to the "kubernetes.io/network-bandwidth" resource
 	// type, as the default KSM offering explicitly filters out anything that is prefixed with "kubernetes.io/"
 	// More information can be found here: https://github.com/kubernetes/kube-state-metrics/issues/2027
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_node_status_extended_capacity",
 			"The capacity for different additional resources of a node, which otherwise might have been filtered out by kube-state-metrics.",
 			metric.Gauge,
+			metrics.ALPHA,
 			"",
 			wrapNodeFunc(func(n *v1.Node) *metric.Family {
 				return f.customResourceGenerator(n.Status.Capacity)
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_node_status_extended_allocatable",
 			"The allocatable for different additional resources of a node that are available for scheduling, which otherwise might have been filtered out by kube-state-metrics.",
 			metric.Gauge,
+			metrics.ALPHA,
 			"",
 			wrapNodeFunc(func(n *v1.Node) *metric.Family {
 				return f.customResourceGenerator(n.Status.Allocatable)
@@ -118,6 +126,8 @@ func (f *extendedNodeFactory) ExpectedType() interface{} {
 }
 
 // ListWatch returns a ListerWatcher for v1.Node
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedNodeFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(clientset.Interface)
 	return &cache.ListWatch{

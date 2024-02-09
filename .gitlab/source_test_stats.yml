@@ -1,0 +1,8 @@
+---
+# source_test stage
+# Contains jobs which run stats about unit tests of the Agent on various platforms, ebpf tests,
+# security scans & go.mod checks.
+
+include:
+  - /.gitlab/source_test_stats/linux.yml
+  - /.gitlab/source_test_stats/windows.yml

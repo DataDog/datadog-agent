@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package common defines constants and types used by the Admission Controller.
 package common
 
 const (

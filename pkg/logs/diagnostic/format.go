@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // Formatter defines how a particular message.Message should be formatted
@@ -21,10 +21,13 @@ type Formatter interface {
 }
 
 // logFormatter is the default Formatter which supports transforming log pipeline messages into a more useful format.
-type logFormatter struct{}
+type logFormatter struct {
+	hostname hostnameinterface.Component
+}
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (l *logFormatter) Format(m *message.Message, eventType string, redactedMsg []byte) string {
-	hname, err := hostname.Get(context.TODO())
+	hname, err := l.hostname.Get(context.TODO())
 	if err != nil {
 		hname = "unknown"
 	}

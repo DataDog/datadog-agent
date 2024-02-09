@@ -5,6 +5,7 @@
 
 package server
 
+//nolint:revive // TODO(AML) Fix revive linter
 type Params struct {
 	Serverless bool
 }

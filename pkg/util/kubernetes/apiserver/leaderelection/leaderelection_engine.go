@@ -24,11 +24,12 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func NewReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient clientcoord.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
+func newReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient clientcoord.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
 	if lockType == configmaplock.ConfigMapsResourceLock {
 		return &configmaplock.ConfigMapLock{
 			ConfigMapMeta: metav1.ObjectMeta{
@@ -38,9 +39,9 @@ func NewReleaseLock(lockType string, ns string, name string, coreClient corev1.C
 			Client:     coreClient,
 			LockConfig: rlc,
 		}, nil
-	} else {
-		return rl.New(lockType, ns, name, coreClient, coordinationClient, rlc)
 	}
+
+	return rl.New(lockType, ns, name, coreClient, coordinationClient, rlc)
 }
 
 func (le *LeaderEngine) getCurrentLeaderLease() (string, error) {
@@ -82,12 +83,12 @@ func (le *LeaderEngine) getCurrentLeaderConfigMap() (string, error) {
 func (le *LeaderEngine) getCurrentLeader() (string, error) {
 	if le.lockType == rl.LeasesResourceLock {
 		return le.getCurrentLeaderLease()
-	} else {
-		return le.getCurrentLeaderConfigMap()
 	}
+
+	return le.getCurrentLeaderConfigMap()
 }
 
-func (le *LeaderEngine) CreateLeaderTokenIfNotExists() error {
+func (le *LeaderEngine) createLeaderTokenIfNotExists() error {
 	if le.lockType == rl.LeasesResourceLock {
 		_, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 
@@ -135,7 +136,7 @@ func (le *LeaderEngine) CreateLeaderTokenIfNotExists() error {
 // If `namespace`/`election` does not exist, it is created.
 func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	// We first want to check if the ConfigMap the Leader Election is based on exists.
-	if err := le.CreateLeaderTokenIfNotExists(); err != nil {
+	if err := le.createLeaderTokenIfNotExists(); err != nil {
 		return nil, err
 	}
 
@@ -176,7 +177,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		EventRecorder: evRec,
 	}
 
-	leaderElectorInterface, err := NewReleaseLock(
+	leaderElectorInterface, err := newReleaseLock(
 		le.lockType,
 		le.LeaderNamespace,
 		le.LeaseName,
@@ -189,11 +190,14 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	}
 
 	electionConfig := ld.LeaderElectionConfig{
-		Lock:          leaderElectorInterface,
-		LeaseDuration: le.LeaseDuration,
-		RenewDeadline: le.LeaseDuration / 2,
-		RetryPeriod:   le.LeaseDuration / 4,
-		Callbacks:     callbacks,
+		// ReleaseOnCancel updates the leader election lock when the main context is canceled by setting the Lease Duration to 1s.
+		// It allows the next DCA to initialize faster. However, it performs a network call on shutdown.
+		ReleaseOnCancel: config.Datadog.GetBool("leader_election_release_on_shutdown"),
+		Lock:            leaderElectorInterface,
+		LeaseDuration:   le.LeaseDuration,
+		RenewDeadline:   le.LeaseDuration / 2,
+		RetryPeriod:     le.LeaseDuration / 4,
+		Callbacks:       callbacks,
 	}
 	return ld.NewLeaderElector(electionConfig)
 }

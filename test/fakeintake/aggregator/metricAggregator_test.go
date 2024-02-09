@@ -18,13 +18,13 @@ import (
 var metricsData []byte
 
 func TestNewMetricPayloads(t *testing.T) {
-	t.Run("parseMetricSeries empty body should return error", func(t *testing.T) {
+	t.Run("parseMetricSeries empty JSON object should be ignored", func(t *testing.T) {
 		metrics, err := ParseMetricSeries(api.Payload{
-			Data:     []byte(""),
-			Encoding: encodingDeflate,
+			Data:     []byte("{}"),
+			Encoding: encodingJSON,
 		})
-		assert.Error(t, err)
-		assert.Nil(t, metrics)
+		assert.NoError(t, err)
+		assert.Empty(t, metrics)
 	})
 
 	t.Run("parseMetricSeries valid body should parse metrics", func(t *testing.T) {

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package diagnose
 
 import (
@@ -10,27 +11,32 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func init() {
-	diagnosis.Register("check-datadog", diagnose)
+func Init(collector optional.Option[collector.Component]) {
+	diagnosis.Register("check-datadog", getDiagnose(collector))
 }
 
-func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
-	if diagCfg.RunningInAgentProcess && common.Coll != nil {
-		return diagnoseChecksInAgentProcess()
-	}
+func getDiagnose(collector optional.Option[collector.Component]) func(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
+	return func(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 
-	return diagnoseChecksInCLIProcess(diagCfg)
+		if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
+			return diagnoseChecksInAgentProcess(coll)
+		}
+
+		return diagnoseChecksInCLIProcess(diagCfg, senderManager)
+	}
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
@@ -62,14 +68,18 @@ func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
+func diagnoseChecksInAgentProcess(collector collector.Component) []diagnosis.Diagnosis {
 	var diagnoses []diagnosis.Diagnosis
 
 	// get list of checks
-	checks := common.Coll.GetChecks()
+	checks := collector.GetChecks()
 
 	// get diagnoses from each
 	for _, ch := range checks {
+		if ch.Interval() == 0 {
+			pkglog.Infof("Ignoring long running check %s", ch.String())
+			continue
+		}
 		instanceDiagnoses := getInstanceDiagnoses(ch)
 		diagnoses = append(diagnoses, instanceDiagnoses...)
 	}
@@ -77,45 +87,41 @@ func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
+func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
 
-	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
-	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
-	pkgconfig.Datadog.Set("container_image_collection.sbom.enabled", "false")
-
-	hostnameDetected, err := hostname.Get(context.TODO())
+	senderManagerInstance, err := senderManager.LazyGetSenderManager()
 	if err != nil {
 		return []diagnosis.Diagnosis{
 			{
 				Result:      diagnosis.DiagnosisFail,
-				Name:        "Host name detection",
-				Diagnosis:   "Failed to get host name and cannot continue to run checks diagnostics",
-				Remediation: "Please validate host environment",
+				Name:        err.Error(),
+				Diagnosis:   err.Error(),
+				Remediation: err.Error(),
 				RawError:    err.Error(),
 			},
 		}
 	}
 
+	// TODO: (components) Hack to retrieve a singleton reference to the secrets Component
+	//
+	// Only needed temporarily, since the secrets.Component is needed for the diagnose functionality.
+	// It is very difficult right now to modify diagnose because it would require modifying many
+	// function signatures, which would only increase future maintenance. Once diagnose is better
+	// integrated with Components, we should be able to remove this hack.
+	//
+	// Other components should not copy this pattern, it is only meant to be used temporarily.
+	secretResolver := secretsimpl.GetInstance()
+
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 0
-	opts.DontStartForwarders = true
-	opts.UseNoopEventPlatformForwarder = true
-	opts.UseNoopOrchestratorForwarder = true
-	log := log.NewTemporaryLoggerWithoutInit()
-
-	forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
-
-	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, workloadmeta.GetGlobalStore(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
-	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
+	// AutoDiscovery.
+	pkgcollector.InitCheckScheduler(optional.NewNoneOption[pkgcollector.Collector](), senderManagerInstance)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))
@@ -141,8 +147,12 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis 
 	var diagnoses []diagnosis.Diagnosis
 	for _, diagnoseConfig := range diagnoseConfigs {
 		checkName := diagnoseConfig.Name
-		instances := collector.GetChecksByNameForConfigs(checkName, diagnoseConfigs)
+		instances := pkgcollector.GetChecksByNameForConfigs(checkName, diagnoseConfigs)
 		for _, instance := range instances {
+			if instance.Interval() == 0 {
+				pkglog.Infof("Ignoring long running check %s", instance.String())
+				continue
+			}
 			instanceDiagnoses := getInstanceDiagnoses(instance)
 			diagnoses = append(diagnoses, instanceDiagnoses...)
 		}

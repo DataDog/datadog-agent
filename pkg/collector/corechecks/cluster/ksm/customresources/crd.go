@@ -12,12 +12,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	crd "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	//nolint:revive // TODO(CINT) Fix revive linter
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	basemetrics "k8s.io/component-base/metrics"
 
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
@@ -38,7 +40,7 @@ var (
 // metric family generator factory.
 func NewCustomResourceDefinitionFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &crdFactory{
-		client: client.CRDClient,
+		client: client.CRDInformerClient,
 	}
 }
 
@@ -48,10 +50,11 @@ type crdFactory struct {
 
 func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descCustomResourceDefinitionAnnotationsName,
 			descCustomResourceDefinitionAnnotationsHelp,
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
 				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", c.Annotations, allowAnnotationsList)
@@ -66,10 +69,11 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descCustomResourceDefinitionLabelsName,
 			descCustomResourceDefinitionLabelsHelp,
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
 				labelKeys, labelValues := createPrometheusLabelKeysValues("label", c.Labels, allowLabelsList)
@@ -84,10 +88,11 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_customresourcedefinition_status_condition",
 			"The condition of this custom resource definition.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(c.Status.Conditions)*len(conditionStatusesExtensionV1))
@@ -116,14 +121,18 @@ func (f *crdFactory) Name() string {
 }
 
 // CreateClient is not implemented
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *crdFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *crdFactory) ExpectedType() interface{} {
 	return &crd.CustomResourceDefinition{}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *crdFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(clientset.Interface)
 	return &cache.ListWatch{

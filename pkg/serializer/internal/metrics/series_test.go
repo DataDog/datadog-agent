@@ -14,13 +14,12 @@ import (
 	"testing"
 
 	jsoniter "github.com/json-iterator/go"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -373,7 +372,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 func TestMarshalSplitCompress(t *testing.T) {
 	series := makeSeries(10000, 50)
 
-	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())
+	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), pkgconfigsetup.Conf())
 	require.NoError(t, err)
 	// check that we got multiple payloads, so splitting occurred
 	require.Greater(t, len(payloads), 1)
@@ -392,27 +391,24 @@ func TestMarshalSplitCompress(t *testing.T) {
 }
 
 func TestMarshalSplitCompressPointsLimit(t *testing.T) {
-	mockConfig := config.Mock(t)
-	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
-	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
-	mockConfig.Set("serializer_max_series_points_per_payload", 100)
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 100)
 
 	// ten series, each with 50 points, so two should fit in each payload
 	series := makeSeries(10, 50)
 
-	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())
+	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig)
 	require.NoError(t, err)
 	require.Equal(t, 5, len(payloads))
 }
 
 func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
-	mockConfig := config.Mock(t)
-	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
-	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
-	mockConfig.Set("serializer_max_series_points_per_payload", 1)
+
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 1)
 
 	series := makeSeries(1, 2)
-	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())
+	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig)
 	require.NoError(t, err)
 	require.Len(t, payloads, 0)
 }
@@ -445,7 +441,7 @@ func TestPayloadsSeries(t *testing.T) {
 	}
 
 	originalLength := len(testSeries)
-	builder := stream.NewJSONPayloadBuilder(true)
+	builder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf())
 	iterableSeries := CreateIterableSeries(CreateSerieSource(testSeries))
 	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	require.Nil(t, err)
@@ -488,7 +484,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 	}
 
 	var r transaction.BytesPayloads
-	builder := stream.NewJSONPayloadBuilder(true)
+	builder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf())
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.

@@ -13,14 +13,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -32,20 +33,36 @@ const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
 
+var supportedDeviceTypes = map[string]bool{
+	"access_point":  true,
+	"firewall":      true,
+	"load_balancer": true,
+	"pdu":           true,
+	"printer":       true,
+	"router":        true,
+	"sd-wan":        true,
+	"sensor":        true,
+	"server":        true,
+	"storage":       true,
+	"switch":        true,
+	"ups":           true,
+	"wlc":           true,
+}
+
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
 	metadataStore := buildMetadataStore(config.Metadata, store)
 
-	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus)}
+	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus, pingStatus)}
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 
-	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil)
+	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
@@ -53,7 +70,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 			log.Errorf("Error marshalling device metadata: %s", err)
 			return
 		}
-		ms.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
+		ms.sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
 	}
 
 	// Telemetry
@@ -85,35 +102,35 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	}
 }
 
-func computeInterfaceStatus(adminStatus common.IfAdminStatus, operStatus common.IfOperStatus) common.InterfaceStatus {
-	if adminStatus == common.AdminStatus_Up {
+func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus devicemetadata.IfOperStatus) devicemetadata.InterfaceStatus {
+	if adminStatus == devicemetadata.AdminStatusUp {
 		switch {
-		case operStatus == common.OperStatus_Up:
-			return common.InterfaceStatus_Up
-		case operStatus == common.OperStatus_Down:
-			return common.InterfaceStatus_Down
+		case operStatus == devicemetadata.OperStatusUp:
+			return devicemetadata.InterfaceStatusUp
+		case operStatus == devicemetadata.OperStatusDown:
+			return devicemetadata.InterfaceStatusDown
 		}
-		return common.InterfaceStatus_Warning
+		return devicemetadata.InterfaceStatusWarning
 	}
-	if adminStatus == common.AdminStatus_Down {
+	if adminStatus == devicemetadata.AdminStatusDown {
 		switch {
-		case operStatus == common.OperStatus_Up:
-			return common.InterfaceStatus_Down
-		case operStatus == common.OperStatus_Down:
-			return common.InterfaceStatus_Off
+		case operStatus == devicemetadata.OperStatusUp:
+			return devicemetadata.InterfaceStatusDown
+		case operStatus == devicemetadata.OperStatusDown:
+			return devicemetadata.InterfaceStatusOff
 		}
-		return common.InterfaceStatus_Warning
+		return devicemetadata.InterfaceStatusWarning
 	}
-	if adminStatus == common.AdminStatus_Testing {
+	if adminStatus == devicemetadata.AdminStatusTesting {
 		switch {
-		case operStatus != common.OperStatus_Down:
-			return common.InterfaceStatus_Warning
+		case operStatus != devicemetadata.OperStatusDown:
+			return devicemetadata.InterfaceStatusWarning
 		}
 	}
-	return common.InterfaceStatus_Down
+	return devicemetadata.InterfaceStatusDown
 }
 
-func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
+func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
 	metadataStore := metadata.NewMetadataStore()
 	if values == nil {
 		return metadataStore
@@ -123,13 +140,13 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 		for fieldName, field := range metadataConfig.Fields {
 			fieldFullName := resourceName + "." + fieldName
 
-			var symbols []checkconfig.SymbolConfig
+			var symbols []profiledefinition.SymbolConfig
 			if field.Symbol.OID != "" {
 				symbols = append(symbols, field.Symbol)
 			}
 			symbols = append(symbols, field.Symbols...)
 
-			if checkconfig.IsMetadataResourceWithScalarOids(resourceName) {
+			if profiledefinition.IsMetadataResourceWithScalarOids(resourceName) {
 				for _, symbol := range symbols {
 					if metadataStore.ScalarFieldHasValue(fieldFullName) {
 						break
@@ -173,8 +190,8 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 	return metadataStore
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus devicemetadata.DeviceStatus) devicemetadata.DeviceMetadata {
-	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version, productName, model, osName, osVersion, osHostname string
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus) devicemetadata.DeviceMetadata {
+	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version, productName, model, osName, osVersion, osHostname, deviceType string
 	if store != nil {
 		sysName = store.GetScalarAsString("device.name")
 		sysDescr = store.GetScalarAsString("device.description")
@@ -188,6 +205,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		osName = store.GetScalarAsString("device.os_name")
 		osVersion = store.GetScalarAsString("device.os_version")
 		osHostname = store.GetScalarAsString("device.os_hostname")
+		deviceType = getDeviceType(store)
 	}
 
 	// fallback to Device.Vendor for backward compatibility
@@ -196,26 +214,50 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 	}
 
 	return devicemetadata.DeviceMetadata{
-		ID:           deviceID,
-		IDTags:       idTags,
-		Name:         sysName,
-		Description:  sysDescr,
-		IPAddress:    config.IPAddress,
-		SysObjectID:  sysObjectID,
-		Location:     location,
-		Profile:      config.Profile,
-		Vendor:       vendor,
-		Tags:         tags,
-		Subnet:       config.ResolvedSubnetName,
-		Status:       deviceStatus,
-		SerialNumber: serialNumber,
-		Version:      version,
-		ProductName:  productName,
-		Model:        model,
-		OsName:       osName,
-		OsVersion:    osVersion,
-		OsHostname:   osHostname,
+		ID:             deviceID,
+		IDTags:         idTags,
+		Name:           sysName,
+		Description:    sysDescr,
+		IPAddress:      config.IPAddress,
+		SysObjectID:    sysObjectID,
+		Location:       location,
+		Profile:        config.Profile,
+		ProfileVersion: getProfileVersion(config),
+		Vendor:         vendor,
+		Tags:           tags,
+		Subnet:         config.ResolvedSubnetName,
+		Status:         deviceStatus,
+		PingStatus:     pingStatus,
+		SerialNumber:   serialNumber,
+		Version:        version,
+		ProductName:    productName,
+		Model:          model,
+		OsName:         osName,
+		OsVersion:      osVersion,
+		OsHostname:     osHostname,
+		DeviceType:     deviceType,
 	}
+}
+
+func getProfileVersion(config *checkconfig.CheckConfig) uint64 {
+	var profileVersion uint64
+	if config.ProfileDef != nil {
+		profileVersion = config.ProfileDef.Version
+	}
+	return profileVersion
+}
+
+func getDeviceType(store *metadata.Store) string {
+	deviceType := strings.ToLower(store.GetScalarAsString("device.type"))
+	if deviceType == "" {
+		return "other"
+	}
+	_, isValidType := supportedDeviceTypes[deviceType]
+	if isValidType {
+		return deviceType
+	}
+	log.Warnf("Unsupported device type: %s", deviceType)
+	return "other"
 }
 
 func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []devicemetadata.InterfaceMetadata {
@@ -248,8 +290,8 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []de
 			Alias:       store.GetColumnAsString("interface.alias", strIndex),
 			Description: store.GetColumnAsString("interface.description", strIndex),
 			MacAddress:  store.GetColumnAsString("interface.mac_address", strIndex),
-			AdminStatus: common.IfAdminStatus((store.GetColumnAsFloat("interface.admin_status", strIndex))),
-			OperStatus:  common.IfOperStatus((store.GetColumnAsFloat("interface.oper_status", strIndex))),
+			AdminStatus: devicemetadata.IfAdminStatus((store.GetColumnAsFloat("interface.admin_status", strIndex))),
+			OperStatus:  devicemetadata.IfOperStatus((store.GetColumnAsFloat("interface.oper_status", strIndex))),
 			IDTags:      ifIDTags,
 		}
 		interfaces = append(interfaces, networkInterface)
@@ -370,6 +412,8 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 	}
 	return links
 }
+
+//nolint:revive // TODO(NDM) Fix revive linter
 func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	indexes := store.GetColumnIndexes("cdp_remote.interface_id") // using `cdp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
@@ -434,7 +478,7 @@ func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) st
 	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote.device_address_type", strIndex)
 	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 || remoteDeviceAddressType == ciscoNetworkProtocolIPv6 {
 		return net.IP(store.GetColumnAsByteArray("cdp_remote.device_address", strIndex)).String()
-	} else {
+	} else { //nolint:revive // TODO(NDM) Fix revive linter
 		// TODO: use cdpCacheSecondaryMgmtAddrType or cdpCacheAddress in this case
 		return "" // Note if this is the case this won't pass the backend check and will generate the error
 		// "deviceIP cannot be empty (except when interface id_type is mac_address)"

@@ -9,8 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
-	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
@@ -30,7 +29,7 @@ type MetaPayload struct {
 
 // CommonPayload wraps Payload from the common package
 type CommonPayload struct {
-	common.Payload
+	hostMetadataUtils.CommonPayload
 }
 
 // ACPayload wraps the Agent Checks payload
@@ -52,6 +51,8 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into times number of pieces
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("AgentChecks Payload splitting is not implemented")
 }

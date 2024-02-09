@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package flavor defines the various flavors of the agent
 package flavor
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 const (
 	// DefaultAgent is the default Agent flavor
@@ -24,7 +25,23 @@ const (
 	HerokuAgent = "heroku_agent"
 	// ProcessAgent is the Process Agent flavor
 	ProcessAgent = "process_agent"
+	// TraceAgent is the Trace Agent flavor
+	TraceAgent = "trace_agent"
 )
+
+var agentFlavors = map[string]string{
+	DefaultAgent:    "Agent",
+	IotAgent:        "IoT Agent",
+	ClusterAgent:    "Cluster Agent",
+	Dogstatsd:       "DogStatsD",
+	SecurityAgent:   "Security Agent",
+	ServerlessAgent: "Serverless Agent",
+	HerokuAgent:     "Heroku Agent",
+	ProcessAgent:    "Process Agent",
+	TraceAgent:      "Trace Agent",
+}
+
+const unknownAgent = "Unknown Agent"
 
 var agentFlavor = DefaultAgent
 
@@ -33,7 +50,7 @@ func SetFlavor(flavor string) {
 	agentFlavor = flavor
 
 	if agentFlavor == IotAgent {
-		config.Datadog.SetDefault("iot_host", true)
+		pkgconfigsetup.Datadog.SetDefault("iot_host", true)
 	}
 }
 
@@ -42,4 +59,13 @@ func SetFlavor(flavor string) {
 // e.g. in init functions or to initialize package constants or variables.
 func GetFlavor() string {
 	return agentFlavor
+}
+
+// GetHumanReadableFlavor gets the running Agent flavor in a human readable form
+func GetHumanReadableFlavor() string {
+	if val, ok := agentFlavors[agentFlavor]; ok {
+		return val
+	}
+
+	return unknownAgent
 }

@@ -17,6 +17,7 @@ func setupTest(t *testing.T) {
 	})
 }
 
+// MockWarnings mocks the warnings with provided values
 func MockWarnings(t *testing.T, ignored, usedInFuture, proxyChanged []string) {
 	setupTest(t)
 

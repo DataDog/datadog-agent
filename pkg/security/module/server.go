@@ -11,18 +11,19 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
-	jwriter "github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
-	"golang.org/x/time/rate"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -61,31 +62,37 @@ type APIServer struct {
 	expiredEventsLock sync.RWMutex
 	expiredEvents     map[rules.RuleID]*atomic.Int64
 	expiredDumps      *atomic.Int64
-	limiter           *events.StdLimiter
-	statsdClient      statsd.ClientInterface
-	probe             *sprobe.Probe
-	queueLock         sync.Mutex
-	queue             []*pendingMsg
-	retention         time.Duration
-	cfg               *config.RuntimeSecurityConfig
-	selfTester        *selftests.SelfTester
-	cwsConsumer       *CWSConsumer
+	//nolint:unused // TODO(SEC) Fix unused linter
+	limiter            *events.StdLimiter
+	statsdClient       statsd.ClientInterface
+	probe              *sprobe.Probe
+	queueLock          sync.Mutex
+	queue              []*pendingMsg
+	retention          time.Duration
+	cfg                *config.RuntimeSecurityConfig
+	selfTester         *selftests.SelfTester
+	cwsConsumer        *CWSConsumer
+	policiesStatusLock sync.RWMutex
+	policiesStatus     []*api.PolicyStatus
 
-	stopper startstop.Stopper
+	stopChan chan struct{}
+	stopper  startstop.Stopper
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
-func (a *APIServer) GetActivityDumpStream(params *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
-	// read one activity dump or timeout after one second
-	select {
-	case dump := <-a.activityDumps:
-		if err := stream.Send(dump); err != nil {
-			return err
+func (a *APIServer) GetActivityDumpStream(_ *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
+		case dump := <-a.activityDumps:
+			if err := stream.Send(dump); err != nil {
+				return err
+			}
 		}
-	case <-time.After(time.Second):
-		break
 	}
-	return nil
 }
 
 // SendActivityDump queues an activity dump to the chan of activity dumps
@@ -112,34 +119,19 @@ func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
 }
 
 // GetEvents waits for security events
-func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
-	// Read 10 security events per call
-	msgs := 10
-LOOP:
+func (a *APIServer) GetEvents(_ *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
 	for {
-		// Check that the limit is not reached
-		if !a.limiter.Allow(nil) {
-			return nil
-		}
-
-		// Read one message
 		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
 		case msg := <-a.msgs:
 			if err := stream.Send(msg); err != nil {
 				return err
 			}
-			msgs--
-		case <-time.After(time.Second):
-			break LOOP
-		}
-
-		// Stop the loop when 10 messages were retrieved
-		if msgs <= 0 {
-			break
 		}
 	}
-
-	return nil
 }
 
 // RuleEvent is a wrapper used to send an event to the backend
@@ -216,6 +208,7 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 			})
 		case <-ctx.Done():
+			a.stopChan <- struct{}{}
 			return
 		}
 	}
@@ -227,7 +220,13 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 		break
 	default:
 		// The channel is full, consume the oldest event
-		oldestMsg := <-a.msgs
+		select {
+		case oldestMsg := <-a.msgs:
+			a.expireEvent(oldestMsg)
+		default:
+			break
+		}
+
 		// Try to send the event again
 		select {
 		case a.msgs <- m:
@@ -237,7 +236,6 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 			a.expireEvent(m)
 			break
 		}
-		a.expireEvent(oldestMsg)
 		break
 	}
 }
@@ -252,7 +250,7 @@ func (a *APIServer) Start(ctx context.Context) {
 }
 
 // GetConfig returns config of the runtime security module required by the security agent
-func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
+func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
 	if a.cfg != nil {
 		return &api.SecurityConfigMessage{
 			FIMEnabled:          a.cfg.FIMEnabled,
@@ -265,10 +263,22 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func() []string, service string) {
+	var ruleActions []events.RuleActionContext
+
+	// report only kill action for now
+	for _, action := range e.GetActions() {
+		if action.Name == rules.KillAction {
+			ruleActions = append(ruleActions, events.RuleActionContext{Name: action.Name, Signal: action.Value})
+		}
+	}
+
 	agentContext := events.AgentContext{
 		RuleID:      rule.Definition.ID,
 		RuleVersion: rule.Definition.Version,
+		RuleActions: ruleActions,
 		Version:     version.AgentVersion,
+		OS:          runtime.GOOS,
+		Arch:        utils.RuntimeArch(),
 	}
 
 	ruleEvent := &events.Signal{
@@ -281,7 +291,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := marshalEvent(e, a.probe)
+	probeJSON, err := marshalEvent(e)
 	if err != nil {
 		seclog.Errorf("failed to marshal event: %v", err)
 		return
@@ -315,17 +325,13 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	a.enqueue(msg)
 }
 
-func marshalEvent(event events.Event, probe *sprobe.Probe) ([]byte, error) {
+func marshalEvent(event events.Event) ([]byte, error) {
 	if ev, ok := event.(*model.Event); ok {
-		return serializers.MarshalEvent(ev, probe.GetResolvers())
+		return serializers.MarshalEvent(ev)
 	}
 
-	if m, ok := event.(easyjson.Marshaler); ok {
-		w := &jwriter.Writer{
-			Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-		}
-		m.MarshalEasyJSON(w)
-		return w.BuildBytes()
+	if ev, ok := event.(events.EventMarshaler); ok {
+		return ev.ToJSON()
 	}
 
 	return json.Marshal(event)
@@ -378,7 +384,7 @@ func (a *APIServer) SendStats() error {
 }
 
 // ReloadPolicies reloads the policies
-func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
+func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
 	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
 		return nil, errors.New("no rule engine")
 	}
@@ -390,7 +396,7 @@ func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPolici
 }
 
 // GetRuleSetReport reports the ruleset loaded
-func (a *APIServer) GetRuleSetReport(ctx context.Context, params *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
 	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
 		return nil, errors.New("no rule engine")
 	}
@@ -417,14 +423,38 @@ func (a *APIServer) GetRuleSetReport(ctx context.Context, params *api.GetRuleSet
 	}, nil
 }
 
-// Apply a rule set
-func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
+// ApplyRuleIDs the rule ids
+func (a *APIServer) ApplyRuleIDs(ruleIDs []rules.RuleID) {
 	a.expiredEventsLock.Lock()
 	defer a.expiredEventsLock.Unlock()
 
 	a.expiredEvents = make(map[rules.RuleID]*atomic.Int64)
 	for _, id := range ruleIDs {
 		a.expiredEvents[id] = atomic.NewInt64(0)
+	}
+}
+
+// ApplyPolicyStates the policy states
+func (a *APIServer) ApplyPolicyStates(policies []*monitor.PolicyState) {
+	a.policiesStatusLock.Lock()
+	defer a.policiesStatusLock.Unlock()
+
+	a.policiesStatus = []*api.PolicyStatus{}
+	for _, policy := range policies {
+		entry := api.PolicyStatus{
+			Name:   policy.Name,
+			Source: policy.Source,
+		}
+
+		for _, rule := range policy.Rules {
+			entry.Status = append(entry.Status, &api.RuleStatus{
+				ID:     rule.ID,
+				Status: rule.Status,
+				Error:  rule.Message,
+			})
+		}
+
+		a.policiesStatus = append(a.policiesStatus, &entry)
 	}
 }
 
@@ -453,13 +483,13 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 		activityDumps:  make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents:  make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:   atomic.NewInt64(0),
-		limiter:        events.NewStdLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:   client,
 		probe:          probe,
 		retention:      cfg.EventServerRetention,
 		cfg:            cfg,
 		stopper:        stopper,
 		selfTester:     selfTester,
+		stopChan:       make(chan struct{}),
 	}
 	return es
 }
@@ -471,8 +501,9 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 	}
 
 	runPath := pkgconfig.Datadog.GetString("runtime_security_config.run_path")
+	useSecRuntimeTrack := pkgconfig.SystemProbe.GetBool("runtime_security_config.use_secruntime_track")
 
-	endpoints, destinationsCtx, err := common.NewLogContextRuntime()
+	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
 	}
@@ -481,7 +512,9 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 		log.Info(status)
 	}
 
-	reporter, err := reporter.NewCWSReporter(runPath, stopper, endpoints, destinationsCtx)
+	// we set the hostname to the empty string to take advantage of the out of the box message hostname
+	// resolution
+	reporter, err := reporter.NewCWSReporter("", runPath, stopper, endpoints, destinationsCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}

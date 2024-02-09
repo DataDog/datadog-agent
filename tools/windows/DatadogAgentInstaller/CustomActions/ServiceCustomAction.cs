@@ -1,10 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Authentication.ExtendedProtection;
 using System.Security.Principal;
 using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
+using Datadog.CustomActions.RollbackData;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
@@ -19,14 +23,19 @@ namespace Datadog.CustomActions
         private readonly IDirectoryServices _directoryServices;
         private readonly IFileServices _fileServices;
         private readonly IServiceController _serviceController;
+        private readonly IFileSystemServices _fileSystemServices;
+
+        private readonly RollbackDataStore _rollbackDataStore;
 
         public ServiceCustomAction(
             ISession session,
+            string rollbackDataName,
             INativeMethods nativeMethods,
             IRegistryServices registryServices,
             IDirectoryServices directoryServices,
             IFileServices fileServices,
-            IServiceController serviceController)
+            IServiceController serviceController,
+            IFileSystemServices fileSystemServices)
         {
             _session = session;
             _nativeMethods = nativeMethods;
@@ -34,16 +43,38 @@ namespace Datadog.CustomActions
             _directoryServices = directoryServices;
             _fileServices = fileServices;
             _serviceController = serviceController;
+            _fileSystemServices = fileSystemServices;
+
+            if (!string.IsNullOrEmpty(rollbackDataName))
+            {
+                _rollbackDataStore = new RollbackDataStore(_session, rollbackDataName, _fileSystemServices, _serviceController);
+            }
         }
 
         public ServiceCustomAction(ISession session)
+            : this(
+                session,
+                null,
+                new Win32NativeMethods(),
+                new RegistryServices(),
+                new DirectoryServices(),
+                new FileServices(),
+                new ServiceController(),
+                new FileSystemServices()
+            )
+        {
+        }
+
+        public ServiceCustomAction(ISession session, string rollbackDataName)
         : this(
             session,
+            rollbackDataName,
             new Win32NativeMethods(),
             new RegistryServices(),
             new DirectoryServices(),
             new FileServices(),
-            new ServiceController()
+            new ServiceController(),
+            new FileSystemServices()
         )
         {
         }
@@ -79,8 +110,7 @@ namespace Datadog.CustomActions
         {
             return EnsureNpmServiceDependendency(new SessionWrapper(session));
         }
-
-        private ActionResult ConfigureServiceUsers()
+        private ActionResult ConfigureServices()
         {
             try
             {
@@ -97,67 +127,171 @@ namespace Datadog.CustomActions
                     throw new Exception($"Could not find user {ddAgentUserName}.");
                 }
 
-                var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
-                var isServiceAccount = _nativeMethods.IsServiceAccount(securityIdentifier);
-                if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
-                {
-                    _session.Log("Password not provided, will not change service user password");
-                    // set to null so we don't modify the service config
-                    ddAgentUserPassword = null;
-                }
-                else if (isServiceAccount)
-                {
-                    _session.Log("Ignoring provided password because account is a service account");
-                    // Follow rules for ChangeServiceConfig
-                    if (securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-                        securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
-                        securityIdentifier.IsWellKnown(WellKnownSidType.NetworkServiceSid))
-                    {
-                        // Specify an empty string if the account has no password or if the service runs in the LocalService, NetworkService, or LocalSystem account.
-                        ddAgentUserPassword = "";
-                    }
-                    else
-                    {
-                        // If the account name specified by the lpServiceStartName parameter is the name of a managed service account or virtual account name, the lpPassword parameter must be NULL.
-                        ddAgentUserPassword = null;
-                    }
-                }
-
-                _session.Log($"Configuring services with account {ddAgentUserName}");
-
-                // ddagentuser
-                if (securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid))
-                {
-                    ddAgentUserName = "LocalSystem";
-                }
-                else if (securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid))
-                {
-                    ddAgentUserName = "LocalService";
-                }
-                else if (securityIdentifier.IsWellKnown(WellKnownSidType.NetworkServiceSid))
-                {
-                    ddAgentUserName = "NetworkService";
-                }
-                _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
-                _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
-
-                // SYSTEM
-                // LocalSystem is a SCM specific shorthand that doesn't need to be localized
-                _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
-                _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
+                ConfigureServiceUsers(ddAgentUserName, securityIdentifier);
+                ConfigureServicePermissions(securityIdentifier);
             }
             catch (Exception e)
             {
-                _session.Log($"Failed to configure service logon users: {e}");
+                _session.Log($"Failed to configure services: {e}");
                 return ActionResult.Failure;
+            }
+            finally
+            {
+                _rollbackDataStore.Store();
             }
             return ActionResult.Success;
         }
 
-        [CustomAction]
-        public static ActionResult ConfigureServiceUsers(Session session)
+        private void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
-            return new ServiceCustomAction(new SessionWrapper(session)).ConfigureServiceUsers();
+            var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
+            var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
+            if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
+            {
+                _session.Log("Password not provided, will not change service user password");
+                // set to null so we don't modify the service config
+                ddAgentUserPassword = null;
+            }
+            else if (isServiceAccount)
+            {
+                _session.Log("Ignoring provided password because account is a service account");
+                // Follow rules for ChangeServiceConfig
+                if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                    ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                    ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+                {
+                    // Specify an empty string if the account has no password or if the service runs in the LocalService, NetworkService, or LocalSystem account.
+                    ddAgentUserPassword = "";
+                }
+                else
+                {
+                    // If the account name specified by the lpServiceStartName parameter is the name of a managed service account or virtual account name, the lpPassword parameter must be NULL.
+                    ddAgentUserPassword = null;
+                }
+            }
+
+            _session.Log($"Configuring services with account {ddAgentUserName}");
+
+            // ddagentuser
+            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
+            {
+                ddAgentUserName = "LocalSystem";
+            }
+            else if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid))
+            {
+                ddAgentUserName = "LocalService";
+            }
+            else if (ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+            {
+                ddAgentUserName = "NetworkService";
+            }
+            _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+
+            // SYSTEM
+            // LocalSystem is a SCM specific shorthand that doesn't need to be localized
+            _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
+            _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
+
+            var installCWS = _session.Property("INSTALL_CWS");
+            if (!string.IsNullOrEmpty(installCWS))
+            {
+                _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            }
+        }
+
+        private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)
+        {
+            var oldSD = _serviceController.GetAccessSecurity(serviceName);
+            _session.Log(
+                $"{serviceName} current ACLs: {oldSD.GetSddlForm(AccessControlSections.All)}");
+
+            _rollbackDataStore.Add(new ServicePermissionRollbackData(serviceName, _serviceController));
+            _serviceController.SetAccessSecurity(serviceName, securityDescriptor);
+
+            var newSD = _serviceController.GetAccessSecurity(serviceName);
+            _session.Log(
+                $"{serviceName} new ACLs: {newSD.GetSddlForm(AccessControlSections.All)}");
+        }
+
+        /// <summary>
+        /// Grant ddagentuser start/stop service privileges for the agent services
+        /// </summary>
+        private void ConfigureServicePermissions(SecurityIdentifier ddAgentUserSID)
+        {
+            var previousDdAgentUserSid = InstallStateCustomActions.GetPreviousAgentUser(_session, _registryServices, _nativeMethods);
+
+            var services = new List<string>
+            {
+                Constants.ProcessAgentServiceName,
+                Constants.SystemProbeServiceName,
+                Constants.TraceAgentServiceName,
+                Constants.AgentServiceName,
+            };
+
+            if (!string.IsNullOrEmpty(_session.Property("INSTALL_CWS")))
+            {
+                services.Add(Constants.SecurityAgentServiceName);
+            }
+
+            foreach (var serviceName in services)
+            {
+                var securityDescriptor = _serviceController.GetAccessSecurity(serviceName);
+
+                // remove previous user
+                if (previousDdAgentUserSid != null && previousDdAgentUserSid != ddAgentUserSID)
+                {
+                    // unless that user is LocalSystem
+                    if (!previousDdAgentUserSid.IsWellKnown(WellKnownSidType.LocalSystemSid))
+                    {
+                        securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow,
+                            previousDdAgentUserSid,
+                            (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
+                    }
+                }
+
+                // Remove Everyone
+                // [7.47 - 7.50) added an ACE for Everyone, so make sure to remove it
+                securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow, new SecurityIdentifier("WD"),
+                    (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
+
+                // add current user
+                // Unless the user is LocalSystem since it already has access
+                if (!ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
+                {
+                    securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, ddAgentUserSID,
+                        (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP | ServiceAccess.GENERIC_READ),
+                        InheritanceFlags.None, PropagationFlags.None);
+                }
+
+                UpdateAndLogAccessControl(serviceName, securityDescriptor);
+            }
+        }
+
+        [CustomAction]
+        public static ActionResult ConfigureServices(Session session)
+        {
+            return new ServiceCustomAction(new SessionWrapper(session), "ConfigureServices").ConfigureServices();
+        }
+
+        private ActionResult ConfigureServicesRollback()
+        {
+            try
+            {
+                _rollbackDataStore.Restore();
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to rollback service configuration: {e}");
+            }
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult ConfigureServicesRollback(Session session)
+        {
+            return new ServiceCustomAction(new SessionWrapper(session), "ConfigureServices").ConfigureServicesRollback();
         }
 
         /// <summary>
@@ -204,10 +338,16 @@ namespace Datadog.CustomActions
 
                 // Stop each service individually in case the install is broken
                 // e.g. datadogagent doesn't exist or the service dependencies are not correect.
-                var ddservices = new []
+                //
+                // ** some services are optionally included in the package at build time.  Including
+                // them here will simply cause a spurious "Service X not found" in the log if the
+                // installer is built without that component.
+                var ddservices = new[]
                 {
                     Constants.SystemProbeServiceName,
                     Constants.NpmServiceName,
+                    Constants.ProcmonServiceName,       // might not exist depending on compile time options**
+                    Constants.SecurityAgentServiceName, // might not exist depending on compile time options**
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
                     Constants.AgentServiceName

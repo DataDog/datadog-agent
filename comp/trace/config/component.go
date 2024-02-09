@@ -32,8 +32,11 @@ type Component interface {
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings
 
-	// SetHandler sets http handler for config
+	// SetHandler returns a handler for runtime configuration changes.
 	SetHandler() http.Handler
+
+	// GetConfigHandler returns a handler to fetch the runtime configuration.
+	GetConfigHandler() http.Handler
 
 	// SetMaxMemCPU
 	SetMaxMemCPU(isContainerized bool)
@@ -42,17 +45,11 @@ type Component interface {
 	Object() *traceconfig.AgentConfig
 }
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
-
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newConfig),
-)
-
-// MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newConfig),
+		fx.Supply(Params{
+			FailIfAPIKeyMissing: true,
+		}))
+}

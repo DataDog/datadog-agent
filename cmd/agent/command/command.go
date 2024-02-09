@@ -10,15 +10,18 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 )
 
 const (
+	// ConfigName is the name of the config
 	ConfigName = "datadog"
+	// LoggerName is the name of the logger instance
 	LoggerName = "CORE"
 )
 
@@ -43,8 +46,8 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 // without secrets and logger disabled).
 func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
-		ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
-		LogParams:    log.LogForOneShot(LoggerName, "off", true)}
+		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+		LogParams:    logimpl.ForOneShot(LoggerName, "off", true)}
 }
 
 // MakeCommand makes the top-level Cobra command for this app.

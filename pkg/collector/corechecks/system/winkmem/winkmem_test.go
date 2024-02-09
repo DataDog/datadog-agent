@@ -11,16 +11,14 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func TestWinKMem(t *testing.T) {
 	kcheck := new(KMemCheck)
-	kcheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-
 	m := mocksender.NewMockSender(kcheck.ID())
+	kcheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	// since we're using the default config, there should
 	// be the default number

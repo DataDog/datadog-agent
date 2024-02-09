@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
+//nolint:revive // TODO(AML) Fix revive linter
 package mocksender
 
 import (
@@ -29,6 +32,14 @@ func (m *MockSender) AssertServiceCheck(t *testing.T, checkName string, status s
 // Additional tags over the ones specified don't make it fail
 func (m *MockSender) AssertMetric(t *testing.T, method string, metric string, value float64, hostname string, tags []string) bool {
 	return m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags))
+}
+
+// AssertMetric that the metric is emitted only once
+// Additional tags over the ones specified don't make it fail
+func (m *MockSender) AssertMetricOnce(t *testing.T, method string, metric string, value float64, hostname string, tags []string) bool {
+	okCall := m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags))
+	notOkCalls := m.Mock.AssertNotCalled(t, method, metric, AnythingBut(value), hostname, MatchTagsContains(tags))
+	return okCall && notOkCalls
 }
 
 // AssertMonotonicCount allows to assert a monotonic count was emitted with given parameters.

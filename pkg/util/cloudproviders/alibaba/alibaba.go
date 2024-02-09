@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package alibaba provides utilities to detect the Alibaba cloud provider.
 package alibaba
 
 import (
@@ -35,13 +36,12 @@ func IsRunningOn(ctx context.Context) bool {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "Alibaba InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-
 		if !config.IsCloudProviderEnabled(CloudProviderName) {
 			return nil, fmt.Errorf("cloud provider is disabled by configuration")
 		}
 
 		endpoint := metadataURL + "/latest/meta-data/instance-id"
-		res, err := httputils.Get(ctx, endpoint, nil, timeout)
+		res, err := httputils.Get(ctx, endpoint, nil, timeout, config.Datadog)
 		if err != nil {
 			return nil, fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
 		}

@@ -11,22 +11,14 @@ import (
 	"expvar"
 	"html/template"
 	"io"
-	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/status"
 )
 
-var fmap = status.Fmap()
-
-func init() {
-	fmap["lastErrorTraceback"] = lastErrorTraceback
-	fmap["lastErrorMessage"] = lastErrorMessage
-	fmap["pythonLoaderError"] = pythonLoaderError
-	fmap["status"] = displayStatus
-}
+var fmap = status.HTMLFmap()
 
 // Data is a struct used for filling templates
 type Data struct {
@@ -35,21 +27,6 @@ type Data struct {
 	ConfigErrs map[string]string
 	Stats      map[string]interface{}
 	CheckStats []*stats.Stats
-}
-
-func renderStatus(rawData []byte, request string) (string, error) {
-	var b = new(bytes.Buffer)
-	stats := make(map[string]interface{})
-	if err := json.Unmarshal(rawData, &stats); err != nil {
-		return "", err
-	}
-
-	data := Data{Stats: stats}
-	e := fillTemplate(b, data, request+"Status")
-	if e != nil {
-		return "", e
-	}
-	return b.String(), nil
 }
 
 func renderRunningChecks() (string, error) {
@@ -109,51 +86,4 @@ func fillTemplate(w io.Writer, data Data, request string) error {
 	}
 	e = t.Execute(w, data)
 	return e
-}
-
-/****** Helper functions for the template formatting ******/
-
-func pythonLoaderError(value string) template.HTML {
-	value = template.HTMLEscapeString(value)
-
-	value = strings.Replace(value, "\n", "<br>", -1)
-	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1)
-	return template.HTML(value)
-}
-
-func lastErrorTraceback(value string) template.HTML {
-	var lastErrorArray []map[string]string
-
-	err := json.Unmarshal([]byte(value), &lastErrorArray)
-	if err != nil || len(lastErrorArray) == 0 {
-		return template.HTML("No traceback")
-	}
-
-	traceback := template.HTMLEscapeString(lastErrorArray[0]["traceback"])
-
-	traceback = strings.Replace(traceback, "\n", "<br>", -1)
-	traceback = strings.Replace(traceback, "  ", "&nbsp;&nbsp;&nbsp;", -1)
-
-	return template.HTML(traceback)
-}
-
-func lastErrorMessage(value string) string {
-	var lastErrorArray []map[string]string
-	err := json.Unmarshal([]byte(value), &lastErrorArray)
-	if err == nil && len(lastErrorArray) > 0 {
-		if msg, ok := lastErrorArray[0]["message"]; ok {
-			return msg
-		}
-	}
-	return "UNKNOWN ERROR"
-}
-
-func displayStatus(check map[string]interface{}) template.HTML {
-	if check["LastError"].(string) != "" {
-		return template.HTML("[<span class=\"error\">ERROR</span>]")
-	}
-	if len(check["LastWarnings"].([]interface{})) != 0 {
-		return template.HTML("[<span class=\"warning\">WARNING</span>]")
-	}
-	return template.HTML("[<span class=\"ok\">OK</span>]")
 }

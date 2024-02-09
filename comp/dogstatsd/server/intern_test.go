@@ -6,14 +6,33 @@
 package server
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+func BenchmarkLoadOrStoreReset(b *testing.B) {
+	sInterner := newStringInterner(4, 1)
+
+	// benchmark with the internal telemetry enabled
+	sInterner.telemetry.enabled = true
+	sInterner.prepareTelemetry()
+
+	list := []string{}
+	for i := 0; i < 512; i++ {
+		list = append(list, fmt.Sprintf("testing.metric%d", i))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sInterner.LoadOrStore([]byte(list[i%len(list)]))
+	}
+}
+
 func TestInternLoadOrStoreValue(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(3)
+	sInterner := newStringInterner(3, 1)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -34,7 +53,7 @@ func TestInternLoadOrStoreValue(t *testing.T) {
 
 func TestInternLoadOrStorePointer(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(4)
+	sInterner := newStringInterner(4, 1)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -59,7 +78,7 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 
 func TestInternLoadOrStoreReset(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(4)
+	sInterner := newStringInterner(4, 1)
 
 	// first test that the good value is returned.
 	sInterner.LoadOrStore([]byte("foo"))

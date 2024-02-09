@@ -21,7 +21,7 @@ if ohai['platform'] == "windows"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
   install_dir '/opt/datadog-agent'
-  if redhat? || suse?
+  if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 
     # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
@@ -34,7 +34,7 @@ else
     # have to list them, because they'll already be there because of preinst
     runtime_script_dependency :pre, "coreutils"
     runtime_script_dependency :pre, "grep"
-    if redhat?
+    if redhat_target?
       runtime_script_dependency :pre, "glibc-common"
       runtime_script_dependency :pre, "shadow-utils"
     else
@@ -45,12 +45,27 @@ else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
 
-  if debian?
+  if debian_target?
     runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
   end
-  unless osx?
+  unless osx_target?
     conflict 'datadog-agent'
   end
+end
+
+if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
+  COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
+else
+  COMPRESSION_THREADS = 1
+end
+
+# On armv7, dpkg is built as a 32bits application, which means
+# we can only address 32 bits of memory, which is likely to OOM
+# if we use too many compression threads or a too agressive level
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && (!ENV.has_key?("PACKAGE_ARCH") || ENV["PACKAGE_ARCH"] != "armhf")
+  COMPRESSION_LEVEL = 9
+else
+  COMPRESSION_LEVEL = 5
 end
 
 # build_version is computed by an invoke command/function.
@@ -80,6 +95,9 @@ package :deb do
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('DEB_SIGNING_PASSPHRASE') and not ENV['DEB_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
@@ -96,6 +114,9 @@ package :rpm do
   license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
@@ -109,14 +130,14 @@ end
 # ------------------------------------
 
 # Linux
-if linux?
+if linux_target?
   # Upstart
-  if debian? || redhat? || suse?
+  if debian_target? || redhat_target? || suse_target?
     extra_package_file '/etc/init/datadog-agent.conf'
   end
 
   # Systemd
-  if debian?
+  if debian_target?
     extra_package_file '/lib/systemd/system/datadog-agent.service'
   else
     extra_package_file '/usr/lib/systemd/system/datadog-agent.service'
@@ -186,7 +207,7 @@ dependency 'preparation'
 # Datadog agent
 dependency 'datadog-iot-agent'
 
-if windows?
+if windows_target?
   dependency 'datadog-agent-finalize'
 end
 
@@ -194,8 +215,8 @@ end
 dependency 'version-manifest'
 
 # package scripts
-if linux?
-  if debian?
+if linux_target?
+  if debian_target?
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
   else
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"

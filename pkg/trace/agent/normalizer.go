@@ -158,13 +158,24 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 			delete(s.Meta, "http.status_code")
 		}
 	}
+
+	if len(s.SpanLinks) > 0 {
+		for _, link := range s.SpanLinks {
+			if val, ok := link.Attributes["link.name"]; ok {
+				link.Attributes["link.name"], err = traceutil.NormalizeName(val)
+				if err != nil {
+					log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, link.Attributes["link.name"])
+				}
+			}
+		}
+	}
 	return nil
 }
 
-// normalizeChunk takes a trace chunk and
+// setChunkAttributesFromRoot takes a trace chunk and from the root span
 // * populates Origin field if it wasn't populated
 // * populates Priority field if it wasn't populated
-func normalizeChunk(chunk *pb.TraceChunk, root *pb.Span) {
+func setChunkAttributesFromRoot(chunk *pb.TraceChunk, root *pb.Span) {
 	// check if priority is already populated
 	if chunk.Priority == int32(sampler.PriorityNone) {
 		// Older tracers set sampling priority in the root span.

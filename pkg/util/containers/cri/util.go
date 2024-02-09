@@ -5,6 +5,7 @@
 
 //go:build cri
 
+// Package cri implements a Container Runtime Interface (CRI) client.
 package cri
 
 import (

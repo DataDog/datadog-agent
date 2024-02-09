@@ -33,7 +33,7 @@ func TestSNMPListener(t *testing.T) {
 	}
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("snmp_listener", listenerConfig)
+	mockConfig.SetWithoutSource("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -81,7 +81,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	}
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("snmp_listener", listenerConfig)
+	mockConfig.SetWithoutSource("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -132,7 +132,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	}
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("snmp_listener", listenerConfig)
+	mockConfig.SetWithoutSource("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -157,6 +157,11 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 }
 
 func TestExtraConfig(t *testing.T) {
+	truePtr := true
+	fivePtr := 5
+	sixPtr := 6
+	threePtr := 3
+
 	snmpConfig := snmp.Config{
 		Network:      "192.168.0.0/24",
 		Community:    "public",
@@ -175,6 +180,15 @@ func TestExtraConfig(t *testing.T) {
 					"customTag2:value2",
 				},
 			}},
+		},
+		PingConfig: snmpintegration.PingConfig{
+			Enabled: &truePtr,
+			Linux: snmpintegration.PingLinuxConfig{
+				UseRawSocket: &truePtr,
+			},
+			Interval: &fivePtr,
+			Timeout:  &sixPtr,
+			Count:    &threePtr,
 		},
 	}
 
@@ -259,6 +273,10 @@ func TestExtraConfig(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10,"tags":["customTag1","customTag2:value2"]}]`, info)
 
+	info, err = svc.GetExtraConfig("ping")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, `{"linux":{"use_raw_socket":true},"enabled":true,"interval":5,"timeout":6,"count":3}`, info)
+
 	svc = SNMPService{
 		adIdentifier: "snmp",
 		entityID:     "id",
@@ -335,4 +353,38 @@ func TestExtraConfigv3(t *testing.T) {
 	info, err = svc.GetExtraConfig("loader")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "core", info)
+}
+
+func TestExtraConfigPingEmpty(t *testing.T) {
+	snmpConfig := snmp.Config{
+		Network:      "192.168.0.0/24",
+		Community:    "public",
+		Timeout:      5,
+		Retries:      2,
+		OidBatchSize: 10,
+		Namespace:    "my-ns",
+		InterfaceConfigs: map[string][]snmpintegration.InterfaceConfig{
+			"192.168.0.1": {{
+				MatchField: "name",
+				MatchValue: "eth0",
+				InSpeed:    25,
+				OutSpeed:   10,
+				Tags: []string{
+					"customTag1",
+					"customTag2:value2",
+				},
+			}},
+		},
+	}
+
+	svc := SNMPService{
+		adIdentifier: "snmp",
+		entityID:     "id",
+		deviceIP:     "192.168.0.1",
+		config:       snmpConfig,
+	}
+
+	info, err := svc.GetExtraConfig("ping")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, `{"linux":{"use_raw_socket":null},"enabled":null,"interval":null,"timeout":null,"count":null}`, info)
 }

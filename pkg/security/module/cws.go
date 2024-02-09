@@ -50,25 +50,25 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	selfTester, err := selftests.NewSelfTester(evm.Probe)
+	selfTester, err := selftests.NewSelfTester(cfg, evm.Probe)
 	if err != nil {
 		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}
 
-	family, address := getFamilyAddress(config)
+	family, address := config.GetFamilyAddress(cfg.SocketPath)
 
 	c := &CWSConsumer{
-		config:       config,
+		config:       cfg,
 		probe:        evm.Probe,
 		statsdClient: evm.StatsdClient,
 		// internals
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
-		apiServer:     NewAPIServer(config, evm.Probe, evm.StatsdClient, selfTester),
-		rateLimiter:   events.NewRateLimiter(config, evm.StatsdClient),
+		apiServer:     NewAPIServer(cfg, evm.Probe, evm.StatsdClient, selfTester),
+		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, address),
 		selfTester:    selfTester,
@@ -84,23 +84,33 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 
 	seclog.Infof("Instantiating CWS rule engine")
 
-	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, config, evm.Probe, c.rateLimiter, c.apiServer, c.eventSender, c.statsdClient, selfTester)
+	var listeners []rules.RuleSetListener
+	if selfTester != nil {
+		listeners = append(listeners, selfTester)
+	}
+
+	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c.eventSender, c.statsdClient, listeners...)
 	if err != nil {
 		return nil, err
 	}
 	c.apiServer.SetCWSConsumer(c)
 
+	// add self test as rule provider
+	if c.selfTester != nil {
+		c.ruleEngine.AddPolicyProvider(c.selfTester)
+	}
+
 	if err := evm.Probe.AddCustomEventHandler(model.UnknownEventType, c); err != nil {
 		return nil, err
 	}
 
-	seclog.SetPatterns(config.LogPatterns...)
-	seclog.SetTags(config.LogTags...)
+	seclog.SetPatterns(cfg.LogPatterns...)
+	seclog.SetTags(cfg.LogTags...)
 
 	api.RegisterSecurityModuleServer(c.grpcServer.server, c.apiServer)
 
 	// platform specific initialization
-	if err := c.init(evm, config, opts); err != nil {
+	if err := c.init(evm, cfg, opts); err != nil {
 		return nil, err
 	}
 
@@ -125,16 +135,6 @@ func (c *CWSConsumer) Start() error {
 	// start api server
 	c.apiServer.Start(c.ctx)
 
-	if c.config.SelfTestEnabled {
-		if triggerred, err := c.RunSelfTest(true); err != nil {
-			err = fmt.Errorf("failed to run self test: %w", err)
-			if !triggerred {
-				return err
-			}
-			seclog.Warnf("%s", err)
-		}
-	}
-
 	if err := c.ruleEngine.Start(c.ctx, c.reloader.Chan(), &c.wg); err != nil {
 		return err
 	}
@@ -147,38 +147,43 @@ func (c *CWSConsumer) Start() error {
 	return nil
 }
 
-// RunSelfTest runs the self tests
-func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
-	prevProviders, providers := c.ruleEngine.GetPolicyProviders(), c.ruleEngine.GetPolicyProviders()
-	if len(prevProviders) > 0 {
-		defer func() {
-			if err := c.ruleEngine.LoadPolicies(prevProviders, false); err != nil {
-				seclog.Errorf("failed to load policies: %s", err)
+// PostProbeStart is called after the event stream is started
+func (c *CWSConsumer) PostProbeStart() error {
+	if c.selfTester != nil && c.config.SelfTestEnabled {
+		c.wg.Add(1)
+		go func() {
+			defer c.wg.Done()
+
+			select {
+			case <-c.ctx.Done():
+
+			case <-time.After(15 * time.Second):
+				if _, err := c.RunSelfTest(c.config.SelfTestSendReport); err != nil {
+					seclog.Warnf("failed to run self test: %s", err)
+				}
 			}
 		}()
 	}
 
-	// add selftests as provider
-	if c.selfTester != nil {
-		providers = append(providers, c.selfTester)
+	return nil
+}
+
+// RunSelfTest runs the self tests
+func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
+	if c.selfTester == nil {
+		return false, nil
 	}
 
-	if err := c.ruleEngine.LoadPolicies(providers, false); err != nil {
-		return false, err
+	success, fails, testEvents, err := c.selfTester.RunSelfTest()
+	if err != nil {
+		return true, err
 	}
 
-	if c.selfTester != nil {
-		success, fails, testEvents, err := c.selfTester.RunSelfTest()
-		if err != nil {
-			return true, err
-		}
+	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
 
-		seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
-
-		// send the report
-		if c.config.SelfTestSendReport {
-			ReportSelfTest(c.eventSender, c.statsdClient, success, fails, testEvents)
-		}
+	// send the report
+	if sendLoadedReport {
+		ReportSelfTest(c.eventSender, c.statsdClient, success, fails, testEvents)
 	}
 
 	return true, nil
@@ -252,6 +257,11 @@ func (c *CWSConsumer) sendStats() {
 	}
 	if err := c.apiServer.SendStats(); err != nil {
 		seclog.Debugf("failed to send api server stats: %s", err)
+	}
+	for ruleID, counter := range c.ruleEngine.AutoSuppressions.GetStats() {
+		if counter > 0 {
+			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, []string{fmt.Sprintf("rule_id:%s", ruleID)}, 1.0)
+		}
 	}
 }
 

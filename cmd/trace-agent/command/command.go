@@ -3,23 +3,30 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(APM) Fix revive linter
 package command
 
 import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/config"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/controlsvc"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/info"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 )
 
+const (
+	// LoggerName is the application logger identifier
+	LoggerName = "TRACE"
+)
+
 // MakeRootCommand is the root command for the trace-agent
 // Please note that the trace-agent can be launched directly
-// by the root command, unlike other agents which are managed
+// by the root command, unlike other agents that are managed
 // with subcommands.
-func MakeRootCommand(defaultLogFile string) *cobra.Command {
+func MakeRootCommand() *cobra.Command {
 	globalParams := subcommands.GlobalParams{
 		ConfigName: "datadog-trace",
 	}
@@ -32,13 +39,14 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		return &subcommands.GlobalParams{
 			ConfPath:   globalParams.ConfPath,
 			ConfigName: globalParams.ConfigName,
-			LoggerName: "TRACE",
+			LoggerName: LoggerName,
 		}
 	}
 	commands := []*cobra.Command{
 		run.MakeCommand(globalConfGetter),
 		info.MakeCommand(globalConfGetter),
 		version.MakeCommand("trace-agent"),
+		config.MakeCommand(globalConfGetter),
 	}
 
 	commands = append(commands, controlsvc.Commands(globalConfGetter)...)

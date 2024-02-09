@@ -35,7 +35,7 @@ const (
 
 // LoadConfiguration exports the aggregated APT configuration file and parts
 // of the systemd configuration files related to APT timers.
-func LoadConfiguration(ctx context.Context, hostroot string) (string, interface{}) {
+func LoadConfiguration(_ context.Context, hostroot string) (string, interface{}) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Warnf("could not parse APT configuration properly: %v", err)
@@ -267,6 +267,7 @@ func readFileLimit(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer f.Close()
 	data, err := io.ReadAll(io.LimitReader(f, maxSize))
 	if err != nil {
 		return "", err

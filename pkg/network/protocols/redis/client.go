@@ -11,6 +11,7 @@ import (
 	"github.com/go-redis/redis/v9"
 )
 
+// NewClient returns a new redis client.
 func NewClient(serverAddress string, dialer *net.Dialer) *redis.Client {
 	return redis.NewClient(&redis.Options{
 		Addr:   serverAddress,

@@ -22,11 +22,6 @@ func smNS(k ...string) string {
 	return nskey("service_monitoring_config", k...)
 }
 
-// dsmNS adds `data_streams_config` namespace to configuration key
-func dsmNS(k ...string) string {
-	return nskey("data_streams_config", k...)
-}
-
 // diNS adds `dynamic_instrumentation` namespace to configuration key
 func diNS(k ...string) string {
 	return nskey("dynamic_instrumentation", k...)
@@ -44,4 +39,14 @@ func evNS(k ...string) string {
 
 func nskey(ns string, pieces ...string) string {
 	return strings.Join(append([]string{ns}, pieces...), ".")
+}
+
+// wcdNS addes 'windows_crash_detection' namespace to config key
+func wcdNS(k ...string) string {
+	return nskey("windows_crash_detection", k...)
+}
+
+// pngNS adds `ping` namespace to config key
+func pngNS(k ...string) string {
+	return nskey("ping", k...)
 }

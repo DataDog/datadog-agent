@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -27,30 +28,34 @@ import (
 var EBPFProbe = module.Factory{
 	Name:             config.EBPFModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
 		log.Infof("Starting the ebpf probe")
-		okp, err := ebpfcheck.NewEBPFProbe(ebpf.NewConfig())
+		okp, err := ebpfcheck.NewProbe(ebpf.NewConfig())
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the ebpf probe: %w", err)
 		}
 		return &ebpfModule{
-			EBPFProbe: okp,
+			Probe:     okp,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return true
 	},
 }
 
 var _ module.Module = &ebpfModule{}
 
 type ebpfModule struct {
-	*ebpfcheck.EBPFProbe
+	*ebpfcheck.Probe
 	lastCheck *atomic.Int64
 }
 
 func (o *ebpfModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+	// Limit concurrency to one as the probe check is not thread safe (mainly in the entry count buffers)
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())
-		stats := o.EBPFProbe.GetAndFlush()
+		stats := o.Probe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
 	}))
 
@@ -64,6 +69,6 @@ func (o *ebpfModule) GetStats() map[string]interface{} {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (o *ebpfModule) RegisterGRPC(_ *grpc.Server) error {
+func (o *ebpfModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }

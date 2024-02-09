@@ -10,23 +10,25 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type agentSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestAgentSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()), e2e.WithDevMode())
 }
 
 func (v *agentSuite) TestAgentCommandNoArg() {
-	version := v.Env().Agent.Version()
+	version := v.Env().Agent.Client.Version()
 
 	match, err := regexp.MatchString("^Agent .* - Commit: .* - Serialization version: .* - Go version: .*$", strings.TrimSuffix(version, "\n"))
 	assert.NoError(v.T(), err)
@@ -34,7 +36,7 @@ func (v *agentSuite) TestAgentCommandNoArg() {
 }
 
 func (v *agentSuite) TestAgentCommandWithArg() {
-	status := v.Env().Agent.Status(client.WithArgs([]string{"-h", "-n"}))
+	status := v.Env().Agent.Client.Status(agentclient.WithArgs([]string{"-h", "-n"}))
 	assert.Contains(v.T(), status.Content, "Use \"datadog-agent status [command] --help\" for more information about a command.")
 }
 
@@ -54,8 +56,8 @@ func (v *agentSuite) TestWithAgentConfig() {
 		if param.useConfig {
 			agentParams = append(agentParams, agentparams.WithAgentConfig(param.config))
 		}
-		v.UpdateEnv(e2e.AgentStackDef(nil, agentParams...))
-		config := v.Env().Agent.Config()
+		v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...)))
+		config := v.Env().Agent.Client.Config()
 		re := regexp.MustCompile(`.*log_level:(.*)\n`)
 		matches := re.FindStringSubmatch(config)
 		require.NotEmpty(v.T(), matches)
@@ -64,21 +66,21 @@ func (v *agentSuite) TestWithAgentConfig() {
 }
 
 func (v *agentSuite) TestWithTelemetry() {
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithTelemetry()))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithTelemetry())))
 
-	status := v.Env().Agent.Status()
+	status := v.Env().Agent.Client.Status()
 	require.Contains(v.T(), status.Content, "go_expvar")
 
-	v.UpdateEnv(e2e.AgentStackDef(nil))
-	status = v.Env().Agent.Status()
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake())
+	status = v.Env().Agent.Client.Status()
 	require.NotContains(v.T(), status.Content, "go_expvar")
 }
 
 func (v *agentSuite) TestWithLogs() {
-	config := v.Env().Agent.Config()
+	config := v.Env().Agent.Client.Config()
 	require.Contains(v.T(), config, "logs_enabled: false")
 
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithLogs()))
-	config = v.Env().Agent.Config()
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithLogs())))
+	config = v.Env().Agent.Client.Config()
 	require.Contains(v.T(), config, "logs_enabled: true")
 }

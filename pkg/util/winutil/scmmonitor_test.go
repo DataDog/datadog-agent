@@ -30,7 +30,7 @@ func (so *saveOutput) Write(p []byte) (n int, err error) {
 var startTime windows.Filetime
 var startTimeOnce sync.Once
 
-func testGetProcessStartTimeAsNs(pid uint64) (uint64, error) {
+func testGetProcessStartTimeAsNs(pid uint64) (uint64, error) { //nolint:revive // TODO fix revive unused-parameter
 
 	startTimeOnce.Do(func() {
 		windows.GetSystemTimeAsFileTime(&startTime)

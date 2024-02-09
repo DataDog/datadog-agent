@@ -80,4 +80,4 @@ func (t *telemetryMock) incLowLimit() {
 
 func (t *telemetryMock) incNoWait()                      {}
 func (t *telemetryMock) incLowLimitFreeOSMemory()        {}
-func (t *telemetryMock) setMemoryUsageRate(rate float64) {}
+func (t *telemetryMock) setMemoryUsageRate(rate float64) {} //nolint:revive // TODO fix revive unused-parameter

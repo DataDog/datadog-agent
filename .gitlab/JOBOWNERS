@@ -2,14 +2,13 @@
 
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
-build_omnibus-nikos_*                @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
-build_vcpkg_deps                     @DataDog/windows-agent
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
-tests_ebpf                           @DataDog/ebpf-platform
+tests_ebpf*                          @DataDog/ebpf-platform
+tests_windows_sysprobe*              @DataDog/windows-kernel-integrations
 security_go_generate_check           @DataDog/agent-security
 prepare_ebpf_functional_tests*       @DataDog/ebpf-platform
 
@@ -23,11 +22,14 @@ golang_deps_commenter                @DataDog/ebpf-platform
 build_system-probe*                  @DataDog/ebpf-platform
 cluster_agent_cloudfoundry-build*    @Datadog/platform-integrations
 cluster_agent-build*                 @DataDog/container-integrations
+cws_instrumentation-build*           @DataDog/agent-security
 build_serverless*                    @DataDog/serverless
-check_serverless_*                   @DataDog/serverless
 
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform
+
+# Kitchen tests
+kitchen_windows*                     @DataDog/windows-agent
 
 # Image build
 docker_build*                        @DataDog/container-integrations
@@ -44,13 +46,15 @@ check_already_deployed_version_*     @DataDog/do-not-notify
 # Dev container deploy
 dca_dev_branch*                        @DataDog/container-integrations
 dca_dev_master*                        @DataDog/container-integrations
+cws_instrumentation_dev_branch*        @DataDog/agent-security
 dev_branch*                            @DataDog/container-integrations
 dev_master*                            @DataDog/container-integrations
 dev_nightly*                           @DataDog/container-integrations
 
 # Internal image deploy
-docker_trigger_internal*               @DataDog/container-integrations
-docker_trigger_cluster_agent_internal* @DataDog/container-integrations
+docker_trigger_internal*                     @DataDog/container-integrations
+docker_trigger_cluster_agent_internal*       @DataDog/container-integrations
+docker_trigger_cws_instrumentation_internal* @DataDog/agent-security
 
 # Internal kubernetes deploy
 internal_kubernetes_deploy*            @DataDog/container-integrations
@@ -58,8 +62,12 @@ internal_kubernetes_deploy*            @DataDog/container-integrations
 # Deploy
 deploy_containers*                     @DataDog/container-integrations
 
+# Integration test
+integration_tests_windows*    @DataDog/windows-agent
+
 # Functional test
 kitchen_*_system_probe*                        @DataDog/ebpf-platform
+kitchen_*_system_probe_windows*                @DataDog/windows-kernel-integrations
 kitchen_*_security_agent*                      @DataDog/agent-security
 kitchen_*_process_agent*                       @DataDog/processes
 pull_test_dockers*                             @DataDog/universal-service-monitoring
@@ -71,6 +79,20 @@ k8s-e2e-*                         @DataDog/container-integrations
 k8s-e2e-otlp-*                    @DataDog/opentelemetry
 k8s-e2e-cws-*                     @DataDog/agent-security
 k8s-e2e-cspm-*                    @DataDog/agent-security
+
+# New E2E
+new-e2e-containers*               @DataDog/container-integrations
+new-e2e-agent-subcommands*        @DataDog/agent-shared-components
+new-e2e-agent-shared-components*  @DataDog/agent-shared-components
+new-e2e-language-detection*       @DataDog/processes
+new-e2e-process*                  @DataDog/processes
+new-e2e-agent-platform*           @DataDog/agent-platform
+new-e2e-aml*                      @DataDog/agent-metrics-logs
+new-e2e-npm*                      @DataDog/Networks
+new-e2e-cws*                      @DataDog/agent-security
+new-e2e-windows-agent*            @DataDog/windows-agent
+new-e2e-orchestrator*             @DataDog/container-app
+e2e_pre_test*                     @DataDog/agent-platform
 
 # Kernel version testing
 package_dependencies*             @DataDog/ebpf-platform

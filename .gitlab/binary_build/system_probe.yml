@@ -1,5 +1,8 @@
 ---
 .system-probe_build_common:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   before_script:
     - !reference [.retrieve_linux_go_deps]
     # HACK: empty the build directory cache (that can come from previous runs)
@@ -9,48 +12,17 @@
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
   script:
     - inv check-go-version
-    - inv -e system-probe.build --strip-object-files
+    - inv -e system-probe.build --strip-object-files --no-bundle
     # fail if references to glibc >= 2.18
     - objdump -p $CI_PROJECT_DIR/$SYSTEM_PROBE_BINARIES_DIR/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
-    - $S3_CP_CMD $CI_PROJECT_DIR/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/tracer.o $S3_ARTIFACTS_URI/tracer.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/tracer-debug.o $S3_ARTIFACTS_URI/tracer-debug.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess.o $S3_ARTIFACTS_URI/offset-guess.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess-debug.o $S3_ARTIFACTS_URI/offset-guess-debug.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/usm.o $S3_ARTIFACTS_URI/usm.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/usm-debug.o $S3_ARTIFACTS_URI/usm-debug.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/shared-libraries.o $S3_ARTIFACTS_URI/shared-libraries.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/shared-libraries-debug.o $S3_ARTIFACTS_URI/shared-libraries-debug.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $S3_ARTIFACTS_URI/dns.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $S3_ARTIFACTS_URI/dns-debug.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack.o $S3_ARTIFACTS_URI/conntrack.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack-debug.o $S3_ARTIFACTS_URI/conntrack-debug.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-fentry.o $S3_ARTIFACTS_URI/runtime-security-fentry.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-offset-guesser.o $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/usm.o $S3_ARTIFACTS_URI/usm-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/usm-debug.o $S3_ARTIFACTS_URI/usm-debug-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/shared-libraries.o $S3_ARTIFACTS_URI/shared-libraries-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/shared-libraries-debug.o $S3_ARTIFACTS_URI/shared-libraries-debug-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $S3_ARTIFACTS_URI/oom-kill-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tcp-queue-length.o $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/ebpf.o $S3_ARTIFACTS_URI/ebpf-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/ebpf-debug.o $S3_ARTIFACTS_URI/ebpf-debug-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry.o $S3_ARTIFACTS_URI/tracer-fentry-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry-debug.o $S3_ARTIFACTS_URI/tracer-fentry-debug-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer.o $S3_ARTIFACTS_URI/tracer-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-debug.o $S3_ARTIFACTS_URI/tracer-debug-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $S3_ARTIFACTS_URI/tracer.c.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/usm.c $S3_ARTIFACTS_URI/usm.c.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/shared-libraries.c $S3_ARTIFACTS_URI/shared-libraries.c.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $S3_ARTIFACTS_URI/runtime-security.c.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/conntrack.c $S3_ARTIFACTS_URI/conntrack.c.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/oom-kill.c $S3_ARTIFACTS_URI/oom-kill.c.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c $S3_ARTIFACTS_URI/tcp-queue-length.c.$ARCH
+    - inv -e system-probe.save-build-outputs $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
   variables:
     KUBERNETES_MEMORY_REQUEST: "6Gi"
     KUBERNETES_MEMORY_LIMIT: "12Gi"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
 
 build_system-probe-x64:
   stage: binary_build

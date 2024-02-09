@@ -3,4 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+// Package cri implements the CRI metrics collector.
 package cri

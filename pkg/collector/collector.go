@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package collector
 
 import (
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,31 +28,75 @@ const (
 	started
 )
 
-const cancelCheckTimeout time.Duration = 500 * time.Millisecond
+// EventType represents the type of events emitted by the collector
+type EventType uint32
 
-// Collector abstract common operations about running a Check
-type Collector struct {
+const (
+	// CheckRun is emitted when a check is added to the collector
+	CheckRun EventType = iota
+	// CheckStop is emitted when a check is stopped and removed from the collector
+	CheckStop
+)
+
+// EventReceiver represents a function to receive notification from the collector when running or stopping checks.
+type EventReceiver func(checkid.ID, EventType)
+
+// Collector manages a collection of checks and provides operations over them
+type Collector interface {
+	// Start begins the collector's operation.  The scheduler will not run any checks until this has been called.
+	Start()
+	// Stop halts any component involved in running a Check
+	Stop()
+	// RunCheck sends a Check in the execution queue
+	RunCheck(inner check.Check) (checkid.ID, error)
+	// StopCheck halts a check and remove the instance
+	StopCheck(id checkid.ID) error
+	// MapOverChecks call the callback with the list of checks locked.
+	MapOverChecks(cb func([]check.Info))
+	// GetChecks copies checks
+	GetChecks() []check.Check
+	// GetAllInstanceIDs returns the ID's of all instances of a check
+	GetAllInstanceIDs(checkName string) []checkid.ID
+	// ReloadAllCheckInstances completely restarts a check with a new configuration
+	ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error)
+	// AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.
+	AddEventReceiver(cb EventReceiver)
+}
+
+type collector struct {
 	senderManager  sender.SenderManager
 	checkInstances int64
 
 	// state is 'started' or 'stopped'
 	state *atomic.Uint32
 
-	scheduler *scheduler.Scheduler
-	runner    *runner.Runner
-	checks    map[checkid.ID]*middleware.CheckWrapper
+	scheduler      *scheduler.Scheduler
+	runner         *runner.Runner
+	checks         map[checkid.ID]*middleware.CheckWrapper
+	eventReceivers []EventReceiver
+
+	cancelCheckTimeout time.Duration
 
 	m sync.RWMutex
 }
 
 // NewCollector create a Collector instance and sets up the Python Environment
-func NewCollector(senderManager sender.SenderManager, paths ...string) *Collector {
-	c := &Collector{
-		senderManager:  senderManager,
-		checks:         make(map[checkid.ID]*middleware.CheckWrapper),
-		state:          atomic.NewUint32(stopped),
-		checkInstances: int64(0),
+func NewCollector(senderManager sender.SenderManager, cancelCheckTimeout time.Duration, paths ...string) Collector {
+	c := &collector{
+		senderManager:      senderManager,
+		checks:             make(map[checkid.ID]*middleware.CheckWrapper),
+		state:              atomic.NewUint32(stopped),
+		checkInstances:     int64(0),
+		cancelCheckTimeout: cancelCheckTimeout,
 	}
+	InitPython(paths...)
+
+	log.Debug("Collector up and running!")
+	return c
+}
+
+// Sets up the Python environment
+func InitPython(paths ...string) {
 	pyVer, pyHome, pyPath := pySetup(paths...)
 
 	// print the Python info if the interpreter was embedded
@@ -66,14 +110,24 @@ func NewCollector(senderManager sender.SenderManager, paths ...string) *Collecto
 	if err := pyPrepareEnv(); err != nil {
 		log.Errorf("Unable to perform additional configuration of the python environment: %v", err)
 	}
-
-	log.Debug("Collector up and running!")
-	return c
 }
 
-// Start begins the collector's operation.  The scheduler will not run any
-// checks until this has been called.
-func (c *Collector) Start() {
+// AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.
+func (c *collector) AddEventReceiver(cb EventReceiver) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	c.eventReceivers = append(c.eventReceivers, cb)
+}
+
+func (c *collector) notify(cid checkid.ID, e EventType) {
+	for _, cb := range c.eventReceivers {
+		cb(cid, e)
+	}
+}
+
+// Start begins the collector's operation.  The scheduler will not run any checks until this has been called.
+func (c *collector) Start() {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -94,7 +148,7 @@ func (c *Collector) Start() {
 }
 
 // Stop halts any component involved in running a Check
-func (c *Collector) Stop() {
+func (c *collector) Stop() {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -114,7 +168,7 @@ func (c *Collector) Stop() {
 }
 
 // RunCheck sends a Check in the execution queue
-func (c *Collector) RunCheck(inner check.Check) (checkid.ID, error) {
+func (c *collector) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -148,12 +202,12 @@ func (c *Collector) RunCheck(inner check.Check) (checkid.ID, error) {
 	}
 
 	c.checks[ch.ID()] = ch
-	inventories.Refresh()
+	c.notify(ch.ID(), CheckRun)
 	return ch.ID(), nil
 }
 
 // StopCheck halts a check and remove the instance
-func (c *Collector) StopCheck(id checkid.ID) error {
+func (c *collector) StopCheck(id checkid.ID) error {
 	if !c.started() {
 		return fmt.Errorf("the collector is not running")
 	}
@@ -172,18 +226,17 @@ func (c *Collector) StopCheck(id checkid.ID) error {
 	err = c.runner.StopCheck(id)
 	if err != nil {
 		// still attempt to cancel the check before returning the error
-		_ = c.cancelCheck(ch, cancelCheckTimeout)
+		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
 	}
 
-	err = c.cancelCheck(ch, cancelCheckTimeout)
+	err = c.cancelCheck(ch, c.cancelCheckTimeout)
 	if err != nil {
 		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
 	}
 
 	// remove the check from the stats map
 	expvars.RemoveCheckStats(id)
-	inventories.RemoveCheckMetadata(string(id))
 
 	// vaporize the check
 	c.delete(id)
@@ -192,7 +245,7 @@ func (c *Collector) StopCheck(id checkid.ID) error {
 }
 
 // cancelCheck calls Cancel on the passed check, with a timeout
-func (c *Collector) cancelCheck(ch check.Check, timeout time.Duration) error {
+func (c *collector) cancelCheck(ch check.Check, timeout time.Duration) error {
 	done := make(chan struct{})
 
 	go func() {
@@ -204,11 +257,11 @@ func (c *Collector) cancelCheck(ch check.Check, timeout time.Duration) error {
 	case <-done:
 		return nil
 	case <-time.After(timeout):
-		return fmt.Errorf("timeout while calling check.Cancel() on check ID %s", ch.ID())
+		return fmt.Errorf("timeout while calling check.Cancel() on check ID %s, timeout: %s", ch.ID(), timeout)
 	}
 }
 
-func (c *Collector) get(id checkid.ID) (check.Check, bool) {
+func (c *collector) get(id checkid.ID) (check.Check, bool) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -217,20 +270,21 @@ func (c *Collector) get(id checkid.ID) (check.Check, bool) {
 }
 
 // remove the check from the list
-func (c *Collector) delete(id checkid.ID) {
+func (c *collector) delete(id checkid.ID) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
 	delete(c.checks, id)
+	c.notify(id, CheckStop)
 }
 
 // lightweight shortcut to see if the collector has started
-func (c *Collector) started() bool {
+func (c *collector) started() bool {
 	return c.state.Load() == started
 }
 
 // MapOverChecks call the callback with the list of checks locked.
-func (c *Collector) MapOverChecks(cb func([]check.Info)) {
+func (c *collector) MapOverChecks(cb func([]check.Info)) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -242,7 +296,7 @@ func (c *Collector) MapOverChecks(cb func([]check.Info)) {
 }
 
 // GetChecks copies checks
-func (c *Collector) GetChecks() []check.Check {
+func (c *collector) GetChecks() []check.Check {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -255,7 +309,7 @@ func (c *Collector) GetChecks() []check.Check {
 }
 
 // GetAllInstanceIDs returns the ID's of all instances of a check
-func (c *Collector) GetAllInstanceIDs(checkName string) []checkid.ID {
+func (c *collector) GetAllInstanceIDs(checkName string) []checkid.ID {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -270,7 +324,7 @@ func (c *Collector) GetAllInstanceIDs(checkName string) []checkid.ID {
 }
 
 // ReloadAllCheckInstances completely restarts a check with a new configuration
-func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error) {
+func (c *collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error) {
 	if !c.started() {
 		return nil, fmt.Errorf("The collector is not running")
 	}
