@@ -29,10 +29,11 @@ func TestInstallsOnDomainController(t *testing.T) {
 		&testUpgradeSuite{},
 	}
 
-	for _, suite := range suites {
-		t.Run(reflect.TypeOf(suite).Name(), func(t *testing.T) {
+	for i, _ := range suites {
+		// use index to avoid loopclosure: loop variable suite captured by func literal (govet)
+		t.Run(reflect.TypeOf(suites[i]).Name(), func(t *testing.T) {
 			t.Parallel()
-			e2e.Run(t, suite, e2e.WithProvisioner(activedirectory.Provisioner(
+			e2e.Run(t, suites[i], e2e.WithProvisioner(activedirectory.Provisioner(
 				activedirectory.WithActiveDirectoryOptions(
 					activedirectory.WithDomainName(TestDomain),
 					activedirectory.WithDomainPassword(TestPassword),

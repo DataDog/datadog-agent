@@ -45,20 +45,29 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[Env] {
 		if err != nil {
 			return err
 		}
-		vm.Export(ctx, &env.DomainControllerHost.HostOutput)
+		err = vm.Export(ctx, &env.DomainControllerHost.HostOutput)
+		if err != nil {
+			return err
+		}
 
 		domainController, err := NewActiveDirectory(ctx, awsEnv.CommonEnvironment, vm, params.activeDirectoryOptions...)
 		if err != nil {
 			return err
 		}
-		domainController.Export(ctx, &env.DomainController.Output)
+		err = domainController.Export(ctx, &env.DomainController.Output)
+		if err != nil {
+			return err
+		}
 
 		// JL: can params.fakeintakeOptions be nil, and how should we handle it?
 		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
 		if err != nil {
 			return err
 		}
-		fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
 
 		return nil
 	}, nil)

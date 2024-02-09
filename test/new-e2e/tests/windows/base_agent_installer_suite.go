@@ -31,10 +31,12 @@ type BaseAgentInstallerSuite[Env any] struct {
 // InstallAgent installs the Agent on a given Windows host. It will pass all the parameters to the MSI installer.
 func (b *BaseAgentInstallerSuite[Env]) InstallAgent(host *components.RemoteHost, options ...windowsAgent.InstallAgentOption) (string, error) {
 	b.T().Helper()
-	p := &windowsAgent.InstallAgentParams{
+	p, err := infraCommon.ApplyOption(&windowsAgent.InstallAgentParams{
 		InstallLogFile: "install.log",
+	}, options)
+	if err != nil {
+		return "", err
 	}
-	infraCommon.ApplyOption(p, options)
 
 	if p.Package == nil {
 		return "", fmt.Errorf("missing agent package to install")

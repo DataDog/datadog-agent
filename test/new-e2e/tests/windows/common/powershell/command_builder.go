@@ -125,9 +125,7 @@ $HashArguments = @{
 
 // GetMachineType creates a command that returns the ProductType of the machine (2 for server, 3 for domain controller).
 func (ps *powerShellCommandBuilder) GetMachineType() *powerShellCommandBuilder {
-	ps.cmds = append(ps.cmds, fmt.Sprintf(`
-(Get-CimInstance -ClassName Win32_OperatingSystem).ProductType
-`))
+	ps.cmds = append(ps.cmds, "(Get-CimInstance -ClassName Win32_OperatingSystem).ProductType")
 	return ps
 }
 
