@@ -59,6 +59,9 @@ func coreLoader(cfg *Config) (*coreAssetLoader, error) {
 }
 
 func registerDefaultModifiers() {
+	// Important: managers that use the default modifiers will all share the same instance of each modifier.
+	// Take this into account if your modifier has internal state that should be specific to each manager, see
+	// more details in the Modifier documentation.
 	defaultModifiers = []Modifier{
 		&PrintkPatcherModifier{},
 	}
