@@ -8,8 +8,9 @@
 package testutils
 
 import (
+	"fmt"
 	"net"
-	"sync"
+	"strconv"
 )
 
 func GetFreePort() (uint16, error) {
@@ -28,5 +29,5 @@ func GetFreePort() (uint16, error) {
 		return 0, fmt.Errorf("can't convert udp port: %s", err)
 	}
 
-	return portInt, nil
+	return uint16(portInt), nil
 }
