@@ -116,7 +116,6 @@ kernel_matrix_testing_setup_env_system_probe_arm64:
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     TEST_COMPONENT: system-probe
     TEST_SETS: "no_tracersuite,only_tracersuite"
-    AVAILABLE_CPUS: "64"
 
 kernel_matrix_testing_setup_env_system_probe_x64:
   extends:
@@ -130,7 +129,6 @@ kernel_matrix_testing_setup_env_system_probe_x64:
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     TEST_COMPONENT: system-probe
     TEST_SETS: "no_tracersuite,only_tracersuite"
-    AVAILABLE_CPUS: "96"
 
 .upload_system_probe_tests:
   stage: kernel_matrix_testing_prepare
