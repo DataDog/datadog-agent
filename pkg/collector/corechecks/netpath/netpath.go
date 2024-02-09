@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/dublintraceroute"
@@ -17,10 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/dublintraceroute/results"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/google/uuid"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
@@ -192,57 +192,57 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 	//return len(hostHops[0]), nil
 }
 
-func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
-	tr := metadata.NetworkPath{
-		Timestamp: time.Now().UnixMilli(),
-		Source: metadata.NetworkPathSource{
-			Hostname: hname,
-		},
-		Destination: metadata.NetworkPathDestination{
-			Hostname: destinationHost,
-		},
-	}
-
-	hops := hostHops[0]
-	for _, hop := range hops {
-		ipAddress := hop.AddressString()
-		hop := metadata.NetworkPathHop{
-			TTL:       hop.TTL,
-			IpAddress: ipAddress,
-			Hostname:  hop.HostOrAddressString(),
-			RTT:       hop.ElapsedTime.Seconds(),
-			Success:   hop.Success,
-		}
-		tr.Hops = append(tr.Hops, hop)
-	}
-
-	flushTime := time.Now()
-	metadataPayloads := metadata.BatchPayloads(
-		"default",
-		"",
-		flushTime,
-		metadata.PayloadMetadataBatchSize,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		[]metadata.NetworkPath{tr},
-	)
-
-	log.Debugf("metadataPayloads: %d", len(metadataPayloads))
-	for _, payload := range metadataPayloads {
-		payloadBytes, err := json.Marshal(payload)
-		if err != nil {
-			log.Errorf("Error marshalling device metadata: %s", err)
-			continue
-		}
-		log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
-		sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
-	}
-
-	return nil
-}
+//func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
+//	tr := metadata.NetworkPath{
+//		Timestamp: time.Now().UnixMilli(),
+//		Source: metadata.NetworkPathSource{
+//			Hostname: hname,
+//		},
+//		Destination: metadata.NetworkPathDestination{
+//			Hostname: destinationHost,
+//		},
+//	}
+//
+//	hops := hostHops[0]
+//	for _, hop := range hops {
+//		ipAddress := hop.AddressString()
+//		hop := metadata.NetworkPathHop{
+//			TTL:       hop.TTL,
+//			IpAddress: ipAddress,
+//			Hostname:  hop.HostOrAddressString(),
+//			RTT:       hop.ElapsedTime.Seconds(),
+//			Success:   hop.Success,
+//		}
+//		tr.Hops = append(tr.Hops, hop)
+//	}
+//
+//	flushTime := time.Now()
+//	metadataPayloads := metadata.BatchPayloads(
+//		"default",
+//		"",
+//		flushTime,
+//		metadata.PayloadMetadataBatchSize,
+//		nil,
+//		nil,
+//		nil,
+//		nil,
+//		nil,
+//		[]metadata.NetworkPath{tr},
+//	)
+//
+//	log.Debugf("metadataPayloads: %d", len(metadataPayloads))
+//	for _, payload := range metadataPayloads {
+//		payloadBytes, err := json.Marshal(payload)
+//		if err != nil {
+//			log.Errorf("Error marshalling device metadata: %s", err)
+//			continue
+//		}
+//		log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
+//		sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
+//	}
+//
+//	return nil
+//}
 
 func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
 	hops := hostHops[0]
@@ -268,7 +268,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 
 		log.Debugf("traceroute: %s", tracerouteStr)
 
-		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkPath)
+		sender.EventPlatformEvent(tracerouteStr, eventplatform.EventTypeNetworkPath)
 		tags := []string{
 			"dest_name:" + c.config.DestName,
 			"agent_host:" + hname,
@@ -430,7 +430,7 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 
 			log.Debugf("traceroute: %s", tracerouteStr)
 
-			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkPath)
+			sender.EventPlatformEvent(tracerouteStr, eventplatform.EventTypeNetworkPath)
 
 			//prevHop = hop
 
@@ -606,7 +606,7 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 			log.Debugf("cur node probe: %+v", cur.probe)
 			log.Debugf("traceroute: %s", tracerouteStr)
 
-			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkPath)
+			sender.EventPlatformEvent(tracerouteStr, eventplatform.EventTypeNetworkPath)
 
 			hop := NetworkPathHop{
 				TTL:       idx,
@@ -633,7 +633,7 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 		return fmt.Errorf("error marshalling device metadata: %s", err)
 	}
 	log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
-	sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
+	sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkPath)
 	return nil
 }
 
@@ -688,16 +688,16 @@ func resolve(host string, wantV6 bool) (net.IP, error) {
 }
 
 // Configure the CPU check
-func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source)
 	if err != nil {
-		return err
+		return fmt.Errorf("common configure failed: %s", err)
 	}
 
 	// Must be called before c.CommonConfigure
-	c.BuildID(integrationConfigDigest, data, initConfig)
+	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	config, err := NewCheckConfig(data, initConfig)
+	config, err := NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
 		return err
 	}
@@ -705,12 +705,13 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	return nil
 }
 
-func netpathFactory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(checkName),
 	}
-}
-
-func init() {
-	core.RegisterCheck(checkName, netpathFactory)
 }
