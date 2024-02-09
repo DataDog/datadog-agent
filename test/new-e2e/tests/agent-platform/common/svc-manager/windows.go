@@ -7,10 +7,10 @@ package svcmanager
 
 import (
 	"fmt"
-	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
 // Windows struct for Windows service manager (SCM)
