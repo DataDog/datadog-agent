@@ -74,8 +74,6 @@ build do
     "PIP_CONFIG_FILE" => "#{pip_config_file}"
   }
 
-  uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
-
   # Install dependencies
   package_index_url = ENV['PYTHON_INDEX_URL']
   lockfile = windows_safe_path(project_dir, ".deps", "resolved", "linux-x86_64_py3.txt")
@@ -253,11 +251,6 @@ build do
                   :cwd => tasks_dir_in
       end
     end
-  end
-
-  # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
-  uninstall_buildtime_deps.each do |dep|
-    command "#{python} -m pip uninstall -y #{dep}"
   end
 
   # Patch applies to only one file: set it explicitly as a target, no need for -p
