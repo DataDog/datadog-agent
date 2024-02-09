@@ -75,7 +75,7 @@ func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *
 		}
 
 		ensureAdwsStartedCmd, err := host.OS.Runner().Command(comp.namer.ResourceName("ensure-adws-started"), &command.Args{
-			Create: pulumi.String("while (1) { try { (Get-Service ADWS -ErrorAction SilentlyContinue).WaitForStatus('Running', '00:01:00'); break; } catch { Write-Host 'Not yet ready'; Start-Sleep -Seconds 10 } }"),
+			Create: pulumi.String(powershell.PsHost().WaitForServiceStatus("ADWS", "Running").Compile()),
 		}, pulumi.DependsOn([]pulumi.Resource{
 			waitForRebootCmd,
 		}))
