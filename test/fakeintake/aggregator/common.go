@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-var generateFixture = flag.Bool("generate", true, "generate fixture")
+var generateFixture = flag.Bool("generate", false, "generate fixture")
 
 // PyaloadItem is the interface for payload items stored in a generic aggregator
 type PayloadItem interface {
