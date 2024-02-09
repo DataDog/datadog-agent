@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -23,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -32,6 +35,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var awsFlags struct {
+	region  string
+	account string
+}
+
 func awsGroupCommand(parent *cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "aws",
@@ -40,6 +48,9 @@ func awsGroupCommand(parent *cobra.Command) *cobra.Command {
 		SilenceUsage:      true,
 		PersistentPreRunE: parent.PersistentPreRunE,
 	}
+	pflags := cmd.PersistentFlags()
+	pflags.StringVar(&awsFlags.region, "region", "", "AWS region")
+	pflags.StringVar(&awsFlags.account, "account-id", "", "AWS account ID")
 	cmd.AddCommand(awsScanCommand())
 	cmd.AddCommand(awsSnapshotCommand())
 	cmd.AddCommand(awsOfflineCommand())
@@ -51,13 +62,15 @@ func awsGroupCommand(parent *cobra.Command) *cobra.Command {
 func awsScanCommand() *cobra.Command {
 	var flags struct {
 		Hostname string
+		Region   string
 	}
 	cmd := &cobra.Command{
 		Use:   "scan",
 		Short: "Executes a scan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			self, err := awsutils.GetSelfEC2InstanceIndentity(context.Background())
+			ctx := ctxTerminated()
+			self, err := probeAWSEnv(ctx)
 			if err != nil {
 				return err
 			}
@@ -65,7 +78,7 @@ func awsScanCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return awsScanCmd(resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
+			return awsScanCmd(ctx, resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
 		},
 	}
 
@@ -80,7 +93,7 @@ func awsSnapshotCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := ctxTerminated()
-			self, err := awsutils.GetSelfEC2InstanceIndentity(context.Background())
+			self, err := probeAWSEnv(ctx)
 			if err != nil {
 				return err
 			}
@@ -144,8 +157,6 @@ func awsOfflineCommand() *cobra.Command {
 
 	var flags struct {
 		workers      int
-		account      string
-		region       string
 		filters      string
 		taskType     string
 		maxScans     int
@@ -155,6 +166,11 @@ func awsOfflineCommand() *cobra.Command {
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := ctxTerminated()
+			self, err := probeAWSEnv(ctx)
+			if err != nil {
+				return err
+			}
 			if flags.workers <= 0 {
 				return fmt.Errorf("workers must be greater than 0")
 			}
@@ -167,10 +183,11 @@ func awsOfflineCommand() *cobra.Command {
 				return err
 			}
 			return awsOfflineCmd(
+				ctx,
 				flags.workers,
 				taskType,
-				flags.account,
-				flags.region,
+				self.AccountID,
+				self.Region,
 				flags.maxScans,
 				flags.printResults,
 				filters,
@@ -181,8 +198,6 @@ func awsOfflineCommand() *cobra.Command {
 	}
 
 	cmd.Flags().IntVar(&flags.workers, "workers", 40, "number of scans running in parallel")
-	cmd.Flags().StringVar(&flags.account, "account", "auto", "account id (default to the current account)")
-	cmd.Flags().StringVar(&flags.region, "regions", "auto", "list of regions to scan (default to the current region)")
 	cmd.Flags().StringVar(&flags.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
 	cmd.Flags().StringVar(&flags.taskType, "task-type", string(types.TaskTypeEBS), fmt.Sprintf("scan type (%s, %s, %s or %s)", types.TaskTypeEBS, types.TaskTypeLambda, types.TaskTypeAMI, types.TaskTypeHost))
 	cmd.Flags().IntVar(&flags.maxScans, "max-scans", 0, "maximum number of scans to perform")
@@ -199,7 +214,8 @@ func awsAttachCommand() *cobra.Command {
 		Short: "Attaches a snapshot or volume to the current instance",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			self, err := awsutils.GetSelfEC2InstanceIndentity(context.Background())
+			ctx := ctxTerminated()
+			self, err := probeAWSEnv(ctx)
 			if err != nil {
 				return err
 			}
@@ -207,7 +223,7 @@ func awsAttachCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return awsAttachCmd(resourceID, !flags.noMount, globalFlags.diskMode, globalFlags.defaultActions)
+			return awsAttachCmd(ctx, resourceID, !flags.noMount, globalFlags.diskMode, globalFlags.defaultActions)
 		},
 	}
 	cmd.Flags().BoolVar(&flags.noMount, "no-mount", false, "mount the device")
@@ -216,7 +232,6 @@ func awsAttachCommand() *cobra.Command {
 
 func awsCleanupCommand() *cobra.Command {
 	var flags struct {
-		region string
 		dryRun bool
 		delay  time.Duration
 	}
@@ -224,18 +239,20 @@ func awsCleanupCommand() *cobra.Command {
 		Use:   "cleanup",
 		Short: "Cleanup resources created by the agentless-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return awsCleanupCmd(flags.region, flags.dryRun, flags.delay)
+			ctx := ctxTerminated()
+			self, err := probeAWSEnv(ctx)
+			if err != nil {
+				return err
+			}
+			return awsCleanupCmd(ctx, self.Region, self.AccountID, flags.dryRun, flags.delay)
 		},
 	}
-	cmd.Flags().StringVar(&flags.region, "region", awsutils.DefaultSelfRegion, "AWS region")
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "dry run")
 	cmd.Flags().DurationVar(&flags.delay, "delay", 0, "delete snapshot older than delay")
 	return cmd
 }
 
-func awsScanCmd(resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
-	ctx := ctxTerminated()
-
+func awsScanCmd(ctx context.Context, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	scannerHostname := tryGetHostname(ctx)
 	taskType, err := types.DefaultTaskType(resourceID)
 	if err != nil {
@@ -281,8 +298,7 @@ func awsScanCmd(resourceID types.CloudID, targetHostname string, actions []types
 	return nil
 }
 
-func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
-	ctx := ctxTerminated()
+func awsOfflineCmd(ctx context.Context, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	defer statsd.Flush()
 
 	scannerHostname, err := utils.GetHostnameWithContext(ctx)
@@ -290,19 +306,7 @@ func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName s
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
-	self, err := awsutils.GetSelfEC2InstanceIndentity(ctx)
-	if err != nil {
-		return err
-	}
-
 	roles := getDefaultRolesMapping(types.CloudProviderAWS)
-	if regionName == "auto" {
-		regionName = self.Region
-	}
-	if accountID == "auto" {
-		accountID = self.AccountID
-	}
-
 	scanner, err := runner.New(runner.Options{
 		Hostname:       scannerHostname,
 		CloudProvider:  types.CloudProviderAWS,
@@ -582,14 +586,8 @@ func awsOfflineCmd(workers int, taskType types.TaskType, accountID, regionName s
 	return nil
 }
 
-func awsCleanupCmd(region string, dryRun bool, delay time.Duration) error {
-	ctx := ctxTerminated()
-
-	identity, err := awsutils.GetIdentity(ctx)
-	if err != nil {
-		return err
-	}
-	assumedRole := getDefaultRolesMapping(types.CloudProviderAWS).GetRole(*identity.Account)
+func awsCleanupCmd(ctx context.Context, region, account string, dryRun bool, delay time.Duration) error {
+	assumedRole := getDefaultRolesMapping(types.CloudProviderAWS).GetRole(account)
 	toBeDeleted, err := awsutils.ListResourcesForCleanup(ctx, delay, region, assumedRole)
 	if err != nil {
 		return err
@@ -608,9 +606,7 @@ func awsCleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	return nil
 }
 
-func awsAttachCmd(resourceID types.CloudID, mount bool, diskMode types.DiskMode, defaultActions []types.ScanAction) error {
-	ctx := ctxTerminated()
-
+func awsAttachCmd(ctx context.Context, resourceID types.CloudID, mount bool, diskMode types.DiskMode, defaultActions []types.ScanAction) error {
 	scannerHostname := tryGetHostname(ctx)
 	roles := getDefaultRolesMapping(types.CloudProviderAWS)
 	scan, err := types.NewScanTask(
@@ -683,6 +679,52 @@ func ec2TagsToStringTags(tags []ec2types.Tag) []string {
 		}
 	}
 	return tgs
+}
+
+type awsEnv struct {
+	Region    string
+	AccountID string
+}
+
+func probeAWSEnv(ctx context.Context) (*awsEnv, error) {
+	region, account := awsFlags.region, awsFlags.account
+	if region == "" || account == "" {
+		cfg, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+		imdsclient := imds.NewFromConfig(cfg)
+		id, err := imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
+		if err == nil {
+			if region == "" {
+				region = id.Region
+			}
+			if account == "" {
+				account = id.AccountID
+			}
+		} else if errors.Is(err, syscall.ECONNREFUSED) {
+			// Probably not running from an EC2 instance
+			if region == "" {
+				region = pkgconfig.Datadog.GetString("agentless_scanner.aws_region")
+			}
+			if region == "" {
+				region = awsutils.DefaultSelfRegion
+			}
+			if account == "" {
+				id2, err := awsutils.GetIdentity(ctx)
+				if err != nil {
+					return nil, fmt.Errorf("could not get self identity: %w", err)
+				}
+				account = *id2.Account
+			}
+		} else if err != nil {
+			return nil, fmt.Errorf("could not get self identity: %w", err)
+		}
+	}
+	return &awsEnv{
+		Region:    region,
+		AccountID: account,
+	}, nil
 }
 
 func ctxTerminated() context.Context {

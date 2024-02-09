@@ -143,7 +143,7 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotW
 
 // CopySnapshot copies an EBS snapshot.
 func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, ec2client *ec2.Client, snapshotID types.CloudID) (types.CloudID, error) {
-	self, err := GetSelfEC2InstanceIndentity(ctx)
+	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return types.CloudID{}, fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
 	}
@@ -217,10 +217,7 @@ func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotID
 // AttachSnapshotWithVolume attaches the given snapshot to the instance as a
 // new volume.
 func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, snapshotID types.CloudID) error {
-	if snapshotID.ResourceType() != types.ResourceTypeSnapshot {
-		return fmt.Errorf("expected snapshot resource: %s", snapshotID)
-	}
-	self, err := GetSelfEC2InstanceIndentity(ctx)
+	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
 	}
