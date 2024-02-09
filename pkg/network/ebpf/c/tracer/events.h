@@ -132,28 +132,42 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
     return 1;
 }
 
-static __always_inline void flush_conn_close_if_full(void *ctx) {
-    u32 cpu = bpf_get_smp_processor_id();
+static __always_inline int retreive_current_batch(u32 cpu, batch_t *batch_copy) {
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-    if (!batch_ptr) {
+    if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
+        return 1;
+    }
+    // Here we copy the batch data to a variable allocated in the eBPF stack
+    // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
+    // since you can't directly write a map entry to the perf buffer.
+    bpf_memcpy(&batch_copy, batch_ptr, sizeof(&batch_copy));
+    batch_ptr->len = 0;
+    batch_ptr->id++;
+    return 0;
+}
+
+static __always_inline void flush_conn_close_if_full_ringbuff(void *ctx) {
+    u32 cpu = bpf_get_smp_processor_id();
+    batch_t batch_copy = {};
+    int ret = retreive_current_batch(cpu, &batch_copy);
+    if (ret != 0) {
         return;
     }
-
-    if (batch_ptr->len == CONN_CLOSED_BATCH_SIZE) {
-        // Here we copy the batch data to a variable allocated in the eBPF stack
-        // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
-        // since you can't directly write a map entry to the perf buffer.
-        batch_t batch_copy = {};
-        bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
-        batch_ptr->len = 0;
-        batch_ptr->id++;
-
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        bpf_map_update_with_telemetry(pending_individual_conn_flushes, &pid_tgid, &batch_copy, BPF_ANY);
-        bpf_tail_call_compat(ctx, &conn_close_batch_progs, 0);
-
-        // we cannot use the telemetry macro here because of stack size constraints
+    if (ringbuffers_enabled()) {
+        bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
+    } else {
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
     }
+}
+
+static __always_inline void flush_conn_close_if_full_perfbuff_only(void *ctx) {
+    u32 cpu = bpf_get_smp_processor_id();
+    batch_t batch_copy = {};
+    int ret = retreive_current_batch(cpu, &batch_copy);
+    if (ret != 0) {
+        return;
+    }
+    bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
 }
 
 static __always_inline void emit_conn_close_event_ringbuffer(void *ctx) {
@@ -174,24 +188,24 @@ static __always_inline void emit_conn_close_event(void *ctx) {
     bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
 }
 
-static __always_inline void emit_conn_close_event_from_batch_ringbuffer(void *ctx) {
-    // todo: add telemetry here?
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    batch_t* batch = bpf_map_lookup_elem(&pending_batch_conn_flushes, &pid_tgid);
-    u32 cpu = bpf_get_smp_processor_id();
-    if (ringbuffers_enabled()) {
-        bpf_ringbuf_output(&conn_close_event, batch, sizeof(*batch), 0);
-    } else {
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, batch, sizeof(*batch));
-    }
-}
+// static __always_inline void emit_conn_close_event_from_batch_ringbuffer(void *ctx) {
+//     // todo: add telemetry here?
+//     u64 pid_tgid = bpf_get_current_pid_tgid();
+//     batch_t* batch = bpf_map_lookup_elem(&pending_batch_conn_flushes, &pid_tgid);
+//     u32 cpu = bpf_get_smp_processor_id();
+//     if (ringbuffers_enabled()) {
+//         bpf_ringbuf_output(&conn_close_event, batch, sizeof(*batch), 0);
+//     } else {
+//         bpf_perf_event_output(ctx, &conn_close_event, cpu, batch, sizeof(*batch));
+//     }
+// }
 
-static __always_inline void emit_conn_close_event_from_batch(void *ctx) {
-    // todo: add telemetry here?
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    batch_t* batch = bpf_map_lookup_elem(&pending_batch_conn_flushes, &pid_tgid);
-    u32 cpu = bpf_get_smp_processor_id();
-    bpf_perf_event_output(ctx, &conn_close_event, cpu, batch, sizeof(*batch));
-}
+// static __always_inline void emit_conn_close_event_from_batch(void *ctx) {
+//     // todo: add telemetry here?
+//     u64 pid_tgid = bpf_get_current_pid_tgid();
+//     batch_t* batch = bpf_map_lookup_elem(&pending_batch_conn_flushes, &pid_tgid);
+//     u32 cpu = bpf_get_smp_processor_id();
+//     bpf_perf_event_output(ctx, &conn_close_event, cpu, batch, sizeof(*batch));
+// }
 
 #endif // __TRACER_EVENTS_H

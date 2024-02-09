@@ -87,6 +87,8 @@ const (
 	// TCPCloseFlushReturn traces the return of tcp_close() system call
 	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
 
+	TCPCloseFlushReturnPre580 ProbeFuncName = "kretprobe__tcp_close_flush_pre_5_8_0"
+
 	TCPConnCloseEmitBatch ProbeFuncName = "emit_conn_close_event_from_batch"
 
 	TCPConnCloseEmitBatchRingBuffer ProbeFuncName = "emit_conn_close_event_from_batch_ringbuffer"
@@ -146,10 +148,12 @@ const (
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeFuncName = "kprobe__udp_destroy_sock"
 	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
-	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
+	UDPDestroySockReturn       ProbeFuncName = "kretprobe__udp_destroy_sock"
+	UDPDestroySockReturnPre580 ProbeFuncName = "kretprobe__udp_destroy_sock_pre_5_8_0"
 
-	UDPv6DestroySock       ProbeFuncName = "kprobe__udpv6_destroy_sock"
-	UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
+	UDPv6DestroySock             ProbeFuncName = "kprobe__udpv6_destroy_sock"
+	UDPv6DestroySockReturn       ProbeFuncName = "kretprobe__udpv6_destroy_sock"
+	UDPv6DestroySockReturnPre580 ProbeFuncName = "kretprobe__udpv6_destroy_sock_pre_5_8_0"
 
 	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call
 	TCPRetransmit ProbeFuncName = "kprobe__tcp_retransmit_skb"

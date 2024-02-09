@@ -57,8 +57,8 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)
-		enableProbe(enabled, probes.TCPCloseFlushReturn)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.ConnCloseProgsMap, probes.ConnCloseProgsMapPre580, kv580))
+		//enableProbe(enabled, probes.TCPCloseFlushReturn)
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPCloseFlushReturn, probes.TCPCloseFlushReturnPre580, kv580))
 		enableProbe(enabled, probes.TCPConnect)
 		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
@@ -73,7 +73,8 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	if c.CollectUDPv4Conns {
 		enableProbe(enabled, probes.UDPDestroySock)
-		enableProbe(enabled, probes.UDPDestroySockReturn)
+		//enableProbe(enabled, probes.UDPDestroySockReturn)
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPDestroySockReturn, probes.UDPDestroySockReturnPre580, kv580))
 		enableProbe(enabled, probes.IPMakeSkb)
 		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
@@ -96,7 +97,8 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	if c.CollectUDPv6Conns {
 		enableProbe(enabled, probes.UDPv6DestroySock)
-		enableProbe(enabled, probes.UDPv6DestroySockReturn)
+		//enableProbe(enabled, probes.UDPv6DestroySockReturn)
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6DestroySockReturn, probes.UDPv6DestroySockReturnPre580, kv580))
 		if kv >= kv5180 || runtimeTracer {
 			// prebuilt shouldn't arrive here with 5.18+ and UDPv6 enabled
 			if !coreTracer && !runtimeTracer {

@@ -255,7 +255,13 @@ int kretprobe__tcp_close_clean_protocols(struct pt_regs *ctx) {
 
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close_flush(struct pt_regs *ctx) {
-    flush_conn_close_if_full(ctx);
+    flush_conn_close_if_full_ringbuff(ctx);
+    return 0;
+}
+
+SEC("kretprobe/tcp_close")
+int kretprobe__tcp_close_flush_pre_5_8_0(struct pt_regs *ctx) {
+    flush_conn_close_if_full_perfbuff_only(ctx);
     return 0;
 }
 
@@ -983,7 +989,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
     pb.port = lport;
     remove_port_bind(&pb, &udp_port_bindings);
     if (individual_flush_needed) {
-        bpf_tail_call_compat(ctx, &conn_close_individual_progs, 1);
+        bpf
     }
     return 0;
 }
@@ -1001,13 +1007,27 @@ int kprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
 }
 
 SEC("kretprobe/udp_destroy_sock")
-int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
-    flush_conn_close_if_full(ctx);
+int kretprobe__udp_destroy_sock_pre_5_8_0(struct pt_regs *ctx) {
+    flush_conn_close_if_full_perfbuff_only(ctx);
     return 0;
 }
+
+SEC("kretprobe/udp_destroy_sock")
+int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
+    flush_conn_close_if_full_ringbuff(ctx);
+    return 0;
+}
+
+
+SEC("kretprobe/udpv6_destroy_sock")
+int kretprobe__udpv6_destroy_sock_pre_5_8_0(struct pt_regs *ctx) {
+    flush_conn_close_if_full_perfbuff_only(ctx);
+    return 0;
+}
+
 SEC("kretprobe/udpv6_destroy_sock")
 int kretprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
-    flush_conn_close_if_full(ctx);
+    flush_conn_close_if_full_ringbuff(ctx);
     return 0;
 }
 
