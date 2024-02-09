@@ -27,7 +27,7 @@ func (Provider) Name() string {
 	return "Leader Election"
 }
 
-// Index return the index
+// Section return the section
 func (Provider) Section() string {
 	return "Leader Election"
 }

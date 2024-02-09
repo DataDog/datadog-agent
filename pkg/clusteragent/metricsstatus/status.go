@@ -5,6 +5,8 @@
 
 //go:build kubeapiserver
 
+// Package metricsstatus implements the core status provider interface
+// Provides support for JSON and Text status information for cluster agent metrics
 package metricsstatus
 
 import (
