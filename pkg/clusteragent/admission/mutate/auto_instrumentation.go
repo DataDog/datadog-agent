@@ -86,12 +86,11 @@ const (
 	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
 
-	imageFormat = "%s/dd-lib-%s-init:%s"
-
 	// DefaultMilliCPURequest defines default milli cpu request number.
 	DefaultMilliCPURequest int64 = 10 // 0.01 core
 	// DefaultMemoryRequest defines default memory request size.
 	DefaultMemoryRequest int64 = 20 * 1024 * 1024 // 20 MB
+
 	// Env vars
 	instrumentationInstallTypeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TYPE"
 	instrumentationInstallTimeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TIME"
