@@ -61,7 +61,7 @@ func getNodeInfoTags(ctx context.Context) ([]string, error) {
 
 	nodeLabels, err := nodeInfo.GetNodeLabels(ctx)
 	if err != nil {
-		_ = log.Errorf("Unable to auto discover node labels: %s", err)
+		log.Errorf("Unable to auto discover node labels: %s", err)
 		return nil, err
 	}
 	if len(nodeLabels) > 0 {
