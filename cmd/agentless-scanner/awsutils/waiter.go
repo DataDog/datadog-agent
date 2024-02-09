@@ -20,133 +20,225 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
+const (
+	waitTickerInterval  = 5 * time.Second
+	waitSnapshotTimeout = 15 * time.Minute
+)
+
+var errWaitDone = errors.New("")
+
 // WaitResult is the result of a snapshot creation wait.
 type WaitResult struct {
 	Err      error
 	Snapshot *ec2types.Snapshot
+	Image    *ec2types.Image
 }
 
 type waitSub chan WaitResult
 
+type waitGroup struct {
+	region    string
+	accountID string
+}
+
 // SnapshotWaiter allows to wait for multiple snapshot creation at once.
 type SnapshotWaiter struct {
 	sync.Mutex
-	subs map[string]map[string][]waitSub
+	subs map[waitGroup]map[types.CloudID][]waitSub
 }
 
-// Wait waits for the given snapshot to be created and returns a channel that
-// will send an error or nil.
-func (w *SnapshotWaiter) Wait(ctx context.Context, snapshotID types.CloudID, ec2client *ec2.Client) <-chan WaitResult {
+// Wait waits for the given snapshot or image to be created and returns a
+// channel that will send an error or nil.
+func (w *SnapshotWaiter) Wait(ctx context.Context, resourceID types.CloudID, ec2client *ec2.Client) <-chan WaitResult {
 	w.Lock()
 	defer w.Unlock()
-	region := snapshotID.Region()
-	if w.subs == nil {
-		w.subs = make(map[string]map[string][]waitSub)
+	group := waitGroup{
+		region:    resourceID.Region(),
+		accountID: resourceID.AccountID(),
 	}
-	if w.subs[region] == nil {
-		w.subs[region] = make(map[string][]waitSub)
+	if w.subs == nil {
+		w.subs = make(map[waitGroup]map[types.CloudID][]waitSub)
+	}
+	if w.subs[group] == nil {
+		w.subs[group] = make(map[types.CloudID][]waitSub)
 	}
 	ch := make(chan WaitResult, 1)
-	subs := w.subs[region]
-	subs[snapshotID.ResourceName()] = append(subs[snapshotID.ResourceName()], ch)
+	subs := w.subs[group]
+	subs[resourceID] = append(subs[resourceID], ch)
 	if len(subs) == 1 {
-		go w.loop(ctx, region, ec2client)
+		go w.loop(ctx, group, ec2client)
 	}
 	return ch
 }
 
-func (w *SnapshotWaiter) abort(region string, err error) {
+func (w *SnapshotWaiter) abort(group waitGroup, err error, resourceType ...types.ResourceType) {
 	w.Lock()
 	defer w.Unlock()
-	for _, subs := range w.subs[region] {
-		for _, waitSub := range subs {
-			waitSub <- WaitResult{Err: err}
+	for resourceID, subs := range w.subs[group] {
+		if len(resourceType) == 0 || resourceID.ResourceType() == resourceType[0] {
+			for _, sub := range subs {
+				sub <- WaitResult{Err: err}
+			}
+			delete(w.subs[group], resourceID)
 		}
 	}
-	w.subs[region] = nil
+	if len(w.subs[group]) == 0 {
+		delete(w.subs, group)
+	}
 }
 
-func (w *SnapshotWaiter) loop(ctx context.Context, region string, ec2client *ec2.Client) {
-	const (
-		tickerInterval  = 5 * time.Second
-		snapshotTimeout = 15 * time.Minute
-	)
-
-	ticker := time.NewTicker(tickerInterval)
+func (w *SnapshotWaiter) loop(ctx context.Context, group waitGroup, ec2client *ec2.Client) {
+	ticker := time.NewTicker(waitTickerInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
-			w.abort(region, ctx.Err())
+			w.abort(group, ctx.Err())
 			return
 		}
 
 		w.Lock()
-		snapshotIDs := make([]string, 0, len(w.subs[region]))
-		for snapshotID := range w.subs[region] {
-			snapshotIDs = append(snapshotIDs, snapshotID)
-		}
-		w.Unlock()
-
-		if len(snapshotIDs) == 0 {
-			return
-		}
-
-		// TODO: could we rely on ListSnapshotBlocks instead of
-		// DescribeSnapshots as a "fast path" to not consume precious quotas ?
-		output, err := ec2client.DescribeSnapshots(context.TODO(), &ec2.DescribeSnapshotsInput{
-			SnapshotIds: snapshotIDs,
-		})
-		if err != nil {
-			w.abort(region, err)
-			return
-		}
-
-		snapshots := make(map[string]ec2types.Snapshot, len(output.Snapshots))
-		for _, snap := range output.Snapshots {
-			snapshots[*snap.SnapshotId] = snap
-		}
-
-		w.Lock()
-		subs := w.subs[region]
-		noError := errors.New("")
-		for _, snapshotID := range snapshotIDs {
-			var errp error
-			snap, ok := snapshots[snapshotID]
-			if !ok {
-				errp = fmt.Errorf("snapshot %q does not exist", *snap.SnapshotId)
-			} else {
-				switch snap.State {
-				case ec2types.SnapshotStatePending:
-					if elapsed := time.Since(*snap.StartTime); elapsed > snapshotTimeout {
-						errp = fmt.Errorf("snapshot %q creation timed out (started at %s)", *snap.SnapshotId, *snap.StartTime)
-					}
-				case ec2types.SnapshotStateRecoverable:
-					errp = fmt.Errorf("snapshot %q in recoverable state", *snap.SnapshotId)
-				case ec2types.SnapshotStateRecovering:
-					errp = fmt.Errorf("snapshot %q in recovering state", *snap.SnapshotId)
-				case ec2types.SnapshotStateError:
-					msg := fmt.Sprintf("snapshot %q failed", *snap.SnapshotId)
-					if snap.StateMessage != nil {
-						msg += ": " + *snap.StateMessage
-					}
-					errp = fmt.Errorf(msg)
-				case ec2types.SnapshotStateCompleted:
-					errp = noError
-				}
-			}
-			if errp != nil {
-				for _, ch := range subs[*snap.SnapshotId] {
-					if errp == noError {
-						ch <- WaitResult{Snapshot: &snap}
-					} else {
-						ch <- WaitResult{Err: errp}
-					}
-				}
-				delete(subs, *snap.SnapshotId)
+		var snapshotIDs []string
+		var imageIDs []string
+		for resourceID := range w.subs[group] {
+			switch resourceID.ResourceType() {
+			case types.ResourceTypeSnapshot:
+				snapshotIDs = append(snapshotIDs, resourceID.ResourceName())
+			case types.ResourceTypeHostImage:
+				imageIDs = append(imageIDs, resourceID.ResourceName())
 			}
 		}
 		w.Unlock()
+
+		var wg sync.WaitGroup
+		if len(snapshotIDs) > 0 {
+			wg.Add(1)
+			go func() {
+				w.pollSnapshots(ctx, ec2client, group, snapshotIDs)
+				wg.Done()
+			}()
+		}
+		if len(imageIDs) > 0 {
+			wg.Add(1)
+			go func() {
+				w.pollImages(ctx, ec2client, group, imageIDs)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+	}
+}
+
+func (w *SnapshotWaiter) pollSnapshots(ctx context.Context, ec2client *ec2.Client, group waitGroup, snapshotIDs []string) {
+	// TODO: could we rely on ListSnapshotBlocks instead of
+	// DescribeSnapshots as a "fast path" to not consume precious quotas ?
+	output, err := ec2client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{
+		SnapshotIds: snapshotIDs,
+	})
+	if err != nil {
+		w.abort(group, err, types.ResourceTypeSnapshot)
+		return
+	}
+
+	snapshots := make(map[string]ec2types.Snapshot, len(output.Snapshots))
+	for _, snap := range output.Snapshots {
+		snapshots[*snap.SnapshotId] = snap
+	}
+
+	w.Lock()
+	defer w.Unlock()
+	subs := w.subs[group]
+	for _, snapshotID := range snapshotIDs {
+		var errp error
+		snap, ok := snapshots[snapshotID]
+		if !ok {
+			errp = fmt.Errorf("snapshot %q does not exist", *snap.SnapshotId)
+		} else {
+			switch snap.State {
+			case ec2types.SnapshotStatePending:
+				if elapsed := time.Since(*snap.StartTime); elapsed > waitSnapshotTimeout {
+					errp = fmt.Errorf("snapshot %q creation timed out (started at %s)", *snap.SnapshotId, *snap.StartTime)
+				}
+			case ec2types.SnapshotStateRecoverable:
+				errp = fmt.Errorf("snapshot %q in recoverable state", *snap.SnapshotId)
+			case ec2types.SnapshotStateRecovering:
+				errp = fmt.Errorf("snapshot %q in recovering state", *snap.SnapshotId)
+			case ec2types.SnapshotStateError:
+				msg := fmt.Sprintf("snapshot %q failed", *snap.SnapshotId)
+				if snap.StateMessage != nil {
+					msg += ": " + *snap.StateMessage
+				}
+				errp = fmt.Errorf(msg)
+			case ec2types.SnapshotStateCompleted:
+				errp = errWaitDone
+			}
+		}
+		if errp != nil {
+			snapshotID, _ := types.AWSCloudID("ec2", group.region, group.accountID, types.ResourceTypeSnapshot, *snap.SnapshotId)
+			for _, sub := range subs[snapshotID] {
+				if errp == errWaitDone {
+					sub <- WaitResult{Snapshot: &snap}
+				} else {
+					sub <- WaitResult{Err: errp}
+				}
+			}
+			delete(subs, snapshotID)
+		}
+	}
+}
+
+func (w *SnapshotWaiter) pollImages(ctx context.Context, ec2client *ec2.Client, group waitGroup, imageIDs []string) {
+	output, err := ec2client.DescribeImages(ctx, &ec2.DescribeImagesInput{
+		ImageIds: imageIDs,
+	})
+	if err != nil {
+		w.abort(group, err, types.ResourceTypeHostImage)
+		return
+	}
+	images := make(map[string]ec2types.Image, len(output.Images))
+	for _, image := range output.Images {
+		images[*image.ImageId] = image
+	}
+
+	w.Lock()
+	defer w.Unlock()
+	subs := w.subs[group]
+	for _, imageID := range imageIDs {
+		image, ok := images[imageID]
+		var errp error
+		if !ok {
+			errp = fmt.Errorf("image %q does not exist", imageID)
+		} else {
+			switch image.State {
+			case ec2types.ImageStatePending:
+				creationDate, err := time.Parse(time.RFC3339, *image.CreationDate)
+				if err != nil {
+					errp = fmt.Errorf("invalid creation date %q for image %q: %w", *image.CreationDate, imageID, err)
+				} else if elapsed := time.Since(creationDate); elapsed > waitSnapshotTimeout {
+					errp = fmt.Errorf("image %q creation timed out (started at %s)", imageID, *image.CreationDate)
+				}
+			case ec2types.ImageStateAvailable:
+				errp = errWaitDone
+			case ec2types.ImageStateInvalid,
+				ec2types.ImageStateDeregistered,
+				ec2types.ImageStateTransient,
+				ec2types.ImageStateFailed,
+				ec2types.ImageStateError,
+				ec2types.ImageStateDisabled:
+				errp = fmt.Errorf("image %q in invalid state: %s", imageID, image.State)
+			}
+		}
+		if errp != nil {
+			imageID, _ := types.AWSCloudID("ec2", group.region, group.accountID, types.ResourceTypeHostImage, *image.ImageId)
+			for _, sub := range subs[imageID] {
+				if errp == errWaitDone {
+					sub <- WaitResult{Image: &image}
+				} else {
+					sub <- WaitResult{Err: errp}
+				}
+			}
+			delete(subs, imageID)
+		}
 	}
 }
