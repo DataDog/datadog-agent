@@ -21,7 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -45,8 +46,9 @@ const (
 	defaultSecurityLevel = ""
 
 	// general communication options
-	defaultTimeout = 10 // Timeout better suited to walking
-	defaultRetries = 3
+	defaultTimeout                 = 10 // Timeout better suited to walking
+	defaultRetries                 = 3
+	defaultUseUnconnectedUDPSocket = false
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -75,8 +77,9 @@ type cliParams struct {
 	securityLevel string
 
 	// communication
-	retries int
-	timeout int
+	retries              int
+	timeout              int
+	unconnectedUDPSocket bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -94,9 +97,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(snmpwalk,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
-				core.Bundle,
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -118,6 +122,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// general communication options
 	snmpWalkCmd.Flags().IntVarP(&cliParams.retries, "retries", "r", defaultRetries, "Set the number of retries")
 	snmpWalkCmd.Flags().IntVarP(&cliParams.timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
+	snmpWalkCmd.Flags().BoolVar(&cliParams.unconnectedUDPSocket, "use-unconnected-udp-socket", defaultUseUnconnectedUDPSocket, "If specified, changes net connection to be unconnected UDP socket")
 
 	snmpWalkCmd.SetArgs([]string{})
 
@@ -131,6 +136,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{snmpCmd}
 }
 
+//nolint:revive // TODO(NDM) Fix revive linter
 func snmpwalk(config config.Component, cliParams *cliParams) error {
 	var (
 		address      string
@@ -325,6 +331,7 @@ func snmpwalk(config config.Component, cliParams *cliParams) error {
 			PrivacyProtocol:          privProtocol,
 			PrivacyPassphrase:        cliParams.privKey,
 		},
+		UseUnconnectedUDPSocket: cliParams.unconnectedUDPSocket,
 	}
 	// Establish connection
 	err := snmp.Connect()
@@ -374,7 +381,7 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 	case gosnmp.Gauge32:
 		fmt.Printf("Gauge 32: %d\n", pdu.Value.(uint))
 	case gosnmp.IPAddress:
-		fmt.Printf("Ip: %s\n", pdu.Value.(string))
+		fmt.Printf("IpAddress: %s\n", pdu.Value.(string))
 	default:
 		fmt.Printf("TYPE %d: %d\n", pdu.Type, gosnmp.ToBigInt(pdu.Value))
 	}

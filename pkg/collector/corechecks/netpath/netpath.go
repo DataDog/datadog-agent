@@ -268,7 +268,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 
 		log.Debugf("traceroute: %s", tracerouteStr)
 
-		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
+		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkPath)
 		tags := []string{
 			"dest_name:" + c.config.DestName,
 			"agent_host:" + hname,
@@ -430,7 +430,7 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 
 			log.Debugf("traceroute: %s", tracerouteStr)
 
-			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
+			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkPath)
 
 			//prevHop = hop
 
@@ -461,12 +461,12 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 		probe *results.Probe
 	}
 
-	traceroutePath := metadata.NetworkPath{
+	traceroutePath := NetworkPath{
 		Timestamp: time.Now().UnixMilli(),
-		Source: metadata.NetworkPathSource{
+		Source: NetworkPathSource{
 			Hostname: hname,
 		},
-		Destination: metadata.NetworkPathDestination{
+		Destination: NetworkPathDestination{
 			Hostname:  destinationHost,
 			IpAddress: destinationIP.String(),
 		},
@@ -606,9 +606,9 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 			log.Debugf("cur node probe: %+v", cur.probe)
 			log.Debugf("traceroute: %s", tracerouteStr)
 
-			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
+			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkPath)
 
-			hop := metadata.NetworkPathHop{
+			hop := NetworkPathHop{
 				TTL:       idx,
 				IpAddress: ip,
 				Hostname:  c.getHostname(cur.node),
@@ -628,31 +628,12 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 		}
 	}
 
-	flushTime := time.Now()
-	metadataPayloads := metadata.BatchPayloads(
-		"traceroute-ns",
-		"",
-		flushTime,
-		metadata.PayloadMetadataBatchSize,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		[]metadata.NetworkPath{traceroutePath},
-	)
-
-	log.Debugf("metadataPayloads: %d", len(metadataPayloads))
-	for _, payload := range metadataPayloads {
-		payloadBytes, err := json.Marshal(payload)
-		if err != nil {
-			log.Errorf("Error marshalling device metadata: %s", err)
-			continue
-		}
-		log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
-		sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
+	payloadBytes, err := json.Marshal(traceroutePath)
+	if err != nil {
+		return fmt.Errorf("error marshalling device metadata: %s", err)
 	}
-
+	log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
+	sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
 	return nil
 }
 

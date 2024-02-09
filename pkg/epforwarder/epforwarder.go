@@ -40,8 +40,8 @@ const (
 	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
 	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
 
-	// EventTypeNetworkDevicesNetpath is the event type for network devices Network Path data
-	EventTypeNetworkDevicesNetpath = "network-devices-netpath"
+	// EventTypeNetworkPath is the event type for network devices Network Path data
+	EventTypeNetworkPath = "network-path"
 
 	EventTypeContainerLifecycle = "container-lifecycle"
 	EventTypeContainerImages    = "container-images"
@@ -146,9 +146,9 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize: 10000,
 	},
 	{
-		eventType:                     EventTypeNetworkDevicesNetpath,
+		eventType:                     EventTypeNetworkPath,
 		contentType:                   http.JSONContentType,
-		endpointsConfigPrefix:         "network_devices.netpath.forwarder.",
+		endpointsConfigPrefix:         "netpath.forwarder.",
 		hostnameEndpointPrefix:        "netpath-intake.",
 		intakeTrackType:               "netpath",
 		defaultBatchMaxConcurrentSend: 10,
