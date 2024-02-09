@@ -28,7 +28,7 @@
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
 
-/release.json                           @DataDog/agent-platform @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations
+/release.json                           @DataDog/agent-platform @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-release-management @DataDog/agent-security
 /requirements.txt                       @DataDog/agent-platform
 /pyproject.toml                         @DataDog/agent-platform
 /setup.cfg                              @DataDog/agent-platform
