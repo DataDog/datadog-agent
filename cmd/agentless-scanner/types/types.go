@@ -31,10 +31,8 @@ const (
 
 	// EBSMountPrefix is the prefix for EBS mounts.
 	EBSMountPrefix = "ebs-"
-	// ContainerdMountPrefix is the prefix for containerd overlay mounts.
-	ContainerdMountPrefix = "containerd-"
-	// DockerMountPrefix is the prefix for Docker overlay mounts.
-	DockerMountPrefix = "docker-"
+	// ContainerMountPrefix is the prefix for containers overlay mounts.
+	ContainerMountPrefix = "containerd-"
 	// LambdaMountPrefix is the prefix for Lambda code data.
 	LambdaMountPrefix = "lambda-"
 )

@@ -283,7 +283,7 @@ func (s *Runner) CleanSlate() error {
 						switch {
 						case strings.HasPrefix(scanEntry.Name(), types.EBSMountPrefix):
 							ebsMountPoints = append(ebsMountPoints, filepath.Join(scanDirname, scanEntry.Name()))
-						case strings.HasPrefix(scanEntry.Name(), types.ContainerdMountPrefix) || strings.HasPrefix(scanEntry.Name(), types.DockerMountPrefix):
+						case strings.HasPrefix(scanEntry.Name(), types.ContainerMountPrefix):
 							ctrMountPoints = append(ctrMountPoints, filepath.Join(scanDirname, scanEntry.Name()))
 						}
 					}
@@ -575,7 +575,7 @@ func CleanupScanDir(ctx context.Context, scan *types.ScanTask) {
 				if strings.HasPrefix(entry.Name(), types.EBSMountPrefix) {
 					ebsMountPoints = append(ebsMountPoints, entry)
 				}
-				if strings.HasPrefix(entry.Name(), types.ContainerdMountPrefix) || strings.HasPrefix(entry.Name(), types.DockerMountPrefix) {
+				if strings.HasPrefix(entry.Name(), types.ContainerMountPrefix) {
 					ctrMountPoints = append(ctrMountPoints, entry)
 				}
 				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".pid") {
@@ -583,17 +583,6 @@ func CleanupScanDir(ctx context.Context, scan *types.ScanTask) {
 				}
 			}
 		}
-		for _, entry := range ctrMountPoints {
-			wg.Add(1)
-			go umount(filepath.Join(scanRoot, entry.Name()))
-		}
-		wg.Wait()
-		// unmount "ebs-*" entrypoint last as the other mountpoint may depend on it
-		for _, entry := range ebsMountPoints {
-			wg.Add(1)
-			go umount(filepath.Join(scanRoot, entry.Name()))
-		}
-		wg.Wait()
 
 		for _, entry := range pidFiles {
 			pidFile, err := os.Open(filepath.Join(scanRoot, entry.Name()))
@@ -613,6 +602,19 @@ func CleanupScanDir(ctx context.Context, scan *types.ScanTask) {
 				}
 			}
 		}
+
+		for _, entry := range ctrMountPoints {
+			wg.Add(1)
+			go umount(filepath.Join(scanRoot, entry.Name()))
+		}
+		wg.Wait()
+		// unmount "ebs-*" entrypoint last as the other mountpoint may depend on it
+		for _, entry := range ebsMountPoints {
+			wg.Add(1)
+			go umount(filepath.Join(scanRoot, entry.Name()))
+		}
+		wg.Wait()
+
 	}
 
 	log.Debugf("%s: removing folder %q", scan, scanRoot)
