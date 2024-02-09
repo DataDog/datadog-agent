@@ -351,7 +351,7 @@ var allowlistPaths = map[string]struct{}{"api_key": {}}
 // matchesAllowlist returns whether the handle is allowed, by matching all setting paths that
 // handle appears at against the allowlist
 func (r *secretResolver) matchesAllowlist(handle string) bool {
-	// is allowlist is disabled, consider every handle a match
+	// if allowlist is disabled, consider every handle a match
 	if allowlistPaths == nil {
 		return true
 	}
