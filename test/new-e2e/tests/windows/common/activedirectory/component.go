@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package active_directory
+package activedirectory
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
+	"github.com/DataDog/test-infra-definitions/common"
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/namer"
 	infraComponents "github.com/DataDog/test-infra-definitions/components"
@@ -16,34 +17,37 @@ import (
 	"github.com/pulumiverse/pulumi-time/sdk/go/time"
 )
 
-// ActiveDirectoryOutput is an object that models the output of the resource creation
-// from the ActiveDirectoryComponent.
+// Output is an object that models the output of the resource creation
+// from the Component.
 // See https://www.pulumi.com/docs/concepts/resources/components/#registering-component-outputs
-type ActiveDirectoryOutput struct {
+type Output struct {
 	infraComponents.JSONImporter
 }
 
-// ActiveDirectoryComponent is an Active Directory domain component.
+// Component is an Active Directory domain component.
 // See https://www.pulumi.com/docs/concepts/resources/components/
-type ActiveDirectoryComponent struct {
+type Component struct {
 	pulumi.ResourceState
 	infraComponents.Component
 	namer namer.Namer
 	host  *remote.Host
 }
 
-func (dc *ActiveDirectoryComponent) Export(ctx *pulumi.Context, out *ActiveDirectoryOutput) error {
+// Export registers a key and value pair with the current context's stack.
+func (dc *Component) Export(ctx *pulumi.Context, out *Output) error {
 	return infraComponents.Export(ctx, dc, out)
 }
 
 // NewActiveDirectory creates a new instance of an Active Directory domain deployment
-func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote.Host, option ...Option) (*ActiveDirectoryComponent, error) {
-	params, paramsErr := NewParams(option...)
-	if paramsErr != nil {
-		return nil, paramsErr
+func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote.Host, options ...Option) (*Component, error) {
+	params, err := common.ApplyOption(&Configuration{
+		// JL: Should we set sensible defaults here ?
+	}, options)
+	if err != nil {
+		return nil, err
 	}
 
-	domainControllerComp, err := infraComponents.NewComponent(*e, host.Name(), func(comp *ActiveDirectoryComponent) error {
+	domainControllerComp, err := infraComponents.NewComponent(*e, host.Name(), func(comp *Component) error {
 		comp.namer = e.CommonNamer.WithPrefix(comp.Name())
 		comp.host = host
 

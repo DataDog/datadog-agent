@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package active_directory
+package activedirectory
 
 import "github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
+// ProvisionerParams are the parameters used to configure the Active Directory provisioner.
 type ProvisionerParams struct {
 	name string
 

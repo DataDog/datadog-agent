@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package active_directory
+package activedirectory
 
 import (
 	"fmt"
@@ -22,14 +22,14 @@ const (
 )
 
 // Provisioner creates an Active Directory environment on a given VM.
-func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[ActiveDirectoryEnv] {
+func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[Env] {
 	params := newProvisionerParams()
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
 	}
 
-	return e2e.NewTypedPulumiProvisioner[ActiveDirectoryEnv](provisionerBaseID+params.name, func(ctx *pulumi.Context, env *ActiveDirectoryEnv) error {
+	return e2e.NewTypedPulumiProvisioner[Env](provisionerBaseID+params.name, func(ctx *pulumi.Context, env *Env) error {
 		params := newProvisionerParams()
 		_ = optional.ApplyOptions(params, opts)
 
@@ -51,7 +51,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[ActiveDirectory
 		if err != nil {
 			return err
 		}
-		domainController.Export(ctx, &env.DomainController.ActiveDirectoryOutput)
+		domainController.Export(ctx, &env.DomainController.Output)
 
 		// JL: can params.fakeintakeOptions be nil, and how should we handle it?
 		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)

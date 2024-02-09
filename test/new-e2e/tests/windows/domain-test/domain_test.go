@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/active_directory"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/activedirectory"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/stretchr/testify/assert"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -23,23 +24,26 @@ const (
 )
 
 func TestInstallsOnDomainController(t *testing.T) {
-	suites := []e2e.Suite[active_directory.ActiveDirectoryEnv]{
+	suites := []e2e.Suite[activedirectory.Env]{
 		&testInstallSuite{},
 		&testUpgradeSuite{},
 	}
 
 	for _, suite := range suites {
-		e2e.Run(t, suite, e2e.WithProvisioner(active_directory.Provisioner(
-			active_directory.WithActiveDirectoryOptions(
-				active_directory.WithDomainName(TestDomain),
-				active_directory.WithDomainPassword(TestPassword),
-				active_directory.WithDomainUser(TestUser, TestPassword),
-			))))
+		t.Run(reflect.TypeOf(suite).Name(), func(t *testing.T) {
+			t.Parallel()
+			e2e.Run(t, suite, e2e.WithProvisioner(activedirectory.Provisioner(
+				activedirectory.WithActiveDirectoryOptions(
+					activedirectory.WithDomainName(TestDomain),
+					activedirectory.WithDomainPassword(TestPassword),
+					activedirectory.WithDomainUser(TestUser, TestPassword),
+				))))
+		})
 	}
 }
 
 type testInstallSuite struct {
-	windows.BaseAgentInstallerSuite[active_directory.ActiveDirectoryEnv]
+	windows.BaseAgentInstallerSuite[activedirectory.Env]
 }
 
 func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
@@ -49,7 +53,7 @@ func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
 		windowsAgent.WithPackage(suite.AgentPackage),
 		windowsAgent.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
 		windowsAgent.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
-		windowsAgent.WithValidApiKey(),
+		windowsAgent.WithValidAPIKey(),
 		windowsAgent.WithFakeIntake(suite.Env().FakeIntake),
 		windowsAgent.WithInstallLogFile("TC-INS-DC-006_install.log"))
 
@@ -59,14 +63,14 @@ func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
 	windowsAgent.TestAgentVersion(suite.T(), suite.AgentPackage.AgentVersion(), agent.Version())
 
 	suite.EventuallyWithT(func(c *assert.CollectT) {
-		metricNames, err := suite.Env().FakeIntake.Client().GetMetricNames()
+		stats, err := suite.Env().FakeIntake.Client().RouteStats()
 		assert.NoError(c, err)
-		assert.Greater(c, len(metricNames), 0)
+		assert.NotEmpty(c, stats)
 	}, 5*time.Minute, 10*time.Second)
 }
 
 type testUpgradeSuite struct {
-	windows.BaseAgentInstallerSuite[active_directory.ActiveDirectoryEnv]
+	windows.BaseAgentInstallerSuite[activedirectory.Env]
 }
 
 func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
@@ -77,15 +81,15 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 		windowsAgent.WithLastStablePackage(),
 		windowsAgent.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
 		windowsAgent.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
-		windowsAgent.WithValidApiKey(),
+		windowsAgent.WithValidAPIKey(),
 		windowsAgent.WithFakeIntake(suite.Env().FakeIntake),
 		windowsAgent.WithInstallLogFile("TC-UPG-DC-001_install_last_stable.log"))
 
 	suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
 	suite.EventuallyWithT(func(c *assert.CollectT) {
-		metricNames, err := suite.Env().FakeIntake.Client().GetMetricNames()
+		stats, err := suite.Env().FakeIntake.Client().RouteStats()
 		assert.NoError(c, err)
-		assert.Greater(c, len(metricNames), 0)
+		assert.NotEmpty(c, stats)
 	}, 5*time.Minute, 10*time.Second)
 
 	_, err = suite.InstallAgent(host,
@@ -97,8 +101,8 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 	windowsAgent.TestAgentVersion(suite.T(), suite.AgentPackage.AgentVersion(), agent.Version())
 
 	suite.EventuallyWithT(func(c *assert.CollectT) {
-		metricNames, err := suite.Env().FakeIntake.Client().GetMetricNames()
+		stats, err := suite.Env().FakeIntake.Client().RouteStats()
 		assert.NoError(c, err)
-		assert.Greater(c, len(metricNames), 0)
+		assert.NotEmpty(c, stats)
 	}, 5*time.Minute, 10*time.Second)
 }

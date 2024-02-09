@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package windows contains the code to run the e2e tests on Windows
 package windows
 
 import (
@@ -19,6 +20,7 @@ import (
 	"strings"
 )
 
+// BaseAgentInstallerSuite is a base class for the Windows Agent installer suites
 type BaseAgentInstallerSuite[Env any] struct {
 	e2e.BaseSuite[Env]
 
@@ -26,7 +28,9 @@ type BaseAgentInstallerSuite[Env any] struct {
 	OutputDir    string
 }
 
+// InstallAgent installs the Agent on a given Windows host. It will pass all the parameters to the MSI installer.
 func (b *BaseAgentInstallerSuite[Env]) InstallAgent(host *components.RemoteHost, options ...windowsAgent.InstallAgentOption) (string, error) {
+	b.T().Helper()
 	p := &windowsAgent.InstallAgentParams{
 		InstallLogFile: "install.log",
 	}
@@ -47,11 +51,11 @@ func (b *BaseAgentInstallerSuite[Env]) InstallAgent(host *components.RemoteHost,
 	if p.Site != "" {
 		args = append(args, fmt.Sprintf("SITE=%s", p.Site))
 	}
-	if p.ApiKey != "" {
-		args = append(args, fmt.Sprintf("APIKEY=%s", p.ApiKey))
+	if p.APIKey != "" {
+		args = append(args, fmt.Sprintf("APIKEY=%s", p.APIKey))
 	}
-	if p.DdUrl != "" {
-		args = append(args, fmt.Sprintf("DD_URL=%s", p.DdUrl))
+	if p.DdURL != "" {
+		args = append(args, fmt.Sprintf("DD_URL=%s", p.DdURL))
 	}
 
 	remoteMSIPath, err := common.GetTemporaryFile(host)
@@ -66,6 +70,7 @@ func (b *BaseAgentInstallerSuite[Env]) InstallAgent(host *components.RemoteHost,
 	return remoteMSIPath, common.InstallMSI(host, remoteMSIPath, strings.Join(args, " "), filepath.Join(b.OutputDir, p.InstallLogFile))
 }
 
+// NewAgentClientForHost creates a new agentclient.Agent for a given host.
 func (b *BaseAgentInstallerSuite[Env]) NewAgentClientForHost(host *components.RemoteHost) agentclient.Agent {
 	agentClient, err := client.NewHostAgentClient(b.T(), host, true)
 	if err != nil {
@@ -74,6 +79,8 @@ func (b *BaseAgentInstallerSuite[Env]) NewAgentClientForHost(host *components.Re
 	return agentClient
 }
 
+// SetupSuite overrides the base SetupSuite to perform some additional setups like setting the package to install
+// or getting the output directory for the install logs.
 func (b *BaseAgentInstallerSuite[Env]) SetupSuite() {
 	b.BaseSuite.SetupSuite()
 

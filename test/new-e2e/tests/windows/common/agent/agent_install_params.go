@@ -11,17 +11,21 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
+// InstallAgentParams are the parameters used for installing the Agent using msiexec.
 type InstallAgentParams struct {
 	AgentUser         string // DDAGENTUSER_NAME
 	AgentUserPassword string // DDAGENTUSER_PASSWORD
 	Site              string // SITE
-	DdUrl             string // DD_URL
-	ApiKey            string // APIKEY
+	DdURL             string // DD_URL
+	APIKey            string // APIKEY
 	InstallLogFile    string
 	Package           *Package
 }
+
+// InstallAgentOption is an optional function parameter type for InstallAgentParams options
 type InstallAgentOption = func(*InstallAgentParams) error
 
+// WithAgentUser specifies the DDAGENTUSER_NAME parameter.
 func WithAgentUser(username string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.AgentUser = username
@@ -29,6 +33,7 @@ func WithAgentUser(username string) InstallAgentOption {
 	}
 }
 
+// WithAgentUserPassword specifies the DDAGENTUSER_PASSWORD parameter.
 func WithAgentUserPassword(password string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.AgentUserPassword = password
@@ -36,6 +41,7 @@ func WithAgentUserPassword(password string) InstallAgentOption {
 	}
 }
 
+// WithSite specifies the SITE parameter.
 func WithSite(site string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.Site = site
@@ -43,20 +49,35 @@ func WithSite(site string) InstallAgentOption {
 	}
 }
 
-func WithDdUrl(ddUrl string) InstallAgentOption {
+// WithDdURL specifies the DD_URL parameter.
+func WithDdURL(ddURL string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
-		i.DdUrl = ddUrl
+		i.DdURL = ddURL
 		return nil
 	}
 }
 
-func WithApiKey(apiKey string) InstallAgentOption {
+// WithAPIKey specifies the APIKEY parameter.
+func WithAPIKey(apiKey string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
-		i.ApiKey = apiKey
+		i.APIKey = apiKey
 		return nil
 	}
 }
 
+// WithValidAPIKey sets a valid API key fetched from the runner secret store.
+func WithValidAPIKey() InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if err != nil {
+			return err
+		}
+		i.APIKey = apiKey
+		return nil
+	}
+}
+
+// WithInstallLogFile specifies the file where to save the MSI install logs.
 func WithInstallLogFile(logFileName string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.InstallLogFile = logFileName
@@ -64,17 +85,7 @@ func WithInstallLogFile(logFileName string) InstallAgentOption {
 	}
 }
 
-func WithValidApiKey() InstallAgentOption {
-	return func(i *InstallAgentParams) error {
-		apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		if err != nil {
-			return err
-		}
-		i.ApiKey = apiKey
-		return nil
-	}
-}
-
+// WithPackage specifies the Agent installation package.
 func WithPackage(agentPackage *Package) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.Package = agentPackage
@@ -82,6 +93,7 @@ func WithPackage(agentPackage *Package) InstallAgentOption {
 	}
 }
 
+// WithLastStablePackage specifies to use the last stable installation package.
 func WithLastStablePackage() InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		lastStablePackage, err := GetLastStablePackageFromEnv()
@@ -93,9 +105,10 @@ func WithLastStablePackage() InstallAgentOption {
 	}
 }
 
+// WithFakeIntake configures the Agent to use a fake intake URL.
 func WithFakeIntake(fakeIntake *components.FakeIntake) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
-		i.DdUrl = fakeIntake.URL
+		i.DdURL = fakeIntake.URL
 		return nil
 	}
 }
