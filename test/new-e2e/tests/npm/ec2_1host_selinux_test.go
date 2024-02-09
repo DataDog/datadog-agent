@@ -8,77 +8,26 @@ package npm
 import (
 	"testing"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
+	compos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
-type hostHttpbinEnv struct {
-	environments.Host
-	// Extra Components
-	HTTPBinHost *components.RemoteHost
-}
-type ec2VMSuite struct {
+type ec2VMSELinuxSuite struct {
 	e2e.BaseSuite[hostHttpbinEnv]
 }
 
-func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.PulumiEnvRunFunc[hostHttpbinEnv] {
-	return func(ctx *pulumi.Context, env *hostHttpbinEnv) error {
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
-		env.Host.AwsEnvironment = &awsEnv
-
-		opts := []awshost.ProvisionerOption{
-			awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
-		}
-		if len(opt) > 0 {
-			opts = append(opts, opt...)
-		}
-		params := awshost.GetProvisionerParams(opts...)
-		awshost.Run(ctx, &env.Host, params)
-
-		vmName := "httpbinvm"
-
-		nginxHost, err := ec2.NewVM(awsEnv, vmName)
-		if err != nil {
-			return err
-		}
-		err = nginxHost.Export(ctx, &env.HTTPBinHost.HostOutput)
-		if err != nil {
-			return err
-		}
-
-		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost, true)
-		if err != nil {
-			return err
-		}
-
-		composeContents := []docker.ComposeInlineManifest{dockerHTTPBinCompose()}
-		_, err = manager.ComposeStrUp("httpbin", composeContents, pulumi.StringMap{})
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-}
-
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
-func TestEC2VMSuite(t *testing.T) {
-	s := &ec2VMSuite{}
+func TestEC2VMSELinuxSuite(t *testing.T) {
+	s := &ec2VMSELinuxSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
+		e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(awshost.WithEC2InstanceOptions(
+			// RHEL9
+			ec2.WithAMI("ami-0fe630eb857a6ec83", compos.AmazonLinux2, compos.AMD64Arch), ec2.WithInstanceType("t3.medium"))), nil)),
+	}
 
 	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
@@ -86,21 +35,8 @@ func TestEC2VMSuite(t *testing.T) {
 	e2e.Run(t, s, e2eParams...)
 }
 
-func (v *ec2VMSuite) SetupSuite() {
-	v.BaseSuite.SetupSuite()
-
-	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
-	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")
-	v.Env().RemoteHost.ReconnectSSH()
-
-	// prefetch docker image locally
-	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/k8m1l3p1/alpine/curler:latest")
-	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/docker/library/httpd:latest")
-	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/patrickc/troubleshoot-util:latest")
-}
-
 // BeforeTest will be called before each test
-func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
+func (v *ec2VMSELinuxSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
 
 	// default is to reset the current state of the fakeintake aggregators
@@ -109,11 +45,27 @@ func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
+func (v *ec2VMSELinuxSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+
+	v.Env().RemoteHost.MustExecute("sudo yum install -y bind-utils httpd-tools")
+	v.Env().RemoteHost.MustExecute("sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo")
+	v.Env().RemoteHost.MustExecute("sudo yum install -y docker-ce docker-ce-cli")
+	v.Env().RemoteHost.MustExecute("sudo systemctl start docker")
+	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker $(whoami)")
+	v.Env().RemoteHost.ReconnectSSH()
+
+	// prefetch docker image locally
+	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/k8m1l3p1/alpine/curler:latest")
+	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/docker/library/httpd:latest")
+	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/patrickc/troubleshoot-util:latest")
+}
+
 // TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
 // 2 tests generate the request on the host and on docker
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-func (v *ec2VMSuite) TestFakeIntakeNPM_HostRequests() {
+func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
@@ -126,7 +78,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_HostRequests() {
 // 2 tests generate the request on the host and on docker
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-func (v *ec2VMSuite) TestFakeIntakeNPM_DockerRequests() {
+func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
@@ -139,7 +91,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_DockerRequests() {
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
-func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
+func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
@@ -152,7 +104,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
-func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
+func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
@@ -163,7 +115,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
-func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
+func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
@@ -175,7 +127,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
-func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
+func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
