@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
 
 //go:embed status_templates
@@ -50,4 +51,20 @@ func (p statusProvider) Text(verbose bool, buffer io.Writer) error {
 
 func (p statusProvider) HTML(verbose bool, buffer io.Writer) error {
 	return status.RenderHTML(templatesFS, "logsagentHTML.tmpl", buffer, p.getStatusInfo(verbose))
+}
+
+// AddGlobalWarning keeps track of a warning message to display on the status.
+func (p statusProvider) AddGlobalWarning(key string, warning string) {
+	logsStatus.AddGlobalWarning(key, warning)
+}
+
+// RemoveGlobalWarning loses track of a warning message
+// that does not need to be displayed on the status anymore.
+func (p statusProvider) RemoveGlobalWarning(key string) {
+	logsStatus.RemoveGlobalWarning(key)
+}
+
+// NewStatusProvider fetches the status and returns a service wrapping it
+func NewStatusProvider() statusinterface.Status {
+	return &statusProvider{}
 }

@@ -86,7 +86,7 @@ k8s-e2e-otlp-main:
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_public_key_rsa --with-decryption --query "Parameter.Value" --out text > $E2E_PUBLIC_KEY_PATH
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key_rsa --with-decryption --query "Parameter.Value" --out text > $E2E_PRIVATE_KEY_PATH
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key_rsa --with-decryption --query "Parameter.Value" --out text > $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   variables:
@@ -115,7 +115,7 @@ k8s-e2e-otlp-main:
 new-e2e-containers:
   extends: .new_e2e_template
   # TODO once images are deployed to ECR for dev branches, update
-  # on_main_and_no_skip_e2e adding on_dev_branch_manual rules
+  #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
   rules:
     !reference [.on_container_or_e2e_changes_or_manual]
@@ -145,7 +145,7 @@ new-e2e-agent-shared-components-dev:
 
 new-e2e-agent-shared-components-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-shared-components
@@ -177,7 +177,7 @@ new-e2e-agent-subcommands-dev:
 
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-subcommands
@@ -198,7 +198,7 @@ new-e2e-language-detection-dev:
 
 new-e2e-language-detection-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
@@ -214,7 +214,7 @@ new-e2e-npm-dev:
 
 new-e2e-npm-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/npm
   # Temporary, until we manage to stabilize those tests.
@@ -232,7 +232,7 @@ new-e2e-aml-dev:
 
 new-e2e-aml-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/agent-metric-logs
     TEAM: agent-metric-logs
@@ -254,7 +254,7 @@ new-e2e-cws-dev:
 
 new-e2e-cws-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -276,7 +276,7 @@ new-e2e-process-dev:
 
 new-e2e-process-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/process
     TEAM: processes
@@ -296,7 +296,7 @@ new-e2e-orchestrator-dev:
 
 new-e2e-orchestrator-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   needs:
     - qa_agent
     - qa_dca
@@ -319,13 +319,25 @@ new-e2e-apm-dev:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
 new-e2e-apm-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the

@@ -6,6 +6,7 @@
 package config
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -30,7 +31,11 @@ func adjustSecurity(cfg config.Config) {
 
 	if cfg.GetBool(secNS("enabled")) {
 		// if runtime is enabled then we force fim
-		cfg.Set(secNS("fim_enabled"), true, model.SourceAgentRuntime)
+
+		// except, temporarily, for Windows
+		if runtime.GOOS != "windows" {
+			cfg.Set(secNS("fim_enabled"), true, model.SourceAgentRuntime)
+		}
 	} else {
 		// if runtime is disabled then we force disable activity dumps and security profiles
 		cfg.Set(secNS("activity_dump.enabled"), false, model.SourceAgentRuntime)

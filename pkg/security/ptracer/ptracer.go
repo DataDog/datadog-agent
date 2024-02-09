@@ -14,11 +14,13 @@ import (
 	"fmt"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/elastic/go-seccomp-bpf"
 	"github.com/elastic/go-seccomp-bpf/arch"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
@@ -48,6 +50,8 @@ const (
 		syscall.PTRACE_O_TRACEEXEC |
 		syscall.PTRACE_O_TRACESYSGOOD |
 		unix.PTRACE_O_TRACESECCOMP
+
+	defaultUserGroupRateLimit = time.Second
 )
 
 // Tracer represents a tracer
@@ -58,6 +62,14 @@ type Tracer struct {
 	// internals
 	info *arch.Info
 	opts Opts
+	// user and group cache
+	// TODO: user opens of passwd/group files to reset the limiters?
+	userCache                map[int]string
+	userCacheRefreshLimiter  *rate.Limiter
+	lastPasswdMTime          uint64
+	groupCache               map[int]string
+	groupCacheRefreshLimiter *rate.Limiter
+	lastGroupMTime           uint64
 }
 
 // Creds defines credentials
@@ -388,8 +400,10 @@ func NewTracer(path string, args []string, envs []string, opts Opts) (*Tracer, e
 	}
 
 	return &Tracer{
-		PID:  pid,
-		info: info,
-		opts: opts,
+		PID:                      pid,
+		info:                     info,
+		opts:                     opts,
+		userCacheRefreshLimiter:  rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1),
+		groupCacheRefreshLimiter: rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1),
 	}, nil
 }

@@ -16,3 +16,15 @@
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
+
+.kitchen_test_security_agent:
+  extends:
+    - .kitchen_common
+    - .kitchen_datadog_agent_flavor
+  rules:
+    !reference [.manual]
+  stage: functional_test
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
+    CHEF_VERSION: 14.15.6

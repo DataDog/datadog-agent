@@ -58,6 +58,16 @@ const (
 	SyscallTypeMkdir
 	// SyscallTypeUtimes utime/utimes/utimensat/futimesat type
 	SyscallTypeUtimes
+	// SyscallTypeLink link/linkat/symlink/symlinkat type
+	SyscallTypeLink
+	// SyscallTypeChmod chmod/fchmod/fchmodat type
+	SyscallTypeChmod
+	// SyscallTypeChown chown/fchown/lchown/fchownat/fchownat2 type
+	SyscallTypeChown
+	// SyscallTypeLoadModule init_module/finit_module type
+	SyscallTypeLoadModule
+	// SyscallTypeUnloadModule delete_module type
+	SyscallTypeUnloadModule
 )
 
 // ContainerContext defines a container context
@@ -77,10 +87,14 @@ type FcntlSyscallMsg struct {
 
 // Credentials defines process credentials
 type Credentials struct {
-	UID  uint32
-	EUID uint32
-	GID  uint32
-	EGID uint32
+	UID    uint32
+	User   string
+	EUID   uint32
+	EUser  string
+	GID    uint32
+	Group  string
+	EGID   uint32
+	EGroup string
 }
 
 // ExecSyscallMsg defines an exec message
@@ -127,24 +141,30 @@ type ChdirSyscallFakeMsg struct {
 
 // SetUIDSyscallMsg defines a setreuid message
 type SetUIDSyscallMsg struct {
-	UID  int32
-	EUID int32
+	UID   int32
+	User  string
+	EUID  int32
+	EUser string
 }
 
 // SetGIDSyscallMsg defines a setregid message
 type SetGIDSyscallMsg struct {
-	GID  int32
-	EGID int32
+	GID    int32
+	Group  string
+	EGID   int32
+	EGroup string
 }
 
 // SetFSUIDSyscallMsg defines a setfsuid message
 type SetFSUIDSyscallMsg struct {
-	FSUID int32
+	FSUID  int32
+	FSUser string
 }
 
 // SetFSGIDSyscallMsg defines a setfsgid message
 type SetFSGIDSyscallMsg struct {
-	FSGID int32
+	FSGID   int32
+	FSGroup string
 }
 
 // CapsetSyscallMsg defines a capset message
@@ -182,27 +202,77 @@ type UtimesSyscallMsg struct {
 	MTime uint64 // in nanoseconds
 }
 
+// LinkType to handle the different link types
+type LinkType uint8
+
+const (
+	// LinkTypeSymbolic defines a symbolic link type
+	LinkTypeSymbolic LinkType = iota
+	// LinkTypeHardlink defines an hard link type
+	LinkTypeHardlink
+)
+
+// LinkSyscallMsg defines a link/linkat/symlink/symlinkat message
+type LinkSyscallMsg struct {
+	Type   LinkType
+	Target OpenSyscallMsg
+	Link   OpenSyscallMsg
+}
+
+// ChmodSyscallMsg defines a chmod/fchmod/fchmodat/fchmodat2 message
+type ChmodSyscallMsg struct {
+	File OpenSyscallMsg
+	Mode uint32
+}
+
+// ChownSyscallMsg defines a chown/fchown/lchown/fchownat/fchownat2 message
+type ChownSyscallMsg struct {
+	File  OpenSyscallMsg
+	UID   int32
+	User  string
+	GID   int32
+	Group string
+}
+
+// LoadModuleSyscallMsg defines a init_module/finit_module message
+type LoadModuleSyscallMsg struct {
+	File             OpenSyscallMsg
+	LoadedFromMemory bool
+	Name             string
+	Args             string
+}
+
+// UnloadModuleSyscallMsg defines a delete_module message
+type UnloadModuleSyscallMsg struct {
+	Name string
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
-	Type      SyscallType
-	PID       uint32
-	Timestamp uint64
-	Retval    int64
-	Exec      *ExecSyscallMsg     `json:",omitempty"`
-	Open      *OpenSyscallMsg     `json:",omitempty"`
-	Fork      *ForkSyscallMsg     `json:",omitempty"`
-	Exit      *ExitSyscallMsg     `json:",omitempty"`
-	Fcntl     *FcntlSyscallMsg    `json:",omitempty"`
-	SetUID    *SetUIDSyscallMsg   `json:",omitempty"`
-	SetGID    *SetGIDSyscallMsg   `json:",omitempty"`
-	SetFSUID  *SetFSUIDSyscallMsg `json:",omitempty"`
-	SetFSGID  *SetFSGIDSyscallMsg `json:",omitempty"`
-	Capset    *CapsetSyscallMsg   `json:",omitempty"`
-	Unlink    *UnlinkSyscallMsg   `json:",omitempty"`
-	Rmdir     *RmdirSyscallMsg    `json:",omitempty"`
-	Rename    *RenameSyscallMsg   `json:",omitempty"`
-	Mkdir     *MkdirSyscallMsg    `json:",omitempty"`
-	Utimes    *UtimesSyscallMsg   `json:",omitempty"`
+	Type         SyscallType
+	PID          uint32
+	Timestamp    uint64
+	Retval       int64
+	Exec         *ExecSyscallMsg         `json:",omitempty"`
+	Open         *OpenSyscallMsg         `json:",omitempty"`
+	Fork         *ForkSyscallMsg         `json:",omitempty"`
+	Exit         *ExitSyscallMsg         `json:",omitempty"`
+	Fcntl        *FcntlSyscallMsg        `json:",omitempty"`
+	SetUID       *SetUIDSyscallMsg       `json:",omitempty"`
+	SetGID       *SetGIDSyscallMsg       `json:",omitempty"`
+	SetFSUID     *SetFSUIDSyscallMsg     `json:",omitempty"`
+	SetFSGID     *SetFSGIDSyscallMsg     `json:",omitempty"`
+	Capset       *CapsetSyscallMsg       `json:",omitempty"`
+	Unlink       *UnlinkSyscallMsg       `json:",omitempty"`
+	Rmdir        *RmdirSyscallMsg        `json:",omitempty"`
+	Rename       *RenameSyscallMsg       `json:",omitempty"`
+	Mkdir        *MkdirSyscallMsg        `json:",omitempty"`
+	Utimes       *UtimesSyscallMsg       `json:",omitempty"`
+	Link         *LinkSyscallMsg         `json:",omitempty"`
+	Chmod        *ChmodSyscallMsg        `json:",omitempty"`
+	Chown        *ChownSyscallMsg        `json:",omitempty"`
+	LoadModule   *LoadModuleSyscallMsg   `json:",omitempty"`
+	UnloadModule *UnloadModuleSyscallMsg `json:",omitempty"`
 
 	// internals
 	Dup   *DupSyscallFakeMsg   `json:",omitempty"`

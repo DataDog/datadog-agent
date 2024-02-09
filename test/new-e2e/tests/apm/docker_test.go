@@ -6,13 +6,11 @@
 package apm
 
 import (
+	"fmt"
 	"os"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
@@ -23,141 +21,85 @@ import (
 
 type DockerFakeintakeSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
+	transport transport
 }
 
-func TestDockerFakeintakeSuite(t *testing.T) {
-	isCI, _ := strconv.ParseBool(os.Getenv("CI"))
-	if isCI {
-		t.Skipf("blocked by APL-2786")
-	}
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+func dockerSuiteOpts(tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithAgentOptions(
-			dockeragentparams.WithAgentServiceEnvVariable("DD_APM_RECEIVER_SOCKET", pulumi.String("/var/run/datadog/apm.socket")), // Enable the UDS receiver in the trace-agent
-			dockeragentparams.WithAgentServiceEnvVariable("STATSD_URL", pulumi.String("unix:///var/run/datadog/dsd.socket")),      // Optional: UDS is more reliable for statsd metrics
-		))),
+		e2e.WithProvisioner(awsdocker.Provisioner(opts...)),
+		e2e.WithStackName(fmt.Sprintf("apm-docker-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
 	}
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
-	}
-	e2e.Run(t, &DockerFakeintakeSuite{}, options...)
+	return options
 }
 
-func (s *DockerFakeintakeSuite) TestAPMDocker() {
-	s.Run("TraceAgentMetrics", s.TraceAgentMetrics)
-	s.Run("TracesOnUDS", s.TracesOnUDS)
-	s.Run("StatsOnUDS", s.StatsOnUDS)
+// TestDockerFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
+func TestDockerFakeintakeSuiteUDS(t *testing.T) {
+	options := dockerSuiteOpts(uds, awsdocker.WithAgentOptions(
+		// Enable the UDS receiver in the trace-agent
+		dockeragentparams.WithAgentServiceEnvVariable(
+			"DD_APM_RECEIVER_SOCKET",
+			pulumi.String("/var/run/datadog/apm.socket")),
+		// Optional: UDS is more reliable for statsd metrics
+		dockeragentparams.WithAgentServiceEnvVariable(
+			"STATSD_URL",
+			pulumi.String("unix:///var/run/datadog/dsd.socket")),
+	))
+	e2e.Run(t, &DockerFakeintakeSuite{transport: uds}, options...)
 }
 
-func (s *DockerFakeintakeSuite) TraceAgentMetrics() {
+// TestDockerFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
+func TestDockerFakeintakeSuiteTCP(t *testing.T) {
+	e2e.Run(t, &DockerFakeintakeSuite{transport: tcp}, dockerSuiteOpts(tcp)...)
+}
+
+func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		expected := map[string]struct{}{
-			// "datadog.trace_agent.started":                         {}, // FIXME: this metric is flaky
-			"datadog.trace_agent.heartbeat":                       {},
-			"datadog.trace_agent.heap_alloc":                      {},
-			"datadog.trace_agent.cpu_percent":                     {},
-			"datadog.trace_agent.events.max_eps.current_rate":     {},
-			"datadog.trace_agent.events.max_eps.max_rate":         {},
-			"datadog.trace_agent.events.max_eps.reached_max":      {},
-			"datadog.trace_agent.events.max_eps.sample_rate":      {},
-			"datadog.trace_agent.sampler.kept":                    {},
-			"datadog.trace_agent.sampler.rare.hits":               {},
-			"datadog.trace_agent.sampler.rare.misses":             {},
-			"datadog.trace_agent.sampler.rare.shrinks":            {},
-			"datadog.trace_agent.sampler.seen":                    {},
-			"datadog.trace_agent.sampler.size":                    {},
-			"datadog.trace_agent.stats_writer.bytes":              {},
-			"datadog.trace_agent.stats_writer.client_payloads":    {},
-			"datadog.trace_agent.stats_writer.encode_ms.avg":      {},
-			"datadog.trace_agent.stats_writer.encode_ms.count":    {},
-			"datadog.trace_agent.stats_writer.encode_ms.max":      {},
-			"datadog.trace_agent.stats_writer.errors":             {},
-			"datadog.trace_agent.stats_writer.payloads":           {},
-			"datadog.trace_agent.stats_writer.retries":            {},
-			"datadog.trace_agent.stats_writer.splits":             {},
-			"datadog.trace_agent.stats_writer.stats_buckets":      {},
-			"datadog.trace_agent.stats_writer.stats_entries":      {},
-			"datadog.trace_agent.trace_writer.bytes":              {},
-			"datadog.trace_agent.trace_writer.bytes_uncompressed": {},
-			"datadog.trace_agent.trace_writer.errors":             {},
-			"datadog.trace_agent.trace_writer.events":             {},
-			"datadog.trace_agent.trace_writer.payloads":           {},
-			"datadog.trace_agent.trace_writer.retries":            {},
-			"datadog.trace_agent.trace_writer.spans":              {},
-			"datadog.trace_agent.trace_writer.traces":             {},
-		}
-		metrics, err := s.Env().FakeIntake.Client().GetMetricNames()
-		assert.NoError(c, err)
-		s.T().Log("Got metric names", metrics)
-		assert.GreaterOrEqual(c, len(metrics), len(expected))
-		for _, m := range metrics {
-			delete(expected, m)
-			if len(expected) == 0 {
-				s.T().Log("All expected metrics are found")
-				return
-			}
-		}
-		s.T().Log("Remaining metrics", expected)
-		assert.Empty(c, expected)
+		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
-func (s *DockerFakeintakeSuite) TracesOnUDS() {
-	run, rm := dockerRunUDS("tracegen-uds")
-	s.Env().Host.MustExecute(run)
-	defer s.Env().Host.MustExecute(rm)
+func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
+	if s.transport != uds {
+		// TODO: Container tagging with cgroup v2 currently only works over UDS
+		// We should update this to run over TCP as well once that is implemented.
+		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")
+	}
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-container-tag-%s", s.transport)
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		traces, err := s.Env().FakeIntake.Client().GetTraces()
-		assert.NoError(c, err)
-		assert.NotEmpty(c, traces)
-		s.T().Log("Got traces", traces)
-		assert.True(c, hasContainerTag(traces, "container_name:tracegen-uds"))
+		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
-func (s *DockerFakeintakeSuite) StatsOnUDS() {
-	run, rm := dockerRunUDS("tracegen-stats-uds")
-	s.Env().Host.MustExecute(run)
-	defer s.Env().Host.MustExecute(rm)
+func (s *DockerFakeintakeSuite) TestStatsForService() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		stats, err := s.Env().FakeIntake.Client().GetAPMStats()
-		assert.NoError(c, err)
-		assert.NotEmpty(c, stats)
-		s.T().Log("Got apm stats", stats)
-		assert.True(c, hasStatsForService(stats, "tracegen-stats-uds"))
+		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
-func hasStatsForService(payloads []*aggregator.APMStatsPayload, service string) bool {
-	for _, p := range payloads {
-		for _, s := range p.StatsPayload.Stats {
-			for _, bucket := range s.Stats {
-				for _, ss := range bucket.Stats {
-					if ss.Service == service {
-						return true
-					}
-				}
-			}
-		}
-	}
-	return false
-}
+func (s *DockerFakeintakeSuite) TestBasicTrace() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
 
-func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
-	for _, p := range payloads {
-		for _, t := range p.AgentPayload.TracerPayloads {
-			tags, ok := t.Tags["_dd.tags.container"]
-			if ok && strings.Count(tags, tag) > 0 {
-				return true
-			}
-		}
-	}
-	return false
-}
+	service := fmt.Sprintf("tracegen-basic-trace-%s", s.transport)
 
-func dockerRunUDS(service string) (string, string) {
-	// TODO: use a proper docker-compose definition for tracegen
-	run := "docker run -d --network host --rm --name " + service + " -v /var/run/datadog/:/var/run/datadog/ -e DD_TRACE_AGENT_URL=unix:///var/run/datadog/apm.socket -e DD_SERVICE=" + service + " ghcr.io/datadog/apps-tracegen:main"
-	rm := "docker rm -f " + service
-	return run, rm
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }

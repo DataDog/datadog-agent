@@ -79,6 +79,7 @@ var InvalidDiscarders = map[eval.Field][]string{
 	"process.file.path":            dentryInvalidDiscarder,
 	"setxattr.file.path":           dentryInvalidDiscarder,
 	"removexattr.file.path":        dentryInvalidDiscarder,
+	"chdir.file.path":              dentryInvalidDiscarder,
 }
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
@@ -745,4 +746,10 @@ func init() {
 			return "splice.file.path", &event.Splice.File, false
 		}))
 	SupportedDiscarders["splice.file.path"] = true
+
+	allDiscarderHandlers["chdir"] = append(allDiscarderHandlers["chdir"], filenameDiscarderWrapper(model.FileOpenEventType,
+		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
+			return "chdir.file.path", &event.Open.File, false
+		}))
+	SupportedDiscarders["chdir.file.path"] = true
 }
