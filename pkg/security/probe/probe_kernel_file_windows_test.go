@@ -9,16 +9,13 @@
 package probe
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/etw"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -74,114 +71,6 @@ func createEtwTester(p *WindowsProbe) *etwTester {
 		p:             p,
 		notifications: make([]interface{}, 0),
 	}
-}
-func (et *etwTester) runTestEtwFile() error {
-
-	var once sync.Once
-	mypid := os.Getpid()
-	err := et.p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
-		/*
-			 	* this works because we're registered on the whole system.  Therefore, we'll get
-			 	* some file or registry callback events from other processes we're not interested in.
-				*
-				* so sooner or later we'll get one.  If we don't, we'll deadlock in the test init routine below
-		*/
-		once.Do(func() {
-			close(et.etwStarted)
-		})
-
-		// since this is for testing, skip any notification not from our pid
-		if e.EventHeader.ProcessID != uint32(mypid) {
-			return
-		}
-		switch e.EventHeader.ProviderID {
-		case etw.DDGUID(et.p.fileguid):
-			switch e.EventHeader.EventDescriptor.ID {
-			case idCreate:
-				if ca, err := parseCreateHandleArgs(e); err == nil {
-					//fmt.Printf("Received idCreate event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					select {
-					case et.notify <- ca:
-						// message sent
-					default:
-						// message dropped.  Which is OK.  In the test code, we want to leave the receive loop
-						// running, but only catch messages when we're expecting them
-						fmt.Printf("Dropped message\n")
-					}
-				}
-
-			case idCreateNewFile:
-				//fmt.Printf("Received event %d for PID %d\n", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
-				if ca, err := parseCreateNewFileArgs(e); err == nil {
-					//fmt.Printf("Received NewFile event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					select {
-					case et.notify <- ca:
-						// message sent
-					default:
-						// message dropped.  Which is OK.  In the test code, we want to leave the receive loop
-						// running, but only catch messages when we're expecting them
-						fmt.Printf("Dropped message\n")
-					}
-				}
-			case idCleanup:
-				if ca, err := parseCleanupArgs(e); err == nil {
-					//fmt.Printf("Received Cleanup event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					select {
-					case et.notify <- ca:
-						// message sent
-					default:
-						// message dropped.  Which is OK.  In the test code, we want to leave the receive loop
-						// running, but only catch messages when we're expecting them
-						fmt.Printf("Dropped message\n")
-					}
-				}
-
-			case idClose:
-				if ca, err := parseCloseArgs(e); err == nil {
-					//fmt.Printf("Received Close event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					select {
-					case et.notify <- ca:
-						// message sent
-					default:
-						// message dropped.  Which is OK.  In the test code, we want to leave the receive loop
-						// running, but only catch messages when we're expecting them
-						fmt.Printf("Dropped message\n")
-					}
-					if e.EventHeader.EventDescriptor.ID == idClose {
-						delete(filePathResolver, ca.fileObject)
-					}
-				}
-			case idFlush:
-				if fa, err := parseFlushArgs(e); err == nil {
-					//fmt.Printf("got id %v args %s", e.EventHeader.EventDescriptor.ID, fa.string())
-					select {
-					case et.notify <- fa:
-						// message sent
-					default:
-						// message dropped.  Which is OK.  In the test code, we want to leave the receive loop
-						// running, but only catch messages when we're expecting them
-						fmt.Printf("Dropped message\n")
-					}
-
-				}
-			case idSetInformation:
-				fallthrough
-			case idSetDelete:
-				fallthrough
-			case idRename:
-				fallthrough
-			case idQueryInformation:
-				fallthrough
-			case idFSCTL:
-				fallthrough
-			case idRename29:
-				if sia, err := parseInformationArgs(e); err == nil {
-					log.Infof("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia.string())
-				}
-			}
-		}
-	})
-	return err
 }
 
 func isSameFile(drive, device string) bool {
@@ -325,7 +214,14 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 	// wait till we're sure the listening loop is running
 	<-et.loopStarted
 
-	h, err := windows.CreateFile(windows.StringToUTF16Ptr(testfilename), windows.GENERIC_READ, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, 0, 0)
+	h, err := windows.CreateFile(windows.StringToUTF16Ptr(testfilename),
+		windows.GENERIC_READ,    // desired access
+		windows.FILE_SHARE_READ, // share mode
+		nil,                     // security attributes
+		windows.OPEN_EXISTING,   //creation disposition
+		0,                       // flags and attributes
+		0)                       // template file
+
 	require.NoError(t, err, "could not open file")
 	assert.NotEqual(t, h, windows.InvalidHandle, "could not open file")
 	windows.CloseHandle(h)
@@ -340,11 +236,18 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 
 	stopLoop(et, &wg)
 
+	// these options to not match the arguments to CreateFile.  these are the
+	// kernel arguments, as documented in ZwCreateFile
+	expectedCreateOptions := (kernelDisposition_FILE_OPEN << 24) | (kernelCreateOpts_FILE_NON_DIRECTORY_FILE | kernelCreateOpts_FILE_SYNCHRONOUS_IO_NONALERT)
 	// we expect a handle create (12), a cleanup and a close.
-	assert.Equal(t, 3, len(et.notifications), "expected 4 notifications, got %d", len(et.notifications))
+	assert.Equal(t, 3, len(et.notifications), "expected 3 notifications, got %d", len(et.notifications))
 
 	if c, ok := et.notifications[0].(*createHandleArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+		// this should be same as sharing argument to Createfile
+		assert.Equal(t, uint32(windows.FILE_SHARE_READ), c.shareAccess, "Sharing mode did not match")
+		assert.Equal(t, expectedCreateOptions, c.createOptions, "Create options did not match")
+
 	} else {
 		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
 	}
@@ -381,7 +284,23 @@ func TestETWFileNotifications(t *testing.T) {
 	wp.fimwg.Add(1)
 	go func() {
 		defer wp.fimwg.Done()
-		err := et.runTestEtwFile()
+
+		var once sync.Once
+		mypid := os.Getpid()
+
+		err := et.p.setupEtw(func(n interface{}, pid uint32) {
+			once.Do(func() {
+				close(et.etwStarted)
+			})
+			if pid != uint32(mypid) {
+				return
+			}
+			select {
+			case et.notify <- n:
+				// message sent
+			default:
+			}
+		})
 		assert.NoError(t, err)
 	}()
 

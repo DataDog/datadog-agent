@@ -29,7 +29,7 @@ jobs:
             fi
           else
             # Else use the current_milestone field in the release.json file.
-            MILESTONE=$(cat release.json | jq -r .current_milestone)" >> "$GITHUB_OUTPUT"
+            MILESTONE=$(cat release.json | jq -r .current_milestone)
             if [ -z "$MILESTONE" ]; then
               echo "Error: Couldn't find the current_milestone field in the release.json file."
               exit 1
