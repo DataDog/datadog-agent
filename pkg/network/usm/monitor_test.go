@@ -79,7 +79,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 
 			cfg := config.New()
 			cfg.EnableHTTPMonitoring = true
-			monitor, err := NewMonitor(cfg, nil, nil, nil)
+			monitor, err := NewMonitor(cfg, nil, nil)
 			skipIfNotSupported(t, err)
 			require.NoError(t, err)
 			t.Cleanup(monitor.Stop)
@@ -634,7 +634,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
 	cfg.EnableHTTPMonitoring = true
 
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(func() {

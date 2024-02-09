@@ -8,9 +8,13 @@ package aggregator
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"go.uber.org/fx"
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -24,18 +28,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
+type benchmarkDeps struct {
+	fx.In
+	Log      log.Component
+	Hostname hostname.Component
+}
+
 func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// Because these benchs can run for a long time, the aggregator is trying to
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
-	log := fxutil.Test[log.Component](b, logimpl.MockModule())
-	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
+	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, deps.Log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarderOpts)
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, deps.Log, forwarderOpts)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, options, "hostname")
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
+	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, "hostname")
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"))

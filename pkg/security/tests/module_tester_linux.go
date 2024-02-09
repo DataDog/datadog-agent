@@ -12,10 +12,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io/fs"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,14 +59,11 @@ import (
 
 var (
 	logger seelog.LoggerInterface
-	//nolint:deadcode,unused
-	testSuitePid uint32
 )
 
 const testConfig = `---
 log_level: DEBUG
 system_probe_config:
-  enabled: true
   sysprobe_socket: /tmp/test-sysprobe.sock
   enable_kernel_header_download: true
   enable_runtime_compiler: true
@@ -163,7 +158,7 @@ runtime_security_config:
     - {{.}}
   {{end}}
   ebpfless:
-    enabled: {{.EnableEBPFLess}}
+    enabled: {{.EBPFLessEnabled}}
 `
 
 const testPolicy = `---
@@ -569,10 +564,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opt(&opts)
 	}
 
-	if env := os.Getenv("EBPFLESS"); env != "" {
-		opts.staticOpts.enableEBPFLess = true
-	}
-
 	if commonCfgDir == "" {
 		cd, err := os.MkdirTemp("", "test-cfgdir")
 		if err != nil {
@@ -614,24 +605,19 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	var cmdWrapper cmdWrapper
-	if testEnvironment == DockerEnvironment {
+	if testEnvironment == DockerEnvironment || ebpfLessEnabled {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
-		if opts.staticOpts.enableEBPFLess {
-			// docker not supported by ebpf less
-			cmdWrapper = newStdCmdWrapper()
+		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
+		if err == nil {
+			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
 		} else {
-			wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
-			if err == nil {
-				cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
-			} else {
-				// docker not present run only on host
-				cmdWrapper = newStdCmdWrapper()
-			}
+			// docker not present run only on host
+			cmdWrapper = newStdCmdWrapper()
 		}
 	}
 
-	if testMod != nil && opts.staticOpts.enableEBPFLess {
+	if testMod != nil && ebpfLessEnabled {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
@@ -655,7 +641,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 
-		if !opts.staticOpts.enableEBPFLess {
+		if !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 				return testMod, err
 			}
@@ -707,7 +693,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			PathResolutionEnabled:  true,
 			SyscallsMonitorEnabled: true,
 			TTYFallbackEnabled:     true,
-			EBPFLessEnabled:        opts.staticOpts.enableEBPFLess,
+			EBPFLessEnabled:        ebpfLessEnabled,
 		},
 	}
 	if opts.staticOpts.tagsResolver != nil {
@@ -767,7 +753,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opts.staticOpts.preStartCallback(testMod)
 	}
 
-	if !opts.staticOpts.enableEBPFLess {
+	if !ebpfLessEnabled {
 		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 			return nil, err
 		}
@@ -793,7 +779,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
-	if opts.staticOpts.enableEBPFLess {
+	if ebpfLessEnabled {
 		t.Logf("EBPFLess mode, waiting for a client to connect")
 		err := retry.Do(func() error {
 			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {
@@ -808,21 +794,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		t.Logf("client connected")
 	}
 	return testMod, nil
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev)
-	return string(b), err
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) debugEvent(ev *model.Event) string {
-	b, err := tm.marshalEvent(ev)
-	if err != nil {
-		return err.Error()
-	}
-	return string(b)
 }
 
 // GetEBPFStatusMetrics returns a string representation of the perf buffer monitor metrics
@@ -1067,20 +1038,6 @@ func waitForProbeEvent(test *testModule, action func() error, key string, value 
 //nolint:deadcode,unused
 func waitForOpenProbeEvent(test *testModule, action func() error, filename string) error {
 	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
-}
-
-func init() {
-	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
-	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
-	flag.Var(&logPatterns, "logpattern", "List of log pattern")
-	flag.Var(&logTags, "logtag", "List of log tag")
-	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
-	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
-	flag.BoolVar(&trace, "trace", false, "wrap the test suite with the ptracer")
-
-	rand.Seed(time.Now().UnixNano())
-
-	testSuitePid = utils.Getpid()
 }
 
 //nolint:deadcode,unused
@@ -1629,4 +1586,46 @@ func (tm *testModule) WaitSignals(tb testing.TB, action func() error, cbs ...fun
 		return tm.mapFilters(cbs...)(event, rule)
 	})
 
+}
+
+func addFakePasswd(user string, uid, gid int32) error {
+	file, err := os.OpenFile(fakePasswdPath+"_tmp", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	_, err = file.WriteString("root:x:0:0:root:/root:/sbin/nologin\n")
+	if err != nil {
+		return err
+	}
+	_, err = file.WriteString(fmt.Sprintf("%s:x:%d:%d:%s:/home/%s:/sbin/nologin\n", user, uid, gid, user, user))
+	if err != nil {
+		return err
+	}
+	return os.Rename(fakePasswdPath+"_tmp", fakePasswdPath) // to force the cache refresh
+}
+
+func addFakeGroup(group string, gid int32) error {
+	file, err := os.OpenFile(fakeGroupPath+"_tmp", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	_, err = file.WriteString("root:x:0:\n")
+	if err != nil {
+		return err
+	}
+	_, err = file.WriteString(fmt.Sprintf("%s:x:%d:\n", group, gid))
+	if err != nil {
+		return err
+	}
+	return os.Rename(fakeGroupPath+"_tmp", fakeGroupPath) // to force the cache refresh
+}
+
+func removeFakePasswd() error {
+	return os.Remove(fakePasswdPath)
+}
+
+func removeFakeGroup() error {
+	return os.Remove(fakeGroupPath)
 }

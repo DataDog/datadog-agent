@@ -215,6 +215,8 @@ type TracesDropped struct {
 	// EOF is when an unexpected EOF is encountered, this can happen because the client has aborted
 	// or because a bad payload (i.e. shorter than claimed in Content-Length) was sent.
 	EOF atomic.Int64
+	// MSGPShortBytes is when a msgp payload is bad due to missing bytes
+	MSGPShortBytes atomic.Int64
 }
 
 func (s *TracesDropped) tagCounters() map[string]*atomic.Int64 {
@@ -227,6 +229,7 @@ func (s *TracesDropped) tagCounters() map[string]*atomic.Int64 {
 		"foreign_span":      &s.ForeignSpan,
 		"timeout":           &s.Timeout,
 		"unexpected_eof":    &s.EOF,
+		"msgp_short_bytes":  &s.MSGPShortBytes,
 	}
 }
 
@@ -422,6 +425,7 @@ func (s *Stats) update(recent *Stats) {
 	s.TracesDropped.PayloadTooLarge.Add(recent.TracesDropped.PayloadTooLarge.Load())
 	s.TracesDropped.Timeout.Add(recent.TracesDropped.Timeout.Load())
 	s.TracesDropped.EOF.Add(recent.TracesDropped.EOF.Load())
+	s.TracesDropped.MSGPShortBytes.Add(recent.TracesDropped.MSGPShortBytes.Load())
 	s.SpansMalformed.DuplicateSpanID.Add(recent.SpansMalformed.DuplicateSpanID.Load())
 	s.SpansMalformed.ServiceEmpty.Add(recent.SpansMalformed.ServiceEmpty.Load())
 	s.SpansMalformed.ServiceTruncate.Add(recent.SpansMalformed.ServiceTruncate.Load())

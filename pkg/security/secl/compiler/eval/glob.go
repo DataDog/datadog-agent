@@ -93,7 +93,7 @@ func (g *Glob) matches(filename string) bool {
 		if end+1 >= len(filename) {
 			elf, elp = filename[start:end+1], g.elements[i]
 			if len(elf) == 0 {
-				return false
+				return elp == "*"
 			}
 			if PatternMatches(elp, elf, g.caseInsensitive) && i+1 == len(g.elements) {
 				return true
