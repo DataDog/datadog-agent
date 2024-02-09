@@ -11,7 +11,6 @@ name 'datadog-agent-integrations-py3'
 license "BSD-3-Clause"
 license_file "./LICENSE"
 
-dependency 'datadog-agent'
 dependency 'datadog-agent-integrations-py3-dependencies'
 
 relative_path 'integrations-core'
