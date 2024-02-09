@@ -41,6 +41,7 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
 	github.com/pulumi/pulumi/sdk/v3 v3.99.0
+	github.com/pulumiverse/pulumi-time/sdk v0.0.0-20231010123146-089d7304da13
 	github.com/samber/lo v1.38.1
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.8.5-0.20231013065317-89920137cdfa
@@ -238,8 +239,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-require github.com/pulumiverse/pulumi-time/sdk v0.0.0-20231010123146-089d7304da13
 
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.50.2 // indirect
