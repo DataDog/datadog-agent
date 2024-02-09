@@ -131,7 +131,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     }
 
     if (skb_info->data_off + str_len > skb_info->data_end) {
-        __sync_fetch_and_add(&http2_tel->path_exceeds_frame, 1);
+        __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
         goto end;
     }
 

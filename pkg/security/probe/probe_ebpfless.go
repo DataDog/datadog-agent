@@ -537,7 +537,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 		return nil, err
 	}
 
-	p.fieldHandlers = &EBPFLessFieldHandlers{resolvers: p.Resolvers}
+	p.fieldHandlers = &EBPFLessFieldHandlers{config: config, resolvers: p.Resolvers}
 
 	p.event = p.NewEvent()
 

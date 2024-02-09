@@ -81,14 +81,14 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 		res, err = decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
 		if err != nil {
 			if oversizedLogLimit.ShouldLog() {
-				log.Errorf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
+				log.Warnf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
 			}
 			return nil, false
 		}
 	} else {
 		if err = validatePathSize(tx.Stream.Path_size); err != nil {
 			if oversizedLogLimit.ShouldLog() {
-				log.Errorf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
+				log.Warnf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
 			}
 			return nil, false
 		}
@@ -96,7 +96,7 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 		res = tx.Stream.Request_path[:tx.Stream.Path_size]
 		if err = validatePath(string(res)); err != nil {
 			if oversizedLogLimit.ShouldLog() {
-				log.Errorf("path %s is invalid due to: %s", string(res), err)
+				log.Warnf("path %s is invalid due to: %s", string(res), err)
 			}
 			return nil, false
 		}
@@ -416,7 +416,7 @@ HTTP2Telemetry{
 		"in range [170, 180)": %d,
 		"in range [180, infinity)": %d
 	}
-}`, t.Request_seen, t.Response_seen, t.End_of_stream, t.End_of_stream_rst, t.Path_exceeds_frame,
+}`, t.Request_seen, t.Response_seen, t.End_of_stream, t.End_of_stream_rst, t.Literal_value_exceeds_frame,
 		t.Exceeding_max_frames_to_filter, t.Exceeding_max_interesting_frames, t.Path_size_bucket[0], t.Path_size_bucket[1],
 		t.Path_size_bucket[2], t.Path_size_bucket[3], t.Path_size_bucket[4], t.Path_size_bucket[5], t.Path_size_bucket[6],
 		t.Path_size_bucket[7])
