@@ -16,10 +16,10 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.103-0.20240118142331-3069f58aa284
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/version v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/test/fakeintake v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/test/fakeintake v0.53.0-rc.1
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.19.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -240,7 +240,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.50.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.1 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
 )
