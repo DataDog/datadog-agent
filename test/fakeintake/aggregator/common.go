@@ -9,15 +9,25 @@ import (
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
+	"errors"
+	"flag"
+	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"reflect"
+	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-//nolint:revive // TODO(APL) Fix revive linter
+var generateFixture = flag.Bool("generate", true, "generate fixture")
+
+// PyaloadItem is the interface for payload items stored in a generic aggregator
 type PayloadItem interface {
 	name() string
 	GetTags() []string
@@ -26,7 +36,7 @@ type PayloadItem interface {
 
 type parseFunc[P PayloadItem] func(payload api.Payload) (items []P, err error)
 
-//nolint:revive // TODO(APL) Fix revive linter
+// Aggregator is a generic payload aggregator
 type Aggregator[P PayloadItem] struct {
 	payloadsByName map[string][]P
 	parse          parseFunc[P]
@@ -50,8 +60,31 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 	}
 }
 
-// UnmarshallPayloads aggregate the payloads
+// UnmarshallPayloads parses a list of payloads and stores them in the aggregator
+// It replaces the current payloads with the new ones
 func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
+	if *generateFixture {
+		_, filename, _, ok := runtime.Caller(0)
+		if !ok {
+			return errors.New("error generating fixture: unable to get the current file")
+		}
+
+		if len(payloads) == 0 {
+			return errors.New("error generating fixture: no payloads")
+		}
+
+		dir := filepath.Dir(filename)
+		// find aggregator name
+		tokens := strings.Split(reflect.TypeOf(agg.parse).Name(), "/")
+		aggName := tokens[len(tokens)-1]
+		aggName = strings.ReplaceAll(aggName, "]", "")
+		aggName = strings.ReplaceAll(aggName, "aggregator.", "")
+		aggName = strings.ReplaceAll(aggName, "Payload", "")
+		aggName = strings.ToLower(aggName)
+
+		return os.WriteFile(filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)), payloads[0].Data, 0644)
+	}
+	fmt.Print(reflect.TypeOf(agg).Name())
 	// build new map
 	payloadsByName := map[string][]P{}
 	for _, p := range payloads {
