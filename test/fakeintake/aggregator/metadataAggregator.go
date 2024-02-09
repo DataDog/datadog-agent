@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-// Metadata is a type that represents a metadata payload
+// A MetadataPayload is a struct that represents a metadata payload
 type MetadataPayload struct {
 	Hostname      string                 `json:"hostname"`
 	Timestamp     int64                  `json:"timestamp"`
