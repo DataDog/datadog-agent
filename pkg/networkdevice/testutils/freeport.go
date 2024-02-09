@@ -13,6 +13,7 @@ import (
 	"strconv"
 )
 
+// GetFreePort finds a free port to use for testing.
 func GetFreePort() (uint16, error) {
 	conn, err := net.ListenPacket("udp", ":0")
 	if err != nil {
