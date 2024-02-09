@@ -796,21 +796,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	return testMod, nil
 }
 
-//nolint:deadcode,unused
-func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev)
-	return string(b), err
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) debugEvent(ev *model.Event) string {
-	b, err := tm.marshalEvent(ev)
-	if err != nil {
-		return err.Error()
-	}
-	return string(b)
-}
-
 // GetEBPFStatusMetrics returns a string representation of the perf buffer monitor metrics
 func GetEBPFStatusMetrics(probe *sprobe.Probe) string {
 	if probe == nil {

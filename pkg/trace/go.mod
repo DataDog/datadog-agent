@@ -27,7 +27,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.3.1
-	github.com/shirou/gopsutil/v3 v3.23.8
+	github.com/shirou/gopsutil/v3 v3.23.12
 	github.com/stretchr/testify v1.8.4
 	github.com/tinylib/msgp v1.1.8
 	github.com/vmihailenco/msgpack/v4 v4.3.12
