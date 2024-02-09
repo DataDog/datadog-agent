@@ -17,6 +17,9 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
     steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@v4
+
       - name: Get repo current milestone
         id: current-milestone
         run: |
