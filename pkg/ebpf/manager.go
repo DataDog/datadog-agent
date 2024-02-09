@@ -10,7 +10,6 @@ package ebpf
 import (
 	"fmt"
 	"io"
-	"reflect"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -58,20 +57,20 @@ func NewManager(mgr *manager.Manager, modifiers ...Modifier) *Manager {
 // each manager, it should not be added to the list of default modifiers, and developers using it
 // should be aware of this behavior.
 type Modifier interface {
+	fmt.Stringer
 	// BeforeInit is called before the ebpf.Manager.InitWithOptions call
-	BeforeInit(*Manager, *manager.Options) error
+	BeforeInit(*manager.Manager, *manager.Options) error
 
 	// AfterInit is called after the ebpf.Manager.InitWithOptions call
-	AfterInit(*Manager, *manager.Options) error
+	AfterInit(*manager.Manager, *manager.Options) error
 }
 
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) error {
 	for _, mod := range m.EnabledModifiers {
-		modName := reflect.TypeOf(mod).String()
-		log.Debugf("Running %s manager modifier", modName)
-		if err := mod.BeforeInit(m, opts); err != nil {
-			return fmt.Errorf("error running %s manager modifier: %w", modName, err)
+		log.Debugf("Running %s manager modifier", mod)
+		if err := mod.BeforeInit(m.Manager, opts); err != nil {
+			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
 	}
 
@@ -80,10 +79,9 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 	}
 
 	for _, mod := range m.EnabledModifiers {
-		modName := reflect.TypeOf(mod).String()
-		log.Debugf("Running %s manager modifier", modName)
-		if err := mod.AfterInit(m, opts); err != nil {
-			return fmt.Errorf("error running %s manager modifier: %w", modName, err)
+		log.Debugf("Running %s manager modifier", mod)
+		if err := mod.AfterInit(m.Manager, opts); err != nil {
+			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
 	}
 	return nil
