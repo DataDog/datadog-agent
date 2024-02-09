@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
 package domain
 
 import (
@@ -5,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/active_directory"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -33,21 +39,25 @@ func TestInstallsOnDomainController(t *testing.T) {
 }
 
 type testInstallSuite struct {
-	windows.BaseAgentInstallerSuite
+	windows.BaseAgentInstallerSuite[active_directory.ActiveDirectoryEnv]
 }
 
 func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
 	host := suite.Env().DomainControllerHost
 
 	_, err := suite.InstallAgent(host,
-		windows.WithPackage(suite.AgentPackage),
-		windows.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
-		windows.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
-		windows.WithValidApiKey(),
-		windows.WithFakeIntake(suite.Env().FakeIntake),
-		windows.WithInstallLogFile("TC-INS-DC-006_install.log"))
+		windowsAgent.WithPackage(suite.AgentPackage),
+		windowsAgent.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
+		windowsAgent.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
+		windowsAgent.WithValidApiKey(),
+		windowsAgent.WithFakeIntake(suite.Env().FakeIntake),
+		windowsAgent.WithInstallLogFile("TC-INS-DC-006_install.log"))
 
 	suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
+
+	agent := suite.NewAgentClientForHost(suite.Env().DomainControllerHost)
+	windowsAgent.TestAgentVersion(suite.T(), suite.AgentPackage.AgentVersion(), agent.Version())
+
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames, err := suite.Env().FakeIntake.Client().GetMetricNames()
 		assert.NoError(c, err)
@@ -56,7 +66,7 @@ func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
 }
 
 type testUpgradeSuite struct {
-	windows.BaseAgentInstallerSuite
+	windows.BaseAgentInstallerSuite[active_directory.ActiveDirectoryEnv]
 }
 
 func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
@@ -64,12 +74,12 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 	host := suite.Env().DomainControllerHost
 
 	_, err := suite.InstallAgent(host,
-		windows.WithLastStablePackage(),
-		windows.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
-		windows.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
-		windows.WithValidApiKey(),
-		windows.WithFakeIntake(suite.Env().FakeIntake),
-		windows.WithInstallLogFile("TC-UPG-DC-001_install_last_stable.log"))
+		windowsAgent.WithLastStablePackage(),
+		windowsAgent.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
+		windowsAgent.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
+		windowsAgent.WithValidApiKey(),
+		windowsAgent.WithFakeIntake(suite.Env().FakeIntake),
+		windowsAgent.WithInstallLogFile("TC-UPG-DC-001_install_last_stable.log"))
 
 	suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
 	suite.EventuallyWithT(func(c *assert.CollectT) {
@@ -79,10 +89,13 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 	}, 5*time.Minute, 10*time.Second)
 
 	_, err = suite.InstallAgent(host,
-		windows.WithPackage(suite.AgentPackage),
-		windows.WithInstallLogFile("TC-UPG-DC-001_upgrade.log"))
-
+		windowsAgent.WithPackage(suite.AgentPackage),
+		windowsAgent.WithInstallLogFile("TC-UPG-DC-001_upgrade.log"))
 	suite.Require().NoError(err, "should succeed to upgrade an Agent on a Domain Controller")
+
+	agent := suite.NewAgentClientForHost(suite.Env().DomainControllerHost)
+	windowsAgent.TestAgentVersion(suite.T(), suite.AgentPackage.AgentVersion(), agent.Version())
+
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames, err := suite.Env().FakeIntake.Client().GetMetricNames()
 		assert.NoError(c, err)
