@@ -204,6 +204,14 @@ func parseAWSARN(s string) (CloudID, error) {
 		if !resourceNameReg.MatchString(strings.TrimPrefix(resourceName, "snap-")) {
 			return CloudID{}, fmt.Errorf("bad cloud id %q: resource ID has wrong format (should match %s)", s, resourceNameReg)
 		}
+	case service == "ec2" && strings.HasPrefix(resource, "image/"):
+		resourceType, resourceName = ResourceTypeHostImage, strings.TrimPrefix(resource, "image/")
+		if !strings.HasPrefix(resourceName, "ami-") {
+			return CloudID{}, fmt.Errorf("bad cloud id %q: resource ID has wrong prefix", s)
+		}
+		if !resourceNameReg.MatchString(strings.TrimPrefix(resourceName, "ami-")) {
+			return CloudID{}, fmt.Errorf("bad cloud id %q: resource ID has wrong format (should match %s)", s, resourceNameReg)
+		}
 	case service == "lambda" && strings.HasPrefix(resource, "function:"):
 		resourceType, resourceName = ResourceTypeFunction, strings.TrimPrefix(resource, "function:")
 		if sep := strings.Index(resourceName, ":"); sep > 0 {
