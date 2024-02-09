@@ -127,37 +127,6 @@ import (
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 
-<<<<<<< HEAD
-	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerimage"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
-
-=======
->>>>>>> main
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 )

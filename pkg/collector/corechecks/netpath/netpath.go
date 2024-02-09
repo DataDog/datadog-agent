@@ -49,7 +49,7 @@ const (
 	DefaultOutputFormat = "json"
 )
 
-const checkName = "netpath"
+const CheckName = "netpath"
 
 // TODO: FIXME The mutex is used to prevent multiple checks running at the same
 //
@@ -712,6 +712,6 @@ func Factory() optional.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
+		CheckBase: core.NewCheckBase(CheckName),
 	}
 }
