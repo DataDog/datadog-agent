@@ -538,7 +538,7 @@ func containerdListMetadata(scan *types.ScanTask, containerdRoot string) ([]*typ
 		}
 
 		ctrLayers := containerdLayersPaths(containerdRoot, ctr.Snapshot)
-		ctrMountName := fmt.Sprintf("%s%s-%s-%d", types.ContainerdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
+		ctrMountName := fmt.Sprintf("%s%s-%s-%d", types.ContainerMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
 		results = append(results, &types.Container{
 			Runtime:           "containerd",
 			MountName:         ctrMountName,
@@ -797,7 +797,7 @@ func dockerListContainers(scan *types.ScanTask, dockerRoot string) ([]*types.Con
 		if !ctr.State.Running {
 			continue
 		}
-		ctrMountName := types.DockerMountPrefix + ctr.ID
+		ctrMountName := types.ContainerMountPrefix + ctr.ID
 		ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
 		if err != nil {
 			log.Errorf("%s: docker: could not get container layers %s: %v", scan, ctr, err)
