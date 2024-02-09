@@ -79,6 +79,7 @@ core,github.com/DataDog/ebpf-manager/internal,MIT,Copyright (c) 2021 Authors of 
 core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v2,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v2/internal/log,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v2/internal/lib,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v2/internal/noopfree,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-sqllexer,MIT,"Copyright (c) 2023 Datadog, Inc"

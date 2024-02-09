@@ -78,6 +78,42 @@ type createHandleArgs struct {
 	fileName         string
 }
 
+/*
+ * these constants are defined in the windows driver kit (wdm.h).  Copied
+ * here because the correspond to the createOptions field
+ */
+const (
+	kernelDisposition_FILE_SUPERSEDE           = uint32(0x00000000) // nolint:unused,revive
+	kernelDisposition_FILE_OPEN                = uint32(0x00000001) // nolint:unused,revive
+	kernelDisposition_FILE_CREATE              = uint32(0x00000002) // nolint:unused,revive
+	kernelDisposition_FILE_OPEN_IF             = uint32(0x00000003) // nolint:unused,revive
+	kernelDisposition_FILE_OVERWRITE           = uint32(0x00000004) // nolint:unused,revive
+	kernelDisposition_FILE_OVERWRITE_IF        = uint32(0x00000005) // nolint:unused,revive
+	kernelDisposition_FILE_MAXIMUM_DISPOSITION = uint32(0x00000005) // nolint:unused,revive
+)
+
+const (
+	kernelCreateOpts_FILE_DIRECTORY_FILE            = uint32(0x00000001) // nolint:unused,revive
+	kernelCreateOpts_FILE_WRITE_THROUGH             = uint32(0x00000002) // nolint:unused,revive
+	kernelCreateOpts_FILE_SEQUENTIAL_ONLY           = uint32(0x00000004) // nolint:unused,revive
+	kernelCreateOpts_FILE_NO_INTERMEDIATE_BUFFERING = uint32(0x00000008) // nolint:unused,revive
+
+	kernelCreateOpts_FILE_SYNCHRONOUS_IO_ALERT    = uint32(0x00000010) // nolint:unused,revive
+	kernelCreateOpts_FILE_SYNCHRONOUS_IO_NONALERT = uint32(0x00000020) // nolint:unused,revive
+	kernelCreateOpts_FILE_NON_DIRECTORY_FILE      = uint32(0x00000040) // nolint:unused,revive
+	kernelCreateOpts_FILE_CREATE_TREE_CONNECTION  = uint32(0x00000080) // nolint:unused,revive
+
+	kernelCreateOpts_FILE_COMPLETE_IF_OPLOCKED = uint32(0x00000100) // nolint:unused,revive
+	kernelCreateOpts_FILE_NO_EA_KNOWLEDGE      = uint32(0x00000200) // nolint:unused,revive
+	kernelCreateOpts_FILE_OPEN_REMOTE_INSTANCE = uint32(0x00000400) // nolint:unused,revive
+	kernelCreateOpts_FILE_RANDOM_ACCESS        = uint32(0x00000800) // nolint:unused,revive
+
+	kernelCreateOpts_FILE_DELETE_ON_CLOSE        = uint32(0x00001000) // nolint:unused,revive
+	kernelCreateOpts_FILE_OPEN_BY_FILE_ID        = uint32(0x00002000) // nolint:unused,revive
+	kernelCreateOpts_FILE_OPEN_FOR_BACKUP_INTENT = uint32(0x00004000) // nolint:unused,revive
+	kernelCreateOpts_FILE_NO_COMPRESSION         = uint32(0x00008000) // nolint:unused,revive
+)
+
 type createNewFileArgs createHandleArgs
 
 /*
@@ -140,7 +176,7 @@ func (ca *createHandleArgs) string() string {
 
 	output.WriteString("  Create PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
 	output.WriteString("         Name: " + ca.fileName + "\n")
-	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Attrs: " + strconv.FormatUint(uint64(ca.createAttributes), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
+	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
 	return output.String()
 }

@@ -161,8 +161,7 @@ func StartEtw(subscriptionName string, etwProviders ProviderType, sub Subscriber
 // See above note about http-centrism
 func StopEtw(subscriptionName string) {
 	subs := getSubscribers()
-
-	if len(subscribers) != 0 {
+	if len(subs) != 0 {
 		C.StopEtwSubscription()
 		for _, s := range subs {
 			s.OnStop()
