@@ -302,7 +302,7 @@ func (t *TaggerClient) globalTagBuilder(cardinality collectors.TagCardinality, t
 	t.mux.RUnlock()
 
 	if err := t.defaultTagger.AccumulateTagsFor(collectors.HostEntityID, cardinality, tb); err != nil {
-		log.Error(err.Error())
+		log.Error(err)
 	}
 	return t.defaultTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
 }
