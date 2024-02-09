@@ -37,6 +37,8 @@ func injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 
 	agentSidecarContainer := getDefaultSidecarTemplate()
 
+	applyProviderOverrides(agentSidecarContainer)
+
 	pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
 	return nil
 }

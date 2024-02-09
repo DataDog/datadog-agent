@@ -275,23 +275,24 @@ func (c *ControllerV1beta1) generateTemplates() {
 		}
 	}
 
+	// Agent sidecar injection
 	if config.Datadog.GetBool("admission_controller.agent_sidecar.enabled") {
 		nsSelector, objSelector := buildAgentSidecarObjectSelectors()
 
-		// This should still work if nsSelector and objSelector are both nil
-		// It will create a webhook that receives no mutating pod requests (will be useless)
-		webhook := c.getWebhookSkeleton(
-			"agent-sidecar",
-			config.Datadog.GetString("admission_controller.agent_sidecar.endpoint"),
-			[]admiv1beta1.OperationType{
-				admiv1beta1.Create,
-			},
-			[]string{"pods"},
-			nsSelector,
-			objSelector,
-		)
-		log.Info("registered side car injection v1")
-		webhooks = append(webhooks, webhook)
+		if nsSelector != nil || objSelector != nil {
+			webhook := c.getWebhookSkeleton(
+				"agent-sidecar",
+				config.Datadog.GetString("admission_controller.agent_sidecar.endpoint"),
+				[]admiv1beta1.OperationType{
+					admiv1beta1.Create,
+				},
+				[]string{"pods"},
+				nsSelector,
+				objSelector,
+			)
+			log.Info("registered side car injection v1beta1")
+			webhooks = append(webhooks, webhook)
+		}
 	}
 
 	c.webhookTemplates = webhooks

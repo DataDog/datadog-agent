@@ -8,39 +8,56 @@
 package agentsidecar
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"reflect"
 	"testing"
 )
 
 func TestInjectAgentSidecar(t *testing.T) {
+	mockConfig := config.Mock(t)
+
 	tests := []struct {
-		Name         string
-		Pod          *corev1.Pod
-		ExpectError  bool
-		ShouldInject bool
+		Name                      string
+		Pod                       *corev1.Pod
+		provider                  string
+		ExpectError               bool
+		ExpectedPodAfterInjection *corev1.Pod
 	}{
 		{
-			Name:         "should return error for nil pod",
-			Pod:          nil,
-			ExpectError:  true,
-			ShouldInject: false,
+			Name:                      "should return error for nil pod",
+			Pod:                       nil,
+			provider:                  "",
+			ExpectError:               true,
+			ExpectedPodAfterInjection: nil,
 		},
 		{
-			Name: "should inject sidecar if no sidecar present",
+			Name: "should inject sidecar if no sidecar present, no provider set",
 			Pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "pod-name",
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
-						{Name: "containe-name"},
+						{Name: "container-name"},
 					},
 				},
 			},
-			ExpectError:  false,
-			ShouldInject: true,
+			provider:    "",
+			ExpectError: false,
+			ExpectedPodAfterInjection: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pod-name",
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "container-name"},
+						*getDefaultSidecarTemplate(),
+					},
+				},
+			},
 		},
 		{
 			Name: "should skip injecting sidecar when sidecar already exists",
@@ -50,23 +67,59 @@ func TestInjectAgentSidecar(t *testing.T) {
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
-						{Name: "containe-name"},
-						{Name: agentSidecarContainerName},
+						{Name: "container-name"},
+						*getDefaultSidecarTemplate(),
 					},
 				},
 			},
-			ExpectError:  false,
-			ShouldInject: false,
+			provider:    "",
+			ExpectError: false,
+			ExpectedPodAfterInjection: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pod-name",
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "container-name"},
+						*getDefaultSidecarTemplate(),
+					},
+				},
+			},
+		},
+		{
+			Name: "should inject sidecar if no sidecar present, with supported provider",
+			Pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pod-name",
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "container-name"},
+					},
+				},
+			},
+			provider:    "fargate",
+			ExpectError: false,
+			ExpectedPodAfterInjection: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pod-name",
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "container-name"},
+						*sidecarWithEnvOverrides(corev1.EnvVar{
+							Name:  "DD_EKS_FARGATE",
+							Value: "true",
+						}),
+					},
+				},
+			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.Name, func(tt *testing.T) {
-			containersCount := 0
-
-			if test.Pod != nil {
-				containersCount = len(test.Pod.Spec.Containers)
-			}
+			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
 
 			err := injectAgentSidecar(test.Pod, "", nil)
 
@@ -74,15 +127,28 @@ func TestInjectAgentSidecar(t *testing.T) {
 				assert.Error(tt, err, "expected non-nil error to be returned")
 			} else {
 				assert.NoError(tt, err, "expected returned error to be nil")
+			}
 
-				if test.ShouldInject {
-					assert.Equalf(tt, len(test.Pod.Spec.Containers), containersCount+1, "should inject sidecar")
-				} else {
-					assert.Equalf(tt, len(test.Pod.Spec.Containers), containersCount, "should not inject sidecar")
-				}
+			if test.ExpectedPodAfterInjection == nil {
+				assert.Nil(tt, test.Pod)
+			} else {
+				assert.NotNil(tt, test.Pod)
+				assert.Truef(
+					tt,
+					reflect.DeepEqual(*test.ExpectedPodAfterInjection, *test.Pod),
+					"expected %v, found %v",
+					*test.ExpectedPodAfterInjection,
+					*test.Pod,
+				)
 			}
 
 		})
 	}
 
+}
+
+func sidecarWithEnvOverrides(extraEnv ...corev1.EnvVar) *corev1.Container {
+	sidecar := getDefaultSidecarTemplate()
+	sidecar.Env = append(sidecar.Env, extraEnv...)
+	return sidecar
 }

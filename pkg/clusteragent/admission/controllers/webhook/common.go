@@ -9,7 +9,8 @@ package webhook
 
 import (
 	"encoding/json"
-	"fmt"
+	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
@@ -26,7 +27,6 @@ type Selector struct {
 
 // buildAgentSidecarObjectSelectors returns the mutating webhooks object selectors based on the configuration
 func buildAgentSidecarObjectSelectors() (namespaceSelector, objectSelector *metav1.LabelSelector) {
-
 	// Read and parse selectors
 	selectorsJSON := config.Datadog.GetString("admission_controller.agent_sidecar.selectors")
 
@@ -34,13 +34,28 @@ func buildAgentSidecarObjectSelectors() (namespaceSelector, objectSelector *meta
 
 	err := json.Unmarshal([]byte(selectorsJSON), &selectors)
 	if err != nil {
-		fmt.Printf("failed to parse selectors for admission controller agent sidecar injection webhook: %s", err)
+		log.Errorf("failed to parse selectors for admission controller agent sidecar injection webhook: %s", err)
 		return nil, nil
 	}
 
 	if len(selectors) > 0 {
 		namespaceSelector = &selectors[0].NamespaceSelector
 		objectSelector = &selectors[0].ObjectSelector
+	} else {
+		provider := config.Datadog.GetString("admission_controller.agent_sidecar.provider")
+
+		if !agentsidecar.ProviderIsSupported(provider) {
+			log.Errorf("agent sidecar provider is not supported: %v", provider)
+			return nil, nil
+		}
+
+		log.Infof("falling back to default %v provider selectors", provider)
+		namespaceSelector = nil
+		objectSelector = &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"agent.datadoghq.com/sidecar": provider,
+			},
+		}
 	}
 
 	return namespaceSelector, objectSelector

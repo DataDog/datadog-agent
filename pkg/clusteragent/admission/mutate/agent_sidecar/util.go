@@ -9,11 +9,16 @@ package agentsidecar
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-const agentSidecarContainerName = "datadog-agent-injected"
+const (
+	agentSidecarContainerName = "datadog-agent-injected"
+
+	providerFargate = "fargate"
+)
 
 func getDefaultSidecarTemplate() *corev1.Container {
 	agentContainer := &corev1.Container{
@@ -63,4 +68,45 @@ func getDefaultSidecarTemplate() *corev1.Container {
 	}
 
 	return agentContainer
+}
+
+////////////////////////////////
+//                            //
+//     Provider Overrides     //
+//                            //
+////////////////////////////////
+
+// ProviderIsSupported indicates whether the provider is supported by agent sidecar injection
+func ProviderIsSupported(provider string) bool {
+	switch provider {
+	case providerFargate:
+		return true
+	default:
+		return false
+	}
+}
+
+func applyProviderOverrides(container *corev1.Container) {
+	provider := config.Datadog.GetString("admission_controller.agent_sidecar.provider")
+
+	if !ProviderIsSupported(provider) {
+		log.Errorf("unsupported provider: %v", provider)
+		return
+	}
+
+	switch provider {
+	case providerFargate:
+		applyFargateOverrides(container)
+	}
+}
+
+func applyFargateOverrides(container *corev1.Container) {
+	if container == nil {
+		return
+	}
+
+	container.Env = append(container.Env, corev1.EnvVar{
+		Name:  "DD_EKS_FARGATE",
+		Value: "true",
+	})
 }
