@@ -27,7 +27,6 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
-	kv580 := kernel.VersionCode(5, 8, 0)
 	kv5180 := kernel.VersionCode(5, 18, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv650 := kernel.VersionCode(6, 5, 0)
@@ -58,7 +57,6 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)
 		enableProbe(enabled, probes.TCPCloseFlushReturn)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.ConnCloseProgsMap, probes.ConnCloseProgsMapPre580, kv580))
 		enableProbe(enabled, probes.TCPConnect)
 		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)

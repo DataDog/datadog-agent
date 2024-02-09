@@ -86,13 +86,13 @@ const (
 	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
 	// TCPCloseFlushReturn traces the return of tcp_close() system call
 	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
-
-	TCPConnCloseEmitBatch ProbeFuncName = "emit_conn_close_event_from_batch"
-
-	TCPConnCloseEmitBatchRingBuffer ProbeFuncName = "emit_conn_close_event_from_batch_ringbuffer"
-
+	// TCPConnCloseEmitBatch is a tail call used to flush batches of closed connections to the perf buffer
+	TCPConnCloseEmitBatch ProbeFuncName = "flush_conn_close_if_full"
+	// TCPConnCloseEmitBatchRingBuffer is a tail call used to flush batches of closed connections to the ring or perf buffer
+	TCPConnCloseEmitBatchRingBuffer ProbeFuncName = "flush_conn_close_if_full_ringbuffer"
+	// TCPConnCloseEmitEvent is a tail call used to emit a single connection close event to the perf buffer
 	TCPConnCloseEmitEvent ProbeFuncName = "emit_conn_close_event"
-
+	// TCPConnCloseEmitEventRingBuffer is a tail call used to emit a single connection close event to the ring or perf buffer
 	TCPConnCloseEmitEventRingBuffer ProbeFuncName = "emit_conn_close_event_ringbuffer"
 
 	// We use the following two probes for UDP sends

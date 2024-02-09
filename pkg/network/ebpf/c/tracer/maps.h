@@ -111,8 +111,6 @@ BPF_HASH_MAP(pending_tcp_retransmit_skb, __u64, tcp_retransmit_skb_args_t, 8192)
 // Used to store connections waiting to be flushed by a tail call in the tcp_close flow
 BPF_HASH_MAP(pending_individual_conn_flushes, __u64, conn_t, 8192)
 
-BPF_HASH_MAP(pending_batch_conn_flushes, __u64, batch_t, 8192)
-
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes
 BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
