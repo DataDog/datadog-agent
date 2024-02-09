@@ -19,7 +19,10 @@ jobs:
     steps:
       - name: Get PR labels
         id: pr-labels
-        run: echo "LABELS=$(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name')" >> $env:GITHUB_OUTPUT
+        run: |
+          labels=($(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name'))
+          echo "Fetched labels for PR ${{github.event.number}}: $labels"
+          echo "LABELS=$labels" >> $env:GITHUB_OUTPUT
   team-label:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
@@ -27,7 +30,8 @@ jobs:
     steps:
       - name: Check team assignment
         run: |
-          for label in $LABELS; do
+          labels=($LABELS)
+          for label in $labels; do
             if [[ "$label" =~ ^qa/ ]]; then
               echo "A label to skip QA is set -- no need for team assignment"
               exit 0
@@ -50,7 +54,8 @@ jobs:
         run: |
           is_qa_done=1
           is_qa_no_code_change=1
-          for label in $LABELS; do
+          labels=($LABELS)
+          for label in $labels; do
             if [[ "$label" == "qa/done" ]]; then
               is_qa_done=0
             fi
