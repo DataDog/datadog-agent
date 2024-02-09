@@ -53,6 +53,13 @@ type ResourceWaiter struct {
 func (w *ResourceWaiter) Wait(ctx context.Context, resourceID types.CloudID, ec2client *ec2.Client) <-chan WaitResult {
 	w.Lock()
 	defer w.Unlock()
+
+	ch := make(chan WaitResult, 1)
+	if resourceID.ResourceType() != types.ResourceTypeSnapshot &&
+		resourceID.ResourceType() != types.ResourceTypeHostImage {
+		ch <- WaitResult{Err: fmt.Errorf("unsupported resource type %q", resourceID.ResourceType())}
+		return ch
+	}
 	group := waitGroup{
 		region:    resourceID.Region(),
 		accountID: resourceID.AccountID(),
@@ -63,7 +70,6 @@ func (w *ResourceWaiter) Wait(ctx context.Context, resourceID types.CloudID, ec2
 	if w.subs[group] == nil {
 		w.subs[group] = make(map[types.CloudID][]waitSub)
 	}
-	ch := make(chan WaitResult, 1)
 	subs := w.subs[group]
 	subs[resourceID] = append(subs[resourceID], ch)
 	if len(subs) == 1 {
@@ -72,7 +78,7 @@ func (w *ResourceWaiter) Wait(ctx context.Context, resourceID types.CloudID, ec2
 	return ch
 }
 
-func (w *ResourceWaiter) abort(group waitGroup, err error, resourceType ...types.ResourceType) {
+func (w *ResourceWaiter) abort(group waitGroup, err error, resourceType ...types.ResourceType) bool {
 	w.Lock()
 	defer w.Unlock()
 	for resourceID, subs := range w.subs[group] {
@@ -85,7 +91,9 @@ func (w *ResourceWaiter) abort(group waitGroup, err error, resourceType ...types
 	}
 	if len(w.subs[group]) == 0 {
 		delete(w.subs, group)
+		return true
 	}
+	return false
 }
 
 func (w *ResourceWaiter) loop(ctx context.Context, group waitGroup, ec2client *ec2.Client) {
@@ -112,24 +120,29 @@ func (w *ResourceWaiter) loop(ctx context.Context, group waitGroup, ec2client *e
 		}
 		w.Unlock()
 
-		if len(snapshotIDs) > 0 {
-			w.pollSnapshots(ctx, ec2client, group, snapshotIDs)
+		done := len(snapshotIDs) == 0 && len(imageIDs) == 0
+		if !done {
+			if len(snapshotIDs) > 0 {
+				done = w.pollSnapshots(ctx, group, ec2client, snapshotIDs)
+			}
+			if len(imageIDs) > 0 {
+				done = w.pollImages(ctx, group, ec2client, imageIDs)
+			}
 		}
-		if len(imageIDs) > 0 {
-			w.pollImages(ctx, ec2client, group, imageIDs)
+		if done {
+			return
 		}
 	}
 }
 
-func (w *ResourceWaiter) pollSnapshots(ctx context.Context, ec2client *ec2.Client, group waitGroup, snapshotIDs []string) {
+func (w *ResourceWaiter) pollSnapshots(ctx context.Context, group waitGroup, ec2client *ec2.Client, snapshotIDs []string) bool {
 	// TODO: could we rely on ListSnapshotBlocks instead of
 	// DescribeSnapshots as a "fast path" to not consume precious quotas ?
 	output, err := ec2client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{
 		SnapshotIds: snapshotIDs,
 	})
 	if err != nil {
-		w.abort(group, err, types.ResourceTypeSnapshot)
-		return
+		return w.abort(group, err, types.ResourceTypeSnapshot)
 	}
 
 	snapshots := make(map[string]ec2types.Snapshot, len(output.Snapshots))
@@ -177,15 +190,19 @@ func (w *ResourceWaiter) pollSnapshots(ctx context.Context, ec2client *ec2.Clien
 			delete(subs, snapshotID)
 		}
 	}
+	if len(subs) == 0 {
+		delete(w.subs, group)
+		return true
+	}
+	return false
 }
 
-func (w *ResourceWaiter) pollImages(ctx context.Context, ec2client *ec2.Client, group waitGroup, imageIDs []string) {
+func (w *ResourceWaiter) pollImages(ctx context.Context, group waitGroup, ec2client *ec2.Client, imageIDs []string) bool {
 	output, err := ec2client.DescribeImages(ctx, &ec2.DescribeImagesInput{
 		ImageIds: imageIDs,
 	})
 	if err != nil {
-		w.abort(group, err, types.ResourceTypeHostImage)
-		return
+		return w.abort(group, err, types.ResourceTypeHostImage)
 	}
 	images := make(map[string]ec2types.Image, len(output.Images))
 	for _, image := range output.Images {
@@ -232,4 +249,9 @@ func (w *ResourceWaiter) pollImages(ctx context.Context, ec2client *ec2.Client, 
 			delete(subs, imageID)
 		}
 	}
+	if len(subs) == 0 {
+		delete(w.subs, group)
+		return true
+	}
+	return false
 }
