@@ -52,6 +52,3 @@
 
 Note: Adding GitHub labels is only possible for contributors with write access.
 -->
-
-- [ ] Use the `major_change` label if your change either has a major impact on the code base, is impacting multiple teams or is changing important well-established internals of the Agent. This label will be use during QA to make sure each team pay extra attention to the changed behavior. For any customer facing change use a releasenote.
-- [ ] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.
