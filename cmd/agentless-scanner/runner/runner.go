@@ -80,7 +80,7 @@ type Runner struct {
 	findingsReporter *LogReporter
 	rcClient         *remote.Client
 
-	waiter awsutils.SnapshotWaiter
+	waiter awsutils.ResourceWaiter
 
 	regionsCleanupMu sync.Mutex
 	regionsCleanup   map[string]types.CloudID

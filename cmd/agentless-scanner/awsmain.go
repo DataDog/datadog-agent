@@ -115,7 +115,7 @@ func awsSnapshotCommand() *cobra.Command {
 				return err
 			}
 			cfg := awsutils.GetConfigFromCloudID(ctx, roles, scan.CloudID)
-			var waiter awsutils.SnapshotWaiter
+			var waiter awsutils.ResourceWaiter
 			ec2client := ec2.NewFromConfig(cfg)
 			snapshotID, err := awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, scan.CloudID)
 			if err != nil {
@@ -460,44 +460,33 @@ func awsOfflineCmd(ctx context.Context, workers int, taskType types.TaskType, ac
 						if image.ImageId == nil {
 							continue
 						}
-						for _, blockDeviceMapping := range image.BlockDeviceMappings {
-							if blockDeviceMapping.DeviceName == nil {
-								continue
-							}
-							if blockDeviceMapping.Ebs == nil {
-								continue
-							}
-							if *blockDeviceMapping.DeviceName != *image.RootDeviceName {
-								continue
-							}
-							snapshotID, err := types.AWSCloudID("ec2", regionName, accountID, types.ResourceTypeSnapshot, *blockDeviceMapping.Ebs.SnapshotId)
-							if err != nil {
-								return err
-							}
-							log.Debugf("%s %s %s %s %s", regionName, *image.ImageId, snapshotID, *blockDeviceMapping.DeviceName, *image.OwnerId)
-							scan, err := types.NewScanTask(
-								types.TaskTypeAMI,
-								snapshotID.AsText(),
-								scannerHostname,
-								*image.ImageId,
-								ec2TagsToStringTags(image.Tags),
-								actions,
-								roles,
-								diskMode)
-							if err != nil {
-								return err
-							}
-							if !scanner.PushConfig(ctx, &types.ScanConfig{
-								Type:  types.ConfigTypeAWS,
-								Tasks: []*types.ScanTask{scan},
-								Roles: roles,
-							}) {
-								return nil
-							}
-							count++
-							if maxScans > 0 && count >= maxScans {
-								return nil
-							}
+						imageID, err := types.AWSCloudID("ec2", regionName, accountID, types.ResourceTypeHostImage, *image.ImageId)
+						if err != nil {
+							return err
+						}
+						log.Debugf("%s %s %s %s", regionName, *image.ImageId, imageID, *image.OwnerId)
+						scan, err := types.NewScanTask(
+							types.TaskTypeAMI,
+							imageID.AsText(),
+							scannerHostname,
+							*image.ImageId,
+							ec2TagsToStringTags(image.Tags),
+							actions,
+							roles,
+							diskMode)
+						if err != nil {
+							return err
+						}
+						if !scanner.PushConfig(ctx, &types.ScanConfig{
+							Type:  types.ConfigTypeAWS,
+							Tasks: []*types.ScanTask{scan},
+							Roles: roles,
+						}) {
+							return nil
+						}
+						count++
+						if maxScans > 0 && count >= maxScans {
+							return nil
 						}
 					}
 				}
@@ -633,7 +622,7 @@ func awsAttachCmd(ctx context.Context, resourceID types.CloudID, mount bool, dis
 		}
 	}()
 
-	var waiter awsutils.SnapshotWaiter
+	var waiter awsutils.ResourceWaiter
 	if err := awsutils.SetupEBS(ctx, scan, &waiter); err != nil {
 		return err
 	}

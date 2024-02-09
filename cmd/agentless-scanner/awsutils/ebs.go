@@ -33,7 +33,7 @@ const (
 // SetupEBS prepares the EBS volume for scanning. It creates a snapshot of the
 // volume, attaches it to the instance and returns the list of partitions that
 // were mounted.
-func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter) error {
+func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *ResourceWaiter) error {
 	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.CloudID)
 	ec2client := ec2.NewFromConfig(cfg)
 
@@ -44,6 +44,11 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 		snapshotID, err = CreateSnapshot(ctx, scan, waiter, ec2client, scan.CloudID)
 	case types.ResourceTypeSnapshot:
 		snapshotID, err = CopySnapshot(ctx, scan, waiter, ec2client, scan.CloudID)
+	case types.ResourceTypeHostImage:
+		snapshotID, err = getAMIRootSnapshot(ctx, scan, waiter, ec2client, scan.CloudID)
+		if err == nil {
+			snapshotID, err = CopySnapshot(ctx, scan, waiter, ec2client, snapshotID)
+		}
 	default:
 		err = fmt.Errorf("ebs-volume: unexpected resource type for task %q: %q", scan.Type, scan.CloudID)
 	}
@@ -64,7 +69,7 @@ func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter)
 }
 
 // CreateSnapshot creates a snapshot of the given EBS volume and returns its Cloud Identifier.
-func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, ec2client *ec2.Client, volumeID types.CloudID) (types.CloudID, error) {
+func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, volumeID types.CloudID) (types.CloudID, error) {
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -142,7 +147,7 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotW
 }
 
 // CopySnapshot copies an EBS snapshot.
-func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, ec2client *ec2.Client, snapshotID types.CloudID) (types.CloudID, error) {
+func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, snapshotID types.CloudID) (types.CloudID, error) {
 	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return types.CloudID{}, fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
@@ -216,7 +221,7 @@ func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotID
 
 // AttachSnapshotWithVolume attaches the given snapshot to the instance as a
 // new volume.
-func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *SnapshotWaiter, snapshotID types.CloudID) error {
+func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter *ResourceWaiter, snapshotID types.CloudID) error {
 	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
@@ -423,6 +428,30 @@ func CleanupScanVolume(ctx context.Context, maybeScan *types.ScanTask, volumeID 
 
 	log.Debugf("%s: volume deleted %s", maybeScan, volumeID)
 	return nil
+}
+
+// getAMIRootSnapshot returns the root snapshot of an AMI.
+func getAMIRootSnapshot(ctx context.Context, _ *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, imageID types.CloudID) (types.CloudID, error) {
+	poll := <-waiter.Wait(ctx, imageID, ec2client)
+	if err := poll.Err; err != nil {
+		return types.CloudID{}, fmt.Errorf("could not find image %q: %w", imageID, err)
+	}
+	image := poll.Image
+	for _, blockDeviceMapping := range image.BlockDeviceMappings {
+		if image.RootDeviceName == nil {
+			continue
+		}
+		if blockDeviceMapping.DeviceName == nil {
+			continue
+		}
+		if blockDeviceMapping.Ebs == nil {
+			continue
+		}
+		if *blockDeviceMapping.DeviceName == *image.RootDeviceName {
+			return types.AWSCloudID("ec2", imageID.Region(), imageID.AccountID(), types.ResourceTypeSnapshot, *blockDeviceMapping.Ebs.SnapshotId)
+		}
+	}
+	return types.CloudID{}, fmt.Errorf("could not find root snapshot for AMI %q", imageID)
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) bool {

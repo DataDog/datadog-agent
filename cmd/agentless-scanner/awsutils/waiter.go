@@ -23,6 +23,7 @@ import (
 const (
 	waitTickerInterval  = 5 * time.Second
 	waitSnapshotTimeout = 15 * time.Minute
+	waitImageTimeout    = 30 * time.Second
 )
 
 var errWaitDone = errors.New("")
@@ -41,15 +42,15 @@ type waitGroup struct {
 	accountID string
 }
 
-// SnapshotWaiter allows to wait for multiple snapshot creation at once.
-type SnapshotWaiter struct {
+// ResourceWaiter allows to wait for multiple snapshot creation at once.
+type ResourceWaiter struct {
 	sync.Mutex
 	subs map[waitGroup]map[types.CloudID][]waitSub
 }
 
 // Wait waits for the given snapshot or image to be created and returns a
 // channel that will send an error or nil.
-func (w *SnapshotWaiter) Wait(ctx context.Context, resourceID types.CloudID, ec2client *ec2.Client) <-chan WaitResult {
+func (w *ResourceWaiter) Wait(ctx context.Context, resourceID types.CloudID, ec2client *ec2.Client) <-chan WaitResult {
 	w.Lock()
 	defer w.Unlock()
 	group := waitGroup{
@@ -71,7 +72,7 @@ func (w *SnapshotWaiter) Wait(ctx context.Context, resourceID types.CloudID, ec2
 	return ch
 }
 
-func (w *SnapshotWaiter) abort(group waitGroup, err error, resourceType ...types.ResourceType) {
+func (w *ResourceWaiter) abort(group waitGroup, err error, resourceType ...types.ResourceType) {
 	w.Lock()
 	defer w.Unlock()
 	for resourceID, subs := range w.subs[group] {
@@ -87,7 +88,7 @@ func (w *SnapshotWaiter) abort(group waitGroup, err error, resourceType ...types
 	}
 }
 
-func (w *SnapshotWaiter) loop(ctx context.Context, group waitGroup, ec2client *ec2.Client) {
+func (w *ResourceWaiter) loop(ctx context.Context, group waitGroup, ec2client *ec2.Client) {
 	ticker := time.NewTicker(waitTickerInterval)
 	defer ticker.Stop()
 	for {
@@ -111,26 +112,16 @@ func (w *SnapshotWaiter) loop(ctx context.Context, group waitGroup, ec2client *e
 		}
 		w.Unlock()
 
-		var wg sync.WaitGroup
 		if len(snapshotIDs) > 0 {
-			wg.Add(1)
-			go func() {
-				w.pollSnapshots(ctx, ec2client, group, snapshotIDs)
-				wg.Done()
-			}()
+			w.pollSnapshots(ctx, ec2client, group, snapshotIDs)
 		}
 		if len(imageIDs) > 0 {
-			wg.Add(1)
-			go func() {
-				w.pollImages(ctx, ec2client, group, imageIDs)
-				wg.Done()
-			}()
+			w.pollImages(ctx, ec2client, group, imageIDs)
 		}
-		wg.Wait()
 	}
 }
 
-func (w *SnapshotWaiter) pollSnapshots(ctx context.Context, ec2client *ec2.Client, group waitGroup, snapshotIDs []string) {
+func (w *ResourceWaiter) pollSnapshots(ctx context.Context, ec2client *ec2.Client, group waitGroup, snapshotIDs []string) {
 	// TODO: could we rely on ListSnapshotBlocks instead of
 	// DescribeSnapshots as a "fast path" to not consume precious quotas ?
 	output, err := ec2client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{
@@ -188,7 +179,7 @@ func (w *SnapshotWaiter) pollSnapshots(ctx context.Context, ec2client *ec2.Clien
 	}
 }
 
-func (w *SnapshotWaiter) pollImages(ctx context.Context, ec2client *ec2.Client, group waitGroup, imageIDs []string) {
+func (w *ResourceWaiter) pollImages(ctx context.Context, ec2client *ec2.Client, group waitGroup, imageIDs []string) {
 	output, err := ec2client.DescribeImages(ctx, &ec2.DescribeImagesInput{
 		ImageIds: imageIDs,
 	})
@@ -215,7 +206,7 @@ func (w *SnapshotWaiter) pollImages(ctx context.Context, ec2client *ec2.Client, 
 				creationDate, err := time.Parse(time.RFC3339, *image.CreationDate)
 				if err != nil {
 					errp = fmt.Errorf("invalid creation date %q for image %q: %w", *image.CreationDate, imageID, err)
-				} else if elapsed := time.Since(creationDate); elapsed > waitSnapshotTimeout {
+				} else if elapsed := time.Since(creationDate); elapsed > waitImageTimeout {
 					errp = fmt.Errorf("image %q creation timed out (started at %s)", imageID, *image.CreationDate)
 				}
 			case ec2types.ImageStateAvailable:

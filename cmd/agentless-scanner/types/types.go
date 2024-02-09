@@ -115,6 +115,8 @@ const (
 	ResourceTypeSnapshot = "snapshot"
 	// ResourceTypeFunction is the type of a function
 	ResourceTypeFunction = "function"
+	// ResourceTypeHostImage is the type of a host image
+	ResourceTypeHostImage = "image"
 	// ResourceTypeRole is the type of a role
 	ResourceTypeRole = "role"
 )
@@ -469,7 +471,7 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetID string
 	case TaskTypeEBS:
 		cloudID, err = ParseCloudID(resourceID, ResourceTypeSnapshot, ResourceTypeVolume)
 	case TaskTypeAMI:
-		cloudID, err = ParseCloudID(resourceID, ResourceTypeSnapshot)
+		cloudID, err = ParseCloudID(resourceID, ResourceTypeSnapshot, ResourceTypeHostImage)
 	case TaskTypeHost:
 		cloudID, err = ParseCloudID(resourceID, ResourceTypeLocalDir)
 	case TaskTypeLambda:
