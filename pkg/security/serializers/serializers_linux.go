@@ -451,6 +451,8 @@ type SecurityProfileContextSerializer struct {
 	Version string `json:"version"`
 	// List of tags associated to this profile
 	Tags []string `json:"tags"`
+	// True if the corresponding event is part of this profile
+	EventInProfile bool `json:"event_in_profile"`
 }
 
 // AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
@@ -913,13 +915,14 @@ func newNetworkContextSerializer(e *model.Event) *NetworkContextSerializer {
 	}
 }
 
-func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *SecurityProfileContextSerializer {
+func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityProfileContext) *SecurityProfileContextSerializer {
 	tags := make([]string, len(e.Tags))
 	copy(tags, e.Tags)
 	return &SecurityProfileContextSerializer{
-		Name:    e.Name,
-		Version: e.Version,
-		Tags:    tags,
+		Name:           e.Name,
+		Version:        e.Version,
+		Tags:           tags,
+		EventInProfile: event.IsInProfile(),
 	}
 }
 
@@ -958,7 +961,7 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 	}
 
 	if event.SecurityProfileContext.Name != "" {
-		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
+		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(event, &event.SecurityProfileContext)
 	}
 
 	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {
@@ -1021,6 +1024,12 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rmdir.Retval)
+
+	case model.FileChdirEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.Chdir.File, event),
+		}
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Mkdir.Retval)
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),

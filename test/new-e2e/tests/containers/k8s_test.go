@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -790,6 +791,9 @@ func (suite *k8sSuite) TestContainerImage() {
 }
 
 func (suite *k8sSuite) TestSBOM() {
+	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-3776
+	flake.Mark(suite.T())
+
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
