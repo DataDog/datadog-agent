@@ -214,6 +214,8 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		UseSSL:                  pointer.Ptr(defaultNoSSL),
 	}
 
+	log.Errorf("logsConfig.useV2API(): %s", logsConfig.useV2API())
+	log.Errorf("intakeTrackType: %s", intakeTrackType)
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
 		main.TrackType = intakeTrackType

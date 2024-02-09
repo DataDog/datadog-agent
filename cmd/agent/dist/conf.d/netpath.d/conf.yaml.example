@@ -1,0 +1,11 @@
+## All options defined here are available to all instances.
+#
+init_config:
+
+## Every instance is scheduled independent of the others.
+#
+instances:
+  ## @param hostname - string - required
+  ## Hostname of the destination.
+  ## TODO: syntax: <HOST> or server: <HOST>:<PORT>
+- hostname: <HOST> or server: <HOST>:<PORT>

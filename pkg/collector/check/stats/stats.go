@@ -33,6 +33,7 @@ var EventPlatformNameTranslations = map[string]string{
 	"network-devices-metadata":   "Network Devices Metadata",
 	"network-devices-netflow":    "Network Devices NetFlow",
 	"network-devices-snmp-traps": "SNMP Traps",
+	"network-path":               "Network Path",
 }
 
 var (
