@@ -1,0 +1,81 @@
+# Defines the file format. MUST be set to 1.1.0.
+file_format: 1.1.0
+
+# The Schema URL that this file is published at. The version number in the URL
+# MUST match the highest version number in the "versions" section below.
+# Note: the schema version number in the URL is not related in any way to
+# the file_format setting above.
+schema_url: /schemas/1.1.0
+
+# Definitions for each schema version in this family. This is similar to how database migrations would work.
+migrations:
+  # Definitions for version 1.
+  # Definitions that apply to Span data type. Transformations are applied in order.
+  - spans:
+      changes:
+        # these changes apply to all spans.
+        - rename_attributes:
+            attribute_map:
+              out.host: destination.name
+
+        - rename_attributes:
+            attribute_map:
+              out.db: db.redis.database_index
+            apply_to_spans:
+              - eqTag "db.system" "redis"
+
+        - change_attribute_values:
+            attribute_map:
+              db.redis.database_index: '{{ asMetric (getTag "db.redis.database_index") }}'
+            apply_to_spans:
+              - hasTag "db.redis.database_index"
+
+        # dbs other than redis use db.instance instead of db.redis.database_index
+        - rename_attributes:
+            attribute_map:
+              out.db: db.instance
+            apply_to_spans:
+              - hasTag "db.system"
+              - not (eqTag "db.system" "redis")
+
+        # this type of transformation allows to change the value of the tag or set it in case it wasn't present in the span.
+        - change_attribute_values:
+            attribute_map:
+              # Given span.kind could be client or server for http.request spans, this transformation will result in
+              # http.client.request or http.server.request.
+              name: 'http.{{ getTag "span.kind" }}.request'
+
+            # apply_to_spans contains a list of go text/template boolean expressions which will be connected with the AND operator logic.
+            apply_to_spans:
+              - eq .Name "http.request"
+              - hasTag "span.kind"
+              - eqTagAny "span.kind" "client" "server"
+
+        # rename all the spans with the fallback contrib/ service names by _dd.service
+        - change_attribute_values:
+            attribute_map:
+              # use the value of dd.service
+              service.name: '{{ getTag "_dd.service" }}_added-by-migrations'
+
+            apply_to_spans:
+              - not (hasTag "_dd.service_name_override")
+              - hasTag "_dd.service"
+              # - or (not (hasTag "service.name")) (eqTagAny "graphql" "kafka" "memcached" "grpc.client" "http.router" "elastic.client")
+
+        # set rcp.service and rpc.method values from rpc.grpc.full_method
+        - change_attribute_values:
+            attribute_map:
+              rpc.service: '{{ index (split (getTag "rpc.grpc.full_method") "/") 0 }}'
+              rpc.method: '{{ index (split (getTag "rpc.grpc.full_method") "/") 1 }}'
+
+            apply_to_spans:
+              - eqTag "rpc.system" "grpc"
+              - contains (getTag "rpc.grpc.full_method") "/"
+
+  # Definitions for version 2.
+  # In this section, you should expect the transformations from 1 to be already applied.
+  - spans:
+      changes:
+        - rename_attributes:
+            attribute_map:
+              destination.name: network.destination.name
