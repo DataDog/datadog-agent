@@ -50,9 +50,7 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 		SystemInfo: sysInfo,
 	}
 
-	conf := ddconfig.MockSystemProbe(t)
-	conf.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
-	serviceExtractor := parser.NewServiceExtractor(conf)
+	serviceExtractor := parser.NewServiceExtractor(true, true)
 
 	return &ProcessCheck{
 		probe:             probe,
@@ -125,6 +123,12 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
 	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
 	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+
+	proc1.ProcessContext = []string{"process_context:git"}
+	proc2.ProcessContext = []string{"process_context:mine-bitcoins"}
+	proc3.ProcessContext = []string{"process_context:foo"}
+	proc4.ProcessContext = []string{"process_context:foo"}
+	proc5.ProcessContext = []string{"process_context:datadog-process-agent"}
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
@@ -176,11 +180,12 @@ func TestProcessCheckSecondRun(t *testing.T) {
 func TestProcessCheckWithRealtime(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 
-	proc1 := makeProcess(1, "git clone google.com")
-	proc2 := makeProcess(2, "mine-bitcoins -all -x")
-	proc3 := makeProcess(3, "foo --version")
-	proc4 := makeProcess(4, "foo -bar -bim")
-	proc5 := makeProcess(5, "datadog-process-agent --cfgpath datadog.conf")
+	proc1 := makeProcessWithProcessContext(1, "git clone google.com", []string{"process_context:git"})
+	proc2 := makeProcessWithProcessContext(2, "mine-bitcoins -all -x", []string{"process_context:mine-bitcoins"})
+	proc3 := makeProcessWithProcessContext(3, "foo --version", []string{"process_context:foo"})
+	proc4 := makeProcessWithProcessContext(4, "foo -bar -bim", []string{"process_context:foo"})
+	proc5 := makeProcessWithProcessContext(5, "datadog-process-agent --cfgpath datadog.conf", []string{"process_context:datadog-process-agent"})
+
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
@@ -364,6 +369,7 @@ func TestProcessCheckHints(t *testing.T) {
 
 	now := time.Now().Unix()
 	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc1.ProcessContext = []string{"process_context:git"}
 	processesByPid := map[int32]*procutil.Process{1: proc1}
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
@@ -426,7 +432,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 
 	var disallowList []*regexp.Regexp
-	serviceExtractor := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	serviceExtractor := parser.NewServiceExtractor(true, true)
 	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false, serviceExtractor)
 	assert.Len(t, procs, 1)
 
@@ -467,6 +473,9 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
 	proc2.Stats.Status = "Z"
 	proc3.Stats.Status = "Z"
+	proc1.ProcessContext = []string{"process_context:git"}
+	proc2.ProcessContext = []string{"process_context:foo"}
+	proc3.ProcessContext = []string{"process_context:datadog-process-agent"}
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
 
 	expectedModel2 := makeProcessModel(t, proc2)
@@ -519,12 +528,8 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
 	proc2.Stats.Status = "Z"
 	proc3.Stats.Status = "Z"
+	proc1.ProcessContext = []string{"process_context:git"}
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
-
-	expectedModel2 := makeProcessModel(t, proc2)
-	expectedModel2.State = 7
-	expectedModel3 := makeProcessModel(t, proc3)
-	expectedModel3.State = 7
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
 		Return(processesByPid, nil)

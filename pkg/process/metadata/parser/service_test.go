@@ -130,8 +130,11 @@ func TestExtractServiceMetadata(t *testing.T) {
 				Cmdline: tt.cmdline,
 			}
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
-
-			se := NewServiceExtractor(mockConfig)
+			var (
+				enabled               = mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
+				useWindowsServiceName = mockConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+			)
+			se := NewServiceExtractor(enabled, useWindowsServiceName)
 			se.Extract(procsByPid)
 			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})
@@ -147,7 +150,11 @@ func TestExtractServiceMetadataDisabled(t *testing.T) {
 		Cmdline: []string{"/bin/bash"},
 	}
 	procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
-	se := NewServiceExtractor(mockConfig)
+	var (
+		enabled               = mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
+		useWindowsServiceName = mockConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+	)
+	se := NewServiceExtractor(enabled, useWindowsServiceName)
 	se.Extract(procsByPid)
 	assert.Empty(t, se.GetServiceContext(proc.Pid))
 }

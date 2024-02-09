@@ -11,7 +11,6 @@ import (
 	"strings"
 	"unicode"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,11 +60,7 @@ type WindowsServiceInfo struct {
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
-func NewServiceExtractor(sysProbeConfig ddconfig.Reader) *ServiceExtractor {
-	var (
-		enabled               = sysProbeConfig.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = sysProbeConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	)
+func NewServiceExtractor(enabled bool, useWindowsServiceName bool) *ServiceExtractor {
 	return &ServiceExtractor{
 		enabled:               enabled,
 		useWindowsServiceName: useWindowsServiceName,
@@ -100,10 +95,6 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	}
 
 	d.serviceByPID = serviceByPID
-}
-
-func (d *ServiceExtractor) Enable(enabled bool) {
-	d.enabled = enabled
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
