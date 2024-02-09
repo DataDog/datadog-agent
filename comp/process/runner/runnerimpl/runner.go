@@ -54,17 +54,10 @@ func newRunner(deps dependencies) (runner.Component, error) {
 	}
 	c.Submitter = deps.Submitter
 
-	runner := &runnerImpl{
+	return &runnerImpl{
 		checkRunner:    c,
 		providedChecks: deps.Checks,
-	}
-
-	deps.Lc.Append(fx.Hook{
-		OnStart: runner.Run,
-		OnStop:  runner.Stop,
-	})
-
-	return runner, nil
+	}, nil
 }
 
 func (r *runnerImpl) Run(context.Context) error {

@@ -8,6 +8,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -27,11 +28,11 @@ import (
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
-	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -42,6 +43,7 @@ import (
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -54,6 +56,9 @@ process_config:
 to your datadog.yaml file.
 Exiting.`
 )
+
+// errAgentDisabled indicates that the process-agent wasn't enabled through environment variable or config.
+var errAgentDisabled = errors.New("process-agent not enabled")
 
 func runAgent(ctx context.Context, globalParams *GlobalParams) error {
 	if globalParams.PidFilePath != "" {
@@ -161,11 +166,15 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Invoke the components that we want to start
 		fx.Invoke(func(
-			runner.Component,
-			profiler.Component,
-			expvars.Component,
-			apiserver.Component,
-		) {
+			_ profiler.Component,
+			_ expvars.Component,
+			_ apiserver.Component,
+			processAgent optional.Option[agent.Component],
+		) error {
+			if !processAgent.IsSet() {
+				return errAgentDisabled
+			}
+			return nil
 		}),
 
 		// Initialize the remote-config client to update the runtime settings
@@ -179,6 +188,12 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	)
 
 	if err := app.Err(); err != nil {
+
+		if errors.Is(err, errAgentDisabled) {
+			log.Info("process-agent is not enabled, exiting...")
+			return nil
+		}
+
 		// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
 		// stdout just in case.
 		if appInitDeps.Logger == nil {
