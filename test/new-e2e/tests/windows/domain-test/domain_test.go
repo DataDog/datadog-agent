@@ -8,6 +8,7 @@ package domain
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/activedirectory"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -60,8 +61,10 @@ func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
 
 	suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
 
-	agent := suite.NewAgentClientForHost(suite.Env().DomainControllerHost)
-	windowsAgent.TestAgentVersion(suite.T(), suite.AgentPackage.AgentVersion(), agent.Version())
+	tc := suite.NewTestClientForHost(suite.Env().DomainControllerHost)
+	tc.CheckAgentVersion(suite.T(), suite.AgentPackage.AgentVersion())
+
+	platformCommon.CheckAgentBehaviour(suite.T(), tc)
 
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		stats, err := suite.Env().FakeIntake.Client().RouteStats()
@@ -98,8 +101,10 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 		windowsAgent.WithInstallLogFile("TC-UPG-DC-001_upgrade.log"))
 	suite.Require().NoError(err, "should succeed to upgrade an Agent on a Domain Controller")
 
-	agent := suite.NewAgentClientForHost(suite.Env().DomainControllerHost)
-	windowsAgent.TestAgentVersion(suite.T(), suite.AgentPackage.AgentVersion(), agent.Version())
+	tc := suite.NewTestClientForHost(suite.Env().DomainControllerHost)
+	tc.CheckAgentVersion(suite.T(), suite.AgentPackage.AgentVersion())
+
+	platformCommon.CheckAgentBehaviour(suite.T(), tc)
 
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		stats, err := suite.Env().FakeIntake.Client().RouteStats()

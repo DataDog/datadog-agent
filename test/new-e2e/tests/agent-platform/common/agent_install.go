@@ -55,6 +55,17 @@ func CheckInstallationMajorAgentVersion(t *testing.T, client *TestClient, expect
 	})
 }
 
+// CheckAgentVersion run tests to check that the agent has the correct version
+func (client *TestClient) CheckAgentVersion(t *testing.T, expectedVersion string) bool {
+	return t.Run("Check datadog-agent status version", func(tt *testing.T) {
+		versionRegexPattern := regexp.MustCompile("^(?m:IoT )?Agent (.*?) -")
+		output := client.AgentClient.Version()
+		matchList := versionRegexPattern.FindStringSubmatch(output)
+		require.Len(t, matchList, 2, "wasn't able to retrieve datadog-agent version on the following output : %s", output)
+		require.True(tt, matchList[1] == expectedVersion, "Expected datadog-agent version %s got %s", expectedVersion, matchList[2])
+	})
+}
+
 // CheckInstallationInstallScript run tests to check the installation of the agent with the install script
 func CheckInstallationInstallScript(t *testing.T, client *TestClient) {
 	t.Run("site config attribute", func(tt *testing.T) {

@@ -11,8 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	infraCommon "github.com/DataDog/test-infra-definitions/common"
@@ -72,13 +71,10 @@ func (b *BaseAgentInstallerSuite[Env]) InstallAgent(host *components.RemoteHost,
 	return remoteMSIPath, common.InstallMSI(host, remoteMSIPath, strings.Join(args, " "), filepath.Join(b.OutputDir, p.InstallLogFile))
 }
 
-// NewAgentClientForHost creates a new agentclient.Agent for a given host.
-func (b *BaseAgentInstallerSuite[Env]) NewAgentClientForHost(host *components.RemoteHost) agentclient.Agent {
-	agentClient, err := client.NewHostAgentClient(b.T(), host, true)
-	if err != nil {
-		b.T().Fatalf("should get host agent client")
-	}
-	return agentClient
+// NewTestClientForHost creates a new TestClient for a given host.
+func (b *BaseAgentInstallerSuite[Env]) NewTestClientForHost(host *components.RemoteHost) *platformCommon.TestClient {
+	// We could bring the code from NewWindowsTestClient here
+	return platformCommon.NewWindowsTestClient(b.T(), host)
 }
 
 // SetupSuite overrides the base SetupSuite to perform some additional setups like setting the package to install
