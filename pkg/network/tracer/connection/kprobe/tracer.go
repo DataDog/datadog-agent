@@ -82,16 +82,16 @@ var (
 		},
 	}
 
-	connCloseBatchTailCalls = []manager.TailCallRoute{
-		{
-			ProgArrayName: probes.ConnCloseProgsBatchMap,
-			Key:           0,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPConnCloseEmitBatch,
-				UID:          probeUID,
-			},
-		},
-	}
+	// connCloseBatchTailCalls = []manager.TailCallRoute{
+	// 	{
+	// 		ProgArrayName: probes.ConnCloseProgsBatchMap,
+	// 		Key:           0,
+	// 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+	// 			EBPFFuncName: probes.TCPConnCloseEmitBatch,
+	// 			UID:          probeUID,
+	// 		},
+	// 	},
+	// }
 
 	connCloseIndividualTailCalls = []manager.TailCallRoute{
 		{
@@ -226,10 +226,10 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			ValueSize:  0,
 			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 		}
-		connCloseBatchTailCalls[0].ProbeIdentificationPair.EBPFFuncName = probes.TCPConnCloseEmitBatchRingBuffer
+		// connCloseBatchTailCalls[0].ProbeIdentificationPair.EBPFFuncName = probes.TCPConnCloseEmitBatchRingBuffer
 		connCloseIndividualTailCalls[0].ProbeIdentificationPair.EBPFFuncName = probes.TCPConnCloseEmitEventRingBuffer
 	}
-	mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, connCloseBatchTailCalls...)
+	// mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, connCloseBatchTailCalls...)
 	mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, connCloseIndividualTailCalls...)
 
 	var undefinedProbes []manager.ProbeIdentificationPair

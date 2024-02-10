@@ -111,9 +111,9 @@ static __always_inline bool cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     case 3:
         batch_ptr->c3 = conn;
         batch_ptr->len++;
+        return false;
         // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
         // in order to cope with the eBPF stack limitation of 512 bytes.
-        return false;
     }
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
@@ -133,19 +133,29 @@ static __always_inline bool cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
 
 static __always_inline void emit_conn_close_event(void *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    conn_t* conn = bpf_map_lookup_elem(&pending_individual_conn_flushes, &pid_tgid);
+    conn_t* conn_ptr = bpf_map_lookup_elem(&pending_individual_conn_flushes, &pid_tgid);
+    if (!conn_ptr) {
+        return;
+    }
+    conn_t conn_copy = {};
+    bpf_memcpy(&conn_copy, conn_ptr, sizeof(conn_copy));
     u32 cpu = bpf_get_smp_processor_id();
-    bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
+    bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn_copy, sizeof(conn_copy));
 }
 
 static __always_inline void emit_conn_close_event_ringbuffer(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_t* conn = bpf_map_lookup_elem(&pending_individual_conn_flushes, &pid_tgid);
+    if (!conn) {
+        return;
+    }
     if (ringbuffers_enabled()) {
-        bpf_ringbuf_output(&conn_close_event, conn, sizeof(*conn), 0);
+        log_debug("adamk ringbuffers enabled, using ringbuffer for conn_close_event");
+        bpf_ringbuf_output(&conn_close_event, &conn, sizeof(&conn), 0);
     } else {
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
+        log_debug("adamk ringbuffers not enabled, using perf event for conn_close_event");
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(&conn));
     }
 }
 
@@ -164,7 +174,7 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
     batch_ptr->len = 0;
     batch_ptr->id++;
 
-    bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(&batch_copy));
+    bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
 }
 
 static __always_inline void flush_conn_close_if_full_ringbuffer(void *ctx) {
@@ -173,15 +183,17 @@ static __always_inline void flush_conn_close_if_full_ringbuffer(void *ctx) {
     if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
         return;
     }
-
-    if (ringbuffers_enabled()) {
-        bpf_ringbuf_output(&conn_close_event, &batch_ptr, sizeof(&batch_ptr), 0);
-    } else {
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_ptr, sizeof(&batch_ptr));
-    }
-    // todo: add telemetry on batched_tcp_close
+    batch_t batch_copy = {};
+    bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
     batch_ptr->len = 0;
     batch_ptr->id++;
+    if (ringbuffers_enabled()) {
+        bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
+    } else {
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
+    }
+    // todo: add telemetry on batched_tcp_close
+
 }
 
 #endif // __TRACER_EVENTS_H

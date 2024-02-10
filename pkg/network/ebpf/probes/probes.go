@@ -86,14 +86,12 @@ const (
 	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
 	// TCPCloseFlushReturn traces the return of tcp_close() system call
 	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
-	// TCPConnCloseEmitBatch is a tail call used to flush batches of closed connections to the perf buffer
-	TCPConnCloseEmitBatch ProbeFuncName = "flush_conn_close_if_full"
-	// TCPConnCloseEmitBatchRingBuffer is a tail call used to flush batches of closed connections to the ring or perf buffer
-	TCPConnCloseEmitBatchRingBuffer ProbeFuncName = "flush_conn_close_if_full_ringbuffer"
+	// TCPCloseFlushReturnPre580 traces the return of tcp_close() system call on kernels prior to 5.8.0
+	TCPCloseFlushReturnPre580 ProbeFuncName = "kretprobe__tcp_close_flush_pre_5_8_0"
 	// TCPConnCloseEmitEvent is a tail call used to emit a single connection close event to the perf buffer
-	TCPConnCloseEmitEvent ProbeFuncName = "emit_conn_close_event"
+	TCPConnCloseEmitEvent ProbeFuncName = "kprobe__tcp_close_flush_individual_conn_perfbuffer"
 	// TCPConnCloseEmitEventRingBuffer is a tail call used to emit a single connection close event to the ring or perf buffer
-	TCPConnCloseEmitEventRingBuffer ProbeFuncName = "emit_conn_close_event_ringbuffer"
+	TCPConnCloseEmitEventRingBuffer ProbeFuncName = "kprobe__tcp_close_flush_individual_conn_ringbuffer"
 
 	// We use the following two probes for UDP sends
 
@@ -146,10 +144,12 @@ const (
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeFuncName = "kprobe__udp_destroy_sock"
 	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
-	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
+	UDPDestroySockReturn       ProbeFuncName = "kretprobe__udp_destroy_sock"
+	UDPDestroySockReturnPre580 ProbeFuncName = "kretprobe__udp_destroy_sock_pre_5_8_0"
 
-	UDPv6DestroySock       ProbeFuncName = "kprobe__udpv6_destroy_sock"
-	UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
+	UDPv6DestroySock             ProbeFuncName = "kprobe__udpv6_destroy_sock"
+	UDPv6DestroySockReturn       ProbeFuncName = "kretprobe__udpv6_destroy_sock"
+	UDPv6DestroySockReturnPre580 ProbeFuncName = "kretprobe__udpv6_destroy_sock_pre_5_8_0"
 
 	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call
 	TCPRetransmit ProbeFuncName = "kprobe__tcp_retransmit_skb"
@@ -255,5 +255,5 @@ const (
 	//nolint:revive // TODO(NET) Fix revive linter
 	ConnCloseProgsIndvMap BPFMapName = "conn_close_individual_progs"
 	//nolint:revive // TODO(NET) Fix revive linter
-	ConnCloseProgsBatchMap BPFMapName = "conn_close_batch_progs"
+	// ConnCloseProgsBatchMap BPFMapName = "conn_close_batch_progs"
 )

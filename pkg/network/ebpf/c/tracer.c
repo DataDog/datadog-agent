@@ -222,6 +222,18 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/tcp_close")
+int kprobe__tcp_close_flush_individual_conn_ringbuffer(struct pt_regs *ctx) {
+    emit_conn_close_event_ringbuffer(ctx);
+    return 0;
+}
+
+SEC("kprobe/tcp_close")
+int kprobe__tcp_close_flush_individual_conn_perfbuffer(struct pt_regs *ctx) {
+    emit_conn_close_event(ctx);
+    return 0;
+}
+
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close_clean_protocols(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -239,7 +251,15 @@ int kretprobe__tcp_close_clean_protocols(struct pt_regs *ctx) {
 
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close_flush(struct pt_regs *ctx) {
-    bpf_tail_call_compat(ctx, &conn_close_batch_progs, 0);
+    log_debug("kretprobe/tcp_close_flush_ringbuff: pid_tgid: %d", bpf_get_current_pid_tgid());
+    flush_conn_close_if_full_ringbuffer(ctx);
+    return 0;
+}
+
+SEC("kretprobe/tcp_close")
+int kretprobe__tcp_close_flush_pre_5_8_0(struct pt_regs *ctx) {
+    log_debug("kretprobe/tcp_close_flush_pre_5_8_0: pid_tgid: %d", bpf_get_current_pid_tgid());
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 
@@ -986,12 +1006,25 @@ int kprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
 
 SEC("kretprobe/udp_destroy_sock")
 int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
-    bpf_tail_call_compat(ctx, &conn_close_batch_progs, 0);
+    flush_conn_close_if_full_ringbuffer(ctx);
     return 0;
 }
+
+SEC("kretprobe/udp_destroy_sock")
+int kretprobe__udp_destroy_sock_pre_5_8_0(struct pt_regs *ctx) {
+    flush_conn_close_if_full(ctx);
+    return 0;
+}
+
 SEC("kretprobe/udpv6_destroy_sock")
 int kretprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
-    bpf_tail_call_compat(ctx, &conn_close_batch_progs, 0);
+    flush_conn_close_if_full_ringbuffer(ctx);
+    return 0;
+}
+
+SEC("kretprobe/udpv6_destroy_sock")
+int kretprobe__udpv6_destroy_sock_pre_5_8_0(struct pt_regs *ctx) {
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 

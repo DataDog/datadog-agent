@@ -43,6 +43,10 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPClose,
 	probes.TCPCloseCleanProtocolsReturn,
 	probes.TCPCloseFlushReturn,
+	//probes.TCPConnCloseEmitBatch,
+	//probes.TCPConnCloseEmitBatchRingBuffer,
+	//probes.TCPConnCloseEmitEvent,
+	probes.TCPConnCloseEmitEventRingBuffer,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
@@ -96,7 +100,7 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		{Name: probes.TcpRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
-		{Name: probes.ConnCloseProgsBatchMap},
+		// {Name: probes.ConnCloseProgsBatchMap},
 		{Name: probes.ConnCloseProgsIndvMap},
 	}
 	switch handler := connCloseEventHandler.(type) {
@@ -167,6 +171,10 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPSendMsgPre410, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRecvMsgPre410, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRecvMsgPre5190, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPCloseFlushReturnPre580, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPDestroySockReturnPre580, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6DestroySockReturnPre580, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPConnCloseEmitEvent, UID: probeUID}},
 		)
 	}
 

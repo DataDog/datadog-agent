@@ -117,10 +117,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				return
 			case <-health.C:
 			case batchData, ok := <-dataChannel:
-				log.Debugf("adamk dataChannel length: %d", len(dataChannel))
-				log.Debugf("adamk dataChannel capacity: %d", cap(dataChannel))
 				log.Debugf("adamk received data from perf/ring buffer")
-				log.Debugf("adamk ok? %v", ok)
 				if !ok {
 					return
 				}
