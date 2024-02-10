@@ -242,5 +242,5 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.50.2 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
-	github.com/tinylib/msgp v1.1.8 // indirect
+	github.com/tinylib/msgp v1.1.9 // indirect
 )
