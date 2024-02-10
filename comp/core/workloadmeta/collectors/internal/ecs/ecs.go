@@ -244,6 +244,11 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 		return rt
 	}
 
+	if len(entity.Containers) == 0 {
+		log.Warn("skip getting resource tags from task %q with zero container", entity.ID)
+		return rt
+	}
+
 	var metaURI string
 	var metaVersion string
 	for _, taskContainer := range entity.Containers {
