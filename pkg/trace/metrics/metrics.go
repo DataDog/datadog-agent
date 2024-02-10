@@ -21,6 +21,9 @@ import (
 
 // findAddr finds the correct address to connect to the Dogstatsd server.
 func findAddr(conf *config.AgentConfig) (string, error) {
+	if !conf.StatsdEnabled {
+		return "", errors.New("dogstatsd is disabled")
+	}
 	if conf.StatsdPort > 0 {
 		// UDP enabled
 		return net.JoinHostPort(conf.StatsdHost, strconv.Itoa(conf.StatsdPort)), nil
