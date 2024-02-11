@@ -1212,6 +1212,7 @@ func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
 					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
 					writeData(t, 1, true, emptyBody).bytes()
 				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
 					a[:10],
 					a[10:],
 				}
@@ -1234,7 +1235,7 @@ func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
 			assert.Eventually(t, func() bool {
 				telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS)
 				require.NoError(t, err, "could not get http2 telemetry")
-				require.Greater(t, telemetry.Frames_split_count, uint64(0), "expected to see frames split count > 0")
+				require.Greater(t, telemetry.Fragmented_frame_count, uint64(0), "expected to see frames split count > 0")
 				return true
 
 			}, time.Second*5, time.Millisecond*100)
