@@ -131,7 +131,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     }
 
     if (skb_info->data_off + str_len > skb_info->data_end) {
-        __sync_fetch_and_add(&http2_tel->path_exceeds_frame, 1);
+        __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
         goto end;
     }
 
@@ -318,12 +318,9 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 current_stream->status_code.static_table_entry = current_header->index;
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
-            } else if (current_header->index == kEmptyPath) {
-                current_stream->path_size = HTTP2_ROOT_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP2_ROOT_PATH, HTTP2_ROOT_PATH_LEN);
-            } else if (current_header->index == kIndexPath) {
-                current_stream->path_size = HTTP2_INDEX_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP2_INDEX_PATH, HTTP2_INDEX_PATH_LEN);
+            } else if (is_path_index(current_header->index)) {
+                current_stream->path.static_table_entry = current_header->index;
+                current_stream->path.finalized = true;
             }
             continue;
         }
@@ -335,9 +332,10 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 break;
             }
             if (is_path_index(dynamic_value->original_index)) {
-                current_stream->path_size = dynamic_value->string_len;
-                current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+                current_stream->path.length = dynamic_value->string_len;
+                current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->path.finalized = true;
+                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
             } else if (is_status_index(dynamic_value->original_index)) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
@@ -360,9 +358,10 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             }
             if (is_path_index(current_header->original_index)) {
-                current_stream->path_size = current_header->new_dynamic_value_size;
-                current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
-                bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+                current_stream->path.length = current_header->new_dynamic_value_size;
+                current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->path.finalized = true;
+                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
             } else if (is_status_index(current_header->original_index)) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
