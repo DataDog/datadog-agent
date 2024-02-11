@@ -12,6 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -20,30 +22,37 @@ const (
 
 // incompleteBuffer is responsible for buffering incomplete transactions
 type incompleteBuffer struct {
-	data       []*EbpfTx
-	maxEntries int
-	minAgeNano int64
+	data              []*EbpfTx
+	maxEntries        int
+	minAgeNano        int64
+	oversizedLogLimit *util.LogLimit
 }
 
 // NewIncompleteBuffer returns a new incompleteBuffer.
 func NewIncompleteBuffer(c *config.Config) http.IncompleteBuffer {
 	return &incompleteBuffer{
-		data:       make([]*EbpfTx, 0),
-		maxEntries: c.MaxHTTPStatsBuffered,
-		minAgeNano: defaultMinAge.Nanoseconds(),
+		data:              make([]*EbpfTx, 0),
+		maxEntries:        c.MaxHTTPStatsBuffered,
+		minAgeNano:        defaultMinAge.Nanoseconds(),
+		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 }
 
 // Add adds a transaction to the buffer.
 func (b *incompleteBuffer) Add(tx http.Transaction) {
 	if len(b.data) >= b.maxEntries {
+		if b.oversizedLogLimit.ShouldLog() {
+			log.Warnf("http2 incomplete buffer is full (%d), dropping transaction", b.maxEntries)
+		}
 		return
 	}
 
 	// Copy underlying EbpfTx value.
 	ebpfTX, ok := tx.(*EbpfTx)
 	if !ok {
-		// should never happen
+		if b.oversizedLogLimit.ShouldLog() {
+			log.Warnf("http2 incomplete buffer received a non-EbpfTx transaction (%T), dropping transaction", tx)
+		}
 		return
 	}
 

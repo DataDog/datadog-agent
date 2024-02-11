@@ -8,12 +8,13 @@
 package http2
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 func TestIncompleteBuffer(t *testing.T) {
