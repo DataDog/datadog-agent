@@ -499,11 +499,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	}
 
 	tests := []struct {
-		name                      string
-		skip                      bool
-		validateTCPSplitTelemetry bool
-		messageBuilder            func() [][]byte
-		expectedEndpoints         map[usmhttp.Key]int
+		name              string
+		skip              bool
+		messageBuilder    func() [][]byte
+		expectedEndpoints map[usmhttp.Key]int
 	}{
 		{
 			name: "parse_frames tail call using 1 program",
@@ -1147,8 +1146,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 
 			},
-			expectedEndpoints:         nil,
-			validateTCPSplitTelemetry: true,
+			expectedEndpoints: nil,
 		},
 	}
 	for _, tt := range tests {
@@ -1169,12 +1167,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				if tt.validateTCPSplitTelemetry {
-					telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS)
-					require.NoError(t, err, "could not get http2 telemetry")
-					require.Greater(t, telemetry.Frames_split_count, uint64(0), "expected to see frames split count > 0")
-				}
-
 				return validateStats(usmMonitor, res, tt.expectedEndpoints)
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
@@ -1183,6 +1175,70 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
+				if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS); err == nil {
+					tlsMarker := ""
+					if s.isTLS {
+						tlsMarker = "tls "
+					}
+					t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
+				}
+			}
+		})
+	}
+}
+
+func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
+	t := s.T()
+	cfg := s.getCfg()
+
+	// Start local server and register its cleanup.
+	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	tests := []struct {
+		name           string
+		messageBuilder func() [][]byte
+	}{
+		{
+			name: "validate message split into 2 tcp segments",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					a[:10],
+					a[10:],
+				}
+
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+
+			c := dialHTTP2Server(t)
+
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
+
+			assert.Eventually(t, func() bool {
+				telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS)
+				require.NoError(t, err, "could not get http2 telemetry")
+				require.Greater(t, telemetry.Frames_split_count, uint64(0), "expected to see frames split count > 0")
+				return true
+
+			}, time.Second*5, time.Millisecond*100)
+			if t.Failed() {
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
 				if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS); err == nil {
 					tlsMarker := ""
