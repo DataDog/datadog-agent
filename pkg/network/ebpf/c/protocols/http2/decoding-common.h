@@ -63,16 +63,25 @@ static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
 }
 
 // parse_field_indexed parses fully-indexed headers.
-static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+static __always_inline void parse_field_indexed(http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
     if (headers_to_process == NULL) {
         return;
     }
 
-    // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
     if (is_static_table_entry(index)) {
-        headers_to_process->index = index;
-        headers_to_process->type = kStaticHeader;
-        *interesting_headers_counter += is_interesting_static_entry(index);
+        if (is_method_index(index)) {
+           current_stream->request_started = bpf_ktime_get_ns();
+           current_stream->request_method.static_table_entry = index;
+           current_stream->request_method.finalized = true;
+            __sync_fetch_and_add(&http2_tel->request_seen, 1);
+        } else if (is_status_index(index)) {
+            current_stream->status_code.static_table_entry = index;
+            current_stream->status_code.finalized = true;
+            __sync_fetch_and_add(&http2_tel->response_seen, 1);
+        } else if (is_path_index(index)) {
+            current_stream->path.static_table_entry = index;
+            current_stream->path.finalized = true;
+        }
         return;
     }
 
