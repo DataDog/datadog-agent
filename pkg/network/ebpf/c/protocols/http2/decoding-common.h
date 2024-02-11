@@ -63,11 +63,7 @@ static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
 }
 
 // parse_field_indexed parses fully-indexed headers.
-static __always_inline void parse_field_indexed(http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
-    if (headers_to_process == NULL) {
-        return;
-    }
-
+static __always_inline void parse_field_indexed(http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, __u8 index, __u64 global_dynamic_counter, http2_telemetry_t *http2_tel) {
     if (is_static_table_entry(index)) {
         if (is_method_index(index)) {
            current_stream->request_started = bpf_ktime_get_ns();
