@@ -27,8 +27,8 @@ BPF_HASH_MAP(http2_iterations, dispatcher_arguments_t, http2_tail_call_state_t, 
    It allows retrieval of both the current offset and the number of iterations that have already been executed. */
 BPF_HASH_MAP(tls_http2_iterations, tls_dispatcher_arguments_t, http2_tail_call_state_t, 0)
 
-/* Allocating an array of headers, to hold all interesting headers from the frame. */
-BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, http2_header_t[HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING], 1)
+// A map to hold the dynamic table values on the heap.
+BPF_PERCPU_ARRAY_MAP(http2_dynamic_table_heap, dynamic_table_entry_t, 1)
 
 /* Allocating an array of frame, to hold all interesting frames from the packet. */
 BPF_PERCPU_ARRAY_MAP(http2_frames_to_process, http2_tail_call_state_t, 1)
