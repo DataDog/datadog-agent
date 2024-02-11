@@ -566,7 +566,7 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
         }
 
         if (info->data_off + current_frame.length > info->data_end) {
-            __sync_fetch_and_add(&http2_tel->exceeding_data_end, 1);
+            __sync_fetch_and_add(&http2_tel->frames_split_count, 1);
         }
 
         info->data_off += current_frame.length;
@@ -653,7 +653,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     }
 
     if (dispatcher_args_copy.data_off + current_frame.length > dispatcher_args_copy.data_end) {
-        __sync_fetch_and_add(&http2_tel->exceeding_data_end, 1);
+        __sync_fetch_and_add(&http2_tel->frames_split_count, 1);
     }
 
     dispatcher_args_copy.data_off += current_frame.length;

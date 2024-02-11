@@ -573,7 +573,7 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
         }
 
         if (skb_info->data_off + current_frame.length > skb_info->data_end) {
-            __sync_fetch_and_add(&http2_tel->exceeding_data_end, 1);
+            __sync_fetch_and_add(&http2_tel->frames_split_count, 1);
         }
         skb_info->data_off += current_frame.length;
 
@@ -664,7 +664,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     }
 
     if (dispatcher_args_copy.skb_info.data_off + current_frame.length > dispatcher_args_copy.skb_info.data_end) {
-        __sync_fetch_and_add(&http2_tel->exceeding_data_end, 1);
+        __sync_fetch_and_add(&http2_tel->frames_split_count, 1);
     }
 
     dispatcher_args_copy.skb_info.data_off += current_frame.length;

@@ -83,7 +83,7 @@ type HTTP2Telemetry struct {
 	Exceeding_max_interesting_frames uint64
 	Exceeding_max_frames_to_filter   uint64
 	Path_size_bucket                 [8]uint64
-	Exceeding_data_end               uint64
+	Frames_split_count               uint64
 }
 
 type StaticTableEnumValue = uint8

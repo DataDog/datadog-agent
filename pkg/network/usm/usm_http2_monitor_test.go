@@ -499,11 +499,11 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	}
 
 	tests := []struct {
-		name                           string
-		skip                           bool
-		validateExceedingDataTelemetry bool
-		messageBuilder                 func() [][]byte
-		expectedEndpoints              map[usmhttp.Key]int
+		name                      string
+		skip                      bool
+		validateTCPSplitTelemetry bool
+		messageBuilder            func() [][]byte
+		expectedEndpoints         map[usmhttp.Key]int
 	}{
 		{
 			name: "parse_frames tail call using 1 program",
@@ -1147,8 +1147,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 
 			},
-			expectedEndpoints:              nil,
-			validateExceedingDataTelemetry: true,
+			expectedEndpoints:         nil,
+			validateTCPSplitTelemetry: true,
 		},
 	}
 	for _, tt := range tests {
@@ -1169,10 +1169,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				if tt.validateExceedingDataTelemetry {
+				if tt.validateTCPSplitTelemetry {
 					telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS)
 					require.NoError(t, err, "could not get http2 telemetry")
-					require.Greater(t, telemetry.Exceeding_data_end, uint64(0), "expected to see exceeding data frames")
+					require.Greater(t, telemetry.Frames_split_count, uint64(0), "expected to see frames split count > 0")
 				}
 
 				return validateStats(usmMonitor, res, tt.expectedEndpoints)

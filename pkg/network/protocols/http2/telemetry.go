@@ -66,8 +66,8 @@ type kernelTelemetry struct {
 	exceedingMaxInterestingFrames *tlsAwareCounter
 	// exceedingMaxFramesToFilter Count of times we have left with more frames to filter than the max number of frames to filter.
 	exceedingMaxFramesToFilter *tlsAwareCounter
-	// exceedingDataEnd Count of times we tried to read data beyond the end of the buffer.
-	exceedingDataEnd *tlsAwareCounter
+	// frameSplitCount Count of times we tried to read data beyond the end of the buffer.
+	frameSplitCount *tlsAwareCounter
 
 	// telemetryLastState represents the latest HTTP2 eBPF Kernel telemetry observed from the kernel
 	telemetryLastState HTTP2Telemetry
@@ -85,7 +85,7 @@ func newHTTP2KernelTelemetry() *kernelTelemetry {
 		literalValueExceedsFrame:      newTLSAwareCounter(metricGroup, "literal_value_exceeds_frame"),
 		exceedingMaxInterestingFrames: newTLSAwareCounter(metricGroup, "exceeding_max_interesting_frames"),
 		exceedingMaxFramesToFilter:    newTLSAwareCounter(metricGroup, "exceeding_max_frames_to_filter"),
-		exceedingDataEnd:              newTLSAwareCounter(metricGroup, "exceeding_data_end")}
+		frameSplitCount:               newTLSAwareCounter(metricGroup, "exceeding_data_end")}
 
 	for bucketIndex := range http2KernelTel.pathSizeBucket {
 		http2KernelTel.pathSizeBucket[bucketIndex] = newTLSAwareCounter(metricGroup, "path_size_bucket_"+(strconv.Itoa(bucketIndex+1)))
@@ -105,7 +105,7 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry, isTLS bool) {
 	t.literalValueExceedsFrame.add(int64(telemetryDelta.Literal_value_exceeds_frame), isTLS)
 	t.exceedingMaxInterestingFrames.add(int64(telemetryDelta.Exceeding_max_interesting_frames), isTLS)
 	t.exceedingMaxFramesToFilter.add(int64(telemetryDelta.Exceeding_max_frames_to_filter), isTLS)
-	t.exceedingDataEnd.add(int64(telemetryDelta.Exceeding_data_end), isTLS)
+	t.frameSplitCount.add(int64(telemetryDelta.Frames_split_count), isTLS)
 	for bucketIndex := range t.pathSizeBucket {
 		t.pathSizeBucket[bucketIndex].add(int64(telemetryDelta.Path_size_bucket[bucketIndex]), isTLS)
 	}
@@ -127,7 +127,7 @@ func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 		Literal_value_exceeds_frame:      t.Literal_value_exceeds_frame - other.Literal_value_exceeds_frame,
 		Exceeding_max_interesting_frames: t.Exceeding_max_interesting_frames - other.Exceeding_max_interesting_frames,
 		Exceeding_max_frames_to_filter:   t.Exceeding_max_frames_to_filter - other.Exceeding_max_frames_to_filter,
-		Exceeding_data_end:               t.Exceeding_data_end - other.Exceeding_data_end,
+		Frames_split_count:               t.Frames_split_count - other.Frames_split_count,
 		Path_size_bucket:                 computePathSizeBucketDifferences(t.Path_size_bucket, other.Path_size_bucket),
 	}
 }
