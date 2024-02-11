@@ -56,12 +56,14 @@ func TestHTTP2Path(t *testing.T) {
 				}
 				copy(arr[:], buf)
 
-				request := &EbpfTx{
-					Stream: http2Stream{
-						Path: http2Path{
-							Is_huffman_encoded: huffmanEnabled,
-							Raw_buffer:         arr,
-							Length:             uint8(len(buf)),
+				request := &ebpfTXWrapper{
+					EbpfTx: &EbpfTx{
+						Stream: http2Stream{
+							Path: http2Path{
+								Is_huffman_encoded: huffmanEnabled,
+								Raw_buffer:         arr,
+								Length:             uint8(len(buf)),
+							},
 						},
 					},
 				}
@@ -128,8 +130,10 @@ func TestHTTP2Method(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tx := &EbpfTx{
-				Stream: tt.Stream,
+			tx := &ebpfTXWrapper{
+				EbpfTx: &EbpfTx{
+					Stream: tt.Stream,
+				},
 			}
 			assert.Equalf(t, tt.want, tx.Method(), "Method()")
 		})
