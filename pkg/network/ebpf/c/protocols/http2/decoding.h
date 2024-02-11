@@ -571,6 +571,10 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
             iteration_value->frames_array[iteration_value->frames_count].offset = skb_info->data_off;
             iteration_value->frames_count++;
         }
+
+        if (skb_info->data_off + current_frame.length > skb_info->data_end) {
+            __sync_fetch_and_add(&http2_tel->exceeding_data_end, 1);
+        }
         skb_info->data_off += current_frame.length;
 
         // If we have found enough interesting frames, we can stop iterating.
@@ -658,6 +662,11 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         iteration_value->frames_array[0].offset = dispatcher_args_copy.skb_info.data_off;
         iteration_value->frames_count = 1;
     }
+
+    if (dispatcher_args_copy.skb_info.data_off + current_frame.length > dispatcher_args_copy.skb_info.data_end) {
+        __sync_fetch_and_add(&http2_tel->exceeding_data_end, 1);
+    }
+
     dispatcher_args_copy.skb_info.data_off += current_frame.length;
     // We're exceeding the packet boundaries, so we have a remainder.
     if (dispatcher_args_copy.skb_info.data_off > dispatcher_args_copy.skb_info.data_end) {
