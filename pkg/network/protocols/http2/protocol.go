@@ -30,11 +30,9 @@ import (
 
 // Protocol implements the interface that represents a protocol supported by USM for HTTP/2.
 type Protocol struct {
-	cfg *config.Config
-	mgr *manager.Manager
-	// TODO: Do we need to duplicate?
-	telemetry *http.Telemetry
-	// TODO: Do we need to duplicate?
+	cfg                     *config.Config
+	mgr                     *manager.Manager
+	telemetry               *http.Telemetry
 	statkeeper              *http.StatKeeper
 	http2InFlightMapCleaner *ddebpf.MapCleaner[http2StreamKey, EbpfTx]
 	eventsConsumer          *events.Consumer[EbpfTx]
@@ -252,7 +250,7 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 		return
 	}
 
-	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, http.NewIncompleteBuffer(p.cfg, p.telemetry))
+	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg))
 	p.eventsConsumer.Start()
 
 	return
