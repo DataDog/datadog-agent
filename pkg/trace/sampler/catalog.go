@@ -12,10 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
-// defaultServiceRateKey specifies the key for the default rate to be used by any service that
-// doesn't have a rate specified.
-const defaultServiceRateKey = "service:,env:"
-
 // maxCatalogEntries specifies the maximum number of entries allowed in the catalog.
 const maxCatalogEntries = 5000
 
@@ -70,7 +66,7 @@ func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 
 // ratesByService returns a map of service signatures mapping to the rates identified using
 // the signatures.
-func (cat *serviceKeyCatalog) ratesByService(agentEnv string, rates map[Signature]float64, defaultRate float64) map[ServiceSignature]float64 {
+func (cat *serviceKeyCatalog) ratesByService(rates map[Signature]float64, defaultRate float64) map[ServiceSignature]float64 {
 	rbs := make(map[ServiceSignature]float64, len(rates)+1)
 	cat.mu.Lock()
 	defer cat.mu.Unlock()
@@ -82,10 +78,6 @@ func (cat *serviceKeyCatalog) ratesByService(agentEnv string, rates map[Signatur
 			cat.ll.Remove(el)
 			delete(cat.items, key)
 			continue
-		}
-
-		if rateWithEmptyEnv(key.Env, agentEnv) {
-			rbs[ServiceSignature{Name: key.Name}] = rbs[key]
 		}
 	}
 	rbs[ServiceSignature{}] = defaultRate

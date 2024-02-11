@@ -37,7 +37,7 @@ func TestCatalogRegression(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < n; i++ {
-			cat.ratesByService("", map[Signature]float64{
+			cat.ratesByService(map[Signature]float64{
 				ServiceSignature{}.Hash():                 0.3,
 				ServiceSignature{"web", "staging"}.Hash(): 0.4,
 			}, 0.2)
@@ -49,8 +49,9 @@ func TestCatalogRegression(t *testing.T) {
 
 func TestServiceSignatureString(t *testing.T) {
 	assert := assert.New(t)
-
-	assert.Equal(defaultServiceRateKey, ServiceSignature{}.String())
+	assert.Equal("service:,env:", ServiceSignature{}.String()) // default
+	assert.Equal("service:,env:prod", ServiceSignature{Env: "prod"}.String())
+	assert.Equal("service:myservice,env:", ServiceSignature{Name: "myservice"}.String())
 	assert.Equal("service:mcnulty,env:test", ServiceSignature{"mcnulty", "test"}.String())
 }
 
@@ -141,13 +142,13 @@ func catalogContains(t *testing.T, cat *serviceKeyCatalog, has map[ServiceSignat
 	}
 }
 
-func TestCatalogEnvMatchAgent(t *testing.T) {
+func TestServiceKeyCatalogRatesByServiceEmptyEnv(t *testing.T) {
 	assert := assert.New(t)
 	cat := newServiceLookup(0)
 
-	sig1 := ServiceSignature{"service1", defaultEnv}
+	sig1 := ServiceSignature{Name: "service1"}
 	cat.register(sig1)
-	sig2 := ServiceSignature{"service2", defaultEnv}
+	sig2 := ServiceSignature{Name: "service2"}
 	cat.register(sig2)
 
 	rates := map[Signature]float64{
@@ -156,13 +157,11 @@ func TestCatalogEnvMatchAgent(t *testing.T) {
 	}
 	const totalRate = 0.2
 
-	rateByService := cat.ratesByService(defaultEnv, rates, totalRate)
+	rateByService := cat.ratesByService(rates, totalRate)
 	assert.Equal(map[ServiceSignature]float64{
-		{"service1", defaultEnv}: 0.3,
-		{"service1", ""}:         0.3,
-		{"service2", defaultEnv}: 0.7,
-		{"service2", ""}:         0.7,
-		{}:                       0.2,
+		{"service1", ""}: 0.3,
+		{"service2", ""}: 0.7,
+		{}:               0.2,
 	}, rateByService)
 }
 
@@ -183,7 +182,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	}
 	const totalRate = 0.2
 
-	rateByService := cat.ratesByService("", rates, totalRate)
+	rateByService := cat.ratesByService(rates, totalRate)
 	assert.Equal(map[ServiceSignature]float64{
 		{"service1", "testEnv"}: 0.3,
 		{"service2", "testEnv"}: 0.7,
@@ -192,7 +191,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 
 	delete(rates, sig1)
 
-	rateByService = cat.ratesByService("", rates, totalRate)
+	rateByService = cat.ratesByService(rates, totalRate)
 	assert.Equal(map[ServiceSignature]float64{
 		{"service2", "testEnv"}: 0.7,
 		{}:                      0.2,
@@ -200,7 +199,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 
 	delete(rates, sig2)
 
-	rateByService = cat.ratesByService("", rates, totalRate)
+	rateByService = cat.ratesByService(rates, totalRate)
 	assert.Equal(map[ServiceSignature]float64{
 		{}: 0.2,
 	}, rateByService)
