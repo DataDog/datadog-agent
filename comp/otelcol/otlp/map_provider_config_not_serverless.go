@@ -32,7 +32,6 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
       exporters: [otlp]
 `
 
