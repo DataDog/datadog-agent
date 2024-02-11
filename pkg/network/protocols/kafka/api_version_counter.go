@@ -20,7 +20,6 @@ type APIVersionCounter struct {
 // NewAPIVersionCounter creates and returns a new instance of APIVersionCounter
 func NewAPIVersionCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *APIVersionCounter {
 	return &APIVersionCounter{
-		// tls_library:none is a must, as prometheus metrics must have the same cardinality of tags
 		hitsV1:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:1")...),
 		hitsV2:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:2")...),
 		hitsV3:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:3")...),
