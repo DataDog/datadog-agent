@@ -15,10 +15,6 @@ const defaultTracesConfig string = `
 receivers:
   otlp:
 
-processors:
-  batch:
-    timeout: 10s
-
 exporters:
   otlp:
     tls:
