@@ -23,24 +23,26 @@ func TestIncompleteBuffer(t *testing.T) {
 		buffer := NewIncompleteBuffer(config.New()).(*incompleteBuffer)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
-		request := &EbpfTx{
-			Tuple: connTuple{
-				Sport: 6000,
-			},
-			Stream: http2Stream{
-				Response_last_seen: 0, // Required to make the request incomplete.
-				Request_started:    uint64(now.UnixNano()),
-				Status_code: http2StatusCode{
-					Static_table_entry: K200Value,
-					Finalized:          true,
+		request := &ebpfTXWrapper{
+			EbpfTx: &EbpfTx{
+				Tuple: connTuple{
+					Sport: 6000,
 				},
-				Request_method: http2requestMethod{
-					Static_table_entry: GetValue,
-					Finalized:          true,
-				},
-				Path: http2Path{
-					Static_table_entry: EmptyPathValue,
-					Finalized:          true,
+				Stream: http2Stream{
+					Response_last_seen: 0, // Required to make the request incomplete.
+					Request_started:    uint64(now.UnixNano()),
+					Status_code: http2StatusCode{
+						Static_table_entry: K200Value,
+						Finalized:          true,
+					},
+					Request_method: http2requestMethod{
+						Static_table_entry: GetValue,
+						Finalized:          true,
+					},
+					Path: http2Path{
+						Static_table_entry: EmptyPathValue,
+						Finalized:          true,
+					},
 				},
 			},
 		}
@@ -60,15 +62,17 @@ func TestIncompleteBuffer(t *testing.T) {
 		buffer := NewIncompleteBuffer(config.New()).(*incompleteBuffer)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
-		request := &EbpfTx{
-			Tuple: connTuple{
-				Sport: 6000,
-			},
-			Stream: http2Stream{
-				Path: http2Path{
-					Static_table_entry: EmptyPathValue,
+		request := &ebpfTXWrapper{
+			EbpfTx: &EbpfTx{
+				Tuple: connTuple{
+					Sport: 6000,
 				},
-				Request_started: uint64(now.UnixNano()),
+				Stream: http2Stream{
+					Path: http2Path{
+						Static_table_entry: EmptyPathValue,
+					},
+					Request_started: uint64(now.UnixNano()),
+				},
 			},
 		}
 		buffer.Add(request)

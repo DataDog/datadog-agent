@@ -22,7 +22,7 @@ const (
 
 // incompleteBuffer is responsible for buffering incomplete transactions
 type incompleteBuffer struct {
-	data              []*EbpfTx
+	data              []*ebpfTXWrapper
 	maxEntries        int
 	minAgeNano        int64
 	oversizedLogLimit *util.LogLimit
@@ -31,7 +31,7 @@ type incompleteBuffer struct {
 // NewIncompleteBuffer returns a new incompleteBuffer.
 func NewIncompleteBuffer(c *config.Config) http.IncompleteBuffer {
 	return &incompleteBuffer{
-		data:              make([]*EbpfTx, 0),
+		data:              make([]*ebpfTXWrapper, 0),
 		maxEntries:        c.MaxHTTPStatsBuffered,
 		minAgeNano:        defaultMinAge.Nanoseconds(),
 		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
@@ -48,7 +48,7 @@ func (b *incompleteBuffer) Add(tx http.Transaction) {
 	}
 
 	// Copy underlying EbpfTx value.
-	ebpfTX, ok := tx.(*EbpfTx)
+	ebpfTX, ok := tx.(*ebpfTXWrapper)
 	if !ok {
 		if b.oversizedLogLimit.ShouldLog() {
 			log.Warnf("http2 incomplete buffer received a non-EbpfTx transaction (%T), dropping transaction", tx)
@@ -56,7 +56,7 @@ func (b *incompleteBuffer) Add(tx http.Transaction) {
 		return
 	}
 
-	ebpfTxCopy := new(EbpfTx)
+	ebpfTxCopy := new(ebpfTXWrapper)
 	*ebpfTxCopy = *ebpfTX
 
 	b.data = append(b.data, ebpfTxCopy)
@@ -70,7 +70,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []http.Transaction {
 		nowUnix  = now.UnixNano()
 	)
 
-	b.data = make([]*EbpfTx, 0)
+	b.data = make([]*ebpfTXWrapper, 0)
 	for _, entry := range previous {
 		// now that we have finished matching requests and responses
 		// we check if we should keep orphan requests a little longer
