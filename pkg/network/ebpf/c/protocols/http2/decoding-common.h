@@ -88,12 +88,27 @@ static __always_inline void parse_field_indexed(http2_stream_t *current_stream, 
     // We change the index to match our internal dynamic table implementation index.
     // Our internal indexes start from 1, so we subtract 61 in order to match the given index.
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
-
-    headers_to_process->index = dynamic_index->index;
-    headers_to_process->type = kExistingDynamicHeader;
-    // If the entry exists, increase the counter. If the entry is missing, then we won't increase the counter.
-    // This is a simple trick to spare if-clause, to reduce pressure on the complexity of the program.
-    *interesting_headers_counter += bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) != NULL;
+    dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
+    if (dynamic_value == NULL) {
+        // If the entry is missing, it means the index does not represents an interesting header and we should abort.
+        return;
+    }
+    if (is_path_index(dynamic_value->original_index)) {
+        current_stream->path.length = dynamic_value->string_len;
+        current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+        current_stream->path.finalized = true;
+        bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+    } else if (is_status_index(dynamic_value->original_index)) {
+        bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
+        current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+        current_stream->status_code.finalized = true;
+    } else if (is_method_index(dynamic_value->original_index)) {
+        current_stream->request_started = bpf_ktime_get_ns();
+        bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
+        current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+        current_stream->request_method.length = dynamic_value->string_len;
+        current_stream->request_method.finalized = true;
+    }
     return;
 }
 
