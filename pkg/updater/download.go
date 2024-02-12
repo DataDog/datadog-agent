@@ -42,6 +42,10 @@ func newDownloader(client *http.Client) *downloader {
 // It currently assumes the package is a tar.gz archive.
 func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath string) error {
 	log.Debugf("Downloading package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
+
+	// TODO check platform & arch compatibility
+
+	// Create temporary directory to download the archive
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
@@ -52,15 +56,25 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 			log.Errorf("could not cleanup temporary directory: %v", err)
 		}
 	}()
+
+	// Get archive
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pkg.URL, nil)
 	if err != nil {
 		return fmt.Errorf("could not create download request: %w", err)
 	}
+
 	resp, err := d.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// Verify content length
+	if resp.ContentLength != pkg.Size {
+		return fmt.Errorf("invalid size for %s: expected %d, got %d", pkg.URL, pkg.Size, resp.ContentLength)
+	}
+
+	// Copy archive & build hash
 	hashWriter := sha256.New()
 	reader := io.TeeReader(resp.Body, hashWriter)
 	archivePath := filepath.Join(tmpDir, agentArchiveFileName)
@@ -73,6 +87,8 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	if err != nil {
 		return fmt.Errorf("could not write archive file: %w", err)
 	}
+
+	// Verify hash
 	sha256 := hashWriter.Sum(nil)
 	expectedHash, err := hex.DecodeString(pkg.SHA256)
 	if err != nil {
@@ -81,6 +97,8 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	if !bytes.Equal(expectedHash, sha256) {
 		return fmt.Errorf("invalid hash for %s: expected %x, got %x", pkg.URL, pkg.SHA256, sha256)
 	}
+
+	// TODO: extract OCI images instead
 	err = extractTarGz(archivePath, destinationPath)
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)

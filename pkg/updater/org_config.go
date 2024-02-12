@@ -33,10 +33,13 @@ func NewOrgConfig() (*OrgConfig, error) {
 
 // Package represents a downloadable package.
 type Package struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	SHA256  string `json:"sha256"`
-	URL     string `json:"url"`
+	Name     string `json:"package"`
+	Version  string `json:"version"`
+	SHA256   string `json:"sha256"`
+	URL      string `json:"url"`
+	Size     int64  `json:"size"`
+	Platform string `json:"platform"`
+	Arch     string `json:"arch"`
 }
 
 type catalog struct {
