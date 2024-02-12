@@ -38,7 +38,7 @@ type dependencies struct {
 	InvAgent              inventoryagent.Component // TODO: (components) - Temporary dependencies until the status page is a Component and we don't need to call it in 'CompleteFlare'.
 	Params                Params
 	Providers             []types.FlareCallback `group:"flare"`
-	collector             optional.Option[collector.Component]
+	Collector             optional.Option[collector.Component]
 }
 
 type flare struct {
@@ -59,7 +59,7 @@ func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, erro
 		providers:             deps.Providers,
 		diagnosesendermanager: deps.Diagnosesendermanager,
 		invAgent:              deps.InvAgent,
-		collector:             deps.collector,
+		collector:             deps.Collector,
 	}
 
 	rcListener := rcclient.TaskListenerProvider{
