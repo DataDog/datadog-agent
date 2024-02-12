@@ -56,7 +56,7 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.Env().RemoteHost.ReconnectSSH()
 
 	// prefetch docker image locally
-	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/npm-tools:main")
+	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:main")
 }
 
 // TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
@@ -82,7 +82,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/npm-tools curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools curl " + testURL)
 
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -108,7 +108,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/npm-tools ab -n 600 -c 600 " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools ab -n 600 -c 600 " + testURL)
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -131,8 +131,8 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/npm-tools curl " + testURL)
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/npm-tools dig @8.8.8.8 www.google.ch")
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools dig @8.8.8.8 www.google.ch")
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }
