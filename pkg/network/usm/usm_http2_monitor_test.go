@@ -1234,7 +1234,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 					Method: usmhttp.MethodPost,
 				}: 10,
 			},
-			expectedDynamicTablePathIndexes: []int{1, 7, 13, 19, 25, 31, 37, 43, 49, 55},
+			expectedDynamicTablePathIndexes: []int{2, 8, 14, 20, 26, 32, 38, 44, 50, 56},
 		},
 	}
 	for _, tt := range tests {
