@@ -153,22 +153,6 @@ typedef struct {
     http2_stream_t stream;
 } http2_event_t;
 
-typedef enum {
-    kStaticHeader = 0,
-    kExistingDynamicHeader = 1,
-    kNewDynamicHeader = 2,
-    kNewDynamicHeaderNotIndexed = 3,
-} __attribute__((packed)) http2_header_type_t;
-
-typedef struct {
-    __u32 original_index;
-    __u32 index;
-    __u32 new_dynamic_value_offset;
-    __u32 new_dynamic_value_size;
-    http2_header_type_t type;
-    bool is_huffman_encoded;
-} http2_header_t;
-
 typedef struct {
     http2_frame_t frame;
     __u32 offset;
