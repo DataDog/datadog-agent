@@ -9,8 +9,6 @@ const (
 
 	HTTP2TerminatedBatchSize = 0x50
 
-	http2RawStatusCodeMaxLength = 0x3
-
 	Http2MaxHeadersCountPerFiltering = 0x21
 )
 
@@ -41,12 +39,6 @@ type http2StreamKey struct {
 	Id        uint32
 	Pad_cgo_0 [4]byte
 }
-type http2StatusCode struct {
-	Raw_buffer         [3]uint8
-	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Finalized          bool
-}
 type http2InterestingValue struct {
 	Dynamic_table_entry uint64
 	Temporary           bool
@@ -58,7 +50,7 @@ type http2InterestingValue struct {
 type http2Stream struct {
 	Response_last_seen    uint64
 	Request_started       uint64
-	Status_code           http2StatusCode
+	Status_code           http2InterestingValue
 	Request_method        http2InterestingValue
 	Path                  http2InterestingValue
 	Request_end_of_stream bool

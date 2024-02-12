@@ -340,8 +340,8 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 current_stream->path.tuple_flipped = flipped;
                 current_stream->path.finalized = true;
             } else if (is_status_index(dynamic_value->original_index)) {
-                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
-                current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->status_code.dynamic_table_entry = current_header->index;
+                current_stream->status_code.tuple_flipped = flipped;
                 current_stream->status_code.finalized = true;
             } else if (is_method_index(dynamic_value->original_index)) {
                 current_stream->request_started = bpf_ktime_get_ns();
@@ -365,8 +365,9 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 current_stream->path.tuple_flipped = flipped;
                 current_stream->path.finalized = true;
             } else if (is_status_index(current_header->original_index)) {
-                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
-                current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->status_code.dynamic_table_entry = current_header->index;
+                current_stream->status_code.temporary = current_header->type == kNewDynamicHeader;
+                current_stream->status_code.tuple_flipped = flipped;
                 current_stream->status_code.finalized = true;
             } else if (is_method_index(current_header->original_index)) {
                 current_stream->request_started = bpf_ktime_get_ns();
