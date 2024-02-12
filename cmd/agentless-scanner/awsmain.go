@@ -376,7 +376,7 @@ func awsOfflineCmd(ctx context.Context, workers int, taskType types.TaskType, ac
 							// Exclude Windows.
 							continue
 						}
-						volumeID, err := types.AWSCloudID("ec2", regionName, accountID, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
+						volumeID, err := types.AWSCloudID(regionName, accountID, types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
 						if err != nil {
 							return err
 						}
@@ -460,7 +460,7 @@ func awsOfflineCmd(ctx context.Context, workers int, taskType types.TaskType, ac
 						if image.ImageId == nil {
 							continue
 						}
-						imageID, err := types.AWSCloudID("ec2", regionName, accountID, types.ResourceTypeHostImage, *image.ImageId)
+						imageID, err := types.AWSCloudID(regionName, accountID, types.ResourceTypeHostImage, *image.ImageId)
 						if err != nil {
 							return err
 						}

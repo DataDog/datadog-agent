@@ -74,7 +74,7 @@ func CleanSlate(ctx context.Context, bds []devices.BlockDevice, roles types.Role
 
 	if self, err := getSelfEC2InstanceIndentity(ctx); err == nil {
 		for _, volumeID := range attachedVolumes {
-			volumeID, err := types.AWSCloudID("ec2", self.Region, self.AccountID, types.ResourceTypeVolume, volumeID)
+			volumeID, err := types.AWSCloudID(self.Region, self.AccountID, types.ResourceTypeVolume, volumeID)
 			if err != nil {
 				log.Warnf("clean slate: %v", err)
 				continue
@@ -111,7 +111,7 @@ func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region s
 		}
 		for _, volume := range volumes.Volumes {
 			if volume.State == ec2types.VolumeStateAvailable {
-				volumeID, err := types.AWSCloudID("ec2", region, *identity.Account, types.ResourceTypeVolume, *volume.VolumeId)
+				volumeID, err := types.AWSCloudID(region, *identity.Account, types.ResourceTypeVolume, *volume.VolumeId)
 				if err != nil {
 					return nil, err
 				}
@@ -141,7 +141,7 @@ func ListResourcesForCleanup(ctx context.Context, maxTTL time.Duration, region s
 			if snapshot.StartTime != nil && snapshot.StartTime.After(since) {
 				continue
 			}
-			snapshotID, err := types.AWSCloudID("ec2", region, *identity.Account, types.ResourceTypeSnapshot, *snapshot.SnapshotId)
+			snapshotID, err := types.AWSCloudID(region, *identity.Account, types.ResourceTypeSnapshot, *snapshot.SnapshotId)
 			if err != nil {
 				return nil, err
 			}

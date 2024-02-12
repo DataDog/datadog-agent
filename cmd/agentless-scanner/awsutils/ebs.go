@@ -117,7 +117,7 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceW
 			return types.CloudID{}, err
 		}
 
-		snapshotID, err := types.AWSCloudID("ec2", volumeID.Region(), volumeID.AccountID(), types.ResourceTypeSnapshot, *createSnapshotOutput.SnapshotId)
+		snapshotID, err := types.AWSCloudID(volumeID.Region(), volumeID.AccountID(), types.ResourceTypeSnapshot, *createSnapshotOutput.SnapshotId)
 		if err != nil {
 			return snapshotID, err
 		}
@@ -172,7 +172,7 @@ func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceWai
 		return types.CloudID{}, fmt.Errorf("copying snapshot %q: %w", snapshotID, err)
 	}
 
-	copiedSnapshotID, err := types.AWSCloudID("ec2", self.Region, snapshotID.AccountID(), types.ResourceTypeSnapshot, *copyOutput.SnapshotId)
+	copiedSnapshotID, err := types.AWSCloudID(self.Region, snapshotID.AccountID(), types.ResourceTypeSnapshot, *copyOutput.SnapshotId)
 	if err != nil {
 		return types.CloudID{}, err
 	}
@@ -262,7 +262,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		return fmt.Errorf("could not create volume from snapshot: %w", err)
 	}
 
-	volumeID, err := types.AWSCloudID("ec2", localSnapshotID.Region(), localSnapshotID.AccountID(), types.ResourceTypeVolume, *volume.VolumeId)
+	volumeID, err := types.AWSCloudID(localSnapshotID.Region(), localSnapshotID.AccountID(), types.ResourceTypeVolume, *volume.VolumeId)
 	if err != nil {
 		return err
 	}
@@ -448,7 +448,7 @@ func getAMIRootSnapshot(ctx context.Context, _ *types.ScanTask, waiter *Resource
 			continue
 		}
 		if *blockDeviceMapping.DeviceName == *image.RootDeviceName {
-			return types.AWSCloudID("ec2", imageID.Region(), imageID.AccountID(), types.ResourceTypeSnapshot, *blockDeviceMapping.Ebs.SnapshotId)
+			return types.AWSCloudID(imageID.Region(), imageID.AccountID(), types.ResourceTypeSnapshot, *blockDeviceMapping.Ebs.SnapshotId)
 		}
 	}
 	return types.CloudID{}, fmt.Errorf("could not find root snapshot for AMI %q", imageID)
