@@ -114,7 +114,7 @@ const (
 	// ResourceTypeFunction is the type of a function
 	ResourceTypeFunction = "function"
 	// ResourceTypeHostImage is the type of a host image
-	ResourceTypeHostImage = "image"
+	ResourceTypeHostImage = "hostimage"
 	// ResourceTypeRole is the type of a role
 	ResourceTypeRole = "role"
 )
@@ -151,7 +151,7 @@ func (r RolesMapping) GetRole(accountID string) CloudID {
 	case CloudProviderNone:
 		return CloudID{}
 	case CloudProviderAWS:
-		role, err := AWSCloudID("iam", "", accountID, ResourceTypeRole, "DatadogAgentlessScannerDelegateRole")
+		role, err := AWSCloudID("", accountID, ResourceTypeRole, "DatadogAgentlessScannerDelegateRole")
 		if err != nil {
 			panic(err)
 		}

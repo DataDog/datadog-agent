@@ -179,7 +179,7 @@ func (w *ResourceWaiter) pollSnapshots(ctx context.Context, group waitGroup, ec2
 			}
 		}
 		if errp != nil {
-			snapshotID, _ := types.AWSCloudID("ec2", group.region, group.accountID, types.ResourceTypeSnapshot, *snap.SnapshotId)
+			snapshotID, _ := types.AWSCloudID(group.region, group.accountID, types.ResourceTypeSnapshot, *snap.SnapshotId)
 			for _, sub := range subs[snapshotID] {
 				if errp == errWaitDone {
 					sub <- WaitResult{Snapshot: &snap}
@@ -238,7 +238,7 @@ func (w *ResourceWaiter) pollImages(ctx context.Context, group waitGroup, ec2cli
 			}
 		}
 		if errp != nil {
-			imageID, _ := types.AWSCloudID("ec2", group.region, group.accountID, types.ResourceTypeHostImage, *image.ImageId)
+			imageID, _ := types.AWSCloudID(group.region, group.accountID, types.ResourceTypeHostImage, *image.ImageId)
 			for _, sub := range subs[imageID] {
 				if errp == errWaitDone {
 					sub <- WaitResult{Image: &image}

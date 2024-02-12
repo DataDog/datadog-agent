@@ -143,13 +143,26 @@ func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 }
 
 // AWSCloudID returns an CloudID for the given AWS resource.
-func AWSCloudID(service, region, accountID string, resourceType ResourceType, resourceName string) (CloudID, error) {
-	var resource string
-	switch service {
+func AWSCloudID(region, accountID string, resourceType ResourceType, resourceName string) (CloudID, error) {
+	var resource, service string
+	switch resourceType {
+	case ResourceTypeVolume:
+		service = "ec2"
+		resource = fmt.Sprintf("volume/%s", resourceName)
+	case ResourceTypeSnapshot:
+		service = "ec2"
+		resource = fmt.Sprintf("snapshot/%s", resourceName)
+	case ResourceTypeHostImage:
+		service = "ec2"
+		resource = fmt.Sprintf("image/%s", resourceName)
+	case ResourceTypeFunction:
+		service = "lambda"
+		resource = fmt.Sprintf("function:%s", resourceName)
+	case ResourceTypeRole:
+		service = "iam"
+		resource = fmt.Sprintf("role/%s", resourceName)
 	default:
-		resource = fmt.Sprintf("%s/%s", resourceType, resourceName)
-	case "lambda":
-		resource = fmt.Sprintf("%s:%s", resourceType, resourceName)
+		return CloudID{}, fmt.Errorf("unsupported resource type for AWS: %s", resourceType)
 	}
 	return ParseCloudID(fmt.Sprintf("arn:aws:%s:%s:%s:%s", service, region, accountID, resource))
 }
