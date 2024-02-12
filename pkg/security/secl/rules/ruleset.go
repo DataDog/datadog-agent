@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // MacroID represents the ID of a macro
@@ -631,6 +632,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
+		seclog.Debugf("--------EVENT RULE BUCKETS NOT FOUND")
 		return false
 	}
 
@@ -643,6 +645,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	result := false
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
+			seclog.Debugf("--------EVENT MATCHED WITH RULE")
 
 			if rs.logger.IsTracing() {
 				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
@@ -652,6 +655,8 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 			result = true
 
 			if err := rs.runRuleActions(event, ctx, rule); err != nil {
+				seclog.Debugf("--------Error while executing rule actions")
+
 				rs.logger.Errorf("Error while executing rule actions: %s", err)
 			}
 		}
