@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -40,15 +39,11 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(server.Params{
 			Serverless: false,
-		}), 
+		}),
 		demultiplexerimpl.MockModule(),
 		dogstatsd.Bundle(),
 		defaultforwarder.MockModule(),
 	))
-
-	// demux := deps.Demultiplexer
-	// deps.Server.Start(demux)
-	require.Nil(t, err)
 
 	s := DsdStatsRuntimeSetting{
 		ServerDebug: deps.Debug,

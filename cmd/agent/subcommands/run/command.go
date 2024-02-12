@@ -329,7 +329,7 @@ func getSharedFxOption() fx.Option {
 		dogstatsdStatusimpl.Module(),
 		statusimpl.Module(),
 		apiimpl.Module(),
-
+		demultiplexerimpl.Module(),
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),
 		rcclient.Module(),
@@ -362,7 +362,6 @@ func getSharedFxOption() fx.Option {
 			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 			return params
 		}),
-		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 		eventplatformimpl.Module(),
