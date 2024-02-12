@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-func TesteventConsumerWrapperCopy(t *testing.T) {
+func TestEventConsumerWrapperCopy(t *testing.T) {
 	Init()
 
 	t.Run("test exec process attributes", func(t *testing.T) {

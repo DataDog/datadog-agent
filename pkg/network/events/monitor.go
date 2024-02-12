@@ -143,8 +143,8 @@ func (h *eventConsumerWrapper) EventTypes() []model.EventType {
 
 var _eventConsumerWrapper = &eventConsumerWrapper{}
 
-// Handler returns an event handler to handle events from the runtime security module
-func Consumer() sprobe.EventConsumer {
+// Consumer returns an event consumer to handle events from the runtime security module
+func Consumer() sprobe.EventConsumerInterface {
 	return _eventConsumerWrapper
 }
 

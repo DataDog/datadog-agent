@@ -59,20 +59,20 @@ type EventHandler interface {
 }
 
 // EventConsumer represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventConsumer interface {
+type EventConsumerInterface interface {
 	HandleEvent(event any)
 	Copy(_ *model.Event) any
 	EventTypes() []model.EventType
 }
 
 // ProbeEventConsumer defines a probe event consumer
-type ProbeEventConsumer struct {
-	consumer EventConsumer
+type EventConsumer struct {
+	consumer EventConsumerInterface
 	eventCh  chan any
 }
 
 // Start the consumer
-func (p *ProbeEventConsumer) Start(ctx context.Context, wg *sync.WaitGroup) {
+func (p *EventConsumer) Start(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -80,6 +80,7 @@ func (p *ProbeEventConsumer) Start(ctx context.Context, wg *sync.WaitGroup) {
 		for {
 			select {
 			case <-ctx.Done():
+				return
 			case event := <-p.eventCh:
 				p.consumer.HandleEvent(event)
 			}
@@ -113,9 +114,9 @@ type Probe struct {
 	scrubber  *procutil.DataScrubber
 
 	// Events section
-	consumers           []*ProbeEventConsumer
+	consumers           []*EventConsumer
 	eventHandlers       [model.MaxAllEventType][]EventHandler
-	eventConsumers      [model.MaxAllEventType][]*ProbeEventConsumer
+	eventConsumers      [model.MaxAllEventType][]*EventConsumer
 	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
 }
 
@@ -154,6 +155,7 @@ func (p *Probe) Close() error {
 // Stop the probe
 func (p *Probe) Stop() {
 	p.cancelFnc()
+	p.wg.Wait()
 
 	p.PlatformProbe.Stop()
 }
@@ -208,8 +210,8 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 }
 
 // AddEventConsumer sets a probe event consumer
-func (p *Probe) AddEventConsumer(consumer EventConsumer) error {
-	pc := &ProbeEventConsumer{
+func (p *Probe) AddEventConsumer(consumer EventConsumerInterface) error {
+	pc := &EventConsumer{
 		consumer: consumer,
 		eventCh:  make(chan any, defaultConsumerChanSize),
 	}
