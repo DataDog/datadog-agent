@@ -335,20 +335,22 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
             if (dynamic_value == NULL) {
                 break;
             }
-            if (is_path_index(dynamic_value->original_index)) {
-                current_stream->path.dynamic_table_entry = current_header->index;
-                current_stream->path.tuple_flipped = flipped;
-                current_stream->path.finalized = true;
-            } else if (is_status_index(dynamic_value->original_index)) {
-                current_stream->status_code.dynamic_table_entry = current_header->index;
-                current_stream->status_code.tuple_flipped = flipped;
-                current_stream->status_code.finalized = true;
-            } else if (is_method_index(dynamic_value->original_index)) {
+            interesting_value_t *interesting_entry = NULL;
+            if (is_path_index(current_header->original_index)) {
+                interesting_entry = &current_stream->path;
+            } else if (is_status_index(current_header->original_index)) {
+                interesting_entry = &current_stream->status_code;
+                __sync_fetch_and_add(&http2_tel->response_seen, 1);
+            } else if (is_method_index(current_header->original_index)) {
                 current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method.dynamic_table_entry = current_header->index;
-                current_stream->request_method.tuple_flipped = flipped;
-                current_stream->request_method.finalized = true;
+                __sync_fetch_and_add(&http2_tel->request_seen, 1);
+                interesting_entry = &current_stream->request_method;
+            } else {
+                continue;
             }
+            interesting_entry->dynamic_table_entry = current_header->index;
+            interesting_entry->tuple_flipped = flipped;
+            interesting_entry->finalized = true;
         } else {
             // We're in new dynamic header or new dynamic header not indexed states.
             read_into_user_buffer_http2_path(dynamic_value.buffer, info->buffer_ptr + current_header->new_dynamic_value_offset);
@@ -359,23 +361,25 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 dynamic_value.original_index = current_header->original_index;
                 bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_value, BPF_ANY);
             }
+
+            interesting_value_t *interesting_entry = NULL;
             if (is_path_index(current_header->original_index)) {
-                current_stream->path.dynamic_table_entry = current_header->index;
-                current_stream->path.temporary = current_header->type == kNewDynamicHeader;
-                current_stream->path.tuple_flipped = flipped;
-                current_stream->path.finalized = true;
+                interesting_entry = &current_stream->path;
             } else if (is_status_index(current_header->original_index)) {
-                current_stream->status_code.dynamic_table_entry = current_header->index;
-                current_stream->status_code.temporary = current_header->type == kNewDynamicHeader;
-                current_stream->status_code.tuple_flipped = flipped;
-                current_stream->status_code.finalized = true;
+                interesting_entry = &current_stream->status_code;
+                __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (is_method_index(current_header->original_index)) {
                 current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method.dynamic_table_entry = current_header->index;
-                current_stream->request_method.temporary = current_header->type == kNewDynamicHeader;
-                current_stream->request_method.tuple_flipped = flipped;
-                current_stream->request_method.finalized = true;
+                __sync_fetch_and_add(&http2_tel->request_seen, 1);
+                interesting_entry = &current_stream->request_method;
+            } else {
+                continue;
             }
+
+            interesting_entry->dynamic_table_entry = current_header->index;
+            interesting_entry->temporary = current_header->type == kNewDynamicHeader;
+            interesting_entry->tuple_flipped = flipped;
+            interesting_entry->finalized = true;
 
             // Send dynamic value over a per-event to the user mode.
             dynamic_table_value->key.index = current_header->index;
