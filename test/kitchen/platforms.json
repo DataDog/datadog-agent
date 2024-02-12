@@ -47,7 +47,7 @@
             },
             "arm64": {
                 "debian-10": "ami-0108ade0d057c8eba",
-                "debian-11": "ami-03ea090ddd75eb738",
+                "debian-11": "ami-0d3b78362fc3d8e61",
                 "debian-12": "ami-02aab8d5301cb8d68"
             }
         }
