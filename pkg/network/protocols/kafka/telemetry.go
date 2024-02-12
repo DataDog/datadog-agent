@@ -39,6 +39,8 @@ func (t *Telemetry) Count(tx *EbpfTx) {
 		t.produceHits.Add(tx)
 	case 1:
 		t.fetchHits.Add(tx)
+	default:
+		log.Errorf("unsupported request api key: %d", tx.Request_api_key)
 	}
 }
 
