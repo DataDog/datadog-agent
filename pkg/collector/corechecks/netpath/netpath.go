@@ -461,7 +461,10 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 		probe *results.Probe
 	}
 
+	pathId := uuid.New().String()
+
 	traceroutePath := NetworkPath{
+		PathId:    pathId,
 		Timestamp: time.Now().UnixMilli(),
 		Source: NetworkPathSource{
 			Hostname: hname,
@@ -471,8 +474,6 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 			IpAddress: destinationIP.String(),
 		},
 	}
-
-	//pathId := uuid.New().String()
 
 	for idx, probes := range r.Flows {
 		log.Debugf("flow idx: %d\n", idx)
