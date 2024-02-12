@@ -238,6 +238,7 @@ class AgentManager {
         let currentLoginStatus = getLoginStatus()
         var command: String
         if currentLoginStatus { // enabled -> disable
+            // `unload` stops a service running for the current user session, the `-w` flag will disable it going forward
             command = "/bin/launchctl unload -w " + userAgentPlistPath
         } else { // disabled -> enable
             command = "/bin/launchctl load -w " + userAgentPlistPath
