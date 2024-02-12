@@ -1899,6 +1899,8 @@ func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	assert.Equal(t, network.INCOMING, conn.Direction, "connection direction should be incoming")
 }
 
+// TODO: clone above test for ringbuffer disabled
+
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	t := s.T()
 
