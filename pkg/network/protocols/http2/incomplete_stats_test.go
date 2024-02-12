@@ -35,9 +35,8 @@ func TestIncompleteBuffer(t *testing.T) {
 						Static_table_entry: K200Value,
 						Finalized:          true,
 					},
-					Request_method: http2requestMethod{
-						Static_table_entry: GetValue,
-						Finalized:          true,
+					Request_method: http2InterestingValue{
+						Index: uint64(GetValue),
 					},
 					Path: http2Path{
 						Static_table_entry: EmptyPathValue,

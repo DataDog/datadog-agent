@@ -100,6 +100,7 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
 type ebpfTXWrapper struct {
 	*EbpfTx
 	dynamicTable *DynamicTable
+	method       interestingValue[http.Method]
 }
 
 // Path returns the URL from the request fragment captured in eBPF.
@@ -159,7 +160,7 @@ func (tx *ebpfTXWrapper) RequestLatency() float64 {
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
 func (tx *ebpfTXWrapper) Incomplete() bool {
-	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || !tx.Stream.Path.Finalized || tx.Method() == http.MethodUnknown
+	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || !tx.Stream.Path.Finalized || !tx.resolveMethod()
 }
 
 // ConnTuple returns the connections tuple of the transaction.
@@ -201,46 +202,48 @@ func stringToHTTPMethod(method string) (http.Method, error) {
 	}
 }
 
+func (tx *ebpfTXWrapper) resolveMethod() bool {
+	if tx.method.malformed {
+		return false
+	}
+	if tx.method.value != http.MethodUnknown {
+		return true
+	}
+
+	if tx.Stream.Request_method.Index <= http2staticTableMaxEntry {
+		switch uint8(tx.Stream.Request_method.Index) {
+		case GetValue:
+			tx.method.value = http.MethodGet
+		case PostValue:
+			tx.method.value = http.MethodPost
+		default:
+			tx.method.malformed = true
+		}
+		return !tx.method.malformed
+	}
+
+	tup := tx.Tuple
+	// TODO: Support flipped tuples.
+
+	stringMethod, exists := tx.dynamicTable.resolveValue(tup, tx.Stream.Request_method.Index, tx.Stream.Request_method.Temporary)
+	if !exists {
+		return false
+	}
+	method, err := stringToHTTPMethod(stringMethod)
+	if err != nil {
+		tx.method.malformed = true
+		return false
+	}
+	tx.method.value = method
+	return true
+}
+
 // Method returns the HTTP method of the transaction.
 func (tx *ebpfTXWrapper) Method() http.Method {
-	var method string
-	var err error
-
-	// Case which the method is indexed.
-	if tx.Stream.Request_method.Static_table_entry != 0 {
-		switch tx.Stream.Request_method.Static_table_entry {
-		case GetValue:
-			return http.MethodGet
-		case PostValue:
-			return http.MethodPost
-		default:
-			return http.MethodUnknown
-		}
+	if tx.resolveMethod() {
+		return tx.method.value
 	}
-
-	// if the length of the method is greater than the buffer, then we return 0.
-	if int(tx.Stream.Request_method.Length) > len(tx.Stream.Request_method.Raw_buffer) || tx.Stream.Request_method.Length == 0 {
-		if oversizedLogLimit.ShouldLog() {
-			log.Errorf("method length %d is longer than the size buffer: %v and is huffman encoded: %v",
-				tx.Stream.Request_method.Length, tx.Stream.Request_method.Raw_buffer, tx.Stream.Request_method.Is_huffman_encoded)
-		}
-		return http.MethodUnknown
-	}
-
-	// Case which the method is literal.
-	if tx.Stream.Request_method.Is_huffman_encoded {
-		method, err = hpack.HuffmanDecodeToString(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
-		if err != nil {
-			return http.MethodUnknown
-		}
-	} else {
-		method = string(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
-	}
-	http2Method, err := stringToHTTPMethod(method)
-	if err != nil {
-		return http.MethodUnknown
-	}
-	return http2Method
+	return http.MethodUnknown
 }
 
 // StatusCode returns the status code of the transaction.
@@ -311,9 +314,8 @@ func (tx *ebpfTXWrapper) RequestStarted() uint64 {
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (tx *ebpfTXWrapper) SetRequestMethod(_ http.Method) {
-	// if we set Static_table_entry to be different from 0, and no indexed value, it will default to 0 which is "UNKNOWN"
-	tx.Stream.Request_method.Static_table_entry = 1
+func (tx *ebpfTXWrapper) SetRequestMethod(method http.Method) {
+	tx.method.value = method
 }
 
 // StaticTags returns the static tags of the transaction.

@@ -315,8 +315,7 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
             if (is_method_index(current_header->index)) {
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method.static_table_entry = current_header->index;
-                current_stream->request_method.finalized = true;
+                current_stream->request_method.index = current_header->index;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (is_status_index(current_header->index)) {
                 current_stream->status_code.static_table_entry = current_header->index;
@@ -346,10 +345,7 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 current_stream->status_code.finalized = true;
             } else if (is_method_index(dynamic_value->original_index)) {
                 current_stream->request_started = bpf_ktime_get_ns();
-                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
-                current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
-                current_stream->request_method.finalized = true;
+                current_stream->request_method.index = current_header->index;
             }
         } else {
             // We're in new dynamic header or new dynamic header not indexed states.
@@ -379,10 +375,8 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 current_stream->status_code.finalized = true;
             } else {
                 current_stream->request_started = bpf_ktime_get_ns();
-                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
-                current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
-                current_stream->request_method.finalized = true;
+                current_stream->request_method.index = dynamic_table_value->key.index;
+                current_stream->request_method.temporary = dynamic_table_value->temporary;
             }
 
             // Send dynamic value over a per-event to the user mode.

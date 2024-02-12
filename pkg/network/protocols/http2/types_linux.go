@@ -48,13 +48,6 @@ type http2StatusCode struct {
 	Static_table_entry uint8
 	Finalized          bool
 }
-type http2requestMethod struct {
-	Raw_buffer         [7]uint8
-	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Length             uint8
-	Finalized          bool
-}
 type http2Path struct {
 	Raw_buffer         [160]uint8
 	Is_huffman_encoded bool
@@ -71,10 +64,10 @@ type http2Stream struct {
 	Response_last_seen    uint64
 	Request_started       uint64
 	Status_code           http2StatusCode
-	Request_method        http2requestMethod
+	Request_method        http2InterestingValue
 	Path                  http2Path
 	Request_end_of_stream bool
-	Pad_cgo_0             [2]byte
+	Pad_cgo_0             [3]byte
 }
 type http2DynamicTableValue struct {
 	Key                HTTP2DynamicTableIndex
