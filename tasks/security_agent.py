@@ -371,10 +371,9 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     kernel_release=None,
-    windows=False,
     debug=False,
 ):
-    if not windows:
+    if not is_windows:
         build_cws_object_files(
             ctx,
             major_version=major_version,
@@ -391,7 +390,7 @@ def build_functional_tests(
         env["GOARCH"] = "386"
 
     build_tags = build_tags.split(",")
-    if not windows:
+    if not is_windows:
         build_tags.append("linux_bpf")
         build_tags.append("trivy")
         build_tags.append("containerd")
@@ -753,8 +752,8 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.5.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32.0")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
             ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
 
             plugin_opts = " ".join(
@@ -831,14 +830,14 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows, skip_linters=False):
+def kitchen_prepare(ctx, skip_linters=False):
     """
     Compile test suite for kitchen
     """
 
     out_binary = "testsuite"
     race = True
-    if windows:
+    if is_windows:
         out_binary = "testsuite.exe"
         race = False
 
@@ -855,9 +854,8 @@ def kitchen_prepare(ctx, windows=is_windows, skip_linters=False):
         debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,
-        windows=windows,
     )
-    if windows:
+    if is_windows:
         # build the ETW tests binary also
         testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "etw", out_binary)
         srcpath = 'pkg/security/probe'
@@ -869,7 +867,6 @@ def kitchen_prepare(ctx, windows=is_windows, skip_linters=False):
             race=race,
             debug=True,
             skip_linters=skip_linters,
-            windows=windows,
         )
 
         return

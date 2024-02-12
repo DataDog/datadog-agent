@@ -80,7 +80,7 @@ build do
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
-    bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
+    bundle_arg = bundled_agents ? bundled_agents.map { |k| "--bundle #{k}" }.join(" ") : "--bundle agent"
     command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
   end
 
@@ -125,7 +125,7 @@ build do
 
   # Process agent
   if not bundled_agents.include? "process-agent"
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} #{arch_arg}", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} #{arch_arg} --no-bundle", :env => env
   end
 
   if windows_target?
@@ -139,10 +139,9 @@ build do
   if sysprobe_support
     if not bundled_agents.include? "system-probe"
       if windows_target?
-        ## don't bother with system probe build on x86.
-        command "invoke -e system-probe.build --windows"
+        command "invoke -e system-probe.build"
       elsif linux_target?
-        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}"
+        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle"
       end
     end
 
@@ -165,7 +164,7 @@ build do
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
     if not bundled_agents.include? "security-agent"
-      command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
+      command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --no-bundle", :env => env
     end
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
