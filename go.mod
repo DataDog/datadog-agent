@@ -146,7 +146,7 @@ require (
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.1
-	github.com/elastic/go-libaudit v0.4.0
+	github.com/elastic/go-libaudit/v2 v2.5.0
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/fatih/color v1.16.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
@@ -699,6 +699,7 @@ require (
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/ebitengine/purego v0.6.0-alpha.5 // indirect
+	github.com/elastic/go-licenser v0.4.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
