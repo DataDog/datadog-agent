@@ -9,6 +9,7 @@ package kafka
 
 import (
 	"fmt"
+
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 )
 
