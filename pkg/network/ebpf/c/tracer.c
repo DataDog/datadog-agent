@@ -245,7 +245,6 @@ int kretprobe__tcp_close_clean_protocols(struct pt_regs *ctx) {
 
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close_flush_batch_ringbuffer(struct pt_regs *ctx) {
-    log_debug("kretprobe/tcp_close_flush_batch_ringbuff: pid_tgid: %d", bpf_get_current_pid_tgid());
     flush_conn_close_if_full_ringbuffer(ctx);
     return 0;
 }
@@ -260,7 +259,6 @@ int kprobe__tcp_close_flush_individual_conn_perfbuffer(struct pt_regs *ctx) {
 
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close_flush_batch_perfbuffer(struct pt_regs *ctx) {
-    log_debug("kretprobe/tcp_close_flush_perfbuffer pid_tgid: %d", bpf_get_current_pid_tgid());
     flush_conn_close_if_full_perfbuffer(ctx);
     return 0;
 }

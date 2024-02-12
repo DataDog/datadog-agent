@@ -198,7 +198,6 @@ static __always_inline void flush_conn_close_if_full_ringbuffer(void *ctx) {
             bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
         }
     #endif
-    // todo: add telemetry on batched_tcp_close
 }
 
 #endif // __TRACER_EVENTS_H
