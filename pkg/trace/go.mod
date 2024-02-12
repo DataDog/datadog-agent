@@ -34,7 +34,7 @@ require (
 	go.opentelemetry.io/collector/component v0.93.0
 	go.opentelemetry.io/collector/pdata v1.0.1
 	go.opentelemetry.io/collector/semconv v0.93.0
-	go.opentelemetry.io/otel v1.22.0
+	go.opentelemetry.io/otel v1.23.1
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.16.0
 	golang.org/x/time v0.3.0
@@ -96,10 +96,10 @@ require (
 	go.opentelemetry.io/collector/confmap v0.93.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.0.1 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.45.0 // indirect
-	go.opentelemetry.io/otel/metric v1.22.0 // indirect
+	go.opentelemetry.io/otel/metric v1.23.1 // indirect
 	go.opentelemetry.io/otel/sdk v1.22.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.22.0 // indirect
-	go.opentelemetry.io/otel/trace v1.22.0 // indirect
+	go.opentelemetry.io/otel/trace v1.23.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/mod v0.14.0 // indirect
