@@ -234,7 +234,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            parse_field_indexed(current_stream, dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, flipped);
+            parse_field_indexed(current_stream, dynamic_index, index, *global_dynamic_counter, http2_tel, flipped);
             continue;
         }
         // Increment the global dynamic counter for each literal header field.
