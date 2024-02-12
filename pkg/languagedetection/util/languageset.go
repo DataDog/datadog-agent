@@ -22,6 +22,17 @@ type Language string
 // LanguageSet handles storing sets of languages
 type LanguageSet map[Language]struct{}
 
+// DeepCopy returns a deep copy of the current language set
+func (s LanguageSet) DeepCopy() LanguageSet {
+	copyLanguageSet := LanguageSet{}
+
+	for lang := range s {
+		copyLanguageSet[lang] = struct{}{}
+	}
+
+	return copyLanguageSet
+}
+
 // Add adds a new language to the language set
 // returns false if the language is already
 // included in the set, and true otherwise

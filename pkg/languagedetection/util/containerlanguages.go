@@ -8,7 +8,7 @@ package util
 import (
 	"fmt"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"maps"
+
 	"reflect"
 	"sort"
 	"strings"
@@ -56,7 +56,7 @@ func (c ContainersLanguages) DeepCopy() ContainersLanguages {
 	cCopy := make(ContainersLanguages)
 
 	for container, langSet := range c {
-		cCopy[container] = maps.Clone(langSet)
+		cCopy[container] = langSet.DeepCopy()
 	}
 
 	return cCopy
