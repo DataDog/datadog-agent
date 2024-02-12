@@ -856,7 +856,6 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             ctx,
             packages=pkg,
             skip_object_files=(i != 0),
-            skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
             kernel_release=kernel_release,
