@@ -17,10 +17,8 @@ import (
 	"go.uber.org/atomic"
 	"go4.org/intern"
 
-	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -84,9 +82,9 @@ func UnregisterHandler(handler ProcessEventHandler) {
 	m.UnregisterHandler(handler)
 }
 
-type eventHandlerWrapper struct{}
+type eventConsumerWrapper struct{}
 
-func (h *eventHandlerWrapper) HandleEvent(ev any) {
+func (h *eventConsumerWrapper) HandleEvent(ev any) {
 	if ev == nil {
 		log.Errorf("Received nil event")
 		return
@@ -105,9 +103,8 @@ func (h *eventHandlerWrapper) HandleEvent(ev any) {
 }
 
 // Copy copies the necessary fields from the event received from the event monitor
-func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
-	m := theMonitor.Load()
-	if m == nil {
+func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
+	if theMonitor.Load() == nil {
 		return nil
 	}
 
@@ -145,18 +142,19 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 	return p
 }
 
-func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	m := theMonitor.Load()
-	if m != nil {
-		m.(*eventMonitor).HandleCustomEvent(rule, event)
+// EventTypes returns the event types handled by this consumer
+func (h *eventConsumerWrapper) EventTypes() []model.EventType {
+	return []model.EventType{
+		model.ForkEventType,
+		model.ExecEventType,
 	}
 }
 
-var eventConsumerWrapper = &eventHandlerWrapper{}
+var _eventConsumerWrapper = &eventConsumerWrapper{}
 
 // Handler returns an event handler to handle events from the runtime security module
-func Handler() sprobe.EventConsumer {
-	return eventConsumerWrapper
+func Consumer() sprobe.EventConsumer {
+	return _eventConsumerWrapper
 }
 
 type eventMonitor struct {
@@ -176,10 +174,6 @@ func (e *eventMonitor) HandleEvent(ev *Process) {
 	for _, h := range e.handlers {
 		h.HandleProcessEvent(ev)
 	}
-}
-
-//nolint:revive // TODO(NET) Fix revive linter
-func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 }
 
 func (e *eventMonitor) RegisterHandler(handler ProcessEventHandler) {

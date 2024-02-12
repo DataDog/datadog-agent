@@ -43,17 +43,20 @@ func NewProcessConsumer(evm *eventmonitor.EventMonitor) (*ProcessConsumer, error
 
 	api.RegisterEventMonitoringModuleServer(evm.GRPCServer, p)
 
-	if err := evm.AddEventConsumer(smodel.ForkEventType, p); err != nil {
-		return nil, err
-	}
-	if err := evm.AddEventConsumer(smodel.ExecEventType, p); err != nil {
-		return nil, err
-	}
-	if err := evm.AddEventConsumer(smodel.ExitEventType, p); err != nil {
+	if err := evm.AddEventConsumer(p); err != nil {
 		return nil, err
 	}
 
 	return p, nil
+}
+
+// EventTypes returns the event types handled by this consumer
+func (p *ProcessConsumer) EventTypes() []smodel.EventType {
+	return []smodel.EventType{
+		smodel.ForkEventType,
+		smodel.ExecEventType,
+		smodel.ExitEventType,
+	}
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

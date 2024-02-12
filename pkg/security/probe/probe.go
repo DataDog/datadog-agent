@@ -9,7 +9,9 @@
 package probe
 
 import (
+	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -23,6 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+)
+
+const (
+	defaultConsumerChanSize = 50
 )
 
 // PlatformProbe defines a platform dependant probe
@@ -56,6 +62,29 @@ type EventHandler interface {
 type EventConsumer interface {
 	HandleEvent(event any)
 	Copy(_ *model.Event) any
+	EventTypes() []model.EventType
+}
+
+// ProbeEventConsumer defines a probe event consumer
+type ProbeEventConsumer struct {
+	consumer EventConsumer
+	eventCh  chan any
+}
+
+// Start the consumer
+func (p *ProbeEventConsumer) Start(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			select {
+			case <-ctx.Done():
+			case event := <-p.eventCh:
+				p.consumer.HandleEvent(event)
+			}
+		}
+	}()
 }
 
 // CustomEventHandler represents an handler for the custom events sent by the probe
@@ -75,14 +104,18 @@ type Probe struct {
 	Opts         Opts
 	Config       *config.Config
 	StatsdClient statsd.ClientInterface
-	startTime    time.Time
 
 	// internals
-	scrubber *procutil.DataScrubber
+	ctx       context.Context
+	cancelFnc func()
+	wg        sync.WaitGroup
+	startTime time.Time
+	scrubber  *procutil.DataScrubber
 
 	// Events section
+	consumers           []*ProbeEventConsumer
 	eventHandlers       [model.MaxAllEventType][]EventHandler
-	eventConsumers      [model.MaxAllEventType][]EventConsumer
+	eventConsumers      [model.MaxAllEventType][]*ProbeEventConsumer
 	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
 }
 
@@ -99,6 +132,12 @@ func (p *Probe) Setup() error {
 
 // Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
+	p.ctx, p.cancelFnc = context.WithCancel(context.Background())
+
+	for _, pc := range p.consumers {
+		pc.Start(p.ctx, &p.wg)
+	}
+
 	return p.PlatformProbe.Start()
 }
 
@@ -114,6 +153,8 @@ func (p *Probe) Close() error {
 
 // Stop the probe
 func (p *Probe) Stop() {
+	p.cancelFnc()
+
 	p.PlatformProbe.Stop()
 }
 
@@ -167,12 +208,21 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 }
 
 // AddEventConsumer sets a probe event consumer
-func (p *Probe) AddEventConsumer(eventType model.EventType, handler EventConsumer) error {
-	if eventType >= model.MaxAllEventType {
-		return errors.New("unsupported event type")
+func (p *Probe) AddEventConsumer(consumer EventConsumer) error {
+	pc := &ProbeEventConsumer{
+		consumer: consumer,
+		eventCh:  make(chan any, defaultConsumerChanSize),
 	}
 
-	p.eventConsumers[eventType] = append(p.eventConsumers[eventType], handler)
+	for _, eventType := range consumer.EventTypes() {
+		if eventType >= model.MaxAllEventType {
+			return errors.New("unsupported event type")
+		}
+
+		p.eventConsumers[eventType] = append(p.eventConsumers[eventType], pc)
+	}
+
+	p.consumers = append(p.consumers, pc)
 
 	return nil
 }
@@ -202,8 +252,13 @@ func (p *Probe) sendEventToHandlers(event *model.Event) {
 }
 
 func (p *Probe) sendEventToConsumers(event *model.Event) {
-	for _, handler := range p.eventConsumers[event.GetEventType()] {
-		handler.HandleEvent(handler.Copy(event))
+	for _, pc := range p.eventConsumers[event.GetEventType()] {
+		if copied := pc.consumer.Copy(event); copied != nil {
+			select {
+			case pc.eventCh <- copied:
+			default:
+			}
+		}
 	}
 }
 
