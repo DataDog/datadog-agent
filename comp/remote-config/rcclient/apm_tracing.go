@@ -5,7 +5,7 @@
 
 package rcclient
 
-var apmTracingFilePath = "/opt/datadog/inject/inject_config.yaml"
+var apmTracingFilePath = "/opt/datadog-agent/run/inject_config.yaml"
 
 // InvalidAPMTracingPayload indicates we received an APM_TRACING payload we were unable to decode
 const InvalidAPMTracingPayload = "INVALID_APM_TRACING_PAYLOAD"

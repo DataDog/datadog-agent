@@ -295,8 +295,6 @@ type ListenerProvider struct {
 }
 
 func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
-	pkglog.Infof("Starting APM_TRACING remote update!!!!!!!!!!!!!!!!!!!!!!!!!!: %v", update)
-
 	if len(update) == 0 {
 		// Empty update means revert to default behavior, so remove any existing config file
 		err := os.Remove(apmTracingFilePath)
@@ -351,7 +349,7 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 		pkglog.Errorf("Failed to marshal APM_TRACING config update %v", err)
 		return
 	}
-	err = os.WriteFile(apmTracingFilePath, configFile, 0666)
+	err = os.WriteFile(apmTracingFilePath, configFile, 0644)
 	if err != nil {
 		pkglog.Errorf("Failed to write single step config data file from APM_TRACING config: %v", err)
 		// Failed to write file, report failure for all updates
