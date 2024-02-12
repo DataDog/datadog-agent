@@ -657,11 +657,11 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
 	maxConnsPerMessage := 1
-		var (
-			enabled               = mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
-			useWindowsServiceName = mockConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-		)
-		ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
+	var (
+		enabled               = mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
+		useWindowsServiceName = mockConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+	)
+	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
 	ex.Extract(procsByPid)
 
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex)
