@@ -98,7 +98,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	})
 
 	// register as event handler
-	if err := probe.AddFullAccessEventHandler(engine); err != nil {
+	if err := probe.AddEventHandler(engine); err != nil {
 		return nil, err
 	}
 

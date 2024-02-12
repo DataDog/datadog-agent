@@ -47,13 +47,13 @@ type PlatformProbe interface {
 	GetEventTags(_ string) []string
 }
 
-// FullAccessEventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
-type FullAccessEventHandler interface {
+// EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
+type EventHandler interface {
 	HandleEvent(event *model.Event)
 }
 
-// EventHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventHandler interface {
+// EventConsumer represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
+type EventConsumer interface {
 	HandleEvent(event any)
 	Copy(_ *model.Event) any
 }
@@ -81,9 +81,9 @@ type Probe struct {
 	scrubber *procutil.DataScrubber
 
 	// Events section
-	fullAccessEventHandlers [model.MaxAllEventType][]FullAccessEventHandler
-	eventHandlers           [model.MaxAllEventType][]EventHandler
-	customEventHandlers     [model.MaxAllEventType][]CustomEventHandler
+	eventHandlers       [model.MaxAllEventType][]EventHandler
+	eventConsumers      [model.MaxAllEventType][]EventConsumer
+	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
 }
 
 // Init initializes the probe
@@ -166,20 +166,20 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 	p.PlatformProbe.HandleActions(ctx, rule)
 }
 
-// AddEventHandler sets a probe event handler
-func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
+// AddEventConsumer sets a probe event consumer
+func (p *Probe) AddEventConsumer(eventType model.EventType, handler EventConsumer) error {
 	if eventType >= model.MaxAllEventType {
 		return errors.New("unsupported event type")
 	}
 
-	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
+	p.eventConsumers[eventType] = append(p.eventConsumers[eventType], handler)
 
 	return nil
 }
 
-// AddFullAccessEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
-func (p *Probe) AddFullAccessEventHandler(handler FullAccessEventHandler) error {
-	p.fullAccessEventHandlers[model.UnknownEventType] = append(p.fullAccessEventHandlers[model.UnknownEventType], handler)
+// AddEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
+func (p *Probe) AddEventHandler(handler EventHandler) error {
+	p.eventHandlers[model.UnknownEventType] = append(p.eventHandlers[model.UnknownEventType], handler)
 
 	return nil
 }
@@ -195,14 +195,14 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 	return nil
 }
 
-func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
-	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
+func (p *Probe) sendEventToHandlers(event *model.Event) {
+	for _, handler := range p.eventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
 }
 
-func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
-	for _, handler := range p.eventHandlers[event.GetEventType()] {
+func (p *Probe) sendEventToConsumers(event *model.Event) {
+	for _, handler := range p.eventConsumers[event.GetEventType()] {
 		handler.HandleEvent(handler.Copy(event))
 	}
 }

@@ -70,12 +70,12 @@ func BenchmarkSendSpecificEvent(b *testing.B) {
 		}
 
 		for i := 0; i < 10; i++ {
-			p.AddEventHandler(model.ExecEventType, eventHandler)
+			p.AddEventConsumer(model.ExecEventType, eventHandler)
 		}
 
 		b.Run(tt.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				p.sendEventToSpecificEventTypeHandlers(tt.args.event)
+				p.sendEventToConsumers(tt.args.event)
 			}
 		})
 	}
