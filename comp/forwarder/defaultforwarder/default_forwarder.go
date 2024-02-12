@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	pkgcfgutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -278,7 +277,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		isHA := false
 		if config.GetBool("ha.enabled") && config.GetString("ha.site") != "" {
 			log.Infof("HA is enabled, checking site: %v ", config.GetString("ha.site"))
-			siteURL := pkgcfgutils.BuildURLWithPrefix(pkgcfgutils.InfraURLPrefix, config.GetString("ha.site"))
+			siteURL := utils.BuildURLWithPrefix(utils.InfraURLPrefix, config.GetString("ha.site"))
 			if domain == siteURL {
 				log.Infof("HA domain '%s', configured ", domain)
 				isHA = true

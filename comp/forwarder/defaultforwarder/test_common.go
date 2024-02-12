@@ -34,6 +34,14 @@ func newTestTransaction() *testTransaction {
 	return t
 }
 
+func newTestTransactionWithKind(kind transaction.Kind) *testTransaction {
+	t := new(testTransaction)
+	t.assertClient = true
+	t.kind = kind
+	t.processed = make(chan bool, 1)
+	return t
+}
+
 func newTestTransactionWithoutClientAssert() *testTransaction {
 	t := new(testTransaction)
 	t.assertClient = false
@@ -111,7 +119,7 @@ func (tf *MockedForwarder) SubmitSeries(payload transaction.BytesPayloads, extra
 }
 
 // SubmitV1Intake updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
+func (tf *MockedForwarder) SubmitV1Intake(payload transaction.BytesPayloads, _ transaction.Kind, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }
 
