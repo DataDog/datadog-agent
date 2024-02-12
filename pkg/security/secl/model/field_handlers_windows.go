@@ -84,7 +84,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 	case "open_registry_key":
-	case "set_regisry_key_value":
+	case "set_registry_key_value":
 	}
 }
 
