@@ -14,20 +14,20 @@ import (
 )
 
 const (
-	minSupportedApiVersion = 1
-	maxSupportedApiVersion = 11
+	minSupportedAPIVersion = 1
+	maxSupportedAPIVersion = 11
 )
 
 // apiVersionCounter is a Kafka API version aware counter, it has a counter for each supported Kafka API version.
 // It enables the use of a single metric that increments based on the API version, avoiding the need for separate metrics for API version
 type apiVersionCounter struct {
-	hitsVersions           [maxSupportedApiVersion]*libtelemetry.Counter
+	hitsVersions           [maxSupportedAPIVersion]*libtelemetry.Counter
 	hitsUnsupportedVersion *libtelemetry.Counter
 }
 
-// NewAPIVersionCounter creates and returns a new instance of apiVersionCounter
-func NewAPIVersionCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *apiVersionCounter {
-	var hitsVersions [maxSupportedApiVersion]*libtelemetry.Counter
+// newAPIVersionCounter creates and returns a new instance of apiVersionCounter
+func newAPIVersionCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *apiVersionCounter {
+	var hitsVersions [maxSupportedAPIVersion]*libtelemetry.Counter
 	for i := 0; i < len(hitsVersions); i++ {
 		hitsVersions[i] = metricGroup.NewCounter(metricName, append(tags, fmt.Sprintf("protocol_version:%d", i+1))...)
 	}
@@ -37,9 +37,9 @@ func NewAPIVersionCounter(metricGroup *libtelemetry.MetricGroup, metricName stri
 	}
 }
 
-// Add increments the APIVersion counter based on the specified request api version
+// Add increments the API version counter based on the specified request api version
 func (c *apiVersionCounter) Add(tx *EbpfTx) {
-	if tx.Request_api_version < minSupportedApiVersion || tx.Request_api_version > maxSupportedApiVersion {
+	if tx.Request_api_version < minSupportedAPIVersion || tx.Request_api_version > maxSupportedAPIVersion {
 		c.hitsUnsupportedVersion.Add(1)
 		return
 	}

@@ -26,8 +26,8 @@ func NewTelemetry() *Telemetry {
 
 	return &Telemetry{
 		metricGroup: metricGroup,
-		produceHits: NewAPIVersionCounter(metricGroup, "total_hits", "operation:produce", libtelemetry.OptStatsd),
-		fetchHits:   NewAPIVersionCounter(metricGroup, "total_hits", "operation:fetch", libtelemetry.OptStatsd),
+		produceHits: newAPIVersionCounter(metricGroup, "total_hits", "operation:produce", libtelemetry.OptStatsd),
+		fetchHits:   newAPIVersionCounter(metricGroup, "total_hits", "operation:fetch", libtelemetry.OptStatsd),
 		dropped:     metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
 	}
 }

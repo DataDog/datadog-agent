@@ -80,13 +80,13 @@ func TestTelemetry_Count(t *testing.T) {
 
 func verifyHitsCount(t *testing.T, telemetry *Telemetry, tx *EbpfTx) {
 	if tx.Request_api_key == 0 {
-		if tx.Request_api_version < minSupportedApiVersion || tx.Request_api_version > maxSupportedApiVersion {
+		if tx.Request_api_version < minSupportedAPIVersion || tx.Request_api_version > maxSupportedAPIVersion {
 			assert.Equal(t, telemetry.produceHits.hitsUnsupportedVersion.Get(), int64(1), "hitsUnsupportedVersion count is incorrect")
 			return
 		}
 		assert.Equal(t, telemetry.produceHits.hitsVersions[tx.Request_api_version-1].Get(), int64(1), "produceHits count is incorrect")
 	} else if tx.Request_api_key == 1 {
-		if tx.Request_api_version < minSupportedApiVersion || tx.Request_api_version > maxSupportedApiVersion {
+		if tx.Request_api_version < minSupportedAPIVersion || tx.Request_api_version > maxSupportedAPIVersion {
 			assert.Equal(t, telemetry.fetchHits.hitsUnsupportedVersion.Get(), int64(1), "hitsUnsupportedVersion count is incorrect")
 			return
 		}
