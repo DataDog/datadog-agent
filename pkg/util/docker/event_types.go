@@ -21,6 +21,10 @@ import (
 // This action is not a docker-native action.
 const ImageEventActionSbom = "sbom"
 
+// ActionDied is a custom action for container events
+// This action is a podman-specific event
+const ActionDied = events.Action("died")
+
 var containerEventActions = []events.Action{
 	events.ActionStart,
 	events.ActionDie,
@@ -33,7 +37,18 @@ var imageEventActions = []events.Action{
 	events.ActionDelete,
 	events.ActionTag,
 	events.ActionUnTag,
+	ActionDied,
 	// TODO: consider adding more image events such as events.ActionImport
+}
+
+var actionPrefixes = []events.Action{
+	events.ActionExecDie,
+	events.ActionExecStart,
+	events.ActionExecDetach,
+	events.ActionExecCreate,
+	events.ActionHealthStatusRunning,
+	events.ActionHealthStatusHealthy,
+	events.ActionHealthStatusUnhealthy,
 }
 
 // ContainerEvent describes a container event from the docker daemon

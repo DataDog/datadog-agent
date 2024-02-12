@@ -314,7 +314,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			PID:        container.State.Pid,
 		}
 
-	case events.ActionDie:
+	case events.ActionDie, docker.ActionDied:
 		var exitCode *uint32
 		if exitCodeString, found := ev.Attributes["exitCode"]; found {
 			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
