@@ -560,12 +560,12 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
         is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
         if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
+            check_frame_split(http2_tel, info->data_off, info->data_end, current_frame.length);
             iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
             iteration_value->frames_array[iteration_value->frames_count].offset = info->data_off;
             iteration_value->frames_count++;
         }
 
-        check_frame_split(http2_tel, info->data_off, info->data_end, current_frame.length);
         info->data_off += current_frame.length;
 
         // If we have found enough interesting frames, we can stop iterating.
@@ -644,12 +644,12 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
+        check_frame_split(http2_tel, dispatcher_args_copy.data_off, dispatcher_args_copy.data_end, current_frame.length);
         iteration_value->frames_array[0].frame = current_frame;
         iteration_value->frames_array[0].offset = dispatcher_args_copy.data_off;
         iteration_value->frames_count = 1;
     }
 
-    check_frame_split(http2_tel, dispatcher_args_copy.data_off, dispatcher_args_copy.data_end, current_frame.length);
     dispatcher_args_copy.data_off += current_frame.length;
     // We're exceeding the packet boundaries, so we have a remainder.
     if (dispatcher_args_copy.data_off > dispatcher_args_copy.data_end) {
