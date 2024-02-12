@@ -14,6 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -21,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/collector"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -30,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -79,7 +81,7 @@ type inventorychecksImpl struct {
 
 	log      log.Component
 	conf     config.Component
-	coll     optional.Option[collector.Collector]
+	coll     optional.Option[collector.Component]
 	sources  optional.Option[*sources.LogSources]
 	hostname string
 }
@@ -90,7 +92,7 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	Coll       optional.Option[collector.Collector]
+	Coll       optional.Option[collector.Component]
 	LogAgent   optional.Option[logagent.Component]
 }
 
@@ -119,7 +121,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 	// component we can migrate it there and remove the entire logic to emit event from the collector.
 
 	if coll, isSet := ic.coll.Get(); isSet {
-		coll.AddEventReceiver(func(_ checkid.ID, _ collector.EventType) { ic.Refresh() })
+		coll.AddEventReceiver(func(_ checkid.ID, _ pkgcollector.EventType) { ic.Refresh() })
 	}
 
 	if logAgent, isSet := deps.LogAgent.Get(); isSet {
@@ -175,14 +177,18 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 }
 
 func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
+	ic.m.Lock()
+	defer ic.m.Unlock()
+
 	payloadData := make(checksMetadata)
+	invChecksEnabled := ic.conf.GetBool("inventories_checks_configuration_enabled")
 
 	if coll, isSet := ic.coll.Get(); isSet {
 		foundInCollector := map[string]struct{}{}
 
 		coll.MapOverChecks(func(checks []check.Info) {
 			for _, c := range checks {
-				cm := check.GetMetadata(c, ic.conf.GetBool("inventories_checks_configuration_enabled"))
+				cm := check.GetMetadata(c, invChecksEnabled)
 
 				if checkData, found := ic.data[string(c.ID())]; found {
 					for key, val := range checkData.metadata {
@@ -208,7 +214,7 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 	}
 
 	logsMetadata := make(map[string][]metadata)
-	if sources, isSet := ic.sources.Get(); isSet {
+	if sources, isSet := ic.sources.Get(); isSet && invChecksEnabled {
 		if sources != nil {
 			for _, logSource := range sources.GetSources() {
 				if _, found := logsMetadata[logSource.Name]; !found {

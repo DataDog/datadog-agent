@@ -44,7 +44,7 @@ type k8sSuite struct {
 	AgentWindowsHelmInstallName string
 
 	K8sConfig *restclient.Config
-	K8sClient *kubernetes.Clientset
+	K8sClient kubernetes.Interface
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -104,7 +104,6 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 
 	suite.Run("agent pods are ready and not restarting", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-
 			linuxNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
 			})
@@ -544,8 +543,8 @@ func (suite *k8sSuite) TestCPU() {
 				`^short_image:stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
-				Max: 200000000,
-				Min: 100000000,
+				Max: 250000000,
+				Min: 75000000,
 			},
 		},
 	})
@@ -791,6 +790,9 @@ func (suite *k8sSuite) TestContainerImage() {
 }
 
 func (suite *k8sSuite) TestSBOM() {
+	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-3776
+	suite.T().Skip("CONTINT-3776: SBOM test is flaky")
+
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged

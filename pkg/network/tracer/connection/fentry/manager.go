@@ -12,13 +12,13 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, cfg *config.Config) {
+func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, cfg *config.Config) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -30,8 +30,6 @@ func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, cfg
 		{Name: probes.UDPPortBindingsMap},
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
-		{Name: probes.SockByPidFDMap},
-		{Name: probes.PidFDBySockMap},
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},
 	}
@@ -47,7 +45,7 @@ func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, cfg
 		},
 	}
 	mgr.PerfMaps = []*manager.PerfMap{pm}
-	ebpf.ReportPerfMapTelemetry(pm)
+	ebpftelemetry.ReportPerfMapTelemetry(pm)
 
 	for funcName := range programs {
 		p := &manager.Probe{

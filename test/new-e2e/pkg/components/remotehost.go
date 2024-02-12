@@ -6,9 +6,12 @@
 package components
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -27,7 +30,7 @@ import (
 const (
 	// Waiting for only 10s as we expect remote to be ready when provisioning
 	sshRetryInterval = 2 * time.Second
-	sshMaxRetries    = 5
+	sshMaxRetries    = 20
 )
 
 // RemoteHost represents a remote host
@@ -48,16 +51,28 @@ func (h *RemoteHost) Init(ctx e2e.Context) error {
 
 // Execute executes a command and returns an error if any.
 func (h *RemoteHost) Execute(command string, options ...ExecuteOption) (string, error) {
+	var err error
+	var output string
+
 	params, err := optional.MakeParams(options...)
 	if err != nil {
 		return "", err
 	}
-	cmd := h.buildEnvVariables(command, params.EnvVariables)
 
-	output, err := clients.ExecuteCommand(h.client, cmd)
+	cmd := h.buildEnvVariables(command, params.EnvVariables)
+	output, err = clients.ExecuteCommand(h.client, cmd)
+
+	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
+		err = h.ReconnectSSH()
+		if err != nil {
+			return "", err
+		}
+		output, err = clients.ExecuteCommand(h.client, cmd)
+	}
 	if err != nil {
 		return "", fmt.Errorf("%v: %v", output, err)
 	}
+
 	return output, nil
 }
 
@@ -100,6 +115,11 @@ func (h *RemoteHost) WriteFile(path string, content []byte) (int64, error) {
 	return clients.WriteFile(h.client, path, content)
 }
 
+// AppendFile append content to the file and returns the number of bytes written and error if any
+func (h *RemoteHost) AppendFile(os, path string, content []byte) (int64, error) {
+	return clients.AppendFile(h.client, os, path, content)
+}
+
 // ReadDir returns list of directory entries in path
 func (h *RemoteHost) ReadDir(path string) ([]fs.DirEntry, error) {
 	return clients.ReadDir(h.client, path)
@@ -128,6 +148,12 @@ func (h *RemoteHost) Remove(path string) error {
 // Returns an error if the directory does not exist.
 func (h *RemoteHost) RemoveAll(path string) error {
 	return clients.RemoveAll(h.client, path)
+}
+
+// DialRemotePort creates a connection to port on the remote host.
+func (h *RemoteHost) DialRemotePort(port uint16) (net.Conn, error) {
+	// TODO: Use e2e context (see: https://github.com/DataDog/datadog-agent/pull/22261#discussion_r1477912456)
+	return h.client.DialContext(context.Background(), "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 }
 
 // ReconnectSSH recreate the SSH connection to the VM. Should be used only after VM reboot to restore the SSH connection.

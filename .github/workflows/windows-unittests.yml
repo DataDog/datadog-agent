@@ -49,13 +49,15 @@ jobs:
 
       - name: Run tests
         shell: bash # using bash so we don't have to check $lastExitCode all the time
+        env:
+          GO_TEST_SKIP_FLAKE: "true"
         run: |
           export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin/:$PATH" # prepend msys, otherwise make from mingw gets used
           echo $PATH
           powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
-          inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation --timeout=600
+          inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation --timeout=600 --build-stdlib
 
       - name: Upload Codecov results
         uses: codecov/codecov-action@v3

@@ -16,12 +16,24 @@ import requests
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
-from .go_test import environ
-from .libs.common.color import color_message
-from .libs.ninja_syntax import NinjaWriter
-from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
-from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
+from tasks.agent import BUNDLED_AGENTS
+from tasks.agent import build as agent_build
+from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import (
+    REPO_PATH,
+    bin_name,
+    environ,
+    get_build_flags,
+    get_common_test_args,
+    get_gobin,
+    get_version_numeric_only,
+    set_co_re_env,
+    set_runtime_comp_env,
+)
+from tasks.libs.ninja_syntax import NinjaWriter
+from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -300,6 +312,7 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
+        "pkg/ebpf/bytecode/runtime/printk_patcher_test.go": "logdebug-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
@@ -326,10 +339,10 @@ def ninja_runtime_compilation_files(nw, gobin):
         )
 
 
-def ninja_cgo_type_files(nw, windows):
+def ninja_cgo_type_files(nw):
     # TODO we could probably preprocess the input files to find out the dependencies
     nw.pool(name="cgo_pool", depth=1)
-    if windows:
+    if is_windows:
         go_platform = "windows"
         def_files = {
             "pkg/network/driver/types.go": [
@@ -379,7 +392,7 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
-            "pkg/network/telemetry/telemetry_types.go": [
+            "pkg/ebpf/telemetry/types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
             ],
             "pkg/network/tracer/offsetguess/offsetguess_types.go": [
@@ -430,7 +443,6 @@ def ninja_cgo_type_files(nw, windows):
 def ninja_generate(
     ctx,
     ninja_path,
-    windows,
     major_version='7',
     arch=CURRENT_ARCH,
     debug=False,
@@ -444,7 +456,7 @@ def ninja_generate(
     with open(ninja_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
 
-        if windows:
+        if is_windows:
             if arch == "x86":
                 raise Exit(message="system probe not supported on x86")
 
@@ -476,7 +488,7 @@ def ninja_generate(
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
 
-        ninja_cgo_type_files(nw, windows)
+        ninja_cgo_type_files(nw)
 
 
 @task
@@ -487,7 +499,6 @@ def build(
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
-    windows=is_windows,
     arch=CURRENT_ARCH,
     bundle_ebpf=False,
     kernel_release=None,
@@ -495,13 +506,13 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
+    bundle=True,
 ):
     """
     Build the system-probe
     """
     build_object_files(
         ctx,
-        windows=windows,
         major_version=major_version,
         arch=arch,
         kernel_release=kernel_release,
@@ -520,18 +531,17 @@ def build(
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
+        bundle=bundle,
     )
 
 
 @task
 def clean(
     ctx,
-    windows=is_windows,
     arch=CURRENT_ARCH,
 ):
     clean_object_files(
         ctx,
-        windows=windows,
         arch=arch,
     )
     ctx.run("go clean -cache")
@@ -547,11 +557,26 @@ def build_sysprobe_binary(
     go_mod="mod",
     arch=CURRENT_ARCH,
     binary=BIN_PATH,
+    install_path=None,
     bundle_ebpf=False,
     strip_binary=False,
+    bundle=True,
 ):
+    if bundle and not is_windows:
+        return agent_build(
+            ctx,
+            race=race,
+            major_version=major_version,
+            python_runtimes=python_runtimes,
+            arch=arch,
+            go_mod=go_mod,
+            bundle_ebpf=bundle_ebpf,
+            bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
+        )
+
     ldflags, gcflags, env = get_build_flags(
         ctx,
+        install_path=install_path,
         major_version=major_version,
         python_runtimes=python_runtimes,
     )
@@ -561,6 +586,9 @@ def build_sysprobe_binary(
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
         ldflags += ' -s -w'
+
+    if os.path.exists(binary):
+        os.remove(binary)
 
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
@@ -590,7 +618,6 @@ def test(
     skip_linters=False,
     skip_object_files=False,
     run=None,
-    windows=is_windows,
     failfast=False,
     kernel_release=None,
     timeout=None,
@@ -608,43 +635,35 @@ def test(
             "preserve your environment",
         )
 
-    if not skip_linters and not windows:
+    if not skip_linters and not is_windows:
         clang_format(ctx)
         clang_tidy(ctx)
 
     if not skip_object_files:
         build_object_files(
             ctx,
-            windows=windows,
             kernel_release=kernel_release,
         )
 
     build_tags = [NPM_TAG]
     build_tags.extend(UNIT_TEST_TAGS)
-    if not windows:
+    if not is_windows:
         build_tags.append(BPF_TAG)
         if bundle_ebpf:
             build_tags.append(BUNDLE_TAG)
 
-    args = {
-        "build_tags": ",".join(build_tags),
-        "output_params": f"-c -o {output_path}" if output_path else "",
-        "run": f"-run {run}" if run else "",
-        "failfast": "-failfast" if failfast else "",
-        "go": "go",
-        "sudo": "sudo -E " if not windows and not output_path and not is_root() else "",
-    }
+    args = get_common_test_args(build_tags, failfast)
+    args["output_params"] = f"-c -o {output_path}" if output_path else ""
+    args["run"] = f"-run {run}" if run else ""
+    args["go"] = "go"
+    args["sudo"] = "sudo -E " if not is_windows and not output_path and not is_root() else ""
 
     _, _, env = get_build_flags(ctx)
-    env['DD_SYSTEM_PROBE_BPF_DIR'] = EMBEDDED_SHARE_DIR
+    env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
     if runtime_compiled:
-        env['DD_ENABLE_RUNTIME_COMPILER'] = "true"
-        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
-        env['DD_ENABLE_CO_RE'] = "false"
+        set_runtime_comp_env(env)
     elif co_re:
-        env['DD_ENABLE_CO_RE'] = "true"
-        env['DD_ALLOW_RUNTIME_COMPILED_FALLBACK'] = "false"
-        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
+        set_co_re_env(env)
 
     go_root = os.getenv("GOROOT")
     if go_root:
@@ -667,6 +686,65 @@ def test(
     if len(failed_pkgs) > 0:
         print(color_message("failed packages:\n" + "\n".join(failed_pkgs), "red"))
         raise Exit(code=1, message="system-probe tests failed")
+
+
+@task(
+    help={
+        "package": "The package to test. REQUIRED ",
+        "skip_object_files": "Skip rebuilding the object files.",
+        "run": "The name of the test to run. REQUIRED",
+    }
+)
+def test_debug(
+    ctx,
+    package,
+    run,
+    bundle_ebpf=False,
+    runtime_compiled=False,
+    co_re=False,
+    skip_object_files=False,
+    failfast=False,
+    kernel_release=None,
+):
+    """
+    Run delve on a specific system-probe test.
+    """
+
+    if os.getenv("GOPATH") is None:
+        raise Exit(
+            code=1,
+            message="GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to "
+            "preserve your environment",
+        )
+
+    if not skip_object_files:
+        build_object_files(
+            ctx,
+            kernel_release=kernel_release,
+        )
+
+    build_tags = [NPM_TAG]
+    build_tags.extend(UNIT_TEST_TAGS)
+    if not is_windows:
+        build_tags.append(BPF_TAG)
+        if bundle_ebpf:
+            build_tags.append(BUNDLE_TAG)
+
+    args = get_common_test_args(build_tags, failfast)
+    args["run"] = run
+    args["dlv"] = "dlv"
+    args["sudo"] = "sudo -E " if not is_windows and not is_root() else ""
+    args["dir"] = package
+
+    _, _, env = get_build_flags(ctx)
+    env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
+    if runtime_compiled:
+        set_runtime_comp_env(env)
+    elif co_re:
+        set_co_re_env(env)
+
+    cmd = '{sudo}{dlv} test {dir} --build-flags="-mod=mod -v {failfast} -tags={build_tags}" -- -test.run {run}'
+    ctx.run(cmd.format(**args), env=env, pty=True, warn=True)
 
 
 def get_test_timeout(pkg):
@@ -733,12 +811,12 @@ def full_pkg_path(name):
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, packages=""):
+def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
     """
     Compile test suite for kitchen
     """
     build_tags = [NPM_TAG]
-    if not windows:
+    if not is_windows:
         build_tags.append(BPF_TAG)
 
     target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
@@ -775,7 +853,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
     for i, pkg in enumerate(target_packages):
         target_path = os.path.join(KITCHEN_ARTIFACT_DIR, re.sub("^.*datadog-agent.", "", pkg))
         target_bin = "testsuite"
-        if windows:
+        if is_windows:
             target_bin = "testsuite.exe"
 
         test(
@@ -797,12 +875,12 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        for gobin in ["gotls_client", "grpc_external_server", "fmapper", "prefetch_file"]:
+        for gobin in ["gotls_client", "grpc_external_server", "external_unix_proxy_server", "fmapper", "prefetch_file"]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
-            if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
+            if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
-                    ctx.run(f"go build -o {binary_path} -ldflags=\"-extldflags '-static'\" {gobin}.go")
+                    ctx.run(f"go build -o {binary_path} -tags=\"test\" -ldflags=\"-extldflags '-static'\" {gobin}.go")
 
     gopath = os.getenv("GOPATH")
     copy_files = [
@@ -1182,7 +1260,6 @@ def run_ninja(
     task="",
     target="",
     explain=False,
-    windows=is_windows,
     major_version='7',
     arch=CURRENT_ARCH,
     kernel_release=None,
@@ -1192,9 +1269,7 @@ def run_ninja(
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(
-        ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test
-    )
+    ninja_generate(ctx, nf_path, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test)
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1250,7 +1325,6 @@ def verify_system_clang_version(ctx):
 
 def build_object_files(
     ctx,
-    windows=is_windows,
     major_version='7',
     arch=CURRENT_ARCH,
     kernel_release=None,
@@ -1260,7 +1334,7 @@ def build_object_files(
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
-    if not windows:
+    if not is_windows:
         verify_system_clang_version(ctx)
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         setup_runtime_clang(ctx)
@@ -1276,7 +1350,6 @@ def build_object_files(
     run_ninja(
         ctx,
         explain=True,
-        windows=windows,
         major_version=major_version,
         arch=arch,
         kernel_release=kernel_release,
@@ -1285,7 +1358,7 @@ def build_object_files(
         with_unit_test=with_unit_test,
     )
 
-    if not windows:
+    if not is_windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
 
@@ -1345,12 +1418,11 @@ def object_files(ctx, kernel_release=None, with_unit_test=False):
 
 
 def clean_object_files(
-    ctx, windows, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
+    ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
 ):
     run_ninja(
         ctx,
         task="clean",
-        windows=windows,
         major_version=major_version,
         arch=arch,
         debug=debug,
@@ -1360,8 +1432,8 @@ def clean_object_files(
 
 
 @task
-def generate_lookup_tables(ctx, windows=is_windows):
-    if windows:
+def generate_lookup_tables(ctx):
+    if is_windows:
         return
 
     lookup_table_generate_files = [
@@ -1390,18 +1462,6 @@ def is_bpftool_compatible(ctx):
         return True
     except Exception:
         return False
-
-
-@contextlib.contextmanager
-def tempdir():
-    """
-    Helper to create a temp directory and clean it
-    """
-    dirpath = tempfile.mkdtemp()
-    try:
-        yield dirpath
-    finally:
-        shutil.rmtree(dirpath)
 
 
 def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
@@ -1529,6 +1589,69 @@ def generate_minimized_btfs(
 
 
 @task
+def process_btfhub_archive(ctx, branch="main"):
+    """
+    process btfhub-archive repo to only select BTF tarball files of a single architecture
+    :param ctx: invoke context
+    :param branch: branch of DataDog/btfhub-archive to clone
+    """
+    output_dir = os.getcwd()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        with ctx.cd(temp_dir):
+            ctx.run(f"git clone --depth=1 -b {branch} https://github.com/DataDog/btfhub-archive.git")
+            with ctx.cd("btfhub-archive"):
+                # iterate over all top-level directories, which are platforms (amzn, ubuntu, etc.)
+                with os.scandir(ctx.cwd) as pit:
+                    for pdir in pit:
+                        if not pdir.is_dir() or pdir.name.startswith("."):
+                            continue
+
+                        # iterate over second-level directories, which are release versions (2, 20.04, etc.)
+                        with os.scandir(pdir.path) as rit:
+                            for rdir in rit:
+                                if not rdir.is_dir() or rdir.is_symlink():
+                                    continue
+
+                                # iterate over arch directories
+                                with os.scandir(rdir.path) as ait:
+                                    for adir in ait:
+                                        if not adir.is_dir() or adir.name not in {"x86_64", "arm64"}:
+                                            continue
+
+                                        src_dir = adir.path
+                                        # list BTF .tar.xz files in arch dir
+                                        btf_files = os.listdir(src_dir)
+                                        for file in btf_files:
+                                            if not file.endswith(".tar.xz"):
+                                                continue
+                                            src_file = os.path.join(src_dir, file)
+
+                                            # remove release and arch from destination
+                                            btfs_dir = os.path.join(temp_dir, f"btfs-{adir.name}")
+                                            dst_dir = os.path.join(btfs_dir, pdir.name)
+                                            # ubuntu retains release version
+                                            if pdir.name == "ubuntu":
+                                                dst_dir = os.path.join(btfs_dir, pdir.name, rdir.name)
+
+                                            os.makedirs(dst_dir, exist_ok=True)
+                                            dst_file = os.path.join(dst_dir, file)
+                                            if os.path.exists(dst_file):
+                                                raise Exit(message=f"{dst_file} already exists")
+                                            shutil.move(src_file, os.path.join(dst_dir, file))
+
+        # generate both tarballs
+        for arch in ["x86_64", "arm64"]:
+            btfs_dir = os.path.join(temp_dir, f"btfs-{arch}")
+            output_path = os.path.join(output_dir, f"btfs-{arch}.tar.gz")
+            # at least one file needs to be moved for directory to exist
+            if os.path.exists(btfs_dir):
+                with ctx.cd(temp_dir):
+                    # gzip ends up being much faster than xz, for roughly the same output file size
+                    # include btfs-$ARCH as prefix for all paths
+                    ctx.run(f"tar -czf {output_path} btfs-{arch}")
+
+
+@task
 def generate_event_monitor_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
@@ -1605,8 +1728,8 @@ def print_failed_tests(_, output_dir):
 
 
 @task
-def save_test_dockers(ctx, output_dir, arch, windows=is_windows, use_crane=False):
-    if windows:
+def save_test_dockers(ctx, output_dir, arch, use_crane=False):
+    if is_windows:
         return
 
     # only download images not present in preprepared vm disk
@@ -1646,12 +1769,13 @@ def _test_docker_image_list():
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    images.update(
-        ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
-    )
+    images.update(["menci/archlinuxarm:base"])
 
     # Special use-case in javatls
     images.remove("${IMAGE_VERSION}")
+    # Temporary: GoTLS monitoring inside containers tests are flaky in the CI, so at the meantime, the tests are
+    # disabled, so we can skip downloading a redundant image.
+    images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
     return images
 
 

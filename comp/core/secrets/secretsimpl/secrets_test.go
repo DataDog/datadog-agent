@@ -113,6 +113,24 @@ instances:
 		},
 	}
 
+	testMultiUsageConf = []byte(`instances:
+- password: ENC[pass1]
+  user: test
+more_endpoints:
+  http://example.com:
+  - ENC[pass1]
+  - data
+`)
+
+	testMultiUsageConfResolved = `instances:
+- password: password1
+  user: test
+more_endpoints:
+  http://example.com:
+  - password1
+  - data
+`
+
 	testConfDash = []byte(`---
 some_encoded_password: ENC[pass1]
 keys_with_dash_string_value:
@@ -273,6 +291,26 @@ func TestResolveSecretError(t *testing.T) {
 
 	_, err := resolver.Resolve(testConf, "test")
 	require.NotNil(t, err)
+}
+
+func TestResolveDoestSendDuplicates(t *testing.T) {
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
+
+	// test configuration has handle "pass1" appear twice, but fetch should only get one handle
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		if len(secrets) > 1 {
+			return nil, fmt.Errorf("duplicate handles found: %v", secrets)
+		}
+		return map[string]string{
+			"pass1": "password1",
+		}, nil
+	}
+
+	// test configuration should still resolve correctly even though handle appears more than once
+	resolved, err := resolver.Resolve(testMultiUsageConf, "test")
+	require.NoError(t, err)
+	require.Equal(t, testMultiUsageConfResolved, string(resolved))
 }
 
 func TestResolve(t *testing.T) {
@@ -540,9 +578,9 @@ func TestResolveThenRefresh(t *testing.T) {
 	testConf := testConfNestedMultiple
 
 	// disable the allowlist for the test, let any secret changes happen
-	originalAllowlistHandles := allowlistHandles
-	allowlistHandles = nil
-	defer func() { allowlistHandles = originalAllowlistHandles }()
+	originalAllowlistPaths := allowlistPaths
+	allowlistPaths = nil
+	defer func() { allowlistPaths = originalAllowlistPaths }()
 
 	resolver := newEnabledSecretResolver()
 	resolver.backendCommand = "some_command"
@@ -578,30 +616,33 @@ func TestResolveThenRefresh(t *testing.T) {
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "password1",
-			"pass2": "second",
+			"pass2": "update-second",
 			"pass3": "password3",
 		}, nil
 	}
 
 	// refresh the secrets and only collect newly updated keys
 	keysResolved = []string{}
-	err = resolver.Refresh()
+	output, err := resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
 	assert.Equal(t, []string{"some/second_level"}, keysResolved)
+	assert.Contains(t, output, "'pass2'")
+	assert.Contains(t, output, "'some/second_level'")
+	assert.NotContains(t, output, "update-second")
 
 	// change the secret values of the other two handles
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return map[string]string{
-			"pass1": "first",
-			"pass2": "second",
-			"pass3": "third",
+			"pass1": "update-first",
+			"pass2": "update-second",
+			"pass3": "update-third",
 		}, nil
 	}
 
 	// refresh one last time and only those two handles have updated keys
 	keysResolved = []string{}
-	err = resolver.Refresh()
+	_, err = resolver.Refresh()
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
@@ -611,14 +652,11 @@ func TestResolveThenRefresh(t *testing.T) {
 	sort.Strings(oldValues)
 	sort.Strings(newValues)
 	assert.Equal(t, []string{"", "", "", "password1", "password2", "password3"}, oldValues)
-	assert.Equal(t, []string{"first", "password1", "password2", "password3", "second", "third"}, newValues)
+	assert.Equal(t, []string{"password1", "password2", "password3", "update-first", "update-second", "update-third"}, newValues)
 }
 
+// test that the allowlist only lets setting paths that match it get Refreshed
 func TestRefreshAllowlist(t *testing.T) {
-	originalAllowlistHandles := allowlistHandles
-	allowlistHandles = nil
-	defer func() { allowlistHandles = originalAllowlistHandles }()
-
 	resolver := newEnabledSecretResolver()
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"handle": "value"}
@@ -626,7 +664,7 @@ func TestRefreshAllowlist(t *testing.T) {
 		"handle": []secretContext{
 			{
 				origin: "test",
-				path:   []string{"path", "to", "key"},
+				path:   []string{"another", "config", "setting"},
 			},
 		},
 	}
@@ -641,19 +679,63 @@ func TestRefreshAllowlist(t *testing.T) {
 		changes = append(changes, fmt.Sprintf("%s", newValue))
 	})
 
-	// only allow api_key to change
-	allowlistHandles = []string{"api_key"}
+	originalAllowlistPaths := allowlistPaths
+	defer func() { allowlistPaths = originalAllowlistPaths }()
+
+	// only allow api_key config setting to change
+	allowlistPaths = map[string]struct{}{"api_key": {}}
 
 	// Refresh means nothing changes because allowlist doesn't allow it
-	err := resolver.Refresh()
+	_, err := resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{})
 
-	// now allow the handle under scrutiny to change
-	allowlistHandles = []string{"handle"}
+	// now allow the config setting under scrutiny to change
+	allowlistPaths = map[string]struct{}{"another/config/setting": {}}
 
 	// Refresh sees the change to the handle
-	err = resolver.Refresh()
+	_, err = resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{"second_value"})
+}
+
+// test that only setting paths that match the allowlist will get notifications
+// about changed secret values from a Refresh
+func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"pass1": "password1",
+		}, nil
+	}
+
+	// test configuration resolves, the secret appears at two setting paths
+	resolved, err := resolver.Resolve(testMultiUsageConf, "test")
+	require.NoError(t, err)
+	require.Equal(t, testMultiUsageConfResolved, string(resolved))
+
+	// set the allowlist so that only 1 of the settings matches, the 2nd does not
+	originalAllowlistPaths := allowlistPaths
+	allowlistPaths = map[string]struct{}{"instances/0/password": {}}
+	defer func() { allowlistPaths = originalAllowlistPaths }()
+
+	// subscribe to changes made during Refresh, keep track of updated setting paths
+	changedPaths := []string{}
+	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
+		changedPaths = append(changedPaths, strings.Join(path, "/"))
+	})
+
+	// the secret has a new value, will be picked up by next Refresh
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"pass1": "second_password",
+		}, nil
+	}
+
+	// only 1 setting path got updated
+	_, err = resolver.Refresh()
+	require.NoError(t, err)
+	assert.Equal(t, changedPaths, []string{"instances/0/password"})
 }

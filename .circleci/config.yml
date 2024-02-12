@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: gcr.io/datadoghq/agent-circleci-runner:v25937664-dd22a18f
+      - image: gcr.io/datadoghq/agent-circleci-runner:v27950662-17e84032
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -100,7 +100,9 @@ jobs:
       - run:
           name: run unit tests
           no_output_timeout: 20m
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8
+          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8 --build-stdlib
+          environment:
+            GO_TEST_SKIP_FLAKE: "true"
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
@@ -122,6 +124,9 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
+      - run:
+          command: pip install -r tasks/libs/requirements-github.txt
+          name: Install additional requirements
       - run:
           command: inv -e lint-releasenote
           name: run PR check for release note

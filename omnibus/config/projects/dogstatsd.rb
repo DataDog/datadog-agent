@@ -122,6 +122,10 @@ package :zip do
   skip_packager true
 end
 
+package :ociru do
+  skip_packager true
+end
+
 package :msi do
 
   # For a consistent package management, please NEVER change this code

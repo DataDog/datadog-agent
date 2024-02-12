@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build test
+
 package profile
 
 import (
@@ -116,6 +118,9 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 									OID:  "1.3.6.1.2.1.1.2.0",
 									Name: "sysObjectID",
 								},
+							},
+							"type": {
+								Value: "load_balancer",
 							},
 						},
 					},

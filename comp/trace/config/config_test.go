@@ -13,6 +13,7 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,10 +27,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v2"
 
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+
 	//nolint:revive // TODO(APM) Fix revive linter
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -1619,6 +1623,70 @@ func TestLoadEnv(t *testing.T) {
 		}
 	})
 
+	env = "DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "my-diagnostics-site.com")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule(),
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, "my-diagnostics-site.com", coreconfig.Datadog.GetString("apm_config.debugger_diagnostics_dd_url"))
+	})
+
+	env = "DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "my-diagnostics-key")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule(),
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, "my-diagnostics-key", coreconfig.Datadog.GetString("apm_config.debugger_diagnostics_api_key"))
+	})
+
+	env = "DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `{"diagnostics-url1": ["diagnostics-key1", "diagnostics-key2"], "diagnostics-url2": ["diagnostics-key3"]}`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule(),
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := map[string][]string{
+			"diagnostics-url1": {"diagnostics-key1", "diagnostics-key2"},
+			"diagnostics-url2": {"diagnostics-key3"},
+		}
+
+		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.debugger_diagnostics_additional_endpoints")
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
+	})
+
 	env = "DD_APM_SYMDB_DD_URL"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
@@ -2465,4 +2533,45 @@ func TestMockConfig(t *testing.T) {
 	// but can be set by the mock
 	// config.(Mock).Set("app_key", "newvalue")
 	// require.Equal(t, "newvalue", config.GetString("app_key"))
+}
+
+func TestGetCoreConfigHandler(t *testing.T) {
+	config := fxutil.Test[Component](t, fx.Options(
+		fx.Supply(corecomp.Params{}),
+		corecomp.MockModule(),
+		MockModule(),
+	))
+
+	handler := config.GetConfigHandler().(http.HandlerFunc)
+
+	// Refuse non Get query
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
+
+	// Refuse missing auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusUnauthorized, resp.Code)
+
+	// Refuse invalid auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/config", nil)
+	req.Header.Set("Authorization", "Bearer ABCDE")
+	handler(resp, req)
+	assert.Equal(t, http.StatusForbidden, resp.Code)
+
+	// Accept valid auth token and returning a valid YAML conf
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	handler(resp, req)
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	conf := map[string]interface{}{}
+	err := yaml.Unmarshal(resp.Body.Bytes(), &conf)
+	assert.NoError(t, err, "Error loading YAML configuration from the API")
+	assert.Contains(t, conf, "apm_config")
 }

@@ -225,10 +225,6 @@ CSM Threats logs have the following JSON schema:
                 "origin": {
                     "type": "string",
                     "description": "Origin of the event"
-                },
-                "suppressed": {
-                    "type": "boolean",
-                    "description": "True if the event has been suppressed"
                 }
             },
             "additionalProperties": false,
@@ -1202,10 +1198,6 @@ CSM Threats logs have the following JSON schema:
                     "type": "string",
                     "description": "Name of the security profile"
                 },
-                "status": {
-                    "type": "string",
-                    "description": "Status defines in which state the security profile was when the event was triggered"
-                },
                 "version": {
                     "type": "string",
                     "description": "Version of the profile in use"
@@ -1216,15 +1208,19 @@ CSM Threats logs have the following JSON schema:
                     },
                     "type": "array",
                     "description": "List of tags associated to this profile"
+                },
+                "event_in_profile": {
+                    "type": "boolean",
+                    "description": "True if the corresponding event is part of this profile"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
                 "name",
-                "status",
                 "version",
-                "tags"
+                "tags",
+                "event_in_profile"
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
@@ -1770,10 +1766,6 @@ CSM Threats logs have the following JSON schema:
         "origin": {
             "type": "string",
             "description": "Origin of the event"
-        },
-        "suppressed": {
-            "type": "boolean",
-            "description": "True if the event has been suppressed"
         }
     },
     "additionalProperties": false,
@@ -1791,7 +1783,6 @@ CSM Threats logs have the following JSON schema:
 | `async` | True if the event was asynchronous |
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
 | `origin` | Origin of the event |
-| `suppressed` | True if the event has been suppressed |
 
 
 ## `ExitEvent`
@@ -3192,10 +3183,6 @@ CSM Threats logs have the following JSON schema:
             "type": "string",
             "description": "Name of the security profile"
         },
-        "status": {
-            "type": "string",
-            "description": "Status defines in which state the security profile was when the event was triggered"
-        },
         "version": {
             "type": "string",
             "description": "Version of the profile in use"
@@ -3206,15 +3193,19 @@ CSM Threats logs have the following JSON schema:
             },
             "type": "array",
             "description": "List of tags associated to this profile"
+        },
+        "event_in_profile": {
+            "type": "boolean",
+            "description": "True if the corresponding event is part of this profile"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
         "name",
-        "status",
         "version",
-        "tags"
+        "tags",
+        "event_in_profile"
     ],
     "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
 }
@@ -3224,9 +3215,9 @@ CSM Threats logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `name` | Name of the security profile |
-| `status` | Status defines in which state the security profile was when the event was triggered |
 | `version` | Version of the profile in use |
 | `tags` | List of tags associated to this profile |
+| `event_in_profile` | True if the corresponding event is part of this profile |
 
 
 ## `SignalEvent`

@@ -209,10 +209,6 @@
         "origin": {
           "type": "string",
           "description": "Origin of the event"
-        },
-        "suppressed": {
-          "type": "boolean",
-          "description": "True if the event has been suppressed"
         }
       },
       "additionalProperties": false,
@@ -1186,10 +1182,6 @@
           "type": "string",
           "description": "Name of the security profile"
         },
-        "status": {
-          "type": "string",
-          "description": "Status defines in which state the security profile was when the event was triggered"
-        },
         "version": {
           "type": "string",
           "description": "Version of the profile in use"
@@ -1200,15 +1192,19 @@
           },
           "type": "array",
           "description": "List of tags associated to this profile"
+        },
+        "event_in_profile": {
+          "type": "boolean",
+          "description": "True if the corresponding event is part of this profile"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "name",
-        "status",
         "version",
-        "tags"
+        "tags",
+        "event_in_profile"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },

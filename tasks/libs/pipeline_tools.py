@@ -4,9 +4,9 @@ import platform
 import sys
 from time import sleep, time
 
-from ..utils import DEFAULT_BRANCH
-from .common.color import color_message
-from .common.user_interactions import yes_no_question
+from tasks.libs.common.color import color_message
+from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import DEFAULT_BRANCH
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
@@ -89,6 +89,7 @@ def trigger_agent_pipeline(
     all_builds=False,
     kitchen_tests=False,
     e2e_tests=False,
+    rc_build=False,
     rc_k8s_deployments=False,
 ):
     """
@@ -130,6 +131,9 @@ def trigger_agent_pipeline(
 
     if branch is not None:
         args["BUCKET_BRANCH"] = branch
+
+    if rc_build:
+        args["RC_BUILD"] = "true"
 
     if rc_k8s_deployments:
         args["RC_K8S_DEPLOYMENTS"] = "true"

@@ -19,9 +19,11 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -50,6 +52,7 @@ type dependencies struct {
 	TelemetryCollector telemetry.TelemetryCollector
 	Workloadmeta       workloadmeta.Component
 	Statsd             statsd.Component
+	Tagger             tagger.Component
 }
 
 type component struct{}
@@ -62,6 +65,7 @@ type agent struct {
 	ctx                context.Context
 	params             *Params
 	shutdowner         fx.Shutdowner
+	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
 	statsd             statsd.Component
 	workloadmeta       workloadmeta.Component
@@ -93,8 +97,20 @@ func newAgent(deps dependencies) Component {
 		shutdowner:         deps.Shutdowner,
 		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
+		tagger:             deps.Tagger,
 		wg:                 sync.WaitGroup{},
 	}
+
+	// We're adding the /config endpoint from the comp side of the trace agent to avoid linking with pkg/config from
+	// the trace agent.
+	// pkg/config is not a go-module yet and pulls a large chunk of Agent code base with it. Using it within the
+	// trace-agent would largely increase the number of module pulled by OTEL when using the pkg/trace go-module.
+	if err := apiutil.CreateAndSetAuthToken(); err != nil {
+		log.Errorf("could not set auth token: %s", err)
+	} else {
+		ag.Agent.DebugServer.AddRoute("/config", deps.Config.GetConfigHandler())
+	}
+
 	deps.Lc.Append(fx.Hook{
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.
@@ -128,7 +144,7 @@ func start(ag *agent) error {
 		return err
 	}
 
-	if err := runAgentSidekicks(ag.ctx, ag.config, ag.workloadmeta, ag.telemetryCollector); err != nil {
+	if err := runAgentSidekicks(ag.ctx, ag.config, ag.telemetryCollector); err != nil {
 		return err
 	}
 	ag.wg.Add(1)

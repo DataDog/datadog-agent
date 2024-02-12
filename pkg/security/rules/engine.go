@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 
@@ -61,6 +60,7 @@ type RuleEngine struct {
 	statsdClient              statsd.ClientInterface
 	eventSender               events.EventSender
 	rulesetListeners          []rules.RuleSetListener
+	AutoSuppressions          *EventsAutoSuppressions
 }
 
 // APIServer defines the API server
@@ -84,6 +84,9 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		policyLoader:              rules.NewPolicyLoader(),
 		statsdClient:              statsdClient,
 		rulesetListeners:          rulesetListeners,
+		AutoSuppressions: &EventsAutoSuppressions{
+			enabled: config.SecurityProfileEnabled && config.SecurityProfileAutoSuppressionEnabled,
+		},
 	}
 
 	// register as event handler
@@ -139,8 +142,9 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 	ruleFilters = append(ruleFilters, seclRuleFilter)
 
 	e.policyOpts = rules.PolicyLoaderOpts{
-		MacroFilters: macroFilters,
-		RuleFilters:  ruleFilters,
+		MacroFilters:       macroFilters,
+		RuleFilters:        ruleFilters,
+		DisableEnforcement: !e.config.EnforcementEnabled,
 	}
 
 	if err := e.LoadPolicies(e.policyProviders, true); err != nil {
@@ -326,6 +330,8 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 		// set the rate limiters on sending events to the backend
 		e.rateLimiter.Apply(probeEvaluationRuleSet, events.AllCustomRuleIDs())
 
+		// update the stats of auto-suppression rules
+		e.AutoSuppressions.apply(probeEvaluationRuleSet)
 	}
 
 	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
@@ -387,15 +393,9 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
-	ev.Suppressed = false
-	if e.config.SecurityProfileAutoSuppressionEnabled &&
-		ev.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) &&
-		ev.IsInProfile() {
-		if val, ok := rule.Definition.GetTag("allow_autosuppression"); ok {
-			if b, err := strconv.ParseBool(val); err == nil && b {
-				ev.Suppressed = true
-			}
-		}
+	if e.AutoSuppressions.enabled && ev.IsInProfile() && isAllowAutosuppressionRule(rule) {
+		e.AutoSuppressions.inc(rule.ID)
+		return false
 	}
 
 	if !ev.Suppressed {
