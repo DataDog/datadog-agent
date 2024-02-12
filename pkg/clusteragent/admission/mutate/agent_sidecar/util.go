@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"os"
 )
 
 const (
@@ -21,6 +22,11 @@ const (
 )
 
 func getDefaultSidecarTemplate() *corev1.Container {
+	ddSite := os.Getenv("DD_SITE")
+	if ddSite == "" {
+		ddSite = config.DefaultSite
+	}
+
 	agentContainer := &corev1.Container{
 		Env: []corev1.EnvVar{
 			{
@@ -36,7 +42,7 @@ func getDefaultSidecarTemplate() *corev1.Container {
 			},
 			{
 				Name:  "DD_SITE",
-				Value: "datadoghq.com",
+				Value: ddSite,
 			},
 			{
 				Name:  "DD_CLUSTER_NAME",

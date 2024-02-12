@@ -10,7 +10,9 @@ The agent sidecar is injected on pods that match the webhook selector(s).
 
 ## Providers
 
-We support the use of providers. In this context, a provider is tied to a specific runtime environment (e.g. fargate, gke-autopilot, etc.).
+We support the use of providers. In this context, a provider is tied to a specific runtime environment (e.g. fargate).
+
+Currently, only `fargate` provider is supported.
 
 A provider serves to auto-configure the injected agent sidecar to target the specified provider environment by setting some extra environment variables for example.
 
@@ -27,6 +29,7 @@ The configuration of the webhook depends on the user needs and can go from simpl
 The minimum requirement to activate this feature includes the following:
 - Enabling the feature
 - Setting the provider
+- Creating datadog secrets in every namespace where you wish to inject the agent sidecar
 
 With this configuration, all pods having the label `agent.datadoghq.com/sidecar: <provider>` will be injected with an agent sidecar.
 
@@ -38,6 +41,7 @@ A more complex setup can include the following:
 - Enabling the feature
 - Setting custom selectors
 - Setting custom profiles
+- Creating datadog secrets in every namespace where you wish to inject the agent sidecar
 
 This allows the user to customize the matching criteria for the webhook. It allows specifying which pods will be injected with the agent sidecar.
 
@@ -50,6 +54,7 @@ This configuration includes the following:
 - Setting custom selectors
 - Setting custom profiles
 - Setting a provider
+- Creating datadog secrets in every namespace where you wish to inject the agent sidecar
 
 This allows the user to customize the matching criteria for the webhook. It allows specifying which pods will be injected with the agent sidecar.
 
@@ -73,3 +78,4 @@ Having set a provider, the agent sidecar will also get automatically the necessa
 
 ## Notes
 - For now, we only support configuring 1 custom selector and 1 custom profile.
+- For now, only `fargate` provider is supported

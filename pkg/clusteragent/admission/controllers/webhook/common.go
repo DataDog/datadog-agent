@@ -49,7 +49,7 @@ func buildAgentSidecarObjectSelectors() (namespaceSelector, objectSelector *meta
 			return nil, nil
 		}
 
-		log.Infof("falling back to default %v provider selectors", provider)
+		log.Infof("using default selector \"agent.datadoghq.com/sidecar\": \"%v\" for provider %v", provider, provider)
 		namespaceSelector = nil
 		objectSelector = &metav1.LabelSelector{
 			MatchLabels: map[string]string{
