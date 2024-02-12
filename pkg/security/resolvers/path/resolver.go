@@ -114,7 +114,11 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 	}
 
 	if mountPath != "/" {
-		pathStr = mountPath + pathStr
+		if pathStr != "/" {
+			pathStr = mountPath + pathStr
+		} else {
+			pathStr = mountPath
+		}
 	}
 
 	return pathStr, nil

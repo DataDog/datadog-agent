@@ -66,7 +66,7 @@ def add_prelude(ctx, version):
         )
 
     ctx.run(f"git add {new_releasenote}")
-    print("\nCommit this with:")
+    print("\nIf not run as part of finish task, commit this with:")
     print(f"git commit -m \"Add prelude for {version} release\"")
 
 
@@ -92,7 +92,7 @@ def add_dca_prelude(ctx, agent7_version, agent6_version=""):
         )
 
     ctx.run(f"git add {new_releasenote}")
-    print("\nCommit this with:")
+    print("\nIf not run as part of finish task, commit this with:")
     print(f"git commit -m \"Add prelude for {agent7_version} release\"")
 
 
@@ -945,7 +945,7 @@ def try_git_command(ctx, git_command):
 
 
 @task
-def finish(ctx, major_versions="6,7"):
+def finish(ctx, major_versions="6,7", upstream="origin"):
     """
     Updates the release entry in the release.json file for the new version.
 
@@ -971,6 +971,72 @@ def finish(ctx, major_versions="6,7"):
 
     # Update internal module dependencies
     update_modules(ctx, str(new_version))
+
+    # Step 3: branch out, commit change, push branch
+
+    final_branch = f"{new_version}-final"
+
+    print(color_message(f"Branching out to {final_branch}", "bold"))
+    ctx.run(f"git checkout -b {final_branch}")
+
+    print(color_message("Committing release.json and Go modules updates", "bold"))
+    print(
+        color_message(
+            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+        )
+    )
+    ctx.run("git add release.json")
+    ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
+
+    commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
+
+    ok = try_git_command(ctx, f"git commit -m {commit_message}")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {final_branch} branch and then open a PR against {final_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # Step 4: add release changelog preludes
+    print(color_message("Adding Agent release changelog prelude", "bold"))
+    add_prelude(ctx, new_version)
+
+    print(color_message("Adding DCA release changelog prelude", "bold"))
+    add_dca_prelude(ctx, new_version)
+
+    ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # Step 5: push branch and create PR
+
+    print(color_message("Pushing new branch to the upstream repository", "bold"))
+    res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
+    if res.exited is None or res.exited > 0:
+        raise Exit(
+            color_message(
+                f"Could not push branch {final_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {final_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    create_release_pr(
+        "Final updates for release.json and Go modules for {new_version} release + preludes",
+        current_branch,
+        final_branch,
+        new_version,
+    )
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
@@ -1047,21 +1113,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
-    milestone_name = str(new_final_version)
-
-    milestone = github.get_milestone_by_name(milestone_name)
-
-    if not milestone or not milestone.number:
-        raise Exit(
-            color_message(
-                f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
-Make sure that milestone is open before trying again.""",
-                "red",
-            ),
-            code=1,
-        )
-
     # Step 1: Update release entries
 
     print(color_message("Updating release entries", "bold"))
@@ -1109,15 +1160,39 @@ Make sure that milestone is open before trying again.""",
             code=1,
         )
 
+    create_release_pr(
+        f"[release] Update release.json and Go modules for {versions_string}",
+        current_branch,
+        update_branch,
+        new_final_version,
+    )
+
+
+def create_release_pr(title, base_branch, target_branch, version):
     print(color_message("Creating PR", "bold"))
 
-    # Step 4: create PR
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
+
+    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
+    milestone_name = str(version)
+
+    milestone = github.get_milestone_by_name(milestone_name)
+
+    if not milestone or not milestone.number:
+        raise Exit(
+            color_message(
+                f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
+Make sure that milestone is open before trying again.""",
+                "red",
+            ),
+            code=1,
+        )
 
     pr = github.create_pr(
-        pr_title=f"[release] Update release.json and Go modules for {versions_string}",
+        pr_title=title,
         pr_body="",
-        base_branch=current_branch,
-        target_branch=update_branch,
+        base_branch=base_branch,
+        target_branch=target_branch,
     )
 
     if not pr:
@@ -1128,14 +1203,11 @@ Make sure that milestone is open before trying again.""",
 
     print(color_message(f"Created PR #{pr.number}", "bold"))
 
-    # Step 5: add milestone and labels to PR
-
     updated_pr = github.update_pr(
         pull_number=pr.number,
         milestone_number=milestone.number,
         labels=[
             "changelog/no-changelog",
-            "qa/skip-qa",
             "qa/no-code-change",
             "team/agent-platform",
             "team/agent-release-management",
@@ -1150,9 +1222,7 @@ Make sure that milestone is open before trying again.""",
         )
 
     print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
-    print(
-        color_message(f"Done preparing RC {versions_string}. The PR is available here: {updated_pr.html_url}", "bold")
-    )
+    print(color_message(f"Done preparing release PR. The PR is available here: {updated_pr.html_url}", "bold"))
 
 
 @task

@@ -12,10 +12,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -37,12 +36,12 @@ type TestServer struct {
 }
 
 // NewTestServer creates a new test server
-func NewTestServer(statusCode int) *TestServer {
-	return NewTestServerWithOptions(statusCode, 0, true, nil)
+func NewTestServer(statusCode int, cfg pkgconfigmodel.Reader) *TestServer {
+	return NewTestServerWithOptions(statusCode, 0, true, nil, cfg)
 }
 
 // NewTestServerWithOptions creates a new test server with concurrency and response control
-func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool, respondChan chan int) *TestServer {
+func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool, respondChan chan int, cfg pkgconfigmodel.Reader) *TestServer {
 	statusCodeContainer := &StatusCodeContainer{statusCode: statusCode}
 	var request http.Request
 	var mu = sync.Mutex{}
@@ -84,7 +83,7 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 		BackoffMax:       10,
 		RecoveryInterval: 1,
 	}
-	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test")
+	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test", cfg)
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,

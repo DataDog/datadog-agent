@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"fmt"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"io"
 	"strings"
 	"time"
@@ -681,12 +682,6 @@ func (n KubernetesNode) String(verbose bool) string {
 
 var _ Entity = &KubernetesNode{}
 
-// Languages represents languages detected for containers of a pod
-type Languages struct {
-	ContainerLanguages     map[string][]languagemodels.Language
-	InitContainerLanguages map[string][]languagemodels.Language
-}
-
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
@@ -696,11 +691,11 @@ type KubernetesDeployment struct {
 
 	// InjectableLanguages indicate containers languages that can be injected by the admission controller
 	// These languages are determined by parsing the deployment annotations
-	InjectableLanguages Languages
+	InjectableLanguages langUtil.ContainersLanguages
 
 	// DetectedLanguages languages indicate containers languages detected and reported by the language
 	// detection server.
-	DetectedLanguages Languages
+	DetectedLanguages langUtil.ContainersLanguages
 }
 
 // GetID implements Entity#GetID.
@@ -734,25 +729,41 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
 	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
 
-	langPrinter := func(m map[string][]languagemodels.Language, ctype string) {
-		for container, languages := range m {
+	langPrinter := func(containersLanguages langUtil.ContainersLanguages) {
+		initContainersInfo := make([]string, 0, len(containersLanguages))
+		containersInfo := make([]string, 0, len(containersLanguages))
+
+		for container, languages := range containersLanguages {
 			var langSb strings.Builder
-			for i, lang := range languages {
-				if i != 0 {
+
+			for lang := range languages {
+
+				if langSb.Len() != 0 {
 					_, _ = langSb.WriteString(",")
 				}
-				_, _ = langSb.WriteString(string(lang.Name))
+				_, _ = langSb.WriteString(string(lang))
 			}
-			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
+
+			if container.Init {
+				initContainersInfo = append(initContainersInfo, fmt.Sprintf("InitContainer %s=>[%s]\n", container.Name, langSb.String()))
+			} else {
+				containersInfo = append(initContainersInfo, fmt.Sprintf("Container %s=>[%s]\n", container.Name, langSb.String()))
+			}
+
+			for _, info := range initContainersInfo {
+				_, _ = fmt.Fprint(&sb, info)
+			}
+
+			for _, info := range containersInfo {
+				_, _ = fmt.Fprint(&sb, info)
+			}
 		}
 	}
 	_, _ = fmt.Fprintln(&sb, "----------- Injectable Languages -----------")
-	langPrinter(d.InjectableLanguages.InitContainerLanguages, "InitContainer")
-	langPrinter(d.InjectableLanguages.ContainerLanguages, "Container")
+	langPrinter(d.InjectableLanguages)
 
 	_, _ = fmt.Fprintln(&sb, "----------- Detected Languages -----------")
-	langPrinter(d.DetectedLanguages.InitContainerLanguages, "InitContainer")
-	langPrinter(d.DetectedLanguages.ContainerLanguages, "Container")
+	langPrinter(d.DetectedLanguages)
 	return sb.String()
 }
 

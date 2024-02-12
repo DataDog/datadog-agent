@@ -115,7 +115,7 @@ k8s-e2e-otlp-main:
 new-e2e-containers:
   extends: .new_e2e_template
   # TODO once images are deployed to ECR for dev branches, update
-  # on_main_and_no_skip_e2e adding on_dev_branch_manual rules
+  #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
   rules:
     !reference [.on_container_or_e2e_changes_or_manual]
@@ -133,6 +133,15 @@ new-e2e-containers:
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS)Suite"
 
+new-e2e-remote-config:
+  extends: .new_e2e_template
+  rules:
+    !reference [.on_rc_or_e2e_changes_or_manual]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
+  variables:
+    TARGETS: ./tests/remote-config
+    TEAM: remote-config
+
 new-e2e-agent-shared-components-dev:
   extends: .new_e2e_template
   rules:
@@ -145,7 +154,7 @@ new-e2e-agent-shared-components-dev:
 
 new-e2e-agent-shared-components-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-shared-components
@@ -177,7 +186,7 @@ new-e2e-agent-subcommands-dev:
 
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-subcommands
@@ -198,7 +207,7 @@ new-e2e-language-detection-dev:
 
 new-e2e-language-detection-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
@@ -214,7 +223,7 @@ new-e2e-npm-dev:
 
 new-e2e-npm-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/npm
   # Temporary, until we manage to stabilize those tests.
@@ -232,7 +241,7 @@ new-e2e-aml-dev:
 
 new-e2e-aml-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/agent-metric-logs
     TEAM: agent-metric-logs
@@ -254,7 +263,7 @@ new-e2e-cws-dev:
 
 new-e2e-cws-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -276,7 +285,7 @@ new-e2e-process-dev:
 
 new-e2e-process-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/process
     TEAM: processes
@@ -296,7 +305,7 @@ new-e2e-orchestrator-dev:
 
 new-e2e-orchestrator-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   needs:
     - qa_agent
     - qa_dca
@@ -328,7 +337,7 @@ new-e2e-apm-dev:
 
 new-e2e-apm-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
