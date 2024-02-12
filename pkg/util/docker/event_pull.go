@@ -81,9 +81,9 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 	// Some actions are prefixed then followed `: <string>`.
 	// Extract the prefix from the action here
 	// Example: "exec_start: /bin/sh -c true" case
-	for _, v := range actionPrefixes {
-		if strings.HasPrefix(string(action), string(v)) {
-			action = v
+	for _, prefix := range actionPrefixes {
+		if strings.HasPrefix(string(action), string(prefix)) {
+			action = prefix
 			break
 		}
 	}
