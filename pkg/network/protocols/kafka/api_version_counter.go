@@ -14,23 +14,24 @@ import (
 // APIVersionCounter is a Kafka API version aware counter, it has a counter for each supported Kafka API version.
 // It enables the use of a single metric that increments based on the API version, avoiding the need for separate metrics for API version
 type APIVersionCounter struct {
-	hitsV1, hitsV2, hitsV3, hitsV4, hitsV5, hitsV6, hitsV7, hitsV8, hitsV9, hitsV10, hitsV11 *libtelemetry.Counter
+	hitsV1, hitsV2, hitsV3, hitsV4, hitsV5, hitsV6, hitsV7, hitsV8, hitsV9, hitsV10, hitsV11, hitsUnsupportedVersion *libtelemetry.Counter
 }
 
 // NewAPIVersionCounter creates and returns a new instance of APIVersionCounter
 func NewAPIVersionCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *APIVersionCounter {
 	return &APIVersionCounter{
-		hitsV1:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:1")...),
-		hitsV2:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:2")...),
-		hitsV3:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:3")...),
-		hitsV4:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:4")...),
-		hitsV5:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:5")...),
-		hitsV6:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:6")...),
-		hitsV7:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:7")...),
-		hitsV8:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:8")...),
-		hitsV9:  metricGroup.NewCounter(metricName, append(tags, "protocol_version:9")...),
-		hitsV10: metricGroup.NewCounter(metricName, append(tags, "protocol_version:10")...),
-		hitsV11: metricGroup.NewCounter(metricName, append(tags, "protocol_version:11")...),
+		hitsV1:                 metricGroup.NewCounter(metricName, append(tags, "protocol_version:1")...),
+		hitsV2:                 metricGroup.NewCounter(metricName, append(tags, "protocol_version:2")...),
+		hitsV3:                 metricGroup.NewCounter(metricName, append(tags, "protocol_version:3")...),
+		hitsV4:                 metricGroup.NewCounter(metricName, append(tags, "protocol_version:4")...),
+		hitsV5:                 metricGroup.NewCounter(metricName, append(tags, "protocol_version:5")...),
+		hitsV6:                 metricGroup.NewCounter(metricName, append(tags, "protocol_version:6")...),
+		hitsV7:                 metricGroup.NewCounter(metricName, append(tags, "protocol_version:7")...),
+		hitsV8:                 metricGroup.NewCounter(metricName, append(tags, "protocol_version:8")...),
+		hitsV9:                 metricGroup.NewCounter(metricName, append(tags, "protocol_version:9")...),
+		hitsV10:                metricGroup.NewCounter(metricName, append(tags, "protocol_version:10")...),
+		hitsV11:                metricGroup.NewCounter(metricName, append(tags, "protocol_version:11")...),
+		hitsUnsupportedVersion: metricGroup.NewCounter(metricName, append(tags, "protocol_version:unsupported")...),
 	}
 }
 
@@ -59,5 +60,7 @@ func (c *APIVersionCounter) Add(tx *EbpfTx) {
 		c.hitsV10.Add(1)
 	case 11:
 		c.hitsV11.Add(1)
+	default:
+		c.hitsUnsupportedVersion.Add(1)
 	}
 }
