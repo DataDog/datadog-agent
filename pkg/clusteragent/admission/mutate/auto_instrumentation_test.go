@@ -705,10 +705,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			cpu:     "100m",
-			mem:     "500",
-			wantCPU: "100m",
-			wantMem: "500",
+			wantCPU: "10m",
+			wantMem: "20Mi",
 		},
 		{
 			name:    "with resources",

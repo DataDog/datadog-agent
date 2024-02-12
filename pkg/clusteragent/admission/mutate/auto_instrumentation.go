@@ -86,10 +86,10 @@ const (
 	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
 
-	// DefaultMilliCPURequest defines default milli cpu request number.
-	DefaultMilliCPURequest int64 = 10 // 0.01 core
-	// DefaultMemoryRequest defines default memory request size.
-	DefaultMemoryRequest int64 = 20 * 1024 * 1024 // 20 MB
+	// defaultMilliCPURequest defines default milli cpu request number.
+	defaultMilliCPURequest int64 = 10 // 0.01 core
+	// defaultMemoryRequest defines default memory request size.
+	defaultMemoryRequest int64 = 20 * 1024 * 1024 // 20 MB
 
 	// Env vars
 	instrumentationInstallTypeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TYPE"
@@ -530,8 +530,8 @@ func initResources() (corev1.ResourceRequirements, error) {
 		resources.Requests[corev1.ResourceCPU] = quantity
 		resources.Limits[corev1.ResourceCPU] = quantity
 	} else {
-		resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(DefaultMilliCPURequest, resource.DecimalSI)
-		resources.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(DefaultMilliCPURequest, resource.DecimalSI)
+		resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
+		resources.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
 	}
 
 	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
@@ -542,8 +542,8 @@ func initResources() (corev1.ResourceRequirements, error) {
 		resources.Requests[corev1.ResourceMemory] = quantity
 		resources.Limits[corev1.ResourceMemory] = quantity
 	} else {
-		resources.Requests[corev1.ResourceMemory] = *resource.NewQuantity(DefaultMemoryRequest, resource.DecimalSI)
-		resources.Limits[corev1.ResourceMemory] = *resource.NewQuantity(DefaultMemoryRequest, resource.DecimalSI)
+		resources.Requests[corev1.ResourceMemory] = *resource.NewQuantity(defaultMemoryRequest, resource.DecimalSI)
+		resources.Limits[corev1.ResourceMemory] = *resource.NewQuantity(defaultMemoryRequest, resource.DecimalSI)
 	}
 
 	return resources, nil
