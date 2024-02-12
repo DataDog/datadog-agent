@@ -774,14 +774,6 @@ func TestInjectLibInitContainer(t *testing.T) {
 func expBasicConfig() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
-			Name:  "DD_TRACE_RATE_LIMIT",
-			Value: "100",
-		},
-		{
-			Name:  "DD_TRACE_SAMPLE_RATE",
-			Value: "1.00",
-		},
-		{
 			Name:  "DD_RUNTIME_METRICS_ENABLED",
 			Value: "true",
 		},
