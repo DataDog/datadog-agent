@@ -7,6 +7,7 @@ package autodiscovery
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
@@ -20,17 +21,16 @@ type dummyService struct {
 	Ports           []listeners.ContainerPort
 	Pid             int
 	Hostname        string
-	CheckNames      []string
 	filterTemplates func(map[string]integration.Config)
+}
+
+// Equal returns whether the two dummyService are equal
+func (s *dummyService) Equal(o listeners.Service) bool {
+	return reflect.DeepEqual(s, o)
 }
 
 // GetServiceID returns the service entity name
 func (s *dummyService) GetServiceID() string {
-	return s.ID
-}
-
-// GetTaggerEntity returns the tagger entity ID for the entity corresponding to this service
-func (s *dummyService) GetTaggerEntity() string {
 	return s.ID
 }
 
@@ -67,11 +67,6 @@ func (s *dummyService) GetHostname(context.Context) (string, error) {
 // IsReady returns if the service is ready
 func (s *dummyService) IsReady(context.Context) bool {
 	return true
-}
-
-// GetCheckNames returns slice of check names defined in container labels
-func (s *dummyService) GetCheckNames(context.Context) []string {
-	return s.CheckNames
 }
 
 // HasFilter returns false

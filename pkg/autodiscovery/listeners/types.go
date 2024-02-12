@@ -24,8 +24,8 @@ type ContainerPort struct {
 // It should be matched with a check template by the ConfigResolver using the
 // ADIdentifiers field.
 type Service interface {
+	Equal(Service) bool                                  // compare two services
 	GetServiceID() string                                // unique service name
-	GetTaggerEntity() string                             // tagger entity name
 	GetADIdentifiers(context.Context) ([]string, error)  // identifiers on which templates will be matched
 	GetHosts(context.Context) (map[string]string, error) // network --> IP address
 	GetPorts(context.Context) ([]ContainerPort, error)   // network ports
@@ -33,7 +33,6 @@ type Service interface {
 	GetPid(context.Context) (int, error)                 // process identifier
 	GetHostname(context.Context) (string, error)         // hostname.domainname for the entity
 	IsReady(context.Context) bool                        // is the service ready
-	GetCheckNames(context.Context) []string              // slice of check names defined in kubernetes annotations or container labels
 	HasFilter(containers.FilterType) bool                // whether the service is excluded by metrics or logs exclusion config
 	GetExtraConfig(string) (string, error)               // Extra configuration values
 

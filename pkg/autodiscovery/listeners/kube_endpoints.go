@@ -10,6 +10,7 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
@@ -425,13 +426,20 @@ func (l *KubeEndpointsListener) getStandardTagsForEndpoints(kep *v1.Endpoints) (
 	return getStandardTags(ksvc.GetLabels()), nil
 }
 
-// GetServiceID returns the unique entity name linked to that service
-func (s *KubeEndpointService) GetServiceID() string {
-	return s.entity
+// Equal returns whether the two KubeEndpointService are equal
+func (s *KubeEndpointService) Equal(o Service) bool {
+	s2, ok := o.(*KubeEndpointService)
+	if !ok {
+		return false
+	}
+
+	return s.entity == s2.entity &&
+		reflect.DeepEqual(s.hosts, s2.hosts) &&
+		reflect.DeepEqual(s.ports, s2.ports)
 }
 
-// GetTaggerEntity returns the unique entity name linked to that service
-func (s *KubeEndpointService) GetTaggerEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeEndpointService) GetServiceID() string {
 	return s.entity
 }
 
@@ -477,12 +485,6 @@ func (s *KubeEndpointService) GetHostname(context.Context) (string, error) {
 // IsReady returns if the service is ready
 func (s *KubeEndpointService) IsReady(context.Context) bool {
 	return true
-}
-
-// GetCheckNames returns slice of check names defined in kubernetes annotations or container labels
-// KubeEndpointService doesn't implement this method
-func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
-	return nil
 }
 
 // HasFilter returns whether the kube endpoint should not collect certain metrics

@@ -10,6 +10,7 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"sync"
 
@@ -321,13 +322,20 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 	}
 }
 
-// GetServiceID returns the unique entity name linked to that service
-func (s *KubeServiceService) GetServiceID() string {
-	return s.entity
+// Equal returns whether the two KubeServiceService are equal
+func (s *KubeServiceService) Equal(o Service) bool {
+	s2, ok := o.(*KubeServiceService)
+	if !ok {
+		return false
+	}
+
+	return s.entity == s2.entity &&
+		reflect.DeepEqual(s.hosts, s2.hosts) &&
+		reflect.DeepEqual(s.ports, s2.ports)
 }
 
-// GetTaggerEntity returns the unique entity name linked to that service
-func (s *KubeServiceService) GetTaggerEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeServiceService) GetServiceID() string {
 	return s.entity
 }
 
@@ -365,12 +373,6 @@ func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
 // IsReady returns if the service is ready
 func (s *KubeServiceService) IsReady(context.Context) bool {
 	return true
-}
-
-// GetCheckNames returns slice of check names defined in kubernetes annotations or container labels
-// KubeServiceService doesn't implement this method
-func (s *KubeServiceService) GetCheckNames(context.Context) []string {
-	return nil
 }
 
 // HasFilter returns whether the kube service should not collect certain metrics
