@@ -37,10 +37,6 @@ const (
 	// MaxStringSize defines the max read size
 	MaxStringSize = 4096
 
-	// nsig number of signal
-	// https://elixir.bootlin.com/linux/v6.5.12/source/arch/x86/include/uapi/asm/signal.h#L16
-	nsig = 32
-
 	ptraceFlags = 0 |
 		syscall.PTRACE_O_TRACEVFORK |
 		syscall.PTRACE_O_TRACEFORK |
@@ -258,8 +254,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 		if waitStatus.Stopped() {
 			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
-				if signal < nsig {
-					_ = syscall.PtraceCont(pid, int(signal))
+				if err := syscall.PtraceCont(pid, int(signal)); err == nil {
 					continue
 				}
 			}
