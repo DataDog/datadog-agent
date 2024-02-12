@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	// we can use this a hint that docker is running in host mode and it's safe to use detect
+	// we can use this a hint that docker is running in hot mode and it's safe to use detect
 	docker0Detected = false
 	docker0Detector sync.Once
 )

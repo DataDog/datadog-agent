@@ -13,6 +13,7 @@ import re
 import sys
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List
 
 from invoke import task
@@ -739,12 +740,15 @@ def parse_test_log(log_file):
 def get_impacted_packages(ctx, build_tags=None):
     dependencies = create_dependencies(ctx, build_tags)
     files = get_modified_files(ctx)
+    print(files)
     modified_packages = {
         f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}"
         for file in files
         if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     }
+    print(modified_packages)
     imp = find_impacted_modules(dependencies, modified_packages)
+    print("imp", imp)
     return format_packages(ctx, imp)
 
 
@@ -798,14 +802,14 @@ def format_packages(ctx, impacted_packages):
     packages = [f'{package.replace("github.com/DataDog/datadog-agent/", "./")}' for package in impacted_packages]
     modules_to_test = {}
     go_mod_modified_modules = set()
-
     for package in packages:
         match_precision = 0
         best_module_path = None
 
         # Since several modules can match the path we take only the most precise one
         for module_path in DEFAULT_MODULES:
-            if module_path in package:
+            package_path = Path(package)
+            if package_path.is_relative_to(module_path):
                 if len(module_path) > match_precision:
                     match_precision = len(module_path)
                     best_module_path = module_path
@@ -827,11 +831,6 @@ def format_packages(ctx, impacted_packages):
         if not os.path.exists(package):
             continue
 
-        # If there are go file matching the build tags in the folder we do not try to run tests
-        res = ctx.run(f"go list -tags '{' '.join(build_tags)}' ./{package}/...", hide=True, warn=True)
-        if res.stderr is not None and "matched no packages" in res.stderr:
-            continue
-
         relative_target = "./" + os.path.relpath(package, best_module_path)
 
         if best_module_path in modules_to_test:
@@ -850,6 +849,27 @@ def format_packages(ctx, impacted_packages):
             len(modules_to_test[module].targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
             modules_to_test[module].targets = DEFAULT_MODULES[module].targets
+
+    # Clean up to avoid running tests on package with no Go files matching build tags
+    for module in modules_to_test:
+        print(
+            "Running: ",
+            f"go list -tags '{' '.join(build_tags)}' {' '.join([os.path.normpath(os.path.join('github.com/DataDog/datadog-agent', module, target)) for target in modules_to_test[module].targets])}",
+        )
+        res = ctx.run(
+            f"go list -tags '{' '.join(build_tags)}' {' '.join([os.path.normpath(os.path.join('github.com/DataDog/datadog-agent', module, target)) for target in modules_to_test[module].targets])}",
+            hide=True,
+            warn=True,
+        )
+        if res is not None and res.stderr is not None:
+            for package in res.stderr.splitlines():
+                package_to_remove = os.path.relpath(
+                    package.split(" ")[1].strip(":").replace("github.com/DataDog/datadog-agent/", ""), module
+                )
+                try:
+                    modules_to_test[module].targets.remove(f"./{package_to_remove}")
+                except Exception:
+                    print("Could not remove ", package_to_remove, ", ignoring...")
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
