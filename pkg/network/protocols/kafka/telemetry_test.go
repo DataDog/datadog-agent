@@ -10,8 +10,9 @@ package kafka
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 )
 
 func TestTelemetry_Count(t *testing.T) {
