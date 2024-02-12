@@ -33,7 +33,7 @@ import (
 )
 
 var (
-	// allowedEventTypes defines allowed event type for subscribers
+	// allowedEventTypes defines allowed event type for consumers
 	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExitEventType}
 )
 
@@ -56,7 +56,7 @@ type EventMonitor struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	sendStatsChan  chan chan bool
-	eventConsumers []EventConsumer
+	eventConsumers []EventConsumerInterface
 	netListener    net.Listener
 	wg             sync.WaitGroup
 }
@@ -64,7 +64,7 @@ type EventMonitor struct {
 var _ module.Module = &EventMonitor{}
 
 // EventConsumer defines an event consumer
-type EventConsumer interface {
+type EventConsumerInterface interface {
 	// ID returns the ID of the event consumer
 	ID() string
 	// Start starts the event consumer
@@ -80,7 +80,7 @@ type EventConsumerPostProbeStartHandler interface {
 }
 
 // EventHandler event consumer based handler
-type EventHandler interface {
+type EventConsumer interface {
 	probe.EventConsumer
 }
 
@@ -94,16 +94,18 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 }
 
 // AddEventConsumer registers an event handler
-func (m *EventMonitor) AddEventConsumer(eventType model.EventType, handler EventHandler) error {
-	if !slices.Contains(allowedEventTypes, eventType) {
-		return errors.New("event type not allowed")
+func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
+	for _, eventType := range consumer.EventTypes() {
+		if !slices.Contains(allowedEventTypes, eventType) {
+			return errors.New("event type not allowed")
+		}
 	}
 
-	return m.Probe.AddEventConsumer(eventType, handler)
+	return m.Probe.AddEventConsumer(consumer)
 }
 
 // RegisterEventConsumer registers an event consumer
-func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
+func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumerInterface) {
 	m.eventConsumers = append(m.eventConsumers, consumer)
 }
 

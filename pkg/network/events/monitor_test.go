@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-func TestEventHandlerWrapperCopy(t *testing.T) {
+func TesteventConsumerWrapperCopy(t *testing.T) {
 	Init()
 
 	t.Run("test exec process attributes", func(t *testing.T) {
@@ -42,7 +42,7 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 				ContainerContext: &model.ContainerContext{ID: "cid_exec"},
 				FieldHandlers:    &model.FakeFieldHandlers{},
 			}}
-		evHandler := &eventHandlerWrapper{}
+		evHandler := &eventConsumerWrapper{}
 		_p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, _p, "Copy should return a *events.Process")
 		p := _p.(*Process)
@@ -78,7 +78,7 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 				ContainerContext: &model.ContainerContext{ID: "cid_fork"},
 				FieldHandlers:    &model.FakeFieldHandlers{},
 			}}
-		evHandler := &eventHandlerWrapper{}
+		evHandler := &eventConsumerWrapper{}
 		_p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, _p, "Copy should return a *events.Process")
 		p := _p.(*Process)
@@ -95,7 +95,7 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 
 	t.Run("no container context", func(t *testing.T) {
 		ev := &model.Event{BaseEvent: model.BaseEvent{}}
-		evHandler := &eventHandlerWrapper{}
+		evHandler := &eventConsumerWrapper{}
 		p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, p, "Copy should return a *events.Process")
 		assert.NotNil(t, p.(*Process).ContainerID, "container ID should not be nil")

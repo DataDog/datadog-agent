@@ -32,11 +32,7 @@ type FakeEventConsumer struct {
 
 func NewFakeEventConsumer(em *eventmonitor.EventMonitor) *FakeEventConsumer {
 	fc := &FakeEventConsumer{}
-
-	_ = em.AddEventTypeHandler(model.ForkEventType, fc)
-	_ = em.AddEventTypeHandler(model.ExecEventType, fc)
-	_ = em.AddEventTypeHandler(model.ExitEventType, fc)
-
+	_ = em.AddEventConsumer(fc)
 	return fc
 }
 
@@ -49,6 +45,14 @@ func (fc *FakeEventConsumer) Start() error {
 }
 
 func (fc *FakeEventConsumer) Stop() {
+}
+
+func (fc *FakeEventConsumer) EventTypes() []model.EventType {
+	return []model.EventType{
+		model.ForkEventType,
+		model.ExecEventType,
+		model.ExitEventType,
+	}
 }
 
 func (fc *FakeEventConsumer) GetForkCount() int {
