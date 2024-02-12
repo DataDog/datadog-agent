@@ -318,8 +318,7 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 current_stream->request_method.index = current_header->index;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (is_status_index(current_header->index)) {
-                current_stream->status_code.static_table_entry = current_header->index;
-                current_stream->status_code.finalized = true;
+                current_stream->status_code.index = current_header->index;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (is_path_index(current_header->index)) {
                 current_stream->path.index = current_header->index;
@@ -336,9 +335,7 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
             if (is_path_index(dynamic_value->original_index)) {
                 current_stream->path.index = current_header->index;
             } else if (is_status_index(dynamic_value->original_index)) {
-                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
-                current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->status_code.finalized = true;
+                current_stream->status_code.index = current_header->index;
             } else if (is_method_index(dynamic_value->original_index)) {
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method.index = current_header->index;
@@ -364,9 +361,8 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 current_stream->path.index = dynamic_table_value->key.index;
                 current_stream->path.temporary = dynamic_table_value->temporary;
             } else if (dynamic_table_value->type == kHeaderStatus) {
-                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
-                current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->status_code.finalized = true;
+                current_stream->status_code.index = dynamic_table_value->key.index;
+                current_stream->status_code.temporary = dynamic_table_value->temporary;
             } else {
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method.index = dynamic_table_value->key.index;
@@ -916,7 +912,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         // When we accept an RST, it means that the current stream is terminated.
         // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
         // If rst, and stream is empty (no status code, or no response) then delete from inflight
-        if (is_rst && (!current_stream->status_code.finalized || current_stream->request_started == 0)) {
+        if (is_rst && (current_stream->status_code.index == 0 || current_stream->request_started == 0)) {
             bpf_map_delete_elem(&http2_in_flight, http2_stream_key);
             continue;
         }

@@ -68,6 +68,7 @@ type ebpfTXWrapper struct {
 	dynamicTable *DynamicTable
 	method       interestingValue[http.Method]
 	path         interestingValue[string]
+	statusCode   interestingValue[uint16]
 }
 
 func (tx *ebpfTXWrapper) resolvePath() bool {
@@ -128,7 +129,7 @@ func (tx *ebpfTXWrapper) RequestLatency() float64 {
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
 func (tx *ebpfTXWrapper) Incomplete() bool {
-	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || !tx.resolvePath() || !tx.resolveMethod()
+	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || !tx.resolveStatusCode() || !tx.resolvePath() || !tx.resolveMethod()
 }
 
 // ConnTuple returns the connections tuple of the transaction.
@@ -214,55 +215,62 @@ func (tx *ebpfTXWrapper) Method() http.Method {
 	return http.MethodUnknown
 }
 
+func (tx *ebpfTXWrapper) resolveStatusCode() bool {
+	if tx.statusCode.malformed {
+		return false
+	}
+	if tx.statusCode.value != 0 {
+		return true
+	}
+
+	if tx.Stream.Status_code.Index <= http2staticTableMaxEntry {
+		switch uint8(tx.Stream.Status_code.Index) {
+		case K200Value:
+			tx.statusCode.value = 200
+		case K204Value:
+			tx.statusCode.value = 204
+		case K206Value:
+			tx.statusCode.value = 206
+		case K400Value:
+			tx.statusCode.value = 400
+		case K500Value:
+			tx.statusCode.value = 500
+		default:
+			tx.statusCode.malformed = true
+		}
+		return !tx.statusCode.malformed
+	}
+
+	tup := tx.Tuple
+	// TODO: Support flipped tuples.
+
+	stringStatusCode, exists := tx.dynamicTable.resolveValue(tup, tx.Stream.Status_code.Index, tx.Stream.Status_code.Temporary)
+	if !exists {
+		return false
+	}
+	code, err := strconv.Atoi(stringStatusCode)
+	if err != nil {
+		tx.statusCode.malformed = true
+		return false
+	}
+	tx.statusCode.value = uint16(code)
+	return true
+}
+
 // StatusCode returns the status code of the transaction.
 // If the status code is indexed, then we return the corresponding value.
 // Otherwise, f the status code is huffman encoded, then we decode it and convert it from string to int.
 // Otherwise, we convert the status code from byte array to int.
 func (tx *ebpfTXWrapper) StatusCode() uint16 {
-	if tx.Stream.Status_code.Static_table_entry != 0 {
-		switch tx.Stream.Status_code.Static_table_entry {
-		case K200Value:
-			return 200
-		case K204Value:
-			return 204
-		case K206Value:
-			return 206
-		case K400Value:
-			return 400
-		case K500Value:
-			return 500
-		default:
-			return 0
-		}
+	if tx.resolveStatusCode() {
+		return tx.statusCode.value
 	}
-
-	if tx.Stream.Status_code.Is_huffman_encoded {
-		// The final form of the status code is 3 characters.
-		statusCode, err := hpack.HuffmanDecodeToString(tx.Stream.Status_code.Raw_buffer[:http2RawStatusCodeMaxLength-1])
-		if err != nil {
-			return 0
-		}
-		code, err := strconv.Atoi(statusCode)
-		if err != nil {
-			return 0
-		}
-		return uint16(code)
-	}
-
-	code, err := strconv.Atoi(string(tx.Stream.Status_code.Raw_buffer[:]))
-	if err != nil {
-		return 0
-	}
-	return uint16(code)
+	return 0
 }
 
 // SetStatusCode sets the HTTP status code of the transaction.
 func (tx *ebpfTXWrapper) SetStatusCode(code uint16) {
-	val := strconv.Itoa(int(code))
-	if len(val) > http2RawStatusCodeMaxLength {
-		return
-	}
-	copy(tx.Stream.Status_code.Raw_buffer[:], val)
+	tx.statusCode.value = code
 }
 
 // ResponseLastSeen returns the last seen response.

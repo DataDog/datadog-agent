@@ -31,9 +31,8 @@ func TestIncompleteBuffer(t *testing.T) {
 				Stream: http2Stream{
 					Response_last_seen: 0, // Required to make the request incomplete.
 					Request_started:    uint64(now.UnixNano()),
-					Status_code: http2StatusCode{
-						Static_table_entry: K200Value,
-						Finalized:          true,
+					Status_code: http2InterestingValue{
+						Index: uint64(K200Value),
 					},
 					Request_method: http2InterestingValue{
 						Index: uint64(GetValue),
