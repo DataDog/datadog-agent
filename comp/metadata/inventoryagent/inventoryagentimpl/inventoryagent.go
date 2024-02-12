@@ -50,6 +50,7 @@ var (
 	installinfoGet      = installinfo.Get
 	fetchSecurityConfig = configFetcher.SecurityAgentConfig
 	fetchProcessConfig  = func(cfg model.Reader) (string, error) { return configFetcher.ProcessAgentConfig(cfg, true) }
+	fetchTraceConfig    = configFetcher.TraceAgentConfig
 )
 
 type agentMetadata map[string]interface{}
@@ -128,14 +129,14 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	}
 }
 
-func (ia *inventoryagent) initData() {
-	clean := func(s string) string {
-		// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
-		// are possible.
-		cleanBytes, _ := scrubber.ScrubBytes([]byte(s))
-		return string(cleanBytes)
-	}
+func clean(s string) string {
+	// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
+	// are possible.
+	cleanString, _ := scrubber.ScrubString(s)
+	return cleanString
+}
 
+func (ia *inventoryagent) initData() {
 	cfgSlice := func(name string) []string {
 		if ia.conf.IsSet(name) {
 			ss := ia.conf.GetStringSlice(name)
@@ -200,11 +201,6 @@ func (ia *inventoryagent) initData() {
 
 	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
 
-	// APM / trace-agent
-
-	ia.data["config_apm_dd_url"] = clean(ia.conf.GetString("apm_config.apm_dd_url"))
-	ia.data["feature_apm_enabled"] = ia.conf.GetBool("apm_config.enabled")
-
 	// Cloud Workload Security / system-probe
 
 	ia.data["feature_cws_enabled"] = getBoolSysProbe("runtime_security_config.enabled")
@@ -256,10 +252,11 @@ func (ia *inventoryagent) initData() {
 
 type configGetter interface {
 	GetBool(string) bool
+	GetString(string) string
 }
 
-// getCorrectConfig tries to fetch the configuration from another process. When successful it returns a new
-// configuration object and true. If not, the local config and false is returned.
+// getCorrectConfig tries to fetch the configuration from another process. It returns a new
+// configuration object on success and the local config on failure.
 func (ia *inventoryagent) getCorrectConfig(name string, configFetcher func(config model.Reader) (string, error)) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
@@ -284,6 +281,13 @@ func (ia *inventoryagent) fetchSecurityAgentMetadata() {
 	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
 }
 
+func (ia *inventoryagent) fetchTraceAgentMetadata() {
+	traceCfg := ia.getCorrectConfig("trace-agent", fetchTraceConfig)
+
+	ia.data["config_apm_dd_url"] = clean(traceCfg.GetString("apm_config.apm_dd_url"))
+	ia.data["feature_apm_enabled"] = traceCfg.GetBool("apm_config.enabled")
+}
+
 func (ia *inventoryagent) fetchProcessAgentMetadata() {
 	processCfg := ia.getCorrectConfig("process-agent", fetchProcessConfig)
 
@@ -297,6 +301,8 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchSecurityAgentMetadata()
 	// Process / process-agent
 	ia.fetchProcessAgentMetadata()
+	// APM / trace-agent
+	ia.fetchTraceAgentMetadata()
 }
 
 // Set updates a metadata value in the payload. The given value will be stored in the cache without being copied. It is
