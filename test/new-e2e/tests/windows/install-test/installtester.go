@@ -218,13 +218,17 @@ func (t *Tester) testDoesNotChangeSystemFiles(tt *testing.T) bool {
 		output, err := t.host.Execute(cmd)
 		require.NoError(tt, err, "should compare system files")
 		output = strings.TrimSpace(output)
-		// Log the output if it's not empty so we have a record of what changed.
-		// Normally require.Empty would log this but flake.Mark might Skip the test before its called.
 		if output != "" {
+			// Log result since flake.Mark may skip the test before the assertion is run
 			tt.Logf("should not remove system files: %s", output)
+			// Since the result of this test can depend on Windows behavior unrelated to the agent,
+			// we mark it as flaky so it doesn't block PRs.
+			// See WINA-624 for investigation into better ways to perform this test.
+			// If new Windows paths must be ignored, add them to the ignorePaths list in snapshotSystemfiles.
+			flake.Mark(tt)
+			// Skipping does not remove the failed test status, so we must run the assertion after flake.Mark.
+			require.Empty(tt, output, "should not remove system files")
 		}
-		flake.Mark(tt)
-		require.Empty(tt, output, "should not remove system files")
 	})
 }
 

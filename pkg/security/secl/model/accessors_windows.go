@@ -55,6 +55,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
 		}, nil
+	case "event.service":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "event.timestamp":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -66,6 +75,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.cmdline":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
@@ -111,6 +121,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
@@ -120,6 +131,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.file.name.length":
 		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent))
@@ -129,6 +141,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
@@ -138,6 +151,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.file.path.length":
 		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent))
@@ -192,6 +206,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exit.cmdline":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
@@ -246,6 +261,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exit.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
@@ -255,6 +271,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exit.file.name.length":
 		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent))
@@ -264,6 +281,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exit.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
@@ -273,6 +291,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exit.file.path.length":
 		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent))
@@ -318,6 +337,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.cmdline":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
 				if result, ok := ctx.StringCache[field]; ok {
@@ -422,6 +442,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
 				if result, ok := ctx.StringCache[field]; ok {
@@ -443,6 +464,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
 				if result, ok := ctx.IntCache[field]; ok {
@@ -464,6 +486,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
 				if result, ok := ctx.StringCache[field]; ok {
@@ -485,6 +508,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
 				if result, ok := ctx.IntCache[field]; ok {
@@ -587,6 +611,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.cmdline":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -632,6 +657,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
@@ -641,6 +667,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.file.name.length":
 		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
@@ -650,6 +677,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
@@ -659,6 +687,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.file.path.length":
 		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
@@ -668,6 +697,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.parent.cmdline":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				if !ev.BaseEvent.ProcessContext.HasParent() {
@@ -728,6 +758,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.parent.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				if !ev.BaseEvent.ProcessContext.HasParent() {
@@ -740,6 +771,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.parent.file.name.length":
 		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
@@ -749,6 +781,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.parent.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				if !ev.BaseEvent.ProcessContext.HasParent() {
@@ -761,6 +794,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.parent.file.path.length":
 		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
@@ -860,6 +894,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"container.created_at",
 		"container.id",
 		"container.tags",
+		"event.service",
 		"event.timestamp",
 		"exec.cmdline",
 		"exec.container.id",
@@ -938,6 +973,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext), nil
 	case "container.tags":
 		return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext), nil
+	case "event.service":
+		return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent), nil
 	case "event.timestamp":
 		return int(ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)), nil
 	case "exec.cmdline":
@@ -1248,6 +1285,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "container.tags":
 		return "*", nil
+	case "event.service":
+		return "*", nil
 	case "event.timestamp":
 		return "*", nil
 	case "exec.cmdline":
@@ -1394,6 +1433,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "container.id":
 		return reflect.String, nil
 	case "container.tags":
+		return reflect.String, nil
+	case "event.service":
 		return reflect.String, nil
 	case "event.timestamp":
 		return reflect.Int, nil
@@ -1568,6 +1609,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		default:
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.Tags"}
 		}
+		return nil
+	case "event.service":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Service"}
+		}
+		ev.BaseEvent.Service = rv
 		return nil
 	case "event.timestamp":
 		rv, ok := value.(int)

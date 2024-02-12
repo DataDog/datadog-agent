@@ -20,6 +20,7 @@ import (
 	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/pkg-manager"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/process"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
+	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -134,13 +135,14 @@ func (c *TestClient) getJSONStatus() (map[string]any, error) {
 	err := json.Unmarshal([]byte(statusString), &statusJSON)
 	if err != nil {
 		fmt.Println("Failed to unmarshal status content: ", statusString)
-
-		// TEMPORARY DEBUG: on error print logs from journalctx
-		output, err := c.Host.Execute("journalctl -u datadog-agent")
-		if err != nil {
-			fmt.Println("Failed to get logs from journalctl, ignoring... ")
-		} else {
-			fmt.Println("Logs from journalctl: ", output)
+		if c.Host.OSFamily == componentos.LinuxFamily {
+			// TEMPORARY DEBUG: on error print logs from journalctx
+			output, err := c.Host.Execute("journalctl -u datadog-agent")
+			if err != nil {
+				fmt.Println("Failed to get logs from journalctl, ignoring... ")
+			} else {
+				fmt.Println("Logs from journalctl: ", output)
+			}
 		}
 
 		return nil, err

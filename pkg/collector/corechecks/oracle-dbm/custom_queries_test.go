@@ -51,7 +51,7 @@ tns_admin: %s
 }
 
 func TestCustomQueries(t *testing.T) {
-	db, dbMock, err := sqlmock.newCheck()
+	db, dbMock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
@@ -103,5 +103,5 @@ func TestFloat(t *testing.T) {
 	require.NoError(t, err)
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	s.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.value", []string{"name:TAG1"})
-	s.AssertMetric(t, "Gauge", "oracle.custom_query.test.value", 1.012345, "", []string{})
+	s.AssertMetric(t, "Gauge", "oracle.custom_query.test.value", 1.012345, c.dbHostname, []string{})
 }

@@ -8,6 +8,7 @@ package inventoryagentimpl
 import (
 	"bytes"
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -302,4 +304,99 @@ func TestStatusHeaderProvider(t *testing.T) {
 			test.assertFunc(t)
 		})
 	}
+}
+
+func TestFetchSecurityAgent(t *testing.T) {
+	defer func() {
+		fetchSecurityConfig = configFetcher.SecurityAgentConfig
+	}()
+	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return "", fmt.Errorf("some error")
+	}
+
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchSecurityAgentMetadata()
+
+	assert.False(t, ia.data["feature_cspm_enabled"].(bool))
+	assert.False(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
+
+	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return `compliance_config:
+  enabled: true
+  host_benchmarks:
+    enabled: true
+`, nil
+	}
+
+	ia.fetchSecurityAgentMetadata()
+
+	assert.True(t, ia.data["feature_cspm_enabled"].(bool))
+	assert.True(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
+}
+
+func TestFetchProcessAgent(t *testing.T) {
+	defer func(original func(cfg pkgconfigmodel.Reader) (string, error)) {
+		fetchProcessConfig = original
+	}(fetchProcessConfig)
+
+	fetchProcessConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return "", fmt.Errorf("some error")
+	}
+
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchProcessAgentMetadata()
+
+	assert.False(t, ia.data["feature_process_enabled"].(bool))
+	assert.False(t, ia.data["feature_process_language_detection_enabled"].(bool))
+	// default to true in the process agent configuration
+	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
+
+	fetchProcessConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return `
+process_config:
+  process_collection:
+    enabled: true
+  container_collection:
+    enabled: true
+language_detection:
+  enabled: true
+`, nil
+	}
+
+	ia.fetchProcessAgentMetadata()
+
+	assert.True(t, ia.data["feature_process_enabled"].(bool))
+	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
+	assert.True(t, ia.data["feature_process_language_detection_enabled"].(bool))
+}
+
+func TestFetchTraceAgent(t *testing.T) {
+	defer func() {
+		fetchTraceConfig = configFetcher.TraceAgentConfig
+	}()
+	fetchTraceConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return "", fmt.Errorf("some error")
+	}
+
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchTraceAgentMetadata()
+
+	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
+		assert.False(t, ia.data["feature_apm_enabled"].(bool))
+	} else {
+		assert.True(t, ia.data["feature_apm_enabled"].(bool))
+	}
+	assert.Equal(t, "", ia.data["config_apm_dd_url"].(string))
+
+	fetchTraceConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return `
+apm_config:
+  enabled: true
+  apm_dd_url: "https://user:password@some_url_for_trace"
+`, nil
+	}
+
+	ia.fetchTraceAgentMetadata()
+	assert.True(t, ia.data["feature_apm_enabled"].(bool))
+	assert.Equal(t, "https://user:********@some_url_for_trace", ia.data["config_apm_dd_url"].(string))
 }

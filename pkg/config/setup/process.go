@@ -123,6 +123,9 @@ func setupProcesses(config pkgconfigmodel.Config) {
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
+	// This allows for the process check to run in the core agent but is for linux only
+	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", false)
+
 	config.BindEnv("process_config.process_dd_url",
 		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
 		"DD_PROCESS_AGENT_PROCESS_DD_URL",
@@ -179,6 +182,7 @@ func setupProcesses(config pkgconfigmodel.Config) {
 	procBindEnvAndSetDefault(config, "process_config.remote_tagger", false)
 	procBindEnvAndSetDefault(config, "process_config.remote_workloadmeta", false) // This flag might change. It's still being tested.
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
+	procBindEnvAndSetDefault(config, "process_config.ignore_zombie_processes", false)
 
 	// Process Discovery Check
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", true,

@@ -72,7 +72,7 @@ func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagno
 				RawError:    err.Error(),
 			})
 		} else {
-			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main)
+			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, config.Datadog)
 
 			name := fmt.Sprintf("Connectivity to %s", url)
 			diag := createDiagnosis(name, url, "", err)

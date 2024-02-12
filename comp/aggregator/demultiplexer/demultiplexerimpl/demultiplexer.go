@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -31,9 +32,11 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
-	Log                   log.Component
-	SharedForwarder       defaultforwarder.Component
-	OrchestratorForwarder orchestratorforwarder.Component
+	Lc                     fx.Lifecycle
+	Log                    log.Component
+	SharedForwarder        defaultforwarder.Component
+	OrchestratorForwarder  orchestratorforwarder.Component
+	EventPlatformForwarder eventplatform.Component
 
 	Params Params
 }
@@ -73,10 +76,15 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		deps.SharedForwarder,
 		deps.OrchestratorForwarder,
 		deps.Params.AgentDemultiplexerOptions,
+		deps.EventPlatformForwarder,
 		hostnameDetected)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}
+	deps.Lc.Append(fx.Hook{OnStop: func(ctx context.Context) error {
+		agentDemultiplexer.Stop(true)
+		return nil
+	}})
 
 	return provides{
 		Comp:          demultiplexer,
