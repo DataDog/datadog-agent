@@ -44,7 +44,6 @@ func (s *windowsTestSuite) SetupSuite() {
 
 func (s *windowsTestSuite) TestProcessCheck() {
 	t := s.T()
-
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
 		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process", "rtprocess"}, false, command)
@@ -64,11 +63,11 @@ func (s *windowsTestSuite) TestProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
+	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
 	))
-	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
@@ -87,6 +86,7 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 }
 
 func (s *windowsTestSuite) TestProcessCheckIO() {
+	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
@@ -94,8 +94,6 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 
 	// Flush fake intake to remove payloads that won't have IO stats
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
-	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
@@ -127,7 +125,6 @@ func (s *windowsTestSuite) TestManualProcessCheck() {
 func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 	// Skipping due to flakiness
 	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
-	s.T().Skip()
 
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")
@@ -135,6 +132,10 @@ func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
+	s.T().Skip("skipping due to flakiness")
+	// MsMpEng.exe process missing IO stats
+	// Investigation & fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3757
+
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),

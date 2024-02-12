@@ -492,8 +492,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		switch err {
 		case apiutil.ErrLimitedReaderLimitReached:
 			ts.TracesDropped.PayloadTooLarge.Add(tracen)
-		case io.EOF, io.ErrUnexpectedEOF, msgp.ErrShortBytes:
+		case io.EOF, io.ErrUnexpectedEOF:
 			ts.TracesDropped.EOF.Add(tracen)
+		case msgp.ErrShortBytes:
+			ts.TracesDropped.MSGPShortBytes.Add(tracen)
 		default:
 			if err, ok := err.(net.Error); ok && err.Timeout() {
 				ts.TracesDropped.Timeout.Add(tracen)

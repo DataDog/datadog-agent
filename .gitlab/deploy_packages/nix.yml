@@ -187,3 +187,22 @@ deploy_staging_iot_agent:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - $S3_CP_CMD ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# Remote Updater
+deploy_remote_updater_arm64:
+  extends: .deploy_packages_deb-7
+  needs: ["updater_deb-arm64"]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_packages_oci-amd64-7:
+  extends: .deploy_packages_oci
+  needs: [ "agent_remote_updater-x64-a7" ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_oci-arm64-7:
+  extends: .deploy_packages_oci
+  needs: [ "agent_remote_updater-arm64-a7" ]
+  variables:
+    PACKAGE_ARCH: arm64

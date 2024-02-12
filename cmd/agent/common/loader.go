@@ -9,14 +9,11 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 )
@@ -38,24 +35,9 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 	})
 }
 
-var collectorOnce sync.Once
-
-// LoadCollector instantiate the collector and init the global state 'Coll'.
-//
-// LoadCollector will initialize the collector only once even if called multiple time. Some command still rely on
-// LoadComponents while other setup the collector on their own.
-func LoadCollector(senderManager sender.SenderManager) collector.Collector {
-	collectorOnce.Do(func() {
-		// create the Collector instance and start all the components
-		// NOTICE: this will also setup the Python environment, if available
-		Coll = collector.NewCollector(senderManager, config.Datadog.GetDuration("check_cancel_timeout"), GetPythonPaths()...)
-	})
-	return Coll
-}
-
 // LoadComponents configures several common Agent components:
-// tagger, collector, scheduler and autodiscovery
-func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.Component, confdPath string) {
+// tagger, scheduler and autodiscovery
+func LoadComponents(secretResolver secrets.Component, wmeta workloadmeta.Component, confdPath string) {
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(path.GetDistPath(), "conf.d"),
@@ -69,7 +51,5 @@ func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.C
 	// No big concern here, but be sure to understand there is an implicit
 	// assumption about the initializtion of the tagger prior to being here.
 	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver)
-
-	LoadCollector(senderManager)
+	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver, wmeta)
 }

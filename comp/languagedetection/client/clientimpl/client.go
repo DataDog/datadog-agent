@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -348,7 +349,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 
 	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
-	added := containerInfo.Add(string(process.Language.Name))
+	added := containerInfo.Add(langUtil.Language(process.Language.Name))
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
 		delete(c.processesWithoutPod, process.ContainerID)
