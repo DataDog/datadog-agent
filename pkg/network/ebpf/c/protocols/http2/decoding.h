@@ -181,7 +181,7 @@ static __always_inline void handle_dynamic_table_update(struct __sk_buff *skb, s
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
+static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
@@ -234,7 +234,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers);
+            parse_field_indexed(current_stream, dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel);
             continue;
         }
         // Increment the global dynamic counter for each literal header field.
@@ -308,20 +308,6 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         current_header = &headers_to_process[iteration];
 
         if (current_header->type == kStaticHeader) {
-            if (is_method_index(current_header->index)) {
-                // TODO: mark request
-               current_stream->request_started = bpf_ktime_get_ns();
-               current_stream->request_method.static_table_entry = current_header->index;
-               current_stream->request_method.finalized = true;
-                __sync_fetch_and_add(&http2_tel->request_seen, 1);
-            } else if (is_status_index(current_header->index)) {
-                current_stream->status_code.static_table_entry = current_header->index;
-                current_stream->status_code.finalized = true;
-                __sync_fetch_and_add(&http2_tel->response_seen, 1);
-            } else if (is_path_index(current_header->index)) {
-                current_stream->path.static_table_entry = current_header->index;
-                current_stream->path.finalized = true;
-            }
             continue;
         }
 
@@ -391,7 +377,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
-    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, &dynamic_table_value->key, headers_to_process, current_frame_header->length, http2_tel);
+    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, current_stream, &dynamic_table_value->key, headers_to_process, current_frame_header->length, http2_tel);
     process_headers(skb, dynamic_table_value, current_stream, headers_to_process, interesting_headers, http2_tel, flipped);
 }
 
