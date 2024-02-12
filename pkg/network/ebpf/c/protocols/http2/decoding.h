@@ -91,7 +91,7 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
-static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header) {
+static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header, bool flipped) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -112,21 +112,20 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    // Path headers in HTTP2 that are not "/" or "/index.html"  are represented
-    // with an indexed name, literal value, reusing the index 4 and 5 in the
-    // static table. A different index means that the header is not a path, so
-    // we skip it.
+
+    interesting_value_t *interesting_entry = NULL;
     if (is_path_index(index)) {
         update_path_size_telemetry(http2_tel, str_len);
-    } else if ((!is_status_index(index)) && (!is_method_index(index))) {
-        goto end;
-    }
-
-    // We skip if:
-    // - The string is too big
-    // - This is not a path
-    // - We won't be able to store the header info
-    if (headers_to_process == NULL) {
+        interesting_entry = &current_stream->path;
+    } else if (is_status_index(index)) {
+        interesting_entry = &current_stream->status_code;
+        __sync_fetch_and_add(&http2_tel->response_seen, 1);
+    } else if (is_method_index(index)) {
+        current_stream->request_started = bpf_ktime_get_ns();
+        __sync_fetch_and_add(&http2_tel->request_seen, 1);
+        interesting_entry = &current_stream->request_method;
+    } else {
+        // If the original index does not represent an interesting header, we skip it.
         goto end;
     }
 
@@ -135,20 +134,21 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
+    read_into_buffer_path(dynamic_table_value->buf, skb, skb_info->data_off);
+    interesting_entry->dynamic_table_entry = global_dynamic_counter - 1;
+    interesting_entry->temporary = !save_header;
+    interesting_entry->tuple_flipped = flipped;
+    interesting_entry->finalized = true;
+
+    // Send dynamic value over a per-event to the user mode.
+    dynamic_table_value->key.index = global_dynamic_counter - 1;
+    dynamic_table_value->string_len = str_len;
+    dynamic_table_value->is_huffman_encoded = is_huffman_encoded;
+    dynamic_table_value->temporary = !save_header;
+    bpf_perf_event_output(skb, &http2_dynamic_table_perf_buffer, bpf_get_smp_processor_id(), dynamic_table_value, sizeof(dynamic_table_value_t));
     if (save_header) {
-        headers_to_process->index = global_dynamic_counter - 1;
-        headers_to_process->type = kNewDynamicHeader;
-    } else {
-        headers_to_process->type = kNewDynamicHeaderNotIndexed;
+        bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_table_value->key.index, BPF_ANY);
     }
-    headers_to_process->original_index = index;
-    headers_to_process->new_dynamic_value_offset = skb_info->data_off;
-    headers_to_process->new_dynamic_value_size = str_len;
-    headers_to_process->is_huffman_encoded = is_huffman_encoded;
-    // If the string len (`str_len`) is in the range of [0, HTTP2_MAX_PATH_LEN], and we don't exceed packet boundaries
-    // (skb_info->data_off + str_len <= skb_info->data_end) and the index is kIndexPath, then we have a path header,
-    // and we're increasing the counter. In any other case, we're not increasing the counter.
-    *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN);
 end:
     skb_info->data_off += str_len;
     return true;
@@ -181,7 +181,7 @@ static __always_inline void handle_dynamic_table_update(struct __sk_buff *skb, s
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel, bool flipped) {
+static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel, bool flipped) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
@@ -234,7 +234,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            parse_field_indexed(current_stream, dynamic_index, index, *global_dynamic_counter, http2_tel, flipped);
+            parse_field_indexed(current_stream, &dynamic_table_value->key, index, *global_dynamic_counter, http2_tel, flipped);
             continue;
         }
         // Increment the global dynamic counter for each literal header field.
@@ -243,7 +243,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // 6.2.1 Literal Header Field with Incremental Indexing
         // top two bits are 11
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!parse_field_literal(skb, skb_info, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal)) {
+        if (!parse_field_literal(skb, skb_info, current_stream, dynamic_table_value, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal, flipped)) {
             break;
         }
     }
@@ -296,7 +296,6 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
 // process_headers processes the headers that were filtered in filter_relevant_headers,
 // looking for requests path, status code, and method.
 static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_value_t *dynamic_table_value, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel, bool flipped) {
-    u32 cpu = bpf_get_smp_processor_id();
     http2_header_t *current_header;
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
@@ -315,35 +314,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         if (current_header->type == kExistingDynamicHeader) {
             continue;
         } else {
-            // create the new dynamic value which will be added to the internal table.
-            read_into_buffer_path(dynamic_table_value->buf, skb, current_header->new_dynamic_value_offset);
-
-            interesting_value_t *interesting_entry = NULL;
-            if (is_path_index(current_header->original_index)) {
-                interesting_entry = &current_stream->path;
-            } else if (is_status_index(current_header->original_index)) {
-                interesting_entry = &current_stream->status_code;
-                __sync_fetch_and_add(&http2_tel->response_seen, 1);
-            } else if (is_method_index(current_header->original_index)) {
-                current_stream->request_started = bpf_ktime_get_ns();
-                __sync_fetch_and_add(&http2_tel->request_seen, 1);
-                interesting_entry = &current_stream->request_method;
-            } else {
-                continue;
-            }
-
-            interesting_entry->dynamic_table_entry = current_header->index;
-            interesting_entry->temporary = current_header->type == kNewDynamicHeader;
-            interesting_entry->tuple_flipped = flipped;
-            interesting_entry->finalized = true;
-
-            // Send dynamic value over a per-event to the user mode.
-            dynamic_table_value->key.index = current_header->index;
-            dynamic_table_value->string_len = current_header->new_dynamic_value_size;
-            dynamic_table_value->is_huffman_encoded = current_header->is_huffman_encoded;
-            dynamic_table_value->temporary = current_header->type != kNewDynamicHeader;
-            bpf_perf_event_output(skb, &http2_dynamic_table_perf_buffer, cpu, dynamic_table_value, sizeof(dynamic_table_value_t));
-            bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &current_header->original_index, BPF_ANY);
+            continue;
         }
     }
 }
@@ -358,7 +329,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
-    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, current_stream, &dynamic_table_value->key, headers_to_process, current_frame_header->length, http2_tel, flipped);
+    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, current_stream, dynamic_table_value, headers_to_process, current_frame_header->length, http2_tel, flipped);
     process_headers(skb, dynamic_table_value, current_stream, headers_to_process, interesting_headers, http2_tel, flipped);
 }
 
