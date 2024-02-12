@@ -195,6 +195,12 @@ deploy_remote_updater_arm64:
   variables:
     PACKAGE_ARCH: arm64
 
+deploy_remote_updater_deb_amd64:
+  extends: .deploy_packages_deb-7
+  needs: ["updater_deb-amd64"]
+  variables:
+    PACKAGE_ARCH: amd64
+
 deploy_packages_oci-amd64-7:
   extends: .deploy_packages_oci
   needs: [ "agent_remote_updater-x64-a7" ]
