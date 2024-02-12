@@ -121,13 +121,6 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
-//func RingBufferEnabled(config *config.Config) bool {
-//	if !config.CollectTCPv4Conns && !config.CollectTCPv6Conns {
-//		return false
-//	}
-//	return (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled
-//}
-
 func addBoolConst(options *manager.Options, flag bool, name string) {
 	val := uint64(1)
 	if !flag {
