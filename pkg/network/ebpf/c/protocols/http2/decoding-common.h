@@ -45,13 +45,8 @@ static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key
         return http2_stream_ptr;
     }
 
-    const __u32 zero = 0;
-    http2_stream_ptr = bpf_map_lookup_elem(&http2_stream_heap, &zero);
-    if (http2_stream_ptr == NULL) {
-        return NULL;
-    }
-    bpf_memset(http2_stream_ptr, 0, sizeof(http2_stream_t));
-    bpf_map_update_elem(&http2_in_flight, http2_stream_key, http2_stream_ptr, BPF_NOEXIST);
+    http2_stream_t empty = {};
+    bpf_map_update_elem(&http2_in_flight, http2_stream_key, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
 }
 
@@ -68,19 +63,15 @@ static __always_inline void parse_field_indexed(http2_stream_t *current_stream, 
         if (is_method_index(index)) {
            current_stream->request_started = bpf_ktime_get_ns();
            current_stream->request_method.static_table_entry = index;
-           current_stream->request_method.finalized = true;
             __sync_fetch_and_add(&http2_tel->request_seen, 1);
         } else if (is_status_index(index)) {
             current_stream->status_code.static_table_entry = index;
-            current_stream->status_code.finalized = true;
             __sync_fetch_and_add(&http2_tel->response_seen, 1);
         } else if (is_path_index(index)) {
             current_stream->path.static_table_entry = index;
-            current_stream->path.finalized = true;
         }
         return;
     }
-
     // We change the index to match our internal dynamic table implementation index.
     // Our internal indexes start from 1, so we subtract 61 in order to match the given index.
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
@@ -88,22 +79,19 @@ static __always_inline void parse_field_indexed(http2_stream_t *current_stream, 
     if (original_index == NULL) {
         return;
     }
-    interesting_value_t *interesting_entry = NULL;
     if (is_path_index(*original_index)) {
-        interesting_entry = &current_stream->path;
+        current_stream->path.dynamic_table_entry = dynamic_index->index;
+        current_stream->path.tuple_flipped = flipped;
     } else if (is_status_index(*original_index)) {
-        interesting_entry = &current_stream->status_code;
+        current_stream->status_code.dynamic_table_entry = dynamic_index->index;
+        current_stream->status_code.tuple_flipped = flipped;
         __sync_fetch_and_add(&http2_tel->response_seen, 1);
-    } else if (is_method_index(*original_index)) {
+    } else {
         current_stream->request_started = bpf_ktime_get_ns();
         __sync_fetch_and_add(&http2_tel->request_seen, 1);
-        interesting_entry = &current_stream->request_method;
-    } else {
-        return;
+        current_stream->request_method.dynamic_table_entry = dynamic_index->index;
+        current_stream->request_method.tuple_flipped = flipped;
     }
-    interesting_entry->dynamic_table_entry = dynamic_index->index;
-    interesting_entry->tuple_flipped = flipped;
-    interesting_entry->finalized = true;
 }
 
 // update_path_size_telemetry updates the path size telemetry.

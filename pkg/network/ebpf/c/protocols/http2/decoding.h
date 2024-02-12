@@ -92,65 +92,64 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
 static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, __u64 index, __u64 global_dynamic_counter, http2_telemetry_t *http2_tel, bool save_header, bool flipped) {
-    __u64 str_len = 0;
-    bool is_huffman_encoded = false;
+    dynamic_table_value->string_len = 0;
+    dynamic_table_value->is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-    if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+    if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &dynamic_table_value->string_len, &dynamic_table_value->is_huffman_encoded)) {
         return false;
     }
 
     // The header name is new and inserted in the dynamic table - we skip the new value.
     if (index == 0) {
-        skb_info->data_off += str_len;
-        str_len = 0;
+        skb_info->data_off += dynamic_table_value->string_len;
+        dynamic_table_value->string_len = 0;
         // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
         // At this point the huffman code is not interesting due to the fact that we already read the string length,
         // We are reading the current size in order to skip it.
-        if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+        if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &dynamic_table_value->string_len, &dynamic_table_value->is_huffman_encoded)) {
             return false;
         }
+    }
+    if (!is_interesting_static_entry(index)) {
         goto end;
     }
 
+    dynamic_table_value->key.index = global_dynamic_counter - 1;
 
-    interesting_value_t *interesting_entry = NULL;
     if (is_path_index(index)) {
-        update_path_size_telemetry(http2_tel, str_len);
-        interesting_entry = &current_stream->path;
+        update_path_size_telemetry(http2_tel, dynamic_table_value->string_len);
+        current_stream->path.dynamic_table_entry = global_dynamic_counter - 1;
+        current_stream->path.temporary = !save_header;
+        current_stream->path.tuple_flipped = flipped;
     } else if (is_status_index(index)) {
-        interesting_entry = &current_stream->status_code;
+        current_stream->status_code.dynamic_table_entry = global_dynamic_counter - 1;
+        current_stream->status_code.temporary = !save_header;
+        current_stream->status_code.tuple_flipped = flipped;
         __sync_fetch_and_add(&http2_tel->response_seen, 1);
-    } else if (is_method_index(index)) {
+    } else {
         current_stream->request_started = bpf_ktime_get_ns();
         __sync_fetch_and_add(&http2_tel->request_seen, 1);
-        interesting_entry = &current_stream->request_method;
-    } else {
-        // If the original index does not represent an interesting header, we skip it.
-        goto end;
+        current_stream->request_method.dynamic_table_entry = global_dynamic_counter - 1;
+        current_stream->request_method.temporary = !save_header;
+        current_stream->request_method.tuple_flipped = flipped;
     }
 
-    if (skb_info->data_off + str_len > skb_info->data_end) {
+    if (skb_info->data_off + dynamic_table_value->string_len > skb_info->data_end) {
         __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
         goto end;
     }
 
     read_into_buffer_path(dynamic_table_value->buf, skb, skb_info->data_off);
-    interesting_entry->dynamic_table_entry = global_dynamic_counter - 1;
-    interesting_entry->temporary = !save_header;
-    interesting_entry->tuple_flipped = flipped;
-    interesting_entry->finalized = true;
-
     // Send dynamic value over a per-event to the user mode.
-    dynamic_table_value->key.index = global_dynamic_counter - 1;
-    dynamic_table_value->string_len = str_len;
-    dynamic_table_value->is_huffman_encoded = is_huffman_encoded;
+    //dynamic_table_value->string_len = str_len;
+//    dynamic_table_value->is_huffman_encoded = is_huffman_encoded;
     dynamic_table_value->temporary = !save_header;
     bpf_perf_event_output(skb, &http2_dynamic_table_perf_buffer, bpf_get_smp_processor_id(), dynamic_table_value, sizeof(dynamic_table_value_t));
     if (save_header) {
         bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_table_value->key.index, BPF_ANY);
     }
 end:
-    skb_info->data_off += str_len;
+    skb_info->data_off += dynamic_table_value->string_len;
     return true;
 }
 
@@ -827,7 +826,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         // When we accept an RST, it means that the current stream is terminated.
         // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
         // If rst, and stream is empty (no status code, or no response) then delete from inflight
-        if (is_rst && (!current_stream->status_code.finalized || current_stream->request_started == 0)) {
+        if (is_rst && ((current_stream->status_code.dynamic_table_entry == 0 && current_stream->status_code.static_table_entry) || current_stream->request_started == 0)) {
             bpf_map_delete_elem(&http2_in_flight, http2_stream_key);
             continue;
         }

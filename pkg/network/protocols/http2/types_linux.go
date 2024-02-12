@@ -36,9 +36,8 @@ type http2InterestingValue struct {
 	Dynamic_table_entry uint64
 	Temporary           bool
 	Static_table_entry  uint8
-	Finalized           bool
 	Tuple_flipped       bool
-	Pad_cgo_0           [4]byte
+	Pad_cgo_0           [5]byte
 }
 type http2Stream struct {
 	Response_last_seen    uint64
@@ -53,8 +52,7 @@ type http2DynamicTableValue struct {
 	Key                HTTP2DynamicTableIndex
 	Temporary          bool
 	Is_huffman_encoded bool
-	String_len         uint8
-	Pad_cgo_0          [5]byte
+	String_len         uint64
 	Buf                [160]byte
 }
 type EbpfTx struct {

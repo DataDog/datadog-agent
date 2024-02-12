@@ -32,7 +32,7 @@
 #define HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS 5
 
 // Represents the maximum number of frames we'll process in a single tail call in `uprobe__http2_tls_headers_parser` program.
-#define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 15
+#define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 8
 // Represents the maximum number of tail calls to process headers frames.
 // Currently we have up to 120 frames in a packet, thus 8 (8*15 = 120) tail calls is enough.
 #define HTTP2_TLS_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 8
@@ -124,7 +124,7 @@ typedef struct {
     // Whether the value is huffman encoded or passed as is.
     bool is_huffman_encoded;
     // The length of the value.
-    __u8 string_len;
+    __u64 string_len;
     // The raw buffer of the value. We need to use the max size among all dynamic table options. We care for path,
     // method, and status. Path is the only value that does not have known "options", and can be very long, thus we use
     // its max path.
@@ -140,7 +140,6 @@ typedef struct {
     __u64 dynamic_table_entry;
     bool temporary;
     __u8 static_table_entry;
-    bool finalized;
     bool tuple_flipped;
 } interesting_value_t;
 
