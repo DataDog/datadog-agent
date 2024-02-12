@@ -63,7 +63,7 @@ static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
 }
 
 // parse_field_indexed parses fully-indexed headers.
-static __always_inline void parse_field_indexed(http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
+static __always_inline void parse_field_indexed(http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool flipped) {
     if (headers_to_process == NULL) {
         return;
     }
@@ -88,13 +88,26 @@ static __always_inline void parse_field_indexed(http2_stream_t *current_stream, 
     // We change the index to match our internal dynamic table implementation index.
     // Our internal indexes start from 1, so we subtract 61 in order to match the given index.
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
-
-    headers_to_process->index = dynamic_index->index;
-    headers_to_process->type = kExistingDynamicHeader;
-    // If the entry exists, increase the counter. If the entry is missing, then we won't increase the counter.
-    // This is a simple trick to spare if-clause, to reduce pressure on the complexity of the program.
-    *interesting_headers_counter += bpf_map_lookup_elem(&http2_dynamic_table, &dynamic_index->index) != NULL;
-    return;
+    __u32 *original_index = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
+    if (original_index == NULL) {
+        return;
+    }
+    interesting_value_t *interesting_entry = NULL;
+    if (is_path_index(*original_index)) {
+        interesting_entry = &current_stream->path;
+    } else if (is_status_index(*original_index)) {
+        interesting_entry = &current_stream->status_code;
+        __sync_fetch_and_add(&http2_tel->response_seen, 1);
+    } else if (is_method_index(*original_index)) {
+        current_stream->request_started = bpf_ktime_get_ns();
+        __sync_fetch_and_add(&http2_tel->request_seen, 1);
+        interesting_entry = &current_stream->request_method;
+    } else {
+        return;
+    }
+    interesting_entry->dynamic_table_entry = dynamic_index->index;
+    interesting_entry->tuple_flipped = flipped;
+    interesting_entry->finalized = true;
 }
 
 // update_path_size_telemetry updates the path size telemetry.
