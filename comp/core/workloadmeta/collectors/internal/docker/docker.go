@@ -255,7 +255,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 	}
 
 	switch ev.Action {
-	case events.ActionStart, events.ActionRename, events.ActionHealthStatusRunning, events.ActionHealthStatusHealthy, events.ActionHealthStatusUnhealthy:
+	case events.ActionStart, events.ActionRename, events.ActionHealthStatusRunning, events.ActionHealthStatusHealthy, events.ActionHealthStatusUnhealthy, events.ActionHealthStatus:
 
 		container, err := c.dockerUtil.InspectNoCache(ctx, ev.ContainerID, false)
 		if err != nil {
