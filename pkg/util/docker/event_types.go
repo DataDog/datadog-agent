@@ -17,10 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-// ImageEventActionSbom is the action of getting SBOM information for a docker image
-// This action is not a docker-native action.
-const ImageEventActionSbom = "sbom"
-
 // ActionDied is a custom action for container events
 // This action is a podman-specific event
 const ActionDied = events.Action("died")

@@ -43,6 +43,9 @@ const (
 	componentName = "workloadmeta-docker"
 )
 
+// imageEventActionSbom is an event that we set to create a fake docker event.
+const imageEventActionSbom = events.Action("sbom")
+
 type resolveHook func(ctx context.Context, co types.ContainerJSON) (string, error)
 
 type collector struct {
@@ -524,7 +527,7 @@ func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEve
 	defer c.handleImagesMut.Unlock()
 
 	switch event.Action {
-	case events.ActionPull, events.ActionTag, events.ActionUnTag, docker.ImageEventActionSbom:
+	case events.ActionPull, events.ActionTag, events.ActionUnTag, imageEventActionSbom:
 		imgMetadata, err := c.getImageMetadata(ctx, event.ImageID, bom)
 		if err != nil {
 			return fmt.Errorf("could not get image metadata for image %q: %w", event.ImageID, err)
