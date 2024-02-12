@@ -91,7 +91,7 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
-static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header, bool flipped) {
+static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, __u64 index, __u64 global_dynamic_counter, http2_telemetry_t *http2_tel, bool save_header, bool flipped) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -181,10 +181,8 @@ static __always_inline void handle_dynamic_table_update(struct __sk_buff *skb, s
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel, bool flipped) {
+static __always_inline void filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, __u32 frame_length, http2_telemetry_t *http2_tel, bool flipped) {
     __u8 current_ch;
-    __u8 interesting_headers = 0;
-    http2_header_t *current_header;
     const __u32 frame_end = skb_info->data_off + frame_length;
     const __u32 end = frame_end < skb_info->data_end + 1 ? frame_end : skb_info->data_end + 1;
     bool is_indexed = false;
@@ -194,7 +192,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
 
     __u64 *global_dynamic_counter = get_dynamic_counter(tup);
     if (global_dynamic_counter == NULL) {
-        return 0;
+        return;
     }
 
     handle_dynamic_table_update(skb, skb_info);
@@ -225,11 +223,6 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             break;
         }
 
-        current_header = NULL;
-        if (interesting_headers < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING) {
-            current_header = &headers_to_process[interesting_headers];
-        }
-
         if (is_indexed) {
             // Indexed representation.
             // MSB bit set.
@@ -243,7 +236,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // 6.2.1 Literal Header Field with Incremental Indexing
         // top two bits are 11
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!parse_field_literal(skb, skb_info, current_stream, dynamic_table_value, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal, flipped)) {
+        if (!parse_field_literal(skb, skb_info, current_stream, dynamic_table_value, index, *global_dynamic_counter, http2_tel, is_literal, flipped)) {
             break;
         }
     }
@@ -290,47 +283,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         }
     }
 
-    return interesting_headers;
-}
-
-// process_headers processes the headers that were filtered in filter_relevant_headers,
-// looking for requests path, status code, and method.
-static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_value_t *dynamic_table_value, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel, bool flipped) {
-    http2_header_t *current_header;
-
-#pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
-    for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
-        if (iteration >= interesting_headers) {
-            break;
-        }
-
-        current_header = &headers_to_process[iteration];
-
-        if (current_header->type == kStaticHeader) {
-            continue;
-        }
-
-        dynamic_table_value->key.index = current_header->index;
-        if (current_header->type == kExistingDynamicHeader) {
-            continue;
-        } else {
-            continue;
-        }
-    }
-}
-
-static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_value_t *dynamic_table_value, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel, bool flipped) {
-    const __u32 zero = 0;
-
-    // Allocating an array of headers, to hold all interesting headers from the frame.
-    http2_header_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
-    if (headers_to_process == NULL) {
-        return;
-    }
-    bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
-
-    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, current_stream, dynamic_table_value, headers_to_process, current_frame_header->length, http2_tel, flipped);
-    process_headers(skb, dynamic_table_value, current_stream, headers_to_process, interesting_headers, http2_tel, flipped);
+    return;
 }
 
 // skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
@@ -779,7 +732,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
             continue;
         }
         dispatcher_args_copy.skb_info.data_off = current_frame.offset;
-        process_headers_frame(skb, current_stream, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, dynamic_table_value, &current_frame.frame, http2_tel, flipped);
+        filter_relevant_headers(skb, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, current_stream, dynamic_table_value, current_frame.frame.length, http2_tel, flipped);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&

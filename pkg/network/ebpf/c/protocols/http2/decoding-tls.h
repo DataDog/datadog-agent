@@ -93,7 +93,7 @@ static __always_inline bool tls_handle_non_pseudo_headers(tls_dispatcher_argumen
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
-static __always_inline bool tls_parse_field_literal(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header, bool flipped) {
+static __always_inline bool tls_parse_field_literal(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, __u64 index, __u64 global_dynamic_counter, http2_telemetry_t *http2_tel, bool save_header, bool flipped) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -183,10 +183,8 @@ static __always_inline void tls_handle_dynamic_table_update(tls_dispatcher_argum
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 tls_filter_relevant_headers(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel, bool flipped) {
+static __always_inline void tls_filter_relevant_headers(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, __u32 frame_length, http2_telemetry_t *http2_tel, bool flipped) {
     __u8 current_ch;
-    __u8 interesting_headers = 0;
-    http2_header_t *current_header;
     const __u32 frame_end = info->data_off + frame_length;
     const __u32 end = frame_end < info->data_end + 1 ? frame_end : info->data_end + 1;
     bool is_indexed = false;
@@ -196,7 +194,7 @@ static __always_inline __u8 tls_filter_relevant_headers(struct pt_regs *ctx, tls
 
     __u64 *global_dynamic_counter = get_dynamic_counter(&info->tup);
     if (global_dynamic_counter == NULL) {
-        return 0;
+        return;
     }
 
     tls_handle_dynamic_table_update(info);
@@ -228,11 +226,6 @@ static __always_inline __u8 tls_filter_relevant_headers(struct pt_regs *ctx, tls
             break;
         }
 
-        current_header = NULL;
-        if (interesting_headers < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING) {
-            current_header = &headers_to_process[interesting_headers];
-        }
-
         if (is_indexed) {
             // Indexed representation.
             // MSB bit set.
@@ -245,7 +238,7 @@ static __always_inline __u8 tls_filter_relevant_headers(struct pt_regs *ctx, tls
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
 
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!tls_parse_field_literal(ctx, info, current_stream, dynamic_table_value, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal, flipped)) {
+        if (!tls_parse_field_literal(ctx, info, current_stream, dynamic_table_value, index, *global_dynamic_counter, http2_tel, is_literal, flipped)) {
             break;
         }
     }
@@ -293,47 +286,7 @@ static __always_inline __u8 tls_filter_relevant_headers(struct pt_regs *ctx, tls
         }
     }
 
-    return interesting_headers;
-}
-
-// tls_process_headers processes the headers that were filtered in
-// tls_filter_relevant_headers, looking for requests path, status code, and method.
-static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, dynamic_table_value_t *dynamic_table_value, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers, http2_telemetry_t *http2_tel, bool flipped) {
-    http2_header_t *current_header;
-
-#pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
-    for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
-        if (iteration >= interesting_headers) {
-            break;
-        }
-
-        current_header = &headers_to_process[iteration];
-
-        if (current_header->type == kStaticHeader) {
-            continue;
-        }
-
-        dynamic_table_value->key.index = current_header->index;
-        if (current_header->type == kExistingDynamicHeader) {
-            continue;
-        } else {
-            continue;
-        }
-    }
-}
-
-static __always_inline void tls_process_headers_frame(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel, bool flipped) {
-    const __u32 zero = 0;
-
-    // Allocating an array of headers, to hold all interesting headers from the frame.
-    http2_header_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
-    if (headers_to_process == NULL) {
-        return;
-    }
-    bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
-
-    __u8 interesting_headers = tls_filter_relevant_headers(ctx, info, current_stream, dynamic_table_value, headers_to_process, current_frame_header->length, http2_tel, flipped);
-    tls_process_headers(ctx, info, dynamic_table_value, current_stream, headers_to_process, interesting_headers, http2_tel, flipped);
+    return;
 }
 
 // tls_skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
@@ -755,7 +708,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
             continue;
         }
         dispatcher_args_copy.data_off = current_frame.offset;
-        tls_process_headers_frame(ctx, &dispatcher_args_copy, current_stream, dynamic_table_value, &current_frame.frame, http2_tel, flipped);
+        tls_filter_relevant_headers(ctx, &dispatcher_args_copy, current_stream, dynamic_table_value, current_frame.frame.length, http2_tel, flipped);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
