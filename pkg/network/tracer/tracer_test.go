@@ -17,7 +17,6 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	nethttp "net/http"
 	"os"
 	"runtime"
 	"strconv"
@@ -36,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1201,46 +1201,36 @@ func (s *TracerSuite) TestTCPDirection() {
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 
-	// Start an HTTP server on localhost:8080
-	serverAddr := "127.0.0.1:8080"
-	srv := &nethttp.Server{
-		Addr: serverAddr,
-		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
-			t.Logf("received http request from %s", req.RemoteAddr)
-			io.Copy(io.Discard, req.Body)
-			w.WriteHeader(200)
-		}),
-		ReadTimeout:  time.Second,
-		WriteTimeout: time.Second,
-	}
-	srv.SetKeepAlivesEnabled(false)
-	go func() {
-		_ = srv.ListenAndServe()
-	}()
-	defer srv.Shutdown(context.Background())
+	// Start an TCP server
+	srv := testutil.StartServerTCP(t, net.ParseIP("127.0.0.1"), 0)
+	t.Cleanup(func() { srv.Close() })
 
-	// Allow the HTTP server time to get set up
-	time.Sleep(time.Millisecond * 500)
+	serverAddr := srv.(net.Listener).Addr().String()
+	c, err := net.DialTimeout("tcp", serverAddr, 3*time.Second)
+	require.NoError(t, err, "error connecting to server")
+	t.Cleanup(func() { c.Close() })
 
-	// Send a HTTP request to the test server
-	client := new(nethttp.Client)
-	resp, err := client.Get("http://" + serverAddr + "/test")
-	require.NoError(t, err)
-	resp.Body.Close()
+	var buf [5]byte
+	_, err = c.Read(buf[:])
+	require.NoError(t, err, "error reading from server")
+	c.Close()
 
 	// Iterate through active connections until we find connection created above
 	var outgoingConns []network.ConnectionStats
 	var incomingConns []network.ConnectionStats
 	require.Eventuallyf(t, func() bool {
 		conns := getConnections(t, tr)
+		t.Log(conns) // for debugging CI failures
 		if len(outgoingConns) == 0 {
 			outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
-				return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
+				return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == c.LocalAddr().String() &&
+					fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
 			})
 		}
 		if len(incomingConns) == 0 {
 			incomingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
-				return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+				return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr &&
+					fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == c.LocalAddr().String()
 			})
 		}
 
