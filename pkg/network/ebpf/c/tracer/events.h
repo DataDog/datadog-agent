@@ -85,7 +85,7 @@ static __always_inline bool cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         // make sure direction is set correctly
         determine_connection_direction(&conn.tup, &conn.conn_stats);
     }
- 
+
     conn.conn_stats.timestamp = bpf_ktime_get_ns();
 
     // Batch TCP closed connections before generating a perf event
@@ -154,22 +154,20 @@ static __always_inline void emit_conn_close_event_ringbuffer(void *ctx) {
         bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(&conn));
     #else
         if (ringbuffers_enabled()) {
-            log_debug("adamk ringbuffers enabled, using ringbuffer for conn_close_event");
             bpf_ringbuf_output(&conn_close_event, &conn, sizeof(&conn), 0);
         } else {
-            log_debug("adamk ringbuffers not enabled, using perf event for conn_close_event");
             bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(&conn));
         }
     #endif
 }
 
-static __always_inline void flush_conn_close_if_full(void *ctx) {
+static __always_inline void flush_conn_close_if_full_perfbuffer(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
         return;
     }
-    
+
     // Here we copy the batch data to a variable allocated in the eBPF stack
     // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
     // since you can't directly write a map entry to the perf buffer.

@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -182,7 +181,6 @@ func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to get number of CPUs: %s", err)
 	}
-	log.Debugf("adamk Using %d CPUs for connection batch manager", numCPUs)
 	if err != nil {
 		return nil, err
 	}

@@ -217,7 +217,6 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 	}
 	var connCloseEventHandler ddebpf.EventHandler
 	if RingbuffersEnabled(config) {
-		log.Debugf("adamk Using ring buffers for connection close events")
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)

@@ -76,7 +76,7 @@ var (
 			ProgArrayName: probes.TCPCloseProgsMap,
 			Key:           0,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPCloseFlushReturn,
+				EBPFFuncName: probes.TCPCloseFlushReturnRingbuffer,
 				UID:          probeUID,
 			},
 		},
@@ -87,7 +87,7 @@ var (
 			ProgArrayName: probes.ConnCloseProgsIndvMap,
 			Key:           0,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPConnCloseEmitEvent,
+				EBPFFuncName: probes.TCPConnCloseEmitEventPerfBuffer,
 				UID:          probeUID,
 			},
 		},
