@@ -221,17 +221,17 @@ func (c *collector) notifyInitialEvents(ctx context.Context) error {
 	}
 
 	for _, namespace := range namespaces {
-		nsContainerEvents, err := c.generateInitialContainerEvents(namespace)
-		if err != nil {
-			return err
-		}
-		containerEvents = append(containerEvents, nsContainerEvents...)
-
 		if imageMetadataCollectionIsEnabled() {
 			if err := c.notifyInitialImageEvents(ctx, namespace); err != nil {
 				return err
 			}
 		}
+
+		nsContainerEvents, err := c.generateInitialContainerEvents(namespace)
+		if err != nil {
+			return err
+		}
+		containerEvents = append(containerEvents, nsContainerEvents...)
 	}
 
 	if len(containerEvents) > 0 {
@@ -261,7 +261,7 @@ func (c *collector) generateInitialContainerEvents(namespace string) ([]workload
 			continue
 		}
 
-		ev, err := createSetEvent(container, namespace, c.containerdClient)
+		ev, err := createSetEvent(container, namespace, c.containerdClient, c.store)
 		if err != nil {
 			log.Warnf(err.Error())
 			continue
@@ -312,7 +312,7 @@ func (c *collector) handleContainerEvent(ctx context.Context, containerdEvent *c
 		}
 	}
 
-	workloadmetaEvent, err := c.buildCollectorEvent(containerdEvent, containerID, container)
+	workloadmetaEvent, err := c.buildCollectorEvent(containerdEvent, containerID, container, c.store)
 	if err != nil {
 		if errors.Is(err, errNoContainer) {
 			log.Debugf("No event could be built as container is nil, skipping event. CID: %s, event: %+v", containerID, containerdEvent)

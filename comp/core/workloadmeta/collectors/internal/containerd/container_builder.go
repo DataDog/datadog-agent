@@ -29,7 +29,7 @@ import (
 const kataRuntimePrefix = "io.containerd.kata"
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
-func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
+func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf, store workloadmeta.Component) (workloadmeta.Container, error) {
 	if container == nil {
 		return workloadmeta.Container{}, fmt.Errorf("cannot build workloadmeta container from nil containerd container")
 	}
@@ -60,6 +60,9 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	if err != nil {
 		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
+
+	image.RepoDigests = extractRepoDigestFromImageMetadata(imageId)
+	log.Infof("Not getContainerImageFromWorkloadmeta, id = %s, imageName = %q: containerImage = %s", imageID, info.Image, image.String(true))
 
 	status, err := containerdClient.Status(namespace, container)
 	if err != nil {
@@ -153,4 +156,14 @@ func extractRuntimeFlavor(runtime string) workloadmeta.ContainerRuntimeFlavor {
 		return workloadmeta.ContainerRuntimeFlavorKata
 	}
 	return workloadmeta.ContainerRuntimeFlavorDefault
+}
+
+func extractRepoDigestFromImageMetadata(imageID string) []string {
+	var res []string
+	existingImgMetadata, err := store.GetImage(imageID)
+	if err == nil {
+		return existingImgMetadata.RepoDigests
+	}
+	log.Debugf("cannot get image metadata for image %s: %s", imageID, err)
+	return []string
 }

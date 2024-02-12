@@ -243,13 +243,20 @@ func (e EntityMeta) String(verbose bool) string {
 }
 
 // ContainerImage is the an image used by a container.
+// For historical reason, The imageId from containerd runtime and kubernetes refer to different fields.
+// For containerd, it is the digest of the image config.
+// For kubernetes, it referres to repo digest of the image (at least before CRI-O v1.28)
+// See https://github.com/kubernetes/kubernetes/issues/46255
+// To avoid confusion, an extra field of repo digest is added to the struct, if it is available, it
+// will also be added to the container tags in tagger.
 type ContainerImage struct {
-	ID        string
-	RawName   string
-	Name      string
-	Registry  string
-	ShortName string
-	Tag       string
+	ID          string
+	RawName     string
+	Name        string
+	Registry    string
+	ShortName   string
+	Tag         string
+	RepoDigests []string
 }
 
 // NewContainerImage builds a ContainerImage from an image name and its id
@@ -287,6 +294,7 @@ func (c ContainerImage) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "ID:", c.ID)
 		_, _ = fmt.Fprintln(&sb, "Raw Name:", c.RawName)
 		_, _ = fmt.Fprintln(&sb, "Short Name:", c.ShortName)
+		_, _ = fmt.Fprintln(&sb, "Repo Digest:", c.RepoDigests)
 	}
 
 	return sb.String()
