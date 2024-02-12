@@ -322,8 +322,7 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (is_path_index(current_header->index)) {
-                current_stream->path.static_table_entry = current_header->index;
-                current_stream->path.finalized = true;
+                current_stream->path.index = current_header->index;
             }
             continue;
         }
@@ -335,10 +334,7 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 break;
             }
             if (is_path_index(dynamic_value->original_index)) {
-                current_stream->path.length = dynamic_value->string_len;
-                current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->path.finalized = true;
-                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+                current_stream->path.index = current_header->index;
             } else if (is_status_index(dynamic_value->original_index)) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
@@ -365,10 +361,8 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 dynamic_table_value->key.index = bpf_ktime_get_ns();
             }
             if (dynamic_table_value->type == kHeaderPath) {
-                current_stream->path.length = current_header->new_dynamic_value_size;
-                current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->path.finalized = true;
-                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+                current_stream->path.index = dynamic_table_value->key.index;
+                current_stream->path.temporary = dynamic_table_value->temporary;
             } else if (dynamic_table_value->type == kHeaderStatus) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;

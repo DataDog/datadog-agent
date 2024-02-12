@@ -38,9 +38,8 @@ func TestIncompleteBuffer(t *testing.T) {
 					Request_method: http2InterestingValue{
 						Index: uint64(GetValue),
 					},
-					Path: http2Path{
-						Static_table_entry: EmptyPathValue,
-						Finalized:          true,
+					Path: http2InterestingValue{
+						Index: uint64(EmptyPathValue),
 					},
 				},
 			},
@@ -67,8 +66,8 @@ func TestIncompleteBuffer(t *testing.T) {
 					Sport: 6000,
 				},
 				Stream: http2Stream{
-					Path: http2Path{
-						Static_table_entry: EmptyPathValue,
+					Path: http2InterestingValue{
+						Index: uint64(EmptyPathValue),
 					},
 					Request_started: uint64(now.UnixNano()),
 				},

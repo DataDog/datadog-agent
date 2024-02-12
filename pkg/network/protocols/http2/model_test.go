@@ -56,16 +56,24 @@ func TestHTTP2Path(t *testing.T) {
 				}
 				copy(arr[:], buf)
 
+				dynamicTable := NewDynamicTable(10)
+				dynamicTable.handleNewDynamicTableEntry(&http2DynamicTableValue{
+					Key: HTTP2DynamicTableIndex{
+						Index: 1,
+					},
+					Is_huffman_encoded: huffmanEnabled,
+					String_len:         uint8(len(buf)),
+					Buf:                arr,
+				})
 				request := &ebpfTXWrapper{
 					EbpfTx: &EbpfTx{
 						Stream: http2Stream{
-							Path: http2Path{
-								Is_huffman_encoded: huffmanEnabled,
-								Raw_buffer:         arr,
-								Length:             uint8(len(buf)),
+							Path: http2InterestingValue{
+								Index: http2staticTableMaxEntry + 1,
 							},
 						},
 					},
+					dynamicTable: dynamicTable,
 				}
 
 				outBuf := make([]byte, 200)
