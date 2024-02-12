@@ -5,7 +5,7 @@
 
 //go:build !kubeapiserver
 
-package v1
+package languagedetection
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
