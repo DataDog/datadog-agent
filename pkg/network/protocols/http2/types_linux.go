@@ -45,7 +45,8 @@ type http2Stream struct {
 	Request_method        http2InterestingValue
 	Path                  http2InterestingValue
 	Request_end_of_stream bool
-	Pad_cgo_0             [7]byte
+	Conn_tuple_flipped    bool
+	Pad_cgo_0             [6]byte
 }
 type http2DynamicTableValue struct {
 	Key                HTTP2DynamicTableIndex

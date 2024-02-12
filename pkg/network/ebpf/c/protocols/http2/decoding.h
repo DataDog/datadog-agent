@@ -815,7 +815,8 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 
     bpf_memset(http2_stream_key, 0, sizeof(http2_stream_key_t));
     http2_stream_key->tup = dispatcher_args_copy.tup;
-    normalize_tuple(&http2_stream_key->tup);
+    http2_stream_t base_stream = {0};
+    base_stream.conn_tuple_flipped = normalize_tuple(&http2_stream_key->tup);
 
     http2_stream_t *current_stream = NULL;
 
@@ -836,7 +837,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
         }
 
         http2_stream_key->stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(http2_stream_key);
+        current_stream = http2_fetch_stream(http2_stream_key, &base_stream);
         if (current_stream == NULL) {
             continue;
         }
@@ -903,7 +904,8 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
     }
     bpf_memset(http2_stream_key, 0, sizeof(http2_stream_key_t));
     http2_stream_key->tup = dispatcher_args_copy.tup;
-    normalize_tuple(&http2_stream_key->tup);
+    http2_stream_t base_stream = {0};
+    base_stream.conn_tuple_flipped = normalize_tuple(&http2_stream_key->tup);
 
     bool is_rst = false, is_end_of_stream = false;
     http2_stream_t *current_stream = NULL;
@@ -928,7 +930,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         }
 
         http2_stream_key->stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(http2_stream_key);
+        current_stream = http2_fetch_stream(http2_stream_key, &base_stream);
         if (current_stream == NULL) {
             continue;
         }

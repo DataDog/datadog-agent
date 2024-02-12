@@ -95,9 +95,6 @@ var Spec = &protocols.ProtocolSpec{
 			Name: "http2_frames_to_process",
 		},
 		{
-			Name: "http2_stream_heap",
-		},
-		{
 			Name: "http2_stream_key_heap",
 		},
 	},

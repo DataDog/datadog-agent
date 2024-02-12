@@ -160,6 +160,7 @@ typedef struct {
     interesting_value_t request_method;
     interesting_value_t path;
     bool request_end_of_stream;
+    bool conn_tuple_flipped;
 } http2_stream_t;
 
 typedef struct {

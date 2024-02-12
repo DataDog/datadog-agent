@@ -32,9 +32,6 @@ BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, http2_header_t[HTTP2_MAX_HEADERS_
 /* Allocating an array of frame, to hold all interesting frames from the packet. */
 BPF_PERCPU_ARRAY_MAP(http2_frames_to_process, http2_tail_call_state_t, 1)
 
-/* Allocating a stream on the heap, the stream is used to save the current stream info. */
-BPF_PERCPU_ARRAY_MAP(http2_stream_heap, http2_stream_t, 1)
-
 /* This map acts as a scratch buffer for "preparing" http2_event_t objects before they're
    enqueued. The primary motivation here is to save eBPF stack memory. */
 BPF_PERCPU_ARRAY_MAP(http2_scratch_buffer, http2_event_t, 1)
