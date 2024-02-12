@@ -5,7 +5,7 @@ services:
     privileged: true
     ports:
     - 80:80/tcp
-    image: public.ecr.aws/r3m4q3r9/pub-mirror-httpbin
+    image: ghcr.io/datadog/go-httpbin:main
     container_name: httpbin
     volumes: []
     environment: {}
