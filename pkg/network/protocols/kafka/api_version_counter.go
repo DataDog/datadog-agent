@@ -28,7 +28,7 @@ type apiVersionCounter struct {
 // NewAPIVersionCounter creates and returns a new instance of apiVersionCounter
 func NewAPIVersionCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *apiVersionCounter {
 	var hitsVersions [maxSupportedApiVersion]*libtelemetry.Counter
-	for i := 0; i < maxSupportedApiVersion; i++ {
+	for i := 0; i < len(hitsVersions); i++ {
 		hitsVersions[i] = metricGroup.NewCounter(metricName, append(tags, fmt.Sprintf("protocol_version:%d", i+1))...)
 	}
 	return &apiVersionCounter{
