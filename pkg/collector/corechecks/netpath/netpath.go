@@ -145,10 +145,10 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 		return 0, err
 	}
 
-	err = c.traceRouteDublin(senderInstance, results, hname, rawTarget)
-	if err != nil {
-		return 0, err
-	}
+	//err = c.traceRouteDublin(senderInstance, results, hname, rawTarget)
+	//if err != nil {
+	//	return 0, err
+	//}
 	log.Debugf("results: %+v", results)
 
 	if len(results.Flows) == 1 {
@@ -430,7 +430,7 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 
 			log.Debugf("traceroute: %s", tracerouteStr)
 
-			sender.EventPlatformEvent(tracerouteStr, eventplatform.EventTypeNetworkPath)
+			//sender.EventPlatformEvent(tracerouteStr, eventplatform.EventTypeNetworkPath)
 
 			//prevHop = hop
 
@@ -472,7 +472,7 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 		},
 	}
 
-	pathId := uuid.New().String()
+	//pathId := uuid.New().String()
 
 	for idx, probes := range r.Flows {
 		log.Debugf("flow idx: %d\n", idx)
@@ -585,28 +585,28 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 
 			ip := cur.node
 			durationMs := float64(cur.probe.RttUsec) / 1000
-			tr := TracerouteV2{
-				PathId:           pathId,
-				TracerouteSource: "netpath_integration",
-				Timestamp:        time.Now().UnixMilli(),
-				AgentHost:        hname,
-				DestinationHost:  destinationHost,
-				TTL:              idx,
-				IpAddress:        ip,
-				Host:             c.getHostname(cur.node),
-				Duration:         durationMs,
-				Success:          isSuccess,
-			}
-			tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
-			if err != nil {
-				return err
-			}
+			//tr := TracerouteV2{
+			//	PathId:           pathId,
+			//	TracerouteSource: "netpath_integration",
+			//	Timestamp:        time.Now().UnixMilli(),
+			//	AgentHost:        hname,
+			//	DestinationHost:  destinationHost,
+			//	TTL:              idx,
+			//	IpAddress:        ip,
+			//	Host:             c.getHostname(cur.node),
+			//	Duration:         durationMs,
+			//	Success:          isSuccess,
+			//}
+			//tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
+			//if err != nil {
+			//	return err
+			//}
+			//
+			//log.Debugf("cur node: %+v", cur)
+			//log.Debugf("cur node probe: %+v", cur.probe)
+			//log.Debugf("traceroute: %s", tracerouteStr)
 
-			log.Debugf("cur node: %+v", cur)
-			log.Debugf("cur node probe: %+v", cur.probe)
-			log.Debugf("traceroute: %s", tracerouteStr)
-
-			sender.EventPlatformEvent(tracerouteStr, eventplatform.EventTypeNetworkPath)
+			//sender.EventPlatformEvent(tracerouteStr, eventplatform.EventTypeNetworkPath)
 
 			hop := NetworkPathHop{
 				TTL:       idx,
