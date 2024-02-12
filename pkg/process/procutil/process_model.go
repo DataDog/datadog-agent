@@ -13,19 +13,19 @@ import (
 
 // Process holds all relevant metadata and metrics for a process
 type Process struct {
-	Pid      int32
-	Ppid     int32
-	NsPid    int32 // process namespaced PID
-	Name     string
-	Cwd      string
-	Exe      string
-	Comm     string
-	Cmdline  []string
-	Username string // (Windows only)
-	Uids     []int32
-	Gids     []int32
-	ProcessContext  []string
-	Stats *Stats
+	Pid            int32
+	Ppid           int32
+	NsPid          int32 // process namespaced PID
+	Name           string
+	Cwd            string
+	Exe            string
+	Comm           string
+	Cmdline        []string
+	Username       string // (Windows only)
+	Uids           []int32
+	Gids           []int32
+	ProcessContext []string
+	Stats          *Stats
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

@@ -79,8 +79,8 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 			SystemPct: float32(cpu.SystemPct),
 			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
 		},
-		CreateTime: process.Stats.CreateTime,
-		IoStat:     &model.IOStat{},
+		CreateTime:     process.Stats.CreateTime,
+		IoStat:         &model.IOStat{},
 		ProcessContext: process.ProcessContext,
 	}
 }
