@@ -121,7 +121,7 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 	forwarder.workers = nil
 }
 
-func TestDomainForwarderHAMetadataSendHTTPTransactions(t *testing.T) {
+func TestDomainForwarderHAPreFailover(t *testing.T) {
 
 	datadogYaml := `
 ha:
@@ -158,7 +158,7 @@ ha:
 	forwarder.sendHTTPTransactions(trSeries)
 	timedOut := false
 	select {
-	case _ = <-forwarder.highPrio:
+	case <-forwarder.highPrio:
 		// should not happen
 	case <-time.After(time.Second):
 		timedOut = true
@@ -169,7 +169,7 @@ ha:
 	forwarder.workers = nil
 }
 
-func TestDomainForwarderHASendHTTPTransactions(t *testing.T) {
+func TestDomainForwarderHAFailover(t *testing.T) {
 
 	datadogYaml := `
 ha:
