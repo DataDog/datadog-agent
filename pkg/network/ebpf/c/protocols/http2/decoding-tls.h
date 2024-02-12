@@ -111,8 +111,7 @@ static __always_inline bool tls_parse_field_literal(struct pt_regs *ctx, tls_dis
         if (!tls_read_hpack_int(info, MAX_7_BITS, &dynamic_table_value->string_len, &dynamic_table_value->is_huffman_encoded)) {
             return false;
         }
-    }
-    if (!is_interesting_static_entry(index)) {
+
         goto end;
     }
 
@@ -123,31 +122,33 @@ static __always_inline bool tls_parse_field_literal(struct pt_regs *ctx, tls_dis
         current_stream->path.dynamic_table_entry = global_dynamic_counter - 1;
         current_stream->path.temporary = !save_header;
         current_stream->path.tuple_flipped = flipped;
-    } else if (is_status_index(index)) {
-        current_stream->status_code.dynamic_table_entry = global_dynamic_counter - 1;
-        current_stream->status_code.temporary = !save_header;
-        current_stream->status_code.tuple_flipped = flipped;
-        __sync_fetch_and_add(&http2_tel->response_seen, 1);
-    } else {
-        current_stream->request_started = bpf_ktime_get_ns();
-        __sync_fetch_and_add(&http2_tel->request_seen, 1);
-        current_stream->request_method.dynamic_table_entry = global_dynamic_counter - 1;
-        current_stream->request_method.temporary = !save_header;
-        current_stream->request_method.tuple_flipped = flipped;
+//    } else if (is_status_index(index)) {
+//        current_stream->status_code.dynamic_table_entry = global_dynamic_counter - 1;
+//        current_stream->status_code.temporary = !save_header;
+//        current_stream->status_code.tuple_flipped = flipped;
+//        __sync_fetch_and_add(&http2_tel->response_seen, 1);
+//    } else if (is_method_index(index)) {
+//        current_stream->request_started = bpf_ktime_get_ns();
+//        __sync_fetch_and_add(&http2_tel->request_seen, 1);
+//        current_stream->request_method.dynamic_table_entry = global_dynamic_counter - 1;
+//        current_stream->request_method.temporary = !save_header;
+//        current_stream->request_method.tuple_flipped = flipped;
+//    } else {
+//        goto end;
     }
 
-    if (info->data_off + dynamic_table_value->string_len > info->data_end) {
-        __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
-        goto end;
-    }
+//    if (info->data_off + dynamic_table_value->string_len > info->data_end) {
+//        __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
+//        goto end;
+//    }
 
-    read_into_user_buffer_http2_path(dynamic_table_value->buf, info->buffer_ptr + info->data_off);
-    // Send dynamic value over a per-event to the user mode.
-    dynamic_table_value->temporary = !save_header;
-    bpf_perf_event_output(ctx, &http2_dynamic_table_perf_buffer, bpf_get_smp_processor_id(), dynamic_table_value, sizeof(dynamic_table_value_t));
-    if (save_header) {
-        bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_table_value->key.index, BPF_ANY);
-    }
+//    read_into_user_buffer_http2_path(dynamic_table_value->buf, info->buffer_ptr + info->data_off);
+//    // Send dynamic value over a per-event to the user mode.
+//    dynamic_table_value->temporary = !save_header;
+//    bpf_perf_event_output(ctx, &http2_dynamic_table_perf_buffer, bpf_get_smp_processor_id(), dynamic_table_value, sizeof(dynamic_table_value_t));
+//    if (save_header) {
+//        bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_table_value->key.index, BPF_ANY);
+//    }
 end:
     info->data_off += dynamic_table_value->string_len;
     return true;
@@ -235,9 +236,9 @@ static __always_inline void tls_filter_relevant_headers(struct pt_regs *ctx, tls
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
 
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!tls_parse_field_literal(ctx, info, current_stream, dynamic_table_value, index, *global_dynamic_counter, http2_tel, is_literal, flipped)) {
-            break;
-        }
+//        if (!tls_parse_field_literal(ctx, info, current_stream, dynamic_table_value, index, *global_dynamic_counter, http2_tel, is_literal, flipped)) {
+//            break;
+//        }
     }
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)

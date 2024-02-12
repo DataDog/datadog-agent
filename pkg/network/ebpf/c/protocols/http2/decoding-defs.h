@@ -32,7 +32,7 @@
 #define HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS 5
 
 // Represents the maximum number of frames we'll process in a single tail call in `uprobe__http2_tls_headers_parser` program.
-#define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 8
+#define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 15
 // Represents the maximum number of tail calls to process headers frames.
 // Currently we have up to 120 frames in a packet, thus 8 (8*15 = 120) tail calls is enough.
 #define HTTP2_TLS_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 8

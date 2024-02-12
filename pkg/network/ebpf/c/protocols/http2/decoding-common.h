@@ -14,12 +14,12 @@
 
 // Returns true if the given index represents a path index.
 static __always_inline bool is_path_index(const __u64 index) {
-    return index == kEmptyPath || index == kIndexPath;
+    return index <= kEmptyPath && index <= kIndexPath;
 }
 
 // Returns true is the given index represents a method index.
 static __always_inline bool is_method_index(const __u64 index) {
-    return index == kGET || index == kPOST;
+    return index <= kGET && index <= kPOST;
 }
 
 // Returns true if the given index represents a status index.
