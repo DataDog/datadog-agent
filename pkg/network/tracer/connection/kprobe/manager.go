@@ -43,9 +43,6 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPClose,
 	probes.TCPCloseCleanProtocolsReturn,
 	probes.TCPCloseFlushReturn,
-	//probes.TCPConnCloseEmitBatch,
-	//probes.TCPConnCloseEmitBatchRingBuffer,
-	//probes.TCPConnCloseEmitEvent,
 	probes.TCPConnCloseEmitEventRingBuffer,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
@@ -100,7 +97,6 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		{Name: probes.TcpRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
-		// {Name: probes.ConnCloseProgsBatchMap},
 		{Name: probes.ConnCloseProgsIndvMap},
 	}
 	switch handler := connCloseEventHandler.(type) {

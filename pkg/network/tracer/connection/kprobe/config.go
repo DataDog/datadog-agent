@@ -31,7 +31,6 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
-	kv580 := kernel.VersionCode(5, 8, 0)
 	kv5180 := kernel.VersionCode(5, 18, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv650 := kernel.VersionCode(6, 5, 0)
@@ -61,12 +60,12 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)
-		//enableProbe(enabled, probes.TCPCloseFlushReturn)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPCloseFlushReturn, probes.TCPCloseFlushReturnPre580, kv580))
-		if (features.HaveMapType(cebpf.RingBuf) == nil) && c.RingbufferEnabled {
+		if ((features.HaveMapType(cebpf.RingBuf) == nil) && c.RingbufferEnabled) || runtimeTracer {
 			enableProbe(enabled, probes.TCPConnCloseEmitEventRingBuffer)
+			enableProbe(enabled, probes.TCPCloseFlushReturn)
 		} else {
 			enableProbe(enabled, probes.TCPConnCloseEmitEvent)
+			enableProbe(enabled, probes.TCPCloseFlushReturnPre580)
 		}
 		enableProbe(enabled, probes.TCPConnect)
 		enableProbe(enabled, probes.TCPFinishConnect)
@@ -82,8 +81,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	if c.CollectUDPv4Conns {
 		enableProbe(enabled, probes.UDPDestroySock)
-		//enableProbe(enabled, probes.UDPDestroySockReturn)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPDestroySockReturn, probes.UDPDestroySockReturnPre580, kv580))
+		if ((features.HaveMapType(cebpf.RingBuf) == nil) && c.RingbufferEnabled) || runtimeTracer {
+			enableProbe(enabled, probes.UDPDestroySockReturn)
+		} else {
+			enableProbe(enabled, probes.UDPDestroySockReturnPre580)
+		}
 		enableProbe(enabled, probes.IPMakeSkb)
 		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
@@ -106,8 +108,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	if c.CollectUDPv6Conns {
 		enableProbe(enabled, probes.UDPv6DestroySock)
-		//enableProbe(enabled, probes.UDPv6DestroySockReturn)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6DestroySockReturn, probes.UDPv6DestroySockReturnPre580, kv580))
+		if ((features.HaveMapType(cebpf.RingBuf) == nil) && c.RingbufferEnabled) || runtimeTracer {
+			enableProbe(enabled, probes.UDPv6DestroySockReturn)
+		} else {
+			enableProbe(enabled, probes.UDPv6DestroySockReturnPre580)
+		}
 		if kv >= kv5180 || runtimeTracer {
 			// prebuilt shouldn't arrive here with 5.18+ and UDPv6 enabled
 			if !coreTracer && !runtimeTracer {

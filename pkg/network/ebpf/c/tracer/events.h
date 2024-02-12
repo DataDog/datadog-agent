@@ -150,13 +150,17 @@ static __always_inline void emit_conn_close_event_ringbuffer(void *ctx) {
     if (!conn) {
         return;
     }
-    if (ringbuffers_enabled()) {
-        log_debug("adamk ringbuffers enabled, using ringbuffer for conn_close_event");
-        bpf_ringbuf_output(&conn_close_event, &conn, sizeof(&conn), 0);
-    } else {
-        log_debug("adamk ringbuffers not enabled, using perf event for conn_close_event");
+    #if DISABLE_RINGBUFFER == 1
         bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(&conn));
-    }
+    #else
+        if (ringbuffers_enabled()) {
+            log_debug("adamk ringbuffers enabled, using ringbuffer for conn_close_event");
+            bpf_ringbuf_output(&conn_close_event, &conn, sizeof(&conn), 0);
+        } else {
+            log_debug("adamk ringbuffers not enabled, using perf event for conn_close_event");
+            bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(&conn));
+        }
+    #endif
 }
 
 static __always_inline void flush_conn_close_if_full(void *ctx) {
@@ -187,13 +191,16 @@ static __always_inline void flush_conn_close_if_full_ringbuffer(void *ctx) {
     bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
     batch_ptr->len = 0;
     batch_ptr->id++;
-    if (ringbuffers_enabled()) {
-        bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
-    } else {
+    #if DISABLE_RINGBUFFER == 1
         bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
-    }
+    #else
+        if (ringbuffers_enabled()) {
+            bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
+        } else {
+            bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
+        }
+    #endif
     // todo: add telemetry on batched_tcp_close
-
 }
 
 #endif // __TRACER_EVENTS_H

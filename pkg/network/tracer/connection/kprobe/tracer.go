@@ -82,17 +82,6 @@ var (
 		},
 	}
 
-	// connCloseBatchTailCalls = []manager.TailCallRoute{
-	// 	{
-	// 		ProgArrayName: probes.ConnCloseProgsBatchMap,
-	// 		Key:           0,
-	// 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-	// 			EBPFFuncName: probes.TCPConnCloseEmitBatch,
-	// 			UID:          probeUID,
-	// 		},
-	// 	},
-	// }
-
 	connCloseIndividualTailCalls = []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ConnCloseProgsIndvMap,
@@ -131,6 +120,13 @@ func ClassificationSupported(config *config.Config) bool {
 
 	return currentKernelVersion >= classificationMinimumKernel
 }
+
+//func RingBufferEnabled(config *config.Config) bool {
+//	if !config.CollectTCPv4Conns && !config.CollectTCPv6Conns {
+//		return false
+//	}
+//	return (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled
+//}
 
 func addBoolConst(options *manager.Options, flag bool, name string) {
 	val := uint64(1)
@@ -212,6 +208,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
 
 	ringbufferEnabled := (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled
+	tcpEnabled := config.CollectTCPv4Conns || config.CollectTCPv6Conns
 	addBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffer_enabled")
 
 	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
@@ -226,11 +223,14 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			ValueSize:  0,
 			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 		}
-		// connCloseBatchTailCalls[0].ProbeIdentificationPair.EBPFFuncName = probes.TCPConnCloseEmitBatchRingBuffer
-		connCloseIndividualTailCalls[0].ProbeIdentificationPair.EBPFFuncName = probes.TCPConnCloseEmitEventRingBuffer
+		if tcpEnabled {
+			connCloseIndividualTailCalls[0].ProbeIdentificationPair.EBPFFuncName = probes.TCPConnCloseEmitEventRingBuffer
+		}
+	} else {
+		if tcpEnabled {
+			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, connCloseIndividualTailCalls...)
+		}
 	}
-	// mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, connCloseBatchTailCalls...)
-	mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, connCloseIndividualTailCalls...)
 
 	var undefinedProbes []manager.ProbeIdentificationPair
 
