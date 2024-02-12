@@ -8,6 +8,7 @@ package inventoryagentimpl
 import (
 	"bytes"
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -367,4 +368,35 @@ language_detection:
 	assert.True(t, ia.data["feature_process_enabled"].(bool))
 	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
 	assert.True(t, ia.data["feature_process_language_detection_enabled"].(bool))
+}
+
+func TestFetchTraceAgent(t *testing.T) {
+	defer func() {
+		fetchTraceConfig = configFetcher.TraceAgentConfig
+	}()
+	fetchTraceConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return "", fmt.Errorf("some error")
+	}
+
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchTraceAgentMetadata()
+
+	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
+		assert.False(t, ia.data["feature_apm_enabled"].(bool))
+	} else {
+		assert.True(t, ia.data["feature_apm_enabled"].(bool))
+	}
+	assert.Equal(t, "", ia.data["config_apm_dd_url"].(string))
+
+	fetchTraceConfig = func(config pkgconfigmodel.Reader) (string, error) {
+		return `
+apm_config:
+  enabled: true
+  apm_dd_url: "https://user:password@some_url_for_trace"
+`, nil
+	}
+
+	ia.fetchTraceAgentMetadata()
+	assert.True(t, ia.data["feature_apm_enabled"].(bool))
+	assert.Equal(t, "https://user:********@some_url_for_trace", ia.data["config_apm_dd_url"].(string))
 }
