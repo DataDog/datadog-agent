@@ -241,6 +241,7 @@ class AgentManager {
             // `unload` stops a service running for the current user session, the `-w` flag will disable it going forward
             command = "/bin/launchctl unload -w " + userAgentPlistPath
         } else { // disabled -> enable
+            // `load` starts a service running for the current user session, the `-w` flag will enable it going forward
             command = "/bin/launchctl load -w " + userAgentPlistPath
         }
         let processInfo = bashCall(command: command)
