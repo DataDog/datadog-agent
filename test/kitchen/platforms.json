@@ -42,7 +42,7 @@
         "ec2": {
             "x86_64": {
                 "debian-10": "ami-041540a5c191757a0",
-                "debian-11": "ami-02ba6eae41e089e8d",
+                "debian-11": "ami-0fd320e6b2de9e34a",
                 "debian-12": "ami-07edaec601cf2b6d3"
             },
             "arm64": {
