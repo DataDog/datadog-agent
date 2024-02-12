@@ -16,7 +16,7 @@ import (
 type Telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 
-	produceHits, fetchHits *APIVersionCounter
+	produceHits, fetchHits *apiVersionCounter
 	dropped                *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
 }
 
