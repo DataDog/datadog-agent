@@ -716,10 +716,13 @@ core,github.com/ebitengine/purego,Apache-2.0,Copyright 2022 The Ebitengine Autho
 core,github.com/ebitengine/purego/internal/cgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/fakecgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/strings,Apache-2.0,Copyright 2022 The Ebitengine Authors
-core,github.com/elastic/go-libaudit,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
-core,github.com/elastic/go-libaudit/auparse,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
-core,github.com/elastic/go-libaudit/rule,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
-core,github.com/elastic/go-libaudit/rule/flags,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-libaudit/v2,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-libaudit/v2/auparse,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-libaudit/v2/internal,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-libaudit/v2/rule,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-libaudit/v2/rule/flags,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-licenser,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-licenser/licensing,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/go-seccomp-bpf,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/go-seccomp-bpf/arch,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/emicklei/go-restful/v3,MIT,"Copyright (c) 2012,2013 Ernest Micklei"
@@ -1147,7 +1150,6 @@ core,github.com/masahiro331/go-xfs-filesystem/xfs/utils,Apache-2.0,Copyright (c)
 core,github.com/mattn/go-colorable,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
 core,github.com/mattn/go-isatty,MIT,Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
 core,github.com/mattn/go-runewidth,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
-core,github.com/matttproud/golang_protobuf_extensions/v2/pbutil,Apache-2.0,Copyright 2012 Matt T. Proud (matt.proud@gmail.com)
 core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
@@ -1170,6 +1172,7 @@ core,github.com/moby/locker,Apache-2.0,"Copyright 2013-2018 Docker, Inc"
 core,github.com/moby/sys/mountinfo,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/sequential,Apache-2.0,Kir Kolyshkin <kolyshkin@gmail.com>|Sebastiaan van Stijn <github@gone.nl>|Sebastiaan van Stijn <thaJeztah@users.noreply.github.com>|Tibor Vass <teabee89@gmail.com>|Brian Goff <cpuguy83@gmail.com>|John Howard <jhoward@microsoft.com>|Victor Vieux <victor.vieux@docker.com>|Michael Crosby <crosby.michael@gmail.com>|Daniel Nephin <dnephin@docker.com>|Tianon Gravi <admwiggin@gmail.com>|Vincent Batts <vbatts@redhat.com>|Akihiro Suda <akihiro.suda.cz@hco.ntt.co.jp>|Michael Crosby <michael@crosbymichael.com>|Yong Tang <yong.tang.github@outlook.com>|Kir Kolyshkin <kolyshkin@users.noreply.github.com>|Christopher Jones <tophj@linux.vnet.ibm.com>|Guillaume J. Charmes <guillaume@charmes.net>|Kato Kazuyoshi <kato.kazuyoshi@gmail.com>|Manu Gupta <manugupt1@gmail.com>|Michael Crosby <crosbymichael@gmail.com>|Vincent Demeester <vincent@sbr.pm>|Aleksa Sarai <cyphar@cyphar.com>|Amit Krishnan <amit.krishnan@oracle.com>|Arnaud Porterie <arnaud.porterie@docker.com>|Brian Goff <brian.goff@microsoft.com>|Brian Goff <cpuguy@hey.com>|Dan Walsh <dwalsh@redhat.com>|Michael Crosby <michael@docker.com>|Phil Estes <estesp@gmail.com>|Shengjing Zhu <zhsj@debian.org>|Solomon Hykes <solomon@docker.com>|Tobias Klauser <tklauser@distanz.ch>|lalyos <lalyos@yahoo.com>|unclejack <unclejacksons@gmail.com>|Akihiro Suda <suda.kyoto@gmail.com>|Alexander Morozov <lk4d4@docker.com>|Jessica Frazelle <acidburn@docker.com>|Jessica Frazelle <jess@docker.com>|Jessie Frazelle <jfrazelle@users.noreply.github.com>|Justas Brazauskas <brazauskasjustas@gmail.com>|Justin Cormack <justin.cormack@docker.com>|Kazuyoshi Kato <katokazu@amazon.com>|Naveed Jamil <naveed.jamil@tenpearls.com>|Vincent Demeester <vincent.demeester@docker.com>|shuai-z <zs.broccoli@gmail.com>|Ahmet Alp Balkan <ahmetb@microsoft.com>|Aleksa Sarai <asarai@suse.com>|Alexander Larsson <alexl@redhat.com>|Alexander Morozov <lk4d4math@gmail.com>|Alexandr Morozov <lk4d4@docker.com>|Alexandr Morozov <lk4d4math@gmail.com>|Antonio Murdaca <me@runcom.ninja>|Antonio Murdaca <runcom@linux.com>|Antonio Murdaca <runcom@users.noreply.github.com>|Artem Khramov <akhramov@pm.me>|Cezar Sa Espinola <cezarsa@gmail.com>|Chen Hanxiao <chenhanxiao@cn.fujitsu.com>|Darren Stahl <darst@microsoft.com>|David Calavera <david.calavera@gmail.com>|Derek McGowan <derek@mcgstyle.net>|Eng Zer Jun <engzerjun@gmail.com>|Erik Dubbelboer <erik@dubbelboer.com>|Fabian Kramm <kramm@covexo.com>|Guillaume Dufour <gdufour.prestataire@voyages-sncf.com>|Guillaume J. Charmes <guillaume.charmes@docker.com>|Hajime Tazaki <thehajime@gmail.com>|Jamie Hannaford <jamie.hannaford@rackspace.com>|Jason A. Donenfeld <Jason@zx2c4.com>|Jhon Honce <jhonce@redhat.com>|Josh Soref <jsoref@users.noreply.github.com>|Kasper Fabæch Brandt <poizan@poizan.dk>|Kathryn Baldauf <kabaldau@microsoft.com>|Kenfe-Mickael Laventure <mickael.laventure@gmail.com>|Kirill Kolyshkin <kolyshkin@users.noreply.github.com>|Muhammad Kaisar Arkhan <hi@yukiisbo.red>|Oli <oli@overrateddev.co>|Olli Janatuinen <olli.janatuinen@gmail.com>|Paul Nasrat <pnasrat@gmail.com>|Peter Bourgon <peter@bourgon.org>|Peter Waller <peter@scraperwiki.com>|Phil Estes <estesp@linux.vnet.ibm.com>|Samuel Karp <skarp@amazon.com>|Stefan J. Wernli <swernli@microsoft.com>|Steven Hartland <steven.hartland@multiplay.co.uk>|Stig Larsson <stig@larsson.dev>|Tim Wang <timwangdev@gmail.com>|Victor Vieux <victorvieux@gmail.com>|Victor Vieux <vieux@docker.com>|Yan Feng <yanfeng2@huawei.com>|jhowardmsft <jhoward@microsoft.com>|liuxiaodong <liuxiaodong@loongson.cn>|phineas <phin@phineas.io>|unclejack <unclejack@users.noreply.github.com>|yuexiao-wang <wang.yuexiao@zte.com.cn>|谢致邦 (XIE Zhibang) <Yeking@Red54.com>
 core,github.com/moby/sys/signal,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
+core,github.com/moby/sys/user,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
@@ -1285,7 +1288,6 @@ core,github.com/opencontainers/go-digest,Apache-2.0,"Copyright 2016 Docker, Inc 
 core,github.com/opencontainers/image-spec/identity,Apache-2.0,Copyright 2016 The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,Copyright 2016 The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go/v1,Apache-2.0,Copyright 2016 The Linux Foundation
-core,github.com/opencontainers/runc/libcontainer/user,Apache-2.0,"Copyright 2012-2015 Docker, Inc | Copyright 2014 Docker, Inc"
 core,github.com/opencontainers/runtime-spec/specs-go,Apache-2.0,Copyright 2015 The Linux Foundation
 core,github.com/opencontainers/selinux/go-selinux,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,Copyright (c) 2017 The Authors
@@ -1314,6 +1316,7 @@ core,github.com/pjbgf/sha1cd,Apache-2.0,"Copyright 2009 The Go Authors. All righ
 core,github.com/pjbgf/sha1cd/internal,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
 core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
 core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@cheney.net>"
+core,github.com/planetscale/vtprotobuf/protohelpers,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
 core,github.com/pmezard/go-difflib/difflib,BSD-3-Clause,"Copyright (c) 2013, Patrick Mezard"
 core,github.com/power-devops/perfstat,MIT,Copyright (c) 2020 Power DevOps
 core,github.com/prometheus-community/pro-bing,MIT,Copyright 2016 Cameron Sparr and contributors | Copyright 2022 The Prometheus Authors
@@ -1324,6 +1327,7 @@ core,github.com/prometheus/client_golang/prometheus/promauto,Apache-2.0,Copyrigh
 core,github.com/prometheus/client_golang/prometheus/promhttp,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/client_golang/prometheus/testutil,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/client_golang/prometheus/testutil/promlint,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/client_golang/prometheus/testutil/promlint/validations,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/client_model/go,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/expfmt,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
@@ -1723,6 +1727,7 @@ core,go.opentelemetry.io/otel/sdk/internal/env,Apache-2.0,Copyright The OpenTele
 core,go.opentelemetry.io/otel/sdk/metric,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal/aggregate,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/sdk/metric/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/metricdata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/resource,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/trace,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1731,6 +1736,7 @@ core,go.opentelemetry.io/otel/semconv/internal,Apache-2.0,Copyright The OpenTele
 core,go.opentelemetry.io/otel/semconv/v1.12.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.21.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.24.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace/embedded,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace/noop,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2024,6 +2030,7 @@ core,google.golang.org/grpc/status,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/tap,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/compiler/protogen,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/encoding/protodelim,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/encoding/protojson,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/encoding/prototext,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/encoding/protowire,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved

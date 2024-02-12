@@ -21,6 +21,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -205,7 +206,7 @@ func resolveFlarePOSTURL(url string, client *http.Client) (string, error) {
 	// at the end of the chain of redirects, we should either have a 200 OK or a 404 (since
 	// the server is expecting POST, not GET). Accept either one as successful.
 	if r.StatusCode != http.StatusOK && r.StatusCode != http.StatusNotFound {
-		return "", fmt.Errorf("Could not determine flare URL via redirects: %s", r.Status)
+		return "", fmt.Errorf("We couldn't reach the flare backend %s via redirects: %s", scrubber.ScrubLine(url), r.Status)
 	}
 
 	// return the URL used to make the latest request (at the end of the chain of redirects)

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 
@@ -25,16 +26,17 @@ type EBPFLessFieldHandlers struct {
 	// keeping it can be dangerous as it can hide non implemented handlers
 	model.DefaultFieldHandlers
 
+	config    *config.Config
 	resolvers *resolvers.EBPFLessResolvers
 }
 
-// GetProcessService returns the service tag based on the process context
-func (fh *EBPFLessFieldHandlers) GetProcessService(ev *model.Event) string {
+// ResolveService returns the service tag based on the process context
+func (fh *EBPFLessFieldHandlers) ResolveService(ev *model.Event, _ *model.BaseEvent) string {
 	entry, _ := fh.ResolveProcessCacheEntry(ev)
 	if entry == nil {
 		return ""
 	}
-	return getProcessService(entry)
+	return getProcessService(fh.config, entry)
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
