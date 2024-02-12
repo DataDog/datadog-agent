@@ -6,9 +6,10 @@
 // packet, to the current one.
 BPF_HASH_MAP(http2_remainder, conn_tuple_t, frame_header_remainder_t, 2048)
 
-/* http2_dynamic_table is the map that holding the supported dynamic values - the index is the static index and the
-   conn tuple and it is value is the buffer which contains the dynamic string. */
-BPF_HASH_MAP(http2_dynamic_table, dynamic_table_index_t, dynamic_table_entry_t, 0)
+// http2_dynamic_table maps a conn tuple and a dynamic index into the original index of the header.
+// The original index is the index of the key in the static table which represents the type of the header (method, path,
+// or status).
+BPF_HASH_MAP(http2_dynamic_table, dynamic_table_index_t, __u32, 0)
 
 /* http2_dynamic_counter_table is a map that holding the current dynamic values amount, in order to use for the
    internal calculation of the internal index in the http2_dynamic_table, it is hold by conn_tup to support different
