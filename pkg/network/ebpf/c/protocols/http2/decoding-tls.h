@@ -336,10 +336,9 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 break;
             }
             if (is_path_index(dynamic_value->original_index)) {
-                current_stream->path.length = dynamic_value->string_len;
-                current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->path.dynamic_table_entry = current_header->index;
+                current_stream->path.tuple_flipped = flipped;
                 current_stream->path.finalized = true;
-                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
             } else if (is_status_index(dynamic_value->original_index)) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
@@ -361,10 +360,10 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_value, BPF_ANY);
             }
             if (is_path_index(current_header->original_index)) {
-                current_stream->path.length = current_header->new_dynamic_value_size;
-                current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->path.dynamic_table_entry = current_header->index;
+                current_stream->path.temporary = current_header->type == kNewDynamicHeader;
+                current_stream->path.tuple_flipped = flipped;
                 current_stream->path.finalized = true;
-                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
             } else if (is_status_index(current_header->original_index)) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
