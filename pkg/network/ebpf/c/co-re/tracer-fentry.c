@@ -252,7 +252,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
 SEC("fexit/tcp_close")
 int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_close");
-    flush_conn_close_if_full(ctx);
+    flush_conn_close_if_full_ringbuffer(ctx);
     return 0;
 }
 
@@ -569,14 +569,14 @@ int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
 SEC("fexit/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_destroy_sock");
-    flush_conn_close_if_full(ctx);
+    flush_conn_close_if_full_ringbuffer(ctx);
     return 0;
 }
 
 SEC("fexit/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_destroy_sock");
-    flush_conn_close_if_full(ctx);
+    flush_conn_close_if_full_ringbuffer(ctx);
     return 0;
 }
 
