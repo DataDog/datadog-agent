@@ -81,7 +81,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 			enabled               = sysprobeConfig.GetBool("system_probe_config.process_service_inference.enabled")
 			useWindowsServiceName = sysprobeConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 		)
-		se := NewServiceExtractor(enabled, use_windows_service_name)
+		se := NewServiceExtractor(enabled, useWindowsServiceName)
 		procsByPid := map[int32]*procutil.Process{1: {
 			Pid:     1,
 			Cmdline: []string{"C:\\nginx-1.23.2\\nginx.exe"},
