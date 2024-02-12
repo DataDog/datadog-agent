@@ -266,10 +266,9 @@ func getPinnedLibraries(registry string) []libInfo {
 // getLibrariesLanguageDetection runs process language auto-detection and returns languages to inject for APM Instrumentation.
 // The langages information is available in workloadmeta-store and attached on the pod's owner.
 func getLibrariesLanguageDetection(pod *corev1.Pod, registry string) []libInfo {
-	libsToInject := getAutoDetectedLibraries(pod, registry)
 	if config.Datadog.GetBool("admission_controller.inject_auto_detected_libraries") {
 		// Use libraries returned by language detection for APM Instrumentation
-		return libsToInject
+		return getAutoDetectedLibraries(pod, registry)
 	}
 
 	return []libInfo{}
