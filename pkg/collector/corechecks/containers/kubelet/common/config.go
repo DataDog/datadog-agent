@@ -16,7 +16,7 @@ import (
 
 const (
 	// KubeletMetricsPrefix is the prefix included in the metrics emitted by the kubernetes_core check.
-	KubeletMetricsPrefix = "kubernetes_core."
+	KubeletMetricsPrefix = "kubernetes."
 )
 
 // KubeletConfig is the config of the Kubelet.
