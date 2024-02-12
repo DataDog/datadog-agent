@@ -50,7 +50,6 @@ func (s *tracerSuite) TestRemoteConfigTracerUpdate() {
 	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "/api/v0.1/configurations", 2*time.Minute, 5*time.Second)
 
 	// Get configs as though we are a tracer
-	// But first, prime by continuously curling until the api is responding successfully just in case it is slow to start
 	getConfigsOutput := mustCurlAgentRcServiceEventually(s.T(), s.Env().RemoteHost, tracerPayloadJSON, 2*time.Minute, 5*time.Second)
 	require.Contains(s.T(), getConfigsOutput, "roots", "expected a roots key in the tracer config output")
 	require.Contains(s.T(), getConfigsOutput, "targets", "expected a targets key in the tracer config output")
