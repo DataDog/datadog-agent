@@ -27,7 +27,6 @@ import (
 
 var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
 
-// flipTuple returns a new connection tuple with the source and destination fields flipped.
 func flipTuple(t connTuple) connTuple {
 	return connTuple{
 		Saddr_h:  t.Daddr_h,
@@ -40,6 +39,14 @@ func flipTuple(t connTuple) connTuple {
 		Pid:      t.Pid,
 		Metadata: t.Metadata,
 	}
+}
+
+// interestingValue represents a valuable header (static or dynamic) for the HTTP2 monitoring. It is either a path,
+// a method, or a status code. It can be malformed if we're unable to resolve it in case of a dynamic value, or if the
+// static table entry does not match to the predefined allowed list.
+type interestingValue[V any] struct {
+	value     V
+	malformed bool
 }
 
 // validatePath validates the given path.
