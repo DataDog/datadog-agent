@@ -22,9 +22,11 @@ var core struct {
 	loader *coreAssetLoader
 }
 
-// Setup initializes CO-RE and BTF loaders with the provided config
+// Setup initializes CO-RE and BTF loaders with the provided config.
+// It also configures the default manager modifiers.
 // [Reset] must be called first if you want a different config to take effect
 func Setup(cfg *Config) error {
+	registerDefaultModifiers()
 	_, err := coreLoader(cfg)
 	return err
 }
@@ -56,11 +58,22 @@ func coreLoader(cfg *Config) (*coreAssetLoader, error) {
 	return core.loader, nil
 }
 
-// Reset resets CO-RE and BTF loaders back to uninitialized state
+func registerDefaultModifiers() {
+	// Important: managers that use the default modifiers will all share the same instance of each modifier.
+	// Take this into account if your modifier has internal state that should be specific to each manager, see
+	// more details in the Modifier documentation.
+	defaultModifiers = []Modifier{
+		&PrintkPatcherModifier{},
+	}
+}
+
+// Reset resets CO-RE and BTF loaders and manager modifiers back to uninitialized state
 func Reset() {
 	core.Lock()
 	defer core.Unlock()
 
 	core.loader.btfLoader.Flush()
 	core.loader = nil
+
+	defaultModifiers = nil
 }

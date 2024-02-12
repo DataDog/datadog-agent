@@ -68,6 +68,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -348,6 +349,12 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
+	}
+
+	if pkgconfig.Datadog.GetBool("language_detection.enabled") {
+		if err = languagedetection.Start(mainCtx, wmeta, log); err != nil {
+			log.Errorf("Cannot start language detection patcher: %v", err)
+		}
 	}
 
 	if pkgconfig.Datadog.GetBool("admission_controller.enabled") {
