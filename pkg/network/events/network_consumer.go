@@ -33,10 +33,10 @@ func (n *NetworkConsumer) ID() string {
 // NewNetworkConsumer returns a new NetworkConsumer instance
 func NewNetworkConsumer(evm *eventmonitor.EventMonitor) (*NetworkConsumer, error) {
 	h := Handler()
-	if err := evm.AddEventTypeHandler(smodel.ForkEventType, h); err != nil {
+	if err := evm.AddEventConsumer(smodel.ForkEventType, h); err != nil {
 		return nil, err
 	}
-	if err := evm.AddEventTypeHandler(smodel.ExecEventType, h); err != nil {
+	if err := evm.AddEventConsumer(smodel.ExecEventType, h); err != nil {
 		return nil, err
 	}
 

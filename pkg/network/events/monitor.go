@@ -142,11 +142,11 @@ func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.
 	}
 }
 
-var _eventHandlerWrapper = &eventHandlerWrapper{}
+var eventConsumerWrapper = &eventHandlerWrapper{}
 
 // Handler returns an event handler to handle events from the runtime security module
-func Handler() sprobe.EventHandler {
-	return _eventHandlerWrapper
+func Handler() sprobe.EventConsumer {
+	return eventConsumerWrapper
 }
 
 type eventMonitor struct {

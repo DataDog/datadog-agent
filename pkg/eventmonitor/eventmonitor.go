@@ -79,9 +79,9 @@ type EventConsumerPostProbeStartHandler interface {
 	PostProbeStart() error
 }
 
-// EventTypeHandler event type based handler
-type EventTypeHandler interface {
-	probe.EventHandler
+// EventHandler event consumer based handler
+type EventHandler interface {
+	probe.EventConsumer
 }
 
 // Register the event monitoring module
@@ -93,13 +93,13 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-// AddEventTypeHandler registers an event handler
-func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
+// AddEventConsumer registers an event handler
+func (m *EventMonitor) AddEventConsumer(eventType model.EventType, handler EventHandler) error {
 	if !slices.Contains(allowedEventTypes, eventType) {
 		return errors.New("event type not allowed")
 	}
 
-	return m.Probe.AddEventHandler(eventType, handler)
+	return m.Probe.AddEventConsumer(eventType, handler)
 }
 
 // RegisterEventConsumer registers an event consumer
