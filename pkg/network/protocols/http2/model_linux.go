@@ -27,6 +27,14 @@ import (
 
 var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
 
+// interestingValue represents a valuable header (static or dynamic) for the HTTP2 monitoring. It is either a path,
+// a method, or a status code. It can be malformed if we're unable to resolve it in case of a dynamic value, or if the
+// static table entry does not match to the predefined allowed list.
+type interestingValue[V any] struct {
+	value     V
+	malformed bool
+}
+
 // validatePath validates the given path.
 func validatePath(str string) error {
 	if len(str) == 0 {
@@ -48,6 +56,21 @@ func validatePathSize(size uint8) error {
 		return fmt.Errorf("path size has exceeded the maximum limit: %d", size)
 	}
 	return nil
+}
+
+// flipTuple returns a new connection tuple with the source and destination fields flipped.
+func flipTuple(t connTuple) connTuple {
+	return connTuple{
+		Saddr_h:  t.Daddr_h,
+		Saddr_l:  t.Daddr_l,
+		Daddr_h:  t.Saddr_h,
+		Daddr_l:  t.Saddr_l,
+		Sport:    t.Dport,
+		Dport:    t.Sport,
+		Netns:    t.Netns,
+		Pid:      t.Pid,
+		Metadata: t.Metadata,
+	}
 }
 
 // decodeHTTP2Path tries to decode (Huffman) the path from the given buffer.
