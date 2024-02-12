@@ -513,7 +513,6 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.EvaluationSet, e
 func (e *RuleEngine) HandleEvent(event *model.Event) {
 	// event already marked with an error, skip it
 	if event.Error != nil {
-		seclog.Debugf("---------EVENT ERROR---------")
 		return
 	}
 
@@ -528,13 +527,9 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
 		if !ruleSet.Evaluate(event) {
-			seclog.Debugf("---------EVENT EVALUATION FALSE---------")
-
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}
-	seclog.Debugf("---------EVENT EVALUATION DONE---------")
-
 }
 
 // StopEventCollector stops the event collector
