@@ -567,10 +567,14 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
         is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
         if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
-            check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame.length);
             iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
             iteration_value->frames_array[iteration_value->frames_count].offset = skb_info->data_off;
             iteration_value->frames_count++;
+        }
+
+        // We are not checking for frame splits in the previous condition due to a verifier issue.
+        if (is_headers_or_rst_frame || is_data_end_of_stream) {
+            check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame.length);
         }
 
         skb_info->data_off += current_frame.length;
