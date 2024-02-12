@@ -34,13 +34,12 @@ type Event struct {
 
 	// FIM
 	CreateNewFile CreateNewFileEvent `field:"create_file" event:"create_file"` // [7.52] [File] A file was created
-	Open          OpenEvent          `field:"open" event:"open"`               // [7.52] [File] A file was opened
 
 	// Registries
-	CreateRegistryKey   CreateRegistryKeyEvent   `field:"create_registry_key"`    // [7.52] [Registry] A registry key was created
-	OpenRegistryKey     OpenRegistryKeyEvent     `field:"open_registry_key"`      // [7.52] [Registry] A registry key was opened
-	SetRegistryKeyValue SetRegistryKeyValueEvent `field:"set_registry_key_value"` // [7.52] [Registry] A registry key value was set
-	DeleteRegistryKey   DeleteRegistryKeyEvent   `field:"delete_registry_key"`    // [7.52] [Registry] A registry key was deleted
+	CreateRegistryKey   CreateRegistryKeyEvent   `field:"create_registry_key" event:"create_registry_key"`      // [7.52] [Registry] A registry key was created
+	OpenRegistryKey     OpenRegistryKeyEvent     `field:"open_registry_key event:"open_registry_key"`           // [7.52] [Registry] A registry key was opened
+	SetRegistryKeyValue SetRegistryKeyValueEvent `field:"set_registry_key_value" event:"set_regisry_key_value"` // [7.52] [Registry] A registry key value was set
+	DeleteRegistryKey   DeleteRegistryKeyEvent   `field:"delete_registry_key event:"delete_registry_key"`       // [7.52] [Registry] A registry key was deleted
 }
 
 // FileEvent is the common file event type

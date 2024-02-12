@@ -63,6 +63,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "create_file":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File)
+	case "create_registry_key":
 	case "exec":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
@@ -81,9 +82,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
-	case "open":
-		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Open.File)
-		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Open.File)
+	case "set_regisry_key_value":
 	}
 }
 
