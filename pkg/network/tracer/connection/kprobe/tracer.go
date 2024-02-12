@@ -76,7 +76,7 @@ var (
 			ProgArrayName: probes.TCPCloseProgsMap,
 			Key:           0,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPCloseFlushReturnRingbuffer,
+				EBPFFuncName: probes.TCPCloseFlushReturnPerfbuffer,
 				UID:          probeUID,
 			},
 		},
@@ -87,7 +87,7 @@ var (
 			ProgArrayName: probes.ConnCloseProgsIndvMap,
 			Key:           0,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPConnCloseEmitEventPerfBuffer,
+				EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer,
 				UID:          probeUID,
 			},
 		},
@@ -216,13 +216,11 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			ValueSize:  0,
 			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 		}
-		if tcpEnabled {
-			connCloseIndividualTailCalls[0].ProbeIdentificationPair.EBPFFuncName = probes.TCPConnCloseEmitEventRingBuffer
-		}
-	} else {
-		if tcpEnabled {
-			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, connCloseIndividualTailCalls...)
-		}
+		connCloseIndividualTailCalls[0].ProbeIdentificationPair.EBPFFuncName = probes.TCPConnCloseEmitEventRingbuffer
+		protocolClassificationTailCalls[3].ProbeIdentificationPair.EBPFFuncName = probes.TCPCloseFlushReturnRingbuffer
+	}
+	if tcpEnabled {
+		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, connCloseIndividualTailCalls...)
 	}
 
 	var undefinedProbes []manager.ProbeIdentificationPair

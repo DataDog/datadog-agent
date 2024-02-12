@@ -42,8 +42,8 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPReadSockReturn,
 	probes.TCPClose,
 	probes.TCPCloseCleanProtocolsReturn,
-	probes.TCPCloseFlushReturnRingbuffer,
-	probes.TCPConnCloseEmitEventRingBuffer,
+	probes.TCPCloseFlushReturnPerfbuffer,
+	probes.TCPConnCloseEmitEventPerfbuffer,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
@@ -59,9 +59,9 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.InetCskAcceptReturn,
 	probes.InetCskListenStop,
 	probes.UDPDestroySock,
-	probes.UDPDestroySockReturnRingBuffer,
+	probes.UDPDestroySockReturnPerfbuffer,
 	probes.UDPv6DestroySock,
-	probes.UDPv6DestroySockReturnRingBuffer,
+	probes.UDPv6DestroySockReturnPerfbuffer,
 	probes.InetBind,
 	probes.Inet6Bind,
 	probes.InetBindRet,
@@ -114,6 +114,12 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 
 		mgr.RingBuffers = []*manager.RingBuffer{rb}
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
+		mgr.Probes = append(mgr.Probes,
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPCloseFlushReturnRingbuffer, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPConnCloseEmitEventRingbuffer, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPDestroySockReturnRingbuffer, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6DestroySockReturnRingbuffer, UID: probeUID}},
+		)
 	case *ebpf.PerfHandler:
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: probes.ConnCloseEventMap},
@@ -167,10 +173,6 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPSendMsgPre410, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRecvMsgPre410, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRecvMsgPre5190, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPCloseFlushReturnPerfbuffer, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPDestroySockReturnPerfBuffer, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6DestroySockReturnPerfBuffer, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPConnCloseEmitEventPerfBuffer, UID: probeUID}},
 		)
 	}
 

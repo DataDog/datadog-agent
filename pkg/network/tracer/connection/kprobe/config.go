@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -62,10 +61,10 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)
 		if ringBufferSupported {
-			enableProbe(enabled, probes.TCPConnCloseEmitEventRingBuffer)
+			enableProbe(enabled, probes.TCPConnCloseEmitEventRingbuffer)
 			enableProbe(enabled, probes.TCPCloseFlushReturnRingbuffer)
 		} else {
-			enableProbe(enabled, probes.TCPConnCloseEmitEventPerfBuffer)
+			enableProbe(enabled, probes.TCPConnCloseEmitEventPerfbuffer)
 			enableProbe(enabled, probes.TCPCloseFlushReturnPerfbuffer)
 		}
 		enableProbe(enabled, probes.TCPConnect)
@@ -83,9 +82,9 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	if c.CollectUDPv4Conns {
 		enableProbe(enabled, probes.UDPDestroySock)
 		if ringBufferSupported {
-			enableProbe(enabled, probes.UDPDestroySockReturnRingBuffer)
+			enableProbe(enabled, probes.UDPDestroySockReturnRingbuffer)
 		} else {
-			enableProbe(enabled, probes.UDPDestroySockReturnPerfBuffer)
+			enableProbe(enabled, probes.UDPDestroySockReturnPerfbuffer)
 		}
 		enableProbe(enabled, probes.IPMakeSkb)
 		enableProbe(enabled, probes.IPMakeSkbReturn)
@@ -110,9 +109,9 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	if c.CollectUDPv6Conns {
 		enableProbe(enabled, probes.UDPv6DestroySock)
 		if ringBufferSupported {
-			enableProbe(enabled, probes.UDPv6DestroySockReturnRingBuffer)
+			enableProbe(enabled, probes.UDPv6DestroySockReturnRingbuffer)
 		} else {
-			enableProbe(enabled, probes.UDPv6DestroySockReturnPerfBuffer)
+			enableProbe(enabled, probes.UDPv6DestroySockReturnPerfbuffer)
 		}
 		if kv >= kv5180 || runtimeTracer {
 			// prebuilt shouldn't arrive here with 5.18+ and UDPv6 enabled
