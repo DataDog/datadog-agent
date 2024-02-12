@@ -351,7 +351,7 @@ func extractLibrariesFromAnnotations(
 		if image, found := annotations[customLibAnnotation]; found {
 			log.Debugf(
 				"Found %s library annotation %s, will overwrite %s injected with Single Step Instrumentation",
-				string(lang), image, image,
+				string(lang), customLibAnnotation, image,
 			)
 			libList = append(libList, libInfo{lang: lang, image: image})
 		}
