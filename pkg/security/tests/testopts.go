@@ -48,6 +48,7 @@ type testOpts struct {
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
+	enableFIM                                  bool // only valid on windows
 }
 
 type dynamicTestOpts struct {

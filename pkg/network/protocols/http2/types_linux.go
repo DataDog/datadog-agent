@@ -47,16 +47,28 @@ type http2StatusCode struct {
 	Static_table_entry uint8
 	Finalized          bool
 }
+type http2requestMethod struct {
+	Raw_buffer         [7]uint8
+	Is_huffman_encoded bool
+	Static_table_entry uint8
+	Length             uint8
+	Finalized          bool
+}
+type http2Path struct {
+	Raw_buffer         [160]uint8
+	Is_huffman_encoded bool
+	Static_table_entry uint8
+	Length             uint8
+	Finalized          bool
+}
 type http2Stream struct {
 	Response_last_seen    uint64
 	Request_started       uint64
 	Status_code           http2StatusCode
-	Request_method        uint8
-	Path_size             uint8
+	Request_method        http2requestMethod
+	Path                  http2Path
 	Request_end_of_stream bool
-	Is_huffman_encoded    bool
-	Pad_cgo_0             [6]byte
-	Request_path          [160]uint8
+	Pad_cgo_0             [2]byte
 }
 type EbpfTx struct {
 	Tuple  connTuple
@@ -67,7 +79,7 @@ type HTTP2Telemetry struct {
 	Response_seen                    uint64
 	End_of_stream                    uint64
 	End_of_stream_rst                uint64
-	Path_exceeds_frame               uint64
+	Literal_value_exceeds_frame      uint64
 	Exceeding_max_interesting_frames uint64
 	Exceeding_max_frames_to_filter   uint64
 	Path_size_bucket                 [8]uint64

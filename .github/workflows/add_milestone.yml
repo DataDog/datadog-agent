@@ -1,0 +1,53 @@
+name: Add Milestone on a Merged PR
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+
+jobs:
+  add-milestone-pr:
+    name: Add Milestone on PR
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@v4
+
+      - name: Get repo current milestone
+        id: current-milestone
+        run: |
+          if [[ ${GITHUB_REF##*/} =~ ^7\.[0-9]+\.[0-9]+$ ]]; then
+            # If we're on a release branch, set the milestone to the latest release milestone found.
+            MILESTONE=$(gh release list | grep -o $(echo ${GITHUB_REF##*/} | sed 's/x/[0-9]*/g') | sort -uV | tail -1)
+            if [ -z "$MILESTONE" ]; then
+              echo "Error: Couldn't get the latest release milestone from Github."
+              exit 1
+            fi
+          else
+            # Else use the current_milestone field in the release.json file.
+            MILESTONE=$(cat release.json | jq -r .current_milestone)
+            if [ -z "$MILESTONE" ]; then
+              echo "Error: Couldn't find the current_milestone field in the release.json file."
+              exit 1
+            fi
+          fi
+          if [[ ! $MILESTONE =~ ^7\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Malformed milestone $MILESTONE. It should be of the form '7.x.y'."
+            exit 1
+          fi
+          echo "MILESTONE=$MILESTONE" >> "$GITHUB_OUTPUT"
+
+      - name: Set the merged PR milestone to current_milestone from release.json
+        run: |
+          echo "Setting milestone $MILESTONE to PR $NUMBER."
+          gh issue edit "$NUMBER" --milestone "$MILESTONE"
+        env:
+          NUMBER: ${{ github.event.number }}
+          MILESTONE: ${{ steps.current-milestone.outputs.MILESTONE }}

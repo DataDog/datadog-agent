@@ -207,7 +207,7 @@ func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*Macro
 func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, macroDef *MacroDefinition) (*eval.Macro, error) {
 	var err error
 
-	if macro := rs.evalOpts.MacroStore.Get(macroDef.ID); macro != nil {
+	if rs.evalOpts.MacroStore.Contains(macroDef.ID) {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: ErrDefinitionIDConflict}
 	}
 
@@ -244,12 +244,12 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDef
 	return result
 }
 
-func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefinition) *multierror.Error {
+func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefinition, opts PolicyLoaderOpts) *multierror.Error {
 	var errs *multierror.Error
 
 	for _, rule := range policyRules {
 		for _, action := range rule.Actions {
-			if err := action.Check(); err != nil {
+			if err := action.Check(opts); err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("invalid action: %w", err))
 				continue
 			}
