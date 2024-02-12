@@ -126,7 +126,6 @@ func (suite *PodTestSuite) SetupTest() {
 	suite.kubeUtil = kubeutil
 
 	orchConfig := oconfig.NewDefaultOrchestratorConfig()
-	orchConfig.CoreCheck = true
 	require.NoError(suite.T(), err)
 	suite.check = &Check{
 		sender:    mockSender,
