@@ -212,6 +212,9 @@ type RuntimeSecurityConfig struct {
 	EBPFLessEnabled bool
 	// EBPFLessSocket defines the socket used for the communication between system-probe and the ebpfless source
 	EBPFLessSocket string
+
+	// Enforcement capabilities
+	EnforcementEnabled bool
 }
 
 // Config defines a security config
@@ -337,6 +340,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
 		AnomalyDetectionSilentRuleEventsEnabled:      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled"),
 		AnomalyDetectionEnabled:                      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
+
+		// enforcement
+		EnforcementEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enforcement.enabled"),
 
 		// User Sessions
 		UserSessionsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.user_sessions.cache_size"),
