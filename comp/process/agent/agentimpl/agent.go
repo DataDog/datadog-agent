@@ -94,7 +94,7 @@ func (p processAgent) start(ctx context.Context) error {
 	for _, check := range p.Checks {
 		chks = append(chks, check.Name())
 	}
-	p.Log.Info("process-agent checks", log.Object("checks", chks))
+	p.Log.Debug("process-agent checks", log.Object("checks", chks))
 
 	return p.Runner.Run(ctx)
 }
