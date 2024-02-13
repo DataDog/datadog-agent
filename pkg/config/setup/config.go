@@ -920,6 +920,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
+	config.SetKnown("database_monitoring.autodiscover_aurora_clusters.discovery_interval")
+	config.SetKnown("database_monitoring.autodiscover_aurora_clusters.clusters")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
