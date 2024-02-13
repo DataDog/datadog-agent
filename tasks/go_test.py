@@ -747,7 +747,7 @@ def get_impacted_packages(ctx, build_tags=None):
         if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     }
     print(modified_packages)
-    imp = find_impacted_modules(dependencies, modified_packages)
+    imp = find_impacted_packages(dependencies, modified_packages)
     print("imp", imp)
     return format_packages(ctx, imp)
 
@@ -773,7 +773,7 @@ def create_dependencies(ctx, build_tags=None):
     return modules_deps
 
 
-def find_impacted_modules(dependencies, modified_modules, cache=None):
+def find_impacted_packages(dependencies, modified_modules, cache=None):
     if cache is None:
         cache = {}
     impacted_modules = set()
