@@ -314,8 +314,6 @@ type Mount struct {
 }
 
 // MountEvent represents a mount event
-//
-//msgp:ignore MountEvent
 type MountEvent struct {
 	SyscallEvent
 	Mount
