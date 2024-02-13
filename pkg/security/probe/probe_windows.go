@@ -69,7 +69,7 @@ type WindowsProbe struct {
  * pid is provided for testing purposes, to allow filtering on pid.  it is
  * not expected to be used at runtime
  */
-type etwCallback func(n interface{}, pid uint32, eventType model.eventType)
+type etwCallback func(n interface{}, pid uint32, eventType model.EventType)
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
@@ -444,7 +444,7 @@ func (p *WindowsProbe) Start() error {
 
 		go func() {
 			defer p.fimwg.Done()
-			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.eventType) {
+			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.EventType) {
 				// resolve process context
 				ev := p.zeroEvent()
 				errRes := p.setProcessContext(pid, ev)
@@ -456,7 +456,7 @@ func (p *WindowsProbe) Start() error {
 				// each event will come in as a different type
 				// parse it with
 				switch eventType {
-				case CreateNewFileEventType:
+				case model.CreateNewFileEventType:
 					cnfa := n.(*createNewFileArgs)
 					ev.Type = uint32(model.CreateNewFileEventType)
 					ev.CreateNewFile = model.CreateNewFileEvent{
@@ -465,7 +465,7 @@ func (p *WindowsProbe) Start() error {
 							BasenameStr: filepath.Base(cnfa.fileName),
 						},
 					}
-				case CreateRegistryKeyEventType:
+				case model.CreateRegistryKeyEventType:
 					cka := n.(*createKeyArgs)
 					ev.Type = uint32(model.CreateRegistryKeyEventType)
 					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
@@ -474,7 +474,7 @@ func (p *WindowsProbe) Start() error {
 							RelativeName: cka.relativeName,
 						},
 					}
-				case OpenRegistryKeyEventType:
+				case model.OpenRegistryKeyEventType:
 					cka := n.(*createKeyArgs)
 					ev.Type = uint32(model.OpenRegistryKeyEventType)
 					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
@@ -483,7 +483,7 @@ func (p *WindowsProbe) Start() error {
 							RelativeName: cka.relativeName,
 						},
 					}
-				case DeleteRegistryKeyEventType:
+				case model.DeleteRegistryKeyEventType:
 					dka := n.(*deleteKeyArgs)
 					ev.Type = uint32(model.DeleteRegistryKeyEventType)
 					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
@@ -491,7 +491,7 @@ func (p *WindowsProbe) Start() error {
 							KeyName: dka.keyName,
 						},
 					}
-				case SetRegistryKeyValueEventType:
+				case model.SetRegistryKeyValueEventType:
 					svka := n.(*setValueKeyArgs)
 					ev.Type = uint32(model.SetRegistryKeyValueEventType)
 					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
