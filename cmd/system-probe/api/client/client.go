@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package api contains the API exposed by system-probe
-package api
+// Package client contains the client for the API exposed by system-probe
+package client
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-// GetClient returns a http client configured to talk to the system-probe
-func GetClient(socketPath string) *http.Client {
+// Get returns a http client configured to talk to the system-probe
+func Get(socketPath string) *http.Client {
 	return &http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{

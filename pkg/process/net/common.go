@@ -204,12 +204,14 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
-	} else if resp.StatusCode != http.StatusOK {
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("conn request failed: Path %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
-	defer resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package api
+package client
 
 const (
 	netType = "unix"
