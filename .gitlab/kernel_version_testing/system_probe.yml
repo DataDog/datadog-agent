@@ -156,12 +156,6 @@ upload_dependencies_arm64:
     - !reference [.setup_ssh_config]
     - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
     - scp $DD_AGENT_TESTING_DIR/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
-    - ssh metal_instance "tar xzf /opt/kernel-version-testing/${TEST_ARCHIVE_NAME} -C /opt/kernel-version-testing"
-    # give correct permissions to assets
-    - ssh metal_instance "sudo find /opt/kernel-version-testing/system-probe-tests -name *.o -type f -exec chown root:root {} \;"
-    # Add symlink to btf directory. Since this directory is mounted read-only in the micro-vms,
-    # we cannot write btf files here. Hence we create a symlink to a writable destination
-    - ssh metal_instance "sudo mkdir -p /opt/kernel-version-testing/system-probe-tests/pkg/ebpf/bytecode/build/co-re && sudo mkdir -p /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf && sudo ln -s /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf /opt/kernel-version-testing/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf"
     # build connector
     - pushd $CI_PROJECT_DIR/test/new-e2e
     - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
@@ -177,11 +171,11 @@ upload_dependencies_arm64:
     GO_BIN: go/bin
     GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/gotestsum
     TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
-    SYSTEM_PROBE_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/system-probe-tests
+    SYSTEM_PROBE_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/opt/system-probe-tests
     KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     ARCHIVE_NAME: dependencies-$ARCH.tar.gz
-    TEST_ARCHIVE_NAME: system-probe-tests-$ARCH.tar.gz
+    TEST_ARCHIVE_NAME: tests-$ARCH.tar.gz
   artifacts:
     when: always
     paths:
