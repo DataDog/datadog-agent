@@ -84,8 +84,6 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
 	demux := deps.Demultiplexer
-	// _ = s.Start(demux)
-	// defer s.Stop()
 
 	done := make(chan struct{})
 	go func() {
