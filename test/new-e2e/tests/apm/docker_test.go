@@ -40,6 +40,11 @@ func TestDockerFakeintakeSuiteUDS(t *testing.T) {
 			"DD_APM_RECEIVER_SOCKET",
 			pulumi.String("/var/run/datadog/apm.socket")),
 		// Optional: UDS is more reliable for statsd metrics
+		// Set DD_DOGSTATSD_SOCKET to enable the UDS statsd listener in the core-agent
+		dockeragentparams.WithAgentServiceEnvVariable(
+			"DD_DOGSTATSD_SOCKET",
+			pulumi.String("/var/run/datadog/dsd.socket")),
+		// Set STATSD_URL to instruct the statsd client in the trace-agent to send metrics through UDS
 		dockeragentparams.WithAgentServiceEnvVariable(
 			"STATSD_URL",
 			pulumi.String("unix:///var/run/datadog/dsd.socket")),
@@ -70,7 +75,7 @@ func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-container-tag-%s", s.transport)
-	defer runTracegenDocker(s.Env().Host, service, tracegenCfg{transport: s.transport})()
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding traces with container tags")
@@ -81,7 +86,7 @@ func (s *DockerFakeintakeSuite) TestStatsForService() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
-	defer runTracegenDocker(s.Env().Host, service, tracegenCfg{transport: s.transport})()
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
@@ -95,7 +100,7 @@ func (s *DockerFakeintakeSuite) TestBasicTrace() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
-	shutdown := runTracegenDocker(s.Env().Host, service, tracegenCfg{transport: s.transport})
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
 	s.T().Log("Waiting for traces.")

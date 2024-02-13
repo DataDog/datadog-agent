@@ -26,6 +26,7 @@ import (
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -47,7 +48,9 @@ func Module() fxutil.Module {
 var (
 	// for testing
 	installinfoGet      = installinfo.Get
-	fetchSecurityConfig = configFetcher.FetchSecurityAgentConfig
+	fetchSecurityConfig = configFetcher.SecurityAgentConfig
+	fetchProcessConfig  = func(cfg model.Reader) (string, error) { return configFetcher.ProcessAgentConfig(cfg, true) }
+	fetchTraceConfig    = configFetcher.TraceAgentConfig
 )
 
 type agentMetadata map[string]interface{}
@@ -126,14 +129,14 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	}
 }
 
-func (ia *inventoryagent) initData() {
-	clean := func(s string) string {
-		// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
-		// are possible.
-		cleanBytes, _ := scrubber.ScrubBytes([]byte(s))
-		return string(cleanBytes)
-	}
+func clean(s string) string {
+	// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
+	// are possible.
+	cleanString, _ := scrubber.ScrubString(s)
+	return cleanString
+}
 
+func (ia *inventoryagent) initData() {
 	cfgSlice := func(name string) []string {
 		if ia.conf.IsSet(name) {
 			ss := ia.conf.GetStringSlice(name)
@@ -198,17 +201,6 @@ func (ia *inventoryagent) initData() {
 
 	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
 
-	// APM / trace-agent
-
-	ia.data["config_apm_dd_url"] = clean(ia.conf.GetString("apm_config.apm_dd_url"))
-	ia.data["feature_apm_enabled"] = ia.conf.GetBool("apm_config.enabled")
-
-	// Process / process-agent
-
-	ia.data["feature_process_enabled"] = ia.conf.GetBool("process_config.process_collection.enabled")
-	ia.data["feature_process_language_detection_enabled"] = ia.conf.GetBool("language_detection.enabled")
-	ia.data["feature_processes_container_enabled"] = ia.conf.GetBool("process_config.container_collection.enabled")
-
 	// Cloud Workload Security / system-probe
 
 	ia.data["feature_cws_enabled"] = getBoolSysProbe("runtime_security_config.enabled")
@@ -258,31 +250,59 @@ func (ia *inventoryagent) initData() {
 	ia.refreshMetadata()
 }
 
-func (ia *inventoryagent) fetchSecurityAgentMetadata() {
-	type configGetter interface {
-		GetBool(string) bool
-	}
+type configGetter interface {
+	GetBool(string) bool
+	GetString(string) string
+}
 
-	securityCfg := configGetter(ia.conf)
-	// We query the configuration from the security agent itself to have accurate data. If the security-agent isn't
+// getCorrectConfig tries to fetch the configuration from another process. It returns a new
+// configuration object on success and the local config on failure.
+func (ia *inventoryagent) getCorrectConfig(name string, configFetcher func(config model.Reader) (string, error)) configGetter {
+	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
-	if securityConfig, err := fetchSecurityConfig(ia.conf); err == nil {
+	if remoteConfig, err := configFetcher(ia.conf); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
-		if err = cfg.ReadConfig(strings.NewReader(securityConfig)); err != nil {
-			ia.log.Error("Could not pars security-agent configuration: %s", err)
+		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
+			ia.log.Error("Could not parse '%s' configuration: %s", name, err)
 		} else {
-			securityCfg = cfg
+			return cfg
 		}
+	} else {
+		ia.log.Errorf("could not fetch %s process configuration: %s", name, err)
 	}
+	return configGetter(ia.conf)
+}
+
+func (ia *inventoryagent) fetchSecurityAgentMetadata() {
+	securityCfg := ia.getCorrectConfig("security-agent", fetchSecurityConfig)
 
 	ia.data["feature_cspm_enabled"] = securityCfg.GetBool("compliance_config.enabled")
 	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
-
 }
+
+func (ia *inventoryagent) fetchTraceAgentMetadata() {
+	traceCfg := ia.getCorrectConfig("trace-agent", fetchTraceConfig)
+
+	ia.data["config_apm_dd_url"] = clean(traceCfg.GetString("apm_config.apm_dd_url"))
+	ia.data["feature_apm_enabled"] = traceCfg.GetBool("apm_config.enabled")
+}
+
+func (ia *inventoryagent) fetchProcessAgentMetadata() {
+	processCfg := ia.getCorrectConfig("process-agent", fetchProcessConfig)
+
+	ia.data["feature_process_enabled"] = processCfg.GetBool("process_config.process_collection.enabled")
+	ia.data["feature_processes_container_enabled"] = processCfg.GetBool("process_config.container_collection.enabled")
+	ia.data["feature_process_language_detection_enabled"] = processCfg.GetBool("language_detection.enabled")
+}
+
 func (ia *inventoryagent) refreshMetadata() {
 	// Compliance / security-agent
 	ia.fetchSecurityAgentMetadata()
+	// Process / process-agent
+	ia.fetchProcessAgentMetadata()
+	// APM / trace-agent
+	ia.fetchTraceAgentMetadata()
 }
 
 // Set updates a metadata value in the payload. The given value will be stored in the cache without being copied. It is

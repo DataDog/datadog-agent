@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
@@ -140,10 +141,9 @@ func TestOTLPMetrics(t *testing.T) {
 	assert := assert.New(t)
 	cfg := NewTestConfig(t)
 	stats := &teststatsd.Client{}
-	defer testutil.WithStatsClient(stats)()
 
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewOTLPReceiver(out, cfg, stats)
 	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -181,7 +181,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 	cfg := NewTestConfig(t)
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{})
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -204,7 +204,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 func TestCreateChunks(t *testing.T) {
 	cfg := NewTestConfig(t)
 	cfg.OTLPReceiver.ProbabilisticSampling = 50
-	o := NewOTLPReceiver(nil, cfg)
+	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{})
 	const (
 		traceID1 = 123           // sampled by 50% rate
 		traceID2 = 1237892138897 // not sampled by 50% rate
@@ -246,7 +246,7 @@ func TestCreateChunks(t *testing.T) {
 func TestOTLPReceiveResourceSpans(t *testing.T) {
 	cfg := NewTestConfig(t)
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{})
 	require := require.New(t)
 	for _, tt := range []struct {
 		in []testutil.OTLPResourceSpan
@@ -638,7 +638,7 @@ func TestOTLPHostname(t *testing.T) {
 		cfg := NewTestConfig(t)
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
-		rcv := NewOTLPReceiver(out, cfg)
+		rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{})
 		rattr := map[string]interface{}{}
 		if tt.resource != "" {
 			rattr["datadog.host.name"] = tt.resource
@@ -670,11 +670,11 @@ func TestOTLPHostname(t *testing.T) {
 func TestOTLPReceiver(t *testing.T) {
 	t.Run("New", func(t *testing.T) {
 		cfg := NewTestConfig(t)
-		assert.NotNil(t, NewOTLPReceiver(nil, cfg).conf)
+		assert.NotNil(t, NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
-		o := NewOTLPReceiver(nil, NewTestConfig(t))
+		o := NewOTLPReceiver(nil, NewTestConfig(t), &statsd.NoOpClient{})
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -687,7 +687,7 @@ func TestOTLPReceiver(t *testing.T) {
 			BindHost: "localhost",
 			GRPCPort: port,
 		}
-		o := NewOTLPReceiver(nil, cfg)
+		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{})
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
@@ -700,7 +700,7 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
-		o := NewOTLPReceiver(out, NewTestConfig(t))
+		o := NewOTLPReceiver(out, NewTestConfig(t), &statsd.NoOpClient{})
 		o.processRequest(context.Background(), http.Header(map[string][]string{
 			header.Lang:        {"go"},
 			header.ContainerID: {"containerdID"},
@@ -954,7 +954,7 @@ func TestOTLPHelpers(t *testing.T) {
 func TestOTLPConvertSpan(t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
-	o := NewOTLPReceiver(nil, cfg)
+	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{})
 	for i, tt := range []struct {
 		rattr   map[string]string
 		libname string
@@ -1385,7 +1385,7 @@ func TestAppendTags(t *testing.T) {
 func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
-	o := NewOTLPReceiver(nil, cfg)
+	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{})
 	for i, tt := range []struct {
 		rattr   map[string]string
 		libname string
@@ -1724,7 +1724,7 @@ func TestResourceAttributesMap(t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	NewOTLPReceiver(nil, NewTestConfig(t)).convertSpan(rattr, lib, span)
+	NewOTLPReceiver(nil, NewTestConfig(t), &statsd.NoOpClient{}).convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }
@@ -2054,7 +2054,7 @@ func BenchmarkProcessRequest(b *testing.B) {
 		}
 	}()
 
-	r := NewOTLPReceiver(out, nil)
+	r := NewOTLPReceiver(out, nil, &statsd.NoOpClient{})
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

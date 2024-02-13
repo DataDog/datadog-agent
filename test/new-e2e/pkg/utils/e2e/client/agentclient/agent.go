@@ -38,6 +38,9 @@ type Agent interface {
 	// IntegrationWithError run integration command and returns the output
 	IntegrationWithError(commandArgs ...AgentArgsOption) (string, error)
 
+	// RemoteConfig runs the remote-config command and returns the output
+	RemoteConfig(commandArgs ...AgentArgsOption) string
+
 	// Secret runs the secret command
 	Secret(commandArgs ...AgentArgsOption) string
 
