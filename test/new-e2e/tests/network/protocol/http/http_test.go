@@ -30,7 +30,7 @@ var (
 	assetDir   string
 	kitchenDir string
 	testspath  string
-	devMode    = flag.Bool("devmode", true, "run tests in dev mode")
+	devMode    = flag.Bool("devmode", false, "run tests in dev mode")
 )
 
 func init() {
@@ -155,9 +155,7 @@ func (v *vmSuite) testExample(t *testing.T) {
 	err = windows.PutOrDownloadFile(vm, agentPackage.URL, remoteMSIPath)
 	require.NoError(t, err)
 
-	logFile := filepath.Join(remoteDirBase, "install.log")
-	t.Logf("Installing agent with logfile %s", logFile)
-	err = windows.InstallMSI(vm, remoteMSIPath, "", logFile)
+	err = windows.InstallMSI(vm, remoteMSIPath, "", "")
 	t.Log("Install complete")
 	require.NoError(t, err)
 

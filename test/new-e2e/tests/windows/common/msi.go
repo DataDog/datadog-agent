@@ -27,10 +27,13 @@ func MsiExec(host *components.RemoteHost, operation string, product string, args
 	cmd := fmt.Sprintf(`Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '%s').ExitCode`, args)
 	_, msiExecErr := host.Execute(cmd)
 	// Always collect the log file, return error after
-	err = host.GetFile(remoteLogPath, logPath)
-	if err != nil {
-		fmt.Printf("failed to collect msiexec log: %s\n", err)
+	if logPath != "" {
+		err = host.GetFile(remoteLogPath, logPath)
+		if err != nil {
+			fmt.Printf("failed to collect install log: %s\n", err)
+		}
 	}
+
 	return msiExecErr
 }
 
