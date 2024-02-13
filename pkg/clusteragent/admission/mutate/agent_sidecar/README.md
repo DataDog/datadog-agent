@@ -64,6 +64,11 @@ Having set a provider, the agent sidecar will also get automatically the necessa
 
 ## Expected Behaviour
 
+The table below shows the expected behaviour when the feature is enabled.
+
+Note that currently we only support creating 1 selector and 1 profile (config override).
+Creating multiple selectors and/or overrides will result in not registering any webhook.
+
 | Custom Selectors / Profiles Set | Provider Set       | Provider Supported | Expected Behaviour                                                                                                                                      |
 |---------------------------------|--------------------|--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
 | :x:                             | :heavy_check_mark: | :heavy_check_mark: | Agent sidecar should be injected on pods having the provider label key set (`agent.datadoghq.com/sidecar: <provider>`)                                  |
@@ -79,3 +84,4 @@ Having set a provider, the agent sidecar will also get automatically the necessa
 ## Notes
 - For now, we only support configuring 1 custom selector and 1 custom profile.
 - For now, only `fargate` provider is supported
+- For now, only 1 selector and 1 profile (config override) can be configured.

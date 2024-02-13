@@ -38,7 +38,12 @@ func buildAgentSidecarObjectSelectors() (namespaceSelector, objectSelector *meta
 		return nil, nil
 	}
 
-	if len(selectors) > 0 {
+	if len(selectors) > 1 {
+		log.Errorf("configuring more than 1 selector is not supported")
+		return nil, nil
+	}
+
+	if len(selectors) == 1 {
 		namespaceSelector = &selectors[0].NamespaceSelector
 		objectSelector = &selectors[0].ObjectSelector
 	} else {
