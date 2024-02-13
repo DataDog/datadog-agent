@@ -8,8 +8,11 @@ package parser
 import (
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/cihub/seelog"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
@@ -20,9 +23,15 @@ import (
 type serviceExtractorFn func(args []string) string
 
 const (
-	javaJarFlag      = "-jar"
-	javaJarExtension = ".jar"
-	javaApachePrefix = "org.apache."
+	javaJarFlag         = "-jar"
+	javaJarExtension    = ".jar"
+	javaModuleFlag      = "--module"
+	javaModuleFlagShort = "-m"
+	javaApachePrefix    = "org.apache."
+)
+
+var (
+	javaAllowedFlags = []string{javaJarFlag, javaModuleFlag, javaModuleFlagShort}
 )
 
 // List of binaries that usually have additional process context of whats running
@@ -93,7 +102,7 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 			}
 		}
 		meta := extractServiceMetadata(proc.Cmdline)
-		if meta != nil {
+		if meta != nil && log.ShouldLog(seelog.TraceLvl) {
 			log.Tracef("detected service metadata: %v", meta)
 		}
 		serviceByPID[proc.Pid] = meta
@@ -116,7 +125,9 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 
 		// Service tag was found from the SCM, return it.
 		if len(tags) > 0 {
-			log.Tracef("Found process_context from SCM for pid:%v service tags:%v", pid, tags)
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("Found process_context from SCM for pid:%v service tags:%v", pid, tags)
+			}
 			return tags
 		}
 	}
@@ -273,6 +284,11 @@ func parseCommandContextPython(args []string) string {
 func parseCommandContextJava(args []string) string {
 	prevArgIsFlag := false
 
+	// Look for dd.service
+	if index := slices.IndexFunc(args, func(arg string) bool { return strings.HasPrefix(arg, "-Ddd.service=") }); index != -1 {
+		return strings.TrimPrefix(args[index], "-Ddd.service=")
+	}
+
 	for _, a := range args {
 		hasFlagPrefix := strings.HasPrefix(a, "-")
 		includesAssignment := strings.ContainsRune(a, '=') ||
@@ -305,8 +321,8 @@ func parseCommandContextJava(args []string) string {
 			}
 		}
 
-		prevArgIsFlag = hasFlagPrefix && !includesAssignment && a != javaJarFlag
+		prevArgIsFlag = hasFlagPrefix && !includesAssignment && !slices.Contains(javaAllowedFlags, a)
 	}
 
-	return ""
+	return "java"
 }
