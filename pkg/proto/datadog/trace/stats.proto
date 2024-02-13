@@ -45,6 +45,8 @@ message ClientStatsPayload {
 	// Tags specifies a set of tags obtained from the orchestrator (where applicable) using the specified containerID.
 	// This field should be left empty by the client. It only applies to some specific environment.
 	repeated string tags = 12;
+	// The git commit SHA is obtained from a trace, where it may be set through a tracer <-> source code integration.
+	string git_commit_sha = 13;
 }
 
 // ClientStatsBucket is a time bucket containing aggregated stats.

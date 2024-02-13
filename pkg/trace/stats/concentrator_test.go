@@ -816,6 +816,42 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 	})
 }
 
+func TestGitCommitSha(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	sp := &pb.Span{
+		ParentID: 0,
+		SpanID:   1,
+		Service:  "myservice",
+		Name:     "http.server.request",
+		Resource: "GET /users",
+		Duration: 100,
+		Meta:     map[string]string{"span.kind": "server", "git_commit_sha": "abc123"},
+	}
+	sp2 := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   2,
+		Service:  "myservice",
+		Name:     "postgres.query",
+		Resource: "SELECT user_id from users WHERE user_name = ?",
+		Duration: 75,
+		Meta:     map[string]string{"span.kind": "client", "db.instance": "i-1234", "db.system": "postgres", "region": "us1"},
+		Metrics:  map[string]float64{"_dd.measured": 1.0},
+	}
+	spans := []*pb.Span{sp, sp2}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "")
+	testTrace.GitCommitSha = "abc123"
+	c := NewTestConcentrator(now)
+	c.peerTagsAggregation = true
+	c.addNow(testTrace, "")
+	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+	assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+	for _, st := range stats.Stats {
+		assert.Equal("abc123", st.GitCommitSha)
+	}
+}
+
 func TestComputeStatsForSpanKind(t *testing.T) {
 	assert := assert.New(t)
 

@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	envKey     = "env"
-	versionKey = "version"
+	envKey       = "env"
+	versionKey   = "version"
+	gitCommitSha = "git_commit_sha"
 )
 
 // GetEnv returns the first "env" tag found in trace t.
@@ -43,6 +44,22 @@ func GetAppVersion(root *pb.Span, t *pb.TraceChunk) string {
 			continue
 		}
 		if v, ok := s.Meta[versionKey]; ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// GetGitCommitSha returns the first "git_commit_sha" tag found in trace t.
+func GetGitCommitSha(root *pb.Span, t *pb.TraceChunk) string {
+	if v, ok := root.Meta[gitCommitSha]; ok {
+		return v
+	}
+	for _, s := range t.Spans {
+		if s.SpanID == root.SpanID {
+			continue
+		}
+		if v, ok := s.Meta[gitCommitSha]; ok {
 			return v
 		}
 	}
