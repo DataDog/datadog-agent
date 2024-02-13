@@ -8,6 +8,7 @@ package parser
 import (
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -22,9 +23,15 @@ import (
 type serviceExtractorFn func(args []string) string
 
 const (
-	javaJarFlag      = "-jar"
-	javaJarExtension = ".jar"
-	javaApachePrefix = "org.apache."
+	javaJarFlag         = "-jar"
+	javaJarExtension    = ".jar"
+	javaModuleFlag      = "--module"
+	javaModuleFlagShort = "-m"
+	javaApachePrefix    = "org.apache."
+)
+
+var (
+	javaAllowedFlags = []string{javaJarFlag, javaModuleFlag, javaModuleFlagShort}
 )
 
 // List of binaries that usually have additional process context of whats running
@@ -277,6 +284,11 @@ func parseCommandContextPython(args []string) string {
 func parseCommandContextJava(args []string) string {
 	prevArgIsFlag := false
 
+	// Look for dd.service
+	if index := slices.IndexFunc(args, func(arg string) bool { return strings.HasPrefix(arg, "-Ddd.service=") }); index != -1 {
+		return strings.TrimPrefix(args[index], "-Ddd.service=")
+	}
+
 	for _, a := range args {
 		hasFlagPrefix := strings.HasPrefix(a, "-")
 		includesAssignment := strings.ContainsRune(a, '=') ||
@@ -309,8 +321,8 @@ func parseCommandContextJava(args []string) string {
 			}
 		}
 
-		prevArgIsFlag = hasFlagPrefix && !includesAssignment && a != javaJarFlag
+		prevArgIsFlag = hasFlagPrefix && !includesAssignment && !slices.Contains(javaAllowedFlags, a)
 	}
 
-	return ""
+	return "java"
 }
