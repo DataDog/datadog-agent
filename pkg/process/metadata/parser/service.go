@@ -9,6 +9,7 @@ import (
 	"golang.org/x/exp/slices"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -23,9 +24,15 @@ import (
 type serviceExtractorFn func(args []string) string
 
 const (
-	javaJarFlag      = "-jar"
-	javaJarExtension = ".jar"
-	javaApachePrefix = "org.apache."
+	javaJarFlag         = "-jar"
+	javaJarExtension    = ".jar"
+	javaModuleFlag      = "--module"
+	javaModuleFlagShort = "-m"
+	javaApachePrefix    = "org.apache."
+)
+
+var (
+	javaAllowedFlags = []string{javaJarFlag, javaModuleFlag, javaModuleFlagShort}
 )
 
 // List of binaries that usually have additional process context of whats running
@@ -315,8 +322,8 @@ func parseCommandContextJava(args []string) string {
 			}
 		}
 
-		prevArgIsFlag = hasFlagPrefix && !includesAssignment && a != javaJarFlag
+		prevArgIsFlag = hasFlagPrefix && !includesAssignment && !slices.Contains(javaAllowedFlags, a)
 	}
 
-	return ""
+	return "java"
 }
