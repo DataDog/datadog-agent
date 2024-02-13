@@ -84,11 +84,19 @@ type TraceWriter struct {
 
 	easylog *log.ThrottledLogger
 	statsd  statsd.ClientInterface
+	timing  timing.Reporter
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
-func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) *TraceWriter {
+func NewTraceWriter(
+	cfg *config.AgentConfig,
+	prioritySampler samplerTPSReader,
+	errorsSampler samplerTPSReader,
+	rareSampler samplerEnabledReader,
+	telemetryCollector telemetry.TelemetryCollector,
+	statsd statsd.ClientInterface,
+	timing timing.Reporter) *TraceWriter {
 	tw := &TraceWriter{
 		In:                 make(chan *SampledChunks, 1),
 		Serialize:          make(chan *pb.AgentPayload, 1),
@@ -106,6 +114,7 @@ func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, e
 		easylog:            log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 		telemetryCollector: telemetryCollector,
 		statsd:             statsd,
+		timing:             timing,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -242,7 +251,7 @@ func (w *TraceWriter) flush() {
 		return
 	}
 
-	defer timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
+	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
 	defer w.resetBuffer()
 
 	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
@@ -323,7 +332,7 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 
 	case eventTypeSent:
 		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes)
-		timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
+		w.timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
 		w.stats.Payloads.Inc()
 		if !w.telemetryCollector.SentFirstTrace() {
