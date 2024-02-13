@@ -2704,9 +2704,6 @@ api_key:
 #  - podman
 
 {{ end -}}
-{{- if .Process }}
-
-{{ end -}}
 {{- if .Autodiscovery }}
 
 ###########################################
