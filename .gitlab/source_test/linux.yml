@@ -87,7 +87,7 @@ tests_deb-x64-py3-fast:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    EXTRA_OPTS: '--only-modified-packages'
+    EXTRA_OPTS: '--only-impacted-packages'
     TEST_OUTPUT_FILE: test_output_fast.json
   allow_failure: true
 

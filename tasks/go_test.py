@@ -315,6 +315,7 @@ def test(
     go_mod="mod",
     junit_tar="",
     only_modified_packages=False,
+    only_impacted_packages=False,
     skip_flakes=False,
     build_stdlib=False,
 ):
@@ -425,6 +426,8 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
                 test_profiler=test_profiler,
             )
         if only_modified_packages:
+            modules = get_modified_packages(ctx, build_tags=build_tags)
+        if only_impacted_packages:
             modules = get_impacted_packages(ctx, build_tags=build_tags)
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
@@ -648,7 +651,7 @@ def send_unit_tests_stats(_, job_name):
             timestamp,
             n_test_classic,
             tags=[
-                "experimentation:fast-tests",
+                "experimentation:fast-tests-v2",
                 "test_type:classic",
                 "repository:datadog-agent",
                 f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
@@ -664,7 +667,7 @@ def send_unit_tests_stats(_, job_name):
             timestamp,
             n_test_fast,
             tags=[
-                "experimentation:fast-tests",
+                "experimentation:fast-tests-v2",
                 "test_type:fast",
                 "repository:datadog-agent",
                 f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
@@ -692,7 +695,7 @@ def send_unit_tests_stats(_, job_name):
             timestamp,
             false_positive,
             tags=[
-                "experimentation:fast-tests",
+                "experimentation:fast-tests-v2",
                 "repository:datadog-agent",
                 f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
                 f"job_name:{job_name}",
@@ -705,7 +708,7 @@ def send_unit_tests_stats(_, job_name):
             timestamp,
             false_negative,
             tags=[
-                "experimentation:fast-tests",
+                "experimentation:fast-tests-v2",
                 "repository:datadog-agent",
                 f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
                 f"job_name:{job_name}",
