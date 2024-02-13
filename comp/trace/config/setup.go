@@ -604,6 +604,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.debugger_additional_endpoints"; core.IsSet(k) {
 		c.DebuggerProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
+	if k := "apm_config.debugger_diagnostics_dd_url"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.DDURL = core.GetString(k)
+	}
+	if k := "apm_config.debugger_diagnostics_api_key"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.APIKey = core.GetString(k)
+	}
+	if k := "apm_config.debugger_diagnostics_additional_endpoints"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
 	if k := "apm_config.symdb_dd_url"; core.IsSet(k) {
 		c.SymDBProxy.DDURL = core.GetString(k)
 	}

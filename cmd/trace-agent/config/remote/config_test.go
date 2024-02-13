@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -56,10 +57,10 @@ func TestConfigEndpoint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			grpc := agentGRPCConfigFetcher{}
-			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector())
+			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 			mux := http.NewServeMux()
 			cfg := &config.AgentConfig{}
-			mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, cfg))
+			mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, cfg, &statsd.NoOpClient{}))
 			server := httptest.NewServer(mux)
 			if tc.valid {
 				var request pbgo.ClientGetConfigsRequest
@@ -131,7 +132,7 @@ func TestUpstreamRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			grpc := agentGRPCConfigFetcher{}
-			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector())
+			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 
 			var request pbgo.ClientGetConfigsRequest
 			err := json.Unmarshal([]byte(tc.expectedUpstreamRequest), &request)
@@ -139,7 +140,7 @@ func TestUpstreamRequest(t *testing.T) {
 			grpc.On("ClientGetConfigs", mock.Anything, &request, mock.Anything).Return(&pbgo.ClientGetConfigsResponse{Targets: []byte("test")}, nil)
 
 			mux := http.NewServeMux()
-			mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, tc.cfg))
+			mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, tc.cfg, &statsd.NoOpClient{}))
 			server := httptest.NewServer(mux)
 
 			req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(tc.tracerReq))
@@ -159,19 +160,57 @@ func TestUpstreamRequest(t *testing.T) {
 func TestForwardErrors(t *testing.T) {
 	assert := assert.New(t)
 	grpc := agentGRPCConfigFetcher{}
-	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector())
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 
 	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, status.Error(codes.Unimplemented, "not implemented"))
 
 	mux := http.NewServeMux()
-	mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, &config.AgentConfig{}))
+	mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, &config.AgentConfig{}, &statsd.NoOpClient{}))
 	server := httptest.NewServer(mux)
 
 	req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(`{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`))
 	r, err := http.DefaultClient.Do(req)
 	assert.NoError(err)
 	assert.Equal(404, r.StatusCode)
+	r.Body.Close()
+}
+
+func TestUnexpectedError(t *testing.T) {
+	assert := assert.New(t)
+	grpc := agentGRPCConfigFetcher{}
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+
+	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, status.Error(codes.Unavailable, "unavailable"))
+
+	mux := http.NewServeMux()
+	mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, &config.AgentConfig{}, &statsd.NoOpClient{}))
+	server := httptest.NewServer(mux)
+
+	req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(`{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`))
+	r, err := http.DefaultClient.Do(req)
+	assert.NoError(err)
+	assert.Equal(500, r.StatusCode)
+	r.Body.Close()
+}
+
+func TestEmptyResponse(t *testing.T) {
+	assert := assert.New(t)
+	grpc := agentGRPCConfigFetcher{}
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+
+	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil)
+
+	mux := http.NewServeMux()
+	mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, &config.AgentConfig{}, &statsd.NoOpClient{}))
+	server := httptest.NewServer(mux)
+
+	req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(`{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`))
+	r, err := http.DefaultClient.Do(req)
+	assert.NoError(err)
+	assert.Equal(204, r.StatusCode)
 	r.Body.Close()
 }
 

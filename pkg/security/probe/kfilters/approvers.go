@@ -149,4 +149,5 @@ func init() {
 	AllApproversHandlers["mmap"] = mmapOnNewApprovers
 	AllApproversHandlers["mprotect"] = mprotectOnNewApprovers
 	AllApproversHandlers["splice"] = spliceOnNewApprovers
+	AllApproversHandlers["chdir"] = onNewBasenameApproversWrapper(model.FileChdirEventType)
 }

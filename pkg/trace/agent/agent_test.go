@@ -40,12 +40,13 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
-	a := NewAgent(ctx, conf, telemetryCollector)
+	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{})
 	a.TraceWriter.In = make(chan *writer.SampledChunks, 1000)
 	a.Concentrator.In = make(chan stats.Input, 1000)
 	return a
@@ -368,7 +369,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
@@ -1008,19 +1009,19 @@ func TestSampling(t *testing.T) {
 	configureAgent := func(ac agentConfig) *Agent {
 		cfg := &config.AgentConfig{RareSamplerEnabled: !ac.rareSamplerDisabled, RareSamplerCardinality: 200, RareSamplerTPS: 5}
 		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerEnabled: !ac.rareSamplerDisabled}
-
+		statsd := &statsd.NoOpClient{}
 		a := &Agent{
-			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
-			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
-			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-			RareSampler:       sampler.NewRareSampler(cfg),
+			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
+			ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
+			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
+			RareSampler:       sampler.NewRareSampler(cfg, statsd),
 			conf:              cfg,
 		}
 		if ac.errorsSampled {
-			a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg)
+			a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg, statsd)
 		}
 		if ac.noPrioritySampled {
-			a.NoPrioritySampler = sampler.NewNoPrioritySampler(sampledCfg)
+			a.NoPrioritySampler = sampler.NewNoPrioritySampler(sampledCfg, statsd)
 		}
 		return a
 	}
@@ -1158,6 +1159,7 @@ func TestSample(t *testing.T) {
 		pt.TraceChunk.Priority = int32(priority)
 		return pt
 	}
+	statsd := &statsd.NoOpClient{}
 	tests := map[string]struct {
 		trace           traceutil.ProcessedTrace
 		keep            bool
@@ -1209,11 +1211,11 @@ func TestSample(t *testing.T) {
 	}
 	for name, tt := range tests {
 		a := &Agent{
-			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
-			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
-			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-			RareSampler:       sampler.NewRareSampler(config.New()),
-			EventProcessor:    newEventProcessor(cfg),
+			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
+			ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
+			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
+			RareSampler:       sampler.NewRareSampler(config.New(), statsd),
+			EventProcessor:    newEventProcessor(cfg, statsd),
 			conf:              cfg,
 		}
 		t.Run(name, func(t *testing.T) {
@@ -1244,13 +1246,13 @@ func TestSampleManualUserDropNoAnalyticsEvents(t *testing.T) {
 	}
 	pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
 	pt.TraceChunk.Priority = -1
-
+	statsd := &statsd.NoOpClient{}
 	a := &Agent{
-		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
-		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
-		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-		RareSampler:       sampler.NewRareSampler(config.New()),
-		EventProcessor:    newEventProcessor(cfg),
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
+		RareSampler:       sampler.NewRareSampler(config.New(), statsd),
+		EventProcessor:    newEventProcessor(cfg, statsd),
 		conf:              cfg,
 	}
 	keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
@@ -1264,19 +1266,20 @@ func TestPartialSamplingFree(t *testing.T) {
 	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
+	statsd := &statsd.NoOpClient{}
 	agnt := &Agent{
-		Concentrator:      stats.NewConcentrator(cfg, statsChan, time.Now()),
+		Concentrator:      stats.NewConcentrator(cfg, statsChan, time.Now(), statsd),
 		Blacklister:       filters.NewBlacklister(cfg.Ignore["resource"]),
 		Replacer:          filters.NewReplacer(cfg.ReplaceTags),
-		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
-		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
-		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-		EventProcessor:    newEventProcessor(cfg),
-		RareSampler:       sampler.NewRareSampler(config.New()),
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
+		EventProcessor:    newEventProcessor(cfg, statsd),
+		RareSampler:       sampler.NewRareSampler(config.New(), statsd),
 		TraceWriter:       &writer.TraceWriter{In: writerChan},
 		conf:              cfg,
 	}
-	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, agnt, telemetry.NewNoopCollector())
+	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, agnt, telemetry.NewNoopCollector(), statsd)
 	now := time.Now()
 	smallKeptSpan := &pb.Span{
 		TraceID:  1,
@@ -1431,7 +1434,7 @@ type eventProcessorTestCase struct {
 
 func testEventProcessorFromConf(t *testing.T, conf *config.AgentConfig, testCase eventProcessorTestCase) {
 	t.Run(testCase.name, func(t *testing.T) {
-		processor := newEventProcessor(conf)
+		processor := newEventProcessor(conf, &statsd.NoOpClient{})
 		processor.Start()
 
 		actualEPS := generateTraffic(processor, testCase.serviceName, testCase.opName, testCase.extractionRate,

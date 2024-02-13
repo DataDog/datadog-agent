@@ -30,7 +30,7 @@ type Option func(*Params)
 // NewParams creates a new instance of Install params
 func NewParams(options ...Option) *Params {
 	p := &Params{
-		PipelineID:   os.Getenv("CI_PIPELINE_ID"),
+		PipelineID:   os.Getenv("E2E_PIPELINE_ID"),
 		MajorVersion: "7",
 		Arch:         "x86_64",
 	}

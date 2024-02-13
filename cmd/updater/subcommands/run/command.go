@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi/localapiimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/rc/rcimpl"
+	"github.com/DataDog/datadog-agent/comp/updater"
 	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
@@ -67,6 +68,9 @@ func runFxWrapper(params *cliParams) error {
 	)
 }
 
-func run(localAPI localapi.Component) error {
+func run(updater updater.Component, localAPI localapi.Component) error {
+	updater.Start()
+	defer updater.Stop()
+
 	return localAPI.Serve()
 }

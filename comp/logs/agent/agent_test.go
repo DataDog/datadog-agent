@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
@@ -160,7 +159,7 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	server := http.NewTestServer(200)
+	server := http.NewTestServer(200, coreConfig.Datadog)
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
@@ -218,12 +217,12 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 		{
 			"logs enabled",
 			true,
-			&agent{},
+			NewStatusProvider(),
 		},
 		{
 			"logs disabled",
 			false,
-			status.NoopProvider{},
+			NewStatusProvider(),
 		},
 	}
 

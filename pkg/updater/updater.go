@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,6 +22,10 @@ import (
 const (
 	// defaultRepositoryPath is the default path to the repository.
 	defaultRepositoryPath = "/opt/datadog-packages"
+	// defaultLocksPath is the default path to the run directory.
+	defaultLocksPath = "/var/run/datadog-packages"
+	// gcInterval is the interval at which the GC will run
+	gcInterval = 1 * time.Hour
 )
 
 // Install installs the default version for the given package.
@@ -28,7 +33,10 @@ const (
 func Install(ctx context.Context, rc RemoteConfig, pkg string) error {
 	log.Infof("Updater: Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
-	repository := &repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)}
+	repository := &repository.Repository{
+		RootPath:  path.Join(defaultRepositoryPath, pkg),
+		LocksPath: path.Join(defaultLocksPath, pkg),
+	}
 	orgConfig := newOrgConfig(rc)
 	firstPackage, err := orgConfig.GetDefaultPackage(ctx, pkg)
 	if err != nil {
@@ -68,11 +76,15 @@ type updaterImpl struct {
 	orgConfig      *orgConfig
 	repository     *repository.Repository
 	downloader     *downloader
+	stopChan       chan struct{}
 }
 
 // NewUpdater returns a new Updater.
 func NewUpdater(rc RemoteConfig, pkg string) (Updater, error) {
-	repository := repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)}
+	repository := &repository.Repository{
+		RootPath:  path.Join(defaultRepositoryPath, pkg),
+		LocksPath: path.Join(defaultLocksPath, pkg),
+	}
 	state, err := repository.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("could not get repository state: %w", err)
@@ -86,6 +98,7 @@ func NewUpdater(rc RemoteConfig, pkg string) (Updater, error) {
 		orgConfig:      newOrgConfig(rc),
 		repository:     &repository,
 		downloader:     newDownloader(http.DefaultClient),
+		stopChan:       make(chan struct{}),
 	}, nil
 }
 
@@ -97,6 +110,35 @@ func (u *updaterImpl) GetRepositoryPath() string {
 // GetPackage returns the package.
 func (u *updaterImpl) GetPackage() string {
 	return u.pkg
+}
+
+// Start starts the garbage collector.
+func (u *Updater) Start() {
+	go func() {
+		for {
+			select {
+			case <-time.After(gcInterval):
+				err := u.cleanup()
+				if err != nil {
+					log.Errorf("updater: could not run GC: %v", err)
+				}
+			case <-u.stopChan:
+				return
+			}
+		}
+	}()
+}
+
+// Stop stops the garbage collector.
+func (u *Updater) Stop() {
+	close(u.stopChan)
+}
+
+// Cleanup cleans up the repository.
+func (u *Updater) cleanup() error {
+	u.m.Lock()
+	defer u.m.Unlock()
+	return u.repository.Cleanup()
 }
 
 // StartExperiment starts an experiment with the given package.

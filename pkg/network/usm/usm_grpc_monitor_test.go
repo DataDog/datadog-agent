@@ -342,6 +342,75 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedError: true,
 		},
+		{
+			name: "validate mismatch due to HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING limit",
+			// The purpose of this test is to validate the limit of HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING.
+			// We are sending 2 requests, one of which surpasses the maximum allowed value for HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING,
+			// leading to a mismatch with our internal counter calculation and subsequently causing the second request to be missed.
+			runClients: func(t *testing.T, clientsCount int) {
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
+				defer cleanup()
+				ctxWithHeaders := context.Background()
+				headers := make(map[string]string, http2.Http2MaxHeadersCountPerFiltering+1)
+				for i := 1; i <= http2.Http2MaxHeadersCountPerFiltering+1; i++ {
+					headers[fmt.Sprintf("header-%d", i)] = "value"
+				}
+				md := metadata.New(headers)
+				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
+
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithHeaders, -743999179, 408122808))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithHeaders, -743999179, 408122808))
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Method: http.MethodPost,
+				}: {
+					lower: 1,
+					upper: 1,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "validate HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING limit without missmatch",
+			// The purpose of this test is to validate the limit of HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING.
+			// We are sending 3 requests, one of which surpasses the maximum allowed value for HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING.
+			// The second and third requests for different endpoints should be captured. (The mismatch in the internal dynamic counter
+			// should not affect subsequent requests due to the mismatch.)
+			runClients: func(t *testing.T, clientsCount int) {
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
+				defer cleanup()
+				ctxWithoutHeaders := context.Background()
+				ctxWithHeaders := context.Background()
+				headers := make(map[string]string, http2.Http2MaxHeadersCountPerFiltering+1)
+				for i := 1; i <= http2.Http2MaxHeadersCountPerFiltering+1; i++ {
+					headers[fmt.Sprintf("header-%d", i)] = "value"
+				}
+				md := metadata.New(headers)
+				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
+				longName := randStringRunes(1024 * 1024)
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, string(longName)))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithoutHeaders, -746143763, 407838351))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithoutHeaders, -743999179, 408122808))
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Method: http.MethodPost,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Method: http.MethodPost,
+				}: {
+					lower: 1,
+					upper: 1,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		for _, clientCount := range []int{1, 2, 5} {
@@ -442,12 +511,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 }
 
 func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, srvPID int, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
-	cfg := s.getConfig()
-	usmMonitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	require.NoError(t, usmMonitor.Start())
-	t.Cleanup(usmMonitor.Stop)
-	t.Cleanup(utils.ResetDebugger)
+	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
 	if s.isTLS {
 		utils.WaitForProgramsToBeTraced(t, "go-tls", srvPID)
 	}

@@ -13,25 +13,15 @@ import (
 	"hash"
 	"hash/fnv"
 	"sync"
-	"syscall"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"golang.org/x/exp/slices"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-)
-
-const (
-	maxErrno    = 64
-	maxErrnoStr = "other"
-
-	ebpfMapTelemetryNS    = "ebpf_maps"
-	ebpfHelperTelemetryNS = "ebpf_helpers"
 )
 
 const (
@@ -92,24 +82,6 @@ func (b *EBPFTelemetry) populateMapsWithKeys(m *manager.Manager) error {
 		return err
 	}
 	return nil
-}
-
-func getErrCount(v []uint64) map[string]uint64 {
-	errCount := make(map[string]uint64)
-	for i, count := range v {
-		if count == 0 {
-			continue
-		}
-
-		if (i + 1) == maxErrno {
-			errCount[maxErrnoStr] = count
-		} else if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
-			errCount[name] = count
-		} else {
-			errCount[syscall.Errno(i).Error()] = count
-		}
-	}
-	return errCount
 }
 
 func buildMapErrTelemetryConstants(mgr *manager.Manager) []manager.ConstantEditor {
@@ -236,9 +208,9 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	if err != nil {
 		return err
 	}
-	m.InstructionPatcher = func(m *manager.Manager) error {
+	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
 		return patchEBPFTelemetry(m, activateBPFTelemetry, bpfTelemetry)
-	}
+	})
 
 	if activateBPFTelemetry {
 		// add telemetry maps to list of maps, if not present
