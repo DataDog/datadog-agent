@@ -6,7 +6,6 @@
 package parser
 
 import (
-	"golang.org/x/exp/slices"
 	"path/filepath"
 	"runtime"
 	"slices"
