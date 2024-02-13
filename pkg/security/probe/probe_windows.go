@@ -69,7 +69,7 @@ type WindowsProbe struct {
  * pid is provided for testing purposes, to allow filtering on pid.  it is
  * not expected to be used at runtime
  */
-type etwCallback func(n interface{}, pid uint32, model.eventType)
+type etwCallback func(n interface{}, pid uint32, eventType model.eventType)
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
@@ -455,7 +455,7 @@ func (p *WindowsProbe) Start() error {
 				// handle incoming events here
 				// each event will come in as a different type
 				// parse it with
-				switch eventType{
+				switch eventType {
 				case CreateNewFileEventType:
 					cnfa := n.(*createNewFileArgs)
 					ev.Type = uint32(model.CreateNewFileEventType)
@@ -466,27 +466,27 @@ func (p *WindowsProbe) Start() error {
 						},
 					}
 				case CreateRegistryKeyEventType:
-					cka :=  n.(*createKeyArgs)
+					cka := n.(*createKeyArgs)
 					ev.Type = uint32(model.CreateRegistryKeyEventType)
 					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
 						Registry: model.RegistryEvent{
-							KeyPath: cka.computedFullPath,
+							KeyPath:      cka.computedFullPath,
 							RelativeName: cka.relativeName,
 						},
 					}
 				case OpenRegistryKeyEventType:
 					cka := n.(*createKeyArgs)
 					ev.Type = uint32(model.OpenRegistryKeyEventType)
-					ev.OpenRegistryKey = model.OpenRegistryKeyEvent {
+					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
 						Registry: model.RegistryEvent{
-							KeyPath: cka.computedFullPath,
+							KeyPath:      cka.computedFullPath,
 							RelativeName: cka.relativeName,
 						},
 					}
 				case DeleteRegistryKeyEventType:
 					dka := n.(*deleteKeyArgs)
 					ev.Type = uint32(model.DeleteRegistryKeyEventType)
-					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent {
+					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
 						Registry: model.RegistryEvent{
 							KeyName: dka.keyName,
 						},
@@ -494,12 +494,12 @@ func (p *WindowsProbe) Start() error {
 				case SetRegistryKeyValueEventType:
 					svka := n.(*setValueKeyArgs)
 					ev.Type = uint32(model.SetRegistryKeyValueEventType)
-					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent {
+					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
 						Registry: model.RegistryEvent{
 							KeyName, svka.keyName,
-							KeyPath: svka.computedFullPath,
+							KeyPath:      svka.computedFullPath,
 							RelativeName: svka.relativeName,
-							ValueName: svka.valueName,
+							ValueName:    svka.valueName,
 						},
 					}
 				}
