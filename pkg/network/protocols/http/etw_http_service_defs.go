@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && npm
+//go:build windows
 
 package http
 
@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	//revive:disable:var-naming Name is intended to match the Windows API name
 	EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn       = 0x15
 	EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose      = 0x17
 	EVENT_ID_HttpService_HTTPRequestTraceTaskRecvReq           = 0x1
@@ -33,6 +34,7 @@ const (
 	EVENT_ID_HttpService_HTTPRequestTraceTaskFastSend          = 0xc
 	EVENT_ID_HttpService_HTTPRequestTraceTaskZeroSend          = 0xd
 	EVENT_ID_HttpService_HTTPRequestTraceTaskLastSndError      = 0xe
+	//revive:enable:var-naming
 )
 
 var (
