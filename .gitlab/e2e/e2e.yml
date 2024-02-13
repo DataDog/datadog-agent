@@ -2,7 +2,7 @@
 # e2e stage
 # Contains jobs which runs e2e tests on our Docker images.
 
-.container_needs:
+.container_e2e_needs:
   needs:
     - qa_agent
     - qa_dca
@@ -13,7 +13,7 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
   dependencies: []
-  extends: .container_needs
+  extends: .container_e2e_needs
   variables:
     LANG: C.UTF-8
   before_script:
@@ -78,10 +78,35 @@ k8s-e2e-otlp-main:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
-    - job: "deploy_rpm_testing-a6_x64" # This deploy is the last one of all the deploys
+    - job: deploy_deb_testing-a6_x64
       optional: true
-    - job: "deploy_rpm_testing-a7_x64" # In case agent6 is not built
+    - job: deploy_deb_testing-a6_arm64
       optional: true
+    - job: deploy_deb_testing-a7_x64
+      optional: true
+    - job: deploy_deb_testing-a7_arm64
+      optional: true
+    - job: deploy_deb_testing-u7_arm64
+      optional: true
+    - job: deploy_rpm_testing-a6_x64
+      optional: true
+    - job: deploy_rpm_testing-a6_arm64
+      optional: true
+    - job: deploy_rpm_testing-a7_x64
+      optional: true
+    - job: deploy_rpm_testing-a7_arm64
+      optional: true
+    - job: deploy_suse_rpm_testing_x64-a6
+      optional: true
+    - job: deploy_suse_rpm_testing_x64-a7
+      optional: true
+    - job: deploy_suse_rpm_testing_arm64-a7
+      optional: true
+    - job: deploy_windows_testing-a6
+      optional: true
+    - job: deploy_windows_testing-a7
+      optional: true
+    - job: agent-qa
   before_script:
     # Setup AWS Credentials
     - mkdir -p ~/.aws
@@ -119,7 +144,7 @@ k8s-e2e-otlp-main:
 new-e2e-containers:
   extends:
     - .new_e2e_template
-    - .container_needs
+    - .container_e2e_needs
   # TODO once images are deployed to ECR for dev branches, update
   #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
@@ -220,22 +245,13 @@ new-e2e-process:
     TEAM: processes
 
 new-e2e-orchestrator:
-  extends: .new_e2e_template
+  extends:
+    - .new_e2e_template
+    - .container_e2e_needs
   rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/process
     TEAM: processes
-
-new-e2e-orchestrator-dev:
-  extends:
-    - .new_e2e_template
-    - .container_needs
-  rules:
-    - !reference [.if_run_e2e_tests]
-    - !reference [.on_dev_branch_manual]
-  variables:
-    TARGETS: ./tests/orchestrator
-    TEAM: container-app
 
 new-e2e-apm:
   extends: .new_e2e_template
