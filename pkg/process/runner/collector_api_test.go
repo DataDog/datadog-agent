@@ -58,19 +58,6 @@ func setProcessEventsEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endp
 	config.SetWithoutSource("process_config.events_additional_endpoints", additionalEps)
 }
 
-func setOrchestratorEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
-	additionalEps := make(map[string][]string)
-	for i, ep := range eps {
-		if i == 0 {
-			config.SetWithoutSource("api_key", ep.APIKey)
-			config.SetWithoutSource("orchestrator_explorer.orchestrator_dd_url", ep.Endpoint)
-		} else {
-			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
-		}
-	}
-	config.SetWithoutSource("orchestrator_explorer.orchestrator_additional_endpoints", additionalEps)
-}
-
 func TestSendConnectionsMessage(t *testing.T) {
 	m := &process.CollectorConnections{
 		HostName: testHostName,
@@ -436,7 +423,7 @@ func TestMultipleAPIKeys(t *testing.T) {
 
 	apiKeys := []string{"apiKeyI", "apiKeyII", "apiKeyIII"}
 
-	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, nil, ddconfig.Mock(t), func(_ *CheckRunner, ep *mockEndpoint) {
+	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, ddconfig.Mock(t), func(_ *CheckRunner, ep *mockEndpoint) {
 		for _, expectedAPIKey := range apiKeys {
 			request := <-ep.Requests
 			assert.Equal(t, expectedAPIKey, request.headers.Get("DD-Api-Key"))
@@ -445,12 +432,12 @@ func TestMultipleAPIKeys(t *testing.T) {
 }
 
 func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
-	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, []string{"orchestratorApiKey"}, mockConfig, tc)
+	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, mockConfig, tc)
 }
 
-func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys []string, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
-	collectorAddr, eventsAddr, orchestratorAddr := ep.start()
+	collectorAddr, eventsAddr := ep.start()
 	defer ep.stop()
 
 	eps := make([]apicfg.Endpoint, 0, len(apiKeys))
@@ -464,12 +451,6 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 		eventsEps = append(eventsEps, apicfg.Endpoint{APIKey: key, Endpoint: eventsAddr})
 	}
 	setProcessEventsEndpointsForTest(mockConfig, eventsEps...)
-
-	orchestratorEndpoints := make([]apicfg.Endpoint, 0, len(orchAPIKeys))
-	for _, key := range orchAPIKeys {
-		orchestratorEndpoints = append(orchestratorEndpoints, apicfg.Endpoint{APIKey: key, Endpoint: orchestratorAddr})
-	}
-	setOrchestratorEndpointsForTest(mockConfig, orchestratorEndpoints...)
 
 	hostInfo := &checks.HostInfo{
 		HostName: testHostName,
@@ -545,15 +526,14 @@ type endpointConfig struct {
 }
 
 type mockEndpoint struct {
-	t                  *testing.T
-	collectorServer    *http.Server
-	eventsServer       *http.Server
-	orchestratorServer *http.Server
-	stopper            sync.WaitGroup
-	Requests           chan request
-	errorCount         int
-	errorsSent         int
-	closeOnce          sync.Once
+	t               *testing.T
+	collectorServer *http.Server
+	eventsServer    *http.Server
+	stopper         sync.WaitGroup
+	Requests        chan request
+	errorCount      int
+	errorsSent      int
+	closeOnce       sync.Once
 }
 
 func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
@@ -573,20 +553,14 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	eventsMux := http.NewServeMux()
 	eventsMux.HandleFunc("/api/v2/proclcycle", m.handleEvents)
 
-	orchestratorMux := http.NewServeMux()
-	orchestratorMux.HandleFunc("/api/v1/validate", m.handleValidate)
-	orchestratorMux.HandleFunc("/api/v2/orch", m.handle)
-	orchestratorMux.HandleFunc("/api/v2/orchmanif", m.handle)
-
 	m.collectorServer = &http.Server{Addr: ":", Handler: collectorMux}
 	m.eventsServer = &http.Server{Addr: ":", Handler: eventsMux}
-	m.orchestratorServer = &http.Server{Addr: ":", Handler: orchestratorMux}
 
 	return m
 }
 
-// start starts the http endpoints and returns (collector server url, orchestrator server url)
-func (m *mockEndpoint) start() (*url.URL, *url.URL, *url.URL) {
+// start starts the http endpoints and returns (collector server url)
+func (m *mockEndpoint) start() (*url.URL, *url.URL) {
 	addrC := make(chan net.Addr, 1)
 
 	m.stopper.Add(1)
@@ -617,20 +591,6 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL, *url.URL) {
 
 	eventsAddr := <-addrC
 
-	m.stopper.Add(1)
-	go func() {
-		defer m.stopper.Done()
-
-		listener, err := net.Listen("tcp", ":")
-		require.NoError(m.t, err)
-
-		addrC <- listener.Addr()
-
-		_ = m.orchestratorServer.Serve(listener)
-	}()
-
-	orchestratorAddr := <-addrC
-
 	close(addrC)
 
 	collectorEndpoint, err := url.Parse(fmt.Sprintf("http://%s", collectorAddr.String()))
@@ -639,10 +599,7 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL, *url.URL) {
 	eventsEndpoint, err := url.Parse(fmt.Sprintf("http://%s", eventsAddr.String()))
 	require.NoError(m.t, err)
 
-	orchestratorEndpoint, err := url.Parse(fmt.Sprintf("http://%s", orchestratorAddr.String()))
-	require.NoError(m.t, err)
-
-	return collectorEndpoint, eventsEndpoint, orchestratorEndpoint
+	return collectorEndpoint, eventsEndpoint
 }
 
 func (m *mockEndpoint) stop() {
@@ -650,9 +607,6 @@ func (m *mockEndpoint) stop() {
 	require.NoError(m.t, err)
 
 	err = m.eventsServer.Close()
-	require.NoError(m.t, err)
-
-	err = m.orchestratorServer.Close()
 	require.NoError(m.t, err)
 
 	m.stopper.Wait()
