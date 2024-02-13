@@ -2,7 +2,7 @@ stats-fast-tests-deb-x64-py3:
   stage: source_test_stats
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["tests_deb-x64-py3-fast", "tests_deb-x64-py3"]
+  needs: ["tests_deb-x64-py3-fast-v2", "tests_deb-x64-py3"]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

@@ -71,7 +71,7 @@ tests_windows-x64:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
 
-tests_windows-x64-fast:
+tests_windows-x64-fast-v2:
   extends: .tests_windows_base
   variables:
     PYTHON_RUNTIMES: 3
