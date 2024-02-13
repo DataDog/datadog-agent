@@ -56,10 +56,8 @@ func TestDNSNameEncoding(t *testing.T) {
 		"1.1.2.5": {Names: nil},
 	}
 	conf := ddconfig.MockSystemProbe(t)
-	var (
-		enabled               = conf.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	)
+	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
+	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
 	maxConnsPerMessage := 10
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
@@ -127,10 +125,8 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		khfr := model.KernelHeaderFetchResult_FetchNotAttempted
 		coretm := map[string]model.COREResult{}
 		conf := ddconfig.MockSystemProbe(t)
-		var (
-			enabled               = conf.GetBool("system_probe_config.process_service_inference.enabled")
-			useWindowsServiceName = conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-		)
+		enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
+		useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 		ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
 		chunks := batchConnections(&HostInfo{}, tc.maxSize, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, khfr, coretm, nil, nil, nil, nil, nil, ex)
 
@@ -172,10 +168,8 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 
 	maxConnsPerMessage := 1
 	conf := ddconfig.MockSystemProbe(t)
-	var (
-		enabled               = conf.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	)
+	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
+	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
 
@@ -217,10 +211,8 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 
 	maxConnsPerMessage := 2
 	conf := ddconfig.MockSystemProbe(t)
-	var (
-		enabled               = conf.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	)
+	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
+	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
 
@@ -306,10 +298,8 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 
 	maxConnsPerMessage := 1
 	conf := ddconfig.MockSystemProbe(t)
-	var (
-		enabled               = conf.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	)
+	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
+	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex)
 
@@ -429,10 +419,8 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 
 	maxConnsPerMessage := 1
 	conf := ddconfig.MockSystemProbe(t)
-	var (
-		enabled               = conf.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	)
+	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
+	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex)
 
@@ -543,10 +531,8 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 
 	maxConnsPerMessage := 4
 	conf := ddconfig.MockSystemProbe(t)
-	var (
-		enabled               = conf.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	)
+	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
+	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, routes, nil, nil, ex)
 
@@ -616,10 +602,8 @@ func TestNetworkConnectionTags(t *testing.T) {
 
 	maxConnsPerMessage := 4
 	conf := ddconfig.MockSystemProbe(t)
-	var (
-		enabled               = conf.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	)
+	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
+	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex)
 

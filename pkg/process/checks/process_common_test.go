@@ -56,13 +56,7 @@ func makeProcessWithCreateTime(pid int32, cmdline string, createTime int64) *pro
 	return p
 }
 
-func makeProcessWithProcessContext(pid int32, cmdline string, processContext []string) *procutil.Process {
-	p := makeProcess(pid, cmdline)
-	p.ProcessContext = processContext
-	return p
-}
-
-func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
+func makeProcessModel(t *testing.T, process *procutil.Process, processContext []string) *model.Process {
 	t.Helper()
 
 	stats := process.Stats
@@ -81,7 +75,7 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 		},
 		CreateTime:     process.Stats.CreateTime,
 		IoStat:         &model.IOStat{},
-		ProcessContext: process.ProcessContext,
+		ProcessContext: processContext,
 	}
 }
 

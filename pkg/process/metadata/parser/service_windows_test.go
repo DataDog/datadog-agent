@@ -58,10 +58,8 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := ddconfig.MockSystemProbe(t)
 			mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
-			var (
-				enabled               = mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
-				useWindowsServiceName = mockConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-			)
+			enabled := mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
+			useWindowsServiceName := mockConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 			proc := procutil.Process{
 				Pid:     1,
 				Cmdline: tt.cmdline,
@@ -77,10 +75,8 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 
 func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	makeServiceExtractor := func(t *testing.T, sysprobeConfig ddconfig.Reader) (*ServiceExtractor, *mockSCM) {
-		var (
-			enabled               = sysprobeConfig.GetBool("system_probe_config.process_service_inference.enabled")
-			useWindowsServiceName = sysprobeConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-		)
+		enabled := sysprobeConfig.GetBool("system_probe_config.process_service_inference.enabled")
+		useWindowsServiceName := sysprobeConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 		se := NewServiceExtractor(enabled, useWindowsServiceName)
 		procsByPid := map[int32]*procutil.Process{1: {
 			Pid:     1,
