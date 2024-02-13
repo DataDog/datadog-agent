@@ -171,8 +171,9 @@ func getRelatedActivityId(e *etw.DDEventRecord) (activityId *etw.DDGUID) {
 	}
 	exDatas := unsafe.Slice(e.ExtendedData, e.ExtendedDataCount)
 	for _, exData := range exDatas {
-		if exData.Type == etw.EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID && exData.Size == unsafe.Sizeof(DDGUID) {
-			activityId = (*etw.DDGUID)(unsafe.Pointer(&exData.Data[0]))
+		var g etw.DDGUID
+		if exData.ExtType == etw.EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID && exData.DataSize == uint16(unsafe.Sizeof(g)) {
+			activityId = (*etw.DDGUID)(unsafe.Pointer(exData.DataPtr))
 			return activityId
 		}
 	}

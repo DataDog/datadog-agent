@@ -14,7 +14,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/etw"
-	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
+	etwutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
 const (
