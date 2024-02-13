@@ -63,9 +63,7 @@ func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
 
 	tc := suite.NewTestClientForHost(suite.Env().DomainControllerHost)
 	tc.CheckAgentVersion(suite.T(), suite.AgentPackage.AgentVersion())
-
 	platformCommon.CheckAgentBehaviour(suite.T(), tc)
-
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		stats, err := suite.Env().FakeIntake.Client().RouteStats()
 		assert.NoError(c, err)
@@ -78,7 +76,6 @@ type testUpgradeSuite struct {
 }
 
 func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
-
 	host := suite.Env().DomainControllerHost
 
 	_, err := suite.InstallAgent(host,
@@ -90,22 +87,17 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 		windowsAgent.WithInstallLogFile("TC-UPG-DC-001_install_last_stable.log"))
 
 	suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
-	suite.EventuallyWithT(func(c *assert.CollectT) {
-		stats, err := suite.Env().FakeIntake.Client().RouteStats()
-		assert.NoError(c, err)
-		assert.NotEmpty(c, stats)
-	}, 5*time.Minute, 10*time.Second)
+
+	tc := suite.NewTestClientForHost(suite.Env().DomainControllerHost)
+	platformCommon.CheckAgentBehaviour(suite.T(), tc)
 
 	_, err = suite.InstallAgent(host,
 		windowsAgent.WithPackage(suite.AgentPackage),
 		windowsAgent.WithInstallLogFile("TC-UPG-DC-001_upgrade.log"))
 	suite.Require().NoError(err, "should succeed to upgrade an Agent on a Domain Controller")
 
-	tc := suite.NewTestClientForHost(suite.Env().DomainControllerHost)
 	tc.CheckAgentVersion(suite.T(), suite.AgentPackage.AgentVersion())
-
 	platformCommon.CheckAgentBehaviour(suite.T(), tc)
-
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		stats, err := suite.Env().FakeIntake.Client().RouteStats()
 		assert.NoError(c, err)

@@ -7,6 +7,7 @@ package common
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"regexp"
 	"testing"
 
@@ -56,13 +57,20 @@ func CheckInstallationMajorAgentVersion(t *testing.T, client *TestClient, expect
 }
 
 // CheckAgentVersion run tests to check that the agent has the correct version
-func (client *TestClient) CheckAgentVersion(t *testing.T, expectedVersion string) bool {
-	return t.Run("Check datadog-agent status version", func(t *testing.T) {
+func (client *TestClient) CheckAgentVersion(t *testing.T, expected string) bool {
+	return t.Run("Check datadog-agent version", func(t *testing.T) {
 		versionRegexPattern := regexp.MustCompile("^(?m:IoT )?Agent (.*?) -")
 		output := client.AgentClient.Version()
 		matchList := versionRegexPattern.FindStringSubmatch(output)
 		require.Len(t, matchList, 2, "wasn't able to retrieve datadog-agent version on the following output : %s", output)
-		require.True(t, matchList[1] == expectedVersion, "Expected datadog-agent version %s got %s", expectedVersion, matchList[1])
+
+		// regex to get major.minor.build parts
+		expectedVersion, err := version.New(expected, "")
+		require.NoErrorf(t, err, "invalid expected version %s", expected)
+		actualVersion, err := version.New(matchList[1], "")
+		require.NoErrorf(t, err, "invalid actual version %s", matchList[1])
+
+		require.Equal(t, expectedVersion.GetNumberAndPre(), actualVersion.GetNumberAndPre(), "Expected datadog-agent version %s got %s", expectedVersion, actualVersion)
 	})
 }
 
