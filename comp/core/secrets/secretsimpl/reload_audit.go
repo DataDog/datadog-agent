@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -36,7 +37,7 @@ func addToAuditFile(filename string, secretResponse map[string]string, origin ha
 	now := timeNowFunc().UTC()
 	auditRows, err := loadAuditFile(filename, maxSize)
 	if err != nil {
-		if sizeErr, ok := err.(*fileSizeLimitError); ok {
+		if sizeErr, ok := err.(*filesystem.FileSizeLimitError); ok {
 			log.Error(`secret-audit-file.json cannot be loaded, file size is too large: %d > %d\n
 	You can work-around this limit by setting the flag "secret_audit_file_max_size" to a larger value.`, sizeErr.Size, sizeErr.Limit)
 			return nil
@@ -81,7 +82,7 @@ func isLikelyAPIOrAppKey(handle, secretValue string, origin handleToContext) boo
 
 // loadAuditFile loads the rows from the audit file and returns them
 func loadAuditFile(filename string, maxSize int) ([]auditRow, error) {
-	bytes, err := readFileWithSizeLimit(filename, int64(maxSize))
+	bytes, err := filesystem.ReadFileWithSizeLimit(filename, int64(maxSize))
 	if err != nil {
 		return nil, err
 	}

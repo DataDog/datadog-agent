@@ -7,6 +7,7 @@ package filesystem
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 )
 
@@ -14,6 +15,41 @@ import (
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// FileSizeLimitError is the error returned when a file's size is larger than the limit
+type FileSizeLimitError struct {
+	Size  int64
+	Limit int64
+}
+
+// Error returns a string describing the file size limit error
+func (e *FileSizeLimitError) Error() string {
+	return fmt.Sprintf("file larger than max size: %d > %d", e.Size, e.Limit)
+}
+
+// ReadFileWithSizeLimit reads a file's contents unless it is larger than the size limit
+func ReadFileWithSizeLimit(filename string, maxSize int64) ([]byte, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	finfo, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	size := finfo.Size()
+	if size > maxSize {
+		return nil, &FileSizeLimitError{size, maxSize}
+	}
+	buff := make([]byte, size)
+	_, err = f.Read(buff)
+	if err != nil {
+		return nil, err
+	}
+	return buff, nil
 }
 
 // ReadLines reads a file line by line
