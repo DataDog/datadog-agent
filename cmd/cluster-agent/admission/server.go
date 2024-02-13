@@ -38,7 +38,8 @@ import (
 
 const jsonContentType = "application/json"
 
-type admissionFunc func(raw []byte, name string, namespace string, info *authenticationv1.UserInfo, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error)
+// WebhookFunc is the function that runs the webhook logic
+type WebhookFunc func(raw []byte, name string, namespace string, info *authenticationv1.UserInfo, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error)
 
 // Server TODO <container-integrations>
 type Server struct {
@@ -75,7 +76,7 @@ func (s *Server) initDecoder() {
 
 // Register adds an admission webhook handler.
 // Register must be called to register the desired webhook handlers before calling Run.
-func (s *Server) Register(uri string, f admissionFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
+func (s *Server) Register(uri string, f WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
 	s.mux.HandleFunc(uri, func(w http.ResponseWriter, r *http.Request) {
 		s.mutateHandler(w, r, f, dc, apiClient)
 	})
@@ -119,7 +120,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 
 // mutateHandler contains the main logic responsible for handling mutation requests.
 // It supports both v1 and v1beta1 requests.
-func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
+func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
 	metrics.WebhooksReceived.Inc()
 
 	start := time.Now()

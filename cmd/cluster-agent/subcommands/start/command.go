@@ -53,8 +53,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
-	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
@@ -389,32 +387,16 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 			StopCh:              stopCh,
 		}
 
-		err = admissionpkg.StartControllers(admissionCtx)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx)
 		if err != nil {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
 			// Webhook and secret controllers are started successfully
 			// Setup the k8s admission webhook server
 			server := admissioncmd.NewServer()
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl, apiCl.Cl)
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl, apiCl.Cl)
 
-			apmInstrumentationWebhook, err := mutate.GetAPMInstrumentationWebhook()
-			if err != nil {
-				pkglog.Errorf("failed to register APM Instrumentation webhook: %v", err)
-			} else {
-				server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), apmInstrumentationWebhook.InjectAutoInstrumentation, apiCl.DynamicCl, apiCl.Cl)
-			}
-
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.agent_sidecar.endpoint"), agentsidecar.InjectAgentSidecar, apiCl.DynamicCl, apiCl.Cl)
-
-			// CWS Instrumentation webhooks
-			cwsInstrumentation, err := mutate.NewCWSInstrumentation()
-			if err != nil {
-				pkglog.Errorf("failed to register CWS Instrumentation webhook: %v", err)
-			} else {
-				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"), cwsInstrumentation.InjectCWSPodInstrumentation, apiCl.DynamicCl, apiCl.Cl)
-				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"), cwsInstrumentation.InjectCWSCommandInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+			for _, webhookConf := range webhooks {
+				server.Register(webhookConf.Endpoint(), webhookConf.MutateFunc(), apiCl.DynamicCl, apiCl.Cl)
 			}
 
 			// Start the k8s admission webhook server

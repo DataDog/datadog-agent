@@ -5,7 +5,9 @@
 
 //go:build kubeapiserver
 
-package mutate
+// Package config implements the webhook that injects DD_AGENT_HOST and
+// DD_ENTITY_ID into a pod template as needed
+package config
 
 import (
 	"errors"
@@ -13,13 +15,18 @@ import (
 	"strconv"
 	"strings"
 
+	admiv1 "k8s.io/api/admissionregistration/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,6 +46,8 @@ const (
 
 	// Volume name
 	datadogVolumeName = "datadog"
+
+	webhookName = "config"
 )
 
 var (
@@ -78,13 +87,73 @@ var (
 	}
 )
 
-// InjectConfig adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
-func InjectConfig(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ kubernetes.Interface) ([]byte, error) {
-	return Mutate(rawPod, ns, injectConfig, dc)
+// Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
+type Webhook struct {
+	name       string
+	isEnabled  bool
+	endpoint   string
+	resources  []string
+	operations []admiv1.OperationType
+	mode       string
 }
 
-// injectConfig injects DD_AGENT_HOST and DD_ENTITY_ID into a pod template if needed
-func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
+// NewWebhook returns a new Webhook
+func NewWebhook() *Webhook {
+	return &Webhook{
+		name:       webhookName,
+		isEnabled:  config.Datadog.GetBool("admission_controller.inject_config.enabled"),
+		endpoint:   config.Datadog.GetString("admission_controller.inject_config.endpoint"),
+		resources:  []string{"pods"},
+		operations: []admiv1.OperationType{admiv1.Create},
+		mode:       config.Datadog.GetString("admission_controller.inject_config.mode"),
+	}
+}
+
+// Name returns the name of the webhook
+func (w *Webhook) Name() string {
+	return w.name
+}
+
+// IsEnabled returns whether the webhook is enabled
+func (w *Webhook) IsEnabled() bool {
+	return w.isEnabled
+}
+
+// Endpoint returns the endpoint of the webhook
+func (w *Webhook) Endpoint() string {
+	return w.endpoint
+}
+
+// Resources returns the kubernetes resources for which the webhook should
+// be invoked
+func (w *Webhook) Resources() []string {
+	return w.resources
+}
+
+// Operations returns the operations on the resources specified for which
+// the webhook should be invoked
+func (w *Webhook) Operations() []admiv1.OperationType {
+	return w.operations
+}
+
+// LabelSelectors returns the label selectors that specify when the webhook
+// should be invoked
+func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+	return common.DefaultLabelSelectors(useNamespaceSelector)
+}
+
+// MutateFunc returns the function that mutates the resources
+func (w *Webhook) MutateFunc() admission.WebhookFunc {
+	return w.mutate
+}
+
+// mutate adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
+func (w *Webhook) mutate(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ kubernetes.Interface) ([]byte, error) {
+	return common.Mutate(rawPod, ns, w.inject, dc)
+}
+
+// inject injects DD_AGENT_HOST and DD_ENTITY_ID into a pod template if needed
+func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	var injectedConfig, injectedEntity bool
 	defer func() {
 		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity), "", "")
@@ -95,28 +164,27 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		return errors.New("cannot inject config into nil pod")
 	}
 
-	if !shouldInject(pod) {
+	if !autoinstrumentation.ShouldInject(pod) {
 		return nil
 	}
 
-	mode := injectionMode(pod, config.Datadog.GetString("admission_controller.inject_config.mode"))
-	switch mode {
+	switch injectionMode(pod, w.mode) {
 	case hostIP:
-		injectedConfig = injectEnv(pod, agentHostIPEnvVar)
+		injectedConfig = common.InjectEnv(pod, agentHostIPEnvVar)
 	case service:
-		injectedConfig = injectEnv(pod, agentHostServiceEnvVar)
+		injectedConfig = common.InjectEnv(pod, agentHostServiceEnvVar)
 	case socket:
 		volume, volumeMount := buildVolume(datadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"), true)
-		injectedVol := injectVolume(pod, volume, volumeMount)
-		injectedEnv := injectEnv(pod, traceURLSocketEnvVar)
-		injectedEnv = injectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
+		injectedVol := common.InjectVolume(pod, volume, volumeMount)
+		injectedEnv := common.InjectEnv(pod, traceURLSocketEnvVar)
+		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedEnv || injectedVol
 	default:
 		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode", "", "")
-		return fmt.Errorf("invalid injection mode %q", mode)
+		return fmt.Errorf("invalid injection mode %q", w.mode)
 	}
 
-	injectedEntity = injectEnv(pod, ddEntityIDEnvVar)
+	injectedEntity = common.InjectEnv(pod, ddEntityIDEnvVar)
 
 	return nil
 }
@@ -129,7 +197,7 @@ func injectionMode(pod *corev1.Pod, globalMode string) string {
 		case hostIP, service, socket:
 			return mode
 		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'hostip', 'service' or 'socket', defaulting to %q", admCommon.InjectionModeLabelKey, val, podString(pod), globalMode)
+			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'hostip', 'service' or 'socket', defaulting to %q", admCommon.InjectionModeLabelKey, val, common.PodString(pod), globalMode)
 			return globalMode
 		}
 	}

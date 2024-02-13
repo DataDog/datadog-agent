@@ -5,14 +5,19 @@
 
 //go:build kubeapiserver
 
-package mutate
+// Package cwsinstrumentation implements the webhook that injects CWS pod and
+// pod exec instrumentation
+package cwsinstrumentation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strconv"
 
+	"github.com/wI2L/jsondiff"
+	admiv1 "k8s.io/api/admissionregistration/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -20,7 +25,9 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -35,9 +42,134 @@ const (
 	cwsInjectorInitContainerName         = "cws-instrumentation"
 	cwsUserSessionDataMaxSize            = 1024
 
-	// CWSInstrumentationPodLabelEnabled is used to label pods that should be instrumented or skipped by the CWS mutating webhook
-	CWSInstrumentationPodLabelEnabled = "admission.datadoghq.com/cws-instrumentation.enabled"
+	// PodLabelEnabled is used to label pods that should be instrumented or skipped by the CWS mutating webhook
+	PodLabelEnabled = "admission.datadoghq.com/cws-instrumentation.enabled"
+
+	webhookForPodsName     = "cws-pod-instrumentation"
+	webhookForCommandsName = "cws-command-instrumentation"
 )
+
+type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticationv1.UserInfo, dynamic.Interface, kubernetes.Interface) error
+
+// WebhookForPods is the webhook that injects CWS pod instrumentation
+type WebhookForPods struct {
+	name          string
+	isEnabled     bool
+	endpoint      string
+	resources     []string
+	operations    []admiv1.OperationType
+	admissionFunc admission.WebhookFunc
+}
+
+func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
+	return &WebhookForPods{
+		name: webhookForPodsName,
+		isEnabled: config.Datadog.GetBool("admission_controller.cws_instrumentation.enabled") &&
+			len(config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")) > 0,
+		endpoint:      config.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"),
+		resources:     []string{"pods"},
+		operations:    []admiv1.OperationType{admiv1.Create},
+		admissionFunc: admissionFunc,
+	}
+}
+
+// Name returns the name of the webhook
+func (w *WebhookForPods) Name() string {
+	return w.name
+}
+
+// IsEnabled returns whether the webhook is enabled
+func (w *WebhookForPods) IsEnabled() bool {
+	return w.isEnabled
+}
+
+// Endpoint returns the endpoint of the webhook
+func (w *WebhookForPods) Endpoint() string {
+	return w.endpoint
+}
+
+// Resources returns the kubernetes resources for which the webhook should
+// be invoked
+func (w *WebhookForPods) Resources() []string {
+	return w.resources
+}
+
+// Operations returns the operations on the resources specified for which
+// the webhook should be invoked
+func (w *WebhookForPods) Operations() []admiv1.OperationType {
+	return w.operations
+}
+
+// LabelSelectors returns the label selectors that specify when the webhook
+// should be invoked
+func (w *WebhookForPods) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+	return labelSelectors(useNamespaceSelector)
+}
+
+// MutateFunc returns the function that mutates the resources
+func (w *WebhookForPods) MutateFunc() admission.WebhookFunc {
+	return w.admissionFunc
+}
+
+// WebhookForCommands is the webhook that injects CWS pods/exec instrumentation
+type WebhookForCommands struct {
+	name          string
+	isEnabled     bool
+	endpoint      string
+	resources     []string
+	operations    []admiv1.OperationType
+	admissionFunc admission.WebhookFunc
+}
+
+func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForCommands {
+	return &WebhookForCommands{
+		name: webhookForCommandsName,
+		isEnabled: config.Datadog.GetBool("admission_controller.cws_instrumentation.enabled") &&
+			len(config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")) > 0,
+		endpoint:      config.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"),
+		resources:     []string{"pods/exec"},
+		operations:    []admiv1.OperationType{admiv1.Connect},
+		admissionFunc: admissionFunc,
+	}
+}
+
+// Name returns the name of the webhook
+func (w *WebhookForCommands) Name() string {
+	return w.name
+}
+
+// IsEnabled returns whether the webhook is enabled
+func (w *WebhookForCommands) IsEnabled() bool {
+	return w.isEnabled
+}
+
+// Endpoint returns the endpoint of the webhook
+func (w *WebhookForCommands) Endpoint() string {
+	return w.endpoint
+}
+
+// Resources returns the kubernetes resources for which the webhook should
+// be invoked
+func (w *WebhookForCommands) Resources() []string {
+	return w.resources
+}
+
+// Operations returns the operations on the resources specified for which
+// the webhook should be invoked
+func (w *WebhookForCommands) Operations() []admiv1.OperationType {
+	return w.operations
+}
+
+// LabelSelectors returns the label selectors that specify when the webhook
+// should be invoked
+func (w *WebhookForCommands) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+	return nil, nil
+}
+
+// MutateFunc returns the function that mutates the resources
+func (w *WebhookForCommands) MutateFunc() admission.WebhookFunc {
+	return w.admissionFunc
+}
 
 func parseCWSInitContainerResources() (*corev1.ResourceRequirements, error) {
 	var resources = &corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
@@ -78,6 +210,9 @@ type CWSInstrumentation struct {
 	image string
 	// resources is the resources applied to the CWS instrumentation init container
 	resources *corev1.ResourceRequirements
+
+	webhookForPods     *WebhookForPods
+	webhookForCommands *WebhookForCommands
 }
 
 // NewCWSInstrumentation parses the webhook config and returns a new instance of CWSInstrumentation
@@ -117,11 +252,25 @@ func NewCWSInstrumentation() (*CWSInstrumentation, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse CWS Instrumentation init container resources: %w", err)
 	}
+
+	ci.webhookForPods = newWebhookForPods(ci.injectForPod)
+	ci.webhookForCommands = newWebhookForCommands(ci.injectForCommand)
+
 	return &ci, nil
 }
 
-// InjectCWSCommandInstrumentation injects CWS pod exec instrumentation
-func (ci *CWSInstrumentation) InjectCWSCommandInstrumentation(rawPodExecOptions []byte, name string, ns string, userInfo *authenticationv1.UserInfo, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error) {
+// WebhookForPods returns the webhook that injects CWS pod instrumentation
+func (ci *CWSInstrumentation) WebhookForPods() *WebhookForPods {
+	return ci.webhookForPods
+}
+
+// WebhookForCommands returns the webhook that injects CWS pod/exec
+// instrumentation
+func (ci *CWSInstrumentation) WebhookForCommands() *WebhookForCommands {
+	return ci.webhookForCommands
+}
+
+func (ci *CWSInstrumentation) injectForCommand(rawPodExecOptions []byte, name string, ns string, userInfo *authenticationv1.UserInfo, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error) {
 	return mutatePodExecOptions(rawPodExecOptions, name, ns, userInfo, ci.injectCWSCommandInstrumentation, dc, apiClient)
 }
 
@@ -160,7 +309,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	// is the pod instrumentation ready ? (i.e. has the CWS Instrumentation pod admission controller run ?)
 	if !isPodCWSInstrumentationReady(pod.Annotations) {
 		// pod isn't instrumented, do not attempt to override the pod exec command
-		log.Debugf("Ignoring exec request into %s, pod not instrumented yet", podString(pod))
+		log.Debugf("Ignoring exec request into %s, pod not instrumented yet", common.PodString(pod))
 		return nil
 	}
 
@@ -168,7 +317,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	userSessionCtx, err := usersessions.PrepareK8SUserSessionContext(userInfo, cwsUserSessionDataMaxSize)
 	if err != nil {
 		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot serialize user info", "", "")
-		log.Debugf("ignoring instrumentation of %s: %v", podString(pod), err)
+		log.Debugf("ignoring instrumentation of %s: %v", common.PodString(pod), err)
 		return err
 	}
 
@@ -182,7 +331,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			exec.Command[6] == "--" {
 
 			if exec.Command[5] == string(userSessionCtx) {
-				log.Debugf("Exec request into %s is already instrumented, ignoring", podString(pod))
+				log.Debugf("Exec request into %s is already instrumented, ignoring", common.PodString(pod))
 				injected = true
 				return nil
 			}
@@ -200,15 +349,14 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		"--",
 	}, exec.Command...)
 
-	log.Debugf("Pod exec request to %s is now instrumented for CWS", podString(pod))
+	log.Debugf("Pod exec request to %s is now instrumented for CWS", common.PodString(pod))
 	injected = true
 
 	return nil
 }
 
-// InjectCWSPodInstrumentation injects CWS pod instrumentation
-func (ci *CWSInstrumentation) InjectCWSPodInstrumentation(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ kubernetes.Interface) ([]byte, error) {
-	return Mutate(rawPod, ns, ci.injectCWSPodInstrumentation, dc)
+func (ci *CWSInstrumentation) injectForPod(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ kubernetes.Interface) ([]byte, error) {
+	return common.Mutate(rawPod, ns, ci.injectCWSPodInstrumentation, dc)
 }
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) error {
@@ -251,7 +399,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	}
 	pod.Annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
 	injected = true
-	log.Debugf("Pod %s is now instrumented for CWS", podString(pod))
+	log.Debugf("Pod %s is now instrumented for CWS", common.PodString(pod))
 	return nil
 }
 
@@ -315,4 +463,61 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 		initContainer.Resources = *resources
 	}
 	pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
+}
+
+// labelSelectors returns the mutating webhook object selector based on the configuration
+func labelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
+	var labelSelector metav1.LabelSelector
+
+	if config.Datadog.GetBool("admission_controller.cws_instrumentation.mutate_unlabelled") ||
+		config.Datadog.GetBool("admission_controller.mutate_unlabelled") {
+		// Accept all, ignore pods if they're explicitly filtered-out
+		labelSelector = metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      PodLabelEnabled,
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{"false"},
+				},
+			},
+		}
+	} else {
+		// Ignore all, accept pods if they're explicitly allowed
+		labelSelector = metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				PodLabelEnabled: "true",
+			},
+		}
+	}
+
+	if useNamespaceSelector {
+		return &labelSelector, nil
+	}
+
+	return nil, &labelSelector
+}
+
+// mutatePodExecOptions handles mutating PodExecOptions and encoding and decoding admission
+// requests and responses for the public mutate functions
+func mutatePodExecOptions(rawPodExecOptions []byte, name string, ns string, userInfo *authenticationv1.UserInfo, m mutatePodExecFunc, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error) {
+	var exec corev1.PodExecOptions
+	if err := json.Unmarshal(rawPodExecOptions, &exec); err != nil {
+		return nil, fmt.Errorf("failed to decode raw object: %v", err)
+	}
+
+	if err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {
+		return nil, err
+	}
+
+	bytes, err := json.Marshal(exec)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
+	}
+
+	patch, err := jsondiff.CompareJSON(rawPodExecOptions, bytes) // TODO: Try to generate the patch at the MutationFunc
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
+	}
+
+	return json.Marshal(patch)
 }
