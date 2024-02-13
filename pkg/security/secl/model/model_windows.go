@@ -106,27 +106,30 @@ type ExtraFieldHandlers interface {
 }
 
 // FIM
+
+// CreateNewFileEvent defines file creation
 type CreateNewFileEvent struct {
 	File FileEvent `field:"file"`
 }
 
-type OpenEvent struct {
-	File FileEvent `field:"file"`
-}
-
 // Registries
+
+// CreateRegistryKeyEvent defines registry key creation
 type CreateRegistryKeyEvent struct {
 	Registry RegistryEvent `field:"registry"`
 }
 
+// OpenRegistryKeyEvent defines registry key opening
 type OpenRegistryKeyEvent struct {
 	Registry RegistryEvent `field:"registry"`
 }
 
+// SetRegistryKeyValueEvent defines the event of setting up a value of a registry key
 type SetRegistryKeyValueEvent struct {
 	Registry RegistryEvent `field:"registry"`
 }
 
+// DeleteRegistryKeyEvent defines registry key deletion
 type DeleteRegistryKeyEvent struct {
 	Registry RegistryEvent `field:"registry"`
 }
