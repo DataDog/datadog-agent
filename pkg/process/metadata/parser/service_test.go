@@ -111,6 +111,47 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "process_context:cassandra",
 		},
 		{
+			name: "java with -m flag",
+			cmdline: []string{
+				"java", "-Des.networkaddress.cache.ttl=60", "-Des.networkaddress.cache.negative.ttl=10", "-Djava.security.manager=allow", "-XX:+AlwaysPreTouch",
+				"-Xss1m", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8", "-Djna.nosys=true", "-XX:-OmitStackTraceInFastThrow", "-Dio.netty.noUnsafe=true",
+				"-Dio.netty.noKeySetOptimization=true", "-Dio.netty.recycler.maxCapacityPerThread=0", "-Dlog4j.shutdownHookEnabled=false", "-Dlog4j2.disable.jmx=true",
+				"-Dlog4j2.formatMsgNoLookups=true", "-Djava.locale.providers=SPI,COMPAT", "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
+				"-XX:+UseG1GC", "-Djava.io.tmpdir=/tmp/elasticsearch-11638915669270544049", "-XX:+HeapDumpOnOutOfMemoryError", "-XX:+ExitOnOutOfMemoryError",
+				"-XX:HeapDumpPath=data", "-XX:ErrorFile=logs/hs_err_pid%p.log", "-Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,level,pid,tags:filecount=32,filesize=64m",
+				"-Des.cgroups.hierarchy.override=/", "-XX:ActiveProcessorCount=1", "-Djava.net.preferIPv4Stack=true", "-XX:-HeapDumpOnOutOfMemoryError", "-Xms786m", "-Xmx786m",
+				"-XX:MaxDirectMemorySize=412090368", "-XX:G1HeapRegionSize=4m", "-XX:InitiatingHeapOccupancyPercent=30", "-XX:G1ReservePercent=15", "-Des.distribution.type=tar",
+				"--module-path", "/usr/share/elasticsearch/lib", "--add-modules=jdk.net", "--add-modules=org.elasticsearch.preallocate", "-m",
+				"org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch",
+			},
+			expectedServiceTag: "process_context:Elasticsearch",
+		},
+		{
+			name: "java with --module flag",
+			cmdline: []string{
+				"java", "-Des.networkaddress.cache.ttl=60", "-Des.networkaddress.cache.negative.ttl=10", "-Djava.security.manager=allow", "-XX:+AlwaysPreTouch",
+				"-Xss1m", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8", "-Djna.nosys=true", "-XX:-OmitStackTraceInFastThrow", "-Dio.netty.noUnsafe=true",
+				"-Dio.netty.noKeySetOptimization=true", "-Dio.netty.recycler.maxCapacityPerThread=0", "-Dlog4j.shutdownHookEnabled=false", "-Dlog4j2.disable.jmx=true",
+				"-Dlog4j2.formatMsgNoLookups=true", "-Djava.locale.providers=SPI,COMPAT", "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
+				"-XX:+UseG1GC", "-Djava.io.tmpdir=/tmp/elasticsearch-11638915669270544049", "-XX:+HeapDumpOnOutOfMemoryError", "-XX:+ExitOnOutOfMemoryError",
+				"-XX:HeapDumpPath=data", "-XX:ErrorFile=logs/hs_err_pid%p.log", "-Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,level,pid,tags:filecount=32,filesize=64m",
+				"-Des.cgroups.hierarchy.override=/", "-XX:ActiveProcessorCount=1", "-Djava.net.preferIPv4Stack=true", "-XX:-HeapDumpOnOutOfMemoryError", "-Xms786m", "-Xmx786m",
+				"-XX:MaxDirectMemorySize=412090368", "-XX:G1HeapRegionSize=4m", "-XX:InitiatingHeapOccupancyPercent=30", "-XX:G1ReservePercent=15", "-Des.distribution.type=tar",
+				"--module-path", "/usr/share/elasticsearch/lib", "--add-modules=jdk.net", "--add-modules=org.elasticsearch.preallocate", "--module",
+				"org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch",
+			},
+			expectedServiceTag: "process_context:Elasticsearch",
+		},
+		{
+			name: "java with --module flag without main class",
+			cmdline: []string{
+				"java", "-Des.networkaddress.cache.ttl=60", "-Des.networkaddress.cache.negative.ttl=10", "-Djava.security.manager=allow", "-XX:+AlwaysPreTouch",
+				"--module-path", "/usr/share/elasticsearch/lib", "--add-modules=jdk.net", "--add-modules=org.elasticsearch.preallocate", "--module",
+				"org.elasticsearch.server",
+			},
+			expectedServiceTag: "process_context:server",
+		},
+		{
 			name: "java space in java executable path",
 			cmdline: []string{
 				"/home/dd/my java dir/java", "com.dog.cat",
@@ -128,6 +169,14 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/local/test/app/myservice-core-1.1.15-SNAPSHOT.jar", "--spring.profiles.active=test",
 			},
 			expectedServiceTag: "process_context:myservice",
+		},
+		{
+			name: "java with unknown flags",
+			cmdline: []string{
+				"java", "-Des.networkaddress.cache.ttl=60", "-Des.networkaddress.cache.negative.ttl=10",
+				"-Djava.security.manager=allow", "-XX:+AlwaysPreTouch", "-Xss1m",
+			},
+			expectedServiceTag: "process_context:java",
 		},
 	}
 
