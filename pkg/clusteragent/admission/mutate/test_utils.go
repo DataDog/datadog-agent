@@ -224,7 +224,7 @@ func fakeStoreWithDeployment(t *testing.T, deployments []mockDeployment) {
 
 	for _, d := range deployments {
 		langSet := util.LanguageSet{}
-		for lang, _ := range d.languages {
+		for lang := range d.languages {
 			langSet.Add(lang)
 		}
 		container := util.Container{
