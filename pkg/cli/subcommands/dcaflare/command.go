@@ -90,6 +90,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
+				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				core.Bundle(),
 				diagnosesendermanagerimpl.Module(),
 			)
