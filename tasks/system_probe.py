@@ -367,9 +367,6 @@ def ninja_cgo_type_files(nw):
             "pkg/network/driver/types.go": [
                 "pkg/network/driver/ddnpmapi.h",
             ],
-            "pkg/util/winutil/etw/types.go": [
-                "pkg/util/winutil/etw/etw-provider.h",
-            ],
             "pkg/windowsdriver/procmon/types.go": [
                 "pkg/windowsdriver/include/procmonapi.h",
             ],
@@ -859,7 +856,9 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
+
         target_path = os.path.join(KITCHEN_ARTIFACT_DIR, pkg.lstrip(os.getcwd()))
+
         target_bin = "testsuite"
         if is_windows:
             target_bin = "testsuite.exe"

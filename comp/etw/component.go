@@ -72,7 +72,7 @@ type DDEtwBufferContext struct {
 	LoggerID       uint16
 }
 
-// DDEVentHeaderExtendedData defines the layout of the extended data for an event that Event Tracing for Windows (ETW) delivers.
+// DDEventHeaderExtendedDataItem defines the layout of the extended data for an event that Event Tracing for Windows (ETW) delivers.
 // see https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_header_extended_data_item
 type DDEventHeaderExtendedDataItem struct {
 	Reserved1 uint16
@@ -113,6 +113,7 @@ const (
 	TRACE_LEVEL_VERBOSE     = TraceLevel(5)
 )
 
+//revive:disable:exported
 const (
 	EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID = 0x0001
 	EVENT_HEADER_EXT_TYPE_SID                = 0x0002
@@ -133,6 +134,7 @@ const (
 	EVENT_HEADER_EXT_TYPE_MAX                = 0x0011
 )
 
+//revive:enable:exported
 //revive:enable:var-naming
 
 // ProviderConfiguration is a structure containing all the configuration options for an ETW provider
