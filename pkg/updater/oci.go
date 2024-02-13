@@ -107,17 +107,10 @@ func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Des
 	}
 
 	switch layer.MediaType {
-	case ociSpec.MediaTypeImageLayerGzip:
-		// Extract gzip layer
-		// TODO: let's make this better, the file is loaded twice here
-		// 1. when we read it to verify the hash
-		// 2. when we extract the archive
-		if err := extractTarGz(layerPath, destinationPath); err != nil {
+	case MediaTypeImageLayerXz, "application/vnd.oci.image.layer.v1.tar+zstd": // ZSTD is for testing purposes as XZ archives wrongly declare ZSTD
+		if err := extractTarXz(layerPath, destinationPath); err != nil {
 			return fmt.Errorf("could not extract layer: %w", err)
 		}
-	case MediaTypeImageLayerXz:
-		// Extract xz layer
-		return fmt.Errorf("xz layers are not supported yet")
 	default:
 		return fmt.Errorf("unsupported media type %s for layer", layer.MediaType)
 	}

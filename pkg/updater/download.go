@@ -8,7 +8,6 @@ package updater
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -20,6 +19,7 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/xi2/xz"
 )
 
 const (
@@ -111,8 +111,7 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 		return fmt.Errorf("could not create OCI extraction directory: %w", err)
 	}
 
-	// TODO support gzip and xz
-	err = extractTarGz(archivePath, ociExtractionPath)
+	err = extractTarXz(archivePath, ociExtractionPath)
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
@@ -127,25 +126,24 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	return nil
 }
 
-// extractTarGz extracts a tar.gz archive to the given destination path.
+// extractTarXz extracts a tar.xz archive to the given destination path.
 //
 // Note on security: This function does not currently attempt to mitigate zip-slip attacks.
 // This is purposeful as the archive is extracted only after its SHA256 hash has been validated
 // against its reference in the package catalog. This catalog is itself sent over Remote Config
 // which guarantees its integrity.
-func extractTarGz(archivePath string, destinationPath string) error {
+func extractTarXz(archivePath string, destinationPath string) error {
 	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("could not open archive: %w", err)
 	}
 	defer f.Close()
-	gzr, err := gzip.NewReader(f)
+	xzr, err := xz.NewReader(f, 0)
 	if err != nil {
 		return fmt.Errorf("could not create gzip reader: %w", err)
 	}
-	defer gzr.Close()
-	tr := tar.NewReader(gzr)
+	tr := tar.NewReader(xzr)
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -162,7 +160,7 @@ func extractTarGz(archivePath string, destinationPath string) error {
 				return fmt.Errorf("could not create directory: %w", err)
 			}
 		case tar.TypeReg:
-			err = extractTarGzFile(target, tr)
+			err = extractTarFile(target, tr)
 			if err != nil {
 				return err // already wrapped
 			}
@@ -174,9 +172,9 @@ func extractTarGz(archivePath string, destinationPath string) error {
 	return nil
 }
 
-// extractTarGzFile extracts a file from a tar.gz archive.
+// extractTarFile extracts a file from a tar archive.
 // It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
-func extractTarGzFile(targetPath string, reader io.Reader) error {
+func extractTarFile(targetPath string, reader io.Reader) error {
 	err := os.MkdirAll(filepath.Dir(targetPath), 0755)
 	if err != nil {
 		return fmt.Errorf("could not create directory: %w", err)
