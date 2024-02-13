@@ -29,10 +29,8 @@ type RegistrySerializer struct {
 	KeyName string `json:"key_name,omitempty"`
 	// Registry key path
 	KeyPath string `json:"key_path,omitempty"`
-	// Relative name of the key
-	RelativeName string `json:"key_relative_name,omitempty"`
 	// Value name of the key value
-	ValueName string `json:"key_value_name,omitempty"`
+	ValueName string `json:"value_name,omitempty"`
 }
 
 // ProcessSerializer serializes a process to JSON
@@ -85,10 +83,9 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 
 func newRegistrySerializer(re *model.RegistryEvent, e *model.Event, _ ...uint64) *RegistrySerializer {
 	rs := &RegistrySerializer{
-		KeyName:      re.KeyName,
-		KeyPath:      re.KeyPath,
-		RelativeName: re.RelativeName,
-		ValueName:    re.ValueName,
+		KeyName:   re.KeyName,
+		KeyPath:   re.KeyPath,
+		ValueName: re.ValueName,
 	}
 	return rs
 }
