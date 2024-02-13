@@ -477,13 +477,6 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 // DispatchEvent sends an event to the probe event handler
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
 
-	if event.Type == model.OpenRegistryKeyEventType {
-		log.Debugf("event in dispatch -----event.OpenRegistryKey.Registry.KeyName:%v", event.OpenRegistryKey.Registry.KeyName)
-		log.Debugf("event in dispatch -----event.OpenRegistryKey.Registry.KeyPath:%v", event.OpenRegistryKey.Registry.KeyPath)
-		log.Debugf("event in dispatch -----event.OpenRegistryKey.Registry.RelativeName:%v", event.OpenRegistryKey.Registry.RelativeName)
-		log.Debugf("event in dispatch -----event.ProcessContext.Process.PIDContext.Pid:%v", event.ProcessContext.Process.PIDContext.Pid)
-
-	}
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
 		eventJSON, err := serializers.MarshalEvent(event)
 		return eventJSON, event.GetEventType(), err
