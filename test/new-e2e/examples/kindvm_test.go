@@ -7,7 +7,7 @@ package examples
 
 import (
 	"context"
-	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -26,10 +26,13 @@ func TestMyKindVMSuite(t *testing.T) {
 }
 
 func (v *myKindVMSuite) TestIsAmazonLinux() {
-	res, _ := v.Env().KubernetesCluster.Client().CoreV1().Pods("default").List(context.TODO(), v1.ListOptions{})
+	res, _ := v.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.TODO(), v1.ListOptions{})
+	containsClusterAgent := false
 	for _, pod := range res.Items {
-		fmt.Println(pod.Name)
+		if strings.Contains(pod.Name, "cluster-agent") {
+			containsClusterAgent = true
+		}
 	}
-	fmt.Println(v.Env().Agent.AgentInstallName)
-	assert.Equal(v.T(), res, "ami-05fab674de2157a80")
+	assert.True(v.T(), containsClusterAgent, "Cluster Agent not found")
+	assert.Equal(v.T(), v.Env().Agent.AgentInstallName, "dda")
 }
