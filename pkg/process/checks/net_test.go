@@ -641,10 +641,8 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
 	maxConnsPerMessage := 1
-	var (
-		enabled               = mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = mockConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	)
+	enabled := mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
+	useWindowsServiceName := mockConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
 	ex.Extract(procsByPid)
 

@@ -24,7 +24,8 @@ type Process struct {
 	Username string // (Windows only)
 	Uids     []int32
 	Gids     []int32
-	Stats    *Stats
+
+	Stats *Stats
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
