@@ -265,12 +265,10 @@ func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.S
 func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func() []string, service string) {
 	var ruleActions []events.RuleActionContext
 
-	if !e.IsSuppressed() {
-		// report only kill action for now
-		for _, action := range e.GetActions() {
-			if action.Name == rules.KillAction {
-				ruleActions = append(ruleActions, events.RuleActionContext{Name: action.Name, Signal: action.Value})
-			}
+	// report only kill action for now
+	for _, action := range e.GetActions() {
+		if action.Name == rules.KillAction {
+			ruleActions = append(ruleActions, events.RuleActionContext{Name: action.Name, Signal: action.Value})
 		}
 	}
 

@@ -26,7 +26,6 @@ type windowsTestSuite struct {
 }
 
 func TestWindowsTestSuite(t *testing.T) {
-	t.Skip("PROCS-3644: consistent failures on process tests")
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
@@ -133,6 +132,10 @@ func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
+	s.T().Skip("skipping due to flakiness")
+	// MsMpEng.exe process missing IO stats
+	// Investigation & fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3757
+
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),

@@ -887,6 +887,109 @@ func TestEvaluationSet_LoadPolicies_RuleSetTags(t *testing.T) {
 	}
 }
 
+func TestEvaluationSet_LoadPolicies_DisableEnforcement(t *testing.T) {
+	type args struct {
+		policy    *PolicyDef
+		tagValues []eval.RuleSetTagValue
+	}
+	tests := []struct {
+		name               string
+		disableEnforcement bool
+		args               args
+		want               func(t assert.TestingT, args args, got *EvaluationSet, msgs ...interface{})
+		wantErr            func(t assert.TestingT, err *multierror.Error, msgs ...interface{})
+	}{
+		{
+			name: "enforcing policy",
+			args: args{
+				policy: &PolicyDef{
+					Rules: []*RuleDefinition{
+						{
+							ID:         "ruleA",
+							Expression: `exec.file.path == "/tmp/test"`,
+							Actions: []*ActionDefinition{
+								{
+									Kill: &KillDefinition{
+										Signal: "SIGKILL",
+									},
+								}, {
+									Set: &SetDefinition{
+										Name:  "var1",
+										Value: "foo",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, args args, got *EvaluationSet, msgs ...interface{}) {
+				assert.Equal(t, 1, len(got.RuleSets))
+
+				gotNumProbeEvalRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
+				assert.Equal(t, 1, gotNumProbeEvalRules)
+
+				rule := got.RuleSets[DefaultRuleSetTagValue].rules["ruleA"]
+				assert.NotNil(t, rule)
+
+				assert.Equal(t, 2, len(rule.Definition.Actions))
+				assert.NotNil(t, rule.Definition.Actions[0].Kill)
+				assert.Equal(t, "SIGKILL", rule.Definition.Actions[0].Kill.Signal)
+			},
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) {
+				assert.Nil(t, err, msgs)
+			},
+		},
+		{
+			name:               "enforcing policy with enforcement disabled",
+			disableEnforcement: true,
+			args: args{
+				policy: &PolicyDef{
+					Rules: []*RuleDefinition{
+						{
+							ID:         "ruleA",
+							Expression: `exec.file.path == "/tmp/test"`,
+							Actions: []*ActionDefinition{
+								{
+									Kill: &KillDefinition{
+										Signal: "SIGKILL",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, args args, got *EvaluationSet, msgs ...interface{}) {
+				assert.Equal(t, 1, len(got.RuleSets))
+
+				gotNumProbeEvalRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
+				assert.Equal(t, 1, gotNumProbeEvalRules)
+
+				rule := got.RuleSets[DefaultRuleSetTagValue].rules["ruleA"]
+				assert.NotNil(t, rule)
+
+				assert.Equal(t, 1, len(rule.Definition.Actions))
+				assert.Nil(t, rule.Definition.Actions[0].Kill)
+			},
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) {
+				assert.ErrorContains(t, err, "action is disabled")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policyLoaderOpts := PolicyLoaderOpts{DisableEnforcement: tt.disableEnforcement}
+			loader, es := loadPolicySetup(t, tt.args.policy, tt.args.tagValues)
+
+			err := es.LoadPolicies(loader, policyLoaderOpts)
+			tt.want(t, tt.args, es)
+			tt.wantErr(t, err)
+		})
+	}
+}
+
 func TestNewEvaluationSet(t *testing.T) {
 	ruleSet := newRuleSet()
 	ruleSetWithThreatScoreTag := newRuleSet()

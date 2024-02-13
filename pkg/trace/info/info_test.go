@@ -432,6 +432,7 @@ func TestPublishReceiverStats(t *testing.T) {
 				atom(6),
 				atom(7),
 				atom(8),
+				atom(9),
 			},
 			SpansMalformed: &SpansMalformed{
 				atom(1),
@@ -514,6 +515,7 @@ func TestPublishReceiverStats(t *testing.T) {
 				"TraceIDZero":     4.0,
 				"SpanIDZero":      5.0,
 				"ForeignSpan":     6.0,
+				"MSGPShortBytes":  9.0,
 				"Timeout":         7.0,
 				"EOF":             8.0,
 			},
