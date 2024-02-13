@@ -120,9 +120,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
-		// Provide workloadmeta and tagger module
-		workloadmeta.Module(),
-		tagger.Module(),
 
 		// Provide remote config client module
 		rcclient.Module(),
