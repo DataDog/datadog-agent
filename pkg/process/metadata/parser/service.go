@@ -6,6 +6,7 @@
 package parser
 
 import (
+	"golang.org/x/exp/slices"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -272,6 +273,11 @@ func parseCommandContextPython(args []string) string {
 
 func parseCommandContextJava(args []string) string {
 	prevArgIsFlag := false
+
+	// Look for dd.service
+	if index := slices.IndexFunc(args, func(arg string) bool { return strings.HasPrefix(arg, "-Ddd.service=") }); index != -1 {
+		return strings.TrimPrefix(args[index], "-Ddd.service=")
+	}
 
 	for _, a := range args {
 		hasFlagPrefix := strings.HasPrefix(a, "-")
