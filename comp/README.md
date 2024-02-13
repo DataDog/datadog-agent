@@ -327,10 +327,6 @@ Package forwarders implements a component to provide forwarders used by the proc
 
 Package hostinfo wraps the hostinfo inside a component. This is useful because it is relied on by other components.
 
-### [comp/process/podcheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/podcheck)
-
-Package podcheck implements a component to handle Kubernetes data collection in the Process Agent.
-
 ### [comp/process/processcheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/processcheck)
 
 Package processcheck implements a component to handle Process data collection in the Process Agent.
