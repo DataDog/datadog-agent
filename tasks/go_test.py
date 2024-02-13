@@ -751,15 +751,12 @@ def parse_test_log(log_file):
 def get_impacted_packages(ctx, build_tags=None):
     dependencies = create_dependencies(ctx, build_tags)
     files = get_modified_files(ctx)
-    print(files)
     modified_packages = {
         f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}"
         for file in files
         if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     }
-    print(modified_packages)
     imp = find_impacted_packages(dependencies, modified_packages)
-    print("imp", imp)
     return format_packages(ctx, imp)
 
 
@@ -863,10 +860,6 @@ def format_packages(ctx, impacted_packages):
 
     # Clean up to avoid running tests on package with no Go files matching build tags
     for module in modules_to_test:
-        print(
-            "Running: ",
-            f"go list -tags '{' '.join(build_tags)}' {' '.join([os.path.normpath(os.path.join('github.com/DataDog/datadog-agent', module, target)) for target in modules_to_test[module].targets])}",
-        )
         res = ctx.run(
             f"go list -tags '{' '.join(build_tags)}' {' '.join([os.path.normpath(os.path.join('github.com/DataDog/datadog-agent', module, target)) for target in modules_to_test[module].targets])}",
             hide=True,
