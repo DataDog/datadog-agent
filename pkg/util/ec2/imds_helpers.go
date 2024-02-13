@@ -65,6 +65,7 @@ func getMetadataItem(ctx context.Context, endpoint string, forceIMDSv2 bool) (st
 	return doHTTPRequest(ctx, metadataURL+endpoint, forceIMDSv2)
 }
 
+// UseIMDSv2 returns true if the agent should use IMDSv2
 func UseIMDSv2(forceIMDSv2 bool) bool {
 	return config.Datadog.GetBool("ec2_prefer_imdsv2") || forceIMDSv2
 }
