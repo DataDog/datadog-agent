@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -162,7 +163,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request, flareComp flare.Component) {
-	var profile flare.ProfileData
+	var profile flaretypes.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)

@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -59,7 +59,7 @@ func TestReadProfileData(t *testing.T) {
 	data, err := readProfileData(10)
 	require.NoError(t, err)
 
-	expected := flare.ProfileData{
+	expected := flaretypes.ProfileData{
 		"core-1st-heap.pprof":           []byte("heap_profile"),
 		"core-2nd-heap.pprof":           []byte("heap_profile"),
 		"core-block.pprof":              []byte("block"),
@@ -114,7 +114,7 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	require.Error(t, err)
 	require.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
 
-	expected := flare.ProfileData{
+	expected := flaretypes.ProfileData{
 		"core-1st-heap.pprof":           []byte("heap_profile"),
 		"core-2nd-heap.pprof":           []byte("heap_profile"),
 		"core-block.pprof":              []byte("block"),

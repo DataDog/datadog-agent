@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+package flareimpl
 
 import (
 	"testing"
@@ -26,7 +26,7 @@ import (
 func TestFlareCreation(t *testing.T) {
 	realProvider := func(fb types.FlareBuilder) error { return nil }
 
-	f, _ := newFlare(
+	provides := newFlare(
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
@@ -37,7 +37,7 @@ func TestFlareCreation(t *testing.T) {
 				return component
 			}),
 			fx.Provide(func() diagnosesendermanager.Component { return nil }),
-			fx.Provide(func() Params { return Params{} }),
+			fx.Provide(func() types.Params { return types.Params{} }),
 			collector.NoneModule(),
 			fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 			fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
@@ -54,6 +54,7 @@ func TestFlareCreation(t *testing.T) {
 		),
 	)
 
-	assert.Len(t, f.(*flare).providers, 1)
-	assert.NotNil(t, f.(*flare).providers[0])
+	providers := provides.Comp.(*flare).providers
+	assert.Len(t, providers, 1)
+	assert.NotNil(t, providers[0])
 }

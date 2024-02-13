@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -137,7 +138,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
 
-	var profile flare.ProfileData
+	var profile flaretypes.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)

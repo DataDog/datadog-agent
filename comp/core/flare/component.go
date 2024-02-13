@@ -11,8 +11,7 @@ package flare
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
 // team: agent-shared-components
@@ -20,15 +19,9 @@ import (
 // Component is the component type.
 type Component interface {
 	// Create creates a new flare locally and returns the path to the flare file.
-	Create(pdata ProfileData, ipcError error) (string, error)
+	Create(pdata types.ProfileData, ipcError error) (string, error)
 	// Send sends a flare archive to Datadog.
 	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newFlare))
 }
 
 // The flare component doesn't provides a mock since other component don't use it directly. Other component will use the

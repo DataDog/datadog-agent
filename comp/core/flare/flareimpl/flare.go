@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+// Package flareimpl contains the implementation to generate flares from the agent.
+package flareimpl
 
 import (
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flarecomp "github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -30,8 +32,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-// ProfileData maps (pprof) profile names to the profile data.
-type ProfileData map[string][]byte
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newFlare))
+}
 
 type dependencies struct {
 	fx.In
@@ -39,7 +44,7 @@ type dependencies struct {
 	Log                   log.Component
 	Config                config.Component
 	Diagnosesendermanager diagnosesendermanager.Component
-	Params                Params
+	Params                types.Params
 	Providers             []types.FlareCallback `group:"flare"`
 	Collector             optional.Option[collector.Component]
 	WMeta                 optional.Option[workloadmeta.Component]
@@ -47,15 +52,22 @@ type dependencies struct {
 	AC                    optional.Option[autodiscovery.Component]
 }
 
+type provides struct {
+	fx.Out
+
+	Comp       flarecomp.Component
+	RcListener rcclienttypes.TaskListenerProvider
+}
+
 type flare struct {
 	log          log.Component
 	config       config.Component
-	params       Params
+	params       types.Params
 	providers    []types.FlareCallback
 	diagnoseDeps diagnose.SuitesDeps
 }
 
-func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
+func newFlare(deps dependencies) provides {
 	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta, deps.AC)
 	f := &flare{
 		log:          deps.Log,
@@ -65,7 +77,10 @@ func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider)
 		diagnoseDeps: diagnoseDeps,
 	}
 
-	return f, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
+	return provides{
+		Comp:       f,
+		RcListener: rcclienttypes.NewTaskListener(f.onAgentTaskEvent),
+	}
 }
 
 func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
@@ -100,8 +115,8 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 }
 
 // Create creates a new flare and returns the path to the final archive file.
-func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
-	fb, err := helpers.NewFlareBuilder(f.params.local)
+func (f *flare) Create(pdata types.ProfileData, ipcError error) (string, error) {
+	fb, err := helpers.NewFlareBuilder(f.params.Local)
 	if err != nil {
 		return "", err
 	}
