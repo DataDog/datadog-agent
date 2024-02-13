@@ -316,7 +316,7 @@ func (s *Service) Start() {
 			case <-s.clock.After(orgStatusPollInterval):
 				s.pollOrgStatus()
 			case <-s.stopOrgPoller:
-				log.Infof("Remote Config service context cancelled. Stopping org status poller")
+				log.Infof("Stopping Remote Config org status poller")
 				return
 			}
 		}
@@ -350,7 +350,7 @@ func (s *Service) Start() {
 				}
 				close(response)
 			case <-s.stopConfigPoller:
-				log.Infof("Remote Config service context cancelled. Stopping config poller")
+				log.Infof("Stopping Remote Config configuration poller")
 				return
 			}
 
