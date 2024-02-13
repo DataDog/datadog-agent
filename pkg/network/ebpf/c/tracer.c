@@ -5,6 +5,7 @@
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 #include "bpf_tracing.h"
+#include "bpf_helpers.h"
 #include "bpf_endian.h"
 
 #ifdef COMPILE_PREBUILT
@@ -222,8 +223,8 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/tcp_close")
-int kprobe__tcp_close_flush_individual_conn_ringbuffer(struct pt_regs *ctx) {
+TAIL_CALL("tcp_close_flush_individual_conn_ringbuffer")
+int tail_call_target_tcp_close_flush_individual_conn_ringbuffer(struct pt_regs *ctx) {
     emit_conn_close_event_ringbuffer(ctx);
     return 0;
 }
@@ -251,8 +252,8 @@ int kretprobe__tcp_close_flush_batch_ringbuffer(struct pt_regs *ctx) {
 
 #if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
 
-SEC("kprobe/tcp_close")
-int kprobe__tcp_close_flush_individual_conn_perfbuffer(struct pt_regs *ctx) {
+TAIL_CALL("tcp_close_flush_individual_conn_perfbuffer")
+int tail_call_target_tcp_close_flush_individual_conn_perfbuffer(struct pt_regs *ctx) {
     emit_conn_close_event(ctx);
     return 0;
 }

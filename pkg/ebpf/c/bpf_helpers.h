@@ -309,4 +309,6 @@ enum libbpf_tristate {
 /* Helper macro to print out debug messages */
 #define bpf_printk(fmt, args...) ___bpf_pick_printk(args)(fmt, ##args)
 
+#define TAIL_CALL(name) SEC("kprobe/" name)
+
 #endif

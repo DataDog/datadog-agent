@@ -89,9 +89,9 @@ const (
 	// TCPCloseFlushReturnPerfbuffer traces the return of tcp_close() system call on kernels without ringbuffer support
 	TCPCloseFlushReturnPerfbuffer ProbeFuncName = "kretprobe__tcp_close_flush_batch_perfbuffer"
 	// TCPConnCloseEmitEventPerfbuffer is a tail call used to emit a single connection close event to the perf buffer
-	TCPConnCloseEmitEventPerfbuffer ProbeFuncName = "kprobe__tcp_close_flush_individual_conn_perfbuffer"
+	TCPConnCloseEmitEventPerfbuffer ProbeFuncName = "tail_call_target_tcp_close_flush_individual_conn_perfbuffer"
 	// TCPConnCloseEmitEventRingbuffer is a tail call used to emit a single connection close event to the ring or perf buffer
-	TCPConnCloseEmitEventRingbuffer ProbeFuncName = "kprobe__tcp_close_flush_individual_conn_ringbuffer"
+	TCPConnCloseEmitEventRingbuffer ProbeFuncName = "tail_call_target_tcp_close_flush_individual_conn_ringbuffer"
 
 	// We use the following two probes for UDP sends
 

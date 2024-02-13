@@ -275,10 +275,14 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
+	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls)+len(connCloseIndividualTailCalls))
 	if classificationSupported {
-		tailCallsIdentifiersSet = make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls))
 		for _, tailCall := range protocolClassificationTailCalls {
+			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
+		}
+	}
+	if tcpEnabled {
+		for _, tailCall := range connCloseIndividualTailCalls {
 			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
 		}
 	}

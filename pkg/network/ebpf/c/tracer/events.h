@@ -131,7 +131,7 @@ static __always_inline bool cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     return true;
 }
 
-static __always_inline void emit_conn_close_event(void *ctx) {
+__maybe_unused static __always_inline void emit_conn_close_event(void *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_t* conn_ptr = bpf_map_lookup_elem(&pending_individual_conn_flushes, &pid_tgid);
     if (!conn_ptr) {
@@ -143,7 +143,7 @@ static __always_inline void emit_conn_close_event(void *ctx) {
     bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn_copy, sizeof(conn_copy));
 }
 
-static __always_inline void emit_conn_close_event_ringbuffer(void *ctx) {
+__maybe_unused static __always_inline void emit_conn_close_event_ringbuffer(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_t* conn = bpf_map_lookup_elem(&pending_individual_conn_flushes, &pid_tgid);
@@ -161,7 +161,7 @@ static __always_inline void emit_conn_close_event_ringbuffer(void *ctx) {
     #endif
 }
 
-static __always_inline void flush_conn_close_if_full_perfbuffer(void *ctx) {
+__maybe_unused static __always_inline void flush_conn_close_if_full_perfbuffer(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
@@ -179,7 +179,7 @@ static __always_inline void flush_conn_close_if_full_perfbuffer(void *ctx) {
     bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
 }
 
-static __always_inline void flush_conn_close_if_full_ringbuffer(void *ctx) {
+__maybe_unused static __always_inline void flush_conn_close_if_full_ringbuffer(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
