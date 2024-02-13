@@ -69,7 +69,7 @@ type WindowsProbe struct {
  * pid is provided for testing purposes, to allow filtering on pid.  it is
  * not expected to be used at runtime
  */
-type etwCallback func(n interface{}, pid uint32)
+type etwCallback func(n interface{}, pid uint32, model.eventType)
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
@@ -209,12 +209,12 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idCreate:
 				if ca, err := parseCreateHandleArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID)
+					ecb(ca, e.EventHeader.ProcessID, nil)
 				}
 
 			case idCreateNewFile:
 				if ca, err := parseCreateNewFileArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID)
+					ecb(ca, e.EventHeader.ProcessID, model.CreateNewFileEventType)
 				}
 			case idCleanup:
 				if ca, err := parseCleanupArgs(e); err == nil {
@@ -254,16 +254,19 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idRegCreateKey:
 				if cka, err := parseCreateRegistryKey(e); err == nil {
 					log.Tracef("Got idRegCreateKey %s", cka.string())
-					ecb(cka, e.EventHeader.ProcessID)
+					ecb(cka, e.EventHeader.ProcessID, model.CreateRegistryKeyEventType)
 				}
 			case idRegOpenKey:
 				if cka, err := parseCreateRegistryKey(e); err == nil {
 					log.Debugf("Got idRegOpenKey %s", cka.string())
+					ecb(cka, e.EventHeader.ProcessID, model.OpenRegistryKeyEventType)
 				}
 
 			case idRegDeleteKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
 					log.Tracef("Got idRegDeleteKey %v", dka.string())
+					ecb(dka, e.EventHeader.ProcessID, model.DeleteRegistryKeyEventType)
+
 				}
 			case idRegFlushKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
@@ -285,6 +288,8 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idRegSetValueKey:
 				if svk, err := parseSetValueKey(e); err == nil {
 					log.Tracef("Got idRegSetValueKey %s", svk.string())
+					ecb(svk, e.EventHeader.ProcessID, model.SetRegistryKeyValueEventType)
+
 				}
 
 			}
@@ -439,7 +444,7 @@ func (p *WindowsProbe) Start() error {
 
 		go func() {
 			defer p.fimwg.Done()
-			err := p.setupEtw(func(n interface{}, pid uint32) {
+			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.eventType) {
 				// resolve process context
 				ev := p.zeroEvent()
 				errRes := p.setProcessContext(pid, ev)
@@ -450,8 +455,8 @@ func (p *WindowsProbe) Start() error {
 				// handle incoming events here
 				// each event will come in as a different type
 				// parse it with
-				switch n.(type) {
-				case *createNewFileArgs:
+				switch eventType{
+				case CreateNewFileEventType:
 					cnfa := n.(*createNewFileArgs)
 					ev.Type = uint32(model.CreateNewFileEventType)
 					ev.CreateNewFile = model.CreateNewFileEvent{
@@ -460,7 +465,43 @@ func (p *WindowsProbe) Start() error {
 							BasenameStr: filepath.Base(cnfa.fileName),
 						},
 					}
-				case *createKeyArgs:
+				case CreateRegistryKeyEventType:
+					cka :=  n.(*createKeyArgs)
+					ev.Type = uint32(model.CreateRegistryKeyEventType)
+					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
+						Registry: model.RegistryEvent{
+							KeyPath: cka.computedFullPath,
+							RelativeName: cka.relativeName,
+						},
+					}
+				case OpenRegistryKeyEventType:
+					cka := n.(*createKeyArgs)
+					ev.Type = uint32(model.OpenRegistryKeyEventType)
+					ev.OpenRegistryKey = model.OpenRegistryKeyEvent {
+						Registry: model.RegistryEvent{
+							KeyPath: cka.computedFullPath,
+							RelativeName: cka.relativeName,
+						},
+					}
+				case DeleteRegistryKeyEventType:
+					dka := n.(*deleteKeyArgs)
+					ev.Type = uint32(model.DeleteRegistryKeyEventType)
+					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent {
+						Registry: model.RegistryEvent{
+							KeyName: dka.keyName,
+						},
+					}
+				case SetRegistryKeyValueEventType:
+					svka := n.(*setValueKeyArgs)
+					ev.Type = uint32(model.SetRegistryKeyValueEventType)
+					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent {
+						Registry: model.RegistryEvent{
+							KeyName, svka.keyName,
+							KeyPath: svka.computedFullPath,
+							RelativeName: svka.relativeName,
+							ValueName: svka.valueName,
+						},
+					}
 				}
 				// Dispatch event
 				p.DispatchEvent(ev)
