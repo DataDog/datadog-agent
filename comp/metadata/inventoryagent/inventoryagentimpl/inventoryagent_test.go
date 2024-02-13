@@ -404,6 +404,10 @@ apm_config:
 }
 
 func TestFetchSystemProbeAgent(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("system-probe does not support darwin")
+	}
+
 	defer func() {
 		fetchSystemProbeConfig = configFetcher.SystemProbeConfig
 	}()

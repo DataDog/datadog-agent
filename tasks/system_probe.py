@@ -29,8 +29,6 @@ from tasks.libs.common.utils import (
     get_common_test_args,
     get_gobin,
     get_version_numeric_only,
-    set_co_re_env,
-    set_runtime_comp_env,
 )
 from tasks.libs.ninja_syntax import NinjaWriter
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
@@ -628,9 +626,6 @@ def test(
     packages=TEST_PACKAGES,
     bundle_ebpf=False,
     output_path=None,
-    runtime_compiled=False,
-    co_re=False,
-    skip_linters=False,
     skip_object_files=False,
     run=None,
     failfast=False,
@@ -649,10 +644,6 @@ def test(
             message="GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to "
             "preserve your environment",
         )
-
-    if not skip_linters and not is_windows:
-        clang_format(ctx)
-        clang_tidy(ctx)
 
     if not skip_object_files:
         build_object_files(
@@ -675,10 +666,6 @@ def test(
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
-    if runtime_compiled:
-        set_runtime_comp_env(env)
-    elif co_re:
-        set_co_re_env(env)
 
     go_root = os.getenv("GOROOT")
     if go_root:
@@ -715,8 +702,6 @@ def test_debug(
     package,
     run,
     bundle_ebpf=False,
-    runtime_compiled=False,
-    co_re=False,
     skip_object_files=False,
     failfast=False,
     kernel_release=None,
@@ -753,10 +738,6 @@ def test_debug(
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
-    if runtime_compiled:
-        set_runtime_comp_env(env)
-    elif co_re:
-        set_co_re_env(env)
 
     cmd = '{sudo}{dlv} test {dir} --build-flags="-mod=mod -v {failfast} -tags={build_tags}" -- -test.run {run}'
     ctx.run(cmd.format(**args), env=env, pty=True, warn=True)
@@ -875,7 +856,6 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             ctx,
             packages=pkg,
             skip_object_files=(i != 0),
-            skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
             kernel_release=kernel_release,
@@ -1040,7 +1020,21 @@ def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
         targets = get_ebpf_targets()
 
     # remove externally maintained files
-    ignored_files = ["pkg/ebpf/c/bpf_helpers.h", "pkg/ebpf/c/bpf_endian.h", "pkg/ebpf/compiler/clang-stdarg.h"]
+    ignored_files = [
+        "pkg/ebpf/c/bpf_builtins.h",
+        "pkg/ebpf/c/bpf_core_read.h",
+        "pkg/ebpf/c/bpf_cross_compile.h",
+        "pkg/ebpf/c/bpf_endian.h",
+        "pkg/ebpf/c/bpf_helpers.h",
+        "pkg/ebpf/c/bpf_helper_defs.h",
+        "pkg/ebpf/c/bpf_tracing.h",
+        "pkg/ebpf/c/bpf_tracing_custom.h",
+        "pkg/ebpf/c/compiler.h",
+        "pkg/ebpf/c/map-defs.h",
+        "pkg/ebpf/c/vmlinux_5_15_0.h",
+        "pkg/ebpf/c/vmlinux_5_15_0_arm.h",
+        "pkg/ebpf/compiler/clang-stdarg.h",
+    ]
     for f in ignored_files:
         if f in targets:
             targets.remove(f)
@@ -1078,15 +1072,28 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False, kernel_release=None):
     network_flags.append(f"-I{network_c_dir}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'runtime')}")
-    run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix, fail_on_issue=fail_on_issue)
+    network_checks = [
+        "-readability-function-cognitive-complexity",
+        "-readability-isolate-declaration",
+        "-clang-analyzer-security.insecureAPI.bcmp",
+    ]
+    run_tidy(
+        ctx,
+        files=network_files,
+        build_flags=network_flags,
+        fix=fix,
+        fail_on_issue=fail_on_issue,
+        checks=network_checks,
+    )
 
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_files = list(base_files)
     security_files.extend(glob.glob(f"{security_agent_c_dir}/**/*.c"))
     security_flags = list(build_flags)
     security_flags.append(f"-I{security_agent_c_dir}")
+    security_flags.append(f"-I{security_agent_c_dir}/include")
     security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
-    security_checks = ["-readability-function-cognitive-complexity"]
+    security_checks = ["-readability-function-cognitive-complexity", "-readability-isolate-declaration"]
     run_tidy(
         ctx,
         files=security_files,
