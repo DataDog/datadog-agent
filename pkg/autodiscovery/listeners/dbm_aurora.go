@@ -32,7 +32,7 @@ type DBMAuroraListener struct {
 	stop             chan bool
 	services         map[string]Service
 	config           integrations.AutodiscoverClustersConfig
-	awsClients       map[string]*aws.Client // cached clients by region
+	awsClients       map[string]aws.RDSClient // cached clients by region
 	previousServices map[string]struct{}
 }
 
@@ -55,6 +55,19 @@ func NewDBMAuroraListener(Config) (ServiceListener, error) {
 		stop:     make(chan bool),
 		config:   config,
 		services: make(map[string]Service),
+	}
+	return l, nil
+}
+
+func newDBMAuroraListener(cfg Config, awsClients map[string]aws.RDSClient) (ServiceListener, error) {
+	config, err := integrations.NewAutodiscoverClustersConfig()
+	if err != nil {
+		return nil, err
+	}
+	l := &DBMAuroraListener{
+		config:     config,
+		services:   make(map[string]Service),
+		awsClients: awsClients,
 	}
 	return l, nil
 }
