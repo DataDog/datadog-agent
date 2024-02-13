@@ -67,7 +67,7 @@ func runAgentSidekicks(ag *agent) error {
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
 			Handler: func(r *api.HTTPReceiver) http.Handler {
-				return remotecfg.ConfigHandler(r, rcClient, tracecfg, ag.Statsd)
+				return remotecfg.ConfigHandler(r, rcClient, tracecfg, ag.Statsd, ag.Timing)
 			},
 		})
 	}
