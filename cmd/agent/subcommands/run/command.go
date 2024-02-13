@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
+	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry/agenttelemetryimpl"
 
 	// checks implemented as components
 
@@ -380,6 +381,7 @@ func getSharedFxOption() fx.Option {
 		netflow.Bundle(),
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
+		agenttelemetryimpl.Module(),
 	)
 }
 
