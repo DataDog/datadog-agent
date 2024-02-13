@@ -218,7 +218,7 @@ new-e2e-npm-dev:
   rules:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7", "qa_agent"]
   variables:
     TARGETS: ./tests/npm
 
