@@ -27,10 +27,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newDemultiplexer),
-		fx.Provide(func(demux demultiplexerComp.Component) aggregator.Demultiplexer {
-			return demux
-		}))
+		fx.Provide(newDemultiplexer))
 }
 
 type dependencies struct {
@@ -59,8 +56,9 @@ type provides struct {
 	// implements diagnosesendermanager.Component). This has the nice consequence of preventing having
 	// demultiplexerimpl.Module and diagnosesendermanagerimpl.Module in the same fx.App because there would
 	// be two ways to create diagnosesendermanager.Component.
-	SenderManager  diagnosesendermanager.Component
-	StatusProvider status.InformationProvider
+	SenderManager           diagnosesendermanager.Component
+	StatusProvider          status.InformationProvider
+	AggregatorDemultiplexer aggregator.Demultiplexer
 }
 
 func newDemultiplexer(deps dependencies) (provides, error) {
@@ -95,6 +93,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
 			Log: deps.Log,
 		}),
+		AggregatorDemultiplexer: demultiplexer,
 	}, nil
 }
 

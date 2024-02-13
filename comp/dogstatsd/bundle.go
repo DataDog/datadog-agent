@@ -6,14 +6,11 @@
 package dogstatsd //nolint:revive // TODO(AML) Fix revive linter
 
 import (
-	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // team: agent-metrics-logs
@@ -21,9 +18,6 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		fx.Provide(func(demux demultiplexerComp.Component) aggregator.Demultiplexer {
-			return demux
-		}),
 		serverdebugimpl.Module(),
 		replay.Module(),
 		server.Module())

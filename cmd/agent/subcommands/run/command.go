@@ -212,7 +212,7 @@ func run(log log.Component,
 	collector collector.Component,
 ) error {
 	defer func() {
-		stopAgent(cliParams, server, agentAPI)
+		stopAgent(cliParams, agentAPI)
 	}()
 
 	// prepare go runtime
@@ -427,7 +427,7 @@ func startAgent(
 	)
 
 	if jmxLoggerSetupErr != nil {
-		return fmt.Errorf(" Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
+		return fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
 	}
 
 	if flavor.GetFlavor() == flavor.IotAgent {
@@ -598,7 +598,6 @@ func startAgent(
 
 	// start dogstatsd
 	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
-		// err := server.Start(demultiplexer)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		} else {
@@ -635,11 +634,11 @@ func startAgent(
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
 func StopAgentWithDefaults(server dogstatsdServer.Component, agentAPI internalAPI.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, agentAPI)
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, agentAPI)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, _ dogstatsdServer.Component, agentAPI internalAPI.Component) {
+func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()

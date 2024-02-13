@@ -162,7 +162,6 @@ func TestUDPReceive(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	time.Sleep(10 * time.Second)
 	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 0)
@@ -435,7 +434,6 @@ func TestUDPForward(t *testing.T) {
 
 	defer pc.Close()
 
-	// demux := deps.Demultiplexer
 	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
@@ -465,6 +463,7 @@ func TestHistToDist(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
+	demux := deps.Demultiplexer
 	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
@@ -474,7 +473,7 @@ func TestHistToDist(t *testing.T) {
 	// Test metric
 	conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
 	time.Sleep(time.Millisecond * 200) // give some time to the socket write/read
-	samples, timedSamples := deps.Demultiplexer.WaitForSamples(time.Second * 10)
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 2, len(samples))
 	require.Equal(t, 0, len(timedSamples))
 	histMetric := samples[0]
@@ -488,7 +487,7 @@ func TestHistToDist(t *testing.T) {
 	assert.Equal(t, distMetric.Name, "dist.daemon")
 	assert.EqualValues(t, distMetric.Value, 666.0)
 	assert.Equal(t, metrics.DistributionType, distMetric.Mtype)
-	deps.Demultiplexer.Reset()
+	demux.Reset()
 }
 
 func TestScanLines(t *testing.T) {
@@ -653,7 +652,6 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	samples := []metrics.MetricSample{}
 
-	// demux := deps.Demultiplexer
 	requireStart(t, s)
 
 	assert.Nil(t, s.mapper)
@@ -764,7 +762,6 @@ dogstatsd_mapper_profiles:
 
 			cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
-			// demux := deps.Demultiplexer
 			requireStart(t, s)
 
 			assert.Equal(t, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
@@ -785,7 +782,6 @@ dogstatsd_mapper_profiles:
 				sort.Strings(sample.Tags)
 			}
 			assert.Equal(t, scenario.expectedSamples, actualSamples, "Case `%s` failed. `%s` should be `%s`", scenario.name, actualSamples, scenario.expectedSamples)
-
 		})
 	}
 }
@@ -949,7 +945,7 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	s := deps.Server.(*server)
 	assert := assert.New(t)
 
-	// requireStart(t, s, deps.Demultiplexer
+	requireStart(t, s)
 
 	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	parser.dsdOriginEnabled = true
@@ -1001,8 +997,3 @@ func requireStart(t *testing.T, s Component) {
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning())
 }
-
-// func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-// 	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(),
-// 		demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
-// }

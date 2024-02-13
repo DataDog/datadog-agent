@@ -7,7 +7,6 @@
 package server
 
 import (
-	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -34,12 +33,6 @@ type Component interface {
 	UDPLocalAddr() string
 }
 
-// ServerlessDogstatsd is the interface for the serverless dogstatsd server.
-type ServerlessDogstatsd interface {
-	Component
-	Stop()
-}
-
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
@@ -55,8 +48,4 @@ func Module() fxutil.Module {
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock))
-}
-
-func (s *server) Stop() {
-	_ = s.stop(context.TODO())
 }
