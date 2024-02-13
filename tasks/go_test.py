@@ -621,8 +621,12 @@ def get_modified_files(ctx):
     return modified_files
 
 
-@task
-def send_unit_tests_stats(_, job_name):
+@task(iterable=["extra_tag"])
+def send_unit_tests_stats(_, job_name, extra_tag=None):
+
+    if extra_tag is None:
+        extra_tag = []
+
     fast_success = True
     classic_success = True
 
@@ -651,12 +655,13 @@ def send_unit_tests_stats(_, job_name):
             timestamp,
             n_test_classic,
             tags=[
-                "experimentation:fast-tests-v2",
+                "experimentation:fast-tests",
                 "test_type:classic",
                 "repository:datadog-agent",
                 f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
                 f"job_name:{job_name}",
-            ],
+            ]
+            + extra_tag,
         )
     )
 
@@ -667,12 +672,13 @@ def send_unit_tests_stats(_, job_name):
             timestamp,
             n_test_fast,
             tags=[
-                "experimentation:fast-tests-v2",
+                "experimentation:fast-tests",
                 "test_type:fast",
                 "repository:datadog-agent",
                 f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
                 f"job_name:{job_name}-fast",
-            ],
+            ]
+            + extra_tag,
         )
     )
 
@@ -695,11 +701,12 @@ def send_unit_tests_stats(_, job_name):
             timestamp,
             false_positive,
             tags=[
-                "experimentation:fast-tests-v2",
+                "experimentation:fast-tests",
                 "repository:datadog-agent",
                 f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
                 f"job_name:{job_name}",
-            ],
+            ]
+            + extra_tag,
         )
     )
     series.append(
@@ -708,11 +715,12 @@ def send_unit_tests_stats(_, job_name):
             timestamp,
             false_negative,
             tags=[
-                "experimentation:fast-tests-v2",
+                "experimentation:fast-tests",
                 "repository:datadog-agent",
                 f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
                 f"job_name:{job_name}",
-            ],
+            ]
+            + extra_tag,
         )
     )
 

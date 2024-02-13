@@ -9,5 +9,5 @@ stats-fast-tests-deb-x64-py3:
   script:
     - set +x
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
-    - inv -e send-unit-tests-stats tests_deb-x64-py3
+    - inv -e send-unit-tests-stats --job-name tests_deb-x64-py3 --extra-tag version:v2
   when: always
