@@ -5,16 +5,22 @@
 
 package timing
 
-import "time"
+import (
+	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+)
 
 // The most basic usage for the package is timing the execution time of a function.
 func Example() {
+	reporter := New(&statsd.Client{})
+	reporter.Start()
 	computeThings := func() {
 		// the easiest way is using a defer statement, which will trigger
 		// when a function returns
-		defer Since("compute.things", time.Now())
+		defer reporter.Since("compute.things", time.Now())
 		// do stuff...
 	}
 	computeThings()
-	Stop()
+	reporter.Stop()
 }
