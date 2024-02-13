@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,7 +44,13 @@ func newDownloader(client *http.Client) *downloader {
 func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath string) error {
 	log.Debugf("Downloading package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
 
-	// TODO check platform & arch compatibility
+	// Check platform and architecture compatibility
+	if pkg.Platform != runtime.GOOS {
+		return fmt.Errorf("unsupported platform %s for package %s", pkg.Platform, pkg.Name)
+	}
+	if pkg.Arch != runtime.GOARCH {
+		return fmt.Errorf("unsupported architecture %s for package %s", pkg.Arch, pkg.Name)
+	}
 
 	// Create temporary directory to download the archive
 	tmpDir, err := os.MkdirTemp("", "")
@@ -95,14 +102,27 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 		return fmt.Errorf("could not decode hash: %w", err)
 	}
 	if !bytes.Equal(expectedHash, sha256) {
-		return fmt.Errorf("invalid hash for %s: expected %x, got %x", pkg.URL, pkg.SHA256, sha256)
+		return fmt.Errorf("invalid hash for %s: expected %s, got %x", pkg.URL, pkg.SHA256, sha256)
 	}
 
-	// TODO: extract OCI images instead
-	err = extractTarGz(archivePath, destinationPath)
+	// Extract OCI archive to temporary directory
+	ociExtractionPath := filepath.Join(tmpDir, "oci")
+	if err := os.Mkdir(ociExtractionPath, 0755); err != nil {
+		return fmt.Errorf("could not create OCI extraction directory: %w", err)
+	}
+
+	// TODO support gzip and xz
+	err = extractTarGz(archivePath, ociExtractionPath)
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
+
+	// Extract package from OCI archive
+	err = extractOCI(ociExtractionPath, destinationPath)
+	if err != nil {
+		return fmt.Errorf("could not extract manifests from OCI: %w", err)
+	}
+
 	log.Debugf("Successfully downloaded package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
 	return nil
 }
