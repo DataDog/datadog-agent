@@ -55,10 +55,9 @@ func TestDNSNameEncoding(t *testing.T) {
 		"1.1.2.4": {Names: []string{"host4.domain.com"}},
 		"1.1.2.5": {Names: nil},
 	}
-	conf := ddconfig.MockSystemProbe(t)
-	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
-	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	maxConnsPerMessage := 10
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
 	assert.Equal(t, len(chunks), 1)
@@ -124,10 +123,9 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		rctm := map[string]*model.RuntimeCompilationTelemetry{}
 		khfr := model.KernelHeaderFetchResult_FetchNotAttempted
 		coretm := map[string]model.COREResult{}
-		conf := ddconfig.MockSystemProbe(t)
-		enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-		ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
+		serviceExtractorEnabled := true
+		useWindowsServiceName := true
+		ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 		chunks := batchConnections(&HostInfo{}, tc.maxSize, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, khfr, coretm, nil, nil, nil, nil, nil, ex)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
@@ -167,10 +165,9 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	}
 
 	maxConnsPerMessage := 1
-	conf := ddconfig.MockSystemProbe(t)
-	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
-	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
@@ -210,10 +207,9 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	p[5].Raddr.Ip = "1.3.4.5"
 
 	maxConnsPerMessage := 2
-	conf := ddconfig.MockSystemProbe(t)
-	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
-	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 3)
@@ -297,10 +293,9 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	dnsmap := map[string]*model.DNSEntry{}
 
 	maxConnsPerMessage := 1
-	conf := ddconfig.MockSystemProbe(t)
-	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
-	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
@@ -418,10 +413,9 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	dnsmap := map[string]*model.DNSEntry{}
 
 	maxConnsPerMessage := 1
-	conf := ddconfig.MockSystemProbe(t)
-	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
-	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
@@ -530,10 +524,9 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	conns[7].RouteIdx = 2
 
 	maxConnsPerMessage := 4
-	conf := ddconfig.MockSystemProbe(t)
-	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
-	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, routes, nil, nil, ex)
 
 	assert.Len(t, chunks, 2)
@@ -601,10 +594,9 @@ func TestNetworkConnectionTags(t *testing.T) {
 	foundTags := []fakeConn{}
 
 	maxConnsPerMessage := 4
-	conf := ddconfig.MockSystemProbe(t)
-	enabled := conf.GetBool("system_probe_config.process_service_inference.enabled")
-	useWindowsServiceName := conf.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex)
 
 	assert.Len(t, chunks, 2)
@@ -641,9 +633,9 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
 	maxConnsPerMessage := 1
-	enabled := mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
+	serviceExtractorEnabled := mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
 	useWindowsServiceName := mockConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	ex := parser.NewServiceExtractor(enabled, useWindowsServiceName)
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	ex.Extract(procsByPid)
 
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex)

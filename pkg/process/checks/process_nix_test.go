@@ -120,7 +120,9 @@ func TestBasicProcessMessages(t *testing.T) {
 			for _, s := range tc.disallowList {
 				disallowList = append(disallowList, regexp.MustCompile(s))
 			}
-			ex := parser.NewServiceExtractor(true, true)
+			serviceExtractorEnabled := true
+			useWindowsServiceName := true
+			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, nil, false, ex)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, procs, tc.containers, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
@@ -231,7 +233,9 @@ func TestContainerProcessChunking(t *testing.T) {
 			syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 			sysInfo := &model.SystemInfo{}
 			hostInfo := &HostInfo{SystemInfo: sysInfo}
-			ex := parser.NewServiceExtractor(true, true)
+			serviceExtractorEnabled := true
+			useWindowsServiceName := true
+			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, nil, false, ex)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, processes, ctrs, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 

@@ -49,8 +49,9 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 	hostInfo := &HostInfo{
 		SystemInfo: sysInfo,
 	}
-
-	serviceExtractor := parser.NewServiceExtractor(true, true)
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 
 	return &ProcessCheck{
 		probe:             probe,
@@ -425,7 +426,9 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 
 	var disallowList []*regexp.Regexp
-	serviceExtractor := parser.NewServiceExtractor(true, true)
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false, serviceExtractor)
 	assert.Len(t, procs, 1)
 

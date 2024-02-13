@@ -99,9 +99,9 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.networkID = networkID
 	c.processData = NewProcessData(c.config)
 	c.dockerFilter = parser.NewDockerProxy()
-	enabled := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.enabled")
+	serviceExtractorEnabled := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.enabled")
 	useWindowsServiceName := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	c.serviceExtractor = parser.NewServiceExtractor(enabled, useWindowsServiceName)
+	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 

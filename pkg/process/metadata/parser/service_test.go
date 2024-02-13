@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -121,18 +120,14 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := ddconfig.MockSystemProbe(t)
-			mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
-			mockConfig.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", true)
-
 			proc := procutil.Process{
 				Pid:     1,
 				Cmdline: tt.cmdline,
 			}
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
-			enabled := true
+			serviceExtractorEnabled := true
 			useWindowsServiceName := true
-			se := NewServiceExtractor(enabled, useWindowsServiceName)
+			se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 			se.Extract(procsByPid)
 			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})
@@ -145,9 +140,9 @@ func TestExtractServiceMetadataDisabled(t *testing.T) {
 		Cmdline: []string{"/bin/bash"},
 	}
 	procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
-	enabled := false
+	serviceExtractorEnabled := false
 	useWindowsServiceName := false
-	se := NewServiceExtractor(enabled, useWindowsServiceName)
+	se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	se.Extract(procsByPid)
 	assert.Empty(t, se.GetServiceContext(proc.Pid))
 }
