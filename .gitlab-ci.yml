@@ -159,6 +159,7 @@ variables:
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
+  BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
@@ -168,19 +169,19 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_WINBUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_ARMBUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v27950662-17e84032
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
@@ -348,6 +349,7 @@ workflow:
       variables:
         USE_CACHING_PROXY_PYTHON: "true"
         USE_CACHING_PROXY_RUBY: "true"
+        GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
       variables:
         USE_CACHING_PROXY_PYTHON: "true"
@@ -408,8 +410,6 @@ workflow:
 
 .on_main:
   - <<: *if_main_branch
-    variables:
-      GO_TEST_SKIP_FLAKE: "false"
 
 .on_main_manual:
   - <<: *if_main_branch
@@ -1055,7 +1055,22 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
+    allow_failure: true
 
+.on_rc_or_e2e_changes_or_manual:
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - pkg/config/remote/**/*
+        - comp/remote-config/**/*
+        - test/new-e2e/tests/remote-config/**/*
+  - when: manual
+    allow_failure: true
 
 .on_install_script_release_manual:
   - <<: *if_not_version_7
@@ -1085,9 +1100,11 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_main_and_no_skip_e2e:
+.on_main_or_rc_and_no_skip_e2e:
   - <<: *if_not_e2e
     when: never
+  - <<: *if_tagged_commit
+    when: on_success
   - <<: *if_main_branch
     when: on_success
 

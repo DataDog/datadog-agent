@@ -55,6 +55,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
 		}, nil
+	case "event.service":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "event.timestamp":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -885,6 +894,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"container.created_at",
 		"container.id",
 		"container.tags",
+		"event.service",
 		"event.timestamp",
 		"exec.cmdline",
 		"exec.container.id",
@@ -963,6 +973,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext), nil
 	case "container.tags":
 		return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext), nil
+	case "event.service":
+		return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent), nil
 	case "event.timestamp":
 		return int(ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)), nil
 	case "exec.cmdline":
@@ -1273,6 +1285,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "container.tags":
 		return "*", nil
+	case "event.service":
+		return "*", nil
 	case "event.timestamp":
 		return "*", nil
 	case "exec.cmdline":
@@ -1419,6 +1433,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "container.id":
 		return reflect.String, nil
 	case "container.tags":
+		return reflect.String, nil
+	case "event.service":
 		return reflect.String, nil
 	case "event.timestamp":
 		return reflect.Int, nil
@@ -1593,6 +1609,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		default:
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.Tags"}
 		}
+		return nil
+	case "event.service":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Service"}
+		}
+		ev.BaseEvent.Service = rv
 		return nil
 	case "event.timestamp":
 		rv, ok := value.(int)
