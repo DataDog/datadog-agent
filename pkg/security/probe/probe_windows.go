@@ -313,10 +313,7 @@ func (p *WindowsProbe) Start() error {
 			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.EventType) {
 				// resolve process context
 				ev := p.zeroEvent()
-				errRes := p.setProcessContext(pid, ev)
-				if errRes != nil {
-					log.Debugf("%v", errRes)
-				}
+				var errRes error
 
 				// handle incoming events here
 				// each event will come in as a different type
@@ -331,6 +328,10 @@ func (p *WindowsProbe) Start() error {
 							BasenameStr: filepath.Base(cnfa.fileName),
 						},
 					}
+					errRes = p.setProcessContext(pid, ev)
+					if errRes != nil {
+						log.Debugf("%v", errRes)
+					}
 				case model.CreateRegistryKeyEventType:
 					cka := n.(*createKeyArgs)
 					ev.Type = uint32(model.CreateRegistryKeyEventType)
@@ -339,6 +340,10 @@ func (p *WindowsProbe) Start() error {
 							KeyPath: cka.computedFullPath,
 							KeyName: filepath.Base(cka.computedFullPath),
 						},
+					}
+					errRes = p.setProcessContext(pid, ev)
+					if errRes != nil {
+						log.Debugf("%v", errRes)
 					}
 				case model.OpenRegistryKeyEventType:
 					cka := n.(*createKeyArgs)
@@ -349,6 +354,10 @@ func (p *WindowsProbe) Start() error {
 							KeyName: filepath.Base(cka.computedFullPath),
 						},
 					}
+					errRes = p.setProcessContext(pid, ev)
+					if errRes != nil {
+						log.Debugf("%v", errRes)
+					}
 				case model.DeleteRegistryKeyEventType:
 					dka := n.(*deleteKeyArgs)
 					ev.Type = uint32(model.DeleteRegistryKeyEventType)
@@ -356,6 +365,10 @@ func (p *WindowsProbe) Start() error {
 						Registry: model.RegistryEvent{
 							KeyName: dka.keyName,
 						},
+					}
+					errRes = p.setProcessContext(pid, ev)
+					if errRes != nil {
+						log.Debugf("%v", errRes)
 					}
 				case model.SetRegistryKeyValueEventType:
 					svka := n.(*setValueKeyArgs)
@@ -366,6 +379,10 @@ func (p *WindowsProbe) Start() error {
 							KeyPath:   svka.computedFullPath,
 							ValueName: svka.valueName,
 						},
+					}
+					errRes = p.setProcessContext(pid, ev)
+					if errRes != nil {
+						log.Debugf("%v", errRes)
 					}
 				}
 				// Dispatch event
