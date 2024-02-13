@@ -36,7 +36,6 @@ type runnerImpl struct {
 
 type dependencies struct {
 	fx.In
-	Lc fx.Lifecycle
 
 	Submitter  submitter.Component
 	RTNotifier <-chan types.RTResponse `optional:"true"`
