@@ -15,43 +15,31 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// Reporter represents an interface for measuring and reporting timing information.
+type Reporter interface {
+	// Since records the duration for the given metric name as time passed since start.
+	// It uses the default set which is reported at 10 second intervals.
+	Since(name string, start time.Time)
+
+	// Start starts a background goroutine that reports the timing metrics.
+	Start()
+
+	// Stop permanently stops the default set from auto-reporting and flushes any remaining
+	// metrics. It can be useful to call when the program exits to ensure everything is submitted.
+	Stop()
+}
+
+// New returns a new Timing instance.
+// You have to call Start to start reporting metrics.
+func New(statsd statsd.ClientInterface) Reporter {
+	return newSet(statsd)
+}
+
 // autoreportInterval specifies the interval at which the default set reports.
 var autoreportInterval = 10 * time.Second
-
-var (
-	defaultSet *set
-)
-
-// Since records the duration for the given metric name as time passed since start.
-// It uses the default set which is reported at 10 second intervals.
-func Since(name string, start time.Time) {
-	if defaultSet == nil {
-		log.Error("Timing hasn't been initialized, trace-agent metrics will be missing")
-		return
-	}
-	defaultSet.Since(name, start)
-}
-
-// Start initializes autoreporting of timing metrics.
-func Start(statsd statsd.ClientInterface) {
-	defaultSet = newSet(statsd)
-	defaultSet.autoreport(autoreportInterval)
-}
-
-// Stop permanently stops the default set from auto-reporting and flushes any remaining
-// metrics. It can be useful to call when the program exits to ensure everything is
-// submitted.
-func Stop() {
-	if defaultSet == nil {
-		return
-	}
-	defaultSet.stop()
-}
 
 // newSet returns a new, ready to use Set.
 func newSet(statsd statsd.ClientInterface) *set {
@@ -73,6 +61,25 @@ type set struct {
 	statsd    statsd.ClientInterface
 }
 
+// Start initializes autoreporting of timing metrics.
+func (s *set) Start() {
+	s.autoreport(autoreportInterval)
+}
+
+// Stop permanently stops the Set from auto-reporting and flushes any remaining metrics.
+func (s *set) Stop() {
+	s.stopOnce.Do(func() {
+		close(s.close)
+	})
+}
+
+// Since records the duration for the given metric name as *time passed since start*.
+// If name does not exist, as defined by NewSet, it creates it.
+func (s *set) Since(name string, start time.Time) {
+	ms := time.Since(start) / time.Millisecond
+	s.getCounter(name).add(float64(ms))
+}
+
 // autoreport enables autoreporting of the Set at the given interval. It returns a
 // cancellation function.
 func (s *set) autoreport(interval time.Duration) {
@@ -91,19 +98,6 @@ func (s *set) autoreport(interval time.Duration) {
 			}
 		}()
 	})
-}
-
-func (s *set) stop() {
-	s.stopOnce.Do(func() {
-		close(s.close)
-	})
-}
-
-// Since records the duration for the given metric name as *time passed since start*.
-// If name does not exist, as defined by NewSet, it creates it.
-func (s *set) Since(name string, start time.Time) {
-	ms := time.Since(start) / time.Millisecond
-	s.getCounter(name).add(float64(ms))
 }
 
 // getCounter returns the counter with the given name, initializing any uninitialized
@@ -175,3 +169,17 @@ func (c *counter) flush(statsd statsd.ClientInterface) {
 	_ = statsd.Gauge(c.name+".max", max, nil, 1)
 	_ = statsd.Gauge(c.name+".avg", sum/count, nil, 1)
 }
+
+// NoopReporter is a no-op implementation of the Reporter interface.
+type NoopReporter struct{}
+
+var _ Reporter = NoopReporter{}
+
+// Since is a no-op.
+func (NoopReporter) Since(_ string, _ time.Time) {}
+
+// Start is a no-op.
+func (NoopReporter) Start() {}
+
+// Stop is a no-op.
+func (NoopReporter) Stop() {}

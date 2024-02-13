@@ -53,10 +53,16 @@ type StatsWriter struct {
 
 	easylog *log.ThrottledLogger
 	statsd  statsd.ClientInterface
+	timing  timing.Reporter
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
-func NewStatsWriter(cfg *config.AgentConfig, in <-chan *pb.StatsPayload, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) *StatsWriter {
+func NewStatsWriter(
+	cfg *config.AgentConfig,
+	in <-chan *pb.StatsPayload,
+	telemetryCollector telemetry.TelemetryCollector,
+	statsd statsd.ClientInterface,
+	timing timing.Reporter) *StatsWriter {
 	sw := &StatsWriter{
 		in:        in,
 		stats:     &info.StatsWriterInfo{},
@@ -66,6 +72,7 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan *pb.StatsPayload, telemet
 		easylog:   log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 		conf:      cfg,
 		statsd:    statsd,
+		timing:    timing,
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -133,7 +140,7 @@ func (w *StatsWriter) Stop() {
 }
 
 func (w *StatsWriter) addStats(sp *pb.StatsPayload) {
-	defer timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
+	defer w.timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
 	payloads := w.buildPayloads(sp, maxEntriesPerPayload)
 	w.payloads = append(w.payloads, payloads...)
 }
@@ -351,7 +358,7 @@ func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
 
 	case eventTypeSent:
 		log.Debugf("Flushed stats to the API; time: %s, bytes: %d", data.duration, data.bytes)
-		timing.Since("datadog.trace_agent.stats_writer.flush_duration", time.Now().Add(-data.duration))
+		w.timing.Since("datadog.trace_agent.stats_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
 		w.stats.Payloads.Inc()
 
