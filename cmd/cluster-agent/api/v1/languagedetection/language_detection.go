@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
@@ -36,14 +37,30 @@ func InstallLanguageDetectionEndpoints(r *mux.Router, wmeta workloadmeta.Compone
 	r.HandleFunc("/languagedetection", api.WithTelemetryWrapper(pldHandlerName, handler)).Methods("POST")
 }
 
-var ownersLanguage OwnersLanguages
+var ownersLanguages OwnersLanguages
+var languageTTL time.Duration
 var ownersLanguagesOnce sync.Once
 
-func loadOwnersLanguages() *OwnersLanguages {
+func loadOwnersLanguages(wlm workloadmeta.Component) *OwnersLanguages {
 	ownersLanguagesOnce.Do(func() {
-		ownersLanguage = *newOwnersLanguages()
+		ownersLanguages = *newOwnersLanguages()
+		languageTTL = config.Datadog.GetDuration("language_detection.cleanup.language_ttl")
+		cleanupPeriod := config.Datadog.GetDuration("language_detection.cleanup.period")
+
+		// Launch periodic cleanup mechanism
+		go func() {
+			cleanupTicker := time.NewTicker(cleanupPeriod)
+			for range cleanupTicker.C {
+				fmt.Println("Cleaning up detected languages...")
+				ownersLanguages.cleanExpiredLanguages(wlm)
+
+			}
+		}()
+
+		// Remove any owner when its corresponding resource is deleted
+		go ownersLanguages.cleanRemovedOwners(wlm)
 	})
-	return &ownersLanguage
+	return &ownersLanguages
 }
 
 // preHandler is called by both leader and followers and returns true if the request should be forwarded or handled by the leader
@@ -84,9 +101,10 @@ func leaderHandler(w http.ResponseWriter, r *http.Request, wlm workloadmeta.Comp
 		return
 	}
 
-	ownersLanguagesFromRequest := getOwnersLanguages(requestData)
+	ownersLanguagesFromRequest := getOwnersLanguages(requestData, time.Now().Add(languageTTL))
 
-	err = loadOwnersLanguages().mergeAndFlush(ownersLanguagesFromRequest, wlm)
+	ownersLanguage := loadOwnersLanguages(wlm)
+	err = ownersLanguage.mergeAndFlush(ownersLanguagesFromRequest, wlm)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to store some (or all) languages in workloadmeta store: %s", err), http.StatusInternalServerError)
 		ErrorResponses.Inc()

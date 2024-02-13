@@ -46,8 +46,8 @@ func TestOwnersLanguagesGetOrInitialise(t *testing.T) {
 			ownersLanguages: &OwnersLanguages{
 				containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 					mockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
-							*langUtil.NewContainer("some-container"): langUtil.LanguageSet{
+						languages: langUtil.TimedContainersLanguages{
+							*langUtil.NewContainer("some-container"): langUtil.TimedLanguageSet{
 								"java": {},
 							},
 						},
@@ -58,8 +58,8 @@ func TestOwnersLanguagesGetOrInitialise(t *testing.T) {
 
 			ownerRef: mockNamespacedOwnerRef,
 			expected: &containersLanguageWithDirtyFlag{
-				languages: langUtil.ContainersLanguages{
-					*langUtil.NewContainer("some-container"): langUtil.LanguageSet{
+				languages: langUtil.TimedContainersLanguages{
+					*langUtil.NewContainer("some-container"): langUtil.TimedLanguageSet{
 						"java": {},
 					},
 				},
@@ -81,6 +81,8 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 	otherMockNamespacedOwnerRef := langUtil.NewNamespacedOwnerReference("api-version", "statefulset", "some-name", "some-ns")
 	cleanMockNamespacedOwnerRef := langUtil.NewNamespacedOwnerReference("api-version", "daemonset", "some-name", "some-ns")
 
+	mockExpiration := time.Now()
+
 	tests := []struct {
 		name               string
 		ownersLanguages    *OwnersLanguages
@@ -99,9 +101,9 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 			other: &OwnersLanguages{
 				containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 					mockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
-							*langUtil.NewContainer("some-container"): langUtil.LanguageSet{
-								"java": {},
+						languages: langUtil.TimedContainersLanguages{
+							*langUtil.NewContainer("some-container"): langUtil.TimedLanguageSet{
+								"java": mockExpiration,
 							},
 						},
 						dirty: false,
@@ -111,9 +113,9 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 			expectedAfterMerge: &OwnersLanguages{
 				containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 					mockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
-							*langUtil.NewContainer("some-container"): langUtil.LanguageSet{
-								"java": {},
+						languages: langUtil.TimedContainersLanguages{
+							*langUtil.NewContainer("some-container"): langUtil.TimedLanguageSet{
+								"java": mockExpiration,
 							},
 						},
 						dirty: true,
@@ -126,8 +128,8 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 			ownersLanguages: &OwnersLanguages{
 				containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 					mockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
-							*langUtil.NewContainer("some-container"): langUtil.LanguageSet{
+						languages: langUtil.TimedContainersLanguages{
+							*langUtil.NewContainer("some-container"): langUtil.TimedLanguageSet{
 								"java": {},
 							},
 						},
@@ -139,8 +141,8 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 			expectedAfterMerge: &OwnersLanguages{
 				containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 					mockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
-							*langUtil.NewContainer("some-container"): langUtil.LanguageSet{
+						languages: langUtil.TimedContainersLanguages{
+							*langUtil.NewContainer("some-container"): langUtil.TimedLanguageSet{
 								"java": {},
 							},
 						},
@@ -154,8 +156,8 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 			ownersLanguages: &OwnersLanguages{
 				containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 					mockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
-							*langUtil.NewContainer("some-container"): langUtil.LanguageSet{
+						languages: langUtil.TimedContainersLanguages{
+							*langUtil.NewContainer("some-container"): langUtil.TimedLanguageSet{
 								"java": {},
 								"ruby": {},
 							},
@@ -163,7 +165,7 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 						dirty: false,
 					},
 					cleanMockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
+						languages: langUtil.TimedContainersLanguages{
 							*langUtil.NewContainer("some-other-container"): {
 								"java": {},
 								"ruby": {},
@@ -176,20 +178,28 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 			other: &OwnersLanguages{
 				containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 					mockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
-							*langUtil.NewContainer("some-container"): langUtil.LanguageSet{
+						languages: langUtil.TimedContainersLanguages{
+							*langUtil.NewContainer("some-container"): langUtil.TimedLanguageSet{
 								"perl": {},
 							},
-							*langUtil.NewContainer("some-other-container"): langUtil.LanguageSet{
+							*langUtil.NewContainer("some-other-container"): langUtil.TimedLanguageSet{
 								"cpp": {},
 							},
 						},
 					},
 					otherMockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
+						languages: langUtil.TimedContainersLanguages{
 							*langUtil.NewContainer("some-other-container"): {
 								"java": {},
 								"cpp":  {},
+							},
+						},
+					},
+					cleanMockNamespacedOwnerRef: {
+						languages: langUtil.TimedContainersLanguages{
+							*langUtil.NewContainer("some-other-container"): {
+								"java": mockExpiration,
+								"ruby": mockExpiration,
 							},
 						},
 					},
@@ -198,29 +208,29 @@ func TestOwnersLanguagesMerge(t *testing.T) {
 			expectedAfterMerge: &OwnersLanguages{
 				containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 					mockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
-							*langUtil.NewContainer("some-container"): langUtil.LanguageSet{
+						languages: langUtil.TimedContainersLanguages{
+							*langUtil.NewContainer("some-container"): langUtil.TimedLanguageSet{
 								"java": {},
 								"ruby": {},
 								"perl": {},
 							},
-							*langUtil.NewContainer("some-other-container"): langUtil.LanguageSet{
+							*langUtil.NewContainer("some-other-container"): langUtil.TimedLanguageSet{
 								"cpp": {},
 							},
 						},
 						dirty: true,
 					},
 					cleanMockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
+						languages: langUtil.TimedContainersLanguages{
 							*langUtil.NewContainer("some-other-container"): {
-								"java": {},
-								"ruby": {},
+								"java": mockExpiration,
+								"ruby": mockExpiration,
 							},
 						},
 						dirty: false,
 					},
 					otherMockNamespacedOwnerRef: {
-						languages: langUtil.ContainersLanguages{
+						languages: langUtil.TimedContainersLanguages{
 							*langUtil.NewContainer("some-other-container"): {
 								"java": {},
 								"cpp":  {},
@@ -245,27 +255,28 @@ func TestOwnersLanguagesFlush(t *testing.T) {
 	mockSupportedOwnerA := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentA", "ns")
 	mockSupportedOwnerB := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentB", "ns")
 	mockUnsupportedOwner := langUtil.NewNamespacedOwnerReference("api-version", "Daemonset", "some-name", "ns")
+	mockExpiration := time.Now()
 
 	ownersLanguages := OwnersLanguages{
 		containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 			mockSupportedOwnerA: {
-				languages: langUtil.ContainersLanguages{
+				languages: langUtil.TimedContainersLanguages{
 					*langUtil.NewContainer("some-container"): {
-						"java": {},
-						"ruby": {},
-						"perl": {},
+						"java": mockExpiration,
+						"ruby": mockExpiration,
+						"perl": mockExpiration,
 					},
 				},
 				dirty: true,
 			},
 
 			mockSupportedOwnerB: {
-				languages: langUtil.ContainersLanguages{
+				languages: langUtil.TimedContainersLanguages{
 					*langUtil.NewContainer("some-container"): {
-						"java": {},
+						"java": mockExpiration,
 					},
 					*langUtil.NewContainer("some-other-container"): {
-						"cpp": {},
+						"cpp": mockExpiration,
 					},
 				},
 				dirty: false,
@@ -291,11 +302,11 @@ func TestOwnersLanguagesFlush(t *testing.T) {
 				return false
 			}
 
-			return deploymentA.DetectedLanguages.EqualTo(langUtil.ContainersLanguages{
+			return reflect.DeepEqual(deploymentA.DetectedLanguages, langUtil.ContainersLanguages{
 				*langUtil.NewContainer("some-container"): {
-					"perl": struct{}{},
-					"java": struct{}{},
-					"ruby": struct{}{},
+					"perl": {},
+					"java": {},
+					"ruby": {},
 				},
 			})
 
@@ -319,14 +330,14 @@ func TestOwnersLanguagesFlush(t *testing.T) {
 
 	// add unsupported owner to ownerslanguages
 	ownersLanguages.containersLanguages[mockUnsupportedOwner] = &containersLanguageWithDirtyFlag{
-		languages: langUtil.ContainersLanguages{
+		languages: langUtil.TimedContainersLanguages{
 			*langUtil.NewContainer("some-container"): {
-				"perl": struct{}{},
-				"java": struct{}{},
-				"ruby": struct{}{},
+				"perl": mockExpiration,
+				"java": mockExpiration,
+				"ruby": mockExpiration,
 			},
 			*langUtil.NewContainer("some-other-container"): {
-				"cpp": struct{}{},
+				"cpp": mockExpiration,
 			},
 		},
 		dirty: true,
@@ -345,9 +356,9 @@ func TestOwnersLanguagesFlush(t *testing.T) {
 
 		languagesInStore := deploymentB.DetectedLanguages
 
-		return languagesInStore.EqualTo(langUtil.ContainersLanguages{
-			*langUtil.NewContainer("some-container"):       {"java": struct{}{}},
-			*langUtil.NewContainer("some-other-container"): {"cpp": struct{}{}},
+		return reflect.DeepEqual(languagesInStore, langUtil.ContainersLanguages{
+			*langUtil.NewContainer("some-container"):       {"java": {}},
+			*langUtil.NewContainer("some-other-container"): {"cpp": {}},
 		})
 	}, 2*time.Second, 100*time.Millisecond, "Should find deploymentB in workloadmeta store with the correct languages")
 
@@ -355,18 +366,18 @@ func TestOwnersLanguagesFlush(t *testing.T) {
 	assert.False(t, ownersLanguages.containersLanguages[mockSupportedOwnerA].dirty, "deploymentA dirty flag should be reset to false")
 	assert.False(t, ownersLanguages.containersLanguages[mockSupportedOwnerB].dirty, "deploymentB dirty flag should be reset to false")
 	assert.False(t, ownersLanguages.containersLanguages[mockSupportedOwnerB].dirty, "daemonset dirty flag should not be reset to false")
-
 }
 
 func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 	mockSupportedOwnerA := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentA", "ns")
+	mockExpiration := time.Now()
 
 	ownersLanguages := OwnersLanguages{
 		containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 			mockSupportedOwnerA: {
-				languages: langUtil.ContainersLanguages{
+				languages: langUtil.TimedContainersLanguages{
 					*langUtil.NewContainer("python-container"): {
-						"python": {},
+						"python": mockExpiration.Add(10 * time.Minute),
 					},
 				},
 				dirty: true,
@@ -392,9 +403,9 @@ func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 				return false
 			}
 
-			return deploymentA.DetectedLanguages.EqualTo(langUtil.ContainersLanguages{
+			return reflect.DeepEqual(deploymentA.DetectedLanguages, langUtil.ContainersLanguages{
 				*langUtil.NewContainer("python-container"): {
-					"python": struct{}{},
+					"python": {},
 				},
 			})
 
@@ -406,12 +417,12 @@ func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 	mockOwnersLanguagesFromRequest := OwnersLanguages{
 		containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
 			mockSupportedOwnerA: {
-				languages: langUtil.ContainersLanguages{
+				languages: langUtil.TimedContainersLanguages{
 					*langUtil.NewContainer("python-container"): {
-						"python": {},
+						"python": mockExpiration.Add(30 * time.Minute),
 					},
 					*langUtil.NewContainer("ruby-container"): {
-						"ruby": {},
+						"ruby": mockExpiration.Add(50 * time.Minute),
 					},
 				},
 				dirty: true,
@@ -436,12 +447,12 @@ func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 
 			fmt.Println(deploymentA.DetectedLanguages)
 
-			return deploymentA.DetectedLanguages.EqualTo(langUtil.ContainersLanguages{
+			return reflect.DeepEqual(deploymentA.DetectedLanguages, langUtil.ContainersLanguages{
 				*langUtil.NewContainer("python-container"): {
-					"python": struct{}{},
+					"python": {},
 				},
 				*langUtil.NewContainer("ruby-container"): {
-					"ruby": struct{}{},
+					"ruby": {},
 				},
 			})
 
@@ -454,6 +465,190 @@ func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 	assert.False(t, ownersLanguages.containersLanguages[mockSupportedOwnerA].dirty, "deploymentA dirty flag should be reset to false")
 }
 
+func TestCleanExpiredLanguages(t *testing.T) {
+	mockSupportedOwnerA := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentA", "ns")
+	mockSupportedOwnerB := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentB", "ns")
+
+	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+
+	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesDeployment{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   "ns/deploymentA",
+			},
+			DetectedLanguages: langUtil.ContainersLanguages{
+				*langUtil.NewContainer("some-container"): {
+					"python": {},
+					"java":   {},
+				},
+			},
+		},
+	},
+		workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesDeployment{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesDeployment,
+					ID:   "ns/deploymentB",
+				},
+				DetectedLanguages: langUtil.ContainersLanguages{
+					*langUtil.NewContainer("some-container"): {
+						"python": {},
+						"java":   {},
+					},
+				},
+			},
+		},
+	)
+
+	ownersLanguages := OwnersLanguages{
+		containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
+			mockSupportedOwnerA: {
+				languages: langUtil.TimedContainersLanguages{
+					*langUtil.NewContainer("some-container"): {
+						"python": time.Now().Add(-5 * time.Minute),
+						"java":   time.Now().Add(5 * time.Minute),
+					},
+				},
+				dirty: false,
+			},
+			mockSupportedOwnerB: {
+				languages: langUtil.TimedContainersLanguages{
+					*langUtil.NewContainer("some-container"): {
+						"python": time.Now().Add(-5 * time.Minute),
+						"java":   time.Now().Add(-5 * time.Minute),
+					},
+				},
+				dirty: false,
+			},
+		},
+	}
+
+	ownersLanguages.cleanExpiredLanguages(mockStore)
+
+	assert.Eventuallyf(t,
+		func() bool {
+			deploymentA, err := mockStore.GetKubernetesDeployment("ns/deploymentA")
+			if err != nil {
+				return false
+			}
+
+			fmt.Println(deploymentA)
+
+			return reflect.DeepEqual(deploymentA.DetectedLanguages, langUtil.ContainersLanguages{
+				*langUtil.NewContainer("some-container"): {
+					"java": {},
+				},
+			})
+
+		},
+		2*time.Second,
+		100*time.Millisecond,
+		"Should find deploymentA in workloadmeta store with the correct languages")
+
+	assert.Eventuallyf(t,
+		func() bool {
+			_, err := mockStore.GetKubernetesDeployment("ns/deploymentB")
+			return err != nil
+		},
+		2*time.Second,
+		100*time.Millisecond,
+		"Should remove deploymentB from workloadmeta store since all languages are expired")
+
+}
+
+func TestCleanRemovedOwners(t *testing.T) {
+	mockSupportedOwnerA := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentA", "ns")
+
+	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+
+	ownersLanguages := OwnersLanguages{
+		containersLanguages: map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag{
+			mockSupportedOwnerA: {
+				languages: langUtil.TimedContainersLanguages{
+					*langUtil.NewContainer("some-container"): {
+						"python": time.Now().Add(5 * time.Minute),
+						"java":   time.Now().Add(5 * time.Minute),
+					},
+				},
+				dirty: false,
+			},
+		},
+	}
+
+	// start cleanup process
+	go ownersLanguages.cleanRemovedOwners(mockStore)
+
+	// Simulate detecting languages
+	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesDeployment{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   "ns/deploymentA",
+			},
+			DetectedLanguages: langUtil.ContainersLanguages{
+				*langUtil.NewContainer("some-container"): {
+					"python": {},
+					"java":   {},
+				},
+			},
+		},
+	},
+	)
+
+	// simulate updating annotations
+	mockStore.Push("kubeapiserver", workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesDeployment{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   "ns/deploymentA",
+			},
+			InjectableLanguages: langUtil.ContainersLanguages{
+				*langUtil.NewContainer("some-container"): {
+					"python": {},
+					"java":   {},
+				},
+			},
+		},
+	},
+	)
+
+	time.Sleep(1 * time.Second)
+
+	//simulate deleting deployment
+	mockStore.Push("kubeapiserver", workloadmeta.Event{
+		Type: workloadmeta.EventTypeUnset,
+		Entity: &workloadmeta.KubernetesDeployment{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   "ns/deploymentA",
+			},
+		},
+	},
+	)
+
+	assert.Eventuallyf(t,
+		func() bool {
+			_, err := mockStore.GetKubernetesDeployment("ns/deploymentA")
+			return err != nil
+		},
+		2*time.Second,
+		100*time.Millisecond,
+		"Should remove deploymentA from workloadmeta")
+}
+
 ////////////////////////////////
 //                            //
 //    Util Functions Tests    //
@@ -461,6 +656,8 @@ func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 ////////////////////////////////
 
 func TestGetContainersLanguagesFromPodDetail(t *testing.T) {
+	mockExpiration := time.Now()
+
 	containerDetails := []*pbgo.ContainerLanguageDetails{
 		{
 			ContainerName: "mono-lang",
@@ -504,23 +701,23 @@ func TestGetContainersLanguagesFromPodDetail(t *testing.T) {
 		},
 	}
 
-	containerslanguages := getContainersLanguagesFromPodDetail(podLanguageDetails)
+	containerslanguages := getContainersLanguagesFromPodDetail(podLanguageDetails, mockExpiration)
 
-	expectedContainersLanguages := langUtil.ContainersLanguages{
+	expectedContainersLanguages := langUtil.TimedContainersLanguages{
 		*langUtil.NewContainer("mono-lang"): {
-			"java": struct{}{},
+			"java": mockExpiration,
 		},
 		*langUtil.NewContainer("bi-lang"): {
-			"java": struct{}{},
-			"cpp":  struct{}{},
+			"java": mockExpiration,
+			"cpp":  mockExpiration,
 		},
 		*langUtil.NewContainer("tri-lang"): {
-			"java":   struct{}{},
-			"go":     struct{}{},
-			"python": struct{}{},
+			"java":   mockExpiration,
+			"go":     mockExpiration,
+			"python": mockExpiration,
 		},
 		*langUtil.NewInitContainer("init-mono-lang"): {
-			"java": struct{}{},
+			"java": mockExpiration,
 		},
 	}
 
@@ -528,6 +725,8 @@ func TestGetContainersLanguagesFromPodDetail(t *testing.T) {
 }
 
 func TestGetOwnersLanguages(t *testing.T) {
+	mockExpiration := time.Now()
+
 	defaultNs := "default"
 	customNs := "custom"
 
@@ -625,46 +824,46 @@ func TestGetOwnersLanguages(t *testing.T) {
 
 	expectedContainersLanguagesA := containersLanguageWithDirtyFlag{
 		dirty: true,
-		languages: langUtil.ContainersLanguages{
+		languages: langUtil.TimedContainersLanguages{
 			*langUtil.NewContainer("container-1"): {
-				"java": struct{}{},
-				"cpp":  struct{}{},
-				"go":   struct{}{},
+				"java": mockExpiration,
+				"cpp":  mockExpiration,
+				"go":   mockExpiration,
 			},
 			*langUtil.NewContainer("container-2"): {
-				"java":   struct{}{},
-				"python": struct{}{},
+				"java":   mockExpiration,
+				"python": mockExpiration,
 			},
 			*langUtil.NewInitContainer("init-container-3"): {
-				"java": struct{}{},
-				"cpp":  struct{}{},
+				"java": mockExpiration,
+				"cpp":  mockExpiration,
 			},
 			*langUtil.NewInitContainer("init-container-4"): {
-				"java":   struct{}{},
-				"python": struct{}{},
+				"java":   mockExpiration,
+				"python": mockExpiration,
 			},
 		},
 	}
 
 	expectedContainersLanguagesB := containersLanguageWithDirtyFlag{
 		dirty: true,
-		languages: langUtil.ContainersLanguages{
+		languages: langUtil.TimedContainersLanguages{
 			*langUtil.NewContainer("container-5"): {
-				"python": struct{}{},
-				"cpp":    struct{}{},
-				"go":     struct{}{},
+				"python": mockExpiration,
+				"cpp":    mockExpiration,
+				"go":     mockExpiration,
 			},
 			*langUtil.NewContainer("container-6"): {
-				"java": struct{}{},
-				"ruby": struct{}{},
+				"java": mockExpiration,
+				"ruby": mockExpiration,
 			},
 			*langUtil.NewInitContainer("init-container-7"): {
-				"java": struct{}{},
-				"cpp":  struct{}{},
+				"java": mockExpiration,
+				"cpp":  mockExpiration,
 			},
 			*langUtil.NewInitContainer("init-container-8"): {
-				"java":   struct{}{},
-				"python": struct{}{},
+				"java":   mockExpiration,
+				"python": mockExpiration,
 			},
 		},
 	}
@@ -676,7 +875,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 		},
 	}
 
-	actualOwnersLanguages := getOwnersLanguages(mockRequestData)
+	actualOwnersLanguages := getOwnersLanguages(mockRequestData, mockExpiration)
 
 	assert.True(t, reflect.DeepEqual(expectedOwnersLanguages, actualOwnersLanguages), fmt.Sprintf("Expected %v, found %v", expectedOwnersLanguages, actualOwnersLanguages))
 }
@@ -684,25 +883,26 @@ func TestGetOwnersLanguages(t *testing.T) {
 func TestGeneratePushEvent(t *testing.T) {
 	mockSupportedOwner := langUtil.NewNamespacedOwnerReference("api-version", "Deployment", "some-name", "some-ns")
 	mockUnsupportedOwner := langUtil.NewNamespacedOwnerReference("api-version", "UnsupportedResourceKind", "some-name", "some-ns")
+	mockExpiration := time.Now()
 
 	tests := []struct {
 		name          string
-		languages     langUtil.ContainersLanguages
+		languages     langUtil.TimedContainersLanguages
 		owner         langUtil.NamespacedOwnerReference
 		expectedEvent *workloadmeta.Event
 	}{
 		{
 			name:          "unsupported owner",
-			languages:     make(langUtil.ContainersLanguages),
+			languages:     make(langUtil.TimedContainersLanguages),
 			owner:         mockUnsupportedOwner,
 			expectedEvent: nil,
 		},
 		{
 			name:      "empty containers languages object with supported owner",
-			languages: make(langUtil.ContainersLanguages),
+			languages: make(langUtil.TimedContainersLanguages),
 			owner:     mockSupportedOwner,
 			expectedEvent: &workloadmeta.Event{
-				Type: workloadmeta.EventTypeSet,
+				Type: workloadmeta.EventTypeUnset,
 				Entity: &workloadmeta.KubernetesDeployment{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindKubernetesDeployment,
@@ -714,22 +914,22 @@ func TestGeneratePushEvent(t *testing.T) {
 		},
 		{
 			name: "non-empty containers languages with supported owner",
-			languages: langUtil.ContainersLanguages{
+			languages: langUtil.TimedContainersLanguages{
 				langUtil.Container{Name: "container-1", Init: false}: {
-					"java": struct{}{},
-					"cpp":  struct{}{},
+					"java": mockExpiration,
+					"cpp":  mockExpiration,
 				},
 				langUtil.Container{Name: "container-2", Init: false}: {
-					"java": struct{}{},
-					"cpp":  struct{}{},
+					"java": mockExpiration,
+					"cpp":  mockExpiration,
 				},
 				langUtil.Container{Name: "container-3", Init: true}: {
-					"python": struct{}{},
-					"ruby":   struct{}{},
+					"python": mockExpiration,
+					"ruby":   mockExpiration,
 				},
 				langUtil.Container{Name: "container-4", Init: true}: {
-					"go":   struct{}{},
-					"java": struct{}{},
+					"go":   mockExpiration,
+					"java": mockExpiration,
 				},
 			},
 			owner: mockSupportedOwner,
@@ -742,20 +942,20 @@ func TestGeneratePushEvent(t *testing.T) {
 					},
 					DetectedLanguages: langUtil.ContainersLanguages{
 						langUtil.Container{Name: "container-1", Init: false}: {
-							"java": struct{}{},
-							"cpp":  struct{}{},
+							"java": {},
+							"cpp":  {},
 						},
 						langUtil.Container{Name: "container-2", Init: false}: {
-							"java": struct{}{},
-							"cpp":  struct{}{},
+							"java": {},
+							"cpp":  {},
 						},
 						langUtil.Container{Name: "container-3", Init: true}: {
-							"python": struct{}{},
-							"ruby":   struct{}{},
+							"python": {},
+							"ruby":   {},
 						},
 						langUtil.Container{Name: "container-4", Init: true}: {
-							"go":   struct{}{},
-							"java": struct{}{},
+							"go":   {},
+							"java": {},
 						},
 					},
 				},
@@ -795,7 +995,7 @@ func TestGeneratePushEvent(t *testing.T) {
 
 			assert.True(
 				tt,
-				actualDetectedLanguages.EqualTo(expectedDetectedLanguages),
+				reflect.DeepEqual(actualDetectedLanguages, expectedDetectedLanguages),
 				fmt.Sprintf("container languages are not correct: expected %v, found %v", expectedDetectedLanguages, actualDetectedLanguages),
 			)
 		})
