@@ -218,20 +218,20 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				}
 			case idCleanup:
 				if ca, err := parseCleanupArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID)
+					ecb(ca, e.EventHeader.ProcessID, nil)
 				}
 
 			case idClose:
 				if ca, err := parseCloseArgs(e); err == nil {
 					//fmt.Printf("Received Close event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID)
+					ecb(ca, e.EventHeader.ProcessID, nil)
 					if e.EventHeader.EventDescriptor.ID == idClose {
 						delete(filePathResolver, ca.fileObject)
 					}
 				}
 			case idFlush:
 				if fa, err := parseFlushArgs(e); err == nil {
-					ecb(fa, e.EventHeader.ProcessID)
+					ecb(fa, e.EventHeader.ProcessID, nil)
 				}
 			case idSetInformation:
 				fallthrough
