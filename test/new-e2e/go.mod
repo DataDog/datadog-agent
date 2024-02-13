@@ -12,6 +12,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
 	github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
+	github.com/DataDog/test-infra-definitions => ../../../test-infra-definitions
+
 )
 
 require (
@@ -27,7 +29,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240208092749-cb68ce2eb1b3
+	github.com/DataDog/test-infra-definitions v0.0.0-20240213135014-f9580628c451
 	github.com/aws/aws-sdk-go-v2 v1.24.0
 	github.com/aws/aws-sdk-go-v2/config v1.25.10
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -242,9 +244,5 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.50.2 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.23.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.23.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.23.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.23.0 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
 )
