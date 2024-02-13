@@ -214,7 +214,14 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 	// wait till we're sure the listening loop is running
 	<-et.loopStarted
 
-	h, err := windows.CreateFile(windows.StringToUTF16Ptr(testfilename), windows.GENERIC_READ, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, 0, 0)
+	h, err := windows.CreateFile(windows.StringToUTF16Ptr(testfilename),
+		windows.GENERIC_READ,    // desired access
+		windows.FILE_SHARE_READ, // share mode
+		nil,                     // security attributes
+		windows.OPEN_EXISTING,   //creation disposition
+		0,                       // flags and attributes
+		0)                       // template file
+
 	require.NoError(t, err, "could not open file")
 	assert.NotEqual(t, h, windows.InvalidHandle, "could not open file")
 	windows.CloseHandle(h)
@@ -229,11 +236,18 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 
 	stopLoop(et, &wg)
 
+	// these options to not match the arguments to CreateFile.  these are the
+	// kernel arguments, as documented in ZwCreateFile
+	expectedCreateOptions := (kernelDisposition_FILE_OPEN << 24) | (kernelCreateOpts_FILE_NON_DIRECTORY_FILE | kernelCreateOpts_FILE_SYNCHRONOUS_IO_NONALERT)
 	// we expect a handle create (12), a cleanup and a close.
-	assert.Equal(t, 3, len(et.notifications), "expected 4 notifications, got %d", len(et.notifications))
+	assert.Equal(t, 3, len(et.notifications), "expected 3 notifications, got %d", len(et.notifications))
 
 	if c, ok := et.notifications[0].(*createHandleArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+		// this should be same as sharing argument to Createfile
+		assert.Equal(t, uint32(windows.FILE_SHARE_READ), c.shareAccess, "Sharing mode did not match")
+		assert.Equal(t, expectedCreateOptions, c.createOptions, "Create options did not match")
+
 	} else {
 		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
 	}
