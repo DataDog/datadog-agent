@@ -45,11 +45,3 @@ instances:
       #
       managed_authentication:
         enabled: %%extra_managed_authentication_enabled%%
-
-    ## @param tags - list of strings - optional
-    ## A list of tags to attach to every metric and service check emitted by this instance.
-    ##
-    ## Learn more about tagging at https://docs.datadoghq.com/tagging
-    #
-    tags:
-      - endpoint_type:%%extra_endpoint_type%%

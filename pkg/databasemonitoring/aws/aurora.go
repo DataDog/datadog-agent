@@ -21,11 +21,10 @@ type AuroraCluster struct {
 
 // Instance represents an Aurora instance
 type Instance struct {
-	Endpoint     string `json:"endpoint,omitempty"`
-	Port         int64  `json:"port,omitempty"`
-	Region       string `json:"region,omitempty"`
-	IamEnabled   bool   `json:"iam_enabled,omitempty"`
-	EndpointType string `json:"endpoint_type,omitempty"`
+	Endpoint   string `json:"endpoint,omitempty"`
+	Port       int64  `json:"port,omitempty"`
+	Region     string `json:"region,omitempty"`
+	IamEnabled bool   `json:"iam_enabled,omitempty"`
 }
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
@@ -38,34 +37,17 @@ func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[s
 	for i, id := range dbClusterIdentifiers {
 		idVals[i] = aws.String(id)
 	}
-	idAndEndpointToRole := make(map[string]string)
-	clusterEndpoints, err := c.client.DescribeDBClusterEndpoints(
-		&rds.DescribeDBClusterEndpointsInput{
-			Filters: []*rds.Filter{
-				{
-					Name:   aws.String("db-clusterInstances-id"),
-					Values: idVals,
-				},
-			},
-		})
-	for _, cluster := range clusterEndpoints.DBClusterEndpoints {
-		if cluster.Endpoint != nil && cluster.EndpointType != nil {
-			key := fmt.Sprintf("%s-%s", *cluster.DBClusterIdentifier, *cluster.Endpoint)
-			// either reader, writer or custom
-			idAndEndpointToRole[key] = *cluster.EndpointType
-		}
-	}
 	clusterInstances, err := c.client.DescribeDBInstances(
 		&rds.DescribeDBInstancesInput{
 			Filters: []*rds.Filter{
 				{
-					Name:   aws.String("db-clusterInstances-id"),
+					Name:   aws.String("db-cluster-id"),
 					Values: idVals,
 				},
 			},
 		})
 	if err != nil {
-		return nil, fmt.Errorf("error describing aurora DB clusterInstances: %v", err)
+		return nil, fmt.Errorf("error describing aurora DB clusters: %v", err)
 	}
 	clusters := make(map[string]*AuroraCluster, 0)
 	for _, db := range clusterInstances.DBInstances {
@@ -100,15 +82,11 @@ func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[s
 				}
 				instance.Region = region
 			}
-			// set the endpoint type, if it is known
-			if endpointType, ok := idAndEndpointToRole[fmt.Sprintf("%s-%s", *db.DBClusterIdentifier, *db.Endpoint.Address)]; ok {
-				instance.EndpointType = endpointType
-			}
 		}
 	}
 
 	if len(clusters) == 0 {
-		log.Debugf("No endpoints found for the Aurora clusterInstances with ids %s", strings.Join(dbClusterIdentifiers, ", "))
+		log.Debugf("No endpoints found for the Aurora clusters with ids %s", strings.Join(dbClusterIdentifiers, ", "))
 	}
 
 	return clusters, nil

@@ -9,7 +9,6 @@ import (
 
 const (
 	defaultDiscoveryIntervalSeconds = 300
-	defaultRegion                   = "us-east-1"
 	autoDiscoveryConfigKey          = "autodiscover_aurora_clusters"
 )
 
@@ -23,6 +22,7 @@ const (
 // AutodiscoverClustersConfig represents the configuration for auto-discovering database clusters
 type AutodiscoverClustersConfig struct {
 	DiscoveryInterval int              `mapstructure:"discovery_interval"`
+	RoleArn           string           `mapstructure:"role_arn"`
 	Clusters          []ClustersConfig `mapstructure:"clusters"`
 }
 
@@ -57,6 +57,9 @@ func NewAutodiscoverClustersConfig() (AutodiscoverClustersConfig, error) {
 	if err := coreconfig.Datadog.UnmarshalKey(autoDiscoveryConfigKey, &discoveryConfigs, opt); err != nil {
 		return discoveryConfigs, err
 	}
+	if discoveryConfigs.RoleArn == "" {
+		return discoveryConfigs, fmt.Errorf("invalid %s configuration, a role_arn must be set", autoDiscoveryConfigKey)
+	}
 	// check all types are valid
 	for i := range discoveryConfigs.Clusters {
 		intType := discoveryConfigs.Clusters[i].Type
@@ -64,7 +67,7 @@ func NewAutodiscoverClustersConfig() (AutodiscoverClustersConfig, error) {
 			return discoveryConfigs, fmt.Errorf("invalid integration type in %s configuration: %s", autoDiscoveryConfigKey, intType)
 		}
 		if discoveryConfigs.Clusters[i].Region == "" {
-			discoveryConfigs.Clusters[i].Region = defaultRegion
+			return discoveryConfigs, fmt.Errorf("invalid %s.clusters configuration, a region must set", autoDiscoveryConfigKey)
 		}
 	}
 
