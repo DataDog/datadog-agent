@@ -8,7 +8,6 @@
 package submitterimpl
 
 import (
-	"context"
 	"time"
 
 	"go.uber.org/fx"
@@ -57,15 +56,6 @@ func newSubmitter(deps dependencies) (result, error) {
 		return result{}, err
 	}
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(context.Context) error {
-			return s.Start()
-		},
-		OnStop: func(context.Context) error {
-			s.Stop()
-			return nil
-		},
-	})
 	return result{
 		Submitter: &submitterImpl{
 			s: s,

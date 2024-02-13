@@ -16,6 +16,7 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
+	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -41,17 +42,19 @@ func Module() fxutil.Module {
 type processAgentParams struct {
 	fx.In
 
-	Lc     fx.Lifecycle
-	Log    logComponent.Component
-	Config config.Component
-	Checks []types.CheckComponent `group:"check"`
-	Runner runner.Component
+	Lc        fx.Lifecycle
+	Log       logComponent.Component
+	Config    config.Component
+	Checks    []types.CheckComponent `group:"check"`
+	Runner    runner.Component
+	Submitter submitterComp.Component
 }
 
 type processAgent struct {
-	Checks []checks.Check
-	Log    logComponent.Component
-	Runner runner.Component
+	Checks    []checks.Check
+	Log       logComponent.Component
+	Runner    runner.Component
+	Submitter submitterComp.Component
 }
 
 func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
@@ -74,9 +77,10 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 	}
 
 	processAgentComponent := processAgent{
-		Checks: enabledChecks,
-		Log:    p.Log,
-		Runner: p.Runner,
+		Checks:    enabledChecks,
+		Log:       p.Log,
+		Runner:    p.Runner,
+		Submitter: p.Submitter,
 	}
 
 	p.Lc.Append(fx.Hook{
@@ -96,11 +100,24 @@ func (p processAgent) start(ctx context.Context) error {
 	}
 	p.Log.Debug("process-agent checks", log.Object("checks", chks))
 
+	// start the submitter
+	if err := p.Submitter.Start(); err != nil {
+		return err
+	}
+
+	// start the check runner
 	return p.Runner.Run(ctx)
 }
 
-func (p processAgent) stop(_ context.Context) error {
+// stop stops all agent components that were started in reverse order
+func (p processAgent) stop(ctx context.Context) error {
 	p.Log.Info("process-agent stopping")
 
-	return nil
+	// stop the check runner
+	err := p.Runner.Stop(ctx)
+
+	// stop the submitter
+	p.Submitter.Stop()
+
+	return err
 }
