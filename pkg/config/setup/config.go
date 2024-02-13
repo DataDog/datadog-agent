@@ -1760,14 +1760,15 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Command:         config.GetString("secret_backend_command"),
-		Arguments:       config.GetStringSlice("secret_backend_arguments"),
-		Timeout:         config.GetInt("secret_backend_timeout"),
-		MaxSize:         config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval: config.GetInt("secret_refresh_interval"),
-		GroupExecPerm:   config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak: config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:         config.GetString("run_path"),
+		Command:          config.GetString("secret_backend_command"),
+		Arguments:        config.GetStringSlice("secret_backend_arguments"),
+		Timeout:          config.GetInt("secret_backend_timeout"),
+		MaxSize:          config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:  config.GetInt("secret_refresh_interval"),
+		GroupExecPerm:    config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:  config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:          config.GetString("run_path"),
+		AuditFileMaxSize: config.GetInt("secret_audit_file_max_size"),
 	})
 
 	if config.GetString("secret_backend_command") != "" {

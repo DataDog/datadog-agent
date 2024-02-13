@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -30,12 +32,28 @@ type auditRow struct {
 }
 
 // addToAuditFile adds rows to the audit file based upon newly refreshed secrets
-func addToAuditFile(filename string, secretResponse map[string]string, origin handleToContext) error {
+func addToAuditFile(filename string, secretResponse map[string]string, origin handleToContext, maxSize int) error {
 	now := timeNowFunc().UTC()
-	auditRows := loadAuditFile(filename)
+	auditRows, err := loadAuditFile(filename, maxSize)
+	if err != nil {
+		if sizeErr, ok := err.(*fileSizeLimitError); ok {
+			log.Error(`secret-audit-file.json cannot be loaded, file size is too large: %d > %d\n
+	You can work-around this limit by setting the flag "secret_audit_file_max_size" to a larger value.`, sizeErr.Size, sizeErr.Limit)
+			return nil
+		}
+		log.Errorf(`secret-audit-file.json cannot be loaded: %s`, err)
+		return nil
+	}
 
+	// iterate keys in deterministic order by sorting
+	handles := make([]string, 0, len(secretResponse))
+	for handle := range secretResponse {
+		handles = append(handles, handle)
+	}
+	sort.Strings(handles)
 	// add the newly refreshed secrets to the list of rows
-	for handle, secretValue := range secretResponse {
+	for _, handle := range handles {
+		secretValue := secretResponse[handle]
 		scrubbedValue := ""
 		if isLikelyAPIOrAppKey(handle, secretValue, origin) {
 			scrubbedValue = scrubber.HideKeyExceptLastFiveChars(secretValue)
@@ -62,17 +80,20 @@ func isLikelyAPIOrAppKey(handle, secretValue string, origin handleToContext) boo
 }
 
 // loadAuditFile loads the rows from the audit file and returns them
-func loadAuditFile(filename string) []auditRow {
-	bytes, err := os.ReadFile(filename)
+func loadAuditFile(filename string, maxSize int) ([]auditRow, error) {
+	bytes, err := readFileWithSizeLimit(filename, int64(maxSize))
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	var rows []auditRow
+	if len(bytes) == 0 {
+		return rows, nil
+	}
 	err = json.Unmarshal(bytes, &rows)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return rows
+	return rows, nil
 }
 
 // saveAuditFile saves the rows to the audit file, pruning those older than the cutoffLimit

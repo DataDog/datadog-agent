@@ -83,7 +83,8 @@ type secretResolver struct {
 	refreshInterval time.Duration
 	ticker          *time.Ticker
 	// filename to write audit records to
-	auditFilename string
+	auditFilename    string
+	auditFileMaxSize int
 	// subscriptions want to be notified about changes to the secrets
 	subscriptions []secrets.SecretChangeCallback
 
@@ -209,6 +210,10 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
 	}
 	r.auditFilename = filepath.Join(params.RunPath, auditFileBasename)
+	r.auditFileMaxSize = params.AuditFileMaxSize
+	if r.auditFileMaxSize == 0 {
+		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
+	}
 }
 
 func isEnc(str string) (bool, string) {
@@ -455,7 +460,7 @@ func (r *secretResolver) Refresh() (string, error) {
 	refreshResult := r.processSecretResponse(secretResponse, true)
 	if len(refreshResult.Handles) > 0 {
 		// add the results to the audit file, if any secrets have new values
-		if err := addToAuditFile(r.auditFilename, secretResponse, r.origin); err != nil {
+		if err := addToAuditFile(r.auditFilename, secretResponse, r.origin, r.auditFileMaxSize); err != nil {
 			log.Error(err)
 		}
 	}

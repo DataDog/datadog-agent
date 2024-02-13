@@ -47,7 +47,7 @@ func TestAddSecretsToNewFile(t *testing.T) {
 		"pw2": "password2",
 	}
 
-	addToAuditFile(tmpFileName, secretResponse, nil)
+	addToAuditFile(tmpFileName, secretResponse, nil, 1000000)
 
 	data, err := os.ReadFile(tmpFileName)
 	if err != nil {
@@ -82,7 +82,7 @@ func TestAddSecretsToExistingFile(t *testing.T) {
 		"pw2": "password2",
 	}
 
-	addToAuditFile(tmpFileName, secretResponse, nil)
+	addToAuditFile(tmpFileName, secretResponse, nil, 1000000)
 
 	data, err := os.ReadFile(tmpFileName)
 	if err != nil {
@@ -117,7 +117,7 @@ func TestAddAPIKeyToNewFile(t *testing.T) {
 		},
 	}
 
-	addToAuditFile(tmpFileName, secretResponse, origin)
+	addToAuditFile(tmpFileName, secretResponse, origin, 1000000)
 
 	data, err := os.ReadFile(tmpFileName)
 	if err != nil {
@@ -161,7 +161,7 @@ func TestAddSecretAndRemoveOldEntries(t *testing.T) {
 		"pw3": "password3",
 	}
 
-	addToAuditFile(tmpFileName, secretResponse, nil)
+	addToAuditFile(tmpFileName, secretResponse, nil, 1000000)
 
 	data, err := os.ReadFile(tmpFileName)
 	if err != nil {
