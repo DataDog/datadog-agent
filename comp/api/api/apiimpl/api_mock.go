@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -38,6 +39,7 @@ func newMock() api.Mock {
 
 // StartServer creates the router and starts the HTTP server
 func (mock *mockAPIServer) StartServer(
+	_ *remoteconfig.Service,
 	_ workloadmeta.Component,
 	_ tagger.Component,
 	_ optional.Option[logsAgent.Component],

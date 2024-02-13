@@ -16,6 +16,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
 	stdLog "log"
 	"net"
 	"net/http"
@@ -59,7 +60,7 @@ func StartServer(w workloadmeta.Component, taggerComp tagger.Component, senderMa
 	v1.InstallMetadataEndpoints(apiRouter, w)
 
 	// API V1 Language Detection APIs
-	v1.InstallLanguageDetectionEndpoints(apiRouter, w)
+	languagedetection.InstallLanguageDetectionEndpoints(apiRouter, w)
 
 	// Validate token for every request
 	router.Use(validateToken)

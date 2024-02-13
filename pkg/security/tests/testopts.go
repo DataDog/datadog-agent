@@ -48,7 +48,7 @@ type testOpts struct {
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
-	enableEBPFLess                             bool
+	enableFIM                                  bool // only valid on windows
 }
 
 type dynamicTestOpts struct {
@@ -102,6 +102,5 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
-		to.preStartCallback == nil && opts.preStartCallback == nil &&
-		to.enableEBPFLess == opts.enableEBPFLess
+		to.preStartCallback == nil && opts.preStartCallback == nil
 }

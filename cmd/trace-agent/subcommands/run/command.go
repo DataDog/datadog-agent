@@ -85,7 +85,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 		statsd.Module(),
 		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
 			if coreConfig.GetBool("apm_config.remote_tagger") {
-				return tagger.NewNodeRemoteTaggerParams()
+				return tagger.NewNodeRemoteTaggerParamsWithFallback()
 			}
 			return tagger.NewTaggerParams()
 		}),

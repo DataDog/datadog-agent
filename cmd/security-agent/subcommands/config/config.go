@@ -141,7 +141,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func showRuntimeConfiguration(_ log.Component, cfg config.Component, _ secrets.Component, _ *cliParams) error {
-	runtimeConfig, err := fetcher.FetchSecurityAgentConfig(cfg)
+	runtimeConfig, err := fetcher.SecurityAgentConfig(cfg)
 	if err != nil {
 		return err
 	}
