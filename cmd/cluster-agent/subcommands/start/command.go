@@ -146,7 +146,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component, rcServiceOptional optional.Option[rccomp.Component]) error {
+func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component, rcService optional.Option[rccomp.Component]) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -200,12 +200,12 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 		pkglog.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	// Initialize remote configuration
+	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
-	rcService, isSet := rcServiceOptional.Get()
-	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) && isSet {
+	rcserv, isSet := rcService.Get()
+	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
 		var err error
-		rcClient, err = initializeRemoteConfigClient(mainCtx, rcService)
+		rcClient, err = initializeRemoteConfigClient(mainCtx, rcserv)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
