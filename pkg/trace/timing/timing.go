@@ -16,7 +16,8 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // autoreportInterval specifies the interval at which the default set reports.
@@ -37,7 +38,7 @@ func Since(name string, start time.Time) {
 }
 
 // Start initializes autoreporting of timing metrics.
-func Start(statsd metrics.StatsClient) {
+func Start(statsd statsd.ClientInterface) {
 	defaultSet = newSet(statsd)
 	defaultSet.autoreport(autoreportInterval)
 }
@@ -53,7 +54,7 @@ func Stop() {
 }
 
 // newSet returns a new, ready to use Set.
-func newSet(statsd metrics.StatsClient) *set {
+func newSet(statsd statsd.ClientInterface) *set {
 	return &set{
 		c:      make(map[string]*counter),
 		close:  make(chan struct{}),
@@ -69,7 +70,7 @@ type set struct {
 	close     chan struct{}
 	startOnce sync.Once
 	stopOnce  sync.Once
-	statsd    metrics.StatsClient
+	statsd    statsd.ClientInterface
 }
 
 // autoreport enables autoreporting of the Set at the given interval. It returns a
@@ -164,13 +165,13 @@ func (c *counter) add(v float64) {
 	c.mu.RUnlock()
 }
 
-func (c *counter) flush(statsd metrics.StatsClient) {
+func (c *counter) flush(statsd statsd.ClientInterface) {
 	c.mu.Lock()
 	count := c.count.Swap(0)
 	sum := c.sum.Swap(0)
 	max := c.max.Swap(0)
 	c.mu.Unlock()
-	statsd.Count(c.name+".count", int64(count), nil, 1)
-	statsd.Gauge(c.name+".max", max, nil, 1)
-	statsd.Gauge(c.name+".avg", sum/count, nil, 1)
+	_ = statsd.Count(c.name+".count", int64(count), nil, 1)
+	_ = statsd.Gauge(c.name+".max", max, nil, 1)
+	_ = statsd.Gauge(c.name+".avg", sum/count, nil, 1)
 }

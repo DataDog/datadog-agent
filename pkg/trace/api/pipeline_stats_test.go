@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func TestPipelineStatsProxy(t *testing.T) {
@@ -50,7 +52,7 @@ func TestPipelineStatsProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{}
-	newPipelineStatsProxy(c, []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
+	newPipelineStatsProxy(c, []*url.URL{u}, []string{"123"}, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
