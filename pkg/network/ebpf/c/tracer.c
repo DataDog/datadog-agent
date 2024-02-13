@@ -18,7 +18,6 @@
 #include "tracer/port.h"
 #include "tracer/tcp_recv.h"
 #include "protocols/classification/protocol-classification.h"
-#include "protocols/sockfd.h"
 
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
@@ -199,8 +198,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
     }
-
-    clear_sockfd_maps(sk);
 
     // Get network namespace id
     log_debug("kprobe/tcp_close: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);

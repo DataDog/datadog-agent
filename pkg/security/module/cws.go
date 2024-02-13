@@ -47,9 +47,6 @@ type CWSConsumer struct {
 	ruleEngine    *rulesmodule.RuleEngine
 	selfTester    *selftests.SelfTester
 	reloader      ReloaderInterface
-
-	eventSuppressionsLock  sync.Mutex
-	eventSuppressionsStats map[string]*int64
 }
 
 // NewCWSConsumer initializes the module with options
@@ -68,15 +65,14 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		probe:        evm.Probe,
 		statsdClient: evm.StatsdClient,
 		// internals
-		ctx:                    ctx,
-		cancelFnc:              cancelFnc,
-		apiServer:              NewAPIServer(cfg, evm.Probe, evm.StatsdClient, selfTester),
-		rateLimiter:            events.NewRateLimiter(cfg, evm.StatsdClient),
-		sendStatsChan:          make(chan chan bool, 1),
-		grpcServer:             NewGRPCServer(family, address),
-		selfTester:             selfTester,
-		reloader:               NewReloader(),
-		eventSuppressionsStats: make(map[string]*int64),
+		ctx:           ctx,
+		cancelFnc:     cancelFnc,
+		apiServer:     NewAPIServer(cfg, evm.Probe, evm.StatsdClient, selfTester),
+		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
+		sendStatsChan: make(chan chan bool, 1),
+		grpcServer:    NewGRPCServer(family, address),
+		selfTester:    selfTester,
+		reloader:      NewReloader(),
 	}
 
 	// set sender
@@ -236,10 +232,6 @@ func (c *CWSConsumer) HandleCustomEvent(rule *rules.Rule, event *events.CustomEv
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
 func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
-	if event.IsSuppressed() {
-		c.countEventSuppression(rule.ID)
-	}
-
 	if c.rateLimiter.Allow(rule.ID, event) {
 		c.apiServer.SendEvent(rule, event, extTagsCb, service)
 	} else {
@@ -266,16 +258,11 @@ func (c *CWSConsumer) sendStats() {
 	if err := c.apiServer.SendStats(); err != nil {
 		seclog.Debugf("failed to send api server stats: %s", err)
 	}
-
-	c.eventSuppressionsLock.Lock()
-	for ruleID, counter := range c.eventSuppressionsStats {
-		value := *counter
-		if value > 0 {
-			*counter = 0
-			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, value, []string{fmt.Sprintf("rule_id:%s", ruleID)}, 1.0)
+	for ruleID, counter := range c.ruleEngine.AutoSuppressions.GetStats() {
+		if counter > 0 {
+			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, []string{fmt.Sprintf("rule_id:%s", ruleID)}, 1.0)
 		}
 	}
-	c.eventSuppressionsLock.Unlock()
 }
 
 func (c *CWSConsumer) statsSender() {
@@ -300,13 +287,4 @@ func (c *CWSConsumer) statsSender() {
 // GetRuleEngine returns new current rule engine
 func (c *CWSConsumer) GetRuleEngine() *rulesmodule.RuleEngine {
 	return c.ruleEngine
-}
-
-func (c *CWSConsumer) countEventSuppression(ruleID string) {
-	c.eventSuppressionsLock.Lock()
-	defer c.eventSuppressionsLock.Unlock()
-	if _, ok := c.eventSuppressionsStats[ruleID]; !ok {
-		c.eventSuppressionsStats[ruleID] = new(int64)
-	}
-	*(c.eventSuppressionsStats[ruleID])++
 }

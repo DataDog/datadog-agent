@@ -719,6 +719,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
+	case model.FileChdirEventType:
+		if _, err = event.Chdir.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode chdir event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
 	case model.FileChmodEventType:
 		if _, err = event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -1683,7 +1688,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	}
 
 	// TODO safchain change the fields handlers
-	p.fieldHandlers = &EBPFFieldHandlers{resolvers: p.Resolvers}
+	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers}
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)

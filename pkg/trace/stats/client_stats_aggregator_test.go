@@ -16,6 +16,8 @@ import (
 	proto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 var fuzzer = fuzz.NewWithSeed(1)
@@ -25,7 +27,7 @@ func newTestAggregator() *ClientStatsAggregator {
 		DefaultEnv: "agentEnv",
 		Hostname:   "agentHostname",
 	}
-	a := NewClientStatsAggregator(conf, make(chan *proto.StatsPayload, 100))
+	a := NewClientStatsAggregator(conf, make(chan *proto.StatsPayload, 100), &statsd.NoOpClient{})
 	a.Start()
 	a.flushTicker.Stop()
 	return a
@@ -530,6 +532,7 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 }
 
 func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
+	statsd := &statsd.NoOpClient{}
 	t.Run("nothing enabled", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
@@ -538,7 +541,7 @@ func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
 			DefaultEnv:     "env",
 			Hostname:       "hostname",
 		}
-		a := NewClientStatsAggregator(&cfg, nil)
+		a := NewClientStatsAggregator(&cfg, nil, statsd)
 		assert.False(a.peerTagsAggregation)
 	})
 	t.Run("deprecated peer service flag set", func(t *testing.T) {
@@ -550,7 +553,7 @@ func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
 			Hostname:               "hostname",
 			PeerServiceAggregation: true,
 		}
-		a := NewClientStatsAggregator(&cfg, nil)
+		a := NewClientStatsAggregator(&cfg, nil, statsd)
 		assert.True(a.peerTagsAggregation)
 	})
 	t.Run("peer tags aggregation flag", func(t *testing.T) {
@@ -562,7 +565,7 @@ func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
 			Hostname:            "hostname",
 			PeerTagsAggregation: true,
 		}
-		a := NewClientStatsAggregator(&cfg, nil)
+		a := NewClientStatsAggregator(&cfg, nil, statsd)
 		assert.True(a.peerTagsAggregation)
 	})
 	t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
@@ -575,7 +578,7 @@ func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
 			PeerServiceAggregation: true,
 			PeerTagsAggregation:    true,
 		}
-		a := NewClientStatsAggregator(&cfg, nil)
+		a := NewClientStatsAggregator(&cfg, nil, statsd)
 		assert.True(a.peerTagsAggregation)
 	})
 }

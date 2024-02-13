@@ -225,10 +225,6 @@ CSM Threats logs have the following JSON schema:
                 "origin": {
                     "type": "string",
                     "description": "Origin of the event"
-                },
-                "suppressed": {
-                    "type": "boolean",
-                    "description": "True if the event has been suppressed"
                 }
             },
             "additionalProperties": false,
@@ -902,9 +898,9 @@ CSM Threats logs have the following JSON schema:
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
                 },
-                "is_exec_child": {
+                "is_exec_exec": {
                     "type": "boolean",
-                    "description": "Indicates wether the process is an exec child of its parent"
+                    "description": "Indicates whether the process is an exec following another exec"
                 },
                 "source": {
                     "type": "string",
@@ -1030,9 +1026,9 @@ CSM Threats logs have the following JSON schema:
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
                 },
-                "is_exec_child": {
+                "is_exec_exec": {
                     "type": "boolean",
-                    "description": "Indicates wether the process is an exec child of its parent"
+                    "description": "Indicates whether the process is an exec following another exec"
                 },
                 "source": {
                     "type": "string",
@@ -1212,6 +1208,10 @@ CSM Threats logs have the following JSON schema:
                     },
                     "type": "array",
                     "description": "List of tags associated to this profile"
+                },
+                "event_in_profile": {
+                    "type": "boolean",
+                    "description": "True if the corresponding event is part of this profile"
                 }
             },
             "additionalProperties": false,
@@ -1219,7 +1219,8 @@ CSM Threats logs have the following JSON schema:
             "required": [
                 "name",
                 "version",
-                "tags"
+                "tags",
+                "event_in_profile"
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
@@ -1765,10 +1766,6 @@ CSM Threats logs have the following JSON schema:
         "origin": {
             "type": "string",
             "description": "Origin of the event"
-        },
-        "suppressed": {
-            "type": "boolean",
-            "description": "True if the event has been suppressed"
         }
     },
     "additionalProperties": false,
@@ -1786,7 +1783,6 @@ CSM Threats logs have the following JSON schema:
 | `async` | True if the event was asynchronous |
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
 | `origin` | Origin of the event |
-| `suppressed` | True if the event has been suppressed |
 
 
 ## `ExitEvent`
@@ -2712,9 +2708,9 @@ CSM Threats logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
         },
-        "is_exec_child": {
+        "is_exec_exec": {
             "type": "boolean",
-            "description": "Indicates wether the process is an exec child of its parent"
+            "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
             "type": "string",
@@ -2759,7 +2755,7 @@ CSM Threats logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
-| `is_exec_child` | Indicates wether the process is an exec child of its parent |
+| `is_exec_exec` | Indicates whether the process is an exec following another exec |
 | `source` | Process source |
 
 | References |
@@ -2885,9 +2881,9 @@ CSM Threats logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
         },
-        "is_exec_child": {
+        "is_exec_exec": {
             "type": "boolean",
-            "description": "Indicates wether the process is an exec child of its parent"
+            "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
             "type": "string",
@@ -2943,7 +2939,7 @@ CSM Threats logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
-| `is_exec_child` | Indicates wether the process is an exec child of its parent |
+| `is_exec_exec` | Indicates whether the process is an exec following another exec |
 | `source` | Process source |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
@@ -3197,6 +3193,10 @@ CSM Threats logs have the following JSON schema:
             },
             "type": "array",
             "description": "List of tags associated to this profile"
+        },
+        "event_in_profile": {
+            "type": "boolean",
+            "description": "True if the corresponding event is part of this profile"
         }
     },
     "additionalProperties": false,
@@ -3204,7 +3204,8 @@ CSM Threats logs have the following JSON schema:
     "required": [
         "name",
         "version",
-        "tags"
+        "tags",
+        "event_in_profile"
     ],
     "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
 }
@@ -3216,6 +3217,7 @@ CSM Threats logs have the following JSON schema:
 | `name` | Name of the security profile |
 | `version` | Version of the profile in use |
 | `tags` | List of tags associated to this profile |
+| `event_in_profile` | True if the corresponding event is part of this profile |
 
 
 ## `SignalEvent`

@@ -28,7 +28,7 @@
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
 
-/release.json                           @DataDog/agent-platform @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations
+/release.json                           @DataDog/agent-platform @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-release-management @DataDog/agent-security
 /requirements.txt                       @DataDog/agent-platform
 /pyproject.toml                         @DataDog/agent-platform
 /setup.cfg                              @DataDog/agent-platform
@@ -49,6 +49,9 @@
 /.github/workflows/gohai.yml                        @DataDog/agent-shared-components
 /.github/workflows/go-update-commenter.yml          @DataDog/agent-shared-components
 /.github/workflows/buildimages-update.yml           @DataDog/agent-platform @DataDog/agent-shared-components
+
+/.run                                               @DataDog/agent-platform
+/.run/docker/                                       @DataDog/container-integrations
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
@@ -193,7 +196,7 @@
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
-/google-marketplace/                    @DataDog/container-integrations
+/google-marketplace/                    @DataDog/container-ecosystems
 
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
 # Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
@@ -218,6 +221,7 @@
 /comp/api @DataDog/agent-shared-components
 /comp/apm/etwtracer @DataDog/windows-agent
 /comp/checks @DataDog/agent-shared-components
+/comp/collector @DataDog/agent-metrics-logs
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/etw @DataDog/windows-agent
@@ -238,7 +242,8 @@
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-integrations
 /comp/core/workloadmeta @DataDog/container-integrations
-/comp/dogstatsd/statsd @DataDog/agent-shared-components
+/comp/forwarder/eventplatform @DataDog/agent-metrics-logs
+/comp/forwarder/eventplatformreceiver @DataDog/agent-metrics-logs
 /comp/forwarder/orchestrator @DataDog/agent-metrics-logs
 /comp/forwarder/orchestrator/orchestratorinterface @DataDog/agent-metrics-logs
 /comp/metadata/packagesigning @DataDog/agent-platform
@@ -386,6 +391,8 @@
 /pkg/process/util/netns*.go             @DataDog/Networks
 /pkg/process/checks/net*.go             @DataDog/Networks
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks
+/pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks @DataDog/windows-kernel-integrations
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring
 /pkg/process/net/                       @DataDog/processes @DataDog/Networks
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
@@ -463,6 +470,7 @@
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/ebpf-platform
+/tasks/ebpf.py                          @DataDog/ebpf-platform
 /tasks/kmt.py                           @DataDog/ebpf-platform
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
@@ -502,6 +510,7 @@
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing
 /test/new-e2e/                                @DataDog/agent-e2e-testing
+/test/new-e2e/test-infra-definition           @DataDog/agent-platform
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components

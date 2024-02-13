@@ -29,6 +29,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 	}
 	_ = ev.FieldHandlers.ResolveAsync(ev)
+	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -207,6 +208,19 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "bind":
 	case "bpf":
 	case "capset":
+	case "chdir":
+		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chdir.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chdir.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chdir.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Chdir.File)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chdir.File)
+		}
 	case "chmod":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chmod.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chmod.File.FileFields)
@@ -1002,6 +1016,7 @@ type FieldHandlers interface {
 	ResolveProcessEnvsTruncated(ev *Event, e *Process) bool
 	ResolveRights(ev *Event, e *FileFields) int
 	ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string
+	ResolveService(ev *Event, e *BaseEvent) string
 	ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string
 	ResolveSetgidFSGroup(ev *Event, e *SetgidEvent) string
 	ResolveSetgidGroup(ev *Event, e *SetgidEvent) string
@@ -1118,6 +1133,7 @@ func (dfh *DefaultFieldHandlers) ResolveRights(ev *Event, e *FileFields) int { r
 func (dfh *DefaultFieldHandlers) ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string {
 	return e.BoolName
 }
+func (dfh *DefaultFieldHandlers) ResolveService(ev *Event, e *BaseEvent) string { return e.Service }
 func (dfh *DefaultFieldHandlers) ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string {
 	return e.EGroup
 }
