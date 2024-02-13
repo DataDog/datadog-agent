@@ -11,6 +11,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/cihub/seelog"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -93,7 +95,7 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 			}
 		}
 		meta := extractServiceMetadata(proc.Cmdline)
-		if meta != nil {
+		if meta != nil && log.ShouldLog(seelog.TraceLvl) {
 			log.Tracef("detected service metadata: %v", meta)
 		}
 		serviceByPID[proc.Pid] = meta
@@ -116,7 +118,9 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 
 		// Service tag was found from the SCM, return it.
 		if len(tags) > 0 {
-			log.Tracef("Found process_context from SCM for pid:%v service tags:%v", pid, tags)
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("Found process_context from SCM for pid:%v service tags:%v", pid, tags)
+			}
 			return tags
 		}
 	}
