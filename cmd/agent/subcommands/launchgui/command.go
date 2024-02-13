@@ -57,7 +57,7 @@ func launchGui(config config.Component, _ *cliParams) error {
 	}
 
 	// Read the authentication token: can only be done if user can read from datadog.yaml
-	authToken, err := security.FetchAuthToken(pkgconfig.Datadog)
+	authToken, err := security.FetchAuthToken(config)
 	if err != nil {
 		return err
 	}
