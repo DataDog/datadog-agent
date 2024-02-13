@@ -105,7 +105,7 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 
 // nolint: unused
 func (pn *ProcessNode) debug(w io.Writer, prefix string) {
-	fmt.Fprintf(w, "%s- process: %s (argv0: %s) (is_exec_child:%v)\n", prefix, pn.Process.FileEvent.PathnameStr, pn.Process.Argv0, pn.Process.IsExecExec)
+	fmt.Fprintf(w, "%s- process: %s (argv0: %s) (is_exec_exec:%v)\n", prefix, pn.Process.FileEvent.PathnameStr, pn.Process.Argv0, pn.Process.IsExecExec)
 	if len(pn.Files) > 0 {
 		fmt.Fprintf(w, "%s  files:\n", prefix)
 		sortedFiles := make([]*FileNode, 0, len(pn.Files))

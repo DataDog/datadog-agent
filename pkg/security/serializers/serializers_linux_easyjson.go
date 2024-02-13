@@ -1061,7 +1061,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 			out.IsThread = bool(in.Bool())
 		case "is_kworker":
 			out.IsKworker = bool(in.Bool())
-		case "is_exec_exec":
+		case "is_exec_child":
 			out.IsExecExec = bool(in.Bool())
 		case "source":
 			out.Source = string(in.String())
@@ -1239,7 +1239,7 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 		out.Bool(bool(in.IsKworker))
 	}
 	if in.IsExecExec {
-		const prefix string = ",\"is_exec_exec\":"
+		const prefix string = ",\"is_exec_child\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.IsExecExec))
 	}

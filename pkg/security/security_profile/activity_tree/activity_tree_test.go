@@ -34,7 +34,7 @@ func TestInsertFileEvent(t *testing.T) {
 		"/tmp/bar/test",
 	}
 	expectedDebugOuput := strings.TrimSpace(`
-- process: /test/pan (argv0: pan) (is_exec_child:false)
+- process: /test/pan (argv0: pan) (is_exec_exec:false)
   files:
     - hello
     - test

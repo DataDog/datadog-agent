@@ -237,7 +237,7 @@ type ProcessSerializer struct {
 	// Indicates whether the process is a kworker
 	IsKworker bool `json:"is_kworker,omitempty"`
 	// Indicates whether the process is an exec following another exec
-	IsExecExec bool `json:"is_exec_exec,omitempty"`
+	IsExecExec bool `json:"is_exec_child,omitempty"`
 	// Process source
 	Source string `json:"source,omitempty"`
 }
