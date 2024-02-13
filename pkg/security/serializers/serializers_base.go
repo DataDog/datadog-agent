@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -280,7 +281,20 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 					variables = Variables{}
 				}
 				if value != nil {
-					variables[strings.TrimPrefix(name, prefix)] = value
+					switch value := value.(type) {
+					case []string:
+						for _, value := range value {
+							if scrubbed, err := scrubber.ScrubString(value); err == nil {
+								variables[strings.TrimPrefix(name, prefix)] = scrubbed
+							}
+						}
+					case string:
+						if scrubbed, err := scrubber.ScrubString(value); err == nil {
+							variables[strings.TrimPrefix(name, prefix)] = scrubbed
+						}
+					default:
+						variables[strings.TrimPrefix(name, prefix)] = value
+					}
 				}
 			}
 		}
