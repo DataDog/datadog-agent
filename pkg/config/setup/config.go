@@ -921,6 +921,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
 	config.SetKnown("database_monitoring.autodiscover_aurora_clusters.discovery_interval")
+	config.SetKnown("database_monitoring.autodiscover_aurora_clusters.role_arn")
 	config.SetKnown("database_monitoring.autodiscover_aurora_clusters.clusters")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)

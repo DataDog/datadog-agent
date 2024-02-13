@@ -79,7 +79,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 			ids := make([]string, 0)
 			ids = append(ids, cluster.ClusterIds...)
 			if _, ok := l.awsClients[cluster.Region]; !ok {
-				c, err := aws.NewRDSClient(cluster.Region)
+				c, err := aws.NewRDSClient(cluster.Region, l.config.RoleArn)
 				if err != nil {
 					log.Errorf("error creating aws client for region %s: %s", cluster.Region, err)
 					continue
@@ -213,8 +213,6 @@ func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 		return d.instance.Region, nil
 	case "managed_authentication_enabled":
 		return strconv.FormatBool(d.instance.IamEnabled), nil
-	case "endpoint_type":
-		return d.instance.EndpointType, nil
 	}
 	return "", ErrNotSupported
 }
