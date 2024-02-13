@@ -308,10 +308,10 @@ func parseCommandContextJava(args []string) string {
 						return jarName
 					}
 					jarName = jarName[:len(jarName)-len(javaSnapshotSuffix)]
-					components := strings.Split(jarName, "-")
-					if len(components) > 1 {
-						if _, err := semver.NewVersion(components[len(components)-1]); err == nil {
-							return strings.Join(components[:len(components)-1], "-")
+
+					if idx := strings.LastIndex(jarName, "-"); idx != -1 {
+						if _, err := semver.NewVersion(jarName[idx+1:]); err == nil {
+							return jarName[:idx]
 						}
 					}
 					return jarName
