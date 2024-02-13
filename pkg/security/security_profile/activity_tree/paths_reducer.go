@@ -161,7 +161,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(`secrets/kubernetes.io/serviceaccount/([0-9._]+)`), // service account token date
+			Pattern: regexp.MustCompile(`secrets/kubernetes\.io/serviceaccount/([0-9._]+)`), // service account token date
 			Hint:    "serviceaccount",
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
