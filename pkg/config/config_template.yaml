@@ -2680,10 +2680,12 @@ api_key:
 #  - containerd
 #  - cri
 #  - docker
+#  - ecsec2
 #  - ecsfargate
 #  - eksfargate
 #  - kubernetes
 #  - orchestratorexplorer
+#  - podman
 
 ## @param autoconfig_include_features - list of comma separated strings - optional
 ## @env DD_AUTOCONFIG_INCLUDE_FEATURES - list of space separated strings - optional
@@ -2694,10 +2696,15 @@ api_key:
 #  - containerd
 #  - cri
 #  - docker
+#  - ecsec2
 #  - ecsfargate
 #  - eksfargate
 #  - kubernetes
 #  - orchestratorexplorer
+#  - podman
+
+{{ end -}}
+{{- if .Process }}
 
 {{ end -}}
 {{- if .Autodiscovery }}
