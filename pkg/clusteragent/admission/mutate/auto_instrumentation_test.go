@@ -588,6 +588,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 		image   string
 		lang    language
 		wantErr bool
+		wantCPU string
+		wantMem string
 	}{
 		{
 			name:    "no resources",
@@ -595,6 +597,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
+			wantCPU: "10m",
+			wantMem: "20Mi",
 		},
 		{
 			name:    "with resources",
@@ -604,6 +608,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
+			wantCPU: "100m",
+			wantMem: "500",
 		},
 		{
 			name:    "cpu only",
@@ -612,6 +618,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
+			wantCPU: "200m",
+			wantMem: "20Mi",
 		},
 		{
 			name:    "memory only",
@@ -620,6 +628,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
+			wantCPU: "10m",
+			wantMem: "512Mi",
 		},
 		{
 			name:    "with invalid resources",
@@ -628,6 +638,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: true,
+			wantCPU: "10m",
+			wantMem: "20Mi",
 		},
 	}
 	for _, tt := range tests {
@@ -650,14 +662,14 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.cpu != "" {
 				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
 				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
-				require.Equal(t, tt.cpu, req.String())
-				require.Equal(t, tt.cpu, lim.String())
+				require.Equal(t, tt.wantCPU, req.String())
+				require.Equal(t, tt.wantCPU, lim.String())
 			}
 			if tt.mem != "" {
 				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
 				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
-				require.Equal(t, tt.mem, req.String())
-				require.Equal(t, tt.mem, lim.String())
+				require.Equal(t, tt.wantMem, req.String())
+				require.Equal(t, tt.wantMem, lim.String())
 			}
 		})
 	}
