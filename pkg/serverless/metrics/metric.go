@@ -109,7 +109,9 @@ func (c *ServerlessMetricAgent) Flush() {
 // Stop stops the DogStatsD server
 func (c *ServerlessMetricAgent) Stop() {
 	if c.IsReady() {
-		c.dogStatsDServer.Stop()
+		if serverlessServer, ok := c.dogStatsDServer.(dogstatsdServer.ServerlessDogstatsd); ok {
+			serverlessServer.Stop()
+		}
 	}
 }
 

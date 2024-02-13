@@ -639,7 +639,7 @@ func StopAgentWithDefaults(server dogstatsdServer.Component, agentAPI internalAP
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, agentAPI internalAPI.Component) {
+func stopAgent(cliParams *cliParams, _ dogstatsdServer.Component, agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
