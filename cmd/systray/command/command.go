@@ -25,7 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
@@ -97,7 +98,7 @@ func MakeCommand() *cobra.Command {
 				}),
 				core.Bundle(),
 				// flare
-				fx.Supply(flare.NewParams(
+				fx.Supply(flaretypes.NewParams(
 					path.GetDistPath(),
 					path.PyChecksPath,
 					path.DefaultLogFile,
@@ -105,7 +106,7 @@ func MakeCommand() *cobra.Command {
 					path.DefaultDogstatsDLogFile,
 				)),
 				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
-				flare.Module(),
+				flareimpl.Module(),
 				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				diagnosesendermanagerimpl.Module(),

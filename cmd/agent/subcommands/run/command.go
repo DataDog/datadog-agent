@@ -48,6 +48,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
@@ -290,14 +292,14 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		fx.Supply(flare.NewParams(
+		fx.Supply(flaretypes.NewParams(
 			path.GetDistPath(),
 			path.PyChecksPath,
 			path.DefaultLogFile,
 			path.DefaultJmxLogFile,
 			path.DefaultDogstatsDLogFile,
 		)),
-		flare.Module(),
+		flareimpl.Module(),
 		core.Bundle(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
