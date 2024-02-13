@@ -499,11 +499,6 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	for _, t := range transactions {
 		forwarder := f.domainForwarders[t.Domain]
 
-		// // For now, active-active failover so default forwarder should never be disabled.
-		// if forwarder.State() == Disabled {
-		// 	f.log.Debugf("Forwarder for domain %v is disabled; dropping transaction for this domain.", t.Domain)
-		// 	continue
-		// }
 		forwarder.sendHTTPTransactions(t)
 
 		if f.queueDurationCapacity != nil {
