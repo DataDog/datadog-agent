@@ -10,15 +10,16 @@ package api
 import (
 	"net"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/Microsoft/go-winio"
 )
 
 // listenPipe returns a listener on the given Windows Pipe, using the provided security
 // descriptor and buffer size.
-func listenPipe(path string, secdec string, bufferSize int, maxconn int) (net.Listener, error) {
+func listenPipe(path string, secdec string, bufferSize int, maxconn int, statsd statsd.ClientInterface) (net.Listener, error) {
 	ln, err := winio.ListenPipe(path, &winio.PipeConfig{
 		SecurityDescriptor: secdec,
 		InputBufferSize:    int32(bufferSize),
 	})
-	return NewMeasuredListener(ln, "pipe_connections", maxconn), err
+	return NewMeasuredListener(ln, "pipe_connections", maxconn, statsd), err
 }
