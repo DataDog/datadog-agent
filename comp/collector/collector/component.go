@@ -38,7 +38,7 @@ type Component interface {
 	GetChecks() []check.Check
 	// GetAllInstanceIDs returns the ID's of all instances of a check
 	GetAllInstanceIDs(checkName string) []checkid.ID
-	// ReloadAllCheckInstances completely restarts a check with a new configuration
+	// ReloadAllCheckInstances completely restarts a check with a new configuration and returns a list of killed check IDs
 	ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error)
 	// AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.
 	AddEventReceiver(cb EventReceiver)

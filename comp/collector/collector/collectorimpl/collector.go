@@ -193,8 +193,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, fmt.Errorf("a check with ID %s is already running", ch.ID())
 	}
 
-	err := c.scheduler.Enter(ch)
-	if err != nil {
+	if err := c.scheduler.Enter(ch); err != nil {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
@@ -227,20 +226,17 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	}
 
 	// unschedule the instance
-	err := c.scheduler.Cancel(id)
-	if err != nil {
+	if err := c.scheduler.Cancel(id); err != nil {
 		return fmt.Errorf("an error occurred while canceling the check schedule: %s", err)
 	}
 
-	err = c.runner.StopCheck(id)
-	if err != nil {
+	if err := c.runner.StopCheck(id); err != nil {
 		// still attempt to cancel the check before returning the error
 		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
 	}
 
-	err = c.cancelCheck(ch, c.cancelCheckTimeout)
-	if err != nil {
+	if err := c.cancelCheck(ch, c.cancelCheckTimeout); err != nil {
 		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
 	}
 
@@ -297,7 +293,7 @@ func (c *collectorImpl) MapOverChecks(cb func([]check.Info)) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	cInfo := []check.Info{}
+	cInfo := make([]check.Info, 0, len(c.checks))
 	for _, c := range c.checks {
 		cInfo = append(cInfo, c)
 	}
@@ -332,7 +328,7 @@ func (c *collectorImpl) GetAllInstanceIDs(checkName string) []checkid.ID {
 	return instances
 }
 
-// ReloadAllCheckInstances completely restarts a check with a new configuration
+// ReloadAllCheckInstances completely restarts a check with a new configuration and returns a list of killed check IDs
 func (c *collectorImpl) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error) {
 	if !c.started() {
 		return nil, fmt.Errorf("The collector is not running")

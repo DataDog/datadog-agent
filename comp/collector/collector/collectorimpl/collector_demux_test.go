@@ -132,7 +132,7 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckDestroysSender() {
 
 	newSender, err := suite.demux.GetSender(ch.ID())
 	assert.Nil(suite.T(), err)
-	assert.NotEqual(suite.T(), sender, newSender) // GetSeder returns a new instance, which means the old sender was destroyed correctly.
+	assert.NotEqual(suite.T(), sender, newSender) // GetSender returns a new instance, which means the old sender was destroyed correctly.
 }
 
 func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
