@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -1398,7 +1398,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					containerName:  "pod",
 					deploymentName: "test-app",
 					namespace:      "ns",
-					languages:      []languagemodels.LanguageName{languagemodels.Python, languagemodels.Java},
+					languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
 				},
 			},
 			wantErr: false,
@@ -1469,7 +1469,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					containerName:  "pod",
 					deploymentName: "test-app",
 					namespace:      "ns",
-					languages:      []languagemodels.LanguageName{languagemodels.Python, languagemodels.Java},
+					languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
 				},
 			},
 			wantErr: false,
@@ -1541,7 +1541,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					containerName:  "pod",
 					deploymentName: "test-app",
 					namespace:      "ns",
-					languages:      []languagemodels.LanguageName{languagemodels.Python, languagemodels.Java},
+					languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
 				},
 			},
 			wantErr: false,

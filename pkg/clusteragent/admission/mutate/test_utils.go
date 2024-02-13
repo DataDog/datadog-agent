@@ -23,7 +23,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -206,10 +206,11 @@ func withContainer(pod *corev1.Pod, nameSuffix string) *corev1.Pod {
 }
 
 type mockDeployment struct {
-	containerName  string
-	deploymentName string
-	namespace      string
-	languages      []languagemodels.LanguageName
+	containerName   string
+	deploymentName  string
+	namespace       string
+	isInitContainer bool
+	languages       util.LanguageSet
 }
 
 func fakeStoreWithDeployment(t *testing.T, deployments []mockDeployment) {
@@ -222,12 +223,13 @@ func fakeStoreWithDeployment(t *testing.T, deployments []mockDeployment) {
 	))
 
 	for _, d := range deployments {
-		languages := []languagemodels.Language{}
-		for _, lang := range d.languages {
-			languages = append(
-				languages,
-				languagemodels.Language{Name: lang, Version: "123"},
-			)
+		langSet := util.LanguageSet{}
+		for lang, _ := range d.languages {
+			langSet.Add(lang)
+		}
+		container := util.Container{
+			Name: d.containerName,
+			Init: d.isInitContainer,
 		}
 
 		mockStore.Set(&workloadmeta.KubernetesDeployment{
@@ -235,8 +237,8 @@ func fakeStoreWithDeployment(t *testing.T, deployments []mockDeployment) {
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   fmt.Sprintf("%s/%s", d.namespace, d.deploymentName),
 			},
-			InjectableLanguages: workloadmeta.Languages{
-				ContainerLanguages: map[string][]languagemodels.Language{d.containerName: languages},
+			InjectableLanguages: util.ContainersLanguages{
+				container: langSet,
 			},
 		})
 	}
