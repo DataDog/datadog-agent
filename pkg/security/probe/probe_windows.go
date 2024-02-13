@@ -209,7 +209,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idCreate:
 				if ca, err := parseCreateHandleArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID, nil)
+					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
 				}
 
 			case idCreateNewFile:
@@ -218,20 +218,20 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				}
 			case idCleanup:
 				if ca, err := parseCleanupArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID, nil)
+					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
 				}
 
 			case idClose:
 				if ca, err := parseCloseArgs(e); err == nil {
 					//fmt.Printf("Received Close event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID, nil)
+					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
 					if e.EventHeader.EventDescriptor.ID == idClose {
 						delete(filePathResolver, ca.fileObject)
 					}
 				}
 			case idFlush:
 				if fa, err := parseFlushArgs(e); err == nil {
-					ecb(fa, e.EventHeader.ProcessID, nil)
+					ecb(fa, e.EventHeader.ProcessID, model.UnknownEventType)
 				}
 			case idSetInformation:
 				fallthrough
@@ -496,7 +496,7 @@ func (p *WindowsProbe) Start() error {
 					ev.Type = uint32(model.SetRegistryKeyValueEventType)
 					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
 						Registry: model.RegistryEvent{
-							KeyName, svka.keyName,
+							KeyName:      svka.keyName,
 							KeyPath:      svka.computedFullPath,
 							RelativeName: svka.relativeName,
 							ValueName:    svka.valueName,
