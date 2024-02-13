@@ -51,6 +51,7 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 }
 
 func testStatsForService(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
@@ -59,6 +60,7 @@ func testStatsForService(t *testing.T, c *assert.CollectT, service string, intak
 }
 
 func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+	t.Helper()
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
@@ -94,6 +96,7 @@ func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 }
 
 func testTraceAgentMetrics(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+	t.Helper()
 	expected := map[string]struct{}{
 		// "datadog.trace_agent.started":                         {}, // FIXME: this metric is flaky
 		"datadog.trace_agent.heartbeat":                        {},
