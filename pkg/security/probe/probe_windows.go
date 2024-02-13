@@ -496,10 +496,9 @@ func (p *WindowsProbe) Start() error {
 					ev.Type = uint32(model.SetRegistryKeyValueEventType)
 					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
 						Registry: model.RegistryEvent{
-							KeyName:      svka.keyName,
-							KeyPath:      svka.computedFullPath,
-							RelativeName: svka.relativeName,
-							ValueName:    svka.valueName,
+							KeyName:   svka.keyName,
+							KeyPath:   svka.computedFullPath,
+							ValueName: svka.valueName,
 						},
 					}
 				}
