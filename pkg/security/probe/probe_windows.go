@@ -452,11 +452,12 @@ func (p *WindowsProbe) Start() error {
 				// parse it with
 				switch n.(type) {
 				case *createNewFileArgs:
+					cnfa := n.(*createNewFileArgs)
 					ev.Type = uint32(model.CreateNewFileEventType)
 					ev.CreateNewFile = model.CreateNewFileEvent{
 						File: model.FileEvent{
-							PathnameStr: n.fileName,
-							BasenameStr: filepath.Base(n.fileName),
+							PathnameStr: cnfa.fileName,
+							BasenameStr: filepath.Base(cnfa.fileName),
 						},
 					}
 				case *createKeyArgs:
