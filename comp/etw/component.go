@@ -54,16 +54,45 @@ type DDEventHeader struct {
 	ActivityID      DDGUID
 }
 
+// DDEtwBufferContext defines the go definition of the C structure ETW_BUFFER_CONTEXT
+type DDEtwBufferContext struct {
+	/*
+			the actual struct is defined as
+			 union {
+		    struct {
+		      UCHAR ProcessorNumber;
+		      UCHAR Alignment;
+		    } DUMMYSTRUCTNAME;
+		    USHORT ProcessorIndex;
+		  } DUMMYUNIONNAME;
+		  USHORT LoggerId;
+		  but go doesn't really do unions.  So for now, just put in ProcessorIndex
+	*/
+	ProcessorIndex uint16
+	LoggerID       uint16
+}
+
+// DDEVentHeaderExtendedData defines the layout of the extended data for an event that Event Tracing for Windows (ETW) delivers.
+// see https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_header_extended_data_item
+type DDEventHeaderExtendedDataItem struct {
+	Reserved1 uint16
+	ExtType   uint16
+	Reserved2 uint16 // is actually 1 bit of linkage and 15 bits of reserved
+	DataSize  uint16
+	DataPtr   *uint8
+}
+
 // DDEventRecord defines the layout of an event that Event Tracing for Windows (ETW) delivers.
 // see https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_record
 // 104
 type DDEventRecord struct {
-	EventHeader    DDEventHeader
-	Pad1           [6]uint8 // sizeof(ETW_BUFFER_CONTEXT) + sizeof(USHORT) = 6
-	UserDataLength uint16
-	Pad2           [8]uint8 // sizeof(PEVENT_HEADER_EXTENDED_DATA_ITEM) = 8
-	UserData       *uint8
-	// UserDataContext is left out
+	EventHeader       DDEventHeader
+	BufferContext     DDEtwBufferContext
+	ExtendedDataCount uint16
+	UserDataLength    uint16
+	ExtendedData      *DDEventHeaderExtendedDataItem // this is actually a pointer to the extended data.
+	UserData          *uint8
+	UserContext       *uint8
 }
 
 // EventCallback is a function that will be called when an ETW event is received
@@ -82,6 +111,27 @@ const (
 	TRACE_LEVEL_WARNING     = TraceLevel(3)
 	TRACE_LEVEL_INFORMATION = TraceLevel(4)
 	TRACE_LEVEL_VERBOSE     = TraceLevel(5)
+)
+
+// revive:disable:var-naming keep the Microsoft naming style
+const (
+	EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID = 0x0001
+	EVENT_HEADER_EXT_TYPE_SID                = 0x0002
+	EVENT_HEADER_EXT_TYPE_TS_ID              = 0x0003
+	EVENT_HEADER_EXT_TYPE_INSTANCE_INFO      = 0x0004
+	EVENT_HEADER_EXT_TYPE_STACK_TRACE32      = 0x0005
+	EVENT_HEADER_EXT_TYPE_STACK_TRACE64      = 0x0006
+	EVENT_HEADER_EXT_TYPE_PEBS_INDEX         = 0x0007
+	EVENT_HEADER_EXT_TYPE_PMC_COUNTERS       = 0x0008
+	EVENT_HEADER_EXT_TYPE_PSM_KEY            = 0x0009
+	EVENT_HEADER_EXT_TYPE_EVENT_KEY          = 0x000A
+	EVENT_HEADER_EXT_TYPE_EVENT_SCHEMA_TL    = 0x000B
+	EVENT_HEADER_EXT_TYPE_PROV_TRAITS        = 0x000C
+	EVENT_HEADER_EXT_TYPE_PROCESS_START_KEY  = 0x000D
+	EVENT_HEADER_EXT_TYPE_CONTROL_GUID       = 0x000E
+	EVENT_HEADER_EXT_TYPE_QPC_DELTA          = 0x000F
+	EVENT_HEADER_EXT_TYPE_CONTAINER_ID       = 0x0010
+	EVENT_HEADER_EXT_TYPE_MAX                = 0x0011
 )
 
 //revive:enable:var-naming
