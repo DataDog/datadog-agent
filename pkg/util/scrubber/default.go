@@ -317,10 +317,10 @@ func ScrubLine(url string) string {
 }
 
 // HideKeyExceptLastFiveChars replaces all characters in the key with "*", except
-// for the last 5 characters. If the key is less than 5 characters long, replace
-// all of it with "*" instead.
+// for the last 5 characters. If the key is an unrecognized length, replace
+// all of it with the default string of "*"s instead.
 func HideKeyExceptLastFiveChars(key string) string {
-	if len(key) < 5 {
+	if len(key) != 32 && len(key) != 40 {
 		return strings.Repeat("*", len(key))
 	}
 	return strings.Repeat("*", len(key)-5) + key[len(key)-5:]

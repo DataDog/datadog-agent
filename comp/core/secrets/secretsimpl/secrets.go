@@ -12,6 +12,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -30,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+const auditFileBasename = "secret-audit-file.json"
 
 type provides struct {
 	fx.Out
@@ -185,27 +188,27 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, path
 }
 
 // Configure initializes the executable command and other options of the secrets component
-func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize, refreshInterval int, groupExecPerm, removeLinebreak bool, auditFilename string) {
+func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if !r.enabled {
 		return
 	}
-	r.backendCommand = command
-	r.backendArguments = arguments
-	r.backendTimeout = timeout
+	r.backendCommand = params.Command
+	r.backendArguments = params.Arguments
+	r.backendTimeout = params.Timeout
 	if r.backendTimeout == 0 {
 		r.backendTimeout = SecretBackendTimeoutDefault
 	}
-	r.responseMaxSize = maxSize
+	r.responseMaxSize = params.MaxSize
 	if r.responseMaxSize == 0 {
 		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
 	}
-	r.refreshInterval = time.Duration(refreshInterval) * time.Second
-	r.commandAllowGroupExec = groupExecPerm
-	r.removeTrailingLinebreak = removeLinebreak
+	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
+	r.commandAllowGroupExec = params.GroupExecPerm
+	r.removeTrailingLinebreak = params.RemoveLinebreak
 	if r.commandAllowGroupExec {
 		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
 	}
-	r.auditFilename = auditFilename
+	r.auditFilename = filepath.Join(params.RunPath, auditFileBasename)
 }
 
 func isEnc(str string) (bool, string) {
@@ -351,6 +354,9 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 // NOTE: Related feature to `authorizedConfigPathsCore` in `comp/api/api/apiimpl/internal/config/endpoint.go`
 var allowlistHandles = map[string]struct{}{"api_key": {}}
 
+// for all secrets returned by the backend command, notify subscribers (if allowlist lets them),
+// and return the handles that have received new values compared to what was in the cache,
+// and where those handles appear
 func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool) secretRefreshInfo {
 	var handleInfoList []handleInfo
 
@@ -423,10 +429,10 @@ func (r *secretResolver) Refresh() (string, error) {
 
 	// when Refreshing secrets, only update what the allowlist allows by passing `true`
 	refreshResult := r.processSecretResponse(secretResponse, true)
-	// add the results to the audit file, if filename is non-empty
-	if r.auditFilename != "" {
-		if err := AddToRefreshAuditFile(r.auditFilename, secretResponse, r.origin); err != nil {
-			return "", err
+	if len(refreshResult.Handles) > 0 {
+		// add the results to the audit file, if any secrets have new values
+		if err := addToAuditFile(r.auditFilename, secretResponse, r.origin); err != nil {
+			log.Error(err)
 		}
 	}
 

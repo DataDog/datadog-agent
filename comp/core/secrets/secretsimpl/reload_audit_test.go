@@ -47,7 +47,7 @@ func TestAddSecretsToNewFile(t *testing.T) {
 		"pw2": "password2",
 	}
 
-	AddToRefreshAuditFile(tmpFileName, secretResponse, nil)
+	addToAuditFile(tmpFileName, secretResponse, nil)
 
 	data, err := os.ReadFile(tmpFileName)
 	if err != nil {
@@ -55,14 +55,12 @@ func TestAddSecretsToNewFile(t *testing.T) {
 	}
 	expect := `[
   {
-    "When": "2014-07-16T20:55:46Z",
-    "Handle": "pw1",
-    "Value": "********"
+    "when": "2014-07-16T20:55:46Z",
+    "handle": "pw1"
   },
   {
-    "When": "2014-07-16T20:55:46Z",
-    "Handle": "pw2",
-    "Value": "********"
+    "when": "2014-07-16T20:55:46Z",
+    "handle": "pw2"
   }
 ]`
 	assert.Equal(t, expect, string(data))
@@ -74,9 +72,8 @@ func TestAddSecretsToExistingFile(t *testing.T) {
 
 	startContent := `[
   {
-    "When": "2014-07-14T20:55:46Z",
-    "Handle": "pw1",
-    "Value": "********"
+    "when": "2014-07-14T20:55:46Z",
+    "handle": "pw1"
   }
 ]`
 	os.WriteFile(tmpFileName, []byte(startContent), 0644)
@@ -85,7 +82,7 @@ func TestAddSecretsToExistingFile(t *testing.T) {
 		"pw2": "password2",
 	}
 
-	AddToRefreshAuditFile(tmpFileName, secretResponse, nil)
+	addToAuditFile(tmpFileName, secretResponse, nil)
 
 	data, err := os.ReadFile(tmpFileName)
 	if err != nil {
@@ -93,14 +90,12 @@ func TestAddSecretsToExistingFile(t *testing.T) {
 	}
 	expect := `[
   {
-    "When": "2014-07-14T20:55:46Z",
-    "Handle": "pw1",
-    "Value": "********"
+    "when": "2014-07-14T20:55:46Z",
+    "handle": "pw1"
   },
   {
-    "When": "2014-07-16T20:55:46Z",
-    "Handle": "pw2",
-    "Value": "********"
+    "when": "2014-07-16T20:55:46Z",
+    "handle": "pw2"
   }
 ]`
 	assert.Equal(t, expect, string(data))
@@ -122,7 +117,7 @@ func TestAddAPIKeyToNewFile(t *testing.T) {
 		},
 	}
 
-	AddToRefreshAuditFile(tmpFileName, secretResponse, origin)
+	addToAuditFile(tmpFileName, secretResponse, origin)
 
 	data, err := os.ReadFile(tmpFileName)
 	if err != nil {
@@ -130,9 +125,9 @@ func TestAddAPIKeyToNewFile(t *testing.T) {
 	}
 	expect := `[
   {
-    "When": "2014-07-16T20:55:46Z",
-    "Handle": "api_key",
-    "Value": "***************************bcdef"
+    "when": "2014-07-16T20:55:46Z",
+    "handle": "api_key",
+    "value": "***************************bcdef"
   }
 ]`
 	assert.Equal(t, expect, string(data))
@@ -144,14 +139,12 @@ func TestAddSecretAndRemoveOldEntries(t *testing.T) {
 
 	startContent := `[
   {
-    "When": "2014-07-13T20:55:46Z",
-    "Handle": "pw1",
-    "Value": "********"
+    "when": "2014-07-13T20:55:46Z",
+    "handle": "pw1"
   },
   {
-    "When": "2014-07-15T20:55:46Z",
-    "Handle": "pw2",
-    "Value": "********"
+    "when": "2014-07-15T20:55:46Z",
+    "handle": "pw2"
   }
 ]`
 	os.WriteFile(tmpFileName, []byte(startContent), 0644)
@@ -168,7 +161,7 @@ func TestAddSecretAndRemoveOldEntries(t *testing.T) {
 		"pw3": "password3",
 	}
 
-	AddToRefreshAuditFile(tmpFileName, secretResponse, nil)
+	addToAuditFile(tmpFileName, secretResponse, nil)
 
 	data, err := os.ReadFile(tmpFileName)
 	if err != nil {
@@ -176,14 +169,12 @@ func TestAddSecretAndRemoveOldEntries(t *testing.T) {
 	}
 	expect := `[
   {
-    "When": "2014-07-15T20:55:46Z",
-    "Handle": "pw2",
-    "Value": "********"
+    "when": "2014-07-15T20:55:46Z",
+    "handle": "pw2"
   },
   {
-    "When": "2014-07-16T20:55:46Z",
-    "Handle": "pw3",
-    "Value": "********"
+    "when": "2014-07-16T20:55:46Z",
+    "handle": "pw3"
   }
 ]`
 	assert.Equal(t, expect, string(data))
