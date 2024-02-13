@@ -80,6 +80,15 @@
     4) Add full access to the "ddagentuser" and save your permissions. 
     ```
 
+6. [Provide an executable path](https://docs.datadoghq.com/agent/configuration/secrets-management/?tab=linux#providing-an-executable) to the datadog agent via the main `datadog.yaml` file using the `secret_backend_command` variable:
+
+    ```
+    # datadog.yaml
+
+    secret_backend_command: /etc/rapdev-datadog/datadog-secret-backend
+    ```
+ 
+
 ## Usage
 
 Reference each supported backend type's documentation on specific usage examples and configuration options.
