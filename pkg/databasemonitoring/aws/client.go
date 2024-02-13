@@ -7,6 +7,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 )
 
+//go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=rdsclient_mockgen.go
+type RDSClient interface {
+	GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[string]*AuroraCluster, error)
+}
+
 type Client struct {
 	client *rds.RDS
 }
