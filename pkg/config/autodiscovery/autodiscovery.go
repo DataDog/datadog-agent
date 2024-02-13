@@ -33,6 +33,12 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 		detectedProviders = append(detectedProviders, prometheusProvider)
 	}
 
+	// Add database-monitoring aurora listener if the feature is enabled
+	if config.Datadog.GetBool("database_monitoring.autodiscovery.aurora.enabled") {
+		detectedListeners = append(detectedListeners, config.Listeners{Name: "_dbm_aws_aurora"})
+		log.Info("Database monitoring aurora discovery is enabled: Adding the aurora listener")
+	}
+
 	// Auto-add file-based kube service and endpoints config providers based on check config files.
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		advancedConfigs, _, err := providers.ReadConfigFiles(providers.WithAdvancedADOnly)
