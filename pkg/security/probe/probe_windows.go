@@ -292,6 +292,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 	})
 	return err
 
+}
 
 // func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
@@ -439,17 +440,29 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32) {
-				// pid will most likely be ignored here.
+				// resolve process context
+				ev := p.zeroEvent()
+				errRes := p.setProcessContext(pid, ev)
+				if errRes != nil {
+					log.Debugf("%v", errRes)
+				}
 
 				// handle incoming events here
-
 				// each event will come in as a different type
 				// parse it with
 				switch n.(type) {
+				case *createNewFileArgs:
+					ev.Type = uint32(model.CreateNewFileEventType)
+					ev.CreateNewFile = model.CreateNewFileEvent{
+						File: model.FileEvent{
+							PathnameStr: n.fileName,
+							BasenameStr: filepath.Base(n.fileName),
+						},
+					}
 				case *createKeyArgs:
-					// do something
 				}
-				// etc.
+				// Dispatch event
+				p.DispatchEvent(ev)
 			})
 			log.Infof("Done StartTracing %v", err)
 		}()
@@ -457,7 +470,7 @@ func (p *WindowsProbe) Start() error {
 	if p.pm == nil {
 		return nil
 	}
-	p.fimwg.Add(1)
+	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
 
