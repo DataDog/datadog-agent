@@ -142,8 +142,9 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 	ruleFilters = append(ruleFilters, seclRuleFilter)
 
 	e.policyOpts = rules.PolicyLoaderOpts{
-		MacroFilters: macroFilters,
-		RuleFilters:  ruleFilters,
+		MacroFilters:       macroFilters,
+		RuleFilters:        ruleFilters,
+		DisableEnforcement: !e.config.EnforcementEnabled,
 	}
 
 	if err := e.LoadPolicies(e.policyProviders, true); err != nil {

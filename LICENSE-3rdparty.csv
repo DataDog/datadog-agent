@@ -716,10 +716,13 @@ core,github.com/ebitengine/purego,Apache-2.0,Copyright 2022 The Ebitengine Autho
 core,github.com/ebitengine/purego/internal/cgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/fakecgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/strings,Apache-2.0,Copyright 2022 The Ebitengine Authors
-core,github.com/elastic/go-libaudit,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
-core,github.com/elastic/go-libaudit/auparse,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
-core,github.com/elastic/go-libaudit/rule,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
-core,github.com/elastic/go-libaudit/rule/flags,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-libaudit/v2,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-libaudit/v2/auparse,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-libaudit/v2/internal,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-libaudit/v2/rule,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-libaudit/v2/rule/flags,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-licenser,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-licenser/licensing,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/go-seccomp-bpf,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/go-seccomp-bpf/arch,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/emicklei/go-restful/v3,MIT,"Copyright (c) 2012,2013 Ernest Micklei"
@@ -1147,7 +1150,6 @@ core,github.com/masahiro331/go-xfs-filesystem/xfs/utils,Apache-2.0,Copyright (c)
 core,github.com/mattn/go-colorable,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
 core,github.com/mattn/go-isatty,MIT,Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
 core,github.com/mattn/go-runewidth,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
-core,github.com/matttproud/golang_protobuf_extensions/v2/pbutil,Apache-2.0,Copyright 2012 Matt T. Proud (matt.proud@gmail.com)
 core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
@@ -2028,6 +2030,7 @@ core,google.golang.org/grpc/status,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/tap,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/compiler/protogen,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/encoding/protodelim,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/encoding/protojson,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/encoding/prototext,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/encoding/protowire,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved

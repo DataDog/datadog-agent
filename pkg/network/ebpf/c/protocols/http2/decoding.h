@@ -318,12 +318,9 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 current_stream->status_code.static_table_entry = current_header->index;
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
-            } else if (current_header->index == kEmptyPath) {
-                current_stream->path_size = HTTP2_ROOT_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP2_ROOT_PATH, HTTP2_ROOT_PATH_LEN);
-            } else if (current_header->index == kIndexPath) {
-                current_stream->path_size = HTTP2_INDEX_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP2_INDEX_PATH, HTTP2_INDEX_PATH_LEN);
+            } else if (is_path_index(current_header->index)) {
+                current_stream->path.static_table_entry = current_header->index;
+                current_stream->path.finalized = true;
             }
             continue;
         }
@@ -335,9 +332,10 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 break;
             }
             if (is_path_index(dynamic_value->original_index)) {
-                current_stream->path_size = dynamic_value->string_len;
-                current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+                current_stream->path.length = dynamic_value->string_len;
+                current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->path.finalized = true;
+                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
             } else if (is_status_index(dynamic_value->original_index)) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
@@ -360,9 +358,10 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             }
             if (is_path_index(current_header->original_index)) {
-                current_stream->path_size = current_header->new_dynamic_value_size;
-                current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
-                bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+                current_stream->path.length = current_header->new_dynamic_value_size;
+                current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->path.finalized = true;
+                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
             } else if (is_status_index(current_header->original_index)) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
@@ -572,6 +571,12 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
             iteration_value->frames_array[iteration_value->frames_count].offset = skb_info->data_off;
             iteration_value->frames_count++;
         }
+
+        // We are not checking for frame splits in the previous condition due to a verifier issue.
+        if (is_headers_or_rst_frame || is_data_end_of_stream) {
+            check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame.length);
+        }
+
         skb_info->data_off += current_frame.length;
 
         // If we have found enough interesting frames, we can stop iterating.
@@ -655,10 +660,12 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
+        check_frame_split(http2_tel, dispatcher_args_copy.skb_info.data_off, dispatcher_args_copy.skb_info.data_end, current_frame.length);
         iteration_value->frames_array[0].frame = current_frame;
         iteration_value->frames_array[0].offset = dispatcher_args_copy.skb_info.data_off;
         iteration_value->frames_count = 1;
     }
+
     dispatcher_args_copy.skb_info.data_off += current_frame.length;
     // We're exceeding the packet boundaries, so we have a remainder.
     if (dispatcher_args_copy.skb_info.data_off > dispatcher_args_copy.skb_info.data_end) {
