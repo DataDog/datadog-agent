@@ -187,7 +187,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	// Setup healthcheck port
 	healthPort := pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, pkgconfig.Datadog, healthPort)
+		err := healthprobe.Serve(mainCtx, config, healthPort)
 		if err != nil {
 			return fmt.Errorf("Error starting health port, exiting: %v", err)
 		}
