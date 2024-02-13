@@ -193,6 +193,7 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^ecs_launch_type:ec2$`,
 				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^host:`,
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
 				`^image_tag:main$`,
@@ -316,6 +317,7 @@ func (suite *ecsSuite) TestNginxFargate() {
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:fargate$`,
+				`^host:`,
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
 				`^image_tag:main$`,
