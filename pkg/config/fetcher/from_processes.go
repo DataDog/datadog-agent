@@ -9,6 +9,7 @@ package fetcher
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -76,4 +77,12 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "process-agent")
 
 	return client.FullConfig()
+}
+
+// SystemProbeConfig fetch the configuration from the system-probe process by querying its API
+func SystemProbeConfig(config config.Reader) (string, error) {
+	hc := client.Get(config.GetString("system_probe_config.sysprobe_socket"))
+
+	c := settingshttp.NewClient(hc, "http://localhost/config", "system-probe")
+	return c.FullConfig()
 }

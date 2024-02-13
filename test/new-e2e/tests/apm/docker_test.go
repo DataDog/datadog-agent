@@ -40,6 +40,11 @@ func TestDockerFakeintakeSuiteUDS(t *testing.T) {
 			"DD_APM_RECEIVER_SOCKET",
 			pulumi.String("/var/run/datadog/apm.socket")),
 		// Optional: UDS is more reliable for statsd metrics
+		// Set DD_DOGSTATSD_SOCKET to enable the UDS statsd listener in the core-agent
+		dockeragentparams.WithAgentServiceEnvVariable(
+			"DD_DOGSTATSD_SOCKET",
+			pulumi.String("/var/run/datadog/dsd.socket")),
+		// Set STATSD_URL to instruct the statsd client in the trace-agent to send metrics through UDS
 		dockeragentparams.WithAgentServiceEnvVariable(
 			"STATSD_URL",
 			pulumi.String("unix:///var/run/datadog/dsd.socket")),

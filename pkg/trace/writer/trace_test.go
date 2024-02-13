@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // mock sampler
@@ -59,7 +61,7 @@ func TestTraceWriter(t *testing.T) {
 		// Use a flush threshold that allows the first two entries to not overflow,
 		// but overflow on the third.
 		defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		tw.In = make(chan *SampledChunks)
 		go tw.Run()
 		for _, ss := range testSpans {
@@ -100,7 +102,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		randomSampledSpans(10, 0),
 		randomSampledSpans(40, 5),
 	}
-	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 	tw.In = make(chan *SampledChunks, 100)
 	go tw.Run()
 
@@ -193,7 +195,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		go tw.Run()
 		for _, ss := range testSpans {
 			tw.In <- ss
@@ -221,7 +223,7 @@ func TestResetBuffer(t *testing.T) {
 		SynchronousFlushing: true,
 	}
 
-	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
+	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -262,7 +264,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		go tw.Run()
 		for _, ss := range testSpans {
 			tw.In <- ss
@@ -290,7 +292,7 @@ func TestTraceWriterSyncNoop(t *testing.T) {
 		SynchronousFlushing: false,
 	}
 	t.Run("ok", func(t *testing.T) {
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		err := tw.FlushSync()
 		assert.NotNil(t, err)
 	})
@@ -328,7 +330,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	}
 
 	t.Run("static TPS config", func(t *testing.T) {
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		go tw.Run()
 		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
@@ -340,7 +342,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		errorSampler := &MockSampler{TargetTPS: 6}
 		rareSampler := &MockSampler{Enabled: false}
 
-		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler, telemetry.NewNoopCollector())
+		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		go tw.Run()
 		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)

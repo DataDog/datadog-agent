@@ -3,10 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
-package api
-
-const (
-	netType = "tcp"
-)
+// Package remoteconfig contains tests for the remote config components of the agent
+package remoteconfig
