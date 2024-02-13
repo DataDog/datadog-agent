@@ -250,7 +250,6 @@ func (suite *k8sSuite) TestNginx() {
 				`^display_container_name:nginx`,
 				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
 				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
-				`^host:`,
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:main$`,
