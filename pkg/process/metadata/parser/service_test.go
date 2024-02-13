@@ -178,6 +178,42 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "process_context:java",
 		},
+		{
+			name: "java jar with snapshot",
+			cmdline: []string{
+				"/usr/lib/jvm/java-1.17.0-openjdk-amd64/bin/java", "-Dsun.misc.URLClassPath.disableJarChecking=true",
+				"-Xms1024m", "-Xmx1024m", "-Dlogging.config=file:/usr/local/test/etc/logback-spring-datadog.xml",
+				"-Dlog4j2.formatMsgNoLookups=true", "-javaagent:/opt/datadog-agent/dd-java-agent.jar",
+				"-Ddd.profiling.enabled=true", "-Ddd.logs.injection=true", "-Ddd.trace.propagation.style.inject=datadog,b3multi",
+				"-Ddd.rabbitmq.legacy.tracing.enabled=false", "-jar",
+				"/usr/local/test/app/myservice-core-1.1.15-SNAPSHOT.jar", "--spring.profiles.active=test",
+			},
+			expectedServiceTag: "process_context:myservice-core",
+		},
+		{
+			name: "java jar with snapshot with another version",
+			cmdline: []string{
+				"/usr/lib/jvm/java-1.17.0-openjdk-amd64/bin/java", "-Dsun.misc.URLClassPath.disableJarChecking=true",
+				"-Xms1024m", "-Xmx1024m", "-Dlogging.config=file:/usr/local/test/etc/logback-spring-datadog.xml",
+				"-Dlog4j2.formatMsgNoLookups=true", "-javaagent:/opt/datadog-agent/dd-java-agent.jar",
+				"-Ddd.profiling.enabled=true", "-Ddd.logs.injection=true", "-Ddd.trace.propagation.style.inject=datadog,b3multi",
+				"-Ddd.rabbitmq.legacy.tracing.enabled=false", "-jar",
+				"/usr/local/test/app/myservice-core-1-SNAPSHOT.jar", "--spring.profiles.active=test",
+			},
+			expectedServiceTag: "process_context:myservice-core",
+		},
+		{
+			name: "java jar with snapshot without version",
+			cmdline: []string{
+				"/usr/lib/jvm/java-1.17.0-openjdk-amd64/bin/java", "-Dsun.misc.URLClassPath.disableJarChecking=true",
+				"-Xms1024m", "-Xmx1024m", "-Dlogging.config=file:/usr/local/test/etc/logback-spring-datadog.xml",
+				"-Dlog4j2.formatMsgNoLookups=true", "-javaagent:/opt/datadog-agent/dd-java-agent.jar",
+				"-Ddd.profiling.enabled=true", "-Ddd.logs.injection=true", "-Ddd.trace.propagation.style.inject=datadog,b3multi",
+				"-Ddd.rabbitmq.legacy.tracing.enabled=false", "-jar",
+				"/usr/local/test/app/myservice-core-SNAPSHOT.jar", "--spring.profiles.active=test",
+			},
+			expectedServiceTag: "process_context:myservice-core",
+		},
 	}
 
 	for _, tt := range tests {

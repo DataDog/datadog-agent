@@ -87,6 +87,7 @@ type HTTPReceiver struct {
 
 	statsd statsd.ClientInterface
 	timing timing.Reporter
+	info   *watchdog.CurrentInfo
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -137,6 +138,7 @@ func NewHTTPReceiver(
 
 		statsd: statsd,
 		timing: timing,
+		info:   watchdog.NewCurrentInfo(),
 	}
 }
 
@@ -655,9 +657,9 @@ var killProcess = func(format string, a ...interface{}) {
 // the configuration MaxMemory and MaxCPU. If these values are 0, all limits are disabled and the rate
 // limiter will accept everything.
 func (r *HTTPReceiver) watchdog(now time.Time) {
-	cpu, _ := watchdog.CPU(now)
+	cpu, _ := r.info.CPU(now)
 	wi := watchdog.Info{
-		Mem: watchdog.Mem(),
+		Mem: r.info.Mem(),
 		CPU: cpu,
 	}
 	if r.conf.MaxMemory > 0 {
