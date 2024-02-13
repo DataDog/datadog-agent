@@ -302,7 +302,7 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 			pkglog.Infof("Removed APM_TRACING remote config file, APM injection will revert to default behavior")
 		} else if !os.IsNotExist(err) {
 			// If the file already wasn't there then it wasn't an error
-			pkglog.Errorf("Failed to remove APM_TRACING remote config file, previous APM injection behavior will continue")
+			pkglog.Errorf("Failed to remove APM_TRACING remote config file, previous APM injection behavior will continue: %v", err)
 		}
 		return
 	}
