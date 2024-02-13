@@ -1272,6 +1272,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Language Detection
 	config.BindEnvAndSetDefault("language_detection.enabled", false)
 	config.BindEnvAndSetDefault("language_detection.client_period", "10s")
+	config.BindEnvAndSetDefault("language_detection.cleanup.period", "10m")
+	config.BindEnvAndSetDefault("language_detection.cleanup.ttl_refresh_period", "20m")
+	config.BindEnvAndSetDefault("language_detection.cleanup.language_ttl", "30m")
 
 	setupAPM(config)
 	OTLP(config)
