@@ -313,10 +313,6 @@ func (p *WindowsProbe) Start() error {
 			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.EventType) {
 				// resolve process context
 				ev := p.zeroEvent()
-				errRes := p.setProcessContext(pid, ev)
-				if errRes != nil {
-					log.Debugf("%v", errRes)
-				}
 
 				// handle incoming events here
 				// each event will come in as a different type
@@ -367,6 +363,13 @@ func (p *WindowsProbe) Start() error {
 							ValueName: svka.valueName,
 						},
 					}
+				}
+				if ev.Type == model.UnknownEventType {
+					continue
+				}
+				errRes := p.setProcessContext(pid, ev)
+				if errRes != nil {
+					log.Debugf("%v", errRes)
 				}
 				// Dispatch event
 				p.DispatchEvent(ev)
@@ -471,7 +474,7 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 		event.ProcessContext = &pce.ProcessContext
 		return nil
 
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 1))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(50*time.Millisecond), 5))
 	return err
 }
 
