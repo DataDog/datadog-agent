@@ -7,11 +7,7 @@ import json
 import sys
 
 from invoke import task
-
-try:
-    from tabulate import tabulate
-except ImportError:
-    tabulate = None
+from tabulate import tabulate
 
 from .system_probe import build_cws_object_files, build_object_files, is_root
 
