@@ -46,6 +46,8 @@ def tabulate_stats(stats):
             row.append(value[json_key])
         table.append(row)
 
+    if tabulate == None:
+        raise Exit("'tabulate' is None. This most likely means the package is not installed. Try 'pip install tabulate'")
     return tabulate(table, headers=headers, tablefmt="github")
 
 
