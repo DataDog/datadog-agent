@@ -26,9 +26,9 @@ type FileSerializer struct {
 // RegistrySerializer serializes a registry to JSON
 type RegistrySerializer struct {
 	// Registry key name
-	KeyName string `json:"name,omitempty"`
+	KeyName string `json:"key_name,omitempty"`
 	// Registry key path
-	KeyPath string `json:"path,omitempty"`
+	KeyPath string `json:"key_path,omitempty"`
 	// Value name of the key value
 	ValueName string `json:"value_name,omitempty"`
 }

@@ -50,9 +50,9 @@ type FileEvent struct {
 
 // RegistryEvent is the common registry event type
 type RegistryEvent struct {
-	KeyName   string `field:"key_name,opts:length"`      // SECLDoc[key_name] Definition:`Registry's name`
-	KeyPath   string `field:"key_path,opts:length"`      // SECLDoc[key_path] Definition:`Registry's path`
-	ValueName string `field:"keyvalue_name,opts:length"` // SECLDoc[value_name] Definition:`Registry's value name`
+	KeyName   string `field:"key_name,opts:length"`   // SECLDoc[key_name] Definition:`Registry's name`
+	KeyPath   string `field:"key_path,opts:length"`   // SECLDoc[key_path] Definition:`Registry's path`
+	ValueName string `field:"value_name,opts:length"` // SECLDoc[value_name] Definition:`Registry's value name`
 }
 
 // Process represents a process
