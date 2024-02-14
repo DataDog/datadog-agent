@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func TestWriteCounter(t *testing.T) {
@@ -78,7 +79,7 @@ func TestHTTPRateByService(t *testing.T) {
 		},
 	} {
 		rw := testResponseWriter{}
-		httpRateByService(tt.version, &rw, dc)
+		httpRateByService(tt.version, &rw, dc, &statsd.NoOpClient{})
 		assert.Equal(tt.header, rw.Header(), strconv.Itoa(i))
 		assert.Equal(tt.response, rw.response, strconv.Itoa(i))
 	}
