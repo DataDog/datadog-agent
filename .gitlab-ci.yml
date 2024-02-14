@@ -209,8 +209,8 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
-  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-046ffb99b71f49406"
-  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-091c59e02029fbc80"
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-098ea9f76fd0c8b2e"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-019e2d2a81eb64e84"
   RUN_E2E_TESTS: "manual" # Should be "auto", "manual", "off" it will change the trigger condition for new-e2e tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
