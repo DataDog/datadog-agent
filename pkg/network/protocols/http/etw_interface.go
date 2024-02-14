@@ -164,7 +164,7 @@ func (hei *EtwInterface) Close() {
 	close(hei.DataChannel)
 }
 
-func getRelatedActivityID(e *etw.DDEventRecord) (activityId *etw.DDGUID) {
+func getRelatedActivityID(e *etw.DDEventRecord) *etw.DDGUID {
 
 	if e.ExtendedDataCount == 0 || e.ExtendedData == nil {
 		return nil
@@ -173,8 +173,8 @@ func getRelatedActivityID(e *etw.DDEventRecord) (activityId *etw.DDGUID) {
 	for _, exData := range exDatas {
 		var g etw.DDGUID
 		if exData.ExtType == etw.EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID && exData.DataSize == uint16(unsafe.Sizeof(g)) {
-			activityId = (*etw.DDGUID)(unsafe.Pointer(exData.DataPtr))
-			return activityId
+			activityID := (*etw.DDGUID)(unsafe.Pointer(exData.DataPtr))
+			return activityID
 		}
 	}
 	return nil

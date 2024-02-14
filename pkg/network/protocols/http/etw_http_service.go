@@ -1419,8 +1419,7 @@ func IPFormat(tup driver.ConnTupleType, local bool) string {
 	} else if tup.Family == 23 {
 		// IPv6
 		return fmt.Sprintf("[%v]:%v", ip6format(ip), port)
-	} else {
-		// everything else
-		return "<UNKNOWN>"
 	}
+	// everything else
+	return "<UNKNOWN>"
 }
