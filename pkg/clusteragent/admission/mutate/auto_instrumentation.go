@@ -614,12 +614,10 @@ func getServiceNameFromPod(pod *corev1.Pod) (string, error) {
 // when no other config has been provided.
 func basicConfig() common.LibConfig {
 	return common.LibConfig{
-		Tracing:             pointer.Ptr(true),
-		LogInjection:        pointer.Ptr(true),
-		HealthMetrics:       pointer.Ptr(true),
-		RuntimeMetrics:      pointer.Ptr(true),
-		TracingSamplingRate: pointer.Ptr(1.0),
-		TracingRateLimit:    pointer.Ptr(100),
+		Tracing:        pointer.Ptr(true),
+		LogInjection:   pointer.Ptr(true),
+		HealthMetrics:  pointer.Ptr(true),
+		RuntimeMetrics: pointer.Ptr(true),
 	}
 }
 

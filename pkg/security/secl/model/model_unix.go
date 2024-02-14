@@ -214,7 +214,7 @@ type Process struct {
 	Variables            eval.Variables `field:"-"`
 
 	IsThread        bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
-	IsExecChild     bool `field:"-"`         // Indicates whether the process is an exec child of its parent
+	IsExecExec      bool `field:"-"`         // Indicates whether the process is an exec following another exec
 	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
 
 	Source uint64 `field:"-"`
@@ -250,7 +250,7 @@ type FileFields struct {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileFields ``
+	FileFields
 
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
@@ -314,8 +314,6 @@ type Mount struct {
 }
 
 // MountEvent represents a mount event
-//
-//msgp:ignore MountEvent
 type MountEvent struct {
 	SyscallEvent
 	Mount
@@ -345,18 +343,6 @@ type OpenEvent struct {
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
 	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
 }
-
-// SELinuxEventKind represents the event kind for SELinux events
-type SELinuxEventKind uint32
-
-const (
-	// SELinuxBoolChangeEventKind represents SELinux boolean change events
-	SELinuxBoolChangeEventKind SELinuxEventKind = iota
-	// SELinuxStatusChangeEventKind represents SELinux status change events
-	SELinuxStatusChangeEventKind
-	// SELinuxBoolCommitEventKind represents SELinux boolean commit events
-	SELinuxBoolCommitEventKind
-)
 
 // SELinuxEvent represents a selinux event
 type SELinuxEvent struct {
@@ -578,9 +564,6 @@ type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
-// PathKeySize defines the path key size
-const PathKeySize = 16
-
 // AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
 type AnomalyDetectionSyscallEvent struct {
 	SyscallID Syscall
@@ -591,11 +574,4 @@ type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
 	PathID  uint32 `field:"-"`
-}
-
-// ExtraFieldHandlers handlers not hold by any field
-type ExtraFieldHandlers interface {
-	BaseExtraFieldHandlers
-	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
-	ResolveUserSessionContext(evtCtx *UserSessionContext)
 }

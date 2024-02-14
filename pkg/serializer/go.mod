@@ -12,7 +12,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../collector/check/defaults
-	github.com/DataDog/datadog-agent/pkg/comp/core/secrets => ../../comp/core/secrets
 	github.com/DataDog/datadog-agent/pkg/config/env => ../config/env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../config/setup/

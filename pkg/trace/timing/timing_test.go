@@ -20,7 +20,6 @@ import (
 
 func TestTiming(t *testing.T) {
 	assert := assert.New(t)
-	Stop() // https://github.com/DataDog/datadog-agent/issues/13934
 	stats := &teststatsd.Client{}
 
 	t.Run("report", func(t *testing.T) {
@@ -48,14 +47,14 @@ func TestTiming(t *testing.T) {
 			time.Sleep(5 * time.Second)
 		}
 		time.Sleep(10 * time.Millisecond)
-		Stop()
+		set.Stop()
 		assert.Contains(stats.GetCountSummaries(), "counter1.count")
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		Start(stats)
-		Stop()
-		Stop()
+		set := New(stats)
+		set.Stop()
+		set.Stop()
 	})
 
 	t.Run("race", func(t *testing.T) {

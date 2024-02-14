@@ -309,6 +309,9 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 	return buff, nil
 }
 
+// PathKeySize defines the path key size
+const PathKeySize = 16
+
 // PathLeafSize defines path_leaf struct size
 const PathLeafSize = PathKeySize + MaxSegmentLength + 1 + 2 + 6 // path_key + name + len + padding
 
@@ -349,3 +352,22 @@ func (dfh *DefaultFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileE
 
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (dfh *DefaultFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}
+
+// SELinuxEventKind represents the event kind for SELinux events
+type SELinuxEventKind uint32
+
+const (
+	// SELinuxBoolChangeEventKind represents SELinux boolean change events
+	SELinuxBoolChangeEventKind SELinuxEventKind = iota
+	// SELinuxStatusChangeEventKind represents SELinux status change events
+	SELinuxStatusChangeEventKind
+	// SELinuxBoolCommitEventKind represents SELinux boolean commit events
+	SELinuxBoolCommitEventKind
+)
+
+// ExtraFieldHandlers handlers not hold by any field
+type ExtraFieldHandlers interface {
+	BaseExtraFieldHandlers
+	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
+	ResolveUserSessionContext(evtCtx *UserSessionContext)
+}
