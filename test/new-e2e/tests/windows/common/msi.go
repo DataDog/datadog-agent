@@ -26,7 +26,6 @@ func MsiExec(host *components.RemoteHost, operation string, product string, args
 	args = fmt.Sprintf(`/qn /l "%s" %s "%s" %s`, remoteLogPath, operation, product, args)
 	cmd := fmt.Sprintf(`Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '%s').ExitCode`, args)
 	_, msiExecErr := host.Execute(cmd)
-	// Always collect the log file, return error after
 	if logPath != "" {
 		err = host.GetFile(remoteLogPath, logPath)
 		if err != nil {

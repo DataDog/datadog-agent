@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// RemoteSuite is a helper struct to run tests on a remote host
 type RemoteSuite struct {
 	t         *testing.T
 	vm        *components.RemoteHost
@@ -26,6 +27,7 @@ type RemoteSuite struct {
 
 const remoteDirBase = "c:\\tmp"
 
+// NewRemoteSuite creates a new RemoteSuite
 func NewRemoteSuite(vm *components.RemoteHost, t *testing.T, filespec string, basepath string) *RemoteSuite {
 	return &RemoteSuite{
 		vm:       vm,
@@ -34,6 +36,11 @@ func NewRemoteSuite(vm *components.RemoteHost, t *testing.T, filespec string, ba
 		basepath: basepath,
 	}
 }
+
+// FindTestPrograms finds the locally available test programs.
+//
+// it walks the root directory (provided at initialization), looking for any file that matches the provided
+// filespec (usually `testsuite.exe`).  If it finds that, it stores the full path for future copying.
 func (rs *RemoteSuite) FindTestPrograms() error {
 	// find test programs
 
@@ -54,6 +61,9 @@ func (rs *RemoteSuite) FindTestPrograms() error {
 	return err
 }
 
+// CreateRemotePaths creates the remote paths for the test programs
+//
+// Takes the path to the test programs, and creates an identical directory tree on the remote host.
 func (rs *RemoteSuite) CreateRemotePaths() error {
 	// create remote paths
 	for _, f := range rs.testfiles {
@@ -65,13 +75,16 @@ func (rs *RemoteSuite) CreateRemotePaths() error {
 		if err != nil {
 			rs.t.Logf("Error creating remote directory: %s %v", remoteDir, err)
 			return err
-		} else {
-			rs.t.Logf("Created remote directory: %s", remoteDir)
 		}
+		rs.t.Logf("Created remote directory: %s", remoteDir)
 	}
 	return nil
 }
 
+// CopyFiles copies the test programs to the remote host.
+//
+// CopyFiles also assumes that if there's a "testdata" directory in the same directory as the test program,
+// that that should be copied too.
 func (rs *RemoteSuite) CopyFiles() error {
 	// copy files
 	for _, f := range rs.testfiles {
@@ -98,6 +111,8 @@ func (rs *RemoteSuite) CopyFiles() error {
 	return nil
 }
 
+// RunTests iterates through all of the tests that were copied and executes them one by one.
+// it captures the output, and logs it.
 func (rs *RemoteSuite) RunTests() error {
 
 	for _, testsuite := range rs.testfiles {
