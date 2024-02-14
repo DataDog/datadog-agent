@@ -61,6 +61,7 @@ import (
 	rcservice "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/pkg/status/autodiscovery"
+	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -154,9 +155,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(clusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
-				// The cluster agent displays log agent informaton if "compliance_config.enabled"
-				// But it has no log agent comonent injected.
-				// What should we do?
+				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
+					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config))
+				}),
 				statusimpl.Module(),
 				collectorimpl.Module(),
 			)
