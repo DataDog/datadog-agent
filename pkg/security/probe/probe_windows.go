@@ -364,7 +364,7 @@ func (p *WindowsProbe) Start() error {
 						},
 					}
 				}
-				if ev.Type != model.UnknownEventType {
+				if ev.Type != uint32(model.UnknownEventType) {
 					errRes := p.setProcessContext(pid, ev)
 					if errRes != nil {
 						log.Debugf("%v", errRes)
