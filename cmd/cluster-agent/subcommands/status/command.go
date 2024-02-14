@@ -110,8 +110,6 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		var prettyJSON bytes.Buffer
 		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
-	} else if cliParams.jsonStatus {
-		s = string(r)
 	} else {
 		s = string(r)
 	}
