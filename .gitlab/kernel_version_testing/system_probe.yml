@@ -148,7 +148,7 @@ upload_dependencies_arm64:
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$TEST_ARCHIVE_NAME system-probe-tests
+    - tar czvf ../$TEST_ARCHIVE_NAME tests
     - popd
     # upload tests
     - !reference [.wait_for_instances]
@@ -171,7 +171,7 @@ upload_dependencies_arm64:
     GO_BIN: go/bin
     GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/gotestsum
     TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
-    SYSTEM_PROBE_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/opt/system-probe-tests
+    SYSTEM_PROBE_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/tests/opt/system-probe-tests
     KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     ARCHIVE_NAME: dependencies-$ARCH.tar.gz
