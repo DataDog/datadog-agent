@@ -8,27 +8,26 @@ package agent
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"runtime"
 	"strconv"
 	"sync"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
-	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
-
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -337,7 +336,7 @@ func (a *Agent) Process(p *api.Payload) {
 			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
-		a.setPayloadAttributes(p, root, chunk)
+		a.setPayloadAttributes(p, root, chunk, p.TracerPayload.ContainerID)
 
 		pt := processedTrace(p, chunk, root, p.TracerPayload.ContainerID, a.conf)
 		if !p.ClientComputedStats {
