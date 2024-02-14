@@ -152,6 +152,8 @@ func KindVMRunFunc(ctx *pulumi.Context, env *environments.KindVMHost, params *Pr
 	}
 
 	if params.fakeintakeOptions != nil {
+		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
+		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
 		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
 		if err != nil {
 			return err
