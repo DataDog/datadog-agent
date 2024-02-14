@@ -223,7 +223,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		} else {
 			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
 				{
-					ProgArrayName: probes.TCPCloseProgsMap,
+					ProgArrayName: probes.ConnCloseProgsIndvMap,
 					Key:           0,
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
 						EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer,
