@@ -383,7 +383,7 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 }
 
-func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk, containerID string) {
+func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk) {
 	if p.TracerPayload.Hostname == "" {
 		// Older tracers set tracer hostname in the root span.
 		p.TracerPayload.Hostname = root.Meta[tagHostname]

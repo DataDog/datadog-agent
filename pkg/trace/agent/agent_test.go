@@ -2344,24 +2344,129 @@ func TestSetFirstTraceTags(t *testing.T) {
 }
 
 func TestProcessedTrace(t *testing.T) {
-	t.Skip()
-	// Work in progress.
-	root := &pb.Span{
-		Service:  "testsvc",
-		Name:     "parent",
-		TraceID:  1,
-		SpanID:   1,
-		Start:    time.Now().Add(-time.Second).UnixNano(),
-		Duration: time.Millisecond.Nanoseconds(),
-		Meta:     map[string]string{ /* FILL ME IN */ },
-	}
-	chunk := testutil.TraceChunkWithSpan(root)
-	cfg := config.New()
-	cfg.ContainerTags = func(cid string) ([]string, error) {
-		if cid == "1" {
-			return []string{"image_tag:blah", "git.commit.sha:abc123"}, nil
+	t.Run("all version tags set", func(t *testing.T) {
+		root := &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+			Meta:     map[string]string{"env": "test", "version": "v1.0.1"},
 		}
-		return nil, nil
-	}
-	processedTrace(nil, chunk, root, "", nil)
+		chunk := testutil.TraceChunkWithSpan(root)
+		cfg := config.New()
+		cfg.ContainerTags = func(cid string) ([]string, error) {
+			if cid == "1" {
+				return []string{"image_tag:abc", "git.commit.sha:abc123"}, nil
+			}
+			return nil, nil
+		}
+		// Only fill out the relevant fields for processedTrace().
+		apiPayload := &api.Payload{
+			TracerPayload: &pb.TracerPayload{
+				Env:         "test",
+				Hostname:    "test-host",
+				ContainerID: "1",
+				Chunks:      []*pb.TraceChunk{chunk},
+				AppVersion:  "v1.0.1",
+			},
+			ClientDroppedP0s: 1,
+		}
+		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		expectedPt := &traceutil.ProcessedTrace{
+			TraceChunk:             chunk,
+			Root:                   root,
+			TracerEnv:              "test",
+			TracerHostname:         "test-host",
+			AppVersion:             "v1.0.1",
+			GitCommitSha:           "abc123",
+			ImageTag:               "abc",
+			ClientDroppedP0sWeight: 1,
+		}
+		assert.Equal(t, expectedPt, pt)
+	})
+
+	t.Run("git commit sha from trace overrides container tag", func(t *testing.T) {
+		root := &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+			Meta:     map[string]string{"env": "test", "version": "v1.0.1", "_dd.git.commit.sha": "abc123"},
+		}
+		chunk := testutil.TraceChunkWithSpan(root)
+		cfg := config.New()
+		cfg.ContainerTags = func(cid string) ([]string, error) {
+			if cid == "1" {
+				return []string{"image_tag:abc", "git.commit.sha:def456"}, nil
+			}
+			return nil, nil
+		}
+		// Only fill out the relevant fields for processedTrace().
+		apiPayload := &api.Payload{
+			TracerPayload: &pb.TracerPayload{
+				Env:         "test",
+				Hostname:    "test-host",
+				ContainerID: "1",
+				Chunks:      []*pb.TraceChunk{chunk},
+				AppVersion:  "v1.0.1",
+			},
+			ClientDroppedP0s: 1,
+		}
+		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		expectedPt := &traceutil.ProcessedTrace{
+			TraceChunk:             chunk,
+			Root:                   root,
+			TracerEnv:              "test",
+			TracerHostname:         "test-host",
+			AppVersion:             "v1.0.1",
+			GitCommitSha:           "abc123",
+			ImageTag:               "abc",
+			ClientDroppedP0sWeight: 1,
+		}
+		assert.Equal(t, expectedPt, pt)
+	})
+
+	t.Run("no results from container lookup", func(t *testing.T) {
+		root := &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+			Meta:     map[string]string{"env": "test", "version": "v1.0.1", "_dd.git.commit.sha": "abc123"},
+		}
+		chunk := testutil.TraceChunkWithSpan(root)
+		cfg := config.New()
+		cfg.ContainerTags = func(cid string) ([]string, error) {
+			return nil, nil
+		}
+		// Only fill out the relevant fields for processedTrace().
+		apiPayload := &api.Payload{
+			TracerPayload: &pb.TracerPayload{
+				Env:         "test",
+				Hostname:    "test-host",
+				ContainerID: "1",
+				Chunks:      []*pb.TraceChunk{chunk},
+				AppVersion:  "v1.0.1",
+			},
+			ClientDroppedP0s: 1,
+		}
+		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		expectedPt := &traceutil.ProcessedTrace{
+			TraceChunk:             chunk,
+			Root:                   root,
+			TracerEnv:              "test",
+			TracerHostname:         "test-host",
+			AppVersion:             "v1.0.1",
+			GitCommitSha:           "abc123",
+			ImageTag:               "",
+			ClientDroppedP0sWeight: 1,
+		}
+		assert.Equal(t, expectedPt, pt)
+	})
 }
