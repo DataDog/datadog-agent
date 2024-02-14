@@ -22,13 +22,13 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 }
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
-		eval.EventType("create_file"),
-		eval.EventType("create_registry_key"),
-		eval.EventType("delete_registry_key"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
-		eval.EventType("open_registry_key"),
-		eval.EventType("set_registry_key_value"),
+		eval.EventType("file.create"),
+		eval.EventType("registry.create_key"),
+		eval.EventType("registry.delete_key"),
+		eval.EventType("registry.open_key"),
+		eval.EventType("registry.set_key_value"),
 	}
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
@@ -60,150 +60,150 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
 		}, nil
-	case "create_file.file.name":
+	case "create.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "create_file.file.name.length":
+	case "create.name.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File))
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.FileEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "create_file.file.path":
+	case "create.path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "create_file.file.path.length":
+	case "create.path.length":
 		return &eval.IntEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File))
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.FileEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "create_registry_key.registry.key_name":
+	case "create_key.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.CreateRegistryKey.Registry.KeyName
+				return ev.CreateRegistryKey.RegistryEvent.KeyName
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "create_registry_key.registry.key_name.length":
+	case "create_key.name.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.CreateRegistryKey.Registry.KeyName)
+				return len(ev.CreateRegistryKey.RegistryEvent.KeyName)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "create_registry_key.registry.key_path":
+	case "create_key.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.CreateRegistryKey.Registry.KeyPath
+				return ev.CreateRegistryKey.RegistryEvent.KeyPath
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "create_registry_key.registry.key_path.length":
+	case "create_key.path.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.CreateRegistryKey.Registry.KeyPath)
+				return len(ev.CreateRegistryKey.RegistryEvent.KeyPath)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "create_registry_key.registry.value_name":
+	case "create_key.value":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.CreateRegistryKey.Registry.ValueName
+				return ev.CreateRegistryKey.RegistryEvent.ValueName
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "create_registry_key.registry.value_name.length":
+	case "create_key.value.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.CreateRegistryKey.Registry.ValueName)
+				return len(ev.CreateRegistryKey.RegistryEvent.ValueName)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "delete_registry_key.registry.key_name":
+	case "delete_key.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.DeleteRegistryKey.Registry.KeyName
+				return ev.DeleteRegistryKey.RegistryEvent.KeyName
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "delete_registry_key.registry.key_name.length":
+	case "delete_key.name.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.DeleteRegistryKey.Registry.KeyName)
+				return len(ev.DeleteRegistryKey.RegistryEvent.KeyName)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "delete_registry_key.registry.key_path":
+	case "delete_key.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.DeleteRegistryKey.Registry.KeyPath
+				return ev.DeleteRegistryKey.RegistryEvent.KeyPath
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "delete_registry_key.registry.key_path.length":
+	case "delete_key.path.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.DeleteRegistryKey.Registry.KeyPath)
+				return len(ev.DeleteRegistryKey.RegistryEvent.KeyPath)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "delete_registry_key.registry.value_name":
+	case "delete_key.value":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.DeleteRegistryKey.Registry.ValueName
+				return ev.DeleteRegistryKey.RegistryEvent.ValueName
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "delete_registry_key.registry.value_name.length":
+	case "delete_key.value.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.DeleteRegistryKey.Registry.ValueName)
+				return len(ev.DeleteRegistryKey.RegistryEvent.ValueName)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -488,56 +488,56 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "open_registry_key.registry.key_name":
+	case "open_key.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.OpenRegistryKey.Registry.KeyName
+				return ev.OpenRegistryKey.RegistryEvent.KeyName
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "open_registry_key.registry.key_name.length":
+	case "open_key.name.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.OpenRegistryKey.Registry.KeyName)
+				return len(ev.OpenRegistryKey.RegistryEvent.KeyName)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "open_registry_key.registry.key_path":
+	case "open_key.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.OpenRegistryKey.Registry.KeyPath
+				return ev.OpenRegistryKey.RegistryEvent.KeyPath
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "open_registry_key.registry.key_path.length":
+	case "open_key.path.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.OpenRegistryKey.Registry.KeyPath)
+				return len(ev.OpenRegistryKey.RegistryEvent.KeyPath)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "open_registry_key.registry.value_name":
+	case "open_key.value":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.OpenRegistryKey.Registry.ValueName
+				return ev.OpenRegistryKey.RegistryEvent.ValueName
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "open_registry_key.registry.value_name.length":
+	case "open_key.value.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.OpenRegistryKey.Registry.ValueName)
+				return len(ev.OpenRegistryKey.RegistryEvent.ValueName)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1093,56 +1093,56 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "set_registry_key_value.registry.key_name":
+	case "set_key_value.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.SetRegistryKeyValue.Registry.KeyName
+				return ev.SetRegistryKeyValue.RegistryEvent.KeyName
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "set_registry_key_value.registry.key_name.length":
+	case "set_key_value.name.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.SetRegistryKeyValue.Registry.KeyName)
+				return len(ev.SetRegistryKeyValue.RegistryEvent.KeyName)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "set_registry_key_value.registry.key_path":
+	case "set_key_value.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.SetRegistryKeyValue.Registry.KeyPath
+				return ev.SetRegistryKeyValue.RegistryEvent.KeyPath
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "set_registry_key_value.registry.key_path.length":
+	case "set_key_value.path.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.SetRegistryKeyValue.Registry.KeyPath)
+				return len(ev.SetRegistryKeyValue.RegistryEvent.KeyPath)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "set_registry_key_value.registry.value_name":
+	case "set_key_value.value":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.SetRegistryKeyValue.Registry.ValueName
+				return ev.SetRegistryKeyValue.RegistryEvent.ValueName
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "set_registry_key_value.registry.value_name.length":
+	case "set_key_value.value.length":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.SetRegistryKeyValue.Registry.ValueName)
+				return len(ev.SetRegistryKeyValue.RegistryEvent.ValueName)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1155,22 +1155,22 @@ func (ev *Event) GetFields() []eval.Field {
 		"container.created_at",
 		"container.id",
 		"container.tags",
-		"create_file.file.name",
-		"create_file.file.name.length",
-		"create_file.file.path",
-		"create_file.file.path.length",
-		"create_registry_key.registry.key_name",
-		"create_registry_key.registry.key_name.length",
-		"create_registry_key.registry.key_path",
-		"create_registry_key.registry.key_path.length",
-		"create_registry_key.registry.value_name",
-		"create_registry_key.registry.value_name.length",
-		"delete_registry_key.registry.key_name",
-		"delete_registry_key.registry.key_name.length",
-		"delete_registry_key.registry.key_path",
-		"delete_registry_key.registry.key_path.length",
-		"delete_registry_key.registry.value_name",
-		"delete_registry_key.registry.value_name.length",
+		"create.name",
+		"create.name.length",
+		"create.path",
+		"create.path.length",
+		"create_key.name",
+		"create_key.name.length",
+		"create_key.path",
+		"create_key.path.length",
+		"create_key.value",
+		"create_key.value.length",
+		"delete_key.name",
+		"delete_key.name.length",
+		"delete_key.path",
+		"delete_key.path.length",
+		"delete_key.value",
+		"delete_key.value.length",
 		"event.service",
 		"event.timestamp",
 		"exec.cmdline",
@@ -1201,12 +1201,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.ppid",
 		"exit.user",
 		"exit.user_sid",
-		"open_registry_key.registry.key_name",
-		"open_registry_key.registry.key_name.length",
-		"open_registry_key.registry.key_path",
-		"open_registry_key.registry.key_path.length",
-		"open_registry_key.registry.value_name",
-		"open_registry_key.registry.value_name.length",
+		"open_key.name",
+		"open_key.name.length",
+		"open_key.path",
+		"open_key.path.length",
+		"open_key.value",
+		"open_key.value.length",
 		"process.ancestors.cmdline",
 		"process.ancestors.container.id",
 		"process.ancestors.created_at",
@@ -1246,12 +1246,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ppid",
 		"process.user",
 		"process.user_sid",
-		"set_registry_key_value.registry.key_name",
-		"set_registry_key_value.registry.key_name.length",
-		"set_registry_key_value.registry.key_path",
-		"set_registry_key_value.registry.key_path.length",
-		"set_registry_key_value.registry.value_name",
-		"set_registry_key_value.registry.value_name.length",
+		"set_key_value.name",
+		"set_key_value.name.length",
+		"set_key_value.path",
+		"set_key_value.path.length",
+		"set_key_value.value",
+		"set_key_value.value.length",
 	}
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
@@ -1262,38 +1262,38 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext), nil
 	case "container.tags":
 		return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext), nil
-	case "create_file.file.name":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File), nil
-	case "create_file.file.name.length":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File), nil
-	case "create_file.file.path":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File), nil
-	case "create_file.file.path.length":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File), nil
-	case "create_registry_key.registry.key_name":
-		return ev.CreateRegistryKey.Registry.KeyName, nil
-	case "create_registry_key.registry.key_name.length":
-		return len(ev.CreateRegistryKey.Registry.KeyName), nil
-	case "create_registry_key.registry.key_path":
-		return ev.CreateRegistryKey.Registry.KeyPath, nil
-	case "create_registry_key.registry.key_path.length":
-		return len(ev.CreateRegistryKey.Registry.KeyPath), nil
-	case "create_registry_key.registry.value_name":
-		return ev.CreateRegistryKey.Registry.ValueName, nil
-	case "create_registry_key.registry.value_name.length":
-		return len(ev.CreateRegistryKey.Registry.ValueName), nil
-	case "delete_registry_key.registry.key_name":
-		return ev.DeleteRegistryKey.Registry.KeyName, nil
-	case "delete_registry_key.registry.key_name.length":
-		return len(ev.DeleteRegistryKey.Registry.KeyName), nil
-	case "delete_registry_key.registry.key_path":
-		return ev.DeleteRegistryKey.Registry.KeyPath, nil
-	case "delete_registry_key.registry.key_path.length":
-		return len(ev.DeleteRegistryKey.Registry.KeyPath), nil
-	case "delete_registry_key.registry.value_name":
-		return ev.DeleteRegistryKey.Registry.ValueName, nil
-	case "delete_registry_key.registry.value_name.length":
-		return len(ev.DeleteRegistryKey.Registry.ValueName), nil
+	case "create.name":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.FileEvent), nil
+	case "create.name.length":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.FileEvent), nil
+	case "create.path":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.FileEvent), nil
+	case "create.path.length":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.FileEvent), nil
+	case "create_key.name":
+		return ev.CreateRegistryKey.RegistryEvent.KeyName, nil
+	case "create_key.name.length":
+		return len(ev.CreateRegistryKey.RegistryEvent.KeyName), nil
+	case "create_key.path":
+		return ev.CreateRegistryKey.RegistryEvent.KeyPath, nil
+	case "create_key.path.length":
+		return len(ev.CreateRegistryKey.RegistryEvent.KeyPath), nil
+	case "create_key.value":
+		return ev.CreateRegistryKey.RegistryEvent.ValueName, nil
+	case "create_key.value.length":
+		return len(ev.CreateRegistryKey.RegistryEvent.ValueName), nil
+	case "delete_key.name":
+		return ev.DeleteRegistryKey.RegistryEvent.KeyName, nil
+	case "delete_key.name.length":
+		return len(ev.DeleteRegistryKey.RegistryEvent.KeyName), nil
+	case "delete_key.path":
+		return ev.DeleteRegistryKey.RegistryEvent.KeyPath, nil
+	case "delete_key.path.length":
+		return len(ev.DeleteRegistryKey.RegistryEvent.KeyPath), nil
+	case "delete_key.value":
+		return ev.DeleteRegistryKey.RegistryEvent.ValueName, nil
+	case "delete_key.value.length":
+		return len(ev.DeleteRegistryKey.RegistryEvent.ValueName), nil
 	case "event.service":
 		return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent), nil
 	case "event.timestamp":
@@ -1354,18 +1354,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process), nil
 	case "exit.user_sid":
 		return ev.Exit.Process.OwnerSidString, nil
-	case "open_registry_key.registry.key_name":
-		return ev.OpenRegistryKey.Registry.KeyName, nil
-	case "open_registry_key.registry.key_name.length":
-		return len(ev.OpenRegistryKey.Registry.KeyName), nil
-	case "open_registry_key.registry.key_path":
-		return ev.OpenRegistryKey.Registry.KeyPath, nil
-	case "open_registry_key.registry.key_path.length":
-		return len(ev.OpenRegistryKey.Registry.KeyPath), nil
-	case "open_registry_key.registry.value_name":
-		return ev.OpenRegistryKey.Registry.ValueName, nil
-	case "open_registry_key.registry.value_name.length":
-		return len(ev.OpenRegistryKey.Registry.ValueName), nil
+	case "open_key.name":
+		return ev.OpenRegistryKey.RegistryEvent.KeyName, nil
+	case "open_key.name.length":
+		return len(ev.OpenRegistryKey.RegistryEvent.KeyName), nil
+	case "open_key.path":
+		return ev.OpenRegistryKey.RegistryEvent.KeyPath, nil
+	case "open_key.path.length":
+		return len(ev.OpenRegistryKey.RegistryEvent.KeyPath), nil
+	case "open_key.value":
+		return ev.OpenRegistryKey.RegistryEvent.ValueName, nil
+	case "open_key.value.length":
+		return len(ev.OpenRegistryKey.RegistryEvent.ValueName), nil
 	case "process.ancestors.cmdline":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -1607,18 +1607,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.user_sid":
 		return ev.BaseEvent.ProcessContext.Process.OwnerSidString, nil
-	case "set_registry_key_value.registry.key_name":
-		return ev.SetRegistryKeyValue.Registry.KeyName, nil
-	case "set_registry_key_value.registry.key_name.length":
-		return len(ev.SetRegistryKeyValue.Registry.KeyName), nil
-	case "set_registry_key_value.registry.key_path":
-		return ev.SetRegistryKeyValue.Registry.KeyPath, nil
-	case "set_registry_key_value.registry.key_path.length":
-		return len(ev.SetRegistryKeyValue.Registry.KeyPath), nil
-	case "set_registry_key_value.registry.value_name":
-		return ev.SetRegistryKeyValue.Registry.ValueName, nil
-	case "set_registry_key_value.registry.value_name.length":
-		return len(ev.SetRegistryKeyValue.Registry.ValueName), nil
+	case "set_key_value.name":
+		return ev.SetRegistryKeyValue.RegistryEvent.KeyName, nil
+	case "set_key_value.name.length":
+		return len(ev.SetRegistryKeyValue.RegistryEvent.KeyName), nil
+	case "set_key_value.path":
+		return ev.SetRegistryKeyValue.RegistryEvent.KeyPath, nil
+	case "set_key_value.path.length":
+		return len(ev.SetRegistryKeyValue.RegistryEvent.KeyPath), nil
+	case "set_key_value.value":
+		return ev.SetRegistryKeyValue.RegistryEvent.ValueName, nil
+	case "set_key_value.value.length":
+		return len(ev.SetRegistryKeyValue.RegistryEvent.ValueName), nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
@@ -1630,38 +1630,38 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "container.tags":
 		return "*", nil
-	case "create_file.file.name":
-		return "create_file", nil
-	case "create_file.file.name.length":
-		return "create_file", nil
-	case "create_file.file.path":
-		return "create_file", nil
-	case "create_file.file.path.length":
-		return "create_file", nil
-	case "create_registry_key.registry.key_name":
-		return "create_registry_key", nil
-	case "create_registry_key.registry.key_name.length":
-		return "create_registry_key", nil
-	case "create_registry_key.registry.key_path":
-		return "create_registry_key", nil
-	case "create_registry_key.registry.key_path.length":
-		return "create_registry_key", nil
-	case "create_registry_key.registry.value_name":
-		return "create_registry_key", nil
-	case "create_registry_key.registry.value_name.length":
-		return "create_registry_key", nil
-	case "delete_registry_key.registry.key_name":
-		return "delete_registry_key", nil
-	case "delete_registry_key.registry.key_name.length":
-		return "delete_registry_key", nil
-	case "delete_registry_key.registry.key_path":
-		return "delete_registry_key", nil
-	case "delete_registry_key.registry.key_path.length":
-		return "delete_registry_key", nil
-	case "delete_registry_key.registry.value_name":
-		return "delete_registry_key", nil
-	case "delete_registry_key.registry.value_name.length":
-		return "delete_registry_key", nil
+	case "create.name":
+		return "file.create", nil
+	case "create.name.length":
+		return "file.create", nil
+	case "create.path":
+		return "file.create", nil
+	case "create.path.length":
+		return "file.create", nil
+	case "create_key.name":
+		return "registry.create_key", nil
+	case "create_key.name.length":
+		return "registry.create_key", nil
+	case "create_key.path":
+		return "registry.create_key", nil
+	case "create_key.path.length":
+		return "registry.create_key", nil
+	case "create_key.value":
+		return "registry.create_key", nil
+	case "create_key.value.length":
+		return "registry.create_key", nil
+	case "delete_key.name":
+		return "registry.delete_key", nil
+	case "delete_key.name.length":
+		return "registry.delete_key", nil
+	case "delete_key.path":
+		return "registry.delete_key", nil
+	case "delete_key.path.length":
+		return "registry.delete_key", nil
+	case "delete_key.value":
+		return "registry.delete_key", nil
+	case "delete_key.value.length":
+		return "registry.delete_key", nil
 	case "event.service":
 		return "*", nil
 	case "event.timestamp":
@@ -1722,18 +1722,18 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.user_sid":
 		return "exit", nil
-	case "open_registry_key.registry.key_name":
-		return "open_registry_key", nil
-	case "open_registry_key.registry.key_name.length":
-		return "open_registry_key", nil
-	case "open_registry_key.registry.key_path":
-		return "open_registry_key", nil
-	case "open_registry_key.registry.key_path.length":
-		return "open_registry_key", nil
-	case "open_registry_key.registry.value_name":
-		return "open_registry_key", nil
-	case "open_registry_key.registry.value_name.length":
-		return "open_registry_key", nil
+	case "open_key.name":
+		return "registry.open_key", nil
+	case "open_key.name.length":
+		return "registry.open_key", nil
+	case "open_key.path":
+		return "registry.open_key", nil
+	case "open_key.path.length":
+		return "registry.open_key", nil
+	case "open_key.value":
+		return "registry.open_key", nil
+	case "open_key.value.length":
+		return "registry.open_key", nil
 	case "process.ancestors.cmdline":
 		return "*", nil
 	case "process.ancestors.container.id":
@@ -1812,18 +1812,18 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.user_sid":
 		return "*", nil
-	case "set_registry_key_value.registry.key_name":
-		return "set_registry_key_value", nil
-	case "set_registry_key_value.registry.key_name.length":
-		return "set_registry_key_value", nil
-	case "set_registry_key_value.registry.key_path":
-		return "set_registry_key_value", nil
-	case "set_registry_key_value.registry.key_path.length":
-		return "set_registry_key_value", nil
-	case "set_registry_key_value.registry.value_name":
-		return "set_registry_key_value", nil
-	case "set_registry_key_value.registry.value_name.length":
-		return "set_registry_key_value", nil
+	case "set_key_value.name":
+		return "registry.set_key_value", nil
+	case "set_key_value.name.length":
+		return "registry.set_key_value", nil
+	case "set_key_value.path":
+		return "registry.set_key_value", nil
+	case "set_key_value.path.length":
+		return "registry.set_key_value", nil
+	case "set_key_value.value":
+		return "registry.set_key_value", nil
+	case "set_key_value.value.length":
+		return "registry.set_key_value", nil
 	}
 	return "", &eval.ErrFieldNotFound{Field: field}
 }
@@ -1835,37 +1835,37 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "container.tags":
 		return reflect.String, nil
-	case "create_file.file.name":
+	case "create.name":
 		return reflect.String, nil
-	case "create_file.file.name.length":
+	case "create.name.length":
 		return reflect.Int, nil
-	case "create_file.file.path":
+	case "create.path":
 		return reflect.String, nil
-	case "create_file.file.path.length":
+	case "create.path.length":
 		return reflect.Int, nil
-	case "create_registry_key.registry.key_name":
+	case "create_key.name":
 		return reflect.String, nil
-	case "create_registry_key.registry.key_name.length":
+	case "create_key.name.length":
 		return reflect.Int, nil
-	case "create_registry_key.registry.key_path":
+	case "create_key.path":
 		return reflect.String, nil
-	case "create_registry_key.registry.key_path.length":
+	case "create_key.path.length":
 		return reflect.Int, nil
-	case "create_registry_key.registry.value_name":
+	case "create_key.value":
 		return reflect.String, nil
-	case "create_registry_key.registry.value_name.length":
+	case "create_key.value.length":
 		return reflect.Int, nil
-	case "delete_registry_key.registry.key_name":
+	case "delete_key.name":
 		return reflect.String, nil
-	case "delete_registry_key.registry.key_name.length":
+	case "delete_key.name.length":
 		return reflect.Int, nil
-	case "delete_registry_key.registry.key_path":
+	case "delete_key.path":
 		return reflect.String, nil
-	case "delete_registry_key.registry.key_path.length":
+	case "delete_key.path.length":
 		return reflect.Int, nil
-	case "delete_registry_key.registry.value_name":
+	case "delete_key.value":
 		return reflect.String, nil
-	case "delete_registry_key.registry.value_name.length":
+	case "delete_key.value.length":
 		return reflect.Int, nil
 	case "event.service":
 		return reflect.String, nil
@@ -1927,17 +1927,17 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exit.user_sid":
 		return reflect.String, nil
-	case "open_registry_key.registry.key_name":
+	case "open_key.name":
 		return reflect.String, nil
-	case "open_registry_key.registry.key_name.length":
+	case "open_key.name.length":
 		return reflect.Int, nil
-	case "open_registry_key.registry.key_path":
+	case "open_key.path":
 		return reflect.String, nil
-	case "open_registry_key.registry.key_path.length":
+	case "open_key.path.length":
 		return reflect.Int, nil
-	case "open_registry_key.registry.value_name":
+	case "open_key.value":
 		return reflect.String, nil
-	case "open_registry_key.registry.value_name.length":
+	case "open_key.value.length":
 		return reflect.Int, nil
 	case "process.ancestors.cmdline":
 		return reflect.String, nil
@@ -2017,17 +2017,17 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.user_sid":
 		return reflect.String, nil
-	case "set_registry_key_value.registry.key_name":
+	case "set_key_value.name":
 		return reflect.String, nil
-	case "set_registry_key_value.registry.key_name.length":
+	case "set_key_value.name.length":
 		return reflect.Int, nil
-	case "set_registry_key_value.registry.key_path":
+	case "set_key_value.path":
 		return reflect.String, nil
-	case "set_registry_key_value.registry.key_path.length":
+	case "set_key_value.path.length":
 		return reflect.Int, nil
-	case "set_registry_key_value.registry.value_name":
+	case "set_key_value.value":
 		return reflect.String, nil
-	case "set_registry_key_value.registry.value_name.length":
+	case "set_key_value.value.length":
 		return reflect.Int, nil
 	}
 	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
@@ -2067,78 +2067,78 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.Tags"}
 		}
 		return nil
-	case "create_file.file.name":
+	case "create.name":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.File.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.FileEvent.BasenameStr"}
 		}
-		ev.CreateNewFile.File.BasenameStr = rv
+		ev.CreateNewFile.FileEvent.BasenameStr = rv
 		return nil
-	case "create_file.file.name.length":
-		return &eval.ErrFieldReadOnly{Field: "create_file.file.name.length"}
-	case "create_file.file.path":
+	case "create.name.length":
+		return &eval.ErrFieldReadOnly{Field: "create.name.length"}
+	case "create.path":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.File.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.FileEvent.PathnameStr"}
 		}
-		ev.CreateNewFile.File.PathnameStr = rv
+		ev.CreateNewFile.FileEvent.PathnameStr = rv
 		return nil
-	case "create_file.file.path.length":
-		return &eval.ErrFieldReadOnly{Field: "create_file.file.path.length"}
-	case "create_registry_key.registry.key_name":
+	case "create.path.length":
+		return &eval.ErrFieldReadOnly{Field: "create.path.length"}
+	case "create_key.name":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "CreateRegistryKey.Registry.KeyName"}
+			return &eval.ErrValueTypeMismatch{Field: "CreateRegistryKey.RegistryEvent.KeyName"}
 		}
-		ev.CreateRegistryKey.Registry.KeyName = rv
+		ev.CreateRegistryKey.RegistryEvent.KeyName = rv
 		return nil
-	case "create_registry_key.registry.key_name.length":
-		return &eval.ErrFieldReadOnly{Field: "create_registry_key.registry.key_name.length"}
-	case "create_registry_key.registry.key_path":
+	case "create_key.name.length":
+		return &eval.ErrFieldReadOnly{Field: "create_key.name.length"}
+	case "create_key.path":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "CreateRegistryKey.Registry.KeyPath"}
+			return &eval.ErrValueTypeMismatch{Field: "CreateRegistryKey.RegistryEvent.KeyPath"}
 		}
-		ev.CreateRegistryKey.Registry.KeyPath = rv
+		ev.CreateRegistryKey.RegistryEvent.KeyPath = rv
 		return nil
-	case "create_registry_key.registry.key_path.length":
-		return &eval.ErrFieldReadOnly{Field: "create_registry_key.registry.key_path.length"}
-	case "create_registry_key.registry.value_name":
+	case "create_key.path.length":
+		return &eval.ErrFieldReadOnly{Field: "create_key.path.length"}
+	case "create_key.value":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "CreateRegistryKey.Registry.ValueName"}
+			return &eval.ErrValueTypeMismatch{Field: "CreateRegistryKey.RegistryEvent.ValueName"}
 		}
-		ev.CreateRegistryKey.Registry.ValueName = rv
+		ev.CreateRegistryKey.RegistryEvent.ValueName = rv
 		return nil
-	case "create_registry_key.registry.value_name.length":
-		return &eval.ErrFieldReadOnly{Field: "create_registry_key.registry.value_name.length"}
-	case "delete_registry_key.registry.key_name":
+	case "create_key.value.length":
+		return &eval.ErrFieldReadOnly{Field: "create_key.value.length"}
+	case "delete_key.name":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "DeleteRegistryKey.Registry.KeyName"}
+			return &eval.ErrValueTypeMismatch{Field: "DeleteRegistryKey.RegistryEvent.KeyName"}
 		}
-		ev.DeleteRegistryKey.Registry.KeyName = rv
+		ev.DeleteRegistryKey.RegistryEvent.KeyName = rv
 		return nil
-	case "delete_registry_key.registry.key_name.length":
-		return &eval.ErrFieldReadOnly{Field: "delete_registry_key.registry.key_name.length"}
-	case "delete_registry_key.registry.key_path":
+	case "delete_key.name.length":
+		return &eval.ErrFieldReadOnly{Field: "delete_key.name.length"}
+	case "delete_key.path":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "DeleteRegistryKey.Registry.KeyPath"}
+			return &eval.ErrValueTypeMismatch{Field: "DeleteRegistryKey.RegistryEvent.KeyPath"}
 		}
-		ev.DeleteRegistryKey.Registry.KeyPath = rv
+		ev.DeleteRegistryKey.RegistryEvent.KeyPath = rv
 		return nil
-	case "delete_registry_key.registry.key_path.length":
-		return &eval.ErrFieldReadOnly{Field: "delete_registry_key.registry.key_path.length"}
-	case "delete_registry_key.registry.value_name":
+	case "delete_key.path.length":
+		return &eval.ErrFieldReadOnly{Field: "delete_key.path.length"}
+	case "delete_key.value":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "DeleteRegistryKey.Registry.ValueName"}
+			return &eval.ErrValueTypeMismatch{Field: "DeleteRegistryKey.RegistryEvent.ValueName"}
 		}
-		ev.DeleteRegistryKey.Registry.ValueName = rv
+		ev.DeleteRegistryKey.RegistryEvent.ValueName = rv
 		return nil
-	case "delete_registry_key.registry.value_name.length":
-		return &eval.ErrFieldReadOnly{Field: "delete_registry_key.registry.value_name.length"}
+	case "delete_key.value.length":
+		return &eval.ErrFieldReadOnly{Field: "delete_key.value.length"}
 	case "event.service":
 		rv, ok := value.(string)
 		if !ok {
@@ -2419,33 +2419,33 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exit.Process.OwnerSidString = rv
 		return nil
-	case "open_registry_key.registry.key_name":
+	case "open_key.name":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "OpenRegistryKey.Registry.KeyName"}
+			return &eval.ErrValueTypeMismatch{Field: "OpenRegistryKey.RegistryEvent.KeyName"}
 		}
-		ev.OpenRegistryKey.Registry.KeyName = rv
+		ev.OpenRegistryKey.RegistryEvent.KeyName = rv
 		return nil
-	case "open_registry_key.registry.key_name.length":
-		return &eval.ErrFieldReadOnly{Field: "open_registry_key.registry.key_name.length"}
-	case "open_registry_key.registry.key_path":
+	case "open_key.name.length":
+		return &eval.ErrFieldReadOnly{Field: "open_key.name.length"}
+	case "open_key.path":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "OpenRegistryKey.Registry.KeyPath"}
+			return &eval.ErrValueTypeMismatch{Field: "OpenRegistryKey.RegistryEvent.KeyPath"}
 		}
-		ev.OpenRegistryKey.Registry.KeyPath = rv
+		ev.OpenRegistryKey.RegistryEvent.KeyPath = rv
 		return nil
-	case "open_registry_key.registry.key_path.length":
-		return &eval.ErrFieldReadOnly{Field: "open_registry_key.registry.key_path.length"}
-	case "open_registry_key.registry.value_name":
+	case "open_key.path.length":
+		return &eval.ErrFieldReadOnly{Field: "open_key.path.length"}
+	case "open_key.value":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "OpenRegistryKey.Registry.ValueName"}
+			return &eval.ErrValueTypeMismatch{Field: "OpenRegistryKey.RegistryEvent.ValueName"}
 		}
-		ev.OpenRegistryKey.Registry.ValueName = rv
+		ev.OpenRegistryKey.RegistryEvent.ValueName = rv
 		return nil
-	case "open_registry_key.registry.value_name.length":
-		return &eval.ErrFieldReadOnly{Field: "open_registry_key.registry.value_name.length"}
+	case "open_key.value.length":
+		return &eval.ErrFieldReadOnly{Field: "open_key.value.length"}
 	case "process.ancestors.cmdline":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -2902,33 +2902,33 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.OwnerSidString = rv
 		return nil
-	case "set_registry_key_value.registry.key_name":
+	case "set_key_value.name":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.Registry.KeyName"}
+			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.RegistryEvent.KeyName"}
 		}
-		ev.SetRegistryKeyValue.Registry.KeyName = rv
+		ev.SetRegistryKeyValue.RegistryEvent.KeyName = rv
 		return nil
-	case "set_registry_key_value.registry.key_name.length":
-		return &eval.ErrFieldReadOnly{Field: "set_registry_key_value.registry.key_name.length"}
-	case "set_registry_key_value.registry.key_path":
+	case "set_key_value.name.length":
+		return &eval.ErrFieldReadOnly{Field: "set_key_value.name.length"}
+	case "set_key_value.path":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.Registry.KeyPath"}
+			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.RegistryEvent.KeyPath"}
 		}
-		ev.SetRegistryKeyValue.Registry.KeyPath = rv
+		ev.SetRegistryKeyValue.RegistryEvent.KeyPath = rv
 		return nil
-	case "set_registry_key_value.registry.key_path.length":
-		return &eval.ErrFieldReadOnly{Field: "set_registry_key_value.registry.key_path.length"}
-	case "set_registry_key_value.registry.value_name":
+	case "set_key_value.path.length":
+		return &eval.ErrFieldReadOnly{Field: "set_key_value.path.length"}
+	case "set_key_value.value":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.Registry.ValueName"}
+			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.RegistryEvent.ValueName"}
 		}
-		ev.SetRegistryKeyValue.Registry.ValueName = rv
+		ev.SetRegistryKeyValue.RegistryEvent.ValueName = rv
 		return nil
-	case "set_registry_key_value.registry.value_name.length":
-		return &eval.ErrFieldReadOnly{Field: "set_registry_key_value.registry.value_name.length"}
+	case "set_key_value.value.length":
+		return &eval.ErrFieldReadOnly{Field: "set_key_value.value.length"}
 	}
 	return &eval.ErrFieldNotFound{Field: field}
 }

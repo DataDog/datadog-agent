@@ -21,11 +21,8 @@ func NewWindowsModel(_ *WindowsProbe) *model.Model {
 			// TODO(safchain) remove this check when multiple model per platform will be supported in the SECL package
 			if !strings.HasPrefix(field, "exec.") &&
 				!strings.HasPrefix(field, "exit.") &&
-				!strings.HasPrefix(field, "create_file.") &&
-				!strings.HasPrefix(field, "create_registry_key.") &&
-				!strings.HasPrefix(field, "open_registry_key.") &&
-				!strings.HasPrefix(field, "set_registry_key_value.") &&
-				!strings.HasPrefix(field, "delete_registry_key.") &&
+				!strings.HasPrefix(field, "file.") &&
+				!strings.HasPrefix(field, "registry.") &&
 				!strings.HasPrefix(field, "process.") {
 				return fmt.Errorf("%s is not available with the Windows version", field)
 			}

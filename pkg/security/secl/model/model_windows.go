@@ -33,13 +33,13 @@ type Event struct {
 	Exit ExitEvent `field:"exit" event:"exit"` // [7.38] [Process] A process was terminated
 
 	// FIM
-	CreateNewFile CreateNewFileEvent `field:"create_file" event:"create_file"` // [7.52] [File] A file was created
+	CreateNewFile CreateNewFileEvent `field:"create" event:"file.create"` // [7.52] [File] A file was created
 
 	// Registries
-	CreateRegistryKey   CreateRegistryKeyEvent   `field:"create_registry_key" event:"create_registry_key"`       // [7.52] [Registry] A registry key was created
-	OpenRegistryKey     OpenRegistryKeyEvent     `field:"open_registry_key" event:"open_registry_key"`           // [7.52] [Registry] A registry key was opened
-	SetRegistryKeyValue SetRegistryKeyValueEvent `field:"set_registry_key_value" event:"set_registry_key_value"` // [7.52] [Registry] A registry key value was set
-	DeleteRegistryKey   DeleteRegistryKeyEvent   `field:"delete_registry_key" event:"delete_registry_key"`       // [7.52] [Registry] A registry key was deleted
+	CreateRegistryKey   CreateRegistryKeyEvent   `field:"create_key" event:"registry.create_key"`       // [7.52] [Registry] A registry key was created
+	OpenRegistryKey     OpenRegistryKeyEvent     `field:"open_key" event:"registry.open_key"`           // [7.52] [Registry] A registry key was opened
+	SetRegistryKeyValue SetRegistryKeyValueEvent `field:"set_key_value" event:"registry.set_key_value"` // [7.52] [Registry] A registry key value was set
+	DeleteRegistryKey   DeleteRegistryKeyEvent   `field:"delete_key" event:"registry.delete_key"`       // [7.52] [Registry] A registry key was deleted
 }
 
 // FileEvent is the common file event type
@@ -50,9 +50,9 @@ type FileEvent struct {
 
 // RegistryEvent is the common registry event type
 type RegistryEvent struct {
-	KeyName   string `field:"key_name,opts:length"`   // SECLDoc[key_name] Definition:`Registry's name`
-	KeyPath   string `field:"key_path,opts:length"`   // SECLDoc[key_path] Definition:`Registry's path`
-	ValueName string `field:"value_name,opts:length"` // SECLDoc[value_name] Definition:`Registry's value name`
+	KeyName   string `field:"name,opts:length"`  // SECLDoc[key_name] Definition:`Registry's name`
+	KeyPath   string `field:"path,opts:length"`  // SECLDoc[key_path] Definition:`Registry's path`
+	ValueName string `field:"value,opts:length"` // SECLDoc[value_name] Definition:`Registry's value name`
 }
 
 // Process represents a process
@@ -109,27 +109,27 @@ type ExtraFieldHandlers interface {
 
 // CreateNewFileEvent defines file creation
 type CreateNewFileEvent struct {
-	File FileEvent `field:"file"`
+	FileEvent
 }
 
 // Registries
 
 // CreateRegistryKeyEvent defines registry key creation
 type CreateRegistryKeyEvent struct {
-	Registry RegistryEvent `field:"registry"`
+	RegistryEvent
 }
 
 // OpenRegistryKeyEvent defines registry key opening
 type OpenRegistryKeyEvent struct {
-	Registry RegistryEvent `field:"registry"`
+	RegistryEvent
 }
 
 // SetRegistryKeyValueEvent defines the event of setting up a value of a registry key
 type SetRegistryKeyValueEvent struct {
-	Registry RegistryEvent `field:"registry"`
+	RegistryEvent
 }
 
 // DeleteRegistryKeyEvent defines registry key deletion
 type DeleteRegistryKeyEvent struct {
-	Registry RegistryEvent `field:"registry"`
+	RegistryEvent
 }

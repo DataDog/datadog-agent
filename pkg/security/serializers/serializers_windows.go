@@ -26,11 +26,11 @@ type FileSerializer struct {
 // RegistrySerializer serializes a registry to JSON
 type RegistrySerializer struct {
 	// Registry key name
-	KeyName string `json:"key_name,omitempty"`
+	KeyName string `json:"name,omitempty"`
 	// Registry key path
-	KeyPath string `json:"key_path,omitempty"`
+	KeyPath string `json:"path,omitempty"`
 	// Value name of the key value
-	ValueName string `json:"value_name,omitempty"`
+	ValueName string `json:"name,omitempty"`
 }
 
 // ProcessSerializer serializes a process to JSON
@@ -173,27 +173,23 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 	switch eventType {
 	case model.CreateNewFileEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.CreateNewFile.File, event),
+			FileSerializer: *newFileSerializer(&event.CreateNewFile.FileEvent, event),
 		}
-		// case model.OpenEventType:
-		// 	s.FileEventSerializer = &FileEventSerializer{
-		// 		FileSerializer: *newFileSerializer(&event.Open.File, event),
-		// 	}
 	case model.CreateRegistryKeyEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{
-			RegistrySerializer: *newRegistrySerializer(&event.CreateRegistryKey.Registry, event),
+			RegistrySerializer: *newRegistrySerializer(&event.CreateRegistryKey.RegistryEvent, event),
 		}
 	case model.OpenRegistryKeyEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{
-			RegistrySerializer: *newRegistrySerializer(&event.OpenRegistryKey.Registry, event),
+			RegistrySerializer: *newRegistrySerializer(&event.OpenRegistryKey.RegistryEvent, event),
 		}
 	case model.SetRegistryKeyValueEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{
-			RegistrySerializer: *newRegistrySerializer(&event.SetRegistryKeyValue.Registry, event),
+			RegistrySerializer: *newRegistrySerializer(&event.SetRegistryKeyValue.RegistryEvent, event),
 		}
 	case model.DeleteRegistryKeyEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{
-			RegistrySerializer: *newRegistrySerializer(&event.DeleteRegistryKey.Registry, event),
+			RegistrySerializer: *newRegistrySerializer(&event.DeleteRegistryKey.RegistryEvent, event),
 		}
 	}
 
