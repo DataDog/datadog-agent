@@ -2342,3 +2342,26 @@ func TestSetFirstTraceTags(t *testing.T) {
 		assert.Equal(t, strconv.FormatInt(timestamp, 10), root.Meta[tagInstallTime])
 	})
 }
+
+func TestProcessedTrace(t *testing.T) {
+	t.Skip()
+	// Work in progress.
+	root := &pb.Span{
+		Service:  "testsvc",
+		Name:     "parent",
+		TraceID:  1,
+		SpanID:   1,
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: time.Millisecond.Nanoseconds(),
+		Meta:     map[string]string{ /* FILL ME IN */ },
+	}
+	chunk := testutil.TraceChunkWithSpan(root)
+	cfg := config.New()
+	cfg.ContainerTags = func(cid string) ([]string, error) {
+		if cid == "1" {
+			return []string{"image_tag:blah", "git.commit.sha:abc123"}, nil
+		}
+		return nil, nil
+	}
+	processedTrace(nil, chunk, root, "", nil)
+}
