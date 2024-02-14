@@ -9,4 +9,3 @@
 features:
   - |
     Attach host tags to metrics for ``expected_tags_duration`` amount of time.
-    Min duration is 1m.

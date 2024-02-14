@@ -37,9 +37,9 @@ type Tagger struct {
 
 // NewTagger returns an allocated tagger. You are probably looking for
 // tagger.Tag() using the global instance instead of creating your own.
-func NewTagger(workloadStore workloadmeta.Component, tagStore *tagstore.TagStore) *Tagger {
+func NewTagger(workloadStore workloadmeta.Component) *Tagger {
 	return &Tagger{
-		tagStore:      tagStore,
+		tagStore:      tagstore.NewTagStore(),
 		workloadStore: workloadStore,
 	}
 }

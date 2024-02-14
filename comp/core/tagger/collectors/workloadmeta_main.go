@@ -8,13 +8,11 @@ package collectors
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -27,13 +25,13 @@ const (
 	workloadmetaCollectorName = "workloadmeta"
 
 	staticSource         = workloadmetaCollectorName + "-static"
-	hostSource           = workloadmetaCollectorName + "-host"
 	podSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
 	nodeSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesNode)
 	taskSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
 	containerSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
 	containerImageSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
 	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
+	hostSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindHost)
 
 	clusterTagNamePrefix = "kube_cluster_name"
 )
@@ -77,27 +75,6 @@ func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTag
 	c.labelsAsTags, c.globLabels = utils.InitMetadataAsTags(labelsAsTags)
 	c.annotationsAsTags, c.globAnnotations = utils.InitMetadataAsTags(annotationsAsTags)
 	c.nsLabelsAsTags, c.globNsLabels = utils.InitMetadataAsTags(nsLabelsAsTags)
-}
-
-func (c *WorkloadMetaCollector) injectHostTags() {
-	duration := config.Datadog.GetDuration("expected_tags_duration")
-	if duration <= 0 {
-		return
-	}
-	if duration <= time.Minute {
-		log.Debugf("Tags are checked for expiration once per minute. expected_tags_duration should be at least one minute and in minute intervals.")
-	}
-	tags := hosttags.Get(context.TODO(), false, config.Datadog).System
-	log.Debugf("Adding host tags to metrics for %v : %v", duration, tags)
-
-	c.tagProcessor.ProcessTagInfo([]*TagInfo{
-		{
-			Source:      hostSource,
-			Entity:      HostEntityID,
-			LowCardTags: tags,
-			ExpiryDate:  time.Now().Add(duration), // Ensure host tags are expired after the configured interval
-		},
-	})
 }
 
 // Run runs the continuous event watching loop and sends new tags to the
@@ -198,7 +175,6 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 	annotationsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
 	nsLabelsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")
 	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags)
-	c.injectHostTags()
 
 	return c
 }

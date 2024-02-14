@@ -10,8 +10,6 @@ import (
 	"reflect"
 	"sync"
 
-	"go.uber.org/fx"
-
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
@@ -19,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/replay"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -32,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/fx"
 )
 
 type dependencies struct {
@@ -119,7 +117,7 @@ func newTaggerClient(deps dependencies) Component {
 		}
 	case LocalTaggerAgent:
 		taggerClient = &TaggerClient{
-			defaultTagger: local.NewTagger(deps.Wmeta, tagstore.NewTagStore()),
+			defaultTagger: local.NewTagger(deps.Wmeta),
 			captureTagger: nil,
 		}
 	case FakeTagger:
@@ -153,7 +151,7 @@ func newTaggerClient(deps dependencies) Component {
 		err = taggerClient.Start(mainCtx)
 		if err != nil && deps.Params.fallBackToLocalIfRemoteTaggerFails {
 			deps.Log.Warnf("Starting remote tagger failed. Falling back to local tagger: %s", err)
-			taggerClient.defaultTagger = local.NewTagger(deps.Wmeta, tagstore.NewTagStore())
+			taggerClient.defaultTagger = local.NewTagger(deps.Wmeta)
 			// Retry to start the local tagger
 			return taggerClient.Start(mainCtx)
 		}
@@ -300,10 +298,6 @@ func (t *TaggerClient) globalTagBuilder(cardinality collectors.TagCardinality, t
 		}
 	}
 	t.mux.RUnlock()
-
-	if err := t.defaultTagger.AccumulateTagsFor(collectors.HostEntityID, cardinality, tb); err != nil {
-		log.Error(err)
-	}
 	return t.defaultTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
 }
 

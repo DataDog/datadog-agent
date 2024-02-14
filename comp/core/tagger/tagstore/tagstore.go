@@ -49,11 +49,10 @@ type TagStore struct {
 
 // NewTagStore creates new TagStore.
 func NewTagStore() *TagStore {
-	return NewTagStoreWithClock(clock.New())
+	return newTagStoreWithClock(clock.New())
 }
 
-// NewTagStoreWithClock is exported for testing
-func NewTagStoreWithClock(clock clock.Clock) *TagStore {
+func newTagStoreWithClock(clock clock.Clock) *TagStore {
 	return &TagStore{
 		telemetry:  make(map[string]map[string]float64),
 		store:      make(map[string]*EntityTags),

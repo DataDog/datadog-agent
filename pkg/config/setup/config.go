@@ -742,7 +742,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
 
 	// Duration during which the host tags will be submitted with metrics.
-	// Note: this setting must be no less than minute increments if non-zero.
 	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
 
 	// EC2
