@@ -61,7 +61,7 @@ when submitting your PR:
 
 - [ ] The added code comes with tests.
 
-- [ ] The CI is green.
+- [ ] The CI is green, all tests are passing (required or not).
 
 - [ ] All applicable labels are set on the PR (see [PR labels list](#pr-labels)).
 
