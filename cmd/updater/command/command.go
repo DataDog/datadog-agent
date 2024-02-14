@@ -12,6 +12,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // common constants for all the updater subcommands.
@@ -53,7 +54,7 @@ Datadog Updater updates your agents based on requests received from the Datadog 
 		SilenceUsage: true,
 	}
 
-	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing updater.yaml")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", pkgconfig.DefaultUpdaterLogFile, "path to directory containing updater.yaml")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.Package, "package", "P", "", "package to update")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.RepositoriesDir, "repositories", "d", "/opt/datadog-packages", "path to directory containing repositories")
 	_ = agentCmd.MarkFlagRequired("package")
