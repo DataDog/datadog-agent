@@ -81,15 +81,21 @@ var (
 			},
 		},
 	}
+	closeConnPerfBufferTailCall = manager.ProbeIdentificationPair{
+		EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer,
+		UID:          probeUID,
+	}
+
+	closeConnRingBufferTailCall = manager.ProbeIdentificationPair{
+		EBPFFuncName: probes.TCPConnCloseEmitEventRingbuffer,
+		UID:          probeUID,
+	}
 
 	connCloseIndividualTailCalls = []manager.TailCallRoute{
 		{
-			ProgArrayName: probes.ConnCloseProgsIndvMap,
-			Key:           0,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer,
-				UID:          probeUID,
-			},
+			ProgArrayName:           probes.ConnCloseProgsIndvMap,
+			Key:                     0,
+			ProbeIdentificationPair: closeConnPerfBufferTailCall,
 		},
 	}
 
@@ -218,7 +224,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 	if ringbufferEnabled || runtimeTracer {
-		connCloseIndividualTailCalls[0].ProbeIdentificationPair.EBPFFuncName = probes.TCPConnCloseEmitEventRingbuffer
+		connCloseIndividualTailCalls[0].ProbeIdentificationPair = closeConnRingBufferTailCall
 		protocolClassificationTailCalls[3].ProbeIdentificationPair.EBPFFuncName = probes.TCPCloseFlushReturnRingbuffer
 	}
 	if tcpEnabled {
@@ -282,11 +288,9 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 	if tcpEnabled {
-		for _, tailCall := range connCloseIndividualTailCalls {
-			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
-		}
+		tailCallsIdentifiersSet[closeConnRingBufferTailCall] = struct{}{}
+		tailCallsIdentifiersSet[closeConnPerfBufferTailCall] = struct{}{}
 	}
-
 	for funcName := range enabledProbes {
 		probeIdentifier := manager.ProbeIdentificationPair{
 			EBPFFuncName: funcName,

@@ -1861,9 +1861,21 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 
 func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	t := s.T()
+	c := testConfig()
+	c.RingbufferEnabled = true
+	testPreexistingEmptyIncomingConnectionDirection(t, c)
+}
+
+func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirectionRingBuffDisabled() {
+	t := s.T()
+	c := testConfig()
+	c.RingbufferEnabled = false
+	testPreexistingEmptyIncomingConnectionDirection(t, c)
+}
+
+func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *config.Config) {
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
-
 	ch := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
 		<-ch
@@ -1876,7 +1888,7 @@ func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	require.NoError(t, err)
 
 	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, config)
 
 	// close the server connection so the tracer picks it up
 	close(ch)
