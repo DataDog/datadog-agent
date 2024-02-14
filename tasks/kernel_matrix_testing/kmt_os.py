@@ -88,10 +88,11 @@ class MacOS:
     @staticmethod
     def init_local(ctx: Context):
         ctx.run("brew install libvirt")
-        ctx.sudo("brew services start libvirt")
         ctx.run(
             f"gsed -i -E 's%(# *)?unix_sock_dir = .*%unix_sock_dir = \"{MacOS.libvirt_system_dir}\"%' {MacOS.libvirt_conf}"
         )
+        ctx.run(f"gsed -i -E 's%(# *)?unix_sock_ro_perms = .*%unix_sock_ro_perms = \"0777\"%' {MacOS.libvirt_conf}")
+        ctx.run(f"gsed -i -E 's%(# *)?unix_sock_rw_perms = .*%unix_sock_rw_perms = \"0777\"%' {MacOS.libvirt_conf}")
 
         # Enable logging, but only if it was commented (disabled). Do not overwrite
         # custom settings
@@ -132,6 +133,11 @@ class MacOS:
 
             # Now we can set the correct permissions and load the service
             ctx.sudo(f"chmod 644 {virtlogd_plist_path}")
+            ctx.sudo(f"launchctl load -w {virtlogd_plist_path}")
 
         ctx.sudo("launchctl enable system/org.libvirt.virtlogd")
-        ctx.sudo("launchctl start system/org.libvirt.virtlogd")
+        ctx.sudo(
+            "launchctl start system/org.libvirt.virtlogd || true"
+        )  # launchctl returns an error code even if there is no error
+
+        ctx.sudo("brew services start libvirt")
