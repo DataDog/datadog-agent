@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    When getting resource tags from an ECS task with zero container, print a warn log instead of error log.
+    When getting resource tags from an ECS task with zero containers, print a warn log instead of error log.
