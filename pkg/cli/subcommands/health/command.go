@@ -68,7 +68,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func requestHealth(_ log.Component, _ config.Component, cliParams *cliParams) error {
+func requestHealth(_ log.Component, config config.Component, cliParams *cliParams) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	ipcAddress, err := pkgconfig.GetIPCAddress()
@@ -84,7 +84,7 @@ func requestHealth(_ log.Component, _ config.Component, cliParams *cliParams) er
 	}
 
 	// Set session token
-	err = util.SetAuthToken()
+	err = util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}

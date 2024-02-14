@@ -77,7 +77,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	assert.NoError(t, err)
 
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
-		ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+		ipcAddress, config.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(config.Datadog) },
 		client.WithAgent("test-agent", "9.99.9"),
 		client.WithProducts([]data.Product{data.ProductAgentConfig}),
 		client.WithPollInterval(time.Hour),
