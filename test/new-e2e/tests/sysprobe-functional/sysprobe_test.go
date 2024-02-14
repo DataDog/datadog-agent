@@ -28,7 +28,6 @@ type vmSuite struct {
 }
 
 var (
-	assetDir   string
 	kitchenDir string
 	testspath  string
 	reporoot   string
@@ -38,9 +37,6 @@ var (
 func init() {
 	// Get the absolute path to the test assets directory
 	currDir, _ := os.Getwd()
-	//test\new-e2e\tests\sysprobe-functional
-	//D:\src\agent.e2e\pkg\network\protocols\http
-	//assetDir = filepath.Join(currDir, "..", "..", "..", "..", "..", "..", "pkg", "network", "protocols", "http", "testsuite.exe")
 
 	reporoot, _ = filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
 	kitchenDir = filepath.Join(reporoot, "test", "kitchen", "site-cookbooks")
@@ -59,16 +55,6 @@ func TestVMSuite(t *testing.T) {
 func (v *vmSuite) TestTestSuite() {
 	v.T().Run("Works", v.testExample)
 }
-
-/*
-func TestLocal(t *testing.T) {
-
-		tests := findTestPrograms(t, testspath, "testsuite.exe")
-		for _, test := range tests {
-			t.Logf("Found %s\n", test)
-		}
-	}
-*/
 func (v *vmSuite) testExample(t *testing.T) {
 
 	// get the remote host
