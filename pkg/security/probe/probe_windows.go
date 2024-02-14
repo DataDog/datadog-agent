@@ -350,7 +350,8 @@ func (p *WindowsProbe) Start() error {
 					ev.Type = uint32(model.DeleteRegistryKeyEventType)
 					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
 						RegistryEvent: model.RegistryEvent{
-							KeyName: dka.keyName,
+							KeyName: filepath.Base(dka.computedFullPath),
+							KeyPath: dka.computedFullPath,
 						},
 					}
 				case model.SetRegistryKeyValueEventType:

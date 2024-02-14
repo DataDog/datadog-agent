@@ -179,7 +179,10 @@ func parseDeleteRegistryKey(e *etw.DDEventRecord) (*deleteKeyArgs, error) {
 
 	dka.keyObject = regObjectPointer(binary.LittleEndian.Uint64(data[0:8]))
 	dka.status = binary.LittleEndian.Uint32(data[8:12])
-	dka.keyName, _, _, _ = parseUnicodeString(data, 12)
+	dka.keyName, _, _, _ = parseUnicodeString(data, 12) // KeyName is always empty
+	if s, ok := regPathResolver[dka.keyObject]; ok {
+		dka.computedFullPath = s
+	}
 
 	return dka, nil
 }
@@ -190,9 +193,7 @@ func (dka *deleteKeyArgs) string() string {
 	output.WriteString("  PID: " + strconv.Itoa(int(dka.ProcessID)) + "\n")
 	output.WriteString("  Status: " + strconv.Itoa(int(dka.status)) + "\n")
 	output.WriteString("  keyName: " + dka.keyName + "\n")
-	if s, ok := regPathResolver[dka.keyObject]; ok {
-		output.WriteString("  resolved path: " + s + "\n")
-	}
+	output.WriteString("  resolved path: " + dka.computedFullPath + "\n")
 
 	//output.WriteString("  CapturedSize: " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + " pvssize: " + strconv.Itoa(int(sv.previousDataSize)) + " capturedpvssize " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + "\n")
 	return output.String()
