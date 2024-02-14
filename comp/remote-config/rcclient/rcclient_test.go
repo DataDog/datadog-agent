@@ -188,6 +188,31 @@ func TestOnAPMTracingUpdate(t *testing.T) {
 		assert.Equal(t, "tracing_enabled: true\nenv: someEnv\nservice_env_configs:\n- service: s1\n  env: e1\n  tracing_enabled: false\n", string(actualBytes))
 	})
 
+	t.Run("lowest config-id wins", func(t *testing.T) {
+		defer mkTemp(t)()
+		rc := rcClient{}
+		callbackCalls := map[string]string{}
+		callback := func(id string, status state.ApplyStatus) {
+			callbackCalls[id] = status.Error
+		}
+
+		hostConfig := state.RawConfig{Config: []byte(`{"id":"abc","infra_target": {"tags":["k:v"]},"lib_config":{"env":"someEnv","tracing_enabled":true}}`)}
+		hostConfig2 := state.RawConfig{Config: []byte(`{"id":"xyz","infra_target": {"tags":["k:v"]},"lib_config":{"env":"someEnv2","tracing_enabled":true}}`)}
+
+		updates := map[string]state.RawConfig{
+			"abc": hostConfig,
+			"xyz": hostConfig2,
+		}
+		rc.onAPMTracingUpdate(updates, callback)
+
+		assert.Len(t, callbackCalls, 2)
+		assert.Empty(t, callbackCalls["abc"])
+		assert.Equal(t, "DUPLICATE_HOST_CONFIG", callbackCalls["xyz"])
+		actualBytes, err := os.ReadFile(apmTracingFilePath)
+		assert.NoError(t, err)
+		assert.Equal(t, "tracing_enabled: true\nenv: someEnv\nservice_env_configs: []\n", string(actualBytes))
+	})
+
 	t.Run("bad updates report failure", func(t *testing.T) {
 		defer mkTemp(t)()
 		rc := rcClient{}

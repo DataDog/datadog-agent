@@ -16,6 +16,10 @@ const MissingServiceTarget = "MISSING_SERVICE_TARGET"
 // FileWriteFailure indicates we were unable to write the RC Updates to a local file for use by the injector
 const FileWriteFailure = "FILE_WRITE_FAILURE"
 
+// DuplicateHostConfig indicates received more than one InfraTarget configuration with a different env,
+// this leads to inconsistent env values
+const DuplicateHostConfig = "DUPLICATE_HOST_CONFIG"
+
 type serviceEnvConfig struct {
 	Service        string `yaml:"service"`
 	Env            string `yaml:"env"`

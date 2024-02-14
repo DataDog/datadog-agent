@@ -312,6 +312,7 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 	updateStatus := map[string]string{}
 	var hostTracingEnabled bool
 	var hostEnvTarget string
+	var hostConfigID string
 	for id, rawConfig := range update {
 		tcu := tracingConfigUpdate{}
 		err := json.Unmarshal(rawConfig.Config, &tcu)
@@ -324,8 +325,22 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 		pkglog.Infof("Received APM_TRACING remote update %s: %v, any err: %v", id, tcu, err)
 		if tcu.InfraTarget != nil {
 			// This is an infra targeting payload, skip adding it to the service env config map
+			if hostConfigID != "" && tcu.LibConfig.Env != hostEnvTarget {
+				// We already saw a InfraTarget configuration and the envs are different, this is generally not desired
+				// To be consistent we will apply the "lowest" config ID and report a failure for the un-applied host config
+				pkglog.Warnf("Received more than 1 InfraTarget APM_TRACING config, the 'lowest' config will be used, but inconsistent behavior may occur. Check your Single Step Instrumentation configurations.")
+				if id < hostConfigID {
+					updateStatus[hostConfigID] = DuplicateHostConfig
+					// fallthrough to use this update's config values
+				} else {
+					// The previous infra target was lower, keep the current values
+					updateStatus[id] = DuplicateHostConfig
+					continue
+				}
+			}
 			hostTracingEnabled = tcu.LibConfig.TracingEnabled
 			hostEnvTarget = tcu.LibConfig.Env
+			hostConfigID = id
 			continue
 		}
 		if tcu.ServiceTarget == nil {
