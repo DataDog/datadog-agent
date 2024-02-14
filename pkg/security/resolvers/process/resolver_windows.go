@@ -91,6 +91,8 @@ func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
 
 // AddToExitedQueue adds the exited processes to a queue
 func (p *Resolver) AddToExitedQueue(pid uint32) {
+	p.Lock()
+	defer p.Unlock()
 	p.exitedQueue = append(p.exitedQueue, pid)
 }
 
