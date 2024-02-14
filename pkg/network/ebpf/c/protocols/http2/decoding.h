@@ -546,6 +546,8 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
    }
 
     __u32 iteration = 0;
+    // without pragma unroll the instruction count increases from 73006 to 108845 for http2_filter
+    #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
         // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
         if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
