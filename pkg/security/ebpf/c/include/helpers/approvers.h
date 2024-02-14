@@ -98,6 +98,10 @@ int __attribute__((always_inline)) mkdir_approvers(struct syscall_cache_t *sysca
     return basename_approver(syscall, syscall->mkdir.dentry, EVENT_MKDIR);
 }
 
+int __attribute__((always_inline)) chdir_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->chdir.dentry, EVENT_CHDIR);
+}
+
 int __attribute__((always_inline)) approve_mprotect_by_vm_protection(struct syscall_cache_t *syscall) {
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&mprotect_vm_protection_approvers, &key);
@@ -122,9 +126,10 @@ int __attribute__((always_inline)) mprotect_approvers(struct syscall_cache_t *sy
     int pass_to_userspace = 0;
 
     if ((syscall->policy.flags & FLAGS) > 0) {
-        int vm_protection_approved = approve_mprotect_by_vm_protection(syscall);
-        int req_protection_approved = approve_mprotect_by_req_protection(syscall);
-        pass_to_userspace = vm_protection_approved && req_protection_approved;
+        pass_to_userspace = approve_mprotect_by_vm_protection(syscall);
+        if (!pass_to_userspace) {
+            pass_to_userspace = approve_mprotect_by_req_protection(syscall);
+        }
     }
 
     return pass_to_userspace;

@@ -310,7 +310,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 	// Setup healthcheck port
 	healthPort := cfg.HealthPort
 	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, healthPort)
+		err := healthprobe.Serve(ctx, ddconfig.Datadog, healthPort)
 		if err != nil {
 			return log.Errorf("error starting health check server, exiting: %s", err)
 		}

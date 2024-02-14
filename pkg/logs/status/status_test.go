@@ -14,13 +14,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func initStatus() {
-	InitStatus(pkgConfig.Datadog, util.CreateSources([]*sources.LogSource{
+	InitStatus(pkgConfig.Datadog, testutils.CreateSources([]*sources.LogSource{
 		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
 		sources.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
 		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),

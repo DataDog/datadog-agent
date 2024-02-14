@@ -11,6 +11,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -40,16 +41,16 @@ type ScoreSampler struct {
 
 // NewNoPrioritySampler returns an initialized Sampler dedicated to traces with
 // no priority set.
-func NewNoPrioritySampler(conf *config.AgentConfig) *NoPrioritySampler {
-	s := newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:no_priority"})
+func NewNoPrioritySampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *NoPrioritySampler {
+	s := newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:no_priority"}, statsd)
 	return &NoPrioritySampler{ScoreSampler{Sampler: s, samplingRateKey: noPriorityRateKey}}
 }
 
 // NewErrorsSampler returns an initialized Sampler dedicate to errors. It behaves
 // just like the the normal ScoreEngine except for its GetType method (useful
 // for reporting).
-func NewErrorsSampler(conf *config.AgentConfig) *ErrorsSampler {
-	s := newSampler(conf.ExtraSampleRate, conf.ErrorTPS, []string{"sampler:error"})
+func NewErrorsSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *ErrorsSampler {
+	s := newSampler(conf.ExtraSampleRate, conf.ErrorTPS, []string{"sampler:error"}, statsd)
 	return &ErrorsSampler{ScoreSampler{Sampler: s, samplingRateKey: errorsRateKey, disabled: conf.ErrorTPS == 0}}
 }
 
