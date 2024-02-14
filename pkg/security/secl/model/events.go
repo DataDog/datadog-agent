@@ -123,15 +123,15 @@ const (
 	CustomTruncatedParentsEventType
 	// CustomSelfTestEventType is the custom event used to report the results of a self test run
 	CustomSelfTestEventType
-	// CreateNewFileEventType
+	// CreateNewFileEventType event
 	CreateNewFileEventType
-	// CreateRegistryKeyEventType
+	// CreateRegistryKeyEventType event
 	CreateRegistryKeyEventType
-	// OpenRegistryKeyEventType
+	// OpenRegistryKeyEventType event
 	OpenRegistryKeyEventType
-	// SetRegistryKeyValueEventType
+	// SetRegistryKeyValueEventType event
 	SetRegistryKeyValueEventType
-	// DeleteRegistryKeyEventType
+	// DeleteRegistryKeyEventType event
 	DeleteRegistryKeyEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
