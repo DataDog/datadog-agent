@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const testAPIKey = "123"
@@ -49,6 +50,7 @@ func TestIsRetriable(t *testing.T) {
 }
 
 func TestSender(t *testing.T) {
+	statsd := &statsd.NoOpClient{}
 	const climit = 100
 	testSenderConfig := func(serverURL string) *senderConfig {
 		url, err := url.Parse(serverURL + "/")
@@ -73,7 +75,7 @@ func TestSender(t *testing.T) {
 		server := newTestServer()
 		defer server.Close()
 
-		s := newSender(testSenderConfig(server.URL))
+		s := newSender(testSenderConfig(server.URL), statsd)
 		for i := 0; i < 20; i++ {
 			s.Push(expectResponses(200))
 		}
@@ -90,7 +92,7 @@ func TestSender(t *testing.T) {
 		server := newTestServerWithLatency(50 * time.Millisecond)
 		defer server.Close()
 
-		s := newSender(testSenderConfig(server.URL))
+		s := newSender(testSenderConfig(server.URL), statsd)
 		for i := 0; i < climit*2; i++ {
 			// we have to sleep for a bit to yield to the receiver, otherwise
 			// the channel will get immediately full.
@@ -111,7 +113,7 @@ func TestSender(t *testing.T) {
 		server := newTestServer()
 		defer server.Close()
 
-		s := newSender(testSenderConfig(server.URL))
+		s := newSender(testSenderConfig(server.URL), statsd)
 		for i := 0; i < 20; i++ {
 			s.Push(expectResponses(404))
 		}
@@ -134,7 +136,7 @@ func TestSender(t *testing.T) {
 			return time.Nanosecond
 		}
 
-		s := newSender(testSenderConfig(server.URL))
+		s := newSender(testSenderConfig(server.URL), statsd)
 		s.Push(expectResponses(503, 408, 200))
 		s.Stop()
 
@@ -150,7 +152,7 @@ func TestSender(t *testing.T) {
 		defer server.Close()
 		defer useBackoffDuration(time.Millisecond)()
 
-		s := newSender(testSenderConfig(server.URL))
+		s := newSender(testSenderConfig(server.URL), statsd)
 		s.Push(expectResponses(503, 503, 200))
 		for i := 0; i < 20; i++ {
 			s.Push(expectResponses(403))
@@ -174,7 +176,7 @@ func TestSender(t *testing.T) {
 			wg.Done()
 		}))
 		defer server.Close()
-		s := newSender(testSenderConfig(server.URL))
+		s := newSender(testSenderConfig(server.URL), statsd)
 		s.Push(expectResponses(http.StatusOK))
 		s.Stop()
 		wg.Wait()
@@ -189,7 +191,7 @@ func TestSender(t *testing.T) {
 		var recorder mockRecorder
 		cfg := testSenderConfig(server.URL)
 		cfg.recorder = &recorder
-		s := newSender(cfg)
+		s := newSender(cfg, statsd)
 
 		// push a couple of payloads
 		start := time.Now()

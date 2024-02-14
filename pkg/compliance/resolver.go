@@ -31,8 +31,6 @@ import (
 	dockertypes "github.com/docker/docker/api/types"
 	docker "github.com/docker/docker/client"
 
-	auditrule "github.com/elastic/go-libaudit/rule"
-
 	"github.com/shirou/gopsutil/v3/process"
 
 	yamlv2 "gopkg.in/yaml.v2"
@@ -61,7 +59,7 @@ type LinuxAuditProvider func(context.Context) (LinuxAuditClient, error)
 // LinuxAuditClient is an interface that implements the capability of parsing
 // Linux Audit rules.
 type LinuxAuditClient interface {
-	GetFileWatchRules() ([]*auditrule.FileWatchRule, error)
+	GetFileWatchRules() ([]*FileWatchRule, error)
 	Close() error
 }
 
@@ -550,24 +548,7 @@ func (r *defaultResolver) resolveAudit(_ context.Context, spec InputSpecAudit) (
 	var resolved []interface{}
 	for _, rule := range rules {
 		if rule.Path == spec.Path {
-			permissions := ""
-			for _, p := range rule.Permissions {
-				switch p {
-				case auditrule.ReadAccessType:
-					permissions += "r"
-				case auditrule.WriteAccessType:
-					permissions += "w"
-				case auditrule.ExecuteAccessType:
-					permissions += "e"
-				case auditrule.AttributeChangeAccessType:
-					permissions += "a"
-				}
-			}
-			resolved = append(resolved, map[string]interface{}{
-				"path":        spec.Path,
-				"enabled":     true,
-				"permissions": permissions,
-			})
+			resolved = append(resolved, rule.Resolve())
 		}
 	}
 

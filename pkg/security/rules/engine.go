@@ -39,6 +39,8 @@ const (
 	ProbeEvaluationRuleSetTagValue = "probe_evaluation"
 	// ThreatScoreRuleSetTagValue defines the threat-score rule-set tag value
 	ThreatScoreRuleSetTagValue = "threat_score"
+	// TagMaxResolutionDelay maximum tag resolution delay
+	TagMaxResolutionDelay = 5 * time.Second
 )
 
 // RuleEngine defines a rule engine
@@ -142,8 +144,9 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 	ruleFilters = append(ruleFilters, seclRuleFilter)
 
 	e.policyOpts = rules.PolicyLoaderOpts{
-		MacroFilters: macroFilters,
-		RuleFilters:  ruleFilters,
+		MacroFilters:       macroFilters,
+		RuleFilters:        ruleFilters,
+		DisableEnforcement: !e.config.EnforcementEnabled,
 	}
 
 	if err := e.LoadPolicies(e.policyProviders, true); err != nil {
@@ -426,9 +429,19 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
-	containerID := ev.ContainerContext.ID
-	extTagsCb := func() []string {
-		return e.probe.GetEventTags(containerID)
+
+	var extTagsCb func() []string
+
+	if ev.ContainerContext.ID != "" {
+		// copy the container ID here to avoid later data race
+		containerID := ev.ContainerContext.ID
+
+		// the container tags might not be resolved yet
+		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
+			extTagsCb = func() []string {
+				return e.probe.GetEventTags(containerID)
+			}
+		}
 	}
 
 	e.eventSender.SendEvent(rule, ev, extTagsCb, service)

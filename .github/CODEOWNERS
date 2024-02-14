@@ -391,6 +391,8 @@
 /pkg/process/util/netns*.go             @DataDog/Networks
 /pkg/process/checks/net*.go             @DataDog/Networks
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks
+/pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks @DataDog/windows-kernel-integrations
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring
 /pkg/process/net/                       @DataDog/processes @DataDog/Networks
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
@@ -524,6 +526,7 @@
 /test/new-e2e/tests/agent-metric-logs   @DataDog/agent-metrics-logs
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
+/test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm

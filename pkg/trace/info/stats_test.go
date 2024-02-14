@@ -11,13 +11,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
 	"github.com/stretchr/testify/assert"
@@ -170,40 +167,8 @@ func TestSamplingPriorityStats(t *testing.T) {
 	})
 }
 
-var _ metrics.StatsClient = (*testStatsClient)(nil)
-
-type testStatsClient struct {
-	counts atomic.Int64
-}
-
-//nolint:revive // TODO(APM) Fix revive linter
-func (ts *testStatsClient) Gauge(name string, value float64, tags []string, rate float64) error {
-	return nil
-}
-
-//nolint:revive // TODO(APM) Fix revive linter
-func (ts *testStatsClient) Count(name string, value int64, tags []string, rate float64) error {
-	ts.counts.Inc()
-	return nil
-}
-
-//nolint:revive // TODO(APM) Fix revive linter
-func (ts *testStatsClient) Histogram(name string, value float64, tags []string, rate float64) error {
-	return nil
-}
-
-//nolint:revive // TODO(APM) Fix revive linter
-func (ts *testStatsClient) Timing(name string, value time.Duration, tags []string, rate float64) error {
-	return nil
-}
-
-func (ts *testStatsClient) Flush() error { return nil }
-
 func TestReceiverStats(t *testing.T) {
-	statsclient := &testStatsClient{}
-	defer func(old metrics.StatsClient) { metrics.Client = statsclient }(metrics.Client)
-	metrics.Client = statsclient
-
+	statsclient := &teststatsd.Client{}
 	tags := Tags{
 		Lang:            "go",
 		LangVersion:     "1.12",
@@ -269,8 +234,8 @@ func TestReceiverStats(t *testing.T) {
 
 	t.Run("PublishAndReset", func(t *testing.T) {
 		rs := testStats()
-		rs.PublishAndReset()
-		assert.EqualValues(t, 42, statsclient.counts.Load())
+		rs.PublishAndReset(statsclient)
+		assert.EqualValues(t, 42, len(statsclient.CountCalls))
 		assertStatsAreReset(t, rs)
 	})
 
