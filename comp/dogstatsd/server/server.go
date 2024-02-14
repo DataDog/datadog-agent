@@ -310,8 +310,6 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 
 func (s *server) start(context.Context) error {
 
-	// TODO: (components) - DI this into Server when Demultiplexer is made into a component
-
 	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 	err := s.tCapture.Configure()
