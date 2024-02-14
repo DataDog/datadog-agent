@@ -1083,6 +1083,25 @@ workflow:
     when: manual
     allow_failure: true
 
+.on_apm_or_e2e_changes_or_manual:
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - pkg/trace/**/*
+        - cmd/trace-agent/**/*
+        - comp/trace/**/*
+        - test/new-e2e/tests/apm/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
 .on_trace_agent_changes_or_manual:
   - changes:
       - pkg/trace/**/*
