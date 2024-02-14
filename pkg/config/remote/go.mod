@@ -34,6 +34,8 @@ require (
 )
 
 require (
+	github.com/dgrijalva/lfu-go v0.0.0-20141010002404-f174e76c5138 // indirect
+	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
@@ -42,7 +44,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.2 // indirect
-	github.com/DataDog/go-tuf v1.0.2-0.5.2
+	github.com/DataDog/go-tuf v1.0.4-0.5.2
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

@@ -1,7 +1,11 @@
-github.com/DataDog/go-tuf v1.0.2-0.5.2 h1:EeZr937eKAWPxJ26IykAdWA4A0jQXJgkhUjqEI/w7+I=
-github.com/DataDog/go-tuf v1.0.2-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
+github.com/DataDog/go-tuf v1.0.4-0.5.2 h1:p7Owb1bMhV9CuGpXv2r3gYxcfcKP+lwRi33MLMIEFuo=
+github.com/DataDog/go-tuf v1.0.4-0.5.2/go.mod h1:eaweB+HCRl3YBlX3X4/a5WpxErQMPpHw6HRAx4NOWGQ=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/dgrijalva/lfu-go v0.0.0-20141010002404-f174e76c5138 h1:dnHgW/+2AbIFKEIhb3mXw6OuPNPrMmrJ6GZylDT556s=
+github.com/dgrijalva/lfu-go v0.0.0-20141010002404-f174e76c5138/go.mod h1:NBHEfzv9sqF3bQdv4L3+buvhN5JtVkuO1EhpELjZxXk=
+github.com/goccy/go-json v0.10.2 h1:CrxCmQqYDkv1z7lO7Wbh2HN93uovUHgrECaO5ZrCXAU=
+github.com/goccy/go-json v0.10.2/go.mod h1:6MelG93GURQebXPDq3khkgXZkazVtN9CRI+MGFi0w8I=
 github.com/google/gofuzz v1.2.0 h1:xRy4A+RhZaiKjJ1bPfwQ8sedCA+YS2YcCHW6ec7JMi0=
 github.com/kr/pretty v0.2.1 h1:Fmg33tUaq4/8ym9TJN1x7sLJnHVwhP33CNkpYV/7rwI=
 github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
