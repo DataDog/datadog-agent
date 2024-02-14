@@ -107,4 +107,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// CWS -eBPF Less
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.socket", constants.DefaultEBPFLessProbeAddr)
+
+	// CWS enforcement capabilities
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.enabled", true)
 }

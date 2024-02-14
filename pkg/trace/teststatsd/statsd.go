@@ -11,6 +11,8 @@ import (
 	"math"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // MetricsArgs represents arguments to a StatsClient Gauge method call.
@@ -34,10 +36,13 @@ type GaugeSummary struct {
 	Max   float64
 }
 
+var _ statsd.ClientInterface = (*Client)(nil)
+
 // Client is a mocked StatsClient that records all calls and replies with configurable error return values.
 // Don't create this Client directly. Instead, use the constructor provided through `testutil.WithStatsClient`.
 type Client struct {
 	mu sync.RWMutex
+	statsd.NoOpClient
 
 	GaugeErr       error
 	GaugeCalls     []MetricsArgs

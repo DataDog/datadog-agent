@@ -75,25 +75,36 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
 
 // Path returns the URL from the request fragment captured in eBPF.
 func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
+	if tx.Stream.Path.Static_table_entry != 0 {
+		switch tx.Stream.Path.Static_table_entry {
+		case EmptyPathValue:
+			return []byte("/"), true
+		case IndexPathValue:
+			return []byte("/index.html"), true
+		default:
+			return nil, false
+		}
+	}
+
 	var res []byte
 	var err error
-	if tx.Stream.Is_huffman_encoded {
-		res, err = decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
+	if tx.Stream.Path.Is_huffman_encoded {
+		res, err = decodeHTTP2Path(tx.Stream.Path.Raw_buffer, tx.Stream.Path.Length)
 		if err != nil {
 			if oversizedLogLimit.ShouldLog() {
-				log.Warnf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
+				log.Warnf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length], err)
 			}
 			return nil, false
 		}
 	} else {
-		if err = validatePathSize(tx.Stream.Path_size); err != nil {
+		if err = validatePathSize(tx.Stream.Path.Length); err != nil {
 			if oversizedLogLimit.ShouldLog() {
-				log.Warnf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
+				log.Warnf("path size: %d is invalid due to: %s", tx.Stream.Path.Length, err)
 			}
 			return nil, false
 		}
 
-		res = tx.Stream.Request_path[:tx.Stream.Path_size]
+		res = tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length]
 		if err = validatePath(string(res)); err != nil {
 			if oversizedLogLimit.ShouldLog() {
 				log.Warnf("path %s is invalid due to: %s", string(res), err)
@@ -101,7 +112,7 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 			return nil, false
 		}
 
-		res = tx.Stream.Request_path[:tx.Stream.Path_size]
+		res = tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length]
 	}
 
 	n := copy(buffer, res)
@@ -119,7 +130,7 @@ func (tx *EbpfTx) RequestLatency() float64 {
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
 func (tx *EbpfTx) Incomplete() bool {
-	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Stream.Path_size == 0 || tx.Method() == http.MethodUnknown
+	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || !tx.Stream.Path.Finalized || tx.Method() == http.MethodUnknown
 }
 
 // ConnTuple returns the connections tuple of the transaction.
@@ -292,8 +303,8 @@ func (tx *EbpfTx) String() string {
 	output.WriteString("http2.ebpfTx{")
 	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", tx.family(), tx.sourceEndpoint(), tx.destEndpoint()))
 	output.WriteString(" Method: '" + tx.Method().String() + "', ")
-	fullBufferSize := len(tx.Stream.Request_path)
-	if tx.Stream.Is_huffman_encoded {
+	fullBufferSize := len(tx.Stream.Path.Raw_buffer)
+	if tx.Stream.Path.Is_huffman_encoded {
 		// If the path is huffman encoded, then the path is compressed (with an upper bound to compressed size of maxHTTP2Path)
 		// thus, we need more room for the decompressed path, therefore using 2*maxHTTP2Path.
 		fullBufferSize = 2 * maxHTTP2Path
@@ -406,6 +417,7 @@ HTTP2Telemetry{
 	"literal values exceed message count": %d,
 	"messages with more frames than we can filter": %d,
 	"messages with more interesting frames than we can process": %d,
+	"fragmented frame count": %d,
 	"path headers length distribution": {
 		"in range [0, 120)": %d,
 		"in range [120, 130)": %d,
@@ -417,7 +429,7 @@ HTTP2Telemetry{
 		"in range [180, infinity)": %d
 	}
 }`, t.Request_seen, t.Response_seen, t.End_of_stream, t.End_of_stream_rst, t.Literal_value_exceeds_frame,
-		t.Exceeding_max_frames_to_filter, t.Exceeding_max_interesting_frames, t.Path_size_bucket[0], t.Path_size_bucket[1],
+		t.Exceeding_max_frames_to_filter, t.Exceeding_max_interesting_frames, t.Fragmented_frame_count, t.Path_size_bucket[0], t.Path_size_bucket[1],
 		t.Path_size_bucket[2], t.Path_size_bucket[3], t.Path_size_bucket[4], t.Path_size_bucket[5], t.Path_size_bucket[6],
 		t.Path_size_bucket[7])
 }
