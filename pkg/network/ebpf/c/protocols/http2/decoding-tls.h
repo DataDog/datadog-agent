@@ -168,7 +168,6 @@ static __always_inline void tls_handle_dynamic_table_update(tls_dispatcher_argum
     // If the top 3 bits are 001, then we have a dynamic table size update.
     if ((current_ch & 224) == 32) {
         info->data_off++;
-    #pragma unroll(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS)
         for (__u8 iter = 0; iter < HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS; ++iter) {
             bpf_probe_read_user(&current_ch, sizeof(current_ch), info->buffer_ptr + info->data_off);
             info->data_off++;
@@ -200,7 +199,7 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
     }
 
     tls_handle_dynamic_table_update(info);
-
+// without pragma unroll verifier issue
 #pragma unroll(HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
         if (info->data_off >= end) {
@@ -249,7 +248,7 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
             break;
         }
     }
-
+// without pragma unroll verifier issue
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
         if (info->data_off >= end) {
@@ -302,6 +301,7 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
 
+// without pragma unroll the instruction count increases from 695675 to 810755 for http2_tls_headers_parser
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
         if (iteration >= interesting_headers) {
@@ -541,6 +541,7 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
     }
 
     __u32 iteration = 0;
+    // without pragma unroll the instruction count increases from 60621 to 109398 for uprobe__http2_tls_filter
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
         // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
@@ -723,6 +724,7 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
         // We have a frame header remainder
         new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.data_end - dispatcher_args_copy.data_off);
         bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
+    // without pragma unroll the instruction count increases from 60621 to 63729 for http2_tls_filter
     #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
         for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
             bpf_probe_read_user(new_frame_state.buf + iteration, 1, dispatcher_args_copy.buffer_ptr + dispatcher_args_copy.data_off + iteration);
@@ -795,6 +797,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
 
     http2_stream_t *current_stream = NULL;
 
+// without pragma unroll the instruction count increases from 695675 to 787769 for http2_tls_headers_parser
     #pragma unroll(HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
@@ -882,7 +885,6 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     bool is_rst = false, is_end_of_stream = false;
     http2_stream_t *current_stream = NULL;
 
-    #pragma unroll(HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL; index++) {
         if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
             break;
