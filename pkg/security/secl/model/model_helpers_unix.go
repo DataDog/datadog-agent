@@ -346,12 +346,12 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 }
 
 // ResolveHashes resolves the hash of the provided file
-func (dfh *DefaultFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEvent) []string {
+func (dfh *FakeFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEvent) []string {
 	return nil
 }
 
 // ResolveUserSessionContext resolves and updates the provided user session context
-func (dfh *DefaultFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}
+func (dfh *FakeFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}
 
 // SELinuxEventKind represents the event kind for SELinux events
 type SELinuxEventKind uint32

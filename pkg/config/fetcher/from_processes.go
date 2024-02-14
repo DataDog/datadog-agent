@@ -18,7 +18,7 @@ import (
 
 // SecurityAgentConfig fetch the configuration from the security-agent process by querying its HTTPS API
 func SecurityAgentConfig(config config.Reader) (string, error) {
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
 	}
@@ -32,7 +32,7 @@ func SecurityAgentConfig(config config.Reader) (string, error) {
 
 // TraceAgentConfig fetch the configuration from the trace-agent process by querying its HTTPS API
 func TraceAgentConfig(config config.Reader) (string, error) {
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
 	}
@@ -52,7 +52,7 @@ func TraceAgentConfig(config config.Reader) (string, error) {
 
 // ProcessAgentConfig fetch the configuration from the process-agent process by querying its HTTPS API
 func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, error) {
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
 	}

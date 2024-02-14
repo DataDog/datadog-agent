@@ -397,8 +397,8 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 	return nil
 }
 
-func newDefaultEvent() eval.Event {
-	return model.NewDefaultEvent()
+func newFakeEvent() eval.Event {
+	return model.NewFakeEvent()
 }
 
 func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
@@ -437,7 +437,7 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
+	ruleSet := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
@@ -550,7 +550,7 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
+	ruleSet := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
