@@ -245,7 +245,7 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 	}
 
 	if len(entity.Containers) == 0 {
-		log.Warn("skip getting resource tags from task %q with zero container", entity.ID)
+		log.Warnf("skip getting resource tags from task %q with zero container", entity.ID)
 		return rt
 	}
 
