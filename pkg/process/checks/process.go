@@ -41,11 +41,12 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
+func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader) *ProcessCheck {
 	check := &ProcessCheck{
-		config:        config,
-		scrubber:      procutil.NewDefaultDataScrubber(),
-		lookupIdProbe: NewLookupIDProbe(config),
+		config:             config,
+		scrubber:           procutil.NewDefaultDataScrubber(),
+		lookupIdProbe:      NewLookupIDProbe(config),
+		sysprobeYamlConfig: sysprobeYamlConfig,
 	}
 
 	return check
@@ -93,7 +94,8 @@ type ProcessCheck struct {
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
 
-	sysProbeConfig *SysProbeConfig
+	sysProbeConfig     *SysProbeConfig
+	sysprobeYamlConfig ddconfig.Reader
 
 	maxBatchSize  int
 	maxBatchBytes int
@@ -151,7 +153,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	p.initConnRates()
 
 	serviceExtractorEnabled := true
-	useWindowsServiceName := true
+	useWindowsServiceName := p.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	p.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
