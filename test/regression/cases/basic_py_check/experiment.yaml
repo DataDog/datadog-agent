@@ -19,3 +19,7 @@ profiling_environment:
   DD_PROFILING_WAIT_PROFILE: true
 
   DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:basic_py_check
+
+target:
+  name: datadog-agent
+  command: /bin/entrypoint.sh
