@@ -28,8 +28,8 @@ type kernelTelemetry struct {
 	telemetryLastState rawKernelTelemetry
 }
 
-// newKafkaKernelTelemetry hold Kafka kernel metrics.
-func newKafkaKernelTelemetry() *kernelTelemetry {
+// newKernelTelemetry hold Kafka kernel metrics.
+func newKernelTelemetry() *kernelTelemetry {
 	metricGroup := libtelemetry.NewMetricGroup("usm.kafka", libtelemetry.OptPrometheus)
 	kafkaKernelTel := &kernelTelemetry{
 		metricGroup:             metricGroup,

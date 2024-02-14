@@ -9,6 +9,8 @@ package kafka
 
 import (
 	"io"
+	"time"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -18,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type protocol struct {
@@ -25,6 +28,9 @@ type protocol struct {
 	telemetry      *Telemetry
 	statkeeper     *StatKeeper
 	eventsConsumer *events.Consumer[EbpfTx]
+
+	kernelTelemetry            *kernelTelemetry
+	kernelTelemetryStopChannel chan struct{}
 }
 
 const (
@@ -34,6 +40,8 @@ const (
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	kafkaLastTCPSeqPerConnectionMap          = "kafka_last_tcp_seq_per_connection"
 	kafkaHeapMap                             = "kafka_heap"
+	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
+	eBPFTelemetryMap = "kafka_telemetry"
 )
 
 // Spec is the protocol spec for the kafka protocol.
@@ -74,8 +82,10 @@ func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	return &protocol{
-		cfg:       cfg,
-		telemetry: NewTelemetry(),
+		cfg:                        cfg,
+		telemetry:                  NewTelemetry(),
+		kernelTelemetry:            newKernelTelemetry(),
+		kernelTelemetryStopChannel: make(chan struct{}),
 	}, nil
 }
 
@@ -117,7 +127,8 @@ func (p *protocol) PreStart(mgr *manager.Manager) error {
 }
 
 // PostStart empty implementation.
-func (p *protocol) PostStart(*manager.Manager) error {
+func (p *protocol) PostStart(mgr *manager.Manager) error {
+	p.setUpKernelTelemetryCollection(mgr)
 	return nil
 }
 
@@ -126,6 +137,7 @@ func (p *protocol) Stop(*manager.Manager) {
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
 	}
+	close(p.kernelTelemetryStopChannel)
 }
 
 // DumpMaps empty implementation.
@@ -153,4 +165,34 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 // IsBuildModeSupported returns always true, as kafka module is supported by all modes.
 func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
+}
+
+func (p *protocol) setUpKernelTelemetryCollection(mgr *manager.Manager) {
+	mp, err := protocols.GetMap(mgr, eBPFTelemetryMap)
+	if err != nil {
+		log.Warn(err)
+		return
+	}
+
+	var zero uint32
+	rawTelemetry := &rawKernelTelemetry{}
+	ticker := time.NewTicker(30 * time.Second)
+
+	go func() {
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(rawTelemetry)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", eBPFTelemetryMap, err)
+					return
+				}
+				p.kernelTelemetry.update(rawTelemetry)
+				p.kernelTelemetry.Log()
+			case <-p.kernelTelemetryStopChannel:
+				return
+			}
+		}
+	}()
 }
