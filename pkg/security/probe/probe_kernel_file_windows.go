@@ -67,7 +67,8 @@ var (
       <data name="ShareAccess" inType="win:UInt32"/>
       <data name="FileName" inType="win:UnicodeString"/>
 */
-type createArgs struct {
+type createHandleArgs struct {
+	etw.DDEventHeader
 	irp              uint64            // actually a pointer
 	fileObject       fileObjectPointer // pointer
 	threadID         uint64            // actually a pointer
@@ -77,8 +78,62 @@ type createArgs struct {
 	fileName         string
 }
 
-func parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
-	ca := &createArgs{}
+/*
+ * these constants are defined in the windows driver kit (wdm.h).  Copied
+ * here because the correspond to the createOptions field
+ */
+const (
+	kernelDisposition_FILE_SUPERSEDE           = uint32(0x00000000) // nolint:unused,revive
+	kernelDisposition_FILE_OPEN                = uint32(0x00000001) // nolint:unused,revive
+	kernelDisposition_FILE_CREATE              = uint32(0x00000002) // nolint:unused,revive
+	kernelDisposition_FILE_OPEN_IF             = uint32(0x00000003) // nolint:unused,revive
+	kernelDisposition_FILE_OVERWRITE           = uint32(0x00000004) // nolint:unused,revive
+	kernelDisposition_FILE_OVERWRITE_IF        = uint32(0x00000005) // nolint:unused,revive
+	kernelDisposition_FILE_MAXIMUM_DISPOSITION = uint32(0x00000005) // nolint:unused,revive
+)
+
+const (
+	kernelCreateOpts_FILE_DIRECTORY_FILE            = uint32(0x00000001) // nolint:unused,revive
+	kernelCreateOpts_FILE_WRITE_THROUGH             = uint32(0x00000002) // nolint:unused,revive
+	kernelCreateOpts_FILE_SEQUENTIAL_ONLY           = uint32(0x00000004) // nolint:unused,revive
+	kernelCreateOpts_FILE_NO_INTERMEDIATE_BUFFERING = uint32(0x00000008) // nolint:unused,revive
+
+	kernelCreateOpts_FILE_SYNCHRONOUS_IO_ALERT    = uint32(0x00000010) // nolint:unused,revive
+	kernelCreateOpts_FILE_SYNCHRONOUS_IO_NONALERT = uint32(0x00000020) // nolint:unused,revive
+	kernelCreateOpts_FILE_NON_DIRECTORY_FILE      = uint32(0x00000040) // nolint:unused,revive
+	kernelCreateOpts_FILE_CREATE_TREE_CONNECTION  = uint32(0x00000080) // nolint:unused,revive
+
+	kernelCreateOpts_FILE_COMPLETE_IF_OPLOCKED = uint32(0x00000100) // nolint:unused,revive
+	kernelCreateOpts_FILE_NO_EA_KNOWLEDGE      = uint32(0x00000200) // nolint:unused,revive
+	kernelCreateOpts_FILE_OPEN_REMOTE_INSTANCE = uint32(0x00000400) // nolint:unused,revive
+	kernelCreateOpts_FILE_RANDOM_ACCESS        = uint32(0x00000800) // nolint:unused,revive
+
+	kernelCreateOpts_FILE_DELETE_ON_CLOSE        = uint32(0x00001000) // nolint:unused,revive
+	kernelCreateOpts_FILE_OPEN_BY_FILE_ID        = uint32(0x00002000) // nolint:unused,revive
+	kernelCreateOpts_FILE_OPEN_FOR_BACKUP_INTENT = uint32(0x00004000) // nolint:unused,revive
+	kernelCreateOpts_FILE_NO_COMPRESSION         = uint32(0x00008000) // nolint:unused,revive
+)
+
+type createNewFileArgs createHandleArgs
+
+/*
+The Parameters.Create.Options member is a ULONG value that describes the options that are used
+
+	when opening the handle. The high 8 bits correspond to the value of the CreateDisposition parameter
+	of ZwCreateFile, and the low 24 bits correspond to the value of the CreateOptions parameter of ZwCreateFile.
+
+The Parameters.Create.ShareAccess member is a USHORT value that describes the type of share access.
+This value corresponds to the value of the ShareAccess parameter of ZwCreateFile.
+
+The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are reserved for use
+
+	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
+	the Installable File System (IFS) documentation.
+*/
+func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
+	ca := &createHandleArgs{
+		DDEventHeader: e.EventHeader,
+	}
 	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		ca.irp = binary.LittleEndian.Uint64(data[0:8])
@@ -107,13 +162,28 @@ func parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
 	return ca, nil
 }
 
-func (ca *createArgs) string() string {
+func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := parseCreateHandleArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*createNewFileArgs)(ca), nil
+}
+
+// nolint: unused
+func (ca *createHandleArgs) string() string {
 	var output strings.Builder
 
-	output.WriteString("  Create TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
+	output.WriteString("  Create PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
 	output.WriteString("         Name: " + ca.fileName + "\n")
-	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Attrs: " + strconv.FormatUint(uint64(ca.createAttributes), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
+	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
+	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
 	return output.String()
+}
+
+// nolint: unused
+func (ca *createNewFileArgs) string() string {
+	return (*createHandleArgs)(ca).string()
 }
 
 /*
@@ -137,6 +207,7 @@ func (ca *createArgs) string() string {
 */
 
 type setInformationArgs struct {
+	etw.DDEventHeader
 	irp        uint64
 	threadID   uint64
 	fileObject fileObjectPointer
@@ -147,7 +218,9 @@ type setInformationArgs struct {
 }
 
 func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
-	sia := &setInformationArgs{}
+	sia := &setInformationArgs{
+		DDEventHeader: e.EventHeader,
+	}
 	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
 
 	if e.EventHeader.EventDescriptor.Version == 0 {
@@ -173,6 +246,7 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	return sia, nil
 }
 
+// nolint: unused
 func (sia *setInformationArgs) string() string {
 	var output strings.Builder
 
@@ -200,6 +274,7 @@ func (sia *setInformationArgs) string() string {
 */
 
 type cleanupArgs struct {
+	etw.DDEventHeader
 	irp        uint64
 	threadID   uint64
 	fileObject fileObjectPointer
@@ -207,8 +282,16 @@ type cleanupArgs struct {
 	fileName   string
 }
 
+// nolint: unused
+type closeArgs cleanupArgs
+
+// nolint: unused
+type flushArgs cleanupArgs
+
 func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
-	ca := &cleanupArgs{}
+	ca := &cleanupArgs{
+		DDEventHeader: e.EventHeader,
+	}
 	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
 
 	if e.EventHeader.EventDescriptor.Version == 0 {
@@ -232,11 +315,41 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	return ca, nil
 }
 
+// nolint: unused
+func parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
+	ca, err := parseCleanupArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*closeArgs)(ca), nil
+}
+
+// nolint: unused
+func parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
+	ca, err := parseCleanupArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*flushArgs)(ca), nil
+}
+
+// nolint: unused
 func (ca *cleanupArgs) string() string {
 	var output strings.Builder
 
 	output.WriteString("  CLEANUP: TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
 	output.WriteString("           Name: " + ca.fileName + "\n")
+	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
 	return output.String()
 
+}
+
+// nolint: unused
+func (ca *closeArgs) string() string {
+	return (*cleanupArgs)(ca).string()
+}
+
+// nolint: unused
+func (fa *flushArgs) string() string {
+	return (*cleanupArgs)(fa).string()
 }

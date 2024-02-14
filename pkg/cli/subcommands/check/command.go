@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -47,6 +49,8 @@ import (
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -59,7 +63,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
-	"github.com/DataDog/datadog-agent/pkg/collector"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -161,9 +165,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				inventorychecksimpl.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
-				fx.Provide(func() optional.Option[collector.Collector] {
-					return optional.NewNoneOption[collector.Collector]()
-				}),
+				collectorimpl.ModuleNoneCollector(),
 				fx.Provide(func() optional.Option[logagent.Component] {
 					return optional.NewNoneOption[logagent.Component]()
 
@@ -173,11 +175,17 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
+				eventplatformimpl.Module(),
+				fx.Provide(func() eventplatformimpl.Params {
+					params := eventplatformimpl.NewDefaultParams()
+					params.UseNoopEventPlatformForwarder = true
+					return params
+				}),
+				eventplatformreceiverimpl.Module(),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 					params := demultiplexerimpl.NewDefaultParams()
 					params.FlushInterval = 0
-					params.UseNoopEventPlatformForwarder = true
 					return params
 				}),
 
@@ -185,7 +193,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					status.Params{
 						PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
 					},
-					status.NewInformationProvider(statuscollector.Provider{}),
 				),
 				statusimpl.Module(),
 
@@ -200,6 +207,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() inventoryagent.Component { return nil }),
 				fx.Provide(func() inventoryhost.Component { return nil }),
 				fx.Provide(func() packagesigning.Component { return nil }),
+				fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
 			)
 		},
 	}
@@ -274,14 +282,15 @@ func run(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
+	pkgcollector.InitPython(common.GetPythonPaths()...)
 	commonchecks.RegisterChecks(wmeta)
 
-	common.LoadComponents(demultiplexer, secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
-	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll, demultiplexer)
+	// AutoDiscovery.
+	pkgcollector.InitCheckScheduler(optional.NewNoneOption[pkgcollector.Collector](), demultiplexer)
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
@@ -410,7 +419,7 @@ func run(
 		}
 	}
 
-	cs := collector.GetChecksByNameForConfigs(cliParams.checkName, allConfigs)
+	cs := pkgcollector.GetChecksByNameForConfigs(cliParams.checkName, allConfigs)
 
 	// something happened while getting the check(s), display some info.
 	if len(cs) == 0 {
@@ -419,7 +428,7 @@ func run(
 				fmt.Fprintf(color.Output, "\n%s: invalid config for %s: %s\n", color.RedString("Error"), color.YellowString(check), error)
 			}
 		}
-		for check, errors := range collector.GetLoaderErrors() {
+		for check, errors := range pkgcollector.GetLoaderErrors() {
 			if cliParams.checkName == check {
 				fmt.Fprintf(color.Output, "\n%s: could not load %s:\n", color.RedString("Error"), color.YellowString(cliParams.checkName))
 				for loader, error := range errors {
