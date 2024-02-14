@@ -12,7 +12,7 @@ if [[ -o xtrace ]]; then
 fi
 
 while [[ $retry_count -lt $max_retries ]]; do
-    result=$(aws ssm get-parameter --region us-east-1 --name $parameter_name --with-decryption --query \"Parameter.Value\" --output text)
+    result=$(aws ssm get-parameter --region us-east-1 --name $parameter_name --with-decryption --query "Parameter.Value" --output text)
     if [ -n "$result" ]; then
         echo "$result"
         exit 0
