@@ -121,15 +121,15 @@ type CreateRegistryKeyEvent struct {
 
 // OpenRegistryKeyEvent defines registry key opening
 type OpenRegistryKeyEvent struct {
-	RegistryEvent
+	Registry RegistryEvent `field:"registry"` // SECLDoc[registry] Definition:`Registry Event`
 }
 
 // SetRegistryKeyValueEvent defines the event of setting up a value of a registry key
 type SetRegistryKeyValueEvent struct {
-	RegistryEvent
+	Registry RegistryEvent `field:"registry"` // SECLDoc[registry] Definition:`Registry Event`
 }
 
 // DeleteRegistryKeyEvent defines registry key deletion
 type DeleteRegistryKeyEvent struct {
-	RegistryEvent
+	Registry RegistryEvent `field:"registry"` // SECLDoc[registry] Definition:`Registry Event`
 }
