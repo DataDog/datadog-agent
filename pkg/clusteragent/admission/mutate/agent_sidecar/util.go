@@ -8,6 +8,7 @@
 package agentsidecar
 
 import (
+	"encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	corev1 "k8s.io/api/core/v1"
@@ -115,4 +116,80 @@ func applyFargateOverrides(container *corev1.Container) {
 		Name:  "DD_EKS_FARGATE",
 		Value: "true",
 	})
+}
+
+////////////////////////////////
+//                            //
+//     Profiles Overrides     //
+//                            //
+////////////////////////////////
+
+// ProfileOverride represents environment variables and resource requirements overrides
+type ProfileOverride struct {
+	EnvVars              []corev1.EnvVar             `json:"env,omitempty"`
+	ResourceRequirements corev1.ResourceRequirements `json:"resources,omitempty"`
+}
+
+func applyProfileOverrides(container *corev1.Container) {
+	if container == nil {
+		return
+	}
+
+	// Read and parse profiles
+	profilesJSON := config.Datadog.GetString("admission_controller.agent_sidecar.profiles")
+
+	var profiles []ProfileOverride
+
+	err := json.Unmarshal([]byte(profilesJSON), &profiles)
+	if err != nil {
+		log.Errorf("failed to parse profiles for admission controller agent sidecar injection: %s", err)
+		return
+	}
+
+	if len(profiles) > 1 {
+		log.Errorf("only 1 profile is supported")
+		return
+	}
+
+	if len(profiles) == 0 {
+		return
+	}
+
+	overrides := profiles[0]
+
+	// Apply environment variable overrides
+	for _, envVarOverride := range overrides.EnvVars {
+		// Check if the environment variable already exists in the container
+		var found bool
+		for i, envVar := range container.Env {
+			if envVar.Name == envVarOverride.Name {
+				// Override the existing environment variable value
+				container.Env[i] = envVarOverride
+				found = true
+				break
+			}
+		}
+		// If the environment variable doesn't exist, add it to the container
+		if !found {
+			container.Env = append(container.Env, envVarOverride)
+		}
+	}
+
+	// Apply resource requirement overrides
+	if overrides.ResourceRequirements.Limits != nil {
+		if container.Resources.Limits == nil {
+			container.Resources.Limits = make(corev1.ResourceList)
+		}
+		for k, v := range overrides.ResourceRequirements.Limits {
+			container.Resources.Limits[k] = v
+		}
+	}
+	if overrides.ResourceRequirements.Requests != nil {
+		if container.Resources.Requests == nil {
+			container.Resources.Requests = make(corev1.ResourceList)
+		}
+		for k, v := range overrides.ResourceRequirements.Requests {
+			container.Resources.Requests[k] = v
+		}
+	}
 }

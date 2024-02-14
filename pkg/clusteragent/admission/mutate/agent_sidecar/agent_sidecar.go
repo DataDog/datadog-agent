@@ -39,6 +39,9 @@ func injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 
 	applyProviderOverrides(agentSidecarContainer)
 
+	// User-provided overrides should always be applied last in order to have highest override-priority
+	applyProfileOverrides(agentSidecarContainer)
+
 	pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
 	return nil
 }

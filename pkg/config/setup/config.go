@@ -1074,6 +1074,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.endpoint", "/agentsidecar")
 	// Should be able to parse it to a list of webhook selectors
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.selectors", "[]")
+	// Should be able to parse it to a list of env vars and resource limits
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.profiles", "[]")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.

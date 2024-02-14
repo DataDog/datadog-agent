@@ -21,8 +21,8 @@ import (
 
 // Selector specifies an object label selector and a namespace label selector
 type Selector struct {
-	ObjectSelector    metav1.LabelSelector `yaml:"objectSelector,omitempty"`
-	NamespaceSelector metav1.LabelSelector `yaml:"namespaceSelector,omitempty"`
+	ObjectSelector    metav1.LabelSelector `json:"objectSelector,omitempty"`
+	NamespaceSelector metav1.LabelSelector `json:"namespaceSelector,omitempty"`
 }
 
 // buildAgentSidecarObjectSelectors returns the mutating webhooks object selectors based on the configuration

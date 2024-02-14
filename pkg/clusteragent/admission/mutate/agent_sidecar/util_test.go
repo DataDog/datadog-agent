@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"reflect"
 	"testing"
 )
@@ -102,6 +103,231 @@ func TestApplyProviderOverrides(t *testing.T) {
 					reflect.DeepEqual(*test.baseContainer, *test.expectedContainerAfterOverride),
 					"overrides not applied as expected. expected %v, but found %v",
 					*test.expectedContainerAfterOverride,
+					*test.baseContainer,
+				)
+			}
+		})
+	}
+}
+
+func TestApplyProfileOverrides(t *testing.T) {
+	mockConfig := config.Mock(t)
+
+	tests := []struct {
+		name              string
+		profilesJSON      string
+		baseContainer     *corev1.Container
+		expectedContainer *corev1.Container
+	}{
+		{
+			name:              "nil container should be skipped",
+			profilesJSON:      "",
+			baseContainer:     nil,
+			expectedContainer: nil,
+		},
+		{
+			name: "apply profile overrides",
+			profilesJSON: `[
+				{
+					"env": [
+						{"name": "ENV_VAR_1", "value": "value1"},
+						{"name": "ENV_VAR_2", "value": "value2"}
+					],
+					"resources": {
+						"limits": {
+							"cpu": "1",
+							"memory": "512Mi"
+						},
+						"requests": {
+							"cpu": "0.5",
+							"memory": "256Mi"
+						}
+					}
+				}
+			]`,
+			baseContainer: &corev1.Container{},
+			expectedContainer: &corev1.Container{
+				Env: []corev1.EnvVar{
+					{Name: "ENV_VAR_1", Value: "value1"},
+					{Name: "ENV_VAR_2", Value: "value2"},
+				},
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("512Mi"),
+					},
+					Requests: corev1.ResourceList{
+						"cpu":    resource.MustParse("0.5"),
+						"memory": resource.MustParse("256Mi"),
+					},
+				},
+			},
+		},
+		{
+			name:         "no profile provided",
+			profilesJSON: `[]`,
+			baseContainer: &corev1.Container{
+				Env: []corev1.EnvVar{{Name: "EXISTING_VAR", Value: "existing_value"}},
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
+				},
+			},
+			expectedContainer: &corev1.Container{
+				Env: []corev1.EnvVar{{Name: "EXISTING_VAR", Value: "existing_value"}},
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
+				},
+			},
+		},
+		{
+			name: "empty profile provided",
+			profilesJSON: `[
+				{}
+			]`,
+			baseContainer: &corev1.Container{
+				Env: []corev1.EnvVar{{Name: "EXISTING_VAR", Value: "existing_value"}},
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
+				},
+			},
+			expectedContainer: &corev1.Container{
+				Env: []corev1.EnvVar{{Name: "EXISTING_VAR", Value: "existing_value"}},
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
+				},
+			},
+		},
+		{
+			name: "apply profile overrides with ValueFrom",
+			profilesJSON: `[{
+        "env": [
+            {"name": "ENV_VAR_1", "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "secret-key"}}},
+            {"name": "ENV_VAR_2", "value": "value2"}
+        ],
+        "resources": {
+            "limits": {
+                "cpu": "1",
+                "memory": "512Mi"
+            },
+            "requests": {
+                "cpu": "0.5",
+                "memory": "256Mi"
+            }
+        }
+    }]`,
+			baseContainer: &corev1.Container{},
+			expectedContainer: &corev1.Container{
+				Env: []corev1.EnvVar{
+					{Name: "ENV_VAR_1", ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{Key: "secret-key", LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}},
+					}},
+					{Name: "ENV_VAR_2", Value: "value2"},
+				},
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
+				},
+			},
+		},
+		{
+			name: "profile overrides should override any existing configuration",
+			profilesJSON: `[{
+        "env": [
+            {"name": "ENV_VAR_1", "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "secret-key"}}},
+            {"name": "ENV_VAR_2", "value": "value2"}
+        ],
+        "resources": {
+            "limits": {
+                "cpu": "1",
+                "memory": "512Mi"
+            },
+            "requests": {
+                "cpu": "0.5",
+                "memory": "256Mi"
+            }
+        }
+    }]`,
+			baseContainer: &corev1.Container{
+				Env: []corev1.EnvVar{
+					{Name: "EXISTING_VAR", Value: "existing_value"},
+					{Name: "ENV_VAR_1", Value: "value-existing"},
+				},
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
+				},
+			},
+
+			expectedContainer: &corev1.Container{
+				Env: []corev1.EnvVar{
+					{Name: "EXISTING_VAR", Value: "existing_value"},
+					{Name: "ENV_VAR_1", ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{Key: "secret-key", LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}},
+					}},
+					{Name: "ENV_VAR_2", Value: "value2"},
+				},
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
+				},
+			},
+		},
+		{
+			name: "more than one profile provided",
+			profilesJSON: `[
+        {
+            "env": [
+                {"name": "ENV_VAR_1", "value": "value1"}
+            ],
+            "resources": {
+                "limits": {
+                    "cpu": "1",
+                    "memory": "512Mi"
+                },
+                "requests": {
+                    "cpu": "0.5",
+                    "memory": "256Mi"
+                }
+            }
+        },
+        {
+            "env": [
+                {"name": "ENV_VAR_3", "value": "value3"}
+            ],
+            "resources": {
+                "limits": {
+                    "cpu": "2",
+                    "memory": "1Gi"
+                },
+                "requests": {
+                    "cpu": "1",
+                    "memory": "512Mi"
+                }
+            }
+        }
+    ]`,
+			baseContainer:     &corev1.Container{},
+			expectedContainer: &corev1.Container{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
+			applyProfileOverrides(test.baseContainer)
+
+			if test.expectedContainer == nil {
+				assert.Nil(tt, test.baseContainer)
+			} else {
+				assert.NotNil(tt, test.baseContainer)
+				assert.Truef(tt,
+					reflect.DeepEqual(*test.baseContainer, *test.expectedContainer),
+					"overrides not applied as expected. expected %v, but found %v",
+					*test.expectedContainer,
 					*test.baseContainer,
 				)
 			}
