@@ -92,7 +92,7 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 }
 
 func (p processAgent) start(ctx context.Context) error {
-	p.Log.Info("process-agent starting")
+	p.Log.Debug("Starting the process-agent component")
 
 	chks := make([]string, 0, len(p.Checks))
 	for _, check := range p.Checks {
@@ -111,7 +111,7 @@ func (p processAgent) start(ctx context.Context) error {
 
 // stop stops all agent components that were started in reverse order
 func (p processAgent) stop(ctx context.Context) error {
-	p.Log.Info("process-agent stopping")
+	p.Log.Debug("Stopping the process-agent component")
 
 	// stop the check runner
 	err := p.Runner.Stop(ctx)
