@@ -52,7 +52,8 @@ type ebpfModule struct {
 }
 
 func (o *ebpfModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+	// Limit concurrency to one as the probe check is not thread safe (mainly in the entry count buffers)
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())
 		stats := o.Probe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)

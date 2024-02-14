@@ -212,6 +212,9 @@ type RuntimeSecurityConfig struct {
 	EBPFLessEnabled bool
 	// EBPFLessSocket defines the socket used for the communication between system-probe and the ebpfless source
 	EBPFLessSocket string
+
+	// Enforcement capabilities
+	EnforcementEnabled bool
 }
 
 // Config defines a security config
@@ -244,6 +247,25 @@ func NewConfig() (*Config, error) {
 // NewRuntimeSecurityConfig returns the runtime security (CWS) config, build from the system probe one
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	sysconfig.Adjust(coreconfig.SystemProbe)
+
+	eventTypeStrings := map[string]model.EventType{}
+
+	var eventType model.EventType
+	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
+		eventType = model.EventType(i)
+		eventTypeStrings[eventType.String()] = eventType
+	}
+
+	// parseEventTypeStringSlice converts a string list to a list of event types
+	parseEventTypeStringSlice := func(eventTypes []string) []model.EventType {
+		var output []model.EventType
+		for _, eventTypeStr := range eventTypes {
+			if eventType := eventTypeStrings[eventTypeStr]; eventType != model.UnknownEventType {
+				output = append(output, eventType)
+			}
+		}
+		return output
+	}
 
 	rsConfig := &RuntimeSecurityConfig{
 		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
@@ -337,6 +359,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
 		AnomalyDetectionSilentRuleEventsEnabled:      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled"),
 		AnomalyDetectionEnabled:                      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
+
+		// enforcement
+		EnforcementEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enforcement.enabled"),
 
 		// User Sessions
 		UserSessionsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.user_sessions.cache_size"),
@@ -453,17 +478,6 @@ func ParseEvalEventType(eventType eval.EventType) model.EventType {
 	return model.UnknownEventType
 }
 
-// parseEventTypeStringSlice converts a string list to a list of event types
-func parseEventTypeStringSlice(eventTypes []string) []model.EventType {
-	var output []model.EventType
-	for _, eventTypeStr := range eventTypes {
-		if eventType := eventTypeStrings[eventTypeStr]; eventType != model.UnknownEventType {
-			output = append(output, eventType)
-		}
-	}
-	return output
-}
-
 // parseEventTypeDurations converts a map of durations indexed by event types
 func parseEventTypeDurations(cfg coreconfig.Config, prefix string) map[model.EventType]time.Duration {
 	eventTypeMap := cfg.GetStringMap(prefix)
@@ -494,16 +508,4 @@ func GetFamilyAddress(path string) (string, string) {
 		return "unix", path
 	}
 	return "tcp", path
-}
-
-var (
-	eventTypeStrings = map[string]model.EventType{}
-)
-
-func init() {
-	var eventType model.EventType
-	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
-		eventType = model.EventType(i)
-		eventTypeStrings[eventType.String()] = eventType
-	}
 }
