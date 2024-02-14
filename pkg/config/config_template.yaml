@@ -895,6 +895,33 @@ api_key:
   #
   # use_device_id_as_hostname: true
 
+  ## @param ping - custom object - optional
+  ## Configure ICMP pings for all hosts in SNMP autodiscovery
+  ## Each device will be pinged with these settings each time the SNMP
+  ## check is run.
+  ##
+  ## By default, we try to use an unprivileged UDP socket to send ICMP
+  ## pings, but some linux systems require using a raw socket.
+  ## See details at the link below:
+  ## https://sturmflut.github.io/linux/ubuntu/2015/01/17/unprivileged-icmp-sockets-on-linux/
+  ##
+  ## If `linux.use_raw_socket` is set, you must enable the ping module
+  ## of the system-probe for elevated privileges. See
+  ## system-probe.yaml.example for details.
+  #
+  # ping:
+  #   enabled: true             # disabled by default
+  #   timeout: 3000             # timeout in milliseconds
+  #   count: 2                  # number of ping packets to send per check run
+  #   interval: 10              # time between sending pings (up to `count` packets) in milliseconds
+  #   linux:                    # linux specific configuration
+  #     use_raw_socket: true    # send pings in a privileged fashion using a raw socket
+  #                             # this may be required if your system doesn't support
+  #                             # sending pings in an unprivileged fashion (using a UDP socket)
+  #                             # If `use_raw_socket` is set to true, you MUST also enable the
+  #                             # system-probe which has elevated privileges, see system-probe.yaml.example
+  #                             # to enable it.
+
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
   ## Example:
@@ -1072,6 +1099,33 @@ api_key:
     #       tags:
     #         - "monitored:true"
     #         - "customKey:customValue"
+
+    ## @param ping - custom object - optional
+    ## Configure ICMP pings for all hosts in SNMP autodiscovery
+    ## Each device will be pinged with these settings each time the SNMP
+    ## check is run.
+    ##
+    ## By default, we try to use an unprivileged UDP socket to send ICMP
+    ## pings, but some linux systems require using a raw socket.
+    ## See details at the link below:
+    ## https://sturmflut.github.io/linux/ubuntu/2015/01/17/unprivileged-icmp-sockets-on-linux/
+    ##
+    ## If `linux.use_raw_socket` is set, you must enable the ping module
+    ## of the system-probe for elevated privileges. See
+    ## system-probe.yaml.example for details.
+    #
+    # ping:
+    #   enabled: true             # disabled by default
+    #   timeout: 3000             # timeout in milliseconds
+    #   count: 2                  # number of ping packets to send per check run
+    #   interval: 10              # time between sending pings (up to `count` packets) in milliseconds
+    #   linux:                    # linux specific configuration
+    #     use_raw_socket: true    # send pings in a privileged fashion using a raw socket
+    #                             # this may be required if your system doesn't support
+    #                             # sending pings in an unprivileged fashion (using a UDP socket)
+    #                             # If `use_raw_socket` is set to true, you MUST also enable the
+    #                             # system-probe which has elevated privileges, see system-probe.yaml.example
+    #                             # to enable it.
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -1975,6 +2029,21 @@ api_key:
   # enabled: false
 
 {{ end -}}
+
+{{- if .PingModule }}
+
+#####################################
+## System Probe Ping Configuration ##
+#####################################
+
+# ping:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Ping Module of the System Probe
+  #
+  # enabled: false
+
+{{ end -}}
+
 
 {{- if .SecurityModule }}
 
