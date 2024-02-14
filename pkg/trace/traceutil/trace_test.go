@@ -6,6 +6,7 @@
 package traceutil
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -134,7 +135,7 @@ func TestGetAppVersion(t *testing.T) {
 
 	for _, tc := range tts {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, GetAppVersion(GetRoot(tc.in), &pb.TraceChunk{Spans: tc.in}))
+			assert.Equal(t, tc.expected, version.GetAppVersionFromTrace(GetRoot(tc.in), &pb.TraceChunk{Spans: tc.in}))
 		})
 	}
 }

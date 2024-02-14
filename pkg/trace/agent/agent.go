@@ -8,9 +8,9 @@ package agent
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -383,7 +383,7 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 }
 
-func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk) {
+func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk, containerID string) {
 	if p.TracerPayload.Hostname == "" {
 		// Older tracers set tracer hostname in the root span.
 		p.TracerPayload.Hostname = root.Meta[tagHostname]
@@ -392,25 +392,11 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 		p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
 	}
 	if p.TracerPayload.AppVersion == "" {
-		p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
+		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
 	}
 }
 
-// GetImageTag returns the image sha detected from container tags, if present.
-func GetImageTag(containerID string, conf *config.AgentConfig) (string, error) {
-	cTags, err := conf.ContainerTags(containerID)
-	if err != nil {
-		return "", err
-	}
-	for _, t := range cTags {
-		if val, ok := strings.CutPrefix(t, "image_tag:"); ok && val != "" {
-			return val, nil
-		}
-	}
-	return "", nil
-}
-
-// processedTrace creates a ProcessedTrace based on the provided chunk and root.
+// processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
 func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, containerID string, conf *config.AgentConfig) *traceutil.ProcessedTrace {
 	pt := &traceutil.ProcessedTrace{
 		TraceChunk:             chunk,
@@ -419,15 +405,19 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, contain
 		TracerEnv:              p.TracerPayload.Env,
 		TracerHostname:         p.TracerPayload.Hostname,
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
-		GitCommitSha:           traceutil.GetGitCommitSha(root, chunk),
+		GitCommitSha:           version.GetGitCommitShaFromTrace(root, chunk),
 	}
 	// FIXME: We should find a way to not repeat container ID resolution downstream in the stats writer.
 	// We will first need to deprecate the `enable_cid_stats` feature flag.
-	imageTag, err := GetImageTag(containerID, conf)
+	gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(containerID, conf)
 	if err != nil {
 		log.Error("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
 	} else {
 		pt.ImageTag = imageTag
+		// Only override the GitCommitSha if it was not set in the trace.
+		if pt.GitCommitSha == "" {
+			pt.GitCommitSha = gitCommitSha
+		}
 	}
 	return pt
 }

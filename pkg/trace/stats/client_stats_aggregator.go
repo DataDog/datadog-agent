@@ -6,7 +6,7 @@
 package stats
 
 import (
-	"strings"
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -186,20 +186,6 @@ type bucket struct {
 	agg map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts
 }
 
-// FIXME: resolve import cycle so that we don't need to duplicate this
-func getImageTag(containerID string, conf *config.AgentConfig) (string, error) {
-	cTags, err := conf.ContainerTags(containerID)
-	if err != nil {
-		return "", err
-	}
-	for _, t := range cTags {
-		if val, ok := strings.CutPrefix(t, "image_tag:"); ok && val != "" {
-			return val, nil
-		}
-	}
-	return "", nil
-}
-
 func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool, conf *config.AgentConfig) []*pb.ClientStatsPayload {
 	b.n++
 	if b.n == 1 {
@@ -219,11 +205,15 @@ func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool, conf *conf
 			GitCommitSha:     p.GetGitCommitSha(),
 		}
 		if b.first.ContainerID != "" {
-			imageTag, err := getImageTag(b.first.ContainerID, conf)
+			gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(b.first.ContainerID, conf)
 			if err != nil {
 				log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", b.first.ContainerID, err)
 			} else {
 				b.first.ImageTag = imageTag
+				// Only override the GitCommitSha we got from the payload if it's empty.
+				if b.first.GitCommitSha == "" {
+					b.first.GitCommitSha = gitCommitSha
+				}
 			}
 		}
 		return nil
