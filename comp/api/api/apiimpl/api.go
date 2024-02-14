@@ -7,6 +7,7 @@
 package apiimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -55,6 +55,7 @@ type apiServer struct {
 	pkgSigning            packagesigning.Component
 	statusComponent       status.Component
 	eventPlatformReceiver eventplatformreceiver.Component
+	rcService             optional.Option[rcservice.Component]
 }
 
 type dependencies struct {
@@ -73,6 +74,7 @@ type dependencies struct {
 	PkgSigning            packagesigning.Component
 	StatusComponent       status.Component
 	EventPlatformReceiver eventplatformreceiver.Component
+	RcService             optional.Option[rcservice.Component]
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -92,18 +94,18 @@ func newAPIServer(deps dependencies) api.Component {
 		pkgSigning:            deps.PkgSigning,
 		statusComponent:       deps.StatusComponent,
 		eventPlatformReceiver: deps.EventPlatformReceiver,
+		rcService:             deps.RcService,
 	}
 }
 
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
-	configService *remoteconfig.Service,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 ) error {
-	return StartServers(configService,
+	return StartServers(server.rcService,
 		server.flare,
 		server.dogstatsdServer,
 		server.capture,

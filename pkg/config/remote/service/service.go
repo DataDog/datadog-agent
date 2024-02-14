@@ -89,8 +89,9 @@ type Service struct {
 	// The number of errors we're currently tracking within the context of our backoff policy
 	backoffErrorCount int
 
-	// Handle to stop the services main goroutine
-	cancel context.CancelFunc
+	// Channels to stop the services main goroutines
+	stopOrgPoller    chan struct{}
+	stopConfigPoller chan struct{}
 
 	clock         clock.Clock
 	hostname      string
@@ -287,6 +288,8 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []st
 		},
 		telemetryReporter: telemetryReporter,
 		agentVersion:      agentVersion,
+		stopOrgPoller:     make(chan struct{}),
+		stopConfigPoller:  make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -305,22 +308,23 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 }
 
 // Start the remote configuration management service
-func (s *Service) Start(ctx context.Context) {
-	ctx, cancel := context.WithCancel(ctx)
-	s.cancel = cancel
+func (s *Service) Start() {
 	go func() {
 		s.pollOrgStatus()
 		for {
 			select {
 			case <-s.clock.After(orgStatusPollInterval):
 				s.pollOrgStatus()
-			case <-ctx.Done():
+			case <-s.stopOrgPoller:
+				log.Infof("Stopping Remote Config org status poller")
 				return
 			}
 		}
 	}()
 	go func() {
-		defer cancel()
+		defer func() {
+			close(s.stopOrgPoller)
+		}()
 
 		err := s.refresh()
 		if err != nil {
@@ -345,7 +349,8 @@ func (s *Service) Start(ctx context.Context) {
 					s.telemetryReporter.IncRateLimit()
 				}
 				close(response)
-			case <-ctx.Done():
+			case <-s.stopConfigPoller:
+				log.Infof("Stopping Remote Config configuration poller")
 				return
 			}
 
@@ -363,8 +368,8 @@ func (s *Service) Start(ctx context.Context) {
 
 // Stop stops the refresh loop and closes the on-disk DB cache
 func (s *Service) Stop() error {
-	if s.cancel != nil {
-		s.cancel()
+	if s.stopConfigPoller != nil {
+		close(s.stopConfigPoller)
 	}
 
 	return s.db.Close()
