@@ -22,13 +22,13 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 }
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
+		eval.EventType("create"),
+		eval.EventType("create_key"),
+		eval.EventType("delete_key"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
-		eval.EventType("file.create"),
-		eval.EventType("registry.create_key"),
-		eval.EventType("registry.delete_key"),
-		eval.EventType("registry.open_key"),
-		eval.EventType("registry.set_key_value"),
+		eval.EventType("open_key"),
+		eval.EventType("set_key_value"),
 	}
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
@@ -1631,37 +1631,37 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.tags":
 		return "*", nil
 	case "create.name":
-		return "file.create", nil
+		return "create", nil
 	case "create.name.length":
-		return "file.create", nil
+		return "create", nil
 	case "create.path":
-		return "file.create", nil
+		return "create", nil
 	case "create.path.length":
-		return "file.create", nil
+		return "create", nil
 	case "create_key.name":
-		return "registry.create_key", nil
+		return "create_key", nil
 	case "create_key.name.length":
-		return "registry.create_key", nil
+		return "create_key", nil
 	case "create_key.path":
-		return "registry.create_key", nil
+		return "create_key", nil
 	case "create_key.path.length":
-		return "registry.create_key", nil
+		return "create_key", nil
 	case "create_key.value":
-		return "registry.create_key", nil
+		return "create_key", nil
 	case "create_key.value.length":
-		return "registry.create_key", nil
+		return "create_key", nil
 	case "delete_key.name":
-		return "registry.delete_key", nil
+		return "delete_key", nil
 	case "delete_key.name.length":
-		return "registry.delete_key", nil
+		return "delete_key", nil
 	case "delete_key.path":
-		return "registry.delete_key", nil
+		return "delete_key", nil
 	case "delete_key.path.length":
-		return "registry.delete_key", nil
+		return "delete_key", nil
 	case "delete_key.value":
-		return "registry.delete_key", nil
+		return "delete_key", nil
 	case "delete_key.value.length":
-		return "registry.delete_key", nil
+		return "delete_key", nil
 	case "event.service":
 		return "*", nil
 	case "event.timestamp":
@@ -1723,17 +1723,17 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.user_sid":
 		return "exit", nil
 	case "open_key.name":
-		return "registry.open_key", nil
+		return "open_key", nil
 	case "open_key.name.length":
-		return "registry.open_key", nil
+		return "open_key", nil
 	case "open_key.path":
-		return "registry.open_key", nil
+		return "open_key", nil
 	case "open_key.path.length":
-		return "registry.open_key", nil
+		return "open_key", nil
 	case "open_key.value":
-		return "registry.open_key", nil
+		return "open_key", nil
 	case "open_key.value.length":
-		return "registry.open_key", nil
+		return "open_key", nil
 	case "process.ancestors.cmdline":
 		return "*", nil
 	case "process.ancestors.container.id":
@@ -1813,17 +1813,17 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.user_sid":
 		return "*", nil
 	case "set_key_value.name":
-		return "registry.set_key_value", nil
+		return "set_key_value", nil
 	case "set_key_value.name.length":
-		return "registry.set_key_value", nil
+		return "set_key_value", nil
 	case "set_key_value.path":
-		return "registry.set_key_value", nil
+		return "set_key_value", nil
 	case "set_key_value.path.length":
-		return "registry.set_key_value", nil
+		return "set_key_value", nil
 	case "set_key_value.value":
-		return "registry.set_key_value", nil
+		return "set_key_value", nil
 	case "set_key_value.value.length":
-		return "registry.set_key_value", nil
+		return "set_key_value", nil
 	}
 	return "", &eval.ErrFieldNotFound{Field: field}
 }

@@ -60,6 +60,11 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
+	case "create":
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.FileEvent)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.FileEvent)
+	case "create_key":
+	case "delete_key":
 	case "exec":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
@@ -78,13 +83,8 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
-	case "file.create":
-		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.FileEvent)
-		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.FileEvent)
-	case "registry.create_key":
-	case "registry.delete_key":
-	case "registry.open_key":
-	case "registry.set_key_value":
+	case "open_key":
+	case "set_key_value":
 	}
 }
 
