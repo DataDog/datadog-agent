@@ -247,8 +247,6 @@ int kretprobe__tcp_close_flush_batch_ringbuffer(struct pt_regs *ctx) {
     return 0;
 }
 
-#if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
-
 TAIL_CALL("tcp_close_flush_individual_conn_perfbuffer")
 int tail_call_target_tcp_close_flush_individual_conn_perfbuffer(struct pt_regs *ctx) {
     emit_conn_close_event(ctx);
@@ -260,8 +258,6 @@ int kretprobe__tcp_close_flush_batch_perfbuffer(struct pt_regs *ctx) {
     flush_conn_close_if_full_perfbuffer(ctx);
     return 0;
 }
-
-#endif // COMPILE_CORE || COMPILE_PREBUILT
 
 #if !defined(COMPILE_RUNTIME) || defined(FEATURE_UDPV6_ENABLED)
 
@@ -1016,8 +1012,6 @@ int kretprobe__udpv6_destroy_sock_ringbuffer(struct pt_regs *ctx) {
     return 0;
 }
 
-#if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
-
 SEC("kretprobe/udp_destroy_sock")
 int kretprobe__udp_destroy_sock_perfbuffer(struct pt_regs *ctx) {
     flush_conn_close_if_full_perfbuffer(ctx);
@@ -1029,8 +1023,6 @@ int kretprobe__udpv6_destroy_sock_perfbuffer(struct pt_regs *ctx) {
     flush_conn_close_if_full_perfbuffer(ctx);
     return 0;
 }
-
-#endif // COMPILE_CORE || COMPILE_PREBUILT
 
 SEC("kprobe/inet_bind")
 int kprobe__inet_bind(struct pt_regs *ctx) {

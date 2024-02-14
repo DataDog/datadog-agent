@@ -150,15 +150,11 @@ __maybe_unused static __always_inline void emit_conn_close_event_ringbuffer(void
     if (!conn) {
         return;
     }
-    #if DISABLE_RINGBUFFER == 1
+    if (ringbuffers_enabled()) {
+        bpf_ringbuf_output(&conn_close_event, conn, sizeof(*conn), 0);
+    } else {
         bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
-    #else
-        if (ringbuffers_enabled()) {
-            bpf_ringbuf_output(&conn_close_event, conn, sizeof(*conn), 0);
-        } else {
-            bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
-        }
-    #endif
+    }
 }
 
 __maybe_unused static __always_inline void flush_conn_close_if_full_perfbuffer(void *ctx) {
@@ -185,15 +181,11 @@ __maybe_unused static __always_inline void flush_conn_close_if_full_ringbuffer(v
     if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
         return;
     }
-    #if DISABLE_RINGBUFFER == 1
+    if (ringbuffers_enabled()) {
+        bpf_ringbuf_output(&conn_close_event, batch_ptr, sizeof(*batch_ptr), 0);
+    } else {
         bpf_perf_event_output(ctx, &conn_close_event, cpu, batch_ptr, sizeof(*batch_ptr));
-    #else
-        if (ringbuffers_enabled()) {
-            bpf_ringbuf_output(&conn_close_event, batch_ptr, sizeof(*batch_ptr), 0);
-        } else {
-            bpf_perf_event_output(ctx, &conn_close_event, cpu, batch_ptr, sizeof(*batch_ptr));
-        }
-    #endif
+    }
     batch_ptr->len = 0;
     batch_ptr->id++;
 }

@@ -198,6 +198,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 		}
 	}
+	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls)+2)
 	if tcpEnabled {
 		if ringbufferEnabled {
 			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
@@ -222,6 +223,14 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 				},
 			}...)
 		}
+		tailCallsIdentifiersSet[manager.ProbeIdentificationPair{
+			EBPFFuncName: probes.TCPConnCloseEmitEventRingbuffer,
+			UID:          probeUID,
+		}] = struct{}{}
+		tailCallsIdentifiersSet[manager.ProbeIdentificationPair{
+			EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer,
+			UID:          probeUID,
+		}] = struct{}{}
 	}
 
 	var undefinedProbes []manager.ProbeIdentificationPair
@@ -231,6 +240,17 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	addBoolConst(&mgrOpts, classificationSupported, "protocol_classification_enabled")
 
 	if classificationSupported {
+		for _, tailCall := range protocolClassificationTailCalls {
+			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
+		}
+		tailCallsIdentifiersSet[manager.ProbeIdentificationPair{
+			EBPFFuncName: probes.TCPCloseFlushReturnRingbuffer,
+			UID:          probeUID,
+		}] = struct{}{}
+		tailCallsIdentifiersSet[manager.ProbeIdentificationPair{
+			EBPFFuncName: probes.TCPCloseFlushReturnPerfbuffer,
+			UID:          probeUID,
+		}] = struct{}{}
 		if ringbufferEnabled {
 			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
 				{
@@ -297,22 +317,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls)+2)
-	if classificationSupported {
-		for _, tailCall := range protocolClassificationTailCalls {
-			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
-		}
-	}
-	if tcpEnabled {
-		tailCallsIdentifiersSet[manager.ProbeIdentificationPair{
-			EBPFFuncName: probes.TCPConnCloseEmitEventRingbuffer,
-			UID:          probeUID,
-		}] = struct{}{}
-		tailCallsIdentifiersSet[manager.ProbeIdentificationPair{
-			EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer,
-			UID:          probeUID,
-		}] = struct{}{}
-	}
 	for funcName := range enabledProbes {
 		probeIdentifier := manager.ProbeIdentificationPair{
 			EBPFFuncName: funcName,

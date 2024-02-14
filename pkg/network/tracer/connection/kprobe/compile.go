@@ -33,10 +33,5 @@ func getCFlags(config *config.Config) []string {
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
-	if config.RingbufferEnabled {
-		cflags = append(cflags, "-DISABLE_RINGBUFFER=0")
-	} else {
-		cflags = append(cflags, "-DISABLE_RINGBUFFER=1")
-	}
 	return cflags
 }
