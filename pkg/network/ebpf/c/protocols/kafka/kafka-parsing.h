@@ -42,7 +42,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
 
     if (!fetch_dispatching_arguments(&kafka->base.tup, &skb_info)) {
-        log_debug("socket__kafka_flter failed to fetch arguments for tail call");
+        log_debug("socket__kafka_filter failed to fetch arguments for tail call");
         return 0;
     }
 
