@@ -22,8 +22,5 @@ kitchen_tests_upload_common:
   variables:
     DD_ENV: ci
   script:
-    - set +x
-    - find . -name "kitchen-rspec-common-*.tar.gz"
-    - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
-    - set -x
+    - export DATADOG_API_KEY=$(source tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
     - find . -maxdepth 1 -type f -name "kitchen-rspec-common-*.tar.gz" -exec inv -e junit-upload --tgz-path {} \;

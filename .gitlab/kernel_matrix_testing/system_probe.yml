@@ -2,13 +2,12 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: []
   tags: ["arch:amd64"]
-  rules:
-    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
+  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   stage: kernel_matrix_testing
   script:
     # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | crane auth login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - DOCKER_REGISTRY_LOGIN=$(./tools/ci/aws_ssm_wrapper.sh ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY)
+    - ./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY | crane auth login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Pull base images
     - mkdir $KMT_DOCKERS
     - inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
@@ -55,12 +54,10 @@ pull_test_dockers_arm64:
     sleep 10
 
 .write_ssh_key_file:
-  - set +x
-  - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key --with-decryption --query "Parameter.Value" --out text > $AWS_EC2_SSH_KEY_FILE
-  - set -x
+  - touch $AWS_EC2_SSH_KEY_FILE && chmod 600 $AWS_EC2_SSH_KEY_FILE
+  - ./tools/ci/aws_ssm_getwrapper.sh ci.datadog-agent.ssh_key > $AWS_EC2_SSH_KEY_FILE
   # Without the newline ssh silently fails and moves on to try other auth methods
   - echo "" >> $AWS_EC2_SSH_KEY_FILE
-  - chmod 600 $AWS_EC2_SSH_KEY_FILE
 
 # needs variables: ARCH, INSTANCE_TYPE
 .get_instance_ip_by_type:
@@ -77,8 +74,7 @@ pull_test_dockers_arm64:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   allow_failure: true
-  rules:
-    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
+  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
@@ -113,8 +109,7 @@ upload_dependencies_arm64:
 .upload_system_probe_tests:
   stage: kernel_matrix_testing
   allow_failure: true
-  rules:
-    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
+  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
@@ -205,8 +200,7 @@ upload_system_probe_tests_arm64:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
-  rules:
-    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
+  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   allow_failure: true
   script:
     # Build dependencies directory
@@ -254,17 +248,14 @@ upload_minimized_btfs_arm64:
 
 .kernel_matrix_testing_new_profile:
   - mkdir -p ~/.aws
-  - set +x
-  - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.agent-qa-profile --with-decryption --query "Parameter.Value" --out text >> ~/.aws/config
-  - set -x
+  - ./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.agent-qa-profile >> ~/.aws/config
   - export AWS_PROFILE=agent-qa-ci
 
 .kernel_matrix_testing_setup_env:
   extends:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
-  rules:
-    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
+  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
@@ -285,9 +276,7 @@ upload_minimized_btfs_arm64:
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
     TEST_SETS: "no_tracersuite,only_tracersuite"
   before_script:
-    - set +x
-    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
-    - set -x
+    - export DD_API_KEY=$(source tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
@@ -340,15 +329,12 @@ kernel_matrix_testing_setup_env_x64:
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
   allow_failure: true
-  rules:
-    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
+  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
   before_script:
-    - set +x
-    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
-    - set -x
+    - export DD_API_KEY=$(source tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
     - echo "CI_JOB_URL=${CI_JOB_URL}" >> $DD_AGENT_TESTING_DIR/job_env.txt
@@ -392,13 +378,36 @@ kernel_matrix_testing_run_tests_x64:
     - .kernel_matrix_testing_run_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["kernel_matrix_testing_setup_env_x64", "upload_dependencies_x64", "upload_system_probe_tests_x64", "upload_minimized_btfs_x64"]
+  needs:
+    [
+      "kernel_matrix_testing_setup_env_x64",
+      "upload_dependencies_x64",
+      "upload_system_probe_tests_x64",
+      "upload_minimized_btfs_x64",
+    ]
   timeout: 3h
   variables:
     ARCH: "x86_64"
   parallel:
     matrix:
-      - TAG: ["ubuntu_16.04", "ubuntu_18.04", "ubuntu_20.04", "ubuntu_22.04", "ubuntu_23.10", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_10", "debian_11", "debian_12", "centos_79", "centos_8"]
+      - TAG:
+          [
+            "ubuntu_16.04",
+            "ubuntu_18.04",
+            "ubuntu_20.04",
+            "ubuntu_22.04",
+            "ubuntu_23.10",
+            "amzn_4.14",
+            "amzn_5.4",
+            "amzn_5.10",
+            "fedora_37",
+            "fedora_38",
+            "debian_10",
+            "debian_11",
+            "debian_12",
+            "centos_79",
+            "centos_8",
+          ]
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
 
 kernel_matrix_testing_run_tests_arm64:
@@ -406,13 +415,35 @@ kernel_matrix_testing_run_tests_arm64:
     - .kernel_matrix_testing_run_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["kernel_matrix_testing_setup_env_arm64", "upload_dependencies_arm64", "upload_system_probe_tests_arm64", "upload_minimized_btfs_arm64"]
+  needs:
+    [
+      "kernel_matrix_testing_setup_env_arm64",
+      "upload_dependencies_arm64",
+      "upload_system_probe_tests_arm64",
+      "upload_minimized_btfs_arm64",
+    ]
   timeout: 3h
   variables:
     ARCH: "arm64"
   parallel:
     matrix:
-      - TAG: ["ubuntu_18.04", "ubuntu_20.04", "ubuntu_22.04", "ubuntu_23.10", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_10", "debian_11", "debian_12", "centos_79", "centos_8"]
+      - TAG:
+          [
+            "ubuntu_18.04",
+            "ubuntu_20.04",
+            "ubuntu_22.04",
+            "ubuntu_23.10",
+            "amzn_4.14",
+            "amzn_5.4",
+            "amzn_5.10",
+            "fedora_37",
+            "fedora_38",
+            "debian_10",
+            "debian_11",
+            "debian_12",
+            "centos_79",
+            "centos_8",
+          ]
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
 
 .kernel_matrix_testing_cleanup:
@@ -420,8 +451,7 @@ kernel_matrix_testing_run_tests_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   when: always
   tags: ["arch:amd64"]
-  rules:
-    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
+  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
@@ -437,7 +467,11 @@ kernel_matrix_testing_run_tests_arm64:
 kernel_matrix_testing_cleanup_arm64:
   extends:
     - .kernel_matrix_testing_cleanup
-  needs: ["kernel_matrix_testing_setup_env_arm64", "kernel_matrix_testing_run_tests_arm64"]
+  needs:
+    [
+      "kernel_matrix_testing_setup_env_arm64",
+      "kernel_matrix_testing_run_tests_arm64",
+    ]
   variables:
     ARCH: arm64
     INSTANCE_TYPE: "m6gd.metal"
@@ -445,7 +479,11 @@ kernel_matrix_testing_cleanup_arm64:
 kernel_matrix_testing_cleanup_x64:
   extends:
     - .kernel_matrix_testing_cleanup
-  needs: ["kernel_matrix_testing_setup_env_x64", "kernel_matrix_testing_run_tests_x64"]
+  needs:
+    [
+      "kernel_matrix_testing_setup_env_x64",
+      "kernel_matrix_testing_run_tests_x64",
+    ]
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"

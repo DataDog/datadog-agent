@@ -555,9 +555,7 @@ EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com":
 @task
 def changelog(ctx, new_commit_sha):
     old_commit_sha = ctx.run(
-        "aws ssm get-parameter --region us-east-1 --name "
-        "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
-        "\"Parameter.Value\" --out text",
+        "./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_changelog_commit_sha",
         hide=True,
     ).stdout.strip()
     if not new_commit_sha:

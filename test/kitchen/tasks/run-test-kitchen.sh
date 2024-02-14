@@ -46,25 +46,25 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
   # These should not be printed out
   set +x
   if [ -z ${AZURE_CLIENT_ID+x} ]; then
-    AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_CLIENT_ID=$(./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_client_id)
     # make sure whitespace is removed
     AZURE_CLIENT_ID="$(echo -e "${AZURE_CLIENT_ID}" | tr -d '[:space:]')"
     export AZURE_CLIENT_ID
   fi
   if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
-    AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_secret --with-decryption --query "Parameter.Value" --out text)
+    AZURE_CLIENT_SECRET=$(./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_client_secret)
     # make sure whitespace is removed
     AZURE_CLIENT_SECRET="$(echo -e "${AZURE_CLIENT_SECRET}" | tr -d '[:space:]')"
     export AZURE_CLIENT_SECRET
   fi
   if [ -z ${AZURE_TENANT_ID+x} ]; then
-    AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_tenant_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_TENANT_ID=$(./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_tenant_id)
     # make sure whitespace is removed
     AZURE_TENANT_ID="$(echo -e "${AZURE_TENANT_ID}" | tr -d '[:space:]')"
     export AZURE_TENANT_ID
   fi
   if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
-    AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_subscription_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_SUBSCRIPTION_ID=$(./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_subscription_id)
     # make sure whitespace is removed
     AZURE_SUBSCRIPTION_ID="$(echo -e "${AZURE_SUBSCRIPTION_ID}" | tr -d '[:space:]')"
     export AZURE_SUBSCRIPTION_ID
@@ -91,11 +91,10 @@ elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
   # These should not be printed out
   set +x
   if [ -z ${KITCHEN_EC2_SSH_KEY_ID+x} ]; then
-    KITCHEN_EC2_SSH_KEY_ID="datadog-agent-kitchen"
-    export KITCHEN_EC2_SSH_KEY_ID
-    KITCHEN_EC2_SSH_KEY_PATH="$(pwd)/aws-ssh-key"
-    export KITCHEN_EC2_SSH_KEY_PATH
-    aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.aws_ec2_kitchen_ssh_key --with-decryption --query "Parameter.Value" --out text > $KITCHEN_EC2_SSH_KEY_PATH
+    export KITCHEN_EC2_SSH_KEY_ID="datadog-agent-kitchen"
+    export KITCHEN_EC2_SSH_KEY_PATH="$(pwd)/aws-ssh-key"
+    touch $KITCHEN_EC2_SSH_KEY_PATH && chmod 600 $KITCHEN_EC2_SSH_KEY_PATH
+    ./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.aws_ec2_kitchen_ssh_key > $KITCHEN_EC2_SSH_KEY_PATH
   fi
   set -x
 fi

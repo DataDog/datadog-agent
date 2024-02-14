@@ -1,17 +1,16 @@
 ---
-
 .get_artifactory_token_linux: &get_artifactory_token_linux
-  - ARTIFACTORY_TOKEN=$(aws ssm get-parameter --region us-east-1 --name $ARTIFACTORY_TOKEN_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+  - ARTIFACTORY_TOKEN=$(./tools/ci/aws_ssm_get_wrapper.sh $ARTIFACTORY_TOKEN_SSM_NAME)
 
 .get_artifactory_token_win: &get_artifactory_token_win
-  - $ARTIFACTORY_TOKEN=$(aws ssm get-parameter --region us-east-1 --name $ARTIFACTORY_TOKEN_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+  - $ARTIFACTORY_TOKEN=$(./tools/ci/aws_ssm_get_wrapper.sh $ARTIFACTORY_TOKEN_SSM_NAME)
 
 .get_artifactory_bypass_linux: &get_artifactory_bypass_linux
-  - ARTIFACTORY_BYPASS=$(aws ssm get-parameter --region us-east-1 --name $ARTIFACTORY_BYPASS_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+  - ARTIFACTORY_BYPASS=$(./tools/ci/aws_ssm_get_wrapper.sh $ARTIFACTORY_BYPASS_SSM_NAME)
   - if [ "${ARTIFACTORY_BYPASS}" = "true" ]; then echo "Bypassing Artifactory"; fi
 
 .get_artifactory_bypass_win: &get_artifactory_bypass_win
-  - $ARTIFACTORY_BYPASS=$(aws ssm get-parameter --region us-east-1 --name $ARTIFACTORY_BYPASS_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+  - $ARTIFACTORY_BYPASS=$(.\tools\ci\aws_ssm_get_wrapper.ps1 $ARTIFACTORY_BYPASS_SSM_NAME)
   - if ($Env:ARTIFACTORY_BYPASS -eq "true") { Write-Host "Bypassing Artifactory" }
 
 .setup_ruby_mirror_linux:
