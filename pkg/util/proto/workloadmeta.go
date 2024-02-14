@@ -160,12 +160,12 @@ func toProtoEntityMetaFromContainer(container *workloadmeta.Container) *pb.Entit
 func toProtoImage(image *workloadmeta.ContainerImage) *pb.ContainerImage {
 
 	return &pb.ContainerImage{
-		Id:          image.ID,
-		RawName:     image.RawName,
-		Name:        image.Name,
-		ShortName:   image.ShortName,
-		Tag:         image.Tag,
-		RepoDigests: image.RepoDigests,
+		Id:         image.ID,
+		RawName:    image.RawName,
+		Name:       image.Name,
+		ShortName:  image.ShortName,
+		Tag:        image.Tag,
+		RepoDigest: image.RepoDigest,
 	}
 }
 
@@ -591,12 +591,12 @@ func toWorkloadmetaEntityMeta(protoEntityMeta *pb.EntityMeta) workloadmeta.Entit
 
 func toWorkloadmetaImage(protoImage *pb.ContainerImage) workloadmeta.ContainerImage {
 	return workloadmeta.ContainerImage{
-		ID:          protoImage.Id,
-		RawName:     protoImage.RawName,
-		Name:        protoImage.Name,
-		ShortName:   protoImage.ShortName,
-		Tag:         protoImage.Tag,
-		RepoDigests: protoImage.RepoDigests,
+		ID:         protoImage.Id,
+		RawName:    protoImage.RawName,
+		Name:       protoImage.Name,
+		ShortName:  protoImage.ShortName,
+		Tag:        protoImage.Tag,
+		RepoDigest: protoImage.RepoDigest,
 	}
 }
 

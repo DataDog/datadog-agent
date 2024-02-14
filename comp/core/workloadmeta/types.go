@@ -250,13 +250,13 @@ func (e EntityMeta) String(verbose bool) string {
 // To avoid confusion, an extra field of repo digest is added to the struct, if it is available, it
 // will also be added to the container tags in tagger.
 type ContainerImage struct {
-	ID          string
-	RawName     string
-	Name        string
-	Registry    string
-	ShortName   string
-	Tag         string
-	RepoDigests []string
+	ID         string
+	RawName    string
+	Name       string
+	Registry   string
+	ShortName  string
+	Tag        string
+	RepoDigest string
 }
 
 // NewContainerImage builds a ContainerImage from an image name and its id
@@ -294,7 +294,7 @@ func (c ContainerImage) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "ID:", c.ID)
 		_, _ = fmt.Fprintln(&sb, "Raw Name:", c.RawName)
 		_, _ = fmt.Fprintln(&sb, "Short Name:", c.ShortName)
-		_, _ = fmt.Fprintln(&sb, "Repo Digest:", c.RepoDigests)
+		_, _ = fmt.Fprintln(&sb, "Repo Digest:", c.RepoDigest)
 	}
 
 	return sb.String()

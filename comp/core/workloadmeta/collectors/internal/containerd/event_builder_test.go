@@ -21,10 +21,14 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBuildCollectorEvent(t *testing.T) {
@@ -51,8 +55,14 @@ func TestBuildCollectorEvent(t *testing.T) {
 	fakeExitInfo := &exitInfo{exitCode: &exitCode, exitTS: exitTime}
 
 	client := containerdClient(&container)
-
-	workloadMetaContainer, err := buildWorkloadMetaContainer(namespace, &container, &client)
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+	workloadMetaContainer, err := buildWorkloadMetaContainer(namespace, &container, &client, workloadmetaStore)
 	workloadMetaContainer.Namespace = namespace
 	assert.NoError(t, err)
 
@@ -274,7 +284,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 				c.contToExitInfo[containerID] = test.exitInfo
 			}
 
-			workloadMetaEvent, err := c.buildCollectorEvent(&test.event, container.ID(), &container)
+			workloadMetaEvent, err := c.buildCollectorEvent(&test.event, container.ID(), &container, workloadmetaStore)
 
 			if test.expectsError {
 				assert.Error(t, err)

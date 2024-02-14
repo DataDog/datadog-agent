@@ -19,9 +19,13 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockedContainer struct {
@@ -107,7 +111,29 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		},
 	}
 
-	result, err := buildWorkloadMetaContainer(namespace, &container, &client)
+	// Create a workload meta global store containing image metadata
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+	imageMetadata := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   "my_image_id",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "datadog/agent",
+		},
+		RepoDigests: []string{
+			"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+		},
+	}
+	workloadmetaStore.Set(imageMetadata)
+
+	result, err := buildWorkloadMetaContainer(namespace, &container, &client, workloadmetaStore)
 	assert.NoError(t, err)
 
 	expected := workloadmeta.Container{
@@ -120,11 +146,12 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			Labels: labels,
 		},
 		Image: workloadmeta.ContainerImage{
-			RawName:   "datadog/agent:7",
-			Name:      "datadog/agent",
-			ShortName: "agent",
-			Tag:       "7",
-			ID:        "my_image_id",
+			RawName:    "datadog/agent:7",
+			Name:       "datadog/agent",
+			ShortName:  "agent",
+			Tag:        "7",
+			ID:         "my_image_id",
+			RepoDigest: "sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 		},
 		EnvVars:       envVars,
 		Ports:         nil, // Not available
@@ -171,5 +198,62 @@ func TestExtractRuntimeFlavor(t *testing.T) {
 			result := extractRuntimeFlavor(tt.runtime)
 			assert.Equal(t, tt.expected, result)
 		})
+	}
+}
+
+func TestParseRepoDigest(t *testing.T) {
+	for _, tc := range []struct {
+		repoDigest string
+		registry   string
+		repository string
+		digest     string
+	}{
+		{
+			repoDigest: "727006795293.dkr.ecr.us-east-1.amazonaws.com/spidly@sha256:fce79f86f7a3b9c660112da8484a8f5858a7da9e703892ba04c6f045da714300",
+			registry:   "727006795293.dkr.ecr.us-east-1.amazonaws.com",
+			repository: "spidly",
+			digest:     "sha256:fce79f86f7a3b9c660112da8484a8f5858a7da9e703892ba04c6f045da714300",
+		},
+		{
+			repoDigest: "docker.io/library/docker@sha256:b813c414ee36b8a2c44b45295698df6bdc3bdee4a435481dbb892e1b44e09d3b",
+			registry:   "docker.io",
+			repository: "library/docker",
+			digest:     "sha256:b813c414ee36b8a2c44b45295698df6bdc3bdee4a435481dbb892e1b44e09d3b",
+		},
+		{
+			repoDigest: "eu.gcr.io/datadog-staging/logs-event-store-api@sha256:747bd4fc36f3f263b5dcb9df907b98489a4cb46d636c223dc29f1fb7f9405070",
+			registry:   "eu.gcr.io",
+			repository: "datadog-staging/logs-event-store-api",
+			digest:     "sha256:747bd4fc36f3f263b5dcb9df907b98489a4cb46d636c223dc29f1fb7f9405070",
+		},
+		{
+			repoDigest: "registry.ddbuild.io/apm-integrations-testing/handmade/postgres",
+			registry:   "registry.ddbuild.io",
+			repository: "apm-integrations-testing/handmade/postgres",
+			digest:     "",
+		},
+		{
+			repoDigest: "registry.ddbuild.io/apm-integrations-testing/handmade/postgres@sha256:747bd4fc36f3f263b5dcb9df907b98489a4cb46d636c223dc29f1fb7f9405070",
+			registry:   "registry.ddbuild.io",
+			repository: "apm-integrations-testing/handmade/postgres",
+			digest:     "sha256:747bd4fc36f3f263b5dcb9df907b98489a4cb46d636c223dc29f1fb7f9405070",
+		},
+		{
+			repoDigest: "@sha256:747bd4fc36f3f263b5dcb9df907b98489a4cb46d636c223dc29f1fb7f9405070",
+			registry:   "",
+			repository: "",
+			digest:     "sha256:747bd4fc36f3f263b5dcb9df907b98489a4cb46d636c223dc29f1fb7f9405070",
+		},
+		{
+			repoDigest: "docker.io@sha256:747bd4fc36f3f263b5dcb9df907b98489a4cb46d636c223dc29f1fb7f9405070",
+			registry:   "docker.io",
+			repository: "",
+			digest:     "sha256:747bd4fc36f3f263b5dcb9df907b98489a4cb46d636c223dc29f1fb7f9405070",
+		},
+	} {
+		registry, repository, digest := parseRepoDigest(tc.repoDigest)
+		assert.Equal(t, tc.registry, registry)
+		assert.Equal(t, tc.repository, repository)
+		assert.Equal(t, tc.digest, digest)
 	}
 }

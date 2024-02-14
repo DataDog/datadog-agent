@@ -51,7 +51,7 @@ message ContainerImage {
   string name = 3;
   string shortName = 4;
   string tag = 5;
-  repeated string repo_digests = 6; 
+  string repo_digest = 6; 
 }
 
 message ContainerPort {

@@ -28,6 +28,10 @@ import (
 // kataRuntimePrefix is the prefix used by Kata Containers runtime
 const kataRuntimePrefix = "io.containerd.kata"
 
+const (
+	SHA256 = "@sha256:"
+)
+
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
 func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf, store workloadmeta.Component) (workloadmeta.Container, error) {
 	if container == nil {
@@ -61,8 +65,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
 
-	image.RepoDigests = extractRepoDigestFromImageMetadata(imageId)
-	log.Infof("Not getContainerImageFromWorkloadmeta, id = %s, imageName = %q: containerImage = %s", imageID, info.Image, image.String(true))
+	image.RepoDigest = extractRepoDigestFromImage(imageID, image.Registry, store) // "sha256:digest"
 
 	status, err := containerdClient.Status(namespace, container)
 	if err != nil {
@@ -158,12 +161,50 @@ func extractRuntimeFlavor(runtime string) workloadmeta.ContainerRuntimeFlavor {
 	return workloadmeta.ContainerRuntimeFlavorDefault
 }
 
-func extractRepoDigestFromImageMetadata(imageID string) []string {
-	var res []string
+// extractRepoDigestFromImage extracts the repoDigest from workloadmeta store if it exists and unique
+// the format of repoDigest is "registry/repo@sha256:digest", the format of return value is "sha256:digest"
+func extractRepoDigestFromImage(imageID string, imageRegistry string, store workloadmeta.Component) string {
 	existingImgMetadata, err := store.GetImage(imageID)
 	if err == nil {
-		return existingImgMetadata.RepoDigests
+		// If there is only one repoDigest, return it
+		if len(existingImgMetadata.RepoDigests) == 1 {
+			_, _, digest := parseRepoDigest(existingImgMetadata.RepoDigests[0])
+			return digest
+		}
+		// If there are multiple repoDigests, we should find the one that matches the current container's registry
+		for _, repoDigest := range existingImgMetadata.RepoDigests {
+			registry, _, digest := parseRepoDigest(repoDigest)
+			if registry == imageRegistry {
+				return digest
+			}
+		}
+		log.Debugf("cannot get matched registry in repodigests for image %s", imageID)
+	} else {
+		log.Debugf("cannot get image metadata for image %s: %s", imageID, err)
 	}
-	log.Debugf("cannot get image metadata for image %s: %s", imageID, err)
-	return []string
+	return ""
+}
+
+// parseRepoDigest extracts registry, repository, digest from repoDigest (in the format of "registry/repo@sha256:digest")
+func parseRepoDigest(repoDigest string) (string, string, string) {
+	var registry, repository, digest string
+	imageName := repoDigest
+
+	digestStart := strings.Index(repoDigest, SHA256)
+	if digestStart != -1 {
+		digest = repoDigest[digestStart+len("@"):]
+		imageName = repoDigest[:digestStart]
+	}
+
+	registryEnd := strings.Index(imageName, "/")
+	// e.g <registry>/<repository>
+	if registryEnd != -1 {
+		registry = imageName[:registryEnd]
+		repository = imageName[registryEnd+len("/"):]
+		// e.g <registry>
+	} else {
+		registry = imageName
+	}
+
+	return registry, repository, digest
 }
