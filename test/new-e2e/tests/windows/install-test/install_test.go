@@ -9,9 +9,11 @@ package installtest
 import (
 	"flag"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
@@ -20,7 +22,7 @@ import (
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"testing"
@@ -37,7 +39,7 @@ type agentMSISuite struct {
 
 func TestMSI(t *testing.T) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(componentos.WindowsDefault)),
 	))}
 	if *devMode {
 		opts = append(opts, e2e.WithDevMode())
@@ -58,7 +60,12 @@ func TestMSI(t *testing.T) {
 	if agentPackage.PipelineID == "" && agentPackage.Channel != "" {
 		stackNameChannelPart = fmt.Sprintf("-%s", agentPackage.Channel)
 	}
-	opts = append(opts, e2e.WithStackName(fmt.Sprintf("windows-msi-test-v%s-%s%s", majorVersion, agentPackage.Arch, stackNameChannelPart)))
+	stackNameCIJobPart := ""
+	ciJobID := os.Getenv("CI_JOB_ID")
+	if ciJobID != "" {
+		stackNameCIJobPart = fmt.Sprintf("-%s", os.Getenv("CI_JOB_ID"))
+	}
+	opts = append(opts, e2e.WithStackName(fmt.Sprintf("windows-msi-test-v%s-%s%s%s", majorVersion, agentPackage.Arch, stackNameChannelPart, stackNameCIJobPart)))
 
 	s := &agentMSISuite{
 		agentPackage: agentPackage,
@@ -92,13 +99,12 @@ func (is *agentMSISuite) TestInstall() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
-	t, err := NewTester(is.T(), vm, WithExpectedAgentVersion(is.agentPackage.AgentVersion()))
-	is.Require().NoError(err, "should create tester")
+	t := is.installAgent(vm, "", filepath.Join(outputDir, "install.log"))
 
-	if !t.TestInstallAgentPackage(is.T(), is.agentPackage, "", filepath.Join(outputDir, "install.log")) {
-		is.T().Fatal("failed to install agent")
+	if !t.TestExpectations(is.T()) {
+		is.T().FailNow()
 	}
-	t.TestRuntimeExpectations(is.T())
+
 	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
 }
 
@@ -110,40 +116,131 @@ func (is *agentMSISuite) TestUpgrade() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
-	t, err := NewTester(is.T(), vm, WithExpectedAgentVersion(is.agentPackage.AgentVersion()))
+	_ = is.installLastStable(vm, "", filepath.Join(outputDir, "install.log"))
+
+	t, err := NewTester(is.T(), vm,
+		WithAgentPackage(is.agentPackage),
+	)
 	is.Require().NoError(err, "should create tester")
 
-	// install old agent
-	_ = is.installLastStable(t, filepath.Join(outputDir, "install.log"))
-
-	// upgrade to new agent
-	if !t.TestInstallAgentPackage(is.T(), is.agentPackage, "", filepath.Join(outputDir, "upgrade.log")) {
-		is.T().Fatal("failed to upgrade agent")
+	if !is.Run(fmt.Sprintf("upgrade to %s", t.agentPackage.AgentVersion()), func() {
+		err = t.InstallAgent(is.T(), "", filepath.Join(outputDir, "upgrade.log"))
+		is.Require().NoError(err, "should upgrade to agent %s", t.agentPackage.AgentVersion())
+	}) {
+		is.T().FailNow()
 	}
 
-	t.TestRuntimeExpectations(is.T())
+	if !t.TestExpectations(is.T()) {
+		is.T().FailNow()
+	}
+
 	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
 }
 
-// This is separate from TestInstallAgentPackage because previous versions of the agent
-// may not conform to the latest test expectations.
-func (is *agentMSISuite) installLastStable(t *Tester, logfile string) *windowsAgent.Package {
-	var agentPackage *windowsAgent.Package
+// TC-INS-002
+func (is *agentMSISuite) TestUpgradeRollback() {
+	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), is.T())
+	is.Require().NoError(err, "should get output dir")
+	is.T().Logf("Output dir: %s", outputDir)
 
-	if !is.Run("install prev stable agent", func() {
-		var err error
+	vm := is.Env().RemoteHost
+	is.prepareHost()
 
-		agentPackage, err = windowsAgent.GetLastStablePackageFromEnv()
-		is.Require().NoError(err, "should get last stable agent package from env")
+	previousTester := is.installLastStable(vm, "", filepath.Join(outputDir, "install.log"))
 
-		t.InstallAgentPackage(is.T(), agentPackage, "", logfile)
+	t, err := NewTester(is.T(), vm,
+		WithAgentPackage(is.agentPackage),
+	)
+	is.Require().NoError(err, "should create tester")
 
-		agentVersion, err := t.InstallTestClient.GetAgentVersion()
-		is.Require().NoError(err, "should get agent version")
-		windowsAgent.TestAgentVersion(is.T(), agentPackage.AgentVersion(), agentVersion)
+	if !is.Run(fmt.Sprintf("upgrade to %s with rollback", t.agentPackage.AgentVersion()), func() {
+		err = t.InstallAgent(is.T(), "WIXFAILWHENDEFERRED=1", filepath.Join(outputDir, "upgrade.log"))
+		is.Require().Error(err, "should fail to install agent %s", t.agentPackage.AgentVersion())
 	}) {
-		is.T().Fatal("failed to install last stable agent")
+		is.T().FailNow()
 	}
 
-	return agentPackage
+	// TODO: we shouldn't have to start the agent manually after rollback
+	//       but the kitchen tests did too.
+	err = windows.StartService(t.host, "DatadogAgent")
+	is.Require().NoError(err, "agent service should start after rollback")
+
+	if !previousTester.TestExpectations(is.T()) {
+		is.T().FailNow()
+	}
+
+	previousTester.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
+}
+
+// TC-INS-001
+func (is *agentMSISuite) TestRepair() {
+	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), is.T())
+	is.Require().NoError(err, "should get output dir")
+	is.T().Logf("Output dir: %s", outputDir)
+
+	vm := is.Env().RemoteHost
+	is.prepareHost()
+
+	t := is.installAgent(vm, "", filepath.Join(outputDir, "install.log"))
+
+	err = windows.StopService(t.host, "DatadogAgent")
+	is.Require().NoError(err)
+
+	// Corrupt the install
+	err = t.host.Remove("C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe")
+	is.Require().NoError(err)
+	err = t.host.RemoveAll("C:\\Program Files\\Datadog\\Datadog Agent\\embedded3")
+	is.Require().NoError(err)
+
+	if !is.Run("repair install", func() {
+		err = windowsAgent.RepairAllAgent(t.host, "", filepath.Join(outputDir, "repair.log"))
+		is.Require().NoError(err)
+	}) {
+		is.T().FailNow()
+	}
+
+	if !t.TestExpectations(is.T()) {
+		is.T().FailNow()
+	}
+
+	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
+}
+
+func (is *agentMSISuite) installAgentPackage(vm *components.RemoteHost, agentPackage *windowsAgent.Package, args string, logfile string, testerOpts ...TesterOption) *Tester {
+	opts := []TesterOption{
+		WithAgentPackage(agentPackage),
+	}
+	opts = append(opts, testerOpts...)
+	t, err := NewTester(is.T(), vm, opts...)
+	is.Require().NoError(err, "should create tester")
+
+	if !is.Run(fmt.Sprintf("install %s", t.agentPackage.AgentVersion()), func() {
+		err = t.InstallAgent(is.T(), args, logfile)
+		is.Require().NoError(err, "should install agent %s", t.agentPackage.AgentVersion())
+	}) {
+		is.T().FailNow()
+	}
+
+	return t
+}
+
+// installAgent installs the agent package on the VM and returns the Tester
+func (is *agentMSISuite) installAgent(vm *components.RemoteHost, args string, logfile string, testerOpts ...TesterOption) *Tester {
+	return is.installAgentPackage(vm, is.agentPackage, args, logfile, testerOpts...)
+}
+
+// installLastStable installs the last stable agent package on the VM, runs tests, and returns the Tester
+func (is *agentMSISuite) installLastStable(vm *components.RemoteHost, args string, logfile string) *Tester {
+	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
+	is.Require().NoError(err, "should get last stable agent package from env")
+	t := is.installAgentPackage(vm, previousAgentPackage, args, logfile,
+		WithPreviousVersion(),
+	)
+
+	// Ensure the agent is functioning properly to provide a proper foundation for the test
+	if !t.TestExpectations(is.T()) {
+		is.T().FailNow()
+	}
+
+	return t
 }
