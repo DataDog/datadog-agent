@@ -17,6 +17,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 	tests := []struct {
 		name               string
 		cmdline            []string
+		useImprovedAlgos   bool
 		expectedServiceTag string
 	}{
 		{
@@ -212,6 +213,42 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/local/test/app/myservice-core-SNAPSHOT.jar", "--spring.profiles.active=test",
 			},
 			expectedServiceTag: "process_context:myservice-core",
+		},
+		{
+			name: "node js with advanced guess disabled",
+			cmdline: []string{
+				"/usr/bin/node",
+				"--require",
+				"/private/node-patches_legacy/register.js",
+				"--preserve-symlinks-main",
+				"--",
+				"/somewhere/index.js",
+			},
+			expectedServiceTag: "process_context:",
+		},
+		{
+			name:             "node js advanced posix",
+			useImprovedAlgos: true,
+			cmdline: []string{
+				"/usr/bin/node",
+				"--require",
+				"/private/node-patches_legacy/register.js",
+				"--preserve-symlinks-main",
+				"--",
+				"./nodejs/testData/index.js",
+			},
+			expectedServiceTag: "process_context:my-awesome-package",
+		},
+		{
+			name:             "node js advanced windows",
+			useImprovedAlgos: true,
+			cmdline: []string{
+				"node.exe",
+				"-r=private/node-patches_legacy/register.js",
+				"--preserve-symlinks-main",
+				"./nodejs/testData/INDEX.JS",
+			},
+			expectedServiceTag: "process_context:my-awesome-package",
 		},
 	}
 

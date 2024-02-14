@@ -6,6 +6,7 @@
 package parser
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -16,6 +17,7 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser/nodejs"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,6 +48,8 @@ var binsWithContext = map[string]serviceExtractorFn{
 	"java":      parseCommandContextJava,
 	"java.exe":  parseCommandContextJava,
 	"sudo":      parseCommandContext,
+	"node":      parseCommandContextNodeJs,
+	"node.exe":  parseCommandContextNodeJs,
 }
 
 var _ metadata.Extractor = &ServiceExtractor{}
@@ -336,4 +340,44 @@ func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []st
 	}
 
 	return "java"
+}
+
+func parseCommandContextNodeJs(se *ServiceExtractor, process *procutil.Process, args []string) string {
+	if se.useImprovedAlgorithm {
+		skipNext := false
+		for _, a := range args {
+			if skipNext {
+				skipNext = false
+				continue
+			}
+			isArg := strings.HasPrefix(a, "-")
+			if isArg {
+				if a == "-r" || a == "--require" {
+					// next arg can be a js file but not the entry point. skip it
+					skipNext = !strings.ContainsRune(a, '=') // in this case the value is already in this arg
+					continue
+				}
+			} else if strings.HasSuffix(strings.ToLower(a), ".js") {
+				absFile := abs(filepath.Clean(a), process.Cwd)
+				if _, err := os.Stat(absFile); err == nil {
+					// here we are
+					ok, value := nodejs.FindNameFromNearestPackageJSON(absFile)
+					if ok {
+						return value
+					}
+					break
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func abs(path string, cwd string) string {
+	// on windows IsAbs likely returns false when the drive is missing
+	// hence, since we accept also paths, we test if the first char is a path separator
+	if !(filepath.IsAbs(path) || path[0] == os.PathSeparator) && len(cwd) > 0 {
+		return filepath.Join(cwd, path)
+	}
+	return path
 }
