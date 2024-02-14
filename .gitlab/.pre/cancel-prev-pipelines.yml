@@ -16,5 +16,5 @@ cancel-prev-pipelines:
   script:
     - source /root/.bashrc
     - which aws
-    - export GITLAB_TOKEN=$(./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_pipelines_scheduler_token)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_pipelines_scheduler_token)
     - inv pipeline.auto-cancel-previous-pipelines

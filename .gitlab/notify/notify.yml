@@ -23,7 +23,7 @@ notify:
   dependencies: []
   tags: ["arch:amd64"]
   script:
-    - export GITLAB_TOKEN=$(./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
     - !reference [.setup_python_mirror_linux]
     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
     - |
@@ -48,7 +48,7 @@ send_pipeline_stats:
   dependencies: []
   script:
     - source /root/.bashrc
-    - export GITLAB_TOKEN=$(./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
-    - export DD_API_KEY=$(./tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
     - !reference [.setup_python_mirror_linux]
     - invoke -e pipeline.send-stats

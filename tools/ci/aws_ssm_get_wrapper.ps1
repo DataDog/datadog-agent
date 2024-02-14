@@ -13,7 +13,7 @@ if ($env:TraceLevel -eq '1') {
 }
 
 while ($retryCount -lt $maxRetries) {
-    $result = aws ssm get-parameter --region us-east-1 --name $parameterName --with-description --query "Parameter.Value" --output text
+    $result = aws ssm get-parameter --region us-east-1 --name $parameterName --with-decryption --query "Parameter.Value" --output text
 
     if ($result) {
         Write-Host $result
