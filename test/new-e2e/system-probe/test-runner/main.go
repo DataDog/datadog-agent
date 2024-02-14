@@ -46,7 +46,7 @@ type testConfig struct {
 }
 
 const (
-	testDirRoot  = "/opt/system-probe-tests"
+	testDirRoot  = "/system-probe-tests"
 	ciVisibility = "/ci-visibility"
 )
 
