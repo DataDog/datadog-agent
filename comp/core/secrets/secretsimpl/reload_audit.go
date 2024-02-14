@@ -42,8 +42,10 @@ func addToAuditFile(filename string, secretResponse map[string]string, origin ha
 	You can work-around this limit by setting the flag "secret_audit_file_max_size" to a larger value.`, sizeErr.Size, sizeErr.Limit)
 			return nil
 		}
-		log.Errorf(`secret-audit-file.json cannot be loaded: %s`, err)
-		return nil
+		if _, ok := err.(*os.PathError); !ok {
+			log.Errorf(`secret-audit-file.json cannot be loaded: %s`, err)
+			return nil
+		}
 	}
 
 	// iterate keys in deterministic order by sorting

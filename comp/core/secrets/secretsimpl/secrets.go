@@ -27,6 +27,7 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -150,9 +151,15 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	r.GetDebugInfo(writer)
 	writer.Flush()
 	fb.AddFile("secrets.log", buffer.Bytes())
+
+	content, err := filesystem.ReadFileWithSizeLimit(r.auditFilename, int64(r.auditFileMaxSize))
+	if err == nil {
+		fb.AddFile(auditFileBasename, content)
+	}
 	return nil
 }
 
+// assocate with the handle itself the origin (filename) and path where the handle appears
 func (r *secretResolver) registerSecretOrigin(handle string, origin string, path []string) {
 	for _, info := range r.origin[handle] {
 		if info.origin == origin && slices.Equal(info.path, path) {
