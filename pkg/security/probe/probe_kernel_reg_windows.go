@@ -65,9 +65,10 @@ type createKeyArgs struct {
 */
 type deleteKeyArgs struct {
 	etw.DDEventHeader
-	keyObject regObjectPointer
-	status    uint32
-	keyName   string
+	keyObject        regObjectPointer
+	status           uint32
+	keyName          string
+	computedFullPath string
 }
 
 /*

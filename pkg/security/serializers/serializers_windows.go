@@ -30,7 +30,7 @@ type RegistrySerializer struct {
 	// Registry key path
 	KeyPath string `json:"path,omitempty"`
 	// Value name of the key value
-	ValueName string `json:"value,omitempty"`
+	ValueName string `json:"value_name,omitempty"`
 }
 
 // ProcessSerializer serializes a process to JSON
