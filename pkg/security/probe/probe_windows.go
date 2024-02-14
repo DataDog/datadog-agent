@@ -313,10 +313,10 @@ func (p *WindowsProbe) Start() error {
 			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.EventType) {
 				// resolve process context
 				ev := p.zeroEvent()
-				errRes := p.setProcessContext(pid, ev)
-				if errRes != nil {
-					log.Debugf("%v", errRes)
-				}
+				// errRes := p.setProcessContext(pid, ev)
+				// if errRes != nil {
+				// 	log.Debugf("%v", errRes)
+				// }
 
 				// handle incoming events here
 				// each event will come in as a different type
