@@ -6,9 +6,6 @@
     <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="!(loc.LicenseAgreementDlgDescription)" />
     <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="!(loc.LicenseAgreementDlgTitle)" />
     <Control Id="LicenseAcceptedCheckBox" Type="CheckBox" X="20" Y="212" Width="330" Height="18" CheckBoxValue="1" Property="LicenseAccepted" Text="!(loc.LicenseAgreementDlgLicenseAcceptedCheckBox)" />
-    <Control Id="Print" Type="PushButton" X="112" Y="243" Width="56" Height="17" Text="!(loc.WixUIPrint)">
-        <Publish Event="DoAction" Value="WixUIPrintEula">1</Publish>
-    </Control>
     <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
     <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
         <Publish Event="SpawnWaitDialog" Value="WaitForCostingDlg">!(wix.WixUICostingPopupOptOut) OR CostingComplete = 1</Publish>
@@ -20,9 +17,6 @@
     </Control>
     <Control Id="SubLicenseBanner" Type="Hyperlink" X="20" Y="52" Width="330" Height="40" >
       <Text>!(loc.LicenseAgreementSubHeader)</Text>
-    </Control>
-    <Control Id="LicenseText" Type="ScrollableText" X="20" Y="95" Width="330" Height="110" Sunken="yes" TabSkip="no">
-        <Text SourceFile="!(wix.WixUILicenseRtf)" />
     </Control>
   </Dialog>
 </Include>

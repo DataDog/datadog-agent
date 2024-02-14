@@ -63,7 +63,7 @@ func newProcess(ps *ProcessSerializer) model.Process {
 		Envs:          ps.Envs,
 		EnvsTruncated: ps.EnvsTruncated,
 		IsThread:      ps.IsThread,
-		IsExecChild:   ps.IsExecChild,
+		IsExecExec:    ps.IsExecExec,
 		PIDContext: model.PIDContext{
 			Pid:       ps.Pid,
 			Tid:       ps.Tid,

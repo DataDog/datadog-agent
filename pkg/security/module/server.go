@@ -16,14 +16,10 @@ import (
 	"sync"
 	"time"
 
-	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
-	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
-	easyjson "github.com/mailru/easyjson"
+	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
+	"golang.org/x/exp/slices"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -31,13 +27,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -56,14 +56,12 @@ type pendingMsg struct {
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
 	api.UnimplementedSecurityModuleServer
-	msgs              chan *api.SecurityEventMessage
-	directReporter    common.RawReporter
-	activityDumps     chan *api.ActivityDumpStreamMessage
-	expiredEventsLock sync.RWMutex
-	expiredEvents     map[rules.RuleID]*atomic.Int64
-	expiredDumps      *atomic.Int64
-	//nolint:unused // TODO(SEC) Fix unused linter
-	limiter            *events.StdLimiter
+	msgs               chan *api.SecurityEventMessage
+	directReporter     common.RawReporter
+	activityDumps      chan *api.ActivityDumpStreamMessage
+	expiredEventsLock  sync.RWMutex
+	expiredEvents      map[rules.RuleID]*atomic.Int64
+	expiredDumps       *atomic.Int64
 	statsdClient       statsd.ClientInterface
 	probe              *sprobe.Probe
 	queueLock          sync.Mutex
@@ -179,7 +177,12 @@ func (a *APIServer) start(ctx context.Context) {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg) {
 				if msg.extTagsCb != nil {
-					msg.tags = append(msg.tags, msg.extTagsCb()...)
+					// dedup
+					for _, tag := range msg.extTagsCb() {
+						if !slices.Contains(msg.tags, tag) {
+							msg.tags = append(msg.tags, tag)
+						}
+					}
 				}
 
 				// recopy tags
@@ -307,13 +310,21 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	data = append(data, ruleEventJSON[1:]...)
 	seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", rule.ID, string(data))
 
+	// no retention if there is no ext tags to resolve
+	retention := a.retention
+	if extTagsCb == nil {
+		retention = 0
+	}
+
+	// get type tags + container tags if already resolved, see ResolveContainerTags
 	eventTags := e.GetTags()
+
 	msg := &pendingMsg{
 		ruleID:    rule.Definition.ID,
 		data:      data,
 		extTagsCb: extTagsCb,
 		service:   service,
-		sendAfter: time.Now().Add(a.retention),
+		sendAfter: time.Now().Add(retention),
 		tags:      make([]string, 0, 1+len(rule.Tags)+len(eventTags)+1),
 	}
 
