@@ -164,7 +164,7 @@ func (hei *EtwInterface) Close() {
 	close(hei.DataChannel)
 }
 
-func getRelatedActivityId(e *etw.DDEventRecord) (activityId *etw.DDGUID) {
+func getRelatedActivityID(e *etw.DDEventRecord) (activityId *etw.DDGUID) {
 
 	if e.ExtendedDataCount == 0 || e.ExtendedData == nil {
 		return nil

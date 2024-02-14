@@ -630,7 +630,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEventRecord) {
 	*/
 
 	// related activityid
-	rai := getRelatedActivityId(eventInfo)
+	rai := getRelatedActivityID(eventInfo)
 	if rai == nil {
 		parsingErrorCount++
 		log.Warnf("* Warning!!!: ActivityId:%v. HTTPRequestTraceTaskRecvReq event should have a reference to related activity id\n\n",
