@@ -58,7 +58,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			args: args{
 				event: &model.Event{
 					BaseEvent: model.BaseEvent{
-						FieldHandlers: &model.DefaultFieldHandlers{},
+						FieldHandlers: &model.FakeFieldHandlers{},
 						Type:          uint32(model.ExecEventType),
 						ProcessContext: &model.ProcessContext{
 							Process: model.Process{
@@ -95,7 +95,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			args: args{
 				event: &model.Event{
 					BaseEvent: model.BaseEvent{
-						FieldHandlers: &model.DefaultFieldHandlers{},
+						FieldHandlers: &model.FakeFieldHandlers{},
 						Type:          uint32(model.ExecEventType),
 						ProcessContext: &model.ProcessContext{
 							Process: model.Process{
@@ -128,7 +128,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			args: args{
 				event: &model.Event{
 					BaseEvent: model.BaseEvent{
-						FieldHandlers: &model.DefaultFieldHandlers{},
+						FieldHandlers: &model.FakeFieldHandlers{},
 						Type:          uint32(model.ExecEventType),
 						ProcessContext: &model.ProcessContext{
 							Process: model.Process{
@@ -165,7 +165,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			args: args{
 				event: &model.Event{
 					BaseEvent: model.BaseEvent{
-						FieldHandlers: &model.DefaultFieldHandlers{},
+						FieldHandlers: &model.FakeFieldHandlers{},
 						Type:          uint32(model.ExecEventType),
 						ProcessContext: &model.ProcessContext{
 							Process: model.Process{
@@ -198,7 +198,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			args: args{
 				event: &model.Event{
 					BaseEvent: model.BaseEvent{
-						FieldHandlers: &model.DefaultFieldHandlers{},
+						FieldHandlers: &model.FakeFieldHandlers{},
 						Type:          uint32(model.ExecEventType),
 						ProcessContext: &model.ProcessContext{
 							Process: model.Process{
@@ -500,7 +500,7 @@ func BenchmarkHashFunctions(b *testing.B) {
 				for i := 0; i < caseB.N; i++ {
 					got := resolver.ComputeHashesFromEvent(&model.Event{
 						BaseEvent: model.BaseEvent{
-							FieldHandlers: &model.DefaultFieldHandlers{},
+							FieldHandlers: &model.FakeFieldHandlers{},
 							Type:          uint32(model.ExecEventType),
 							ProcessContext: &model.ProcessContext{
 								Process: model.Process{
