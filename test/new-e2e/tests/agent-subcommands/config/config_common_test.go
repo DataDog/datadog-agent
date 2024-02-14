@@ -9,7 +9,6 @@ package config
 import (
 	_ "embed"
 	"fmt"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -21,8 +20,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type agentConfigSuite struct {
+type baseConfigSuite struct {
 	e2e.BaseSuite[environments.Host]
+	osOption awshost.ProvisionerOption
+}
+
+func (v *baseConfigSuite) GetOs() awshost.ProvisionerOption {
+	return v.osOption
 }
 
 var visibleConfigs = []string{
@@ -39,11 +43,7 @@ var hiddenConfigs = []string{
 	"internal_profiling",
 }
 
-func TestAgentConfigSuite(t *testing.T) {
-	e2e.Run(t, &agentConfigSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
-}
-
-func getFullConfig(v *agentConfigSuite) map[interface{}]interface{} {
+func getFullConfig(v *baseConfigSuite) map[interface{}]interface{} {
 	output, err := v.Env().Agent.Client.ConfigWithError()
 	require.NoError(v.T(), err)
 
@@ -54,10 +54,10 @@ func getFullConfig(v *agentConfigSuite) map[interface{}]interface{} {
 	return config
 }
 
-func (v *agentConfigSuite) TestDefaultConfig() {
+func (v *baseConfigSuite) TestDefaultConfig() {
 	config := getFullConfig(v)
 
-	assertConfigValueContains(v.T(), config, "api_key", "***************************")
+	assertConfigValueContains(v.T(), config, "api_key", "*******")
 	assertConfigValueEqual(v.T(), config, "fips.enabled", false)
 	assertConfigValueEqual(v.T(), config, "expvar_port", "5000")
 	assertConfigValueEqual(v.T(), config, "network_devices.snmp_traps.forwarder.logs_no_ssl", false)
@@ -67,8 +67,8 @@ func (v *agentConfigSuite) TestDefaultConfig() {
 //go:embed fixtures/datadog-agent.yaml
 var agentConfiguration []byte
 
-func (v *agentConfigSuite) TestNonDefaultConfig() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(string(agentConfiguration)))))
+func (v *baseConfigSuite) TestNonDefaultConfig() {
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig(string(agentConfiguration)))))
 
 	config := getFullConfig(v)
 
@@ -81,7 +81,7 @@ func (v *agentConfigSuite) TestNonDefaultConfig() {
 	assertConfigValueContains(v.T(), config, "tags", "test")
 }
 
-func (v *agentConfigSuite) TestConfigListRuntime() {
+func (v *baseConfigSuite) TestConfigListRuntime() {
 	output := v.Env().Agent.Client.Config(agentclient.WithArgs([]string{"list-runtime"}))
 	for _, config := range visibleConfigs {
 		assert.Contains(v.T(), output, config)
@@ -92,7 +92,7 @@ func (v *agentConfigSuite) TestConfigListRuntime() {
 	}
 }
 
-func (v *agentConfigSuite) TestConfigGetDefault() {
+func (v *baseConfigSuite) TestConfigGetDefault() {
 	allRuntimeConfig := append(visibleConfigs, hiddenConfigs...)
 	for _, config := range allRuntimeConfig {
 		output := v.Env().Agent.Client.Config(agentclient.WithArgs([]string{"get", config}))
@@ -100,7 +100,7 @@ func (v *agentConfigSuite) TestConfigGetDefault() {
 	}
 }
 
-func (v *agentConfigSuite) TestConfigSetAndGet() {
+func (v *baseConfigSuite) TestConfigSetAndGet() {
 	_, err := v.Env().Agent.Client.ConfigWithError(agentclient.WithArgs([]string{"set", "log_level", "warn"}))
 	assert.NoError(v.T(), err)
 	output, _ := v.Env().Agent.Client.ConfigWithError(agentclient.WithArgs([]string{"get", "log_level"}))
@@ -112,7 +112,7 @@ func (v *agentConfigSuite) TestConfigSetAndGet() {
 	assert.Contains(v.T(), output, "log_level is set to: info")
 }
 
-func (v *agentConfigSuite) TestConfigGetInvalid() {
+func (v *baseConfigSuite) TestConfigGetInvalid() {
 	_, err := v.Env().Agent.Client.ConfigWithError(agentclient.WithArgs([]string{"get", "dd_url"}))
 	assert.Error(v.T(), err)
 
@@ -123,7 +123,7 @@ func (v *agentConfigSuite) TestConfigGetInvalid() {
 	assert.Error(v.T(), err)
 }
 
-func (v *agentConfigSuite) TestConfigSetInvalid() {
+func (v *baseConfigSuite) TestConfigSetInvalid() {
 	_, err := v.Env().Agent.Client.ConfigWithError(agentclient.WithArgs([]string{"set", "dd_url", "test"}))
 	assert.Error(v.T(), err)
 
