@@ -19,6 +19,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -763,12 +764,20 @@ func TestFilterBpfCmd(t *testing.T) {
 		}
 		return nil
 	}, func(event *model.Event) bool {
-		if event.GetType() == "bpf" {
-			t.Fatal("shouldn't get a bpf event")
-			return true
+		cmdIntf, err := event.GetFieldValue("bpf.cmd")
+		if !assert.NoError(t, err) {
+			return false
 		}
-		return false
-	}, 2*time.Second, model.BPFEventType)
+		cmdInt, ok := cmdIntf.(int)
+		if !assert.True(t, ok) {
+			return false
+		}
+		cmd := model.BPFCmd(uint64(cmdInt))
+		if assert.Equal(t, model.BpfMapCreateCmd, cmd, "should not get a bpf event with cmd other than BPF_MAP_CREATE") {
+			return false
+		}
+		return true
+	}, 1*time.Second, model.BPFEventType)
 	if err != nil {
 		if otherErr, ok := err.(ErrTimeout); !ok {
 			t.Fatal(otherErr)
