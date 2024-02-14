@@ -884,7 +884,7 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
@@ -1012,7 +1012,7 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
