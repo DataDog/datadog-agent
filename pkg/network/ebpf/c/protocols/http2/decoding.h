@@ -246,7 +246,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         }
     }
 
-// TODO: do not change for now
+// without pragma unroll verifier issue
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
         if (skb_info->data_off >= end) {
@@ -744,7 +744,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         // We have a frame header remainder
         new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (local_skb_info.data_end - local_skb_info.data_off);
         bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
-    // TODO: do not change for now
+    // without pragma unroll verifier issue
     #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
         for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
             bpf_skb_load_bytes(skb, local_skb_info.data_off + iteration, new_frame_state.buf + iteration, 1);

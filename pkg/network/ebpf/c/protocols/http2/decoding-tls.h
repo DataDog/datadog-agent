@@ -797,7 +797,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
 
     http2_stream_t *current_stream = NULL;
 
-// without pragma unroll the instruction count increases from 695675 to 787769 for http2_tls_headers_parser
+    // without pragma unroll the instruction count increases from 695675 to 787769 for http2_tls_headers_parser
     #pragma unroll(HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
