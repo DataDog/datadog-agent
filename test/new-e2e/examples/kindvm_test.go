@@ -31,6 +31,7 @@ func (v *myKindVMSuite) TestIsAmazonLinux() {
 	for _, pod := range res.Items {
 		if strings.Contains(pod.Name, "cluster-agent") {
 			containsClusterAgent = true
+			break
 		}
 	}
 	assert.True(v.T(), containsClusterAgent, "Cluster Agent not found")
