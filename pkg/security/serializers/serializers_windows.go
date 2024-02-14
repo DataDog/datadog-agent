@@ -177,19 +177,19 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 		}
 	case model.CreateRegistryKeyEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{
-			RegistrySerializer: *newRegistrySerializer(&event.CreateRegistryKey.RegistryEvent, event),
+			RegistrySerializer: *newRegistrySerializer(&event.CreateRegistryKey.Registry, event),
 		}
 	case model.OpenRegistryKeyEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{
-			RegistrySerializer: *newRegistrySerializer(&event.OpenRegistryKey.RegistryEvent, event),
+			RegistrySerializer: *newRegistrySerializer(&event.OpenRegistryKey.Registry, event),
 		}
 	case model.SetRegistryKeyValueEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{
-			RegistrySerializer: *newRegistrySerializer(&event.SetRegistryKeyValue.RegistryEvent, event),
+			RegistrySerializer: *newRegistrySerializer(&event.SetRegistryKeyValue.Registry, event),
 		}
 	case model.DeleteRegistryKeyEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{
-			RegistrySerializer: *newRegistrySerializer(&event.DeleteRegistryKey.RegistryEvent, event),
+			RegistrySerializer: *newRegistrySerializer(&event.DeleteRegistryKey.Registry, event),
 		}
 	}
 

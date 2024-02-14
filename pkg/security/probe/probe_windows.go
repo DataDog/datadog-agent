@@ -331,7 +331,7 @@ func (p *WindowsProbe) Start() error {
 					cka := n.(*createKeyArgs)
 					ev.Type = uint32(model.CreateRegistryKeyEventType)
 					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
-						RegistryEvent: model.RegistryEvent{
+						Registry: model.RegistryEvent{
 							KeyPath: cka.computedFullPath,
 							KeyName: filepath.Base(cka.computedFullPath),
 						},
@@ -340,7 +340,7 @@ func (p *WindowsProbe) Start() error {
 					cka := n.(*createKeyArgs)
 					ev.Type = uint32(model.OpenRegistryKeyEventType)
 					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
-						RegistryEvent: model.RegistryEvent{
+						Registry: model.RegistryEvent{
 							KeyPath: cka.computedFullPath,
 							KeyName: filepath.Base(cka.computedFullPath),
 						},
@@ -349,7 +349,7 @@ func (p *WindowsProbe) Start() error {
 					dka := n.(*deleteKeyArgs)
 					ev.Type = uint32(model.DeleteRegistryKeyEventType)
 					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
-						RegistryEvent: model.RegistryEvent{
+						Registry: model.RegistryEvent{
 							KeyName: filepath.Base(dka.computedFullPath),
 							KeyPath: dka.computedFullPath,
 						},
@@ -358,7 +358,7 @@ func (p *WindowsProbe) Start() error {
 					svka := n.(*setValueKeyArgs)
 					ev.Type = uint32(model.SetRegistryKeyValueEventType)
 					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
-						RegistryEvent: model.RegistryEvent{
+						Registry: model.RegistryEvent{
 							KeyName:   filepath.Base(svka.computedFullPath),
 							KeyPath:   svka.computedFullPath,
 							ValueName: svka.valueName,
