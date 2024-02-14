@@ -873,7 +873,7 @@ def format_packages(ctx, impacted_packages):
             for package in res.stderr.splitlines():
                 package_to_remove = os.path.relpath(
                     package.split(" ")[1].strip(":").replace("github.com/DataDog/datadog-agent/", ""), module
-                )
+                ).replace("\\", "/")
                 try:
                     modules_to_test[module].targets.remove(f"./{package_to_remove}")
                 except Exception:
