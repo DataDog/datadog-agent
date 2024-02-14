@@ -668,6 +668,7 @@ core,github.com/coreos/pkg/dlopen,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/cri-o/ocicni/pkg/ocicni,Apache-2.0,"Copyright 2016 Red Hat, Inc"
 core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Copyright (C) 2014-2015 Docker Inc & Go Authors. All rights reserved | Copyright (C) 2017 SUSE LLC. All rights reserved
 core,github.com/davecgh/go-spew/spew,ISC,Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
+core,github.com/dgrijalva/lfu-go,MIT,Copyright (C) 2012 Dave Grijalva
 core,github.com/dgryski/go-jump,MIT,Copyright (c) 2014 Damian Gryski <damian@gryski.com>
 core,github.com/dgryski/go-rendezvous,MIT,Copyright (c) 2017-2020 Damian Gryski <damian@gryski.com>
 core,github.com/dimchansky/utfbom,Apache-2.0,"Copyright (c) 2018-2020, Dmitrij Koniajev (dimchansky@gmail.com)"
@@ -861,6 +862,15 @@ core,github.com/gobwas/glob/syntax/ast,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/syntax/lexer,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/runes,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/strings,MIT,Copyright (c) 2016 Sergey Kamardin
+core,github.com/goccy/go-json,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/decoder,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm_color,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm_color_indent,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm_indent,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/errors,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/runtime,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/gocomply/scap/pkg/scap/constants,CC0-1.0,CC0 1.0 Universal
 core,github.com/gocomply/scap/pkg/scap/models/cdf,CC0-1.0,CC0 1.0 Universal
 core,github.com/gocomply/scap/pkg/scap/models/cpe,CC0-1.0,CC0 1.0 Universal
