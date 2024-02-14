@@ -117,7 +117,6 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         __sync_fetch_and_add(&kafka_tel->topic_name_exceeds_max_size, 1);
-        // TODO: Add telemetry for topic max size
         return false;
     }
     update_topic_name_size_telemetry(kafka_tel, topic_name_size);
