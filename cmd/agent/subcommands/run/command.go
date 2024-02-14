@@ -633,7 +633,7 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(server dogstatsdServer.Component, agentAPI internalAPI.Component) {
+func StopAgentWithDefaults(agentAPI internalAPI.Component) {
 	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, agentAPI)
 }
 

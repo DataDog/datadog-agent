@@ -20,7 +20,7 @@ import (
 
 // ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
-	dogStatsDServer dogstatsdServer.Component
+	dogStatsDServer dogstatsdServer.ServerlessDogstatsd
 	tags            []string
 	Demux           aggregator.Demultiplexer
 
@@ -104,7 +104,7 @@ func (c *ServerlessMetricAgent) Flush() {
 // Stop stops the DogStatsD server
 func (c *ServerlessMetricAgent) Stop() {
 	if c.IsReady() {
-		c.Stop()
+		c.dogStatsDServer.Stop()
 	}
 }
 
