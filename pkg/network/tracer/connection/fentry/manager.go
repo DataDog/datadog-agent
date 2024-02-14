@@ -9,15 +9,13 @@
 package fentry
 
 import (
-	"os"
-
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	secEbpf "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 )
 
 func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHandler, cfg *config.Config) {
@@ -41,7 +39,7 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 			RecordGetter:     handler.RecordGetter,
 			RecordHandler:    handler.RecordHandler,
 			TelemetryEnabled: cfg.InternalTelemetryEnabled,
-			RingBufferSize:   int(secEbpf.ComputeDefaultEventsRingBufferSize()),
+			RingBufferSize:   kprobe.ComputeDefaultClosedConnRingBufferSize(),
 		}
 		rb := &manager.RingBuffer{
 			Map:               manager.Map{Name: probes.ConnCloseEventMap},
@@ -54,7 +52,7 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: probes.ConnCloseEventMap},
 			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
+				PerfRingBufferSize: kprobe.ComputeDefaultClosedConnPerfBufferSize(),
 				Watermark:          1,
 				RecordHandler:      handler.RecordHandler,
 				LostHandler:        handler.LostHandler,

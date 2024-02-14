@@ -16,7 +16,7 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	secEbpf "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var mainProbes = []probes.ProbeFuncName{
@@ -35,6 +35,10 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPReadSockReturn,
 	probes.TCPClose,
 	probes.TCPCloseCleanProtocolsReturn,
+	probes.TCPCloseFlushReturnRingbuffer,
+	probes.TCPConnCloseEmitEventRingbuffer,
+	probes.TCPCloseFlushReturnPerfbuffer,
+	probes.TCPConnCloseEmitEventPerfbuffer,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
@@ -50,21 +54,17 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.InetCskAcceptReturn,
 	probes.InetCskListenStop,
 	probes.UDPDestroySock,
+	probes.UDPDestroySockReturnRingbuffer,
+	probes.UDPDestroySockReturnPerfbuffer,
 	probes.UDPv6DestroySock,
+	probes.UDPv6DestroySockReturnRingbuffer,
+	probes.UDPv6DestroySockReturnPerfbuffer,
 	probes.InetBind,
 	probes.Inet6Bind,
 	probes.InetBindRet,
 	probes.Inet6BindRet,
 	probes.UDPSendPage,
 	probes.UDPSendPageReturn,
-	probes.TCPCloseFlushReturnRingbuffer,
-	probes.TCPConnCloseEmitEventRingbuffer,
-	probes.UDPDestroySockReturnRingbuffer,
-	probes.UDPv6DestroySockReturnRingbuffer,
-	probes.TCPCloseFlushReturnPerfbuffer,
-	probes.TCPConnCloseEmitEventPerfbuffer,
-	probes.UDPDestroySockReturnPerfbuffer,
-	probes.UDPv6DestroySockReturnPerfbuffer,
 }
 
 func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHandler, runtimeTracer bool, cfg *config.Config) error {
@@ -97,7 +97,8 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 			RecordGetter:     handler.RecordGetter,
 			RecordHandler:    handler.RecordHandler,
 			TelemetryEnabled: cfg.InternalTelemetryEnabled,
-			RingBufferSize:   int(secEbpf.ComputeDefaultEventsRingBufferSize()),
+			// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
+			RingBufferSize: ComputeDefaultClosedConnRingBufferSize(),
 		}
 		rb := &manager.RingBuffer{
 			Map:               manager.Map{Name: probes.ConnCloseEventMap},
@@ -110,7 +111,7 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: probes.ConnCloseEventMap},
 			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
+				PerfRingBufferSize: ComputeDefaultClosedConnPerfBufferSize(),
 				Watermark:          1,
 				RecordHandler:      handler.RecordHandler,
 				LostHandler:        handler.LostHandler,
@@ -160,4 +161,24 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 	}
 
 	return nil
+}
+
+// ComputeDefaultClosedConnRingBufferSize is the default buffer size of the ring buffers for events.
+// Must be a power of 2 and a multiple of the page size
+func ComputeDefaultClosedConnRingBufferSize() int {
+	numCPU, err := utils.NumCPU()
+	pageSize := os.Getpagesize()
+	if err != nil {
+		numCPU = 1
+	}
+
+	if numCPU <= 16 {
+		return 8 * 8 * pageSize
+	}
+
+	return 16 * 8 * pageSize
+}
+
+func ComputeDefaultClosedConnPerfBufferSize() int {
+	return 8 * os.Getpagesize()
 }

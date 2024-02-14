@@ -221,7 +221,7 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 		closedChannelSize = config.ClosedChannelSize
 	}
 	var connCloseEventHandler ddebpf.EventHandler
-	if RingbuffersEnabled(config) {
+	if (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled {
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
@@ -745,9 +745,4 @@ func (h *cookieHasher) Hash(stats *network.ConnectionStats) {
 		return
 	}
 	stats.Cookie = h.hash.Sum64()
-}
-
-// RingbuffersEnabled returns true if the current kernel version supports ringbuffers and the config enables it
-func RingbuffersEnabled(config *config.Config) bool {
-	return (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled
 }

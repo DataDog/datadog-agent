@@ -136,10 +136,6 @@ BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
 BPF_PROG_ARRAY(tcp_close_progs, 1)
 
 // This program is needed to optionally omit a call to bpf_ringbuf_output on older kernels 
-// where is doesn't exist when sending tcp close batchs
-// BPF_PROG_ARRAY(conn_close_batch_progs, 1)
-
-// This program is needed to optionally omit a call to bpf_ringbuf_output on older kernels 
 // where is doesn't exist when sending individual tcp close events
 BPF_PROG_ARRAY(conn_close_individual_progs, 1)
 

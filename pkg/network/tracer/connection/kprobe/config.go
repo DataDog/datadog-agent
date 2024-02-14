@@ -10,9 +10,6 @@ package kprobe
 import (
 	"fmt"
 
-	cebpf "github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -178,8 +175,4 @@ func selectVersionBasedProbe(runtimeTracer bool, kv kernel.Version, dfault probe
 		return versioned
 	}
 	return dfault
-}
-
-func ringBufferSupported(c *config.Config) bool {
-	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.RingbufferEnabled
 }
