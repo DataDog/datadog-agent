@@ -65,6 +65,7 @@ func handleKillActions(action *rules.ActionDefinition, ev *model.Event, kill fun
 
 	sig := model.SignalConstants[action.Kill.Signal]
 
+	killedAt := time.Now()
 	for _, pid := range pids {
 		if pid <= 1 || pid == utils.Getpid() {
 			continue
@@ -82,7 +83,7 @@ func handleKillActions(action *rules.ActionDefinition, ev *model.Event, kill fun
 		Pid:        ev.ProcessContext.Pid,
 		CreatedAt:  ev.ProcessContext.ExecTime,
 		DetectedAt: ev.ResolveEventTime(),
-		KilledAt:   time.Now(),
+		KilledAt:   killedAt,
 	}
 
 	ev.ActionReports = append(ev.ActionReports, report)
