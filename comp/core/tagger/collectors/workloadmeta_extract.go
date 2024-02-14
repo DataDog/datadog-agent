@@ -722,7 +722,7 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 	case workloadmeta.KindKubernetesDeployment:
 		return fmt.Sprintf("deployment://%s", entityID.ID)
 	case workloadmeta.KindHost:
-		return fmt.Sprintf("host://%s", entityID.ID)
+		return fmt.Sprintf("host_tags://%s", entityID.ID)
 	default:
 		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)

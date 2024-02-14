@@ -7,10 +7,11 @@ package workloadmeta
 
 import (
 	"fmt"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"io"
 	"strings"
 	"time"
+
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
@@ -45,7 +46,7 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
-	KindHost                   Kind = "host"
+	KindHost                   Kind = "host_tags"
 )
 
 // Source is the source name of an entity.
