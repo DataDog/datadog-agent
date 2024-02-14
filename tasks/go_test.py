@@ -868,7 +868,7 @@ def format_packages(ctx, impacted_packages):
             hide=True,
             warn=True,
         )
-
+        module_to_remove = []
         if res is not None and res.stderr is not None:
             for package in res.stderr.splitlines():
                 package_to_remove = os.path.relpath(
@@ -876,10 +876,12 @@ def format_packages(ctx, impacted_packages):
                 ).replace("\\", "/")
                 try:
                     modules_to_test[module].targets.remove(f"./{package_to_remove}")
-                    if modules_to_test[module].targets == []:
-                        del modules_to_test[module]
+                    if len(modules_to_test[module].targets) == 0:
+                        module_to_remove.append(module)
                 except Exception:
                     print("Could not remove ", package_to_remove, ", ignoring...")
+        for module in module_to_remove:
+            del modules_to_test[module]
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
