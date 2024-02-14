@@ -163,7 +163,7 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 	return nil
 }
 
-// ComputeDefaultClosedConnRingBufferSize is the default buffer size of the ring buffers for events.
+// ComputeDefaultClosedConnRingBufferSize is the default buffer size of the ring buffer for closed connection events.
 // Must be a power of 2 and a multiple of the page size
 func ComputeDefaultClosedConnRingBufferSize() int {
 	numCPU, err := utils.NumCPU()
@@ -179,6 +179,8 @@ func ComputeDefaultClosedConnRingBufferSize() int {
 	return 16 * 8 * pageSize
 }
 
+// ComputeDefaultClosedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.
+// Must be a multiple of the page size
 func ComputeDefaultClosedConnPerfBufferSize() int {
 	return 8 * os.Getpagesize()
 }

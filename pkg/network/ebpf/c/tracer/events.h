@@ -137,6 +137,9 @@ __maybe_unused static __always_inline void emit_conn_close_event(void *ctx) {
     if (!conn_ptr) {
         return;
     }
+    // Here we copy the conn data to a variable allocated in the eBPF stack
+    // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
+    // since you can't directly write a map entry to the perf buffer.
     conn_t conn_copy = {};
     bpf_memcpy(&conn_copy, conn_ptr, sizeof(conn_copy));
     u32 cpu = bpf_get_smp_processor_id();

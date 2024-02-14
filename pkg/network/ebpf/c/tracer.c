@@ -205,7 +205,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
         return 0;
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
-    
+
     bool individual_flush_needed = cleanup_conn(ctx, &t, sk);
 
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
@@ -220,7 +220,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     return 0;
 }
 
-TAIL_CALL("tcp_close_flush_individual_conn_ringbuffer")
+SEC("kprobe/tcp_close_flush_individual_conn_ringbuffer")
 int tail_call_target_tcp_close_flush_individual_conn_ringbuffer(struct pt_regs *ctx) {
     emit_conn_close_event_ringbuffer(ctx);
     return 0;
@@ -247,7 +247,7 @@ int kretprobe__tcp_close_flush_batch_ringbuffer(struct pt_regs *ctx) {
     return 0;
 }
 
-TAIL_CALL("tcp_close_flush_individual_conn_perfbuffer")
+SEC("kprobe/tcp_close_flush_individual_conn_perfbuffer")
 int tail_call_target_tcp_close_flush_individual_conn_perfbuffer(struct pt_regs *ctx) {
     emit_conn_close_event(ctx);
     return 0;
