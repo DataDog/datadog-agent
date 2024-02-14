@@ -463,13 +463,14 @@ func (p *WindowsProbe) Start() error {
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	err := backoff.Retry(func() error {
-		pce := p.Resolvers.ProcessResolver.GetEntry(pid)
-		if pce == nil {
-			return errors.New(fmt.Sprintf("Could not resolve process for Process: %v", pid))
-		}
-		event.ProcessCacheEntry = pce
-		event.ProcessContext = &pce.ProcessContext
-		return nil
+		// pce := p.Resolvers.ProcessResolver.GetEntry(pid)
+		// if pce == nil {
+		// 	return errors.New(fmt.Sprintf("Could not resolve process for Process: %v", pid))
+		// }
+		// event.ProcessCacheEntry = pce
+		// event.ProcessContext = &pce.ProcessContext
+		// return nil
+		return errors.New(fmt.Sprintf("Could not resolve process for Process: %v", pid))
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 5))
 	return err
 }
