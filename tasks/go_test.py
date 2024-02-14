@@ -861,6 +861,7 @@ def format_packages(ctx, impacted_packages):
         ):  # With more packages we can reach the limit of the command line length on Windows
             modules_to_test[module].targets = DEFAULT_MODULES[module].targets
 
+    module_to_remove = []
     # Clean up to avoid running tests on package with no Go files matching build tags
     for module in modules_to_test:
         res = ctx.run(
@@ -868,7 +869,6 @@ def format_packages(ctx, impacted_packages):
             hide=True,
             warn=True,
         )
-        module_to_remove = []
         if res is not None and res.stderr is not None:
             for package in res.stderr.splitlines():
                 package_to_remove = os.path.relpath(
