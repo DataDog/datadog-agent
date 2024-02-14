@@ -11,7 +11,9 @@ import (
 )
 
 const (
-	MediaTypeImageLayerXz = "application/vnd.oci.image.layer.xz"
+	// mediaTypeImageLayerXz is the media type for an OCI image layer in xz format
+	// It's not officially declared by the spec so we do it here
+	mediaTypeImageLayerXz = "application/vnd.oci.image.layer.v1.tar+xz"
 )
 
 // extractOCI extracts the OCI archive at `ociArchivePath`
@@ -28,7 +30,7 @@ func extractOCI(ociArchivePath string, destinationPath string) error {
 
 	for _, manifest := range index.Manifests {
 		if err := extractOCIManifest(ociArchivePath, destinationPath, manifest); err != nil {
-			return fmt.Errorf("could not extract manifest: %w", err)
+			return err // already wrapped
 		}
 	}
 	return nil
@@ -70,7 +72,7 @@ func extractOCIManifest(ociArchivePath string, destinationPath string, manifest 
 	// Extract layers in the destination folder
 	for _, layer := range manifestStruct.Layers {
 		if err := extractOCILayer(blobsPath, destinationPath, layer); err != nil {
-			return fmt.Errorf("could not extract layer: %w", err)
+			return err // already wrapped
 		}
 	}
 
@@ -107,9 +109,9 @@ func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Des
 	}
 
 	switch layer.MediaType {
-	case MediaTypeImageLayerXz, "application/vnd.oci.image.layer.v1.tar+zstd": // ZSTD is for testing purposes as XZ archives wrongly declare ZSTD
+	case mediaTypeImageLayerXz:
 		if err := extractTarXz(layerPath, destinationPath); err != nil {
-			return fmt.Errorf("could not extract layer: %w", err)
+			return err // already wrapped
 		}
 	default:
 		return fmt.Errorf("unsupported media type %s for layer", layer.MediaType)
