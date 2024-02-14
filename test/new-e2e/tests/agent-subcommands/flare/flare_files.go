@@ -71,7 +71,7 @@ var windowsFiles = []string{
 	"typeperf.txt",
 	"lodctr.txt",
 	"counter_strings.txt",
-	"servicestatus.txt",
+	"servicestatus.json",
 	"datadog.reg",
 }
 
