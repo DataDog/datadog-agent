@@ -20,6 +20,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
+
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
@@ -30,8 +33,6 @@ import (
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"go.opentelemetry.io/collector/component/componenttest"
 
 	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -121,7 +122,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		client, err := rc.NewGRPCClient(
 			ipcAddress,
 			coreconfig.GetIPCPort(),
-			security.FetchAuthToken,
+			func() (string, error) { return security.FetchAuthToken(c) },
 			rc.WithAgent(rcClientName, version.AgentVersion),
 			rc.WithProducts([]data.Product{data.ProductAPMSampling, data.ProductAgentConfig}),
 			rc.WithPollInterval(rcClientPollInterval),

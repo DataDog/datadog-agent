@@ -107,6 +107,10 @@
           "type": "string",
           "format": "date-time",
           "description": "Creation time of the container"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -209,6 +213,10 @@
         "origin": {
           "type": "string",
           "description": "Origin of the event"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -884,11 +892,15 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
           "description": "Process source"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -1012,11 +1024,15 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
           "description": "Process source"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         },
         "parent": {
           "$ref": "#/$defs/Process",
@@ -1304,6 +1320,10 @@
       "additionalProperties": false,
       "type": "object",
       "description": "UserSessionContextSerializer serializes the user session context to JSON"
+    },
+    "Variables": {
+      "type": "object",
+      "description": "Variables serializes the variable values"
     }
   },
   "properties": {
