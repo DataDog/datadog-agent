@@ -876,6 +876,8 @@ def format_packages(ctx, impacted_packages):
                 ).replace("\\", "/")
                 try:
                     modules_to_test[module].targets.remove(f"./{package_to_remove}")
+                    if modules_to_test[module].targets == []:
+                        del modules_to_test[module]
                 except Exception:
                     print("Could not remove ", package_to_remove, ", ignoring...")
 
