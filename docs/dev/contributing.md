@@ -40,7 +40,7 @@ when submitting your PR:
 <details open>
 <summary>Contributor Checklist</summary>
 
-- [ ] Have a proper commit history (we advise you to rebase if needed).
+- [ ] Have a proper commit history (we advise you to rebase if needed) with clear commit messages.
 
 - [ ] Write tests for the code you wrote.
 
