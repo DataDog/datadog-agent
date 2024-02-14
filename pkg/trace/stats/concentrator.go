@@ -234,6 +234,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 		Version:      pt.AppVersion,
 		ContainerID:  containerID,
 		GitCommitSha: pt.GitCommitSha,
+		ImageTag:     pt.ImageTag,
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
@@ -305,6 +306,7 @@ func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 			ContainerID:  k.ContainerID,
 			Version:      k.Version,
 			GitCommitSha: k.GitCommitSha,
+			ImageTag:     k.ImageTag,
 			Stats:        s,
 		}
 		sb = append(sb, p)

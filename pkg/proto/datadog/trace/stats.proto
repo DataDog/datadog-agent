@@ -47,6 +47,8 @@ message ClientStatsPayload {
 	repeated string tags = 12;
 	// The git commit SHA is obtained from a trace, where it may be set through a tracer <-> source code integration.
 	string git_commit_sha = 13;
+	// The image tag is obtained from a container's set of tags.
+	string image_tag = 14;
 }
 
 // ClientStatsBucket is a time bucket containing aggregated stats.

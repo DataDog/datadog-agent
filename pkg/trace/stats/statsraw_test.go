@@ -162,7 +162,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			for _, span := range benchSpans {
-				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", ""}, false, nil)
+				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""}, false, nil)
 			}
 		}
 	})
@@ -172,7 +172,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			for _, span := range benchSpans {
-				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", ""}, true, defaultPeerTags)
+				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""}, true, defaultPeerTags)
 			}
 		}
 	})

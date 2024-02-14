@@ -10,6 +10,7 @@ import (
 	"context"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -338,7 +339,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		a.setPayloadAttributes(p, root, chunk)
 
-		pt := processedTrace(p, chunk, root)
+		pt := processedTrace(p, chunk, root, p.TracerPayload.ContainerID, a.conf)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -395,9 +396,23 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 	}
 }
 
+// GetImageTag returns the image sha detected from container tags, if present.
+func GetImageTag(containerID string, conf *config.AgentConfig) (string, error) {
+	cTags, err := conf.ContainerTags(containerID)
+	if err != nil {
+		return "", err
+	}
+	for _, t := range cTags {
+		if val, ok := strings.CutPrefix(t, "image_tag:"); ok && val != "" {
+			return val, nil
+		}
+	}
+	return "", nil
+}
+
 // processedTrace creates a ProcessedTrace based on the provided chunk and root.
-func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) *traceutil.ProcessedTrace {
-	return &traceutil.ProcessedTrace{
+func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, containerID string, conf *config.AgentConfig) *traceutil.ProcessedTrace {
+	pt := &traceutil.ProcessedTrace{
 		TraceChunk:             chunk,
 		Root:                   root,
 		AppVersion:             p.TracerPayload.AppVersion,
@@ -406,6 +421,15 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) *traceu
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
 		GitCommitSha:           traceutil.GetGitCommitSha(root, chunk),
 	}
+	// FIXME: We should find a way to not repeat container ID resolution downstream in the stats writer.
+	// We will first need to deprecate the `enable_cid_stats` feature flag.
+	imageTag, err := GetImageTag(containerID, conf)
+	if err != nil {
+		log.Error("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
+	} else {
+		pt.ImageTag = imageTag
+	}
+	return pt
 }
 
 // newChunksArray creates a new array which will point only to sampled chunks.

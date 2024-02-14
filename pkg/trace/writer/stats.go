@@ -247,6 +247,8 @@ func (w *StatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
 	case len(ctags) == 0:
 		p.Tags = nil
 	default:
+		// FIXME: Once we can deprecate the `enable_cid_stats` feature flag, let's make sure to not duplicate
+		// the addition of `image_sha` to these tags since it'll already be in a separate field in the payload.
 		p.Tags = ctags
 	}
 }

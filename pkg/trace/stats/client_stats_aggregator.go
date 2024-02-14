@@ -6,10 +6,12 @@
 package stats
 
 import (
+	"strings"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -40,6 +42,7 @@ type ClientStatsAggregator struct {
 	In      chan *pb.ClientStatsPayload
 	out     chan *pb.StatsPayload
 	buckets map[int64]*bucket // buckets used to aggregate client stats
+	conf    *config.AgentConfig
 
 	flushTicker         *time.Ticker
 	oldestTs            time.Time
@@ -60,6 +63,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayloa
 		flushTicker:         time.NewTicker(time.Second),
 		In:                  make(chan *pb.ClientStatsPayload, 10),
 		buckets:             make(map[int64]*bucket, 20),
+		conf:                conf,
 		out:                 out,
 		agentEnv:            conf.DefaultEnv,
 		agentHostname:       conf.Hostname,
@@ -143,7 +147,7 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 			a.buckets[ts.Unix()] = b
 		}
 		p.Stats = []*pb.ClientStatsBucket{clientBucket}
-		a.flush(b.add(p, a.peerTagsAggregation))
+		a.flush(b.add(p, a.peerTagsAggregation, a.conf))
 	}
 }
 
@@ -182,7 +186,21 @@ type bucket struct {
 	agg map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts
 }
 
-func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool) []*pb.ClientStatsPayload {
+// FIXME: resolve import cycle so that we don't need to duplicate this
+func getImageTag(containerID string, conf *config.AgentConfig) (string, error) {
+	cTags, err := conf.ContainerTags(containerID)
+	if err != nil {
+		return "", err
+	}
+	for _, t := range cTags {
+		if val, ok := strings.CutPrefix(t, "image_tag:"); ok && val != "" {
+			return val, nil
+		}
+	}
+	return "", nil
+}
+
+func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool, conf *config.AgentConfig) []*pb.ClientStatsPayload {
 	b.n++
 	if b.n == 1 {
 		b.first = &pb.ClientStatsPayload{
@@ -198,6 +216,15 @@ func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool) []*pb.Clie
 			Service:          p.GetService(),
 			ContainerID:      p.GetContainerID(),
 			Tags:             p.GetTags(),
+			GitCommitSha:     p.GetGitCommitSha(),
+		}
+		if b.first.ContainerID != "" {
+			imageTag, err := getImageTag(b.first.ContainerID, conf)
+			if err != nil {
+				log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", b.first.ContainerID, err)
+			} else {
+				b.first.ImageTag = imageTag
+			}
 		}
 		return nil
 	}
@@ -215,7 +242,7 @@ func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool) []*pb.Clie
 }
 
 func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload, enablePeerTagsAgg bool) {
-	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID)
+	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag)
 	payloadAgg, ok := b.agg[payloadAggKey]
 	if !ok {
 		var size int
@@ -289,8 +316,15 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 	return res
 }
 
-func newPayloadAggregationKey(env, hostname, version, cid string) PayloadAggregationKey {
-	return PayloadAggregationKey{Env: env, Hostname: hostname, Version: version, ContainerID: cid}
+func newPayloadAggregationKey(env, hostname, version, cid string, gitCommitSha string, imageTag string) PayloadAggregationKey {
+	return PayloadAggregationKey{
+		Env:          env,
+		Hostname:     hostname,
+		Version:      version,
+		ContainerID:  cid,
+		GitCommitSha: gitCommitSha,
+		ImageTag:     imageTag,
+	}
 }
 
 func newBucketAggregationKey(b *pb.ClientGroupedStats, enablePeerTagsAgg bool) BucketsAggregationKey {

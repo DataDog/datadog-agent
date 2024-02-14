@@ -48,6 +48,7 @@ type PayloadAggregationKey struct {
 	Version      string
 	ContainerID  string
 	GitCommitSha string
+	ImageTag     string
 }
 
 func getStatusCode(s *pb.Span) uint32 {

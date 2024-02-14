@@ -63,12 +63,13 @@ func testSpan(now time.Time, spanID uint64, parentID uint64, duration, offset in
 	}
 }
 
-func toProcessedTrace(spans []*pb.Span, env, tracerHostname string) *traceutil.ProcessedTrace {
+func toProcessedTrace(spans []*pb.Span, env, tracerHostname, imageTag string) *traceutil.ProcessedTrace {
 	return &traceutil.ProcessedTrace{
 		TracerEnv:      env,
 		Root:           traceutil.GetRoot(spans),
 		TraceChunk:     spansToTraceChunk(spans),
 		TracerHostname: tracerHostname,
+		ImageTag:       imageTag,
 	}
 }
 
@@ -205,7 +206,7 @@ func TestTracerHostname(t *testing.T) {
 		testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil),
 	}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "tracer-hostname")
+	testTrace := toProcessedTrace(spans, "none", "tracer-hostname", "")
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, "")
 
@@ -230,7 +231,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "")
+	testTrace := toProcessedTrace(spans, "none", "", "")
 
 	t.Run("cold", func(t *testing.T) {
 		// Running cold, all spans in the past should end up in the current time bucket.
@@ -350,7 +351,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "")
+	testTrace := toProcessedTrace(spans, "none", "", "")
 
 	t.Run("ok", func(t *testing.T) {
 		c.addNow(testTrace, "")
@@ -543,7 +544,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
 
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "")
+	testTrace := toProcessedTrace(spans, "none", "", "")
 
 	c.addNow(testTrace, "")
 
@@ -594,7 +595,7 @@ func generateDistribution(t *testing.T, now time.Time, generator func(i int) int
 		spans = append(spans, testSpan(now, uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0, nil))
 	}
 	traceutil.ComputeTopLevel(spans)
-	c.addNow(toProcessedTrace(spans, "none", ""), "")
+	c.addNow(toProcessedTrace(spans, "none", "", ""), "")
 	stats := c.flushNow(now.UnixNano()+c.bsize*int64(c.bufferLen), false)
 	expectedFlushedTs := alignedNow
 	assert.Len(stats.Stats, 1)
@@ -643,7 +644,7 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	traceutil.ComputeTopLevel(spans)
 
 	// we only have one top level but partial. We expect to ignore it when calculating stats
-	testTrace := toProcessedTrace(spans, "none", "tracer-hostname")
+	testTrace := toProcessedTrace(spans, "none", "tracer-hostname", "")
 
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, "")
@@ -658,7 +659,7 @@ func TestForceFlush(t *testing.T) {
 
 	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "")
+	testTrace := toProcessedTrace(spans, "none", "", "")
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, "")
 
@@ -703,7 +704,7 @@ func TestPeerTags(t *testing.T) {
 	t.Run("not configured", func(t *testing.T) {
 		spans := []*pb.Span{sp, sp2}
 		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "")
+		testTrace := toProcessedTrace(spans, "none", "", "")
 		c := NewTestConcentrator(now)
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
@@ -715,7 +716,7 @@ func TestPeerTags(t *testing.T) {
 	t.Run("configured", func(t *testing.T) {
 		spans := []*pb.Span{sp, sp2}
 		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "")
+		testTrace := toProcessedTrace(spans, "none", "", "")
 		c := NewTestConcentrator(now)
 		c.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
 		c.peerTagsAggregation = true
@@ -780,7 +781,7 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
 		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "")
+		testTrace := toProcessedTrace(spans, "none", "", "")
 		c := NewTestConcentrator(now)
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
@@ -798,7 +799,7 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
 		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "")
+		testTrace := toProcessedTrace(spans, "none", "", "")
 		c := NewTestConcentrator(now)
 		c.computeStatsBySpanKind = true
 		c.addNow(testTrace, "")
@@ -840,7 +841,7 @@ func TestGitCommitSha(t *testing.T) {
 	}
 	spans := []*pb.Span{sp, sp2}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "")
+	testTrace := toProcessedTrace(spans, "none", "", "")
 	testTrace.GitCommitSha = "abc123"
 	c := NewTestConcentrator(now)
 	c.peerTagsAggregation = true
@@ -849,6 +850,42 @@ func TestGitCommitSha(t *testing.T) {
 	assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 	for _, st := range stats.Stats {
 		assert.Equal("abc123", st.GitCommitSha)
+	}
+}
+
+func TestImageTag(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	sp := &pb.Span{
+		ParentID: 0,
+		SpanID:   1,
+		Service:  "myservice",
+		Name:     "http.server.request",
+		Resource: "GET /users",
+		Duration: 100,
+		Meta:     map[string]string{"span.kind": "server", "git_commit_sha": "abc123"},
+	}
+	sp2 := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   2,
+		Service:  "myservice",
+		Name:     "postgres.query",
+		Resource: "SELECT user_id from users WHERE user_name = ?",
+		Duration: 75,
+		Meta:     map[string]string{"span.kind": "client", "db.instance": "i-1234", "db.system": "postgres", "region": "us1"},
+		Metrics:  map[string]float64{"_dd.measured": 1.0},
+	}
+	spans := []*pb.Span{sp, sp2}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "", "test-123")
+	testTrace.GitCommitSha = "abc123"
+	c := NewTestConcentrator(now)
+	c.peerTagsAggregation = true
+	c.addNow(testTrace, "")
+	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+	assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+	for _, st := range stats.Stats {
+		assert.Equal("test-123", st.ImageTag)
 	}
 }
 
