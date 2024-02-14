@@ -24,7 +24,7 @@ jobs:
         run: |
           labels=$(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name' | tr '\n' ' ')
           echo "Fetched labels for PR ${{github.event.number}}: $labels"
-          echo "LABELS='$labels'" >> $env:GITHUB_OUTPUT
+          echo "LABELS='$labels'" >> "$GITHUB_OUTPUT"
   team-label:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
