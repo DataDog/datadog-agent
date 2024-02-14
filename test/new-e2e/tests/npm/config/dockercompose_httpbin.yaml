@@ -4,7 +4,7 @@ services:
     pid: host
     privileged: true
     ports:
-    - 80:80/tcp
+    - 80:8080/tcp
     image: ghcr.io/datadog/apps-go-httpbin:main
     container_name: httpbin
     volumes: []
