@@ -12,11 +12,9 @@ import (
 	"strings"
 	"unicode"
 
-
 	"github.com/Masterminds/semver"
 	"github.com/cihub/seelog"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
