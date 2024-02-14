@@ -214,6 +214,7 @@ DEFAULT_MODULES = {
     "pkg/util/system": GoModule("pkg/util/system", independent=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
+    "pkg/util/uuid": GoModule("pkg/util/uuid", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True),
     "pkg/util/grpc": GoModule("pkg/util/grpc", independent=True),
     "pkg/version": GoModule("pkg/version", independent=True),
