@@ -98,17 +98,15 @@ func CheckLogFilePresence(ls LogsTestSuite, logFileName string) {
 
 	switch ls.Env().RemoteHost.OSFamily {
 	case os.WindowsFamily:
-		checkCmd := fmt.Sprintf("Get-Content %s\\%s", WindowsLogsFolderPath, logFileName)
-		_, err := ls.Env().RemoteHost.Execute(checkCmd)
-		if err != nil {
-			assert.FailNow(t, "Log File not found")
-		}
+		logPath := fmt.Sprintf("%s\\%s", WindowsLogsFolderPath, logFileName)
+		logExists, err := ls.Env().RemoteHost.FileExists(logPath)
+		assert.NoError(t, err)
+		assert.True(t, logExists)
 	default: // Assuming Linux if not Windows.
-		checkCmd := fmt.Sprintf("sudo cat %s/%s", LinuxLogsFolderPath, logFileName)
-		_, err := ls.Env().RemoteHost.Execute(checkCmd)
-		if err != nil {
-			assert.FailNow(t, "Log File not found")
-		}
+		logPath := fmt.Sprintf("%s/%s", LinuxLogsFolderPath, logFileName)
+		logExists, err := ls.Env().RemoteHost.FileExists(logPath)
+		assert.NoError(t, err)
+		assert.True(t, logExists)
 	}
 }
 
