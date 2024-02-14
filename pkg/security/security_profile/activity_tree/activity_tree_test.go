@@ -34,7 +34,7 @@ func TestInsertFileEvent(t *testing.T) {
 		"/tmp/bar/test",
 	}
 	expectedDebugOuput := strings.TrimSpace(`
-- process: /test/pan (argv0: pan) (is_exec_child:false)
+- process: /test/pan (argv0: pan) (is_exec_exec:false)
   files:
     - hello
     - test
@@ -117,9 +117,22 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 	}
 
 	cursor := ancestor
+	maxPid := uint32(len(lineageDup)) + 1
+
+	nextPid := func(current uint32, IsExecExec bool) uint32 {
+		if IsExecExec {
+			return current
+		}
+		return current - 1
+	}
+
+	currentPid := maxPid - 1
 	for _, p := range lineageDup[1:] {
 		cursor.Process = p
+		cursor.Process.Pid = currentPid
+		currentPid = nextPid(currentPid, cursor.Process.IsExecExec)
 		cursor.Ancestor = new(model.ProcessCacheEntry)
+		cursor.Parent = &cursor.Ancestor.Process
 		cursor = cursor.Ancestor
 	}
 
@@ -138,6 +151,8 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 		},
 	}
 
+	lineageDup[0].Pid = nextPid(maxPid, !lineageDup[0].IsExecExec)
+
 	evt := &model.Event{
 		BaseEvent: model.BaseEvent{
 			Type:             uint32(model.ExecEventType),
@@ -148,6 +163,7 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 				ProcessContext: model.ProcessContext{
 					Process:  lineageDup[0],
 					Ancestor: ancestor,
+					Parent:   &ancestor.Process,
 				},
 			},
 		},

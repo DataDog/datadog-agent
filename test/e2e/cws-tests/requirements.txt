@@ -1,5 +1,5 @@
 kubernetes==29.0.0
-datadog-api-client==2.21.0
+datadog-api-client==2.22.0
 pyaml==23.12.0
 docker==7.0.0
 retry==0.9.2

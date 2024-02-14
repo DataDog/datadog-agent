@@ -14,8 +14,9 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -47,11 +48,12 @@ type RareSampler struct {
 	priorityTTL time.Duration
 	cardinality int
 	seen        map[Signature]*seenSpans
+	statsd      statsd.ClientInterface
 }
 
 // NewRareSampler returns a NewRareSampler that ensures that we sample combinations
 // of env, service, name, resource, http-status, error type for each top level or measured spans
-func NewRareSampler(conf *config.AgentConfig) *RareSampler {
+func NewRareSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *RareSampler {
 	e := &RareSampler{
 		enabled:     atomic.NewBool(conf.RareSamplerEnabled),
 		hits:        atomic.NewInt64(0),
@@ -63,6 +65,7 @@ func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 		cardinality: conf.RareSamplerCardinality,
 		seen:        make(map[Signature]*seenSpans),
 		tickStats:   time.NewTicker(10 * time.Second),
+		statsd:      statsd,
 	}
 	if e.ttl > e.priorityTTL {
 		e.priorityTTL = e.ttl
@@ -177,9 +180,9 @@ func (e *RareSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 }
 
 func (e *RareSampler) report() {
-	metrics.Count("datadog.trace_agent.sampler.rare.hits", e.hits.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.sampler.rare.misses", e.misses.Swap(0), nil, 1)
-	metrics.Gauge("datadog.trace_agent.sampler.rare.shrinks", float64(e.shrinks.Load()), nil, 1)
+	_ = e.statsd.Count("datadog.trace_agent.sampler.rare.hits", e.hits.Swap(0), nil, 1)
+	_ = e.statsd.Count("datadog.trace_agent.sampler.rare.misses", e.misses.Swap(0), nil, 1)
+	_ = e.statsd.Gauge("datadog.trace_agent.sampler.rare.shrinks", float64(e.shrinks.Load()), nil, 1)
 }
 
 // seenSpans keeps record of a set of spans.

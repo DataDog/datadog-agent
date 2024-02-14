@@ -26,7 +26,6 @@ type windowsTestSuite struct {
 }
 
 func TestWindowsTestSuite(t *testing.T) {
-	t.Skip("PROCS-3644: consistent failures on process tests")
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
@@ -144,5 +143,7 @@ func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 
-	assertManualProcessCheck(s.T(), check, true, "MsMpEng.exe")
+	// Check stats for Datadog agent process as it has IO stats more reliably populated than MsMpEng.exe
+	agentExe := "\"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\""
+	assertManualProcessCheck(s.T(), check, true, agentExe)
 }
