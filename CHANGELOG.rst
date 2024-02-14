@@ -2,6 +2,175 @@
 Release Notes
 =============
 
+.. _Release Notes_7.51.0:
+
+7.51.0 / 6.51.0
+======
+
+.. _Release Notes_7.51.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-02-14
+
+- Please refer to the `7.51.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7510>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.51.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The orchestrator check is moving from the Process Agent to the Core Agent. Any orchestrator configuration set on the Process Agent will need to be moved to the Core Agent.  No other changes are required. If you need to go back to the old check, you can do so temporarily by manually setting the environment variable ``DD_ORCHESTRATOR_EXPLORER_RUN_ON_NODE_AGENT`` to ``false``. The Process Agent pod check will be deprecated in the following release.
+
+- Upgrade the Python version from 3.9 to 3.11.
+
+
+.. _Release Notes_7.51.0_New Features:
+
+New Features
+------------
+
+- Add support for ARM64 SLES flavor of datadog-agent
+
+- Add support for multiple users when listening for SNMP traps.
+
+- Add ``check_delay`` metric in Agent telemetry
+
+- Add an ETW component for ETW tracing.
+
+- Add an ETW APM tracer component to forward .Net ETW events to the Tracer Agent.
+
+- DBM: Add configuration options to SQL obfuscator to customize the normalization of SQL statements:
+  - ``KeepTrailingSemicolon`` - disable removing trailing semicolon. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.
+  - ``KeepIdentifierQuotation`` - disable removing quotation marks around identifiers. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.
+
+- CWS: [BETA] early support based on ptrace for platforms with no eBPF support.
+  Only processes and files are currently supported.
+
+- Add ``msodbcsql18`` linux dependency needed for SQL Server to run in Docker Agent.
+
+- Add timestamps to the logs HTTP client
+
+- Add support for Oracle Active Data Guard.
+
+- Re-enable Aerospike in SUSE packages.
+
+
+.. _Release Notes_7.51.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Updated the ntp check to support the default location of chrony.conf
+  on Ubuntu (/etc/chrony/chrony.conf).
+
+- Agents are now built with Go ``1.20.12``.
+
+- Agents are now built with Go ``1.21.5``.
+
+- CWS: Reloading the datadog-agent-sysprobe systemd service now reloads the runtime security policies.
+
+- CWS: Added ssdeep file hashing algorithm support.
+
+- USM will report the actual status code of the HTTP traffic, instead of reporting
+  only the status code family (2xx, 3xx, etc.).
+
+- Improved performance of the activity sampling query on RDS and Oracle Cloud databases.
+
+- OTLP ingest log timestamps (i.e. '@timestamp') now include milliseconds.
+
+- Always report the following telemetry metrics about the retry queue capacity:
+    * ``datadog.agent.retry_queue_duration.capacity_secs``
+    * ``datadog.agent.retry_queue_duration.bytes_per_sec``
+    * ``datadog.agent.retry_queue_duration.capacity_bytes``
+
+- Support container metrics for kata containers using containerd.
+
+- System Probe can now expose its healthcheck on a dedicated HTTP port.
+  The Kubernetes daemonset uses this by default on port 5558.
+
+
+.. _Release Notes_7.51.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The config value `ipc_address` is deprecated in favor of `cmd_host`.
+
+- `service_monitoring_config.process_service_inference.enabled` is deprecated and replaced by `system_probe_config.process_service_inference.enabled`
+  `service_monitoring_config.process_service_inference.use_windows_service_name` is deprecated and replaced by `system_probe_config.process_service_inference.use_windows_service_name`
+
+- Removes ``freetds`` and ``msodbcsql18`` dependencies for py2.
+
+- Removes ``postgresql`` dependency after upgrading ``psycopg2`` to v2.9 in integrations-core.
+  ``psycopg2`` now comes with pre-built wheel for arm architecture.
+
+- An error will now be logged if replace tags are used to change the Agent
+  "env", since this could have negative side effects. At this time, an error
+  is logged, but future versions may explicitly disallow this to avoid bugs.
+  See https://docs.datadoghq.com/getting_started/tracing/#environment-name
+  for instructions on setting the env, and
+  https://github.com/DataDog/datadog-agent/issues/21253 for more details
+  about this issue.
+
+
+.. _Release Notes_7.51.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- CWS/CSPM: Fixes the hostname value attached to CWS and CSPM events, which in rare cases
+  the security agent computed incorrectly.
+
+- Fix `file_handle` core check on Darwin by using `sysctl` system call.
+
+- Fix spikes for bandwidth usage metric when interface speed is auto-adjusted.
+
+- Fixes Agent startup script when enabling OOM Kill and TCP Queue Length checks to prevent crashes when restarting the container.
+
+- Fix a spewing error message ("DCA Client not initialized by main provider, cannot post heartbeat") in the cluster check runner log during CLC initialization.
+
+- Fixed Logs Agent additional endpoints to respect their
+  logs_no_ssl setting.
+
+- [DBM] Add Oracle broken connection handling on Windows
+
+- Fix indentation in `conf.yaml.example`.
+
+- Bug fix for empty database names in query samples.
+
+- Bug fix for the Korean character set for Windows.
+
+- Fixing the issue with a Korean character set for Windows.
+
+- Fix missing sysmetrics, such as shared pool and library cache.
+
+- Bug fix for missing tags.
+
+- Fixed obfuscation error false positive when the access or filter predicates are empty.
+
+- Fix resource manager metrics collection bugs.
+
+- Pause containers from the Rancher image-mirror repository (``rancher/mirrored-pause.*``)  are now excluded by default for containers and metrics collection.
+
+- Error messages from Go checks are now shown on the Agent GUI status page
+  instead of ``UNKNOWN ERROR``.
+
+
+.. _Release Notes_7.51.0_Other Notes:
+
+Other Notes
+-----------
+
+- Update s6-overlay version used in Datadog Agent container images to v2.2.0.3
+
+- Added a warning when ``logs_no_ssl`` is set and ``dd_url``
+  contains an https prefix. ``logs_no_ssl`` will take precedence
+  over the prefix in a future version.
+
+
 .. _Release Notes_7.50.2:
 
 7.50.2 / 6.50.2
