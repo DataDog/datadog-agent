@@ -37,6 +37,19 @@ func container1(testTime time.Time) Container {
 			{
 				Port: 42002,
 			},
+			// One of the 2 names is empty, we should keep the one not empty
+			{
+				Port:     42004,
+				Name:     "",
+				Protocol: "tcp",
+			},
+			// Different name, we should keep one and select
+			// the first one when we short their names
+			{
+				Port:     42005,
+				Name:     "metrics",
+				Protocol: "tcp",
+			},
 		},
 		State: ContainerState{
 			Running:    true,
@@ -73,6 +86,16 @@ func container2(testTime time.Time) Container { //nolint:revive // TODO fix revi
 			},
 			{
 				Port: 42003,
+			},
+			{
+				Port:     42004,
+				Name:     "http",
+				Protocol: "tcp",
+			},
+			{
+				Port:     42005,
+				Name:     "http",
+				Protocol: "tcp",
 			},
 		},
 		State: ContainerState{
@@ -117,14 +140,21 @@ func TestMerge(t *testing.T) {
 			Protocol: "udp",
 		},
 		{
-			Port: 42002,
-		},
-		{
 			Port:     42002,
 			Protocol: "tcp",
 		},
 		{
 			Port: 42003,
+		},
+		{
+			Port:     42004,
+			Name:     "http",
+			Protocol: "tcp",
+		},
+		{
+			Port:     42005,
+			Name:     "http",
+			Protocol: "tcp",
 		},
 	}
 

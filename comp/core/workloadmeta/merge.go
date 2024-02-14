@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"reflect"
+	"sort"
 	"strconv"
 	"time"
 
@@ -56,7 +57,7 @@ func portSliceMerge(dst, src reflect.Value) error {
 	dstSlice := dst.Interface().([]ContainerPort)
 
 	// Not allocation the map if nothing to do
-	if len(srcSlice) == 0 || len(dstSlice) == 0 {
+	if len(srcSlice) == 0 && len(dstSlice) == 0 {
 		return nil
 	}
 
@@ -64,30 +65,39 @@ func portSliceMerge(dst, src reflect.Value) error {
 	for _, port := range dstSlice {
 		mergeContainerPort(mergeMap, port)
 	}
-
 	for _, port := range srcSlice {
 		mergeContainerPort(mergeMap, port)
 	}
 
 	dstSlice = make([]ContainerPort, 0, len(mergeMap))
-	for _, port := range mergeMap {
-		dstSlice = append(dstSlice, port)
+	for id := range mergeMap {
+		dstSlice = append(dstSlice, mergeMap[id])
 	}
 	dst.Set(reflect.ValueOf(dstSlice))
 
 	return nil
 }
 
-func mergeContainerPort(mergeMap map[string]ContainerPort, port ContainerPort) {
-	portKey := strconv.Itoa(port.Port) + port.Protocol
-	existingPort, found := mergeMap[portKey]
-
-	if found {
-		if existingPort.Name == "" && port.Name != "" {
-			mergeMap[portKey] = port
+// selectString will always return the first non-empty string in the input slice
+// after sorting it. which will allow to do bijectif merge.
+func selectString(input []string) string {
+	sort.Strings(input)
+	for id, s := range input {
+		if s != "" {
+			return input[id]
 		}
+	}
+	return ""
+}
+
+func mergeContainerPort(mergeMap map[string]ContainerPort, inputPort ContainerPort) {
+	portKey := strconv.Itoa(inputPort.Port)
+	if existingPort, found := mergeMap[portKey]; found {
+		existingPort.Name = selectString([]string{existingPort.Name, inputPort.Name})
+		existingPort.Protocol = selectString([]string{existingPort.Protocol, inputPort.Protocol})
+		mergeMap[portKey] = existingPort
 	} else {
-		mergeMap[portKey] = port
+		mergeMap[portKey] = inputPort
 	}
 }
 
