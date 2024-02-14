@@ -92,7 +92,7 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 	logFile := config.GetString("security_agent.log_file")
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(config)
 	if e != nil {
 		return e
 	}
