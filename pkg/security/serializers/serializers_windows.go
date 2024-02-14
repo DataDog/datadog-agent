@@ -173,7 +173,7 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 	switch eventType {
 	case model.CreateNewFileEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.CreateNewFile.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.CreateNewFile.File, event),
 		}
 	case model.CreateRegistryKeyEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{

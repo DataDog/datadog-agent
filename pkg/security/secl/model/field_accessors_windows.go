@@ -37,6 +37,134 @@ func (ev *Event) GetContainerTags() []string {
 	return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 }
 
+// GetCreateFileName returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileName() string {
+	if ev.GetEventType().String() != "create" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File)
+}
+
+// GetCreateFileNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileNameLength() int {
+	if ev.GetEventType().String() != "create" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File))
+}
+
+// GetCreateFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFilePath() string {
+	if ev.GetEventType().String() != "create" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File)
+}
+
+// GetCreateFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFilePathLength() int {
+	if ev.GetEventType().String() != "create" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File))
+}
+
+// GetCreateKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateKeyName() string {
+	if ev.GetEventType().String() != "create_key" {
+		return ""
+	}
+	return ev.CreateRegistryKey.RegistryEvent.KeyName
+}
+
+// GetCreateKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateKeyNameLength() int {
+	if ev.GetEventType().String() != "create_key" {
+		return 0
+	}
+	return len(ev.CreateRegistryKey.RegistryEvent.KeyName)
+}
+
+// GetCreateKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateKeyPath() string {
+	if ev.GetEventType().String() != "create_key" {
+		return ""
+	}
+	return ev.CreateRegistryKey.RegistryEvent.KeyPath
+}
+
+// GetCreateKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateKeyPathLength() int {
+	if ev.GetEventType().String() != "create_key" {
+		return 0
+	}
+	return len(ev.CreateRegistryKey.RegistryEvent.KeyPath)
+}
+
+// GetCreateKeyValue returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateKeyValue() string {
+	if ev.GetEventType().String() != "create_key" {
+		return ""
+	}
+	return ev.CreateRegistryKey.RegistryEvent.ValueName
+}
+
+// GetCreateKeyValueLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateKeyValueLength() int {
+	if ev.GetEventType().String() != "create_key" {
+		return 0
+	}
+	return len(ev.CreateRegistryKey.RegistryEvent.ValueName)
+}
+
+// GetDeleteKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteKeyName() string {
+	if ev.GetEventType().String() != "delete_key" {
+		return ""
+	}
+	return ev.DeleteRegistryKey.RegistryEvent.KeyName
+}
+
+// GetDeleteKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteKeyNameLength() int {
+	if ev.GetEventType().String() != "delete_key" {
+		return 0
+	}
+	return len(ev.DeleteRegistryKey.RegistryEvent.KeyName)
+}
+
+// GetDeleteKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteKeyPath() string {
+	if ev.GetEventType().String() != "delete_key" {
+		return ""
+	}
+	return ev.DeleteRegistryKey.RegistryEvent.KeyPath
+}
+
+// GetDeleteKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteKeyPathLength() int {
+	if ev.GetEventType().String() != "delete_key" {
+		return 0
+	}
+	return len(ev.DeleteRegistryKey.RegistryEvent.KeyPath)
+}
+
+// GetDeleteKeyValue returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteKeyValue() string {
+	if ev.GetEventType().String() != "delete_key" {
+		return ""
+	}
+	return ev.DeleteRegistryKey.RegistryEvent.ValueName
+}
+
+// GetDeleteKeyValueLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteKeyValueLength() int {
+	if ev.GetEventType().String() != "delete_key" {
+		return 0
+	}
+	return len(ev.DeleteRegistryKey.RegistryEvent.ValueName)
+}
+
 // GetEventService returns the value of the field, resolving if necessary
 func (ev *Event) GetEventService() string {
 	return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
@@ -415,36 +543,52 @@ func (ev *Event) GetExitUserSid() string {
 	return ev.Exit.Process.OwnerSidString
 }
 
-// GetFileCreateName returns the value of the field, resolving if necessary
-func (ev *Event) GetFileCreateName() string {
-	if ev.GetEventType().String() != "create" {
+// GetOpenKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenKeyName() string {
+	if ev.GetEventType().String() != "open_key" {
 		return ""
 	}
-	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.FileEvent)
+	return ev.OpenRegistryKey.RegistryEvent.KeyName
 }
 
-// GetFileCreateNameLength returns the value of the field, resolving if necessary
-func (ev *Event) GetFileCreateNameLength() int {
-	if ev.GetEventType().String() != "create" {
+// GetOpenKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenKeyNameLength() int {
+	if ev.GetEventType().String() != "open_key" {
 		return 0
 	}
-	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.FileEvent))
+	return len(ev.OpenRegistryKey.RegistryEvent.KeyName)
 }
 
-// GetFileCreatePath returns the value of the field, resolving if necessary
-func (ev *Event) GetFileCreatePath() string {
-	if ev.GetEventType().String() != "create" {
+// GetOpenKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenKeyPath() string {
+	if ev.GetEventType().String() != "open_key" {
 		return ""
 	}
-	return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.FileEvent)
+	return ev.OpenRegistryKey.RegistryEvent.KeyPath
 }
 
-// GetFileCreatePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetFileCreatePathLength() int {
-	if ev.GetEventType().String() != "create" {
+// GetOpenKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenKeyPathLength() int {
+	if ev.GetEventType().String() != "open_key" {
 		return 0
 	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.FileEvent))
+	return len(ev.OpenRegistryKey.RegistryEvent.KeyPath)
+}
+
+// GetOpenKeyValue returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenKeyValue() string {
+	if ev.GetEventType().String() != "open_key" {
+		return ""
+	}
+	return ev.OpenRegistryKey.RegistryEvent.ValueName
+}
+
+// GetOpenKeyValueLength returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenKeyValueLength() int {
+	if ev.GetEventType().String() != "open_key" {
+		return 0
+	}
+	return len(ev.OpenRegistryKey.RegistryEvent.ValueName)
 }
 
 // GetProcessAncestorsCmdline returns the value of the field, resolving if necessary
@@ -1245,6 +1389,54 @@ func (ev *Event) GetRegistrySetKeyValueValue() string {
 
 // GetRegistrySetKeyValueValueLength returns the value of the field, resolving if necessary
 func (ev *Event) GetRegistrySetKeyValueValueLength() int {
+	if ev.GetEventType().String() != "set_key_value" {
+		return 0
+	}
+	return len(ev.SetRegistryKeyValue.RegistryEvent.ValueName)
+}
+
+// GetSetKeyValueName returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueName() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.RegistryEvent.KeyName
+}
+
+// GetSetKeyValueNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueNameLength() int {
+	if ev.GetEventType().String() != "set_key_value" {
+		return 0
+	}
+	return len(ev.SetRegistryKeyValue.RegistryEvent.KeyName)
+}
+
+// GetSetKeyValuePath returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValuePath() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.RegistryEvent.KeyPath
+}
+
+// GetSetKeyValuePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValuePathLength() int {
+	if ev.GetEventType().String() != "set_key_value" {
+		return 0
+	}
+	return len(ev.SetRegistryKeyValue.RegistryEvent.KeyPath)
+}
+
+// GetSetKeyValueValue returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueValue() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.RegistryEvent.ValueName
+}
+
+// GetSetKeyValueValueLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueValueLength() int {
 	if ev.GetEventType().String() != "set_key_value" {
 		return 0
 	}

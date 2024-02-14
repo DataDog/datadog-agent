@@ -233,15 +233,15 @@ func (t EventType) String() string {
 	case CustomSelfTestEventType:
 		return "self_test"
 	case CreateNewFileEventType:
-		return "create_file"
+		return "create"
 	case CreateRegistryKeyEventType:
-		return "create_registry_key"
+		return "create_key"
 	case OpenRegistryKeyEventType:
-		return "open_registry_key"
+		return "open_key"
 	case SetRegistryKeyValueEventType:
-		return "set_registry_key_value"
+		return "set_key_value"
 	case DeleteRegistryKeyEventType:
-		return "delete_registry_key"
+		return "delete_key"
 	default:
 		return "unknown"
 	}

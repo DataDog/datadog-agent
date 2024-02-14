@@ -326,7 +326,7 @@ func (p *WindowsProbe) Start() error {
 					cnfa := n.(*createNewFileArgs)
 					ev.Type = uint32(model.CreateNewFileEventType)
 					ev.CreateNewFile = model.CreateNewFileEvent{
-						FileEvent: model.FileEvent{
+						File: model.FileEvent{
 							PathnameStr: cnfa.fileName,
 							BasenameStr: filepath.Base(cnfa.fileName),
 						},
