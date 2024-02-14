@@ -72,14 +72,6 @@ var (
 				UID:          probeUID,
 			},
 		},
-		{
-			ProgArrayName: probes.TCPCloseProgsMap,
-			Key:           0,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPCloseFlushReturnPerfbuffer,
-				UID:          probeUID,
-			},
-		},
 	}
 
 	// these primarily exist for mocking out in tests
@@ -190,7 +182,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
 
 	ringbufferEnabled := (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled
-	log.Errorf("adamk - loadTracerFromAsset - ringbufferEnabled: %v", ringbufferEnabled)
 	tcpEnabled := config.CollectTCPv4Conns || config.CollectTCPv6Conns
 	addBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffer_enabled")
 
@@ -219,7 +210,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 					},
 				},
 			}...)
-			protocolClassificationTailCalls[3].ProbeIdentificationPair.EBPFFuncName = probes.TCPCloseFlushReturnRingbuffer
 		} else {
 			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
 				{
@@ -241,6 +231,29 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	addBoolConst(&mgrOpts, classificationSupported, "protocol_classification_enabled")
 
 	if classificationSupported {
+		if ringbufferEnabled {
+			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
+				{
+					ProgArrayName: probes.TCPCloseProgsMap,
+					Key:           0,
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						EBPFFuncName: probes.TCPCloseFlushReturnRingbuffer,
+						UID:          probeUID,
+					},
+				},
+			}...)
+		} else {
+			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
+				{
+					ProgArrayName: probes.TCPCloseProgsMap,
+					Key:           0,
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						EBPFFuncName: probes.TCPCloseFlushReturnPerfbuffer,
+						UID:          probeUID,
+					},
+				},
+			}...)
+		}
 		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
 			EBPFFuncName: probes.ProtocolClassifierEntrySocketFilter,
 			UID:          probeUID,
@@ -284,8 +297,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	log.Errorf("adamk - loadTracerFromAsset - Excluded Functions: %v", mgrOpts.ExcludedFunctions)
-
 	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls)+2)
 	if classificationSupported {
 		for _, tailCall := range protocolClassificationTailCalls {
@@ -302,14 +313,12 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			UID:          probeUID,
 		}] = struct{}{}
 	}
-	log.Errorf("adamk - loadTracerFromAsset - tailCallsIdentifiersSet: %v", tailCallsIdentifiersSet)
 	for funcName := range enabledProbes {
 		probeIdentifier := manager.ProbeIdentificationPair{
 			EBPFFuncName: funcName,
 			UID:          probeUID,
 		}
 		if _, ok := tailCallsIdentifiersSet[probeIdentifier]; ok {
-			log.Errorf("adamk - loadTracerFromAsset - probeIdentifier: %v", probeIdentifier)
 			// tail calls should be enabled (a.k.a. not excluded) but not activated.
 			continue
 		}
@@ -319,8 +328,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 				ProbeIdentificationPair: probeIdentifier,
 			})
 	}
-
-	log.Errorf("adamk tail call router: %v", mgrOpts.TailCallRouter)
 
 	if err := m.InitWithOptions(buf, mgrOpts); err != nil {
 		return nil, nil, fmt.Errorf("failed to init ebpf manager: %w", err)
