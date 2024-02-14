@@ -32,9 +32,7 @@ jobs:
     steps:
       - name: Check team assignment
         run: |
-          echo $LABELS
           for label in $LABELS; do
-            echo $label
             if [[ "$label" =~ ^qa/ ]]; then
               echo "A label to skip QA is set -- no need for team assignment"
               exit 0
