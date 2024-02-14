@@ -880,8 +880,8 @@ def format_packages(ctx, impacted_packages):
                         module_to_remove.append(module)
                 except Exception:
                     print("Could not remove ", package_to_remove, ", ignoring...")
-        for module in module_to_remove:
-            del modules_to_test[module]
+    for module in module_to_remove:
+        del modules_to_test[module]
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
