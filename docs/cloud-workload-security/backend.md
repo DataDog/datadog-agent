@@ -898,7 +898,7 @@ CSM Threats logs have the following JSON schema:
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
                 },
-                "is_exec_exec": {
+                "is_exec_child": {
                     "type": "boolean",
                     "description": "Indicates whether the process is an exec following another exec"
                 },
@@ -1026,7 +1026,7 @@ CSM Threats logs have the following JSON schema:
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
                 },
-                "is_exec_exec": {
+                "is_exec_child": {
                     "type": "boolean",
                     "description": "Indicates whether the process is an exec following another exec"
                 },
@@ -2708,7 +2708,7 @@ CSM Threats logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
         },
-        "is_exec_exec": {
+        "is_exec_child": {
             "type": "boolean",
             "description": "Indicates whether the process is an exec following another exec"
         },
@@ -2755,7 +2755,7 @@ CSM Threats logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
-| `is_exec_exec` | Indicates whether the process is an exec following another exec |
+| `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `source` | Process source |
 
 | References |
@@ -2881,7 +2881,7 @@ CSM Threats logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
         },
-        "is_exec_exec": {
+        "is_exec_child": {
             "type": "boolean",
             "description": "Indicates whether the process is an exec following another exec"
         },
@@ -2939,7 +2939,7 @@ CSM Threats logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
-| `is_exec_exec` | Indicates whether the process is an exec following another exec |
+| `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `source` | Process source |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
