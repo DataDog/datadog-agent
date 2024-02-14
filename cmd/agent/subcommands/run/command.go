@@ -403,7 +403,7 @@ func startAgent(
 	taggerComp tagger.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
-	processAgent optional.Option[processAgent.Component],
+	_ optional.Option[processAgent.Component],
 	_ defaultforwarder.Component,
 	_ serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
@@ -535,11 +535,6 @@ func startAgent(
 		logsAgent.AddScheduler(adScheduler.New(common.AC))
 	}
 
-	if procAgent, ok := processAgent.Get(); ok {
-		log.Infof("Process Agent Enabled: %v", procAgent)
-	} else {
-		log.Infof("Process Agent Not Enabled: %v", procAgent)
-	}
 	// start the cloudfoundry container tagger
 	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {
 		containerTagger, err := containertagger.NewContainerTagger()
