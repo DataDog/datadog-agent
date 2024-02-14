@@ -313,7 +313,7 @@ func (p *WindowsProbe) Start() error {
 			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.EventType) {
 				// resolve process context
 				ev := p.zeroEvent()
-				// errRes := p.setProcessContext(pid, ev)
+				errRes := p.setProcessContext(pid, ev)
 				// if errRes != nil {
 				// 	log.Debugf("%v", errRes)
 				// }
@@ -471,7 +471,7 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 		event.ProcessContext = &pce.ProcessContext
 		return nil
 
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 5))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 1))
 	return err
 }
 
