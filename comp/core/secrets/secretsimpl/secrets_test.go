@@ -6,7 +6,9 @@
 package secretsimpl
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -738,4 +740,76 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	_, err = resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, changedPaths, []string{"instances/0/password"})
+}
+
+// test that adding to the audit file stops working when the file gets too large
+func TestRefreshAddsToAuditFile(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	originalAllowlistPaths := allowlistPaths
+	allowlistPaths = map[string]struct{}{"another/config/setting": {}}
+	defer func() { allowlistPaths = originalAllowlistPaths }()
+
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
+	resolver.cache = map[string]string{"handle": "value"}
+	resolver.origin = handleToContext{
+		"handle": []secretContext{
+			{
+				origin: "test",
+				path:   []string{"another", "config", "setting"},
+			},
+		},
+	}
+	resolver.auditFilename = tmpfile.Name()
+	resolver.auditFileMaxSize = 1000 // enough to add a few rows
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"handle": "second_value",
+		}, nil
+	}
+
+	// Refresh the secrets, which will add to the audit file
+	_, err = resolver.Refresh()
+	require.NoError(t, err)
+	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 1)
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"handle": "third_value",
+		}, nil
+	}
+
+	// Refresh secrets again, which will add another row the audit file
+	_, err = resolver.Refresh()
+	require.NoError(t, err)
+	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 2)
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"handle": "fourth_value",
+		}, nil
+	}
+
+	// Limit the max size of the audit file so that it's too small to load
+	resolver.auditFileMaxSize = 10
+
+	// Try to Refresh, but the audit file can't be loaded due to its size
+	_, err = resolver.Refresh()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot be loaded, file size is too large")
+	// the number of rows in the audit file has not increased
+	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 2)
+}
+
+// helper to read number of rows in the audit file
+func auditFileNumRows(filename string) int {
+	data, _ := os.ReadFile(filename)
+	var rows []interface{}
+	_ = json.Unmarshal(data, &rows)
+	return len(rows)
 }

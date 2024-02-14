@@ -8,6 +8,7 @@ package secretsimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"regexp"
 	"sort"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -34,17 +34,18 @@ type auditRow struct {
 
 // addToAuditFile adds rows to the audit file based upon newly refreshed secrets
 func addToAuditFile(filename string, secretResponse map[string]string, origin handleToContext, maxSize int) error {
+	if filename == "" {
+		return nil
+	}
 	now := timeNowFunc().UTC()
 	auditRows, err := loadAuditFile(filename, maxSize)
 	if err != nil {
 		if sizeErr, ok := err.(*filesystem.FileSizeLimitError); ok {
-			log.Error(`secret-audit-file.json cannot be loaded, file size is too large: %d > %d\n
-	You can work-around this limit by setting the flag "secret_audit_file_max_size" to a larger value.`, sizeErr.Size, sizeErr.Limit)
-			return nil
+			return fmt.Errorf(`%s cannot be loaded, file size is too large: %v > %v
+You can work-around this limit by setting the flag "secret_audit_file_max_size" to a larger value`, filename, sizeErr.Size, sizeErr.Limit)
 		}
 		if _, ok := err.(*os.PathError); !ok {
-			log.Errorf(`secret-audit-file.json cannot be loaded: %s`, err)
-			return nil
+			return fmt.Errorf(`%s cannot be loaded: %s`, filename, err)
 		}
 	}
 

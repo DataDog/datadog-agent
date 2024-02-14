@@ -463,12 +463,14 @@ func (r *secretResolver) Refresh() (string, error) {
 		return "", err
 	}
 
+	var auditRecordErr error
 	// when Refreshing secrets, only update what the allowlist allows by passing `true`
 	refreshResult := r.processSecretResponse(secretResponse, true)
 	if len(refreshResult.Handles) > 0 {
 		// add the results to the audit file, if any secrets have new values
 		if err := addToAuditFile(r.auditFilename, secretResponse, r.origin, r.auditFileMaxSize); err != nil {
 			log.Error(err)
+			auditRecordErr = err
 		}
 	}
 
@@ -479,11 +481,10 @@ func (r *secretResolver) Refresh() (string, error) {
 		return "", err
 	}
 	b := new(strings.Builder)
-	err = t.Execute(b, refreshResult)
-	if err != nil {
+	if err = t.Execute(b, refreshResult); err != nil {
 		return "", err
 	}
-	return b.String(), nil
+	return b.String(), auditRecordErr
 }
 
 type secretInfo struct {
