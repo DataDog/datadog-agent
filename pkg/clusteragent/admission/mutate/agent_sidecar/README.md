@@ -69,14 +69,14 @@ The table below shows the expected behaviour when the feature is enabled.
 Note that currently we only support creating 1 selector and 1 profile (config override).
 Creating multiple selectors and/or overrides will result in not registering any webhook.
 
-| Custom Selectors / Profiles Set | Provider Set       | Provider Supported | Expected Behaviour                                                                                                                                      |
-|---------------------------------|--------------------|--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| :x:                             | :heavy_check_mark: | :heavy_check_mark: | Agent sidecar should be injected on pods having the provider label key set (`agent.datadoghq.com/sidecar: <provider>`)                                  |
-| :x:                             | :heavy_check_mark: | :x:                | No agent sidecar should be injected, and an error message will be logged in the cluster agent:  "agent sidecar provider is not supported: foo-provider" |
-| :x:                             | :x:                | :x:                | No agent sidecar should be injected, and an error message will be logged in the cluster agent:  "agent sidecar provider is not supported"               |
-| :heavy_check_mark:              | :heavy_check_mark: | :heavy_check_mark: | The agent sidecar container should be injected only on pods matching the selector, and the `DD_EKS_FARGATE` label should be set to `true`               |
-| :heavy_check_mark:              | :heavy_check_mark: | :x:                | Agent sidecar should be injected, and you must find an error message in the cluster agent logs "unsupported provider: foo"                              |
-| :heavy_check_mark:              | :x:                | :x:                | The agent sidecar container should be injected only on pods matching the selector                                                                       |
+| Custom Selectors   | Profiles | Provider Set       | Provider Supported | Expected Behaviour                                                                                                                                                                                               |
+|--------------------|----------|--------------------|--------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| :x:                | any      | :heavy_check_mark: | :heavy_check_mark: | Agent sidecar should be injected on pods having the provider label key set (`agent.datadoghq.com/sidecar: <provider>`). Any overrides specified in the `Profile` will take precedence on any conflicting default |
+| :x:                | any      | :heavy_check_mark: | :x:                | No agent sidecar should be injected, and an error message will be logged in the cluster agent:  "agent sidecar provider is not supported: foo-provider"                                                          |
+| :x:                | any      | :x:                | :x:                | No agent sidecar should be injected, and an error message will be logged in the cluster agent:  "agent sidecar provider is not supported"                                                                        |
+| :heavy_check_mark: | any      | :heavy_check_mark: | :heavy_check_mark: | The agent sidecar container should be injected only on pods matching the selector, and the `DD_EKS_FARGATE` label should be set to `true`                                                                        |
+| :heavy_check_mark: | any      | :heavy_check_mark: | :x:                | Agent sidecar should be injected, and you must find an error message in the cluster agent logs "unsupported provider: foo"                                                                                       |
+| :heavy_check_mark: | any      | :x:                | :x:                | The agent sidecar container should be injected only on pods matching the selector                                                                                                                                |
 
 
 
@@ -85,3 +85,4 @@ Creating multiple selectors and/or overrides will result in not registering any 
 - For now, we only support configuring 1 custom selector and 1 custom profile.
 - For now, only `fargate` provider is supported
 - For now, only 1 selector and 1 profile (config override) can be configured.
+- Configurations set by user via `Profiles` have the highest priority; they override any default configuration in case of conflict.
