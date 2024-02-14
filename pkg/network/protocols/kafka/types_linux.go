@@ -3,6 +3,10 @@
 
 package kafka
 
+const (
+	topicNameBuckets = 0x7
+)
+
 type ConnTuple struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
@@ -22,4 +26,9 @@ type EbpfTx struct {
 	Topic_name          [80]byte
 	Topic_name_size     uint16
 	Pad_cgo_0           [2]byte
+}
+
+type rawKernelTelemetry struct {
+	Name_exceeds_max_size uint64
+	Name_size_buckets     [8]uint64
 }
