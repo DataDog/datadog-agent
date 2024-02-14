@@ -90,8 +90,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
@@ -148,7 +146,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
 					},
 					status.NewInformationProvider(collectorStatus.Provider{}),
-					status.NewHeaderInformationProvider(net.Provider{}),
 					status.NewInformationProvider(leaderelection.Provider{}),
 					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
 					status.NewInformationProvider(admissionpkg.Provider{}),
@@ -545,7 +542,6 @@ func registerChecks() {
 	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
-	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
 
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory())
