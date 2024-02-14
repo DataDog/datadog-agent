@@ -72,7 +72,7 @@ type etwCallback func(n interface{}, pid uint32)
 func (p *WindowsProbe) Init() error {
 
 	if !p.opts.disableProcmon {
-		pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError)
+		pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError, procmon.ProcmonDefaultReceiveSize, procmon.ProcmonDefaultNumBufs)
 		if err != nil {
 			return err
 		}

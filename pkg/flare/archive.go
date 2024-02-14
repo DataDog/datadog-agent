@@ -73,7 +73,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSend
 		getProcessChecks(fb, config.GetProcessAPIAddressPort)
 	}
 
-	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
+	fb.RegisterFilePerm(security.GetAuthTokenFilepath(config.Datadog))
 
 	systemProbeConfigBPFDir := config.SystemProbe.GetString("system_probe_config.bpf_dir")
 	if systemProbeConfigBPFDir != "" {

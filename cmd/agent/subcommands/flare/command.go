@@ -332,7 +332,7 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData) (string,
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	if err = util.SetAuthToken(); err != nil {
+	if err = util.SetAuthToken(pkgconfig.Datadog); err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
 		return createArchive(flareComp, pdata, err)
 	}

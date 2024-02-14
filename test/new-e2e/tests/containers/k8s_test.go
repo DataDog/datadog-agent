@@ -790,6 +790,9 @@ func (suite *k8sSuite) TestContainerImage() {
 }
 
 func (suite *k8sSuite) TestSBOM() {
+	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-3776
+	suite.T().Skip("CONTINT-3776: SBOM test is flaky")
+
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged

@@ -236,8 +236,8 @@ type ProcessSerializer struct {
 	IsThread bool `json:"is_thread,omitempty"`
 	// Indicates whether the process is a kworker
 	IsKworker bool `json:"is_kworker,omitempty"`
-	// Indicates wether the process is an exec child of its parent
-	IsExecChild bool `json:"is_exec_child,omitempty"`
+	// Indicates whether the process is an exec following another exec
+	IsExecExec bool `json:"is_exec_child,omitempty"`
 	// Process source
 	Source string `json:"source,omitempty"`
 }
@@ -451,6 +451,8 @@ type SecurityProfileContextSerializer struct {
 	Version string `json:"version"`
 	// List of tags associated to this profile
 	Tags []string `json:"tags"`
+	// True if the corresponding event is part of this profile
+	EventInProfile bool `json:"event_in_profile"`
 }
 
 // AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
@@ -580,7 +582,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			EnvsTruncated: envsTruncated,
 			IsThread:      ps.IsThread,
 			IsKworker:     ps.IsKworker,
-			IsExecChild:   ps.IsExecChild,
+			IsExecExec:    ps.IsExecExec,
 			Source:        model.ProcessSourceToString(ps.Source),
 		}
 
@@ -611,11 +613,11 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		return psSerializer
 	}
 	return &ProcessSerializer{
-		Pid:         ps.Pid,
-		Tid:         ps.Tid,
-		IsKworker:   ps.IsKworker,
-		IsExecChild: ps.IsExecChild,
-		Source:      model.ProcessSourceToString(ps.Source),
+		Pid:        ps.Pid,
+		Tid:        ps.Tid,
+		IsKworker:  ps.IsKworker,
+		IsExecExec: ps.IsExecExec,
+		Source:     model.ProcessSourceToString(ps.Source),
 		Credentials: &ProcessCredentialsSerializer{
 			CredentialsSerializer: &CredentialsSerializer{},
 		},
@@ -913,13 +915,14 @@ func newNetworkContextSerializer(e *model.Event) *NetworkContextSerializer {
 	}
 }
 
-func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *SecurityProfileContextSerializer {
+func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityProfileContext) *SecurityProfileContextSerializer {
 	tags := make([]string, len(e.Tags))
 	copy(tags, e.Tags)
 	return &SecurityProfileContextSerializer{
-		Name:    e.Name,
-		Version: e.Version,
-		Tags:    tags,
+		Name:           e.Name,
+		Version:        e.Version,
+		Tags:           tags,
+		EventInProfile: event.IsInProfile(),
 	}
 }
 
@@ -958,7 +961,7 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 	}
 
 	if event.SecurityProfileContext.Name != "" {
-		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
+		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(event, &event.SecurityProfileContext)
 	}
 
 	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {

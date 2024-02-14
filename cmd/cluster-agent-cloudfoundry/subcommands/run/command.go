@@ -110,7 +110,7 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 	// Setup healthcheck port
 	var healthPort = pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, healthPort)
+		err := healthprobe.Serve(mainCtx, pkgconfig.Datadog, healthPort)
 		if err != nil {
 			return pkglog.Errorf("Error starting health port, exiting: %v", err)
 		}

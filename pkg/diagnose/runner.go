@@ -302,7 +302,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Make sure we have a session token (for privileged information)
-	if err = util.SetAuthToken(); err != nil {
+	if err = util.SetAuthToken(pkgconfig.Datadog); err != nil {
 		return nil, fmt.Errorf("auth error: %w", err)
 	}
 

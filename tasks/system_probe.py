@@ -29,8 +29,6 @@ from tasks.libs.common.utils import (
     get_common_test_args,
     get_gobin,
     get_version_numeric_only,
-    set_co_re_env,
-    set_runtime_comp_env,
 )
 from tasks.libs.ninja_syntax import NinjaWriter
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
@@ -269,6 +267,21 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
         ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
 
+def ninja_test_ebpf_programs(nw, build_dir):
+    ebpf_bpf_dir = os.path.join("pkg", "ebpf")
+    ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
+    test_flags = "-g -DDEBUG=1"
+
+    test_programs = ["logdebug-test"]
+
+    for prog in test_programs:
+        infile = os.path.join(ebpf_c_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
+        ninja_ebpf_program(
+            nw, infile, outfile, {"flags": test_flags}
+        )  # All test ebpf programs are just for testing, so we always build them with debug symbols
+
+
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
@@ -312,7 +325,6 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
-        "pkg/ebpf/bytecode/runtime/printk_patcher_test.go": "logdebug-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
@@ -339,10 +351,10 @@ def ninja_runtime_compilation_files(nw, gobin):
         )
 
 
-def ninja_cgo_type_files(nw, windows):
+def ninja_cgo_type_files(nw):
     # TODO we could probably preprocess the input files to find out the dependencies
     nw.pool(name="cgo_pool", depth=1)
-    if windows:
+    if is_windows:
         go_platform = "windows"
         def_files = {
             "pkg/network/driver/types.go": [
@@ -443,7 +455,6 @@ def ninja_cgo_type_files(nw, windows):
 def ninja_generate(
     ctx,
     ninja_path,
-    windows,
     major_version='7',
     arch=CURRENT_ARCH,
     debug=False,
@@ -457,7 +468,7 @@ def ninja_generate(
     with open(ninja_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
 
-        if windows:
+        if is_windows:
             if arch == "x86":
                 raise Exit(message="system probe not supported on x86")
 
@@ -485,11 +496,12 @@ def ninja_generate(
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
             ninja_define_co_re_compiler(nw)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
+            ninja_test_ebpf_programs(nw, build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
 
-        ninja_cgo_type_files(nw, windows)
+        ninja_cgo_type_files(nw)
 
 
 @task
@@ -500,7 +512,6 @@ def build(
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
-    windows=is_windows,
     arch=CURRENT_ARCH,
     bundle_ebpf=False,
     kernel_release=None,
@@ -515,7 +526,6 @@ def build(
     """
     build_object_files(
         ctx,
-        windows=windows,
         major_version=major_version,
         arch=arch,
         kernel_release=kernel_release,
@@ -541,12 +551,10 @@ def build(
 @task
 def clean(
     ctx,
-    windows=is_windows,
     arch=CURRENT_ARCH,
 ):
     clean_object_files(
         ctx,
-        windows=windows,
         arch=arch,
     )
     ctx.run("go clean -cache")
@@ -618,12 +626,8 @@ def test(
     packages=TEST_PACKAGES,
     bundle_ebpf=False,
     output_path=None,
-    runtime_compiled=False,
-    co_re=False,
-    skip_linters=False,
     skip_object_files=False,
     run=None,
-    windows=is_windows,
     failfast=False,
     kernel_release=None,
     timeout=None,
@@ -641,20 +645,15 @@ def test(
             "preserve your environment",
         )
 
-    if not skip_linters and not windows:
-        clang_format(ctx)
-        clang_tidy(ctx)
-
     if not skip_object_files:
         build_object_files(
             ctx,
-            windows=windows,
             kernel_release=kernel_release,
         )
 
     build_tags = [NPM_TAG]
     build_tags.extend(UNIT_TEST_TAGS)
-    if not windows:
+    if not is_windows:
         build_tags.append(BPF_TAG)
         if bundle_ebpf:
             build_tags.append(BUNDLE_TAG)
@@ -663,14 +662,10 @@ def test(
     args["output_params"] = f"-c -o {output_path}" if output_path else ""
     args["run"] = f"-run {run}" if run else ""
     args["go"] = "go"
-    args["sudo"] = "sudo -E " if not windows and not output_path and not is_root() else ""
+    args["sudo"] = "sudo -E " if not is_windows and not output_path and not is_root() else ""
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
-    if runtime_compiled:
-        set_runtime_comp_env(env)
-    elif co_re:
-        set_co_re_env(env)
 
     go_root = os.getenv("GOROOT")
     if go_root:
@@ -707,10 +702,7 @@ def test_debug(
     package,
     run,
     bundle_ebpf=False,
-    runtime_compiled=False,
-    co_re=False,
     skip_object_files=False,
-    windows=is_windows,
     failfast=False,
     kernel_release=None,
 ):
@@ -728,13 +720,12 @@ def test_debug(
     if not skip_object_files:
         build_object_files(
             ctx,
-            windows=windows,
             kernel_release=kernel_release,
         )
 
     build_tags = [NPM_TAG]
     build_tags.extend(UNIT_TEST_TAGS)
-    if not windows:
+    if not is_windows:
         build_tags.append(BPF_TAG)
         if bundle_ebpf:
             build_tags.append(BUNDLE_TAG)
@@ -742,15 +733,11 @@ def test_debug(
     args = get_common_test_args(build_tags, failfast)
     args["run"] = run
     args["dlv"] = "dlv"
-    args["sudo"] = "sudo -E " if not windows and not is_root() else ""
+    args["sudo"] = "sudo -E " if not is_windows and not is_root() else ""
     args["dir"] = package
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
-    if runtime_compiled:
-        set_runtime_comp_env(env)
-    elif co_re:
-        set_co_re_env(env)
 
     cmd = '{sudo}{dlv} test {dir} --build-flags="-mod=mod -v {failfast} -tags={build_tags}" -- -test.run {run}'
     ctx.run(cmd.format(**args), env=env, pty=True, warn=True)
@@ -820,12 +807,12 @@ def full_pkg_path(name):
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, packages=""):
+def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
     """
     Compile test suite for kitchen
     """
     build_tags = [NPM_TAG]
-    if not windows:
+    if not is_windows:
         build_tags.append(BPF_TAG)
 
     target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
@@ -860,16 +847,15 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
-        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, re.sub("^.*datadog-agent.", "", pkg))
+        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, pkg.lstrip(os.getcwd()))
         target_bin = "testsuite"
-        if windows:
+        if is_windows:
             target_bin = "testsuite.exe"
 
         test(
             ctx,
             packages=pkg,
             skip_object_files=(i != 0),
-            skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
             kernel_release=kernel_release,
@@ -886,7 +872,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
 
         for gobin in ["gotls_client", "grpc_external_server", "external_unix_proxy_server", "fmapper", "prefetch_file"]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
-            if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
+            if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
                     ctx.run(f"go build -o {binary_path} -tags=\"test\" -ldflags=\"-extldflags '-static'\" {gobin}.go")
@@ -1034,7 +1020,21 @@ def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
         targets = get_ebpf_targets()
 
     # remove externally maintained files
-    ignored_files = ["pkg/ebpf/c/bpf_helpers.h", "pkg/ebpf/c/bpf_endian.h", "pkg/ebpf/compiler/clang-stdarg.h"]
+    ignored_files = [
+        "pkg/ebpf/c/bpf_builtins.h",
+        "pkg/ebpf/c/bpf_core_read.h",
+        "pkg/ebpf/c/bpf_cross_compile.h",
+        "pkg/ebpf/c/bpf_endian.h",
+        "pkg/ebpf/c/bpf_helpers.h",
+        "pkg/ebpf/c/bpf_helper_defs.h",
+        "pkg/ebpf/c/bpf_tracing.h",
+        "pkg/ebpf/c/bpf_tracing_custom.h",
+        "pkg/ebpf/c/compiler.h",
+        "pkg/ebpf/c/map-defs.h",
+        "pkg/ebpf/c/vmlinux_5_15_0.h",
+        "pkg/ebpf/c/vmlinux_5_15_0_arm.h",
+        "pkg/ebpf/compiler/clang-stdarg.h",
+    ]
     for f in ignored_files:
         if f in targets:
             targets.remove(f)
@@ -1072,15 +1072,28 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False, kernel_release=None):
     network_flags.append(f"-I{network_c_dir}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'runtime')}")
-    run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix, fail_on_issue=fail_on_issue)
+    network_checks = [
+        "-readability-function-cognitive-complexity",
+        "-readability-isolate-declaration",
+        "-clang-analyzer-security.insecureAPI.bcmp",
+    ]
+    run_tidy(
+        ctx,
+        files=network_files,
+        build_flags=network_flags,
+        fix=fix,
+        fail_on_issue=fail_on_issue,
+        checks=network_checks,
+    )
 
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_files = list(base_files)
     security_files.extend(glob.glob(f"{security_agent_c_dir}/**/*.c"))
     security_flags = list(build_flags)
     security_flags.append(f"-I{security_agent_c_dir}")
+    security_flags.append(f"-I{security_agent_c_dir}/include")
     security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
-    security_checks = ["-readability-function-cognitive-complexity"]
+    security_checks = ["-readability-function-cognitive-complexity", "-readability-isolate-declaration"]
     run_tidy(
         ctx,
         files=security_files,
@@ -1269,7 +1282,6 @@ def run_ninja(
     task="",
     target="",
     explain=False,
-    windows=is_windows,
     major_version='7',
     arch=CURRENT_ARCH,
     kernel_release=None,
@@ -1279,9 +1291,7 @@ def run_ninja(
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(
-        ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test
-    )
+    ninja_generate(ctx, nf_path, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test)
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1337,7 +1347,6 @@ def verify_system_clang_version(ctx):
 
 def build_object_files(
     ctx,
-    windows=is_windows,
     major_version='7',
     arch=CURRENT_ARCH,
     kernel_release=None,
@@ -1347,7 +1356,7 @@ def build_object_files(
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
-    if not windows:
+    if not is_windows:
         verify_system_clang_version(ctx)
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         setup_runtime_clang(ctx)
@@ -1363,7 +1372,6 @@ def build_object_files(
     run_ninja(
         ctx,
         explain=True,
-        windows=windows,
         major_version=major_version,
         arch=arch,
         kernel_release=kernel_release,
@@ -1372,7 +1380,7 @@ def build_object_files(
         with_unit_test=with_unit_test,
     )
 
-    if not windows:
+    if not is_windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
 
@@ -1432,12 +1440,11 @@ def object_files(ctx, kernel_release=None, with_unit_test=False):
 
 
 def clean_object_files(
-    ctx, windows, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
+    ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
 ):
     run_ninja(
         ctx,
         task="clean",
-        windows=windows,
         major_version=major_version,
         arch=arch,
         debug=debug,
@@ -1447,8 +1454,8 @@ def clean_object_files(
 
 
 @task
-def generate_lookup_tables(ctx, windows=is_windows):
-    if windows:
+def generate_lookup_tables(ctx):
+    if is_windows:
         return
 
     lookup_table_generate_files = [
@@ -1743,8 +1750,8 @@ def print_failed_tests(_, output_dir):
 
 
 @task
-def save_test_dockers(ctx, output_dir, arch, windows=is_windows, use_crane=False):
-    if windows:
+def save_test_dockers(ctx, output_dir, arch, use_crane=False):
+    if is_windows:
         return
 
     # only download images not present in preprepared vm disk

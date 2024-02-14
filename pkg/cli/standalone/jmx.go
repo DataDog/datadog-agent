@@ -60,7 +60,7 @@ func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, co
 // The common utils, including AutoConfig, must have already been initialized.
 func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.JMXReporter, output func(...interface{}), logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error {
 	// start the cmd HTTP server
-	if err := agentAPI.StartServer(nil, wmeta, taggerComp, optional.NewNoneOption[logsAgent.Component](), senderManager, collector); err != nil {
+	if err := agentAPI.StartServer(wmeta, taggerComp, optional.NewNoneOption[logsAgent.Component](), senderManager, collector); err != nil {
 		return fmt.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
