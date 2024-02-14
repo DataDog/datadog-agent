@@ -751,16 +751,13 @@ def parse_test_log(log_file):
 def get_impacted_packages(ctx, build_tags=None):
     dependencies = create_dependencies(ctx, build_tags)
     files = get_modified_files(ctx)
-    print("MODULE_DEPS: ", dependencies)
 
-    print("Modified files: ", files)
     modified_packages = {
         f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}"
         for file in files
         if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     }
     imp = find_impacted_packages(dependencies, modified_packages)
-    print("impacted packages: ", imp)
     return format_packages(ctx, imp)
 
 
