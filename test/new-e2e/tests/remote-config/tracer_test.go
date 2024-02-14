@@ -43,8 +43,7 @@ func TestRcTracerSuite(t *testing.T) {
 // TestRemoteConfigTracerUpdate tests the remote-config service by attempting to retrieve RC payloads as if a tracer were calling it
 func (s *tracerSuite) TestRemoteConfigTracerUpdate() {
 	// Ensure the remote config service starts
-	// TODO uncomment the following line in https://github.com/DataDog/datadog-agent/pull/22582 (once fx lifecycle startup logging is added)
-	//assertLogsEventually(a.T(), a.Env().RemoteHost, "agent", "remote config service started", 2*time.Minute, 5*time.Second)
+	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "remote config service started", 2*time.Minute, 5*time.Second)
 
 	// Wait until we've started querying for configs
 	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "/api/v0.1/configurations", 2*time.Minute, 5*time.Second)

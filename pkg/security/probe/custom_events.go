@@ -93,7 +93,7 @@ func (a AbnormalEvent) ToJSON() ([]byte, error) {
 func NewAbnormalEvent(id string, description string, event *model.Event, err error) (*rules.Rule, *events.CustomEvent) {
 	marshalerCtor := func() events.EventMarshaler {
 		evt := AbnormalEvent{
-			Event: serializers.NewEventSerializer(event),
+			Event: serializers.NewEventSerializer(event, nil),
 			Error: err.Error(),
 		}
 		evt.FillCustomEventCommonFields()

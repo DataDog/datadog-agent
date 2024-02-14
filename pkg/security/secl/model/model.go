@@ -42,7 +42,7 @@ func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
 			Type:             uint32(kind),
-			FieldHandlers:    &DefaultFieldHandlers{},
+			FieldHandlers:    &FakeFieldHandlers{},
 			ContainerContext: &ContainerContext{},
 		},
 	}
@@ -180,11 +180,11 @@ func initMember(member reflect.Value, deja map[string]bool) {
 	}
 }
 
-// NewDefaultEvent returns a new event using the default field handlers
-func NewDefaultEvent() *Event {
+// NewFakeEvent returns a new event using the default field handlers
+func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:    &DefaultFieldHandlers{},
+			FieldHandlers:    &FakeFieldHandlers{},
 			ContainerContext: &ContainerContext{},
 		},
 	}
@@ -555,11 +555,11 @@ type BaseExtraFieldHandlers interface {
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
+func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
 	return nil, false
 }
 
 // ResolveContainerContext stub implementation
-func (dfh *DefaultFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
+func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
 }
