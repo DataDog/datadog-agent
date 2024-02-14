@@ -751,12 +751,16 @@ def parse_test_log(log_file):
 def get_impacted_packages(ctx, build_tags=None):
     dependencies = create_dependencies(ctx, build_tags)
     files = get_modified_files(ctx)
+    print("MODULE_DEPS: ", dependencies)
+
+    print("Modified files: ", files)
     modified_packages = {
         f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}"
         for file in files
         if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     }
     imp = find_impacted_packages(dependencies, modified_packages)
+    print("impacted packages: ", imp)
     return format_packages(ctx, imp)
 
 
@@ -813,7 +817,6 @@ def format_packages(ctx, impacted_packages):
     for package in packages:
         match_precision = 0
         best_module_path = None
-
         # Since several modules can match the path we take only the most precise one
         for module_path in DEFAULT_MODULES:
             package_path = Path(package)
@@ -825,7 +828,7 @@ def format_packages(ctx, impacted_packages):
         # Check if the package is in the target list of the module we want to test
         targeted = False
         for target in DEFAULT_MODULES[best_module_path].targets:
-            if os.path.normpath(os.path.join(best_module_path, target)) in package:
+            if normpath(os.path.join(best_module_path, target)) in package:
                 targeted = True
                 break
         if not targeted:
@@ -839,7 +842,7 @@ def format_packages(ctx, impacted_packages):
         if not os.path.exists(package):
             continue
 
-        relative_target = "./" + os.path.relpath(package, best_module_path)
+        relative_target = "./" + os.path.relpath(package, best_module_path).replace("\\", "/")
 
         if best_module_path in modules_to_test:
             if (
@@ -861,10 +864,11 @@ def format_packages(ctx, impacted_packages):
     # Clean up to avoid running tests on package with no Go files matching build tags
     for module in modules_to_test:
         res = ctx.run(
-            f"go list -tags '{' '.join(build_tags)}' {' '.join([os.path.normpath(os.path.join('github.com/DataDog/datadog-agent', module, target)) for target in modules_to_test[module].targets])}",
+            f"go list -tags '{' '.join(build_tags)}' {' '.join([normpath(os.path.join('github.com/DataDog/datadog-agent', module, target)) for target in modules_to_test[module].targets])}",
             hide=True,
             warn=True,
         )
+
         if res is not None and res.stderr is not None:
             for package in res.stderr.splitlines():
                 package_to_remove = os.path.relpath(
@@ -880,3 +884,7 @@ def format_packages(ctx, impacted_packages):
         print(f"- {module}: {modules_to_test[module].targets}")
 
     return modules_to_test.values()
+
+
+def normpath(path):  # Normpath with forward slashes to avoid issues on Windows
+    return os.path.normpath(path).replace("\\", "/")
