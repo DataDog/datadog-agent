@@ -1862,7 +1862,6 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	t := s.T()
 	c := testConfig()
-	c.RingbufferEnabled = true
 	testPreexistingEmptyIncomingConnectionDirection(t, c)
 }
 

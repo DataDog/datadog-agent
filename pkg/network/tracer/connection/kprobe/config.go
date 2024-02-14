@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
@@ -34,6 +35,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv650 := kernel.VersionCode(6, 5, 0)
 	ringBufferSupported := ringBufferSupported(runtimeTracer, c)
+	log.Errorf("adamk - config - ringBufferSupported: %v", ringBufferSupported)
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, err

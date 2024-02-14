@@ -61,6 +61,10 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPConnCloseEmitEventRingbuffer,
 	probes.UDPDestroySockReturnRingbuffer,
 	probes.UDPv6DestroySockReturnRingbuffer,
+	probes.TCPCloseFlushReturnPerfbuffer,
+	probes.TCPConnCloseEmitEventPerfbuffer,
+	probes.UDPDestroySockReturnPerfbuffer,
+	probes.UDPv6DestroySockReturnPerfbuffer,
 }
 
 func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHandler, runtimeTracer bool, cfg *config.Config) error {
@@ -152,10 +156,10 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPSendMsgPre410, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRecvMsgPre410, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRecvMsgPre5190, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPCloseFlushReturnPerfbuffer, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPDestroySockReturnPerfbuffer, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6DestroySockReturnPerfbuffer, UID: probeUID}},
+			//&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPCloseFlushReturnPerfbuffer, UID: probeUID}},
+			//&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer, UID: probeUID}},
+			//&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPDestroySockReturnPerfbuffer, UID: probeUID}},
+			//&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6DestroySockReturnPerfbuffer, UID: probeUID}},
 		)
 	}
 
