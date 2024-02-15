@@ -194,20 +194,34 @@ type ScanConfig struct {
 	Roles RolesMapping
 }
 
+// ScannerID is the representation of a scanner.
+type ScannerID struct {
+	Provider CloudProvider
+	Hostname string
+}
+
+// NewScannerID creates a new scanner ID.
+func NewScannerID(provider CloudProvider, hostname string) ScannerID {
+	return ScannerID{
+		Provider: provider,
+		Hostname: hostname,
+	}
+}
+
 // ScanTask is the representation of a scan task that performs a scan on a
 // resource.
 type ScanTask struct {
-	ID              string       `json:"ID"`
-	CreatedAt       time.Time    `json:"CreatedAt"`
-	StartedAt       time.Time    `json:"StartedAt"`
-	Type            TaskType     `json:"Type"`
-	CloudID         CloudID      `json:"CloudID"`
-	ScannerHostname string       `json:"ScannerHostname"`
-	TargetID        string       `json:"TargetID"`
-	TargetTags      []string     `json:"TargetTags"`
-	DiskMode        DiskMode     `json:"DiskMode,omitempty"`
-	Roles           RolesMapping `json:"Roles"`
-	Actions         []ScanAction `json:"Actions"`
+	ID         string       `json:"ID"`
+	ScannerID  ScannerID    `json:"ScannerID"`
+	CreatedAt  time.Time    `json:"CreatedAt"`
+	StartedAt  time.Time    `json:"StartedAt"`
+	Type       TaskType     `json:"Type"`
+	CloudID    CloudID      `json:"CloudID"`
+	TargetID   string       `json:"TargetID"`
+	TargetTags []string     `json:"TargetTags"`
+	DiskMode   DiskMode     `json:"DiskMode,omitempty"`
+	Roles      RolesMapping `json:"Roles"`
+	Actions    []ScanAction `json:"Actions"`
 	// Lifecycle metadata of the task
 	CreatedResources   map[CloudID]time.Time `json:"CreatedResources"`
 	AttachedDeviceName *string               `json:"AttachedDeviceName"`
@@ -466,7 +480,7 @@ func ParseRolesMapping(provider CloudProvider, roles []string) RolesMapping {
 }
 
 // NewScanTask creates a new scan task.
-func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetID string, targetTags []string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
+func NewScanTask(taskType TaskType, resourceID string, scanner ScannerID, targetID string, targetTags []string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
 	var cloudID CloudID
 	var err error
 	switch taskType {
@@ -488,7 +502,7 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetID string
 	task := ScanTask{
 		Type:             taskType,
 		CloudID:          cloudID,
-		ScannerHostname:  scannerHostname,
+		ScannerID:        scanner,
 		TargetID:         targetID,
 		TargetTags:       targetTags,
 		Roles:            roles,
@@ -516,7 +530,7 @@ func NewScanTask(taskType TaskType, resourceID, scannerHostname, targetID string
 		for _, tag := range task.TargetTags {
 			h.Write([]byte(tag))
 		}
-		h.Write([]byte(task.ScannerHostname))
+		h.Write([]byte(task.ScannerID.Hostname))
 		h.Write([]byte(task.DiskMode))
 		for _, action := range task.Actions {
 			h.Write([]byte(action))
@@ -554,7 +568,7 @@ func ParseScanActions(actions []string) ([]ScanAction, error) {
 }
 
 // UnmarshalConfig unmarshals a scan configuration from a JSON byte slice.
-func UnmarshalConfig(b []byte, scannerHostname string, provider CloudProvider, defaultActions []ScanAction, defaultRolesMapping RolesMapping) (*ScanConfig, error) {
+func UnmarshalConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction, defaultRolesMapping RolesMapping) (*ScanConfig, error) {
 	var configRaw ScanConfigRaw
 	err := json.Unmarshal(b, &configRaw)
 	if err != nil {
@@ -570,7 +584,7 @@ func UnmarshalConfig(b []byte, scannerHostname string, provider CloudProvider, d
 	}
 
 	if len(configRaw.Roles) > 0 {
-		config.Roles = ParseRolesMapping(provider, configRaw.Roles)
+		config.Roles = ParseRolesMapping(scannerID.Provider, configRaw.Roles)
 	} else {
 		config.Roles = defaultRolesMapping
 	}
@@ -612,7 +626,7 @@ func UnmarshalConfig(b []byte, scannerHostname string, provider CloudProvider, d
 		}
 		task, err := NewScanTask(scanType,
 			rawScan.CloudID,
-			scannerHostname,
+			scannerID,
 			targetID,
 			targetTags,
 			actions,

@@ -60,13 +60,12 @@ const (
 
 // Options are the runner options.
 type Options struct {
-	Hostname       string
+	ScannerID      types.ScannerID
 	DdEnv          string
 	Workers        int
 	ScannersMax    int
 	PrintResults   bool
 	NoFork         bool
-	CloudProvider  types.CloudProvider
 	DefaultRoles   types.RolesMapping
 	DefaultActions []types.ScanAction
 	Statsd         *ddogstatsd.Client
@@ -96,8 +95,8 @@ type Runner struct {
 
 // New creates a new runner.
 func New(opts Options) (*Runner, error) {
-	if opts.CloudProvider == "" {
-		panic("programmer error: missing CloudProvider option")
+	if opts.ScannerID == (types.ScannerID{}) {
+		panic("programmer error: empty ScannerID option")
 	}
 	if opts.Statsd == nil {
 		panic("programmer error: missing Statsd option")
@@ -187,7 +186,7 @@ func (s *Runner) SubscribeRemoteConfig(ctx context.Context) error {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
 			log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
-			config, err := types.UnmarshalConfig(rawConfig.Config, s.Hostname, s.CloudProvider, s.DefaultActions, s.DefaultRoles)
+			config, err := types.UnmarshalConfig(rawConfig.Config, s.ScannerID, s.DefaultActions, s.DefaultRoles)
 			if err != nil {
 				log.Errorf("could not parse agentless-scanner task: %v", err)
 				return
@@ -501,7 +500,7 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 	defer s.cleanupScan(scan)
 	switch scan.Type {
 	case types.TaskTypeHost:
-		assert(s.CloudProvider == types.CloudProviderNone)
+		assert(s.ScannerID.Provider == types.CloudProviderNone)
 		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName()}, pool)
 
 	case types.TaskTypeAMI:
@@ -664,7 +663,7 @@ func (s *Runner) sendSBOM(result types.ScanResult) error {
 
 	reservedTags := [3]string{"agentless_scanner_host", "region", "account_id"}
 	ddTags := []string{
-		"agentless_scanner_host:" + s.Hostname,
+		"agentless_scanner_host:" + s.ScannerID.Hostname,
 		"region:" + result.Scan.CloudID.Region(),
 		"account_id:" + result.Scan.CloudID.AccountID(),
 	}

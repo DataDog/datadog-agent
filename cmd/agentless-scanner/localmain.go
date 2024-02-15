@@ -51,16 +51,17 @@ func localScanCommand() *cobra.Command {
 func localScanCmd(resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
-	scannerHostname := tryGetHostname(ctx)
+	hostname := tryGetHostname(ctx)
 	taskType, err := types.DefaultTaskType(resourceID)
 	if err != nil {
 		return err
 	}
+	scannerID := types.NewScannerID(types.CloudProviderNone, hostname)
 	roles := getDefaultRolesMapping(types.CloudProviderNone)
 	task, err := types.NewScanTask(
 		taskType,
 		resourceID.AsText(),
-		scannerHostname,
+		scannerID,
 		targetHostname,
 		nil,
 		actions,
@@ -71,8 +72,7 @@ func localScanCmd(resourceID types.CloudID, targetHostname string, actions []typ
 	}
 
 	scanner, err := runner.New(runner.Options{
-		Hostname:       scannerHostname,
-		CloudProvider:  types.CloudProviderNone,
+		ScannerID:      scannerID,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        1,
 		ScannersMax:    8,
