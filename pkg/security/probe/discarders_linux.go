@@ -141,10 +141,10 @@ type PidDiscarderParams struct {
 
 // DiscarderParams describes a map value
 type DiscarderParams struct {
-	EventMask  uint64                                                               `yaml:"event_mask"`
-	Timestamps [model.LastDiscarderEventType - model.FirstDiscarderEventType]uint64 `yaml:"-"`
-	ExpireAt   uint64                                                               `yaml:"expire_at"`
-	IsRetained uint32                                                               `yaml:"is_retained"`
+	EventMask  uint64                                                                   `yaml:"event_mask"`
+	Timestamps [model.LastDiscarderEventType + 1 - model.FirstDiscarderEventType]uint64 `yaml:"-"`
+	ExpireAt   uint64                                                                   `yaml:"expire_at"`
+	IsRetained uint32                                                                   `yaml:"is_retained"`
 	Revision   uint32
 }
 
