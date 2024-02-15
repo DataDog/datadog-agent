@@ -74,6 +74,7 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 	if err != nil {
 		return []integration.Config{}, fmt.Errorf("in %s: %s", instancePath, err)
 	}
+	// ParseBool returns `true` only on success cases
 	ignoreAdTags, _ := strconv.ParseBool(input[prefix+ignoreAutodiscoveryTags])
 	return BuildTemplates(key, checkNames, initConfigs, instances, ignoreAdTags), nil
 }
