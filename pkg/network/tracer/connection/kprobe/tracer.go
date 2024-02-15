@@ -46,33 +46,6 @@ var (
 	// socket filter, and a tracepoint (4.7.0+).
 	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
 
-	protocolClassificationTailCalls = []manager.TailCallRoute{
-		{
-			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           netebpf.ClassificationQueues,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,
-				UID:          probeUID,
-			},
-		},
-		{
-			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           netebpf.ClassificationDBs,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.ProtocolClassifierDBsSocketFilter,
-				UID:          probeUID,
-			},
-		},
-		{
-			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           netebpf.ClassificationGRPC,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.ProtocolClassifierGRPCSocketFilter,
-				UID:          probeUID,
-			},
-		},
-	}
-
 	// these primarily exist for mocking out in tests
 	coreTracerLoader          = loadCORETracer
 	rcTracerLoader            = loadRuntimeCompiledTracer
@@ -198,6 +171,32 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 		}
 	}
+	protocolClassificationTailCalls := []manager.TailCallRoute{
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationQueues,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationDBs,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierDBsSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationGRPC,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierGRPCSocketFilter,
+				UID:          probeUID,
+			},
+		},
+	}
 	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls)+2)
 	if tcpEnabled {
 		var probePair manager.ProbeIdentificationPair
@@ -237,7 +236,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 	if classificationSupported {
 		if ringbufferEnabled {
-			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
+			protocolClassificationTailCalls = append(protocolClassificationTailCalls, []manager.TailCallRoute{
 				{
 					ProgArrayName: probes.TCPCloseProgsMap,
 					Key:           0,
@@ -248,7 +247,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 				},
 			}...)
 		} else {
-			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
+			protocolClassificationTailCalls = append(protocolClassificationTailCalls, []manager.TailCallRoute{
 				{
 					ProgArrayName: probes.TCPCloseProgsMap,
 					Key:           0,
