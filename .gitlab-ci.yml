@@ -1143,11 +1143,15 @@ workflow:
     when: never
   - <<: *if_auto_e2e
 
-.on_omnibus_change:
+.on_packaging_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
         - omnibus/**/*
+        - .gitlab-ci.yml
+        - .gitlab/package_build.yml
+        - release.json
+        - .gitlab/package_build
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_go-version_change:
