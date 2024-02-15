@@ -1103,7 +1103,7 @@ api_key:
     ## Each device will be pinged with these settings each time the SNMP
     ## check is run.
     ##
-    ## By default, we try to use an unprivileged UDP socket to send ICMP
+    ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
     ## pings, but some linux systems require using a raw socket.
     ##
     ## If `linux.use_raw_socket` is set, you must enable the ping module
