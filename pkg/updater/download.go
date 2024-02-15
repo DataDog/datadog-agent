@@ -50,10 +50,10 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	log.Debugf("Downloading package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
 
 	// Check platform and architecture compatibility
-	if pkg.Platform != runtime.GOOS {
+	if pkg.Platform != "" && pkg.Platform != runtime.GOOS {
 		return fmt.Errorf("unsupported platform %s for package %s", pkg.Platform, pkg.Name)
 	}
-	if pkg.Arch != runtime.GOARCH {
+	if pkg.Arch != "" && pkg.Arch != runtime.GOARCH {
 		return fmt.Errorf("unsupported architecture %s for package %s", pkg.Arch, pkg.Name)
 	}
 

@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"runtime"
 )
 
 //go:embed data/catalog.json
@@ -56,7 +57,10 @@ func (c *OrgConfig) GetPackage(_ context.Context, pkg string, version string) (P
 		return Package{}, fmt.Errorf("could not unmarshal catalog: %w", err)
 	}
 	for _, p := range catalog.Packages {
-		if p.Name == pkg && p.Version == version {
+		if p.Name == pkg &&
+			p.Version == version &&
+			(p.Arch == "" || p.Arch == runtime.GOARCH) &&
+			(p.Platform == "" || p.Platform == runtime.GOOS) {
 			return p, nil
 		}
 	}
