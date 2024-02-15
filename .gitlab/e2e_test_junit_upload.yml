@@ -120,4 +120,5 @@ e2e_test_junit_upload:
     - new-e2e-process-main
     - new-e2e-cws-main
     - new-e2e-orchestrator-main
-    - new-e2e-apm-main
+    - new-e2e-apm
+    - new-e2e-remote-config

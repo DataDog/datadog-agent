@@ -84,7 +84,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	}
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(config)
 	if e != nil {
 		return e
 	}

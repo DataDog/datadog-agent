@@ -13,11 +13,7 @@ test_install_script:
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/agent-linux-install-script --git-ref main
       --variable TESTING_APT_URL
       --variable TESTING_YUM_URL
-      --variable TEST_PIPELINE_ID
-      --variable APPS,BAZEL_TARGET
-      --variable DDR,DDR_WORKFLOW_ID
-      --variable TARGET_ENV
-      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+      --variable TEST_PIPELINE_ID"
   needs: ["deploy_deb_testing-a6_x64", "deploy_rpm_testing-a6_x64", "deploy_deb_testing-a7_x64", "deploy_rpm_testing-a7_x64"]
   rules:
     !reference [.on_deploy]

@@ -40,6 +40,11 @@ func TestDockerFakeintakeSuiteUDS(t *testing.T) {
 			"DD_APM_RECEIVER_SOCKET",
 			pulumi.String("/var/run/datadog/apm.socket")),
 		// Optional: UDS is more reliable for statsd metrics
+		// Set DD_DOGSTATSD_SOCKET to enable the UDS statsd listener in the core-agent
+		dockeragentparams.WithAgentServiceEnvVariable(
+			"DD_DOGSTATSD_SOCKET",
+			pulumi.String("/var/run/datadog/dsd.socket")),
+		// Set STATSD_URL to instruct the statsd client in the trace-agent to send metrics through UDS
 		dockeragentparams.WithAgentServiceEnvVariable(
 			"STATSD_URL",
 			pulumi.String("unix:///var/run/datadog/dsd.socket")),
@@ -61,11 +66,6 @@ func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
 }
 
 func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
-	if s.transport != uds {
-		// TODO: Container tagging with cgroup v2 currently only works over UDS
-		// We should update this to run over TCP as well once that is implemented.
-		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")
-	}
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 

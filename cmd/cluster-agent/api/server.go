@@ -16,6 +16,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
 	stdLog "log"
 	"net"
 	"net/http"
@@ -60,7 +61,7 @@ func StartServer(w workloadmeta.Component, taggerComp tagger.Component, senderMa
 	v1.InstallMetadataEndpoints(apiRouter, w)
 
 	// API V1 Language Detection APIs
-	v1.InstallLanguageDetectionEndpoints(apiRouter, w)
+	languagedetection.InstallLanguageDetectionEndpoints(apiRouter, w)
 
 	// Validate token for every request
 	router.Use(validateToken)
@@ -74,10 +75,10 @@ func StartServer(w workloadmeta.Component, taggerComp tagger.Component, senderMa
 		return fmt.Errorf("unable to create the api server: %v", err)
 	}
 	// Internal token
-	util.CreateAndSetAuthToken() //nolint:errcheck
+	util.CreateAndSetAuthToken(config.Datadog) //nolint:errcheck
 
 	// DCA client token
-	util.InitDCAAuthToken() //nolint:errcheck
+	util.InitDCAAuthToken(config.Datadog) //nolint:errcheck
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}

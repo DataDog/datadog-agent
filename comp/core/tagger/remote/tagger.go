@@ -73,7 +73,7 @@ type Options struct {
 func NodeAgentOptions(config configComponent.Component) (Options, error) {
 	return Options{
 		Target:       fmt.Sprintf(":%v", config.GetInt("cmd_port")),
-		TokenFetcher: security.FetchAuthToken,
+		TokenFetcher: func() (string, error) { return security.FetchAuthToken(config) },
 	}, nil
 }
 
@@ -83,7 +83,7 @@ func NodeAgentOptions(config configComponent.Component) (Options, error) {
 func NodeAgentOptionsForSecruityResolvers() (Options, error) {
 	return Options{
 		Target:       fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
-		TokenFetcher: security.FetchAuthToken,
+		TokenFetcher: func() (string, error) { return security.FetchAuthToken(config.Datadog) },
 	}, nil
 }
 
@@ -101,7 +101,7 @@ func CLCRunnerOptions(config configComponent.Component) (Options, error) {
 		// gRPC targets do not have a protocol. the DCA endpoint is always HTTPS,
 		// so a simple `TrimPrefix` is enough.
 		opts.Target = strings.TrimPrefix(target, "https://")
-		opts.TokenFetcher = security.GetClusterAgentAuthToken
+		opts.TokenFetcher = func() (string, error) { return security.GetClusterAgentAuthToken(config) }
 
 	}
 	return opts, nil
