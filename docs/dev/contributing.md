@@ -290,6 +290,7 @@ labels that can be use:
   Python version shipped in the agent).
 - `need-change/operator`, `need-change/helm`: indicate that the configuration needs to be modified in the operator / helm chart as well.
 - `k8s/<min-version>`: indicate the lowest Kubernetes version compatible with the PR's feature.
+- `backport/<branch-name>`: Add this label to have your changes automatically backported to <branch-name>
 
 ## Integrations
 
