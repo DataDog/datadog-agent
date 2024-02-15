@@ -917,8 +917,8 @@ api_key:
   #                             # this may be required if your system doesn't support
   #                             # sending pings in an unprivileged fashion (using a UDP socket)
   #                             # If `use_raw_socket` is set to true, you MUST also enable the
-  #                             # system-probe which has elevated privileges, see system-probe.yaml.example
-  #                             # to enable it.
+  #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
+  #                             
 
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
