@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -27,49 +28,81 @@ func TestMkURL(t *testing.T) {
 func TestFlareHasRightForm(t *testing.T) {
 	var lastRequest *http.Request
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// This server serves two requests:
-		//  * the original flare request URL, which redirects on HEAD to /post-target
-		//  * HEAD /post-target - responds with 200 OK
-		//  * POST /post-target - the final POST
+	testCases := []struct {
+		name        string
+		handlerFunc http.HandlerFunc
+		fail        bool
+	}{
+		{
+			name: "ok",
+			handlerFunc: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// This server serves two requests:
+				//  * the original flare request URL, which redirects on HEAD to /post-target
+				//  * HEAD /post-target - responds with 200 OK
+				//  * POST /post-target - the final POST
 
-		if r.Method == "HEAD" && r.RequestURI == "/support/flare/12345?api_key=abcdef" {
-			// redirect to /post-target.
-			w.Header().Set("Location", "/post-target")
-			w.WriteHeader(307)
-		} else if r.Method == "HEAD" && r.RequestURI == "/post-target" {
-			// accept a HEAD to /post-target
-			w.WriteHeader(200)
-		} else if r.Method == "POST" && r.RequestURI == "/post-target" {
-			// handle the actual POST
-			w.Header().Set("Content-Type", "application/json")
-			lastRequest = r
-			err := lastRequest.ParseMultipartForm(1000000)
-			assert.Nil(t, err)
-			io.WriteString(w, "{}")
-		} else {
-			w.WriteHeader(500)
-			io.WriteString(w, "path not recognized by httptest server")
-		}
-	}))
-	defer ts.Close()
+				if r.Method == "HEAD" && r.RequestURI == "/support/flare/12345?api_key=abcdef" {
+					// redirect to /post-target.
+					w.Header().Set("Location", "/post-target")
+					w.WriteHeader(307)
+				} else if r.Method == "HEAD" && r.RequestURI == "/post-target" {
+					// accept a HEAD to /post-target
+					w.WriteHeader(200)
+				} else if r.Method == "POST" && r.RequestURI == "/post-target" {
+					// handle the actual POST
+					w.Header().Set("Content-Type", "application/json")
+					lastRequest = r
+					err := lastRequest.ParseMultipartForm(1000000)
+					assert.Nil(t, err)
+					io.WriteString(w, "{}")
+				} else {
+					w.WriteHeader(500)
+					io.WriteString(w, "path not recognized by httptest server")
+				}
+			}),
+			fail: false,
+		},
+		{
+			name: "service unavailable",
+			handlerFunc: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(503)
+				io.WriteString(w, "path not recognized by httptest server")
+			}),
+			fail: true,
+		},
+	}
 
-	ddURL := ts.URL
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(*testing.T) {
+			ts := httptest.NewServer(testCase.handlerFunc)
+			defer ts.Close()
 
-	archivePath := "./test/blank.zip"
-	caseID := "12345"
-	email := "dev@datadoghq.com"
-	source := FlareSource{}
+			ddURL := ts.URL
 
-	_, err := SendTo(archivePath, caseID, email, "abcdef", ddURL, source)
+			archivePath := "./test/blank.zip"
+			caseID := "12345"
+			email := "dev@datadoghq.com"
+			apiKey := "abcdef"
+			source := FlareSource{}
 
-	assert.Nil(t, err)
+			_, err := SendTo(archivePath, caseID, email, apiKey, ddURL, source)
 
-	av, _ := version.Agent()
+			if testCase.fail {
+				assert.Error(t, err)
+				expectedErrorMessage := "We couldn't reach the flare backend " +
+					scrubber.ScrubLine(mkURL(ddURL, caseID, apiKey)) +
+					" via redirects: 503 Service Unavailable"
+				assert.Equal(t, expectedErrorMessage, err.Error())
+			} else {
+				assert.Nil(t, err)
+				av, _ := version.Agent()
 
-	assert.Equal(t, caseID, lastRequest.FormValue("case_id"))
-	assert.Equal(t, email, lastRequest.FormValue("email"))
-	assert.Equal(t, av.String(), lastRequest.FormValue("agent_version"))
+				assert.Equal(t, caseID, lastRequest.FormValue("case_id"))
+				assert.Equal(t, email, lastRequest.FormValue("email"))
+				assert.Equal(t, av.String(), lastRequest.FormValue("agent_version"))
+			}
+		})
+	}
 }
 
 func TestAnalyzeResponse(t *testing.T) {

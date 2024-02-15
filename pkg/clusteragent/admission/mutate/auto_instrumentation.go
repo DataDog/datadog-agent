@@ -86,6 +86,11 @@ const (
 	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
 
+	// defaultMilliCPURequest defines default milli cpu request number.
+	defaultMilliCPURequest int64 = 10 // 0.01 core
+	// defaultMemoryRequest defines default memory request size.
+	defaultMemoryRequest int64 = 20 * 1024 * 1024 // 20 MB
+
 	// Env vars
 	instrumentationInstallTypeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TYPE"
 	instrumentationInstallTimeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TIME"
@@ -503,39 +508,45 @@ func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error 
 			},
 		},
 	}
-	resources, hasResources, err := initResources()
+
+	resources, err := initResources()
 	if err != nil {
 		return err
 	}
-	if hasResources {
-		initContainer.Resources = resources
-	}
+	initContainer.Resources = resources
 	pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
 	return nil
 }
 
-func initResources() (corev1.ResourceRequirements, bool, error) {
-	hasResources := false
+func initResources() (corev1.ResourceRequirements, error) {
+
 	var resources = corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
+
 	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
 		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
 		if err != nil {
-			return resources, hasResources, err
+			return resources, err
 		}
 		resources.Requests[corev1.ResourceCPU] = quantity
 		resources.Limits[corev1.ResourceCPU] = quantity
-		hasResources = true
+	} else {
+		resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
+		resources.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
 	}
+
 	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
 		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.memory"))
 		if err != nil {
-			return resources, hasResources, err
+			return resources, err
 		}
 		resources.Requests[corev1.ResourceMemory] = quantity
 		resources.Limits[corev1.ResourceMemory] = quantity
-		hasResources = true
+	} else {
+		resources.Requests[corev1.ResourceMemory] = *resource.NewQuantity(defaultMemoryRequest, resource.DecimalSI)
+		resources.Limits[corev1.ResourceMemory] = *resource.NewQuantity(defaultMemoryRequest, resource.DecimalSI)
 	}
-	return resources, hasResources, nil
+
+	return resources, nil
 }
 
 // injectLibRequirements injects the minimal config requirements (env vars and volume mounts) to enable instrumentation
@@ -603,12 +614,10 @@ func getServiceNameFromPod(pod *corev1.Pod) (string, error) {
 // when no other config has been provided.
 func basicConfig() common.LibConfig {
 	return common.LibConfig{
-		Tracing:             pointer.Ptr(true),
-		LogInjection:        pointer.Ptr(true),
-		HealthMetrics:       pointer.Ptr(true),
-		RuntimeMetrics:      pointer.Ptr(true),
-		TracingSamplingRate: pointer.Ptr(1.0),
-		TracingRateLimit:    pointer.Ptr(100),
+		Tracing:        pointer.Ptr(true),
+		LogInjection:   pointer.Ptr(true),
+		HealthMetrics:  pointer.Ptr(true),
+		RuntimeMetrics: pointer.Ptr(true),
 	}
 }
 

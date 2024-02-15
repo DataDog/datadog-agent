@@ -358,7 +358,7 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event) {
-	eventJSON, err := serializers.MarshalEvent(event)
+	eventJSON, err := serializers.MarshalEvent(event, nil)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -475,7 +475,7 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := serializers.MarshalEvent(event)
+		eventJSON, err := serializers.MarshalEvent(event, nil)
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -794,21 +794,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		t.Logf("client connected")
 	}
 	return testMod, nil
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev)
-	return string(b), err
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) debugEvent(ev *model.Event) string {
-	b, err := tm.marshalEvent(ev)
-	if err != nil {
-		return err.Error()
-	}
-	return string(b)
 }
 
 // GetEBPFStatusMetrics returns a string representation of the perf buffer monitor metrics
@@ -1601,4 +1586,46 @@ func (tm *testModule) WaitSignals(tb testing.TB, action func() error, cbs ...fun
 		return tm.mapFilters(cbs...)(event, rule)
 	})
 
+}
+
+func addFakePasswd(user string, uid, gid int32) error {
+	file, err := os.OpenFile(fakePasswdPath+"_tmp", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	_, err = file.WriteString("root:x:0:0:root:/root:/sbin/nologin\n")
+	if err != nil {
+		return err
+	}
+	_, err = file.WriteString(fmt.Sprintf("%s:x:%d:%d:%s:/home/%s:/sbin/nologin\n", user, uid, gid, user, user))
+	if err != nil {
+		return err
+	}
+	return os.Rename(fakePasswdPath+"_tmp", fakePasswdPath) // to force the cache refresh
+}
+
+func addFakeGroup(group string, gid int32) error {
+	file, err := os.OpenFile(fakeGroupPath+"_tmp", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	_, err = file.WriteString("root:x:0:\n")
+	if err != nil {
+		return err
+	}
+	_, err = file.WriteString(fmt.Sprintf("%s:x:%d:\n", group, gid))
+	if err != nil {
+		return err
+	}
+	return os.Rename(fakeGroupPath+"_tmp", fakeGroupPath) // to force the cache refresh
+}
+
+func removeFakePasswd() error {
+	return os.Remove(fakePasswdPath)
+}
+
+func removeFakeGroup() error {
+	return os.Remove(fakeGroupPath)
 }

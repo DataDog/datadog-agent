@@ -164,6 +164,7 @@ DEFAULT_MODULES = {
     "pkg/metrics": GoModule("pkg/metrics", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
+    "comp/core/hostname/hostnameinterface": GoModule("comp/core/hostname/hostnameinterface", independent=True),
     "comp/core/config": GoModule("comp/core/config", independent=True),
     "comp/core/log": GoModule("comp/core/log", independent=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
@@ -174,8 +175,12 @@ DEFAULT_MODULES = {
     "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
         "comp/forwarder/orchestrator/orchestratorinterface", independent=True
     ),
+    "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
+    ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
+    "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True),
     "pkg/config/setup": GoModule("pkg/config/setup", independent=True),

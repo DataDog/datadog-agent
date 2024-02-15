@@ -12,13 +12,14 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -95,17 +96,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func getClient(sysprobeconfig sysprobeconfig.Component) (settings.Client, error) {
 	cfg := sysprobeconfig.SysProbeObject()
-	hc := api.GetClient(cfg.SocketAddress)
+	hc := client.Get(cfg.SocketAddress)
 	return settingshttp.NewClient(hc, "http://localhost/config", "system-probe"), nil
 }
 
 func showRuntimeConfiguration(sysprobeconfig sysprobeconfig.Component, _ *cliParams) error {
-	c, err := getClient(sysprobeconfig)
-	if err != nil {
-		return err
-	}
-
-	runtimeConfig, err := c.FullConfig()
+	runtimeConfig, err := fetcher.SystemProbeConfig(sysprobeconfig)
 	if err != nil {
 		return err
 	}

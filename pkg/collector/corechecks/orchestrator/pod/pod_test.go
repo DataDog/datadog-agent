@@ -30,9 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	testHostName = "test-host"
-)
+var testHostName = "test-host"
 
 // dummyKubelet allows tests to mock a kubelet's responses
 type dummyKubelet struct {
@@ -121,7 +119,6 @@ func (suite *PodTestSuite) SetupTest() {
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
 	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
 	mockConfig.SetWithoutSource("orchestrator_explorer.enabled", true)
-	mockConfig.SetWithoutSource("orchestrator_explorer.run_on_node_agent", true)
 	mockConfig.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
 
 	kubeutil, _ := kubelet.GetKubeUtilWithRetrier()
@@ -129,7 +126,6 @@ func (suite *PodTestSuite) SetupTest() {
 	suite.kubeUtil = kubeutil
 
 	orchConfig := oconfig.NewDefaultOrchestratorConfig()
-	orchConfig.CoreCheck = true
 	require.NoError(suite.T(), err)
 	suite.check = &Check{
 		sender:    mockSender,

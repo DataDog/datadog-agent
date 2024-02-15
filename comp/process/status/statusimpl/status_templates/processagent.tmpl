@@ -1,9 +1,7 @@
 {{- with .processAgentStatus }}
 {{- if .error }}
-
   Status: Not running or unreachable
 {{- else }}
-
   Version: {{ .core.version }}
   Status date: {{ formatUnixTime .date }}
   Process Agent Start: {{ formatUnixTime .expvars.uptime_nano }}

@@ -229,6 +229,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 
 			expectedPod := test.ExpectedPodAfterInjection()
 			if expectedPod == nil {
+
 				assert.Nil(tt, test.Pod)
 			} else {
 				assert.NotNil(tt, test.Pod)

@@ -37,7 +37,13 @@ func NewEBPFLessModel() *model.Model {
 				!strings.HasPrefix(field, "rename.") &&
 				!strings.HasPrefix(field, "mkdir.") &&
 				!strings.HasPrefix(field, "utimes.") &&
-				!strings.HasPrefix(field, "container.") {
+				!strings.HasPrefix(field, "link.") &&
+				!strings.HasPrefix(field, "chmod.") &&
+				!strings.HasPrefix(field, "chown.") &&
+				!strings.HasPrefix(field, "load_module.") &&
+				!strings.HasPrefix(field, "unload_module.") &&
+				!strings.HasPrefix(field, "container.") &&
+				!strings.HasPrefix(field, "event.") {
 				return rules.ErrEventTypeNotEnabled
 			}
 			return nil
@@ -47,7 +53,7 @@ func NewEBPFLessModel() *model.Model {
 
 // NewEBPFLessEvent returns a new event
 func NewEBPFLessEvent(fh *EBPFLessFieldHandlers) *model.Event {
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.FieldHandlers = fh
 	return event
 }

@@ -26,9 +26,11 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
 
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -61,7 +63,7 @@ func StopGUIServer() {
 }
 
 // StartGUIServer creates the router, starts the HTTP server & generates the authentication token for access
-func StartGUIServer(port string, flare flare.Component, statusComponent status.Component) error {
+func StartGUIServer(port string, flare flare.Component, statusComponent status.Component, collector collector.Component) error {
 	// Set start time...
 	startTimestamp = time.Now().Unix()
 
@@ -81,7 +83,7 @@ func StartGUIServer(port string, flare flare.Component, statusComponent status.C
 	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
 	agentHandler(agentRouter, flare, statusComponent)
 	checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
-	checkHandler(checkRouter)
+	checkHandler(checkRouter, collector)
 
 	// Add authorization middleware to all the API endpoints
 	router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(authorizePOST), negroni.Wrap(agentRouter)))
@@ -102,7 +104,7 @@ func StartGUIServer(port string, flare flare.Component, statusComponent status.C
 	}
 
 	// Fetch the authentication token (persists across sessions)
-	authToken, e = security.FetchAuthToken()
+	authToken, e = security.FetchAuthToken(pkgconfig.Datadog)
 	if e != nil {
 		listener.Close()
 		listener = nil

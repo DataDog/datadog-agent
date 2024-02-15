@@ -55,7 +55,7 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler) error {
 
 	// CLC Runner token
 	// Use the Cluster Agent token
-	err = util.InitDCAAuthToken()
+	err = util.InitDCAAuthToken(config.Datadog)
 	if err != nil {
 		return err
 	}
