@@ -181,6 +181,11 @@ func extractRepoDigestFromImage(imageID string, imageRegistry string, store work
 		}
 		log.Debugf("cannot get matched registry in repodigests for image %s", imageID)
 	} else {
+		// TODO: we should handle the case when the image metadata is not found in the store
+		// For example, there could be a rare race condition when collection of image metadata is not finished yet
+		// In this case, we can either call containerd client directly or get it from knownImages in the local cache
+		// In fact, knownImages is already updated in the same goroutine, so it should be available
+		// If it is not available, containerd client can be used to get the image metadata
 		log.Debugf("cannot get image metadata for image %s: %s", imageID, err)
 	}
 	return ""

@@ -192,9 +192,6 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	tags.AddLow("short_image", image.ShortName)
 	tags.AddLow("image_tag", image.Tag)
 	tags.AddLow("image_id", image.ID)
-	if image.RepoDigest != "" {
-		tags.AddLow("repo_digest", image.RepoDigest)
-	}
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
@@ -589,9 +586,6 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	tags.AddLow("short_image", image.ShortName)
 	tags.AddLow("image_tag", image.Tag)
 	tags.AddLow("image_id", image.ID)
-	if image.RepoDigest != "" {
-		tags.AddLow("repo_digest", image.RepoDigest)
-	}
 
 	// enrich with standard tags from labels for this container if present
 	containerName := podContainer.Name
