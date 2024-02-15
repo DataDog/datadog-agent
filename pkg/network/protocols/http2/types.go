@@ -25,7 +25,6 @@ const (
 
 type connTuple = C.conn_tuple_t
 type HTTP2DynamicTableIndex C.dynamic_table_index_t
-type HTTP2DynamicTableEntry C.dynamic_table_entry_t
 type http2StreamKey C.http2_stream_key_t
 type http2InterestingValue C.interesting_value_t
 type http2Stream C.http2_stream_t

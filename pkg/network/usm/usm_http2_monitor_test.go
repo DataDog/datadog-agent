@@ -1412,11 +1412,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				if !validateStats(usmMonitor, res, tt.expectedEndpoints) {
-					return false
-				}
-
-				return validateHuffmanEncoded(t, usmMonitor.ebpfProgram, tt.expectedHuffmanEncoded)
+				return validateStats(usmMonitor, res, tt.expectedEndpoints)
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
@@ -1730,7 +1726,7 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	require.NoError(t, err)
 	resultIndexes := make([]int, 0)
 	var key usmhttp2.HTTP2DynamicTableIndex
-	var value usmhttp2.HTTP2DynamicTableEntry
+	var value usmhttp2.InterestingHeaderType
 	iterator := dynamicTableMap.Iterate()
 
 	for iterator.Next(&key, &value) {
@@ -1738,25 +1734,6 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	}
 	sort.Ints(resultIndexes)
 	require.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes)
-}
-
-// validateHuffmanEncoded validates that the dynamic table map contains the expected huffman encoded paths.
-func validateHuffmanEncoded(t *testing.T, ebpfProgram *ebpfProgram, expectedHuffmanEncoded map[int]bool) bool {
-	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
-	if err != nil {
-		t.Logf("could not get dynamic table map: %v", err)
-		return false
-	}
-	resultEncodedPaths := make(map[int]bool, 0)
-
-	var key usmhttp2.HTTP2DynamicTableIndex
-	var value usmhttp2.HTTP2DynamicTableEntry
-	iterator := dynamicTableMap.Iterate()
-	for iterator.Next(&key, &value) {
-		resultEncodedPaths[int(value.String_len)] = value.Is_huffman_encoded
-	}
-	// we compare the size of the path and if it is huffman encoded.
-	return reflect.DeepEqual(expectedHuffmanEncoded, resultEncodedPaths)
 }
 
 // dialHTTP2Server dials the http2 server and performs the initial handshake

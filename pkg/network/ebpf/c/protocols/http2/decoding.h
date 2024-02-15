@@ -298,7 +298,6 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
 static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_value_t *dynamic_table_value, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel) {
     u32 cpu = bpf_get_smp_processor_id();
     http2_header_t *current_header;
-    dynamic_table_entry_t dynamic_value = {};
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
@@ -325,30 +324,23 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
 
         dynamic_table_value->key.index = current_header->index;
         if (current_header->type == kExistingDynamicHeader) {
-            dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &dynamic_table_value->key);
-            if (dynamic_value == NULL) {
+            interesting_header_type_t *type = bpf_map_lookup_elem(&http2_dynamic_table, &dynamic_table_value->key);
+            if (type == NULL) {
                 break;
             }
-            if (is_path_index(dynamic_value->original_index)) {
+            if (*type == kHeaderPath) {
                 current_stream->path.index = current_header->index;
-            } else if (is_status_index(dynamic_value->original_index)) {
+            } else if (*type == kHeaderStatus) {
                 current_stream->status_code.index = current_header->index;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
-            }  else if (is_method_index(dynamic_value->original_index)) {
+            } else {
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method.index = current_header->index;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             }
         } else {
             // create the new dynamic value which will be added to the internal table.
-            read_into_buffer_path(dynamic_value.buffer, skb, current_header->new_dynamic_value_offset);
-            // If the value is indexed - add it to the dynamic table.
-            if (current_header->type == kNewDynamicHeader) {
-                dynamic_value.string_len = current_header->new_dynamic_value_size;
-                dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
-                dynamic_value.original_index = current_header->original_index;
-                bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_value, BPF_ANY);
-            }
+            read_into_buffer_path(dynamic_table_value->buf, skb, current_header->new_dynamic_value_offset);
             dynamic_table_value->type = get_header_type(current_header->original_index);
             dynamic_table_value->temporary = current_header->type != kNewDynamicHeader;
             dynamic_table_value->key.index = current_header->index;
@@ -373,8 +365,10 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             // Send dynamic value over a per-event to the user mode.
             dynamic_table_value->string_len = current_header->new_dynamic_value_size;
             dynamic_table_value->is_huffman_encoded = current_header->is_huffman_encoded;
-            bpf_memcpy(dynamic_table_value->buf, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
             bpf_perf_event_output(skb, &http2_dynamic_table_perf_buffer, cpu, dynamic_table_value, sizeof(dynamic_table_value_t));
+            if (!dynamic_table_value->temporary) {
+                bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_table_value->type, BPF_ANY);
+            }
         }
     }
 }

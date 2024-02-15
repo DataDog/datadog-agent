@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/http2/hpack"
-
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -386,23 +384,18 @@ func (t http2StreamKey) String() string {
 	)
 }
 
-// String returns a string representation of the http2 dynamic table.
-func (t HTTP2DynamicTableEntry) String() string {
-	if t.String_len == 0 {
-		return ""
+// String returns a string representation of interestingHeaderType.
+func (t InterestingHeaderType) String() string {
+	switch t {
+	case HeaderMethod:
+		return "method"
+	case HeaderPath:
+		return "path"
+	case HeaderStatus:
+		return "status"
+	default:
+		return "unknown"
 	}
-
-	b := make([]byte, t.String_len)
-	for i := uint8(0); i < t.String_len; i++ {
-		b[i] = byte(t.Buffer[i])
-	}
-	// trim null byte + after
-	str, err := hpack.HuffmanDecodeToString(b)
-	if err != nil {
-		return fmt.Sprintf("FAILED: %s", err)
-	}
-
-	return str
 }
 
 // String returns a string representation of the http2 eBPF telemetry.
