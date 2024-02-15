@@ -262,8 +262,8 @@ type Config struct {
 	// EnableUSMQuantization enables endpoint quantization for USM programs
 	EnableUSMQuantization bool
 
-	// RingbufferEnabled specifies whether the ringbuffer is enabled or not
-	RingbufferEnabled bool
+	// RingbuffersEnabled specifies whether ringbuffers are enabled or not
+	RingbuffersEnabled bool
 
 	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
 	EnableUSMConnectionRollup bool
@@ -315,7 +315,7 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
-		RingbufferEnabled: cfg.GetBool(join(netNS, "enable_ringbuffers")),
+		RingbuffersEnabled: cfg.GetBool(join(netNS, "enable_ringbuffers")),
 
 		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),

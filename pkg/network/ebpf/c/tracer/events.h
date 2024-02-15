@@ -144,6 +144,7 @@ __maybe_unused static __always_inline void emit_conn_close_event(void *ctx) {
     bpf_memcpy(&conn_copy, conn_ptr, sizeof(conn_copy));
     u32 cpu = bpf_get_smp_processor_id();
     bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn_copy, sizeof(conn_copy));
+    bpf_map_delete_elem(&pending_individual_conn_flushes, &pid_tgid);
 }
 
 __maybe_unused static __always_inline void emit_conn_close_event_ringbuffer(void *ctx) {
@@ -158,6 +159,7 @@ __maybe_unused static __always_inline void emit_conn_close_event_ringbuffer(void
     } else {
         bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
     }
+    bpf_map_delete_elem(&pending_individual_conn_flushes, &pid_tgid);
 }
 
 __maybe_unused static __always_inline void flush_conn_close_if_full_perfbuffer(void *ctx) {

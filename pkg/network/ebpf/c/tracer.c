@@ -5,7 +5,6 @@
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 #include "bpf_tracing.h"
-#include "bpf_helpers.h"
 #include "bpf_endian.h"
 
 #ifdef COMPILE_PREBUILT

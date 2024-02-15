@@ -196,35 +196,31 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 				UID:          probeUID,
 			},
 		},
+		{
+			ProgArrayName: probes.TCPCloseProgsMap,
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.TCPCloseFlushReturnPerfbuffer,
+				UID:          probeUID,
+			},
+		},
 	}
 	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls)+2)
 	if tcpEnabled {
-		var probePair manager.ProbeIdentificationPair
-		if ringbufferEnabled {
-			probePair = manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPConnCloseEmitEventRingbuffer,
-				UID:          probeUID,
-			}
-			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
-				{
-					ProgArrayName:           probes.ConnCloseProgsIndvMap,
-					Key:                     0,
-					ProbeIdentificationPair: probePair,
-				},
-			}...)
-		} else {
-			probePair = manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer,
-				UID:          probeUID,
-			}
-			mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
-				{
-					ProgArrayName:           probes.ConnCloseProgsIndvMap,
-					Key:                     0,
-					ProbeIdentificationPair: probePair,
-				},
-			}...)
+		probePair := manager.ProbeIdentificationPair{
+			EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer,
+			UID:          probeUID,
 		}
+		if ringbufferEnabled {
+			probePair.EBPFFuncName = probes.TCPConnCloseEmitEventRingbuffer
+		}
+		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
+			{
+				ProgArrayName:           probes.ConnCloseProgsIndvMap,
+				Key:                     0,
+				ProbeIdentificationPair: probePair,
+			},
+		}...)
 		tailCallsIdentifiersSet[probePair] = struct{}{}
 	}
 
@@ -236,27 +232,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 	if classificationSupported {
 		if ringbufferEnabled {
-			protocolClassificationTailCalls = append(protocolClassificationTailCalls, []manager.TailCallRoute{
-				{
-					ProgArrayName: probes.TCPCloseProgsMap,
-					Key:           0,
-					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFFuncName: probes.TCPCloseFlushReturnRingbuffer,
-						UID:          probeUID,
-					},
-				},
-			}...)
-		} else {
-			protocolClassificationTailCalls = append(protocolClassificationTailCalls, []manager.TailCallRoute{
-				{
-					ProgArrayName: probes.TCPCloseProgsMap,
-					Key:           0,
-					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFFuncName: probes.TCPCloseFlushReturnPerfbuffer,
-						UID:          probeUID,
-					},
-				},
-			}...)
+			protocolClassificationTailCalls[3].ProbeIdentificationPair.EBPFFuncName = probes.TCPCloseFlushReturnRingbuffer
 		}
 		for _, tailCall := range protocolClassificationTailCalls {
 			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
@@ -398,5 +374,5 @@ func isCORETracerSupported() error {
 
 // RingBufferSupported returns true if ring buffer is supported on the kernel and enabled in the config
 func RingBufferSupported(c *config.Config) bool {
-	return (features.HaveMapType(ebpf.RingBuf) == nil) && c.RingbufferEnabled
+	return (features.HaveMapType(ebpf.RingBuf) == nil) && c.RingbuffersEnabled
 }

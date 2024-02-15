@@ -138,7 +138,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				callback(c.buffer.Connections())
 				c.buffer.Reset()
 				batchData.Done()
-			// lost events only happen when using perf buffers
+			// lost events only occur when using perf buffers
 			case lc, ok := <-lostChannel:
 				if !ok {
 					return
