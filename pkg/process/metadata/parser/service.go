@@ -12,6 +12,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/Masterminds/semver"
 	"github.com/cihub/seelog"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -27,6 +28,7 @@ const (
 	javaJarExtension    = ".jar"
 	javaModuleFlag      = "--module"
 	javaModuleFlagShort = "-m"
+	javaSnapshotSuffix  = "-SNAPSHOT"
 	javaApachePrefix    = "org.apache."
 )
 
@@ -301,7 +303,18 @@ func parseCommandContextJava(args []string) string {
 
 			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
 				if strings.HasSuffix(arg, javaJarExtension) {
-					return arg[:len(arg)-len(javaJarExtension)]
+					jarName := arg[:len(arg)-len(javaJarExtension)]
+					if !strings.HasSuffix(jarName, javaSnapshotSuffix) {
+						return jarName
+					}
+					jarName = jarName[:len(jarName)-len(javaSnapshotSuffix)]
+
+					if idx := strings.LastIndex(jarName, "-"); idx != -1 {
+						if _, err := semver.NewVersion(jarName[idx+1:]); err == nil {
+							return jarName[:idx]
+						}
+					}
+					return jarName
 				}
 
 				if strings.HasPrefix(arg, javaApachePrefix) {
