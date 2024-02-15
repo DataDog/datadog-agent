@@ -908,17 +908,16 @@ api_key:
   ## system-probe.yaml.example for details.
   #
   # ping:
-  #   enabled: true             # disabled by default
-  #   timeout: 3000             # timeout in milliseconds
-  #   count: 2                  # number of ping packets to send per check run
-  #   interval: 10              # time between sending pings (up to `count` packets) in milliseconds
-  #   linux:                    # linux specific configuration
-  #     use_raw_socket: true    # send pings in a privileged fashion using a raw socket
-  #                             # this may be required if your system doesn't support
-  #                             # sending pings in an unprivileged fashion (using a UDP socket)
-  #                             # If `use_raw_socket` is set to true, you MUST also enable the
+  #   enabled: true             # Disabled by default
+  #   timeout: 3000             # Timeout in milliseconds
+  #   count: 2                  # Number of ping packets to send per check run
+  #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
+  #   linux:                    # Linux-specific configuration
+  #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
+  #                             # This may be required if your system doesn't support
+  #                             # sending pings in an unprivileged fashion (using a UDP socket).
+  #                             # If `use_raw_socket` is set to true, you MUST also enable
   #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
-  #                             
 
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
@@ -1106,22 +1105,21 @@ api_key:
     ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
     ## pings, but some linux systems require using a raw socket.
     ##
-    ## If `linux.use_raw_socket` is set, you must enable the ping module
-    ## of the system-probe for elevated privileges. See
+    ## If `linux.use_raw_socket` is set, you must enable the `ping` module
+    ## of system-probe for elevated privileges. See
     ## system-probe.yaml.example for details.
     #
     # ping:
-    #   enabled: true             # disabled by default
-    #   timeout: 3000             # timeout in milliseconds
-    #   count: 2                  # number of ping packets to send per check run
-    #   interval: 10              # time between sending pings (up to `count` packets) in milliseconds
-    #   linux:                    # linux-specific configuration
-    #     use_raw_socket: true    # send pings in a privileged fashion using a raw socket
-    #                             # this may be required if your system doesn't support
-    #                             # sending pings in an unprivileged fashion (using a UDP socket)
-    #                             # If `use_raw_socket` is set to true, you MUST also enable the
-    #                             # system-probe which has elevated privileges, see system-probe.yaml.example
-    #                             # to enable it.
+    #   enabled: true             # Disabled by default
+    #   timeout: 3000             # Timeout in milliseconds
+    #   count: 2                  # Number of ping packets to send per check run
+    #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
+    #   linux:                    # Linux-specific configuration
+    #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
+    #                             # This may be required if your system doesn't support
+    #                             # sending pings in an unprivileged fashion (using a UDP socket).
+    #                             # If `use_raw_socket` is set to true, you MUST also enable
+    #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
