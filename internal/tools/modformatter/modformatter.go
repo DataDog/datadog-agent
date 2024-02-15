@@ -71,10 +71,8 @@ func removeExtraLines(lines []string, consecutiveLineNumber int) []string {
 			indexList = append(indexList, idx)
 		}
 	}
-	removedLinesCount := 0
-	for _, index := range indexList {
-		lines = deleteElement(lines, index-removedLinesCount)
-		removedLinesCount += 1
+	for k := len(indexList) - 1; k >= 0; k-- {
+		lines = deleteElement(lines, indexList[k])
 	}
 	return lines
 }
