@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/exp/slices"
 )
 
@@ -127,9 +128,13 @@ type StringMatcher interface {
 	Matches(value string) bool
 }
 
+// ReMatchCacheSize defines the amount of cache match value for regexp string matchers
+const ReMatchCacheSize = 16
+
 // RegexpStringMatcher defines a regular expression pattern matcher
 type RegexpStringMatcher struct {
-	re *regexp.Regexp
+	re         *regexp.Regexp
+	matchCache *lru.Cache[string, bool]
 }
 
 // Compile a regular expression based pattern
@@ -143,13 +148,25 @@ func (r *RegexpStringMatcher) Compile(pattern string, caseInsensitive bool) erro
 		return err
 	}
 	r.re = re
+	r.matchCache, _ = lru.New[string, bool](ReMatchCacheSize)
 
 	return nil
 }
 
 // Matches returns whether the value matches
 func (r *RegexpStringMatcher) Matches(value string) bool {
-	return r.re.MatchString(value)
+	if r.matchCache != nil {
+		if match, ok := r.matchCache.Get(value); ok {
+			return match
+		}
+	}
+
+	isMatch := r.re.MatchString(value)
+
+	if r.matchCache != nil {
+		r.matchCache.Add(value, isMatch)
+	}
+	return isMatch
 }
 
 // GlobStringMatcher defines a glob pattern matcher
