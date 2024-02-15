@@ -12,10 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -82,19 +78,11 @@ func verifySectionContent(t *testing.T, statusOutput string, section expectedSec
 }
 
 func (v *baseStatusSuite) TestDefaultInstallStatus() {
-	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
-	resourceID := metadata.Get("instance-id")
-
 	expectedSections := []expectedSection{
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
 			shouldBePresent:  true,
 			shouldNotContain: []string{"FIPS proxy"},
-		},
-		{
-			name:            `Hostname`,
-			shouldBePresent: true,
-			shouldContain:   []string{fmt.Sprintf("hostname: %v", resourceID), "hostname provider: aws"},
 		},
 		{
 			name:            "Aggregator",
@@ -197,16 +185,4 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 	for _, section := range expectedSections {
 		verifySectionContent(v.T(), status.Content, section)
 	}
-}
-
-func (v *baseStatusSuite) TestFIPSProxyStatus() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true"))))
-
-	expectedSection := expectedSection{
-		name:            `Agent \(.*\)`,
-		shouldBePresent: true,
-		shouldContain:   []string{"FIPS proxy"},
-	}
-	status := v.Env().Agent.Client.Status()
-	verifySectionContent(v.T(), status.Content, expectedSection)
 }
