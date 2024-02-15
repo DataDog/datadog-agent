@@ -106,17 +106,17 @@ type ResourceType string
 
 const (
 	// ResourceTypeLocalDir is the type of a local directory
-	ResourceTypeLocalDir = "localdir"
+	ResourceTypeLocalDir ResourceType = "localdir"
 	// ResourceTypeVolume is the type of a volume
-	ResourceTypeVolume = "volume"
+	ResourceTypeVolume ResourceType = "volume"
 	// ResourceTypeSnapshot is the type of a snapshot
-	ResourceTypeSnapshot = "snapshot"
+	ResourceTypeSnapshot ResourceType = "snapshot"
 	// ResourceTypeFunction is the type of a function
-	ResourceTypeFunction = "function"
+	ResourceTypeFunction ResourceType = "function"
 	// ResourceTypeHostImage is the type of a host image
-	ResourceTypeHostImage = "hostimage"
+	ResourceTypeHostImage ResourceType = "hostimage"
 	// ResourceTypeRole is the type of a role
-	ResourceTypeRole = "role"
+	ResourceTypeRole ResourceType = "role"
 )
 
 // RolesMapping is the mapping of roles from accounts IDs to role IDs
@@ -424,8 +424,12 @@ func DefaultTaskType(resourceID CloudID) (TaskType, error) {
 	switch resourceType {
 	case ResourceTypeLocalDir:
 		return TaskTypeHost, nil
-	case ResourceTypeSnapshot, ResourceTypeVolume:
+	case ResourceTypeSnapshot:
 		return TaskTypeEBS, nil
+	case ResourceTypeVolume:
+		return TaskTypeEBS, nil
+	case ResourceTypeHostImage:
+		return TaskTypeAMI, nil
 	case ResourceTypeFunction:
 		return TaskTypeLambda, nil
 	default:

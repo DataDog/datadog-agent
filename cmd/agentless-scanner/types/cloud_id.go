@@ -279,6 +279,9 @@ func HumanParseCloudID(s string, provider CloudProvider, region, accountID strin
 		} else if strings.HasPrefix(s, "snap-") {
 			service = "ec2"
 			s = "snapshot/" + s
+		} else if strings.HasPrefix(s, "ami-") {
+			service = "ec2"
+			s = "image/" + s
 		} else if strings.HasPrefix(s, "function:") {
 			service = "lambda"
 		}
