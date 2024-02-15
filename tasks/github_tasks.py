@@ -5,7 +5,7 @@ from functools import lru_cache
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import DEFAULT_BRANCH, get_git_branch_name
+from tasks.libs.common.utils import DEFAULT_BRANCH, get_git_pretty_ref
 from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.github_actions_tools import (
     download_artifacts,
@@ -20,13 +20,13 @@ from tasks.release import _get_release_json_value
 
 @lru_cache(maxsize=None)
 def concurrency_key():
-    branch_name = get_git_branch_name()
+    current_ref = get_git_pretty_ref()
 
     # We want workflows to run to completion on the default branch and release branches
-    if re.search(rf'^({DEFAULT_BRANCH}|\d+\.\d+\.x)$', branch_name):
+    if re.search(rf'^({DEFAULT_BRANCH}|\d+\.\d+\.x)$', current_ref):
         return None
 
-    return branch_name
+    return current_ref
 
 
 def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
