@@ -61,9 +61,7 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
 fi
 
 # Cleanup tmp files used for installation
-if [ -f /tmp/install-ddagent/system-wide ]; then
-  rm /tmp/install-ddagent/system-wide
-fi
+rm -f /tmp/install-ddagent/system-wide
 
 function find_latest_patch_version_for() {
     major_minor="$1"
@@ -138,9 +136,7 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
 fi
 
 if [ "$systemdaemon_install" != false ]; then
-  if [ ! -e "/tmp/install-ddagent" ]; then
-    mkdir /tmp/install-ddagent
-  fi
+  mkdir -p /tmp/install-ddagent
   touch /tmp/install-ddagent/system-wide
 fi
 

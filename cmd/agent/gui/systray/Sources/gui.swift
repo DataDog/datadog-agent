@@ -294,7 +294,7 @@ class AgentManager {
     private static func bashCall(command: String) -> (exitCode: Int32, stdOut: String, stdErr: String) {
         return call(launchPath: "/bin/bash", arguments: ["-c", command])
     }
-    
+
     private static func call(launchPath: String, arguments: [String]) -> (exitCode: Int32, stdOut: String, stdErr: String) {
         let stdOutPipe = Pipe()
         let stdErrPipe = Pipe()
