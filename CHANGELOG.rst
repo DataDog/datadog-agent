@@ -66,8 +66,6 @@ Enhancement Notes
 - Updated the ntp check to support the default location of chrony.conf
   on Ubuntu (/etc/chrony/chrony.conf).
 
-- Agents are now built with Go ``1.20.12``.
-
 - Agents are now built with Go ``1.21.5``.
 
 - CWS: Reloading the datadog-agent-sysprobe systemd service now reloads the runtime security policies.
