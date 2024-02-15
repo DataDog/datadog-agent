@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -92,6 +93,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
 				collectorimpl.Module(),
+				// The cluster-agent-cloudfoundry agent do not have a status command
+				// so there is no need to initialize the status component
+				fx.Provide(func() status.Component { return nil }),
 			)
 		},
 	}
@@ -99,7 +103,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func run(log log.Component, taggerComp tagger.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component) error {
+func run(log log.Component, taggerComp tagger.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component, statusComponent status.Component) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 
@@ -154,7 +158,7 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(wmeta, taggerComp, demultiplexer); err != nil {
+	if err = api.StartServer(wmeta, taggerComp, demultiplexer, statusComponent); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
