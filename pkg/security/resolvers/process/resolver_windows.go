@@ -102,7 +102,6 @@ func (p *Resolver) DequeueExited() {
 	defer p.Unlock()
 	delEntry := func(pid uint32, exitTime time.Time) {
 		p.deleteEntry(pid, exitTime)
-		// p.flushedEntries.Inc()
 	}
 
 	var toKeep []uint32

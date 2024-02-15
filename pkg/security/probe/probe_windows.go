@@ -469,7 +469,7 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	err := backoff.Retry(func() error {
 		pce := p.Resolvers.ProcessResolver.GetEntry(pid)
 		if pce == nil {
-			return errors.New(fmt.Errorf("Could not resolve process for Process: %v", pid))
+			return fmt.Errorf("Could not resolve process for Process: %v", pid)
 		}
 		event.ProcessCacheEntry = pce
 		event.ProcessContext = &pce.ProcessContext
