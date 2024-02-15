@@ -901,7 +901,7 @@ api_key:
   ## check is run.
   ##
   ## By default, we try to use an unprivileged UDP socket to send ICMP
-  ## pings, but some linux systems require using a raw socket.
+  ## pings, but some Linux systems require using a raw socket.
   ## See details at the link below:
   ## https://sturmflut.github.io/linux/ubuntu/2015/01/17/unprivileged-icmp-sockets-on-linux/
   ##
