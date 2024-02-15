@@ -84,6 +84,9 @@ const (
 	// SourceLanguageDetectionServer represents container languages
 	// detected by node agents
 	SourceLanguageDetectionServer Source = "language_detection_server"
+
+	// SourceHost represents entities detected by the host such as host tags.
+	SourceHost Source = "host"
 )
 
 // ContainerRuntime is the container runtime used by a container.

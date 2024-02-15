@@ -20,6 +20,8 @@ import (
 	"go.uber.org/fx"
 )
 
+const id = "host"
+
 type dependencies struct {
 	fx.In
 
@@ -27,9 +29,16 @@ type dependencies struct {
 }
 
 type collector struct {
-	catalog workloadmeta.AgentType
-	config  config.Component
-	clock   clock.Clock
+	store        workloadmeta.Component
+	catalog      workloadmeta.AgentType
+	config       config.Component
+	clock        clock.Clock
+	timeoutTimer *clock.Timer
+}
+
+// GetFxOptions returns the FX framework options for the collector
+func GetFxOptions() fx.Option {
+	return fx.Provide(NewCollector)
 }
 
 // NewCollector returns a new host collector provider and an error
@@ -43,12 +52,9 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	}, nil
 }
 
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
-}
+func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 
-func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+	c.store = store
 
 	duration := c.config.GetDuration("expected_tags_duration")
 	if duration <= 0 {
@@ -57,53 +63,59 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	if duration <= time.Minute {
 		log.Debugf("Tags are checked for expiration once per minute. expected_tags_duration should be at least one minute and in minute intervals.")
 	}
-	tags := hostMetadataUtils.Get(ctx, false, c.config).System
-	log.Debugf("Adding host tags to metrics for %v : %v", duration, tags)
 
-	store.Notify([]workloadmeta.CollectorEvent{
-		{
-			Type:   workloadmeta.EventTypeSet,
-			Source: workloadmeta.SourceNodeOrchestrator,
-			Entity: makeEntity(tags),
-		},
-	})
+	log.Debugf("Adding host tags to metrics for %v", duration)
+	c.timeoutTimer = c.clock.Timer(duration)
 
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-
-		case <-c.clock.After(duration):
-			store.Notify([]workloadmeta.CollectorEvent{
-				{
-					Type:   workloadmeta.EventTypeSet,
-					Source: workloadmeta.SourceNodeOrchestrator,
-					Entity: makeEntity([]string{}),
-				},
-			})
-		}
-	}()
 	return nil
 }
 
-func makeEntity(tags []string) *workloadmeta.HostTags {
-	return &workloadmeta.HostTags{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindHost,
-			ID:   "host-tags",
-		},
-		HostTags: tags,
+func (c *collector) Pull(ctx context.Context) error {
+	// Feature is disbled or timeout has previously occurred
+	if c.timeoutTimer == nil {
+		return nil
 	}
-}
 
-func (c *collector) Pull(_ context.Context) error {
+	// Timeout reached - expire any host tags in the store
+	if c.isTimedOut() {
+		c.store.Notify(makeEvent([]string{}))
+		return nil
+	}
+
+	tags := hostMetadataUtils.Get(ctx, false, c.config).System
+	c.store.Notify(makeEvent(tags))
 	return nil
 }
 
 func (c *collector) GetID() string {
-	return "host"
+	return id
 }
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
+}
+
+func (c *collector) isTimedOut() bool {
+	select {
+	case <-c.timeoutTimer.C:
+		c.timeoutTimer = nil
+		return true
+	default:
+		return false
+	}
+}
+
+func makeEvent(tags []string) []workloadmeta.CollectorEvent {
+	return []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceHost,
+			Entity: &workloadmeta.HostTags{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindHost,
+					ID:   id,
+				},
+				HostTags: tags,
+			},
+		}}
 }

@@ -31,6 +31,7 @@ type testDeps struct {
 
 func TestHostCollector(t *testing.T) {
 	expectedTags := []string{"tag1:value1", "tag2", "tag3"}
+	ctx := context.TODO()
 
 	overrides := map[string]interface{}{
 		"tags":                   expectedTags,
@@ -53,12 +54,14 @@ func TestHostCollector(t *testing.T) {
 		clock:  mockClock,
 	}
 
-	c.Start(context.TODO(), deps.Wml)
+	c.Start(ctx, deps.Wml)
+	c.Pull(ctx)
 
 	assertTags(t, (<-eventChan).Entity, expectedTags)
 
 	mockClock.Add(11 * time.Minute)
 	mockClock.WaitForAllTimers()
+	c.Pull(ctx)
 
 	assertTags(t, (<-eventChan).Entity, []string{})
 }
