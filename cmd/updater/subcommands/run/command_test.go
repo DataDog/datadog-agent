@@ -8,20 +8,11 @@ package run
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/cmd/updater/command"
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestRunCheckCmdCommand(t *testing.T) {
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"run"},
-		run,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, false, secretParams.Enabled)
-		})
+	fxutil.TestRun(t, func() error {
+		return runFxWrapper(&cliParams{})
+	})
 }
