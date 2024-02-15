@@ -101,6 +101,7 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
+// AddBoolConst modifies the options to include a constant editor for a boolean value
 func AddBoolConst(options *manager.Options, flag bool, name string) {
 	val := uint64(1)
 	if !flag {
