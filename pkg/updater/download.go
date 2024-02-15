@@ -6,21 +6,19 @@
 package updater
 
 import (
-	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/go-secure-sdk/compression/archive/tar"
 	"github.com/xi2/xz"
 )
 
@@ -157,154 +155,18 @@ func extractTarXz(archivePath string, destinationPath string) error {
 	}
 
 	// Extract tar archive
-	tr := tar.NewReader(io.LimitReader(xzr, maxArchiveDecompressedSize))
-	tarLinks := make([]*tar.Header, 0)
-	fileCount := 0
-
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("could not read tar header: %w", err)
-		}
-
-		// Skip the root directory
-		if header.Name == "./" {
-			continue
-		}
-
-		target := filepath.Join(destinationPath, header.Name)
-
-		// Check for zip-slip attacks
-		if !strings.HasPrefix(target, filepath.Clean(destinationPath)+string(os.PathSeparator)) {
-			return fmt.Errorf("tar entry %s is trying to escape the destination directory", header.Name)
-		}
-
-		// Extract element depending on its type
-		switch header.Typeflag {
-		case tar.TypeDir:
-			err = os.MkdirAll(target, 0755)
-			if err != nil {
-				return fmt.Errorf("could not create directory: %w", err)
-			}
-		case tar.TypeReg:
-			fileCount++
-			if fileCount > maxArchiveFileCount {
-				return errors.New("archive contains too many files")
-			}
-			err = extractTarFile(target, tr)
-			if err != nil {
-				return err // already wrapped
-			}
-		case tar.TypeLink, tar.TypeSymlink:
-			tarLinks = append(tarLinks, header)
-		default:
-			log.Warnf("Unsupported tar entry type %d for %s", header.Typeflag, header.Name)
-		}
-	}
-
-	// Process tar links afterwards as they may depend on other files being written
-	err = processTarLinks(0, destinationPath, tarLinks)
+	err = tar.Extract(
+		xzr,
+		destinationPath,
+		tar.WithMaxArchiveSize(maxArchiveDecompressedSize),
+		tar.WithMaxSymlinkRecursion(maxArchiveLinkDepth),
+		tar.WithMaxFileSize(maxArchiveFileSize),
+		tar.WithMaxEntryCount(maxArchiveFileCount),
+	)
 	if err != nil {
-		return err // already wrapped
+		return fmt.Errorf("could not extract archive: %w", err)
 	}
 
 	log.Debugf("Successfully extracted archive %s to %s", archivePath, destinationPath)
-	return nil
-}
-
-// extractTarFile extracts a file from a tar archive.
-// It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
-func extractTarFile(targetPath string, reader io.Reader) error {
-	err := os.MkdirAll(filepath.Dir(targetPath), 0o755)
-	if err != nil {
-		return fmt.Errorf("could not create directory: %w", err)
-	}
-	f, err := os.Create(filepath.FromSlash(targetPath))
-	if err != nil {
-		return fmt.Errorf("could not create file: %w", err)
-	}
-	defer f.Close()
-
-	n, err := io.Copy(f, io.LimitReader(reader, maxArchiveFileSize))
-	if err != nil {
-		if errors.Is(err, io.EOF) && n == maxArchiveFileSize {
-			defer func() {
-				if err := os.Remove(targetPath); err != nil {
-					log.Errorf("Could not remove truncated file %q: %v", targetPath, err)
-				} else {
-					log.Debug("Removing truncated file %q", targetPath)
-				}
-			}()
-			return fmt.Errorf("content truncated: file %q is too large: %w", targetPath, err)
-		}
-		return fmt.Errorf("could not write file: %w", err)
-	}
-	return nil
-}
-
-// processTarLinks processes the symlinks in a tar archive and makes sure the destinations exist.
-// It is called recursively to handle symlinks that depend on other symlinks as we
-// iteratively create them.
-func processTarLinks(level int, destinationPath string, symlinks []*tar.Header) error {
-	if len(symlinks) == 0 {
-		// Fast path
-		return nil
-	}
-
-	// Check recursion level
-	if level >= maxArchiveLinkDepth {
-		return fmt.Errorf("maximum symlink recursion level reached (%d)", level)
-	}
-
-	// Prepare next pass
-	next := make([]*tar.Header, 0)
-
-	for _, hdr := range symlinks {
-		if hdr == nil {
-			continue
-		}
-
-		targetName := filepath.Join(destinationPath, hdr.Name)
-
-		// Generate the target link name depending on whether it is absolute
-		// or relative to the current file. Hardlinks are always absolute
-		var targetLinkName string
-		if filepath.IsAbs(hdr.Linkname) || hdr.Typeflag == tar.TypeLink {
-			targetLinkName = filepath.Join(destinationPath, hdr.Linkname)
-		} else {
-			targetLinkName = filepath.Join(filepath.Dir(targetName), hdr.Linkname)
-		}
-
-		// Check for zip-slip attacks
-		if !strings.HasPrefix(filepath.Join(destinationPath, targetLinkName), filepath.Clean(destinationPath)+string(os.PathSeparator)) {
-			return fmt.Errorf("tar entry %s is trying to escape the destination directory", hdr.Name)
-		}
-
-		// Check if the target link already exists, if not, add to next pass
-		if _, err := os.Stat(filepath.FromSlash(targetLinkName)); err != nil {
-			next = append(next, hdr)
-			continue
-		}
-
-		switch hdr.Typeflag {
-		case tar.TypeLink: // Hard link
-			if err := os.Link(filepath.FromSlash(targetLinkName), filepath.FromSlash(targetName)); err != nil {
-				return fmt.Errorf("unable to create hardlink: %w", err)
-			}
-		case tar.TypeSymlink:
-			if err := os.Symlink(filepath.FromSlash(targetLinkName), filepath.FromSlash(targetName)); err != nil {
-				return fmt.Errorf("unable to create symlink: %w", err)
-			}
-		}
-	}
-
-	// Process next pass
-	if len(next) > 0 {
-		return processTarLinks(level+1, destinationPath, next)
-	}
-
 	return nil
 }

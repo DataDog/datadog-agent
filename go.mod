@@ -537,7 +537,7 @@ require (
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xlab/treeprint v1.1.0 // indirect
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7 // indirect
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
@@ -651,6 +651,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.51.0-rc.2
 	github.com/DataDog/go-libddwaf/v2 v2.2.2
+	github.com/DataDog/go-secure-sdk v0.0.4
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.13.3
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go-v2/service/kms v1.27.1
