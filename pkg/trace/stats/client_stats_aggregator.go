@@ -167,6 +167,10 @@ func (a *ClientStatsAggregator) flush(p []*pb.ClientStatsPayload) {
 }
 
 func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStatsPayload) {
+	// No need to go any further if we already have the information in the payload.
+	if p.ImageTag != "" && p.GitCommitSha != "" {
+		return
+	}
 	if p.ContainerID != "" {
 		gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(p.ContainerID, a.conf)
 		if err != nil {

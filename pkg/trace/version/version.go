@@ -27,15 +27,14 @@ func GetVersionDataFromContainerTags(containerID string, conf *config.AgentConfi
 		return "", "", err
 	}
 	for _, t := range cTags {
-		if gitCommitSha != "" && imageTag != "" {
-			break
-		}
 		if val, ok := strings.CutPrefix(t, gitCommitShaTagPrefix); ok && val != "" {
 			gitCommitSha = val
-			continue
 		}
 		if val, ok := strings.CutPrefix(t, imageTagPrefix); ok && val != "" {
 			imageTag = val
+		}
+		if gitCommitSha != "" && imageTag != "" {
+			break
 		}
 	}
 	return gitCommitSha, imageTag, nil
@@ -43,31 +42,24 @@ func GetVersionDataFromContainerTags(containerID string, conf *config.AgentConfi
 
 // GetGitCommitShaFromTrace returns the first "git_commit_sha" tag found in trace t.
 func GetGitCommitShaFromTrace(root *trace.Span, t *trace.TraceChunk) string {
-	if v, ok := root.Meta[gitCommitShaField]; ok {
-		return v
-	}
-	for _, s := range t.Spans {
-		if s.SpanID == root.SpanID {
-			continue
-		}
-		if v, ok := s.Meta[gitCommitShaField]; ok {
-			return v
-		}
-	}
-	return ""
+	return searchTraceForField(root, t, gitCommitShaField)
 }
 
 // GetAppVersionFromTrace returns the first "version" tag found in trace t.
 // Search starts by root
 func GetAppVersionFromTrace(root *trace.Span, t *trace.TraceChunk) string {
-	if v, ok := root.Meta[versionField]; ok {
+	return searchTraceForField(root, t, versionField)
+}
+
+func searchTraceForField(root *trace.Span, t *trace.TraceChunk, field string) string {
+	if v, ok := root.Meta[field]; ok {
 		return v
 	}
 	for _, s := range t.Spans {
 		if s.SpanID == root.SpanID {
 			continue
 		}
-		if v, ok := s.Meta[versionField]; ok {
+		if v, ok := s.Meta[field]; ok {
 			return v
 		}
 	}
