@@ -33,6 +33,15 @@ func GetDatadogAgentProductCode(host *components.RemoteHost) (string, error) {
 	return windows.GetProductCodeByName(host, "Datadog Agent")
 }
 
+// RepairAllAgent repairs the Datadog Agent
+func RepairAllAgent(host *components.RemoteHost, args string, logPath string) error {
+	product, err := GetDatadogAgentProductCode(host)
+	if err != nil {
+		return err
+	}
+	return windows.RepairAllMSI(host, product, args, logPath)
+}
+
 // UninstallAgent uninstalls the Datadog Agent
 func UninstallAgent(host *components.RemoteHost, logPath string) error {
 	product, err := GetDatadogAgentProductCode(host)

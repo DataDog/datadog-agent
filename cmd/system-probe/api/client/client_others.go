@@ -5,7 +5,7 @@
 
 //go:build !linux && !windows
 
-package api
+package client
 
 const (
 	netType = "tcp"

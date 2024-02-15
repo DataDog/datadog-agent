@@ -161,9 +161,7 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
-	ctx := &eval.Context{
-		Event: event.(*model.Event),
-	}
+	ctx := eval.NewContext(event.(*model.Event))
 
 	p.PlatformProbe.HandleActions(ctx, rule)
 }
