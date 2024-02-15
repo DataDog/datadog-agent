@@ -26,6 +26,7 @@ var containerEventActions = []events.Action{
 	events.ActionDie,
 	events.ActionRename,
 	events.ActionHealthStatus,
+	ActionDied,
 }
 
 var imageEventActions = []events.Action{
@@ -33,7 +34,6 @@ var imageEventActions = []events.Action{
 	events.ActionDelete,
 	events.ActionTag,
 	events.ActionUnTag,
-	ActionDied,
 	// TODO: consider adding more image events such as events.ActionImport
 }
 
