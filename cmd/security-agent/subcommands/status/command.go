@@ -72,7 +72,7 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.GetInt("security_agent.cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(config)
 	if e != nil {
 		return e
 	}
