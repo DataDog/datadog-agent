@@ -85,6 +85,8 @@ func newProviderCache() *providerCache {
 
 // ignoreADTagsFromAnnotations returns of the `ad.datadoghq.com/{endpoints,service}.ignore_autodiscovery_tags` annotation
 // TODO(CINT)(Agent 7.53+) Remove support for hybrid scenarios
+//
+//nolint:deadcode,unused
 func ignoreADTagsFromAnnotations(annotations map[string]string, prefix string) bool {
 	ignoreAdForHybridScenariosTags, _ := strconv.ParseBool(annotations[prefix+"ignore_autodiscovery_tags"])
 	return ignoreAdForHybridScenariosTags
