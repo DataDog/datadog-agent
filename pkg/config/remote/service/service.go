@@ -150,15 +150,37 @@ func init() {
 	exportedMapStatus.Set("lastError", &exportedLastUpdateErr)
 }
 
+type options struct {
+	traceAgentEnv    string
+	databaseFileName string
+}
+
+var defaultOptions = options{
+	traceAgentEnv:    "",
+	databaseFileName: "remote-config.db",
+}
+
+// Option is a service option
+type Option func(s *options)
+
 // WithTraceAgentEnv sets the service trace-agent environment variable
-func WithTraceAgentEnv(env string) func(s *Service) {
-	return func(s *Service) { s.traceAgentEnv = env }
+func WithTraceAgentEnv(env string) func(s *options) {
+	return func(s *options) { s.traceAgentEnv = env }
+}
+
+// WithDatabaseFileName sets the service database file name
+func WithDatabaseFileName(fileName string) func(s *options) {
+	return func(s *options) { s.databaseFileName = fileName }
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...func(s *Service)) (*Service, error) {
-	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
+func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*Service, error) {
+	options := defaultOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 
+	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 	var refreshInterval time.Duration
 	if cfg.IsSet("remote_configuration.refresh_interval") {
 		refreshInterval = cfg.GetDuration("remote_configuration.refresh_interval")
@@ -216,7 +238,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []st
 		return nil, err
 	}
 
-	dbPath := path.Join(cfg.GetString("run_path"), "remote-config.db")
+	dbPath := path.Join(cfg.GetString("run_path"), options.databaseFileName)
 	db, err := openCacheDB(dbPath, agentVersion)
 	if err != nil {
 		return nil, err
@@ -260,7 +282,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []st
 		clientsCacheBypassLimit = defaultCacheBypassLimit
 	}
 
-	s := &Service{
+	return &Service{
 		firstUpdate:                    true,
 		defaultRefreshInterval:         refreshInterval,
 		refreshIntervalOverrideAllowed: refreshIntervalOverrideAllowed,
@@ -290,13 +312,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []st
 		agentVersion:      agentVersion,
 		stopOrgPoller:     make(chan struct{}),
 		stopConfigPoller:  make(chan struct{}),
-	}
-
-	for _, opt := range opts {
-		opt(s)
-	}
-
-	return s, nil
+	}, nil
 }
 
 func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
@@ -759,12 +775,16 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 		return status.Error(codes.InvalidArgument, "client.client_tracer is a required field for tracer client config update requests")
 	}
 
-	if request.Client.IsTracer && request.Client.IsAgent {
-		return status.Error(codes.InvalidArgument, "client.is_tracer and client.is_agent cannot both be true")
+	if request.Client.IsUpdater && request.Client.ClientUpdater == nil {
+		return status.Error(codes.InvalidArgument, "client.client_updater is a required field for updater client config update requests")
 	}
 
-	if !request.Client.IsTracer && !request.Client.IsAgent {
-		return status.Error(codes.InvalidArgument, "agents only support remote config updates from tracer or agent at this time")
+	if (request.Client.IsTracer && request.Client.IsAgent) || (request.Client.IsTracer && request.Client.IsUpdater) || (request.Client.IsAgent && request.Client.IsUpdater) {
+		return status.Error(codes.InvalidArgument, "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive")
+	}
+
+	if !request.Client.IsTracer && !request.Client.IsAgent && !request.Client.IsUpdater {
+		return status.Error(codes.InvalidArgument, "agents only support remote config updates from tracer or agent or updater at this time")
 	}
 
 	if request.Client.Id == "" {

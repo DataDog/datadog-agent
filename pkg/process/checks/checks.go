@@ -21,8 +21,6 @@ const (
 	ContainerCheckName     = "container"
 	RTContainerCheckName   = "rtcontainer"
 	ConnectionsCheckName   = "connections"
-	PodCheckName           = "pod"
-	PodCheckManifestName   = "pod_manifest"
 	DiscoveryCheckName     = "process_discovery"
 	ProcessEventsCheckName = "process_events"
 )
@@ -111,7 +109,6 @@ func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfigtypes.C
 		NewContainerCheck(config),
 		NewRTContainerCheck(config),
 		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg),
-		NewPodCheck(),
 		NewProcessDiscoveryCheck(config),
 		NewProcessEventsCheck(config),
 	}
