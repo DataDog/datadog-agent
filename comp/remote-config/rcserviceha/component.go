@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package rcserviceha is a remote config service that can run within the agent to receive remote config updates from the DD failover DC backend
+// Package rcserviceha is a remote config service that can run in the Agent to receive remote config updates from the DD failover DC backend.
 package rcserviceha
 
 import (
