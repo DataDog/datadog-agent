@@ -81,7 +81,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 	}
 }
 
-func newRegistrySerializer(re *model.RegistryEvent, e *model.Event, _ ...uint64) *RegistrySerializer {
+func newRegistrySerializer(re *model.RegistryEvent, _ *model.Event, _ ...uint64) *RegistrySerializer {
 	rs := &RegistrySerializer{
 		KeyName:   re.KeyName,
 		KeyPath:   re.KeyPath,

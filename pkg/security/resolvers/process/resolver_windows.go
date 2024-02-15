@@ -96,7 +96,7 @@ func (p *Resolver) AddToExitedQueue(pid uint32) {
 	p.exitedQueue = append(p.exitedQueue, pid)
 }
 
-// dequeueExited dequeue exited process
+// DequeueExited dequeue exited process
 func (p *Resolver) DequeueExited() {
 	p.Lock()
 	defer p.Unlock()
