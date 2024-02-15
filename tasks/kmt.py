@@ -412,6 +412,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, run_count = 1, fu
             f"-retry {retry}",
             f"-verbose" if test_logs else "",
             f"-run-count {run_count}",
+            "-test-root /opt/kernel-version-testing/system-probe-tests",
         ]
         for d in domains:
             d.copy(ctx, f"{tmp.name}", "/tmp")
