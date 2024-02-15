@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -56,9 +55,9 @@ func NewRCPolicyProvider() (*RCPolicyProvider, error) {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(config.Datadog) },
 		client.WithAgent(agentName, agentVersion.String()),
-		client.WithProducts([]data.Product{data.ProductCWSDD, data.ProductCWSCustom}),
+		client.WithProducts(state.ProductCWSDD, state.ProductCWSCustom),
 		client.WithPollInterval(securityAgentRCPollInterval),
 		client.WithDirectorRootOverride(config.Datadog.GetString("remote_configuration.director_root")),
 	)
@@ -136,10 +135,9 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, reader, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
-		} else {
-			normalize(policy)
-			policies = append(policies, policy)
 		}
+		normalize(policy)
+		policies = append(policies, policy)
 	}
 
 	for _, c := range r.lastDefaults {

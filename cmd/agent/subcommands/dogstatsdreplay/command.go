@@ -92,7 +92,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 	fmt.Printf("Replaying dogstatsd traffic...\n\n")
 
 	// TODO: refactor all the instantiation of the SecureAgentClient to a helper
-	token, err := security.FetchAuthToken()
+	token, err := security.FetchAuthToken(config)
 	if err != nil {
 		return fmt.Errorf("unable to fetch authentication token: %w", err)
 	}

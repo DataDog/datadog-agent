@@ -14,8 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -36,6 +38,7 @@ type ProvisionerParams struct {
 	agentOptions      []agentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
+	installDocker     bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -118,6 +121,14 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
+// WithDocker installs docker on the VM
+func WithDocker() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.installDocker = true
+		return nil
+	}
+}
+
 // ProvisionerNoAgentNoFakeIntake wraps Provisioner with hardcoded WithoutAgent and WithoutFakeIntake options.
 func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
 	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
@@ -136,8 +147,8 @@ func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[env
 	return Provisioner(mergedOpts...)
 }
 
-// HostRunFunction main provisioner work running here
-func HostRunFunction(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
+// Run deploys a environment given a pulumi.Context
+func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
 	var err error
 	if env.AwsEnvironment != nil {
@@ -156,6 +167,22 @@ func HostRunFunction(ctx *pulumi.Context, env *environments.Host, params *Provis
 	err = host.Export(ctx, &env.RemoteHost.HostOutput)
 	if err != nil {
 		return err
+	}
+
+	if params.installDocker {
+		_, dockerRes, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true)
+		if err != nil {
+			return err
+		}
+		if params.agentOptions != nil {
+			// Agent install needs to be serial with the docker
+			// install because they both use the apt lock, and
+			// can cause each others' installs to fail if run
+			// at the same time.
+			params.agentOptions = append(params.agentOptions,
+				agentparams.WithPulumiResourceOptions(
+					utils.PulumiDependsOn(dockerRes)))
+		}
 	}
 
 	// Create FakeIntake if required
@@ -209,7 +236,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := GetProvisionerParams(opts...)
-		return HostRunFunction(ctx, env, params)
+		return Run(ctx, env, params)
 	}, params.extraConfigParams)
 
 	return provisioner

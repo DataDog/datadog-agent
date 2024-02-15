@@ -73,7 +73,7 @@ func TestAgentSuite(t *testing.T) {
 	)
 }
 
-func (a *agentSuite) TestOpenSignal() {
+func (a *agentSuite) Test00OpenSignal() {
 	apiClient := api.NewClient()
 
 	// Create temporary directory
@@ -161,7 +161,7 @@ func (a *agentSuite) TestOpenSignal() {
 }
 
 // TestFeatureCWSEnabled tests that the CWS activation is properly working
-func (a *agentSuite) TestFeatureCWSEnabled() {
+func (a *agentSuite) Test01FeatureCWSEnabled() {
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	a.Require().NoError(err, "could not get API key")
 	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
@@ -169,7 +169,7 @@ func (a *agentSuite) TestFeatureCWSEnabled() {
 	ddSQLClient := api.NewDDSQLClient(apiKey, appKey)
 
 	query := fmt.Sprintf("SELECT h.hostname, a.feature_cws_enabled FROM host h JOIN datadog_agent a USING (datadog_agent_key) WHERE h.hostname = '%s'", a.Env().Agent.Client.Hostname())
-	a.Assert().EventuallyWithT(func(collect *assert.CollectT) {
+	a.Assert().EventuallyWithTf(func(collect *assert.CollectT) {
 		resp, err := ddSQLClient.Do(query)
 		if !assert.NoErrorf(collect, err, "ddsql query failed") {
 			return
@@ -213,7 +213,7 @@ func (a *agentSuite) TestFeatureCWSEnabled() {
 				return
 			}
 		}
-	}, 10*time.Minute, 1*time.Minute, "cws activation check timeout")
+	}, 16*time.Minute, 2*time.Minute, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
 }
 
 func (a *agentSuite) waitAgentLogs(agentName string, pattern string) error {

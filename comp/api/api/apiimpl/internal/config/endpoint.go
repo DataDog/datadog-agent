@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"strings"
 
 	gorilla "github.com/gorilla/mux"
 
@@ -19,10 +20,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const prefixPathSuffix string = "."
+
 type authorizedSet map[string]struct{}
 
-var authorizedConfigPathsCore = authorizedSet{
-	"api_key": {},
+var authorizedConfigPathsCore = buildAuthorizedSet(
+	"api_key", "site", "dd_url", "logs_config.dd_url", "ha",
+)
+
+func buildAuthorizedSet(paths ...string) authorizedSet {
+	authorizedPaths := make(authorizedSet, len(paths))
+	for _, path := range paths {
+		authorizedPaths[path] = struct{}{}
+	}
+	return authorizedPaths
 }
 
 type configEndpoint struct {
@@ -38,15 +49,37 @@ type configEndpoint struct {
 
 func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Request) {
 	vars := gorilla.Vars(r)
-	path := vars["path"]
 	// escape in case it contains html special characters that would be unsafe to include as is in a response
 	// all valid config paths won't contain such characters so for a valid request this is a no-op
-	path = html.EscapeString(path)
+	path := html.EscapeString(vars["path"])
 
-	if _, ok := c.authorizedConfigPaths[path]; !ok {
+	authorized := false
+	if _, ok := c.authorizedConfigPaths[path]; ok {
+		authorized = true
+	} else {
+		// check to see if the requested path matches any of the authorized paths by trying to treat
+		// the authorized path as a prefix: if the requested path is `foo.bar` and we have an
+		// authorized path of `foo`, then `foo.bar` would be allowed, or if we had a requested path
+		// of `foo.bar.quux`, and an authorized path of `foo.bar`, it would also be allowed
+		for authorizedPath := range c.authorizedConfigPaths {
+			if strings.HasPrefix(path, authorizedPath+prefixPathSuffix) {
+				authorized = true
+				break
+			}
+		}
+	}
+
+	if !authorized {
 		c.unauthorizedExpvar.Add(path, 1)
 		log.Warnf("config endpoint received a request from '%s' for config '%s' which is not allowed", r.RemoteAddr, path)
 		http.Error(w, fmt.Sprintf("querying config value '%s' is not allowed", path), http.StatusForbidden)
+		return
+	}
+
+	if !c.cfg.IsKnown(path) {
+		c.errorsExpvar.Add(path, 1)
+		log.Warnf("config endpoint received a request from '%s' for config '%s' which does not exist", r.RemoteAddr, path)
+		http.Error(w, fmt.Sprintf("config value '%s' does not exist", path), http.StatusNotFound)
 		return
 	}
 
@@ -109,6 +142,7 @@ func (c *configEndpoint) marshalAndSendResponse(w http.ResponseWriter, path stri
 		return
 	}
 
+	w.Header().Add("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(body)
 	if err != nil {
