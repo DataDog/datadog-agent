@@ -43,8 +43,6 @@ type ProcessSerializer struct {
 	OwnerSidString string `json:"user_sid,omitempty"`
 	// User name
 	User string `json:"user,omitempty"`
-	// Variables values
-	Variables Variables `json:"variables,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -67,7 +65,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 	}
 }
 
-func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *ProcessSerializer {
+func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
 	psSerializer := &ProcessSerializer{
 		ExecTime: getTimeIfNotZero(ps.ExecTime),
 		ExitTime: getTimeIfNotZero(ps.ExitTime),
@@ -78,7 +76,6 @@ func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *P
 		CmdLine:        e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
 		OwnerSidString: ps.OwnerSidString,
 		User:           e.FieldHandlers.ResolveUser(e, ps),
-		Variables:      newVariablesContext(e, opts, "process."),
 	}
 
 	if len(ps.ContainerID) != 0 {
@@ -89,13 +86,13 @@ func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *P
 	return psSerializer
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, opts *eval.Opts) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
 
 	ps := ProcessContextSerializer{
-		ProcessSerializer: newProcessSerializer(&pc.Process, e, opts),
+		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
 	ctx := eval.NewContext(e)
@@ -108,7 +105,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, opts 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		s := newProcessSerializer(&pce.Process, e, opts)
+		s := newProcessSerializer(&pce.Process, e)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -132,8 +129,8 @@ func (e *EventSerializer) ToJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event, opts *eval.Opts) ([]byte, error) {
-	s := NewEventSerializer(event, opts)
+func MarshalEvent(event *model.Event) ([]byte, error) {
+	s := NewEventSerializer(event)
 	return json.Marshal(s)
 }
 
@@ -143,8 +140,8 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
+func NewEventSerializer(event *model.Event) *EventSerializer {
 	return &EventSerializer{
-		BaseEventSerializer: NewBaseEventSerializer(event, opts),
+		BaseEventSerializer: NewBaseEventSerializer(event),
 	}
 }

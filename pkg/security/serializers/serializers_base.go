@@ -8,12 +8,8 @@
 package serializers
 
 import (
-	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -23,13 +19,7 @@ type ContainerContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// Creation time of the container
 	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
-	// Variables values
-	Variables Variables `json:"variables,omitempty"`
 }
-
-// Variables serializes the variable values
-// easyjson:json
-type Variables map[string]interface{}
 
 // MatchedRuleSerializer serializes a rule
 // easyjson:json
@@ -61,8 +51,6 @@ type EventContextSerializer struct {
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
 	// Origin of the event
 	Origin string `json:"origin,omitempty"`
-	// Variables values
-	Variables Variables `json:"variables,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -73,8 +61,6 @@ type ProcessContextSerializer struct {
 	Parent *ProcessSerializer `json:"parent,omitempty"`
 	// Ancestor processes
 	Ancestors []*ProcessSerializer `json:"ancestors,omitempty"`
-	// Variables values
-	Variables Variables `json:"variables,omitempty"`
 }
 
 // IPPortSerializer is used to serialize an IP and Port context to JSON
@@ -224,18 +210,17 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 }
 
 // NewBaseEventSerializer creates a new event serializer based on the event type
-func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSerializer {
+func NewBaseEventSerializer(event *model.Event) *BaseEventSerializer {
 	pc := event.ProcessContext
 
 	eventType := model.EventType(event.Type)
 
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
-			Name:      eventType.String(),
-			Origin:    event.Origin,
-			Variables: newVariablesContext(event, opts, ""),
+			Name:   eventType.String(),
+			Origin: event.Origin,
 		},
-		ProcessContextSerializer: newProcessContextSerializer(pc, event, opts),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 
@@ -263,41 +248,4 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 	}
 
 	return s
-}
-
-func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variables Variables) {
-	if opts != nil && opts.VariableStore != nil {
-		store := opts.VariableStore
-		for name, variable := range store.Variables {
-			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
-				(prefix == "" && strings.Contains(name, ".")) {
-				continue
-			}
-
-			evaluator := variable.GetEvaluator()
-			if evaluator, ok := evaluator.(eval.Evaluator); ok {
-				value := evaluator.Eval(eval.NewContext(e))
-				if variables == nil {
-					variables = Variables{}
-				}
-				if value != nil {
-					switch value := value.(type) {
-					case []string:
-						for _, value := range value {
-							if scrubbed, err := scrubber.ScrubString(value); err == nil {
-								variables[strings.TrimPrefix(name, prefix)] = scrubbed
-							}
-						}
-					case string:
-						if scrubbed, err := scrubber.ScrubString(value); err == nil {
-							variables[strings.TrimPrefix(name, prefix)] = scrubbed
-						}
-					default:
-						variables[strings.TrimPrefix(name, prefix)] = value
-					}
-				}
-			}
-		}
-	}
-	return variables
 }
