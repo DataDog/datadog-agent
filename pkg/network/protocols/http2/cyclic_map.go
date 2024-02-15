@@ -7,7 +7,10 @@
 
 package http2
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 // CyclicMap represents a map with a fixed capacity circular map. When the map is full, adding a new element
 // will remove the oldest one.
@@ -34,7 +37,7 @@ type CyclicMap[K comparable, V any] struct {
 func NewCyclicMap[K comparable, V any](capacity int, onEvict func(key K, value V)) *CyclicMap[K, V] {
 	return &CyclicMap[K, V]{
 		capacity: capacity,
-		list:     make([]K, 0, capacity),
+		list:     make([]K, 0),
 		values:   make(map[K]V),
 		onEvict:  onEvict,
 	}
@@ -47,6 +50,7 @@ func (c *CyclicMap[K, V]) Add(key K, value V) {
 
 	// If the list is full, remove the currentElement
 	if c.len == c.capacity {
+		c.list = slices.Clip(c.list)
 		c.removeOldestNoLock()
 		c.list[c.head] = key
 	} else {
