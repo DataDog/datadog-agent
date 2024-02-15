@@ -510,6 +510,9 @@ func startAgent(
 			// Subscribe to `AGENT_TASK` product
 			rcclient.SubscribeAgentTask()
 
+			// Subscribe to `APM_TRACING` product
+			rcclient.SubscribeApmTracing()
+
 			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
 				// Spin up the config provider to schedule integrations through remote-config
 				rcProvider := providers.NewRemoteConfigProvider()
