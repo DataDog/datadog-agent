@@ -264,6 +264,14 @@ func (dt *DynamicTable) handleNewDynamicTableEntry(val *http2DynamicTableValue) 
 	// This may trigger an eviction in the LRU datastore, and maybe remove the evicted entry from the kernel map.
 	ds[val.Key.Tup].Add(val.Key.Index, dynamicValue)
 	dsSize.Inc()
+	if !val.Temporary {
+		// The kernel map might be full, and our insertion to the datastore might have triggered an eviction, and by
+		// that freed up space in the kernel map. We need to update the kernel map with the new value, to ensure
+		// it exists.
+		if err := dt.kernelDynamicTableMap.Update(unsafe.Pointer(&val.Key), unsafe.Pointer(&val.Type), ebpf.UpdateAny); err != nil {
+			log.Errorf("failed to update the kernel dynamic table map: %s", err)
+		}
+	}
 }
 
 // launchPerfHandlerProcessor starts the perf handler used to receive new paths from the kernel.
