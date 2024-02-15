@@ -77,10 +77,9 @@ func (b *BaseAgentInstallerSuite[Env]) NewTestClientForHost(host *components.Rem
 	return platformCommon.NewWindowsTestClient(b.T(), host)
 }
 
-// SetupSuite overrides the base SetupSuite to perform some additional setups like setting the package to install
-// or getting the output directory for the install logs.
-func (b *BaseAgentInstallerSuite[Env]) SetupSuite() {
-	b.BaseSuite.SetupSuite()
+// BeforeTest overrides the base BeforeTest to perform some additional per-test setup like configuring the output directory.
+func (b *BaseAgentInstallerSuite[Env]) BeforeTest(suiteName, testName string) {
+	b.BaseSuite.BeforeTest(suiteName, testName)
 
 	var err error
 	b.OutputDir, err = runner.GetTestOutputDir(runner.GetProfile(), b.T())
@@ -88,7 +87,13 @@ func (b *BaseAgentInstallerSuite[Env]) SetupSuite() {
 		b.T().Fatalf("should get output dir")
 	}
 	b.T().Logf("Output dir: %s", b.OutputDir)
+}
 
+// SetupSuite overrides the base SetupSuite to perform some additional setups like setting the package to install.
+func (b *BaseAgentInstallerSuite[Env]) SetupSuite() {
+	b.BaseSuite.SetupSuite()
+
+	var err error
 	b.AgentPackage, err = windowsAgent.GetPackageFromEnv()
 	if err != nil {
 		b.T().Fatalf("failed to get MSI URL from env: %v", err)
