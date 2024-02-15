@@ -149,3 +149,16 @@ class MacOS:
         # Add || true to the commands because they might fail if it's already loaded/started
         ctx.sudo("launchctl load -w /System/Library/LaunchDaemons/bootps.plist || true")
         ctx.sudo("launchctl start com.apple.bootpd || true")
+
+        # Configure sharing of the kmt directory
+        ctx.sudo(f"mkdir -p {MacOS.shared_dir}")
+
+        exports_file = Path("/etc/exports")
+
+        if not exports_file.exists() or os.fspath(MacOS.shared_dir) not in exports_file.read_text():
+            ctx.sudo(
+                f"echo '/opt/kernel-version-testing -network 192.168.0.0 -mask 255.255.0.0' | tee -a {exports_file}"
+            )
+
+        ctx.sudo("nfsd enable || true")
+        ctx.sudo("nfsd restart")
