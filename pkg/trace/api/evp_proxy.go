@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -28,8 +28,8 @@ const (
 	validPathQueryStringSymbols = "/_-+@?&=.:\""
 )
 
-// allowedHeaders contains the headers that the proxy will forward. All others will be cleared.
-var allowedHeaders = [...]string{"Content-Type", "User-Agent", "DD-CI-PROVIDER-NAME"}
+// EvpProxyAllowedHeaders contains the headers that the proxy will forward. All others will be cleared.
+var EvpProxyAllowedHeaders = []string{"Content-Type", "Accept-Encoding", "Content-Encoding", "User-Agent", "DD-CI-PROVIDER-NAME"}
 
 // evpProxyEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
 func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
@@ -57,7 +57,7 @@ func (r *HTTPReceiver) evpProxyHandler(apiVersion int) http.Handler {
 	if !r.conf.EVPProxy.Enabled {
 		return evpProxyErrorHandler("Has been disabled in config")
 	}
-	handler := evpProxyForwarder(r.conf)
+	handler := evpProxyForwarder(r.conf, r.statsd)
 	return http.StripPrefix(fmt.Sprintf("/evp_proxy/v%d", apiVersion), handler)
 }
 
@@ -74,7 +74,7 @@ func evpProxyErrorHandler(message string) http.Handler {
 // one or more endpoints, based on the request received and the Agent configuration.
 // Headers are not proxied, instead we add our own known set of headers.
 // See also evpProxyTransport below.
-func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
+func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) http.Handler {
 	endpoints := evpProxyEndpointsFromConfig(conf)
 	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPProxy: ", 0) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
@@ -84,7 +84,7 @@ func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
 			req.Header["X-Forwarded-For"] = nil
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewIDProvider(conf.ContainerProcRoot)},
+		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewIDProvider(conf.ContainerProcRoot), statsd},
 	}
 }
 
@@ -98,6 +98,7 @@ type evpProxyTransport struct {
 	endpoints           []config.Endpoint
 	conf                *config.AgentConfig
 	containerIDProvider IDProvider
+	statsd              statsd.ClientInterface
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -110,11 +111,11 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		tags = append(tags, "content_type:"+ct)
 	}
 	defer func() {
-		metrics.Count("datadog.trace_agent.evp_proxy.request", 1, tags, 1)
-		metrics.Count("datadog.trace_agent.evp_proxy.request_bytes", req.ContentLength, tags, 1)
-		metrics.Timing("datadog.trace_agent.evp_proxy.request_duration_ms", time.Since(start), tags, 1)
+		_ = t.statsd.Count("datadog.trace_agent.evp_proxy.request", 1, tags, 1)
+		_ = t.statsd.Count("datadog.trace_agent.evp_proxy.request_bytes", req.ContentLength, tags, 1)
+		_ = t.statsd.Timing("datadog.trace_agent.evp_proxy.request_duration_ms", time.Since(start), tags, 1)
 		if rerr != nil {
-			metrics.Count("datadog.trace_agent.evp_proxy.request_error", 1, tags, 1)
+			_ = t.statsd.Count("datadog.trace_agent.evp_proxy.request_error", 1, tags, 1)
 		}
 	}()
 
@@ -150,7 +151,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", t.conf.AgentVersion))
 
 	// Copy allowed headers from the input request
-	for _, header := range allowedHeaders {
+	for _, header := range EvpProxyAllowedHeaders {
 		val := inputHeaders.Get(header)
 		if val != "" {
 			req.Header.Set(header, val)
@@ -162,10 +163,12 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		req.Header.Set(header.ContainerID, containerID)
 		if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
+			log.Debugf("Setting header X-Datadog-Container-Tags=%s for evp proxy", ctags)
 		}
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
+	log.Debugf("Setting headers X-Datadog-Hostnames=%s, X-Datadog-AgentDefaultEnv=%s for evp proxy", t.conf.Hostname, t.conf.DefaultEnv)
 	req.Header.Set(header.ContainerID, containerID)
 	if needsAppKey {
 		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)

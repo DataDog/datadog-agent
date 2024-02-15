@@ -39,6 +39,12 @@ type ProcessSerializer struct {
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// Command line arguments
 	CmdLine string `json:"cmdline,omitempty"`
+	// User's sid
+	OwnerSidString string `json:"user_sid,omitempty"`
+	// User name
+	User string `json:"user,omitempty"`
+	// Variables values
+	Variables Variables `json:"variables,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -61,15 +67,18 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 	}
 }
 
-func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
+func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *ProcessSerializer {
 	psSerializer := &ProcessSerializer{
 		ExecTime: getTimeIfNotZero(ps.ExecTime),
 		ExitTime: getTimeIfNotZero(ps.ExitTime),
 
-		Pid:        ps.Pid,
-		PPid:       getUint32Pointer(&ps.PPid),
-		Executable: newFileSerializer(&ps.FileEvent, e),
-		CmdLine:    e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
+		Pid:            ps.Pid,
+		PPid:           getUint32Pointer(&ps.PPid),
+		Executable:     newFileSerializer(&ps.FileEvent, e),
+		CmdLine:        e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
+		OwnerSidString: ps.OwnerSidString,
+		User:           e.FieldHandlers.ResolveUser(e, ps),
+		Variables:      newVariablesContext(e, opts, "process."),
 	}
 
 	if len(ps.ContainerID) != 0 {
@@ -80,13 +89,13 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 	return psSerializer
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, opts *eval.Opts) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
 
 	ps := ProcessContextSerializer{
-		ProcessSerializer: newProcessSerializer(&pc.Process, e),
+		ProcessSerializer: newProcessSerializer(&pc.Process, e, opts),
 	}
 
 	ctx := eval.NewContext(e)
@@ -99,7 +108,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		s := newProcessSerializer(&pce.Process, e)
+		s := newProcessSerializer(&pce.Process, e, opts)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -123,8 +132,8 @@ func (e *EventSerializer) ToJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event) ([]byte, error) {
-	s := NewEventSerializer(event)
+func MarshalEvent(event *model.Event, opts *eval.Opts) ([]byte, error) {
+	s := NewEventSerializer(event, opts)
 	return json.Marshal(s)
 }
 
@@ -134,8 +143,8 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event) *EventSerializer {
+func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	return &EventSerializer{
-		BaseEventSerializer: NewBaseEventSerializer(event),
+		BaseEventSerializer: NewBaseEventSerializer(event, opts),
 	}
 }

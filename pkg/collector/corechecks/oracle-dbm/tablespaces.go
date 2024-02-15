@@ -24,7 +24,7 @@ const tablespaceQuery12 = `SELECT
 FROM
   cdb_tablespace_usage_metrics m, cdb_tablespaces t, v$containers c
 WHERE
-  m.tablespace_name(+) = t.tablespace_name and c.con_id(+) = t.con_id`
+  m.con_id = t.con_id and m.tablespace_name(+) = t.tablespace_name and c.con_id(+) = t.con_id`
 
 const tablespaceQuery11 = `SELECT
   t.tablespace_name tablespace_name,
@@ -37,6 +37,22 @@ FROM
 WHERE
   m.tablespace_name(+) = t.tablespace_name`
 
+const (
+	maxSizeQuery12 = `SELECT
+  c.name pdb_name,
+  f.tablespace_name tablespace_name,
+  SUM(CASE WHEN autoextensible = 'YES' THEN maxbytes ELSE bytes END) maxsize
+FROM cdb_data_files f, v$containers c
+WHERE c.con_id(+) = f.con_id
+GROUP BY c.name, f.tablespace_name`
+
+	maxSizeQuery11 = `SELECT
+	f.tablespace_name tablespace_name,
+	SUM(CASE WHEN autoextensible = 'YES' THEN maxbytes ELSE bytes END) maxsize
+	FROM dba_data_files f
+	GROUP BY f.tablespace_name`
+)
+
 //nolint:revive // TODO(DBM) Fix revive linter
 type RowDB struct {
 	PdbName        sql.NullString `db:"PDB_NAME"`
@@ -47,31 +63,54 @@ type RowDB struct {
 	Offline        float64        `db:"OFFLINE_"`
 }
 
+type rowMaxSizeDB struct {
+	PdbName        sql.NullString `db:"PDB_NAME"`
+	TablespaceName string         `db:"TABLESPACE_NAME"`
+	MaxSize        float64        `db:"MAXSIZE"`
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) Tablespaces() error {
 	rows := []RowDB{}
-	var tablespaceQuery string
+	var tablespaceQuery, maxSizeQuery string
 	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 		tablespaceQuery = tablespaceQuery12
+		maxSizeQuery = maxSizeQuery12
 	} else {
 		tablespaceQuery = tablespaceQuery11
+		maxSizeQuery = maxSizeQuery11
 	}
 	err := selectWrapper(c, &rows, tablespaceQuery)
 	if err != nil {
 		return fmt.Errorf("failed to collect tablespace info: %w", err)
 	}
+
 	sender, err := c.GetSender()
 	if err != nil {
 		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
+
 	for _, r := range rows {
 		tags := appendPDBTag(c.tags, r.PdbName)
 		tags = append(tags, "tablespace:"+r.TablespaceName)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.used", common.IntegrationName), r.Used, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.size", common.IntegrationName), r.Size, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.in_use", common.IntegrationName), r.InUse, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.offline", common.IntegrationName), r.Offline, "", tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.tablespace.used", common.IntegrationName), r.Used, tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.tablespace.size", common.IntegrationName), r.Size, tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.tablespace.in_use", common.IntegrationName), r.InUse, tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.tablespace.offline", common.IntegrationName), r.Offline, tags)
 	}
+
+	rowsMaxSize := []rowMaxSizeDB{}
+	err = selectWrapper(c, &rowsMaxSize, maxSizeQuery)
+	if err != nil {
+		return fmt.Errorf("failed to collect max size tablespace info: %w", err)
+	}
+
+	for _, r := range rowsMaxSize {
+		tags := appendPDBTag(c.tags, r.PdbName)
+		tags = append(tags, "tablespace:"+r.TablespaceName)
+		sendMetric(c, gauge, fmt.Sprintf("%s.tablespace.maxsize", common.IntegrationName), r.MaxSize, tags)
+	}
+
 	sender.Commit()
 	return nil
 }

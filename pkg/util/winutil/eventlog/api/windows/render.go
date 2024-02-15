@@ -128,7 +128,9 @@ func (v *evtVariantValues) Buffer() unsafe.Pointer {
 }
 
 func (v *evtVariantValues) Close() {
-	C.free(v.buf)
+	if v.buf != nil {
+		C.free(v.buf)
+	}
 }
 
 // EvtRenderEventValues renders EvtRenderEventValues
@@ -145,6 +147,8 @@ func (api *API) EvtRenderEventValues(Context evtapi.EventRenderContextHandle, Fr
 // evtRenderEventValues renders EvtRenderEventValues
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
 func evtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evtapi.EventRecordHandle) (*evtVariantValues, error) {
+
+	var rv evtVariantValues
 
 	Flags := evtapi.EvtRenderEventValues
 	// Get required buffer size
@@ -164,7 +168,7 @@ func evtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evta
 			return nil, lastErr
 		}
 	} else {
-		return nil, nil
+		return &rv, nil
 	}
 
 	if BufferUsed == 0 {
@@ -195,7 +199,6 @@ func evtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evta
 		return nil, lastErr
 	}
 
-	var rv evtVariantValues
 	rv.buf = Buffer
 	rv.count = (uint)(PropertyCount)
 

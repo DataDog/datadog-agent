@@ -5,7 +5,6 @@ qa_statuses = [
   "Done",
 ]
 ignored_labels = [
-  "qa/skip-qa",
   "qa/done",
   "qa/no-code-change",
 ]
@@ -35,6 +34,7 @@ github_labels = ["team/agent-shared-components"]
 exclude_members = [
   "sgnn7",
   "truthbk",
+  "cmourot",
 ]
 
 [teams."Agent Platform"]
@@ -116,7 +116,8 @@ jira_statuses = [
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
 exclude_members = [
-  "hithwen",
+  "ofek",
+  "alopezz",
 ]
 
 [teams."Platform Integrations"]

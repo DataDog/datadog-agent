@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-systemd/dbus"
-	godbus "github.com/godbus/dbus"
+	"github.com/coreos/go-systemd/v22/dbus"
+	godbus "github.com/godbus/dbus/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -1011,7 +1011,7 @@ unit_names:
 
 	systemdCheck := SystemdCheck{
 		stats:     stats,
-		CheckBase: core.NewCheckBase(systemdCheckName),
+		CheckBase: core.NewCheckBase(CheckName),
 	}
 	mockSender := mocksender.NewMockSender(systemdCheck.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1028,8 +1028,8 @@ unit_names:
 }
 
 func TestCheckID(t *testing.T) {
-	check1 := systemdFactory()
-	check2 := systemdFactory()
+	check1 := newCheck()
+	check2 := newCheck()
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 
 	// language=yaml

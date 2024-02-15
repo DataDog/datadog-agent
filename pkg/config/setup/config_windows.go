@@ -18,6 +18,8 @@ var (
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultRunPath              = "c:\\programdata\\datadog\\run"
 	defaultGuiPort              = 5002
+	// DefaultUpdaterLogFile is the default updater log file
+	DefaultUpdaterLogFile = "c:\\programdata\\datadog\\logs\\updater.log"
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	DefaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
@@ -28,6 +30,8 @@ var (
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
+	// InstallPath is the default install path for the agent
+	InstallPath = "c:\\Program Files\\Datadog\\Datadog Agent"
 )
 
 func osinit() {

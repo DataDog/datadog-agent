@@ -108,7 +108,13 @@ func (rd *RuleDefinition) GetTag(tagKey string) (string, bool) {
 func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	switch rd2.Combine {
 	case OverridePolicy:
-		rd.Expression = rd2.Expression
+		// keep the old expression if the new one is empty
+		expression := rd.Expression
+
+		*rd = *rd2
+		if rd2.Expression == "" {
+			rd.Expression = expression
+		}
 	default:
 		if !rd2.Disabled {
 			return &ErrRuleLoad{Definition: rd2, Err: ErrDefinitionIDConflict}
@@ -201,7 +207,7 @@ func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*Macro
 func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, macroDef *MacroDefinition) (*eval.Macro, error) {
 	var err error
 
-	if macro := rs.evalOpts.MacroStore.Get(macroDef.ID); macro != nil {
+	if rs.evalOpts.MacroStore.Contains(macroDef.ID) {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: ErrDefinitionIDConflict}
 	}
 
@@ -238,12 +244,12 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDef
 	return result
 }
 
-func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefinition) *multierror.Error {
+func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefinition, opts PolicyLoaderOpts) *multierror.Error {
 	var errs *multierror.Error
 
 	for _, rule := range policyRules {
 		for _, action := range rule.Actions {
-			if err := action.Check(); err != nil {
+			if err := action.Check(opts); err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("invalid action: %w", err))
 				continue
 			}
@@ -418,6 +424,25 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 		}
 	}
 
+	for _, action := range rule.Definition.Actions {
+		// compile action filter
+		if action.Filter != nil {
+			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
+				return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
+			}
+		}
+
+		if action.Set != nil && action.Set.Field != "" {
+			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
+				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
+				if err != nil {
+					return nil, err
+				}
+				rs.fieldEvaluators[action.Set.Field] = evaluator
+			}
+		}
+	}
+
 	for _, event := range rule.GetEvaluator().EventTypes {
 		bucket, exists := rs.eventRuleBuckets[event]
 		if !exists {
@@ -434,25 +459,6 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
 	rs.rules[ruleDef.ID] = rule
-
-	for _, action := range rule.Definition.Actions {
-		if action.Set != nil && action.Set.Field != "" {
-			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
-				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
-				if err != nil {
-					return nil, err
-				}
-				rs.fieldEvaluators[action.Set.Field] = evaluator
-			}
-		}
-
-		// compile action filter
-		if action.Filter != nil {
-			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
-				return nil, err
-			}
-		}
-	}
 
 	return rule.Rule, nil
 }
@@ -530,7 +536,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, model.NewDefaultEvent(), fieldCaps)
+	return GetApprovers(bucket.rules, model.NewFakeEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -642,12 +648,12 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 			}
 
-			rs.NotifyRuleMatch(rule, event)
-			result = true
-
 			if err := rs.runRuleActions(event, ctx, rule); err != nil {
 				rs.logger.Errorf("Error while executing rule actions: %s", err)
 			}
+
+			rs.NotifyRuleMatch(rule, event)
+			result = true
 		}
 	}
 

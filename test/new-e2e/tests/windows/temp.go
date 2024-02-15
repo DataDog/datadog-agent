@@ -8,14 +8,14 @@ package windows
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 // GetTemporaryFile returns a new temporary file path
 // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/new-temporaryfile?view=powershell-7.4
-func GetTemporaryFile(vm client.VM) (string, error) {
+func GetTemporaryFile(host *components.RemoteHost) (string, error) {
 	cmd := "(New-TemporaryFile).FullName"
-	out, err := vm.ExecuteWithError(cmd)
+	out, err := host.Execute(cmd)
 	if err != nil {
 		return "", err
 	}

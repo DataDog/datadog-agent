@@ -8,13 +8,13 @@
 package mutate
 
 import (
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/require"
@@ -96,20 +96,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   "default/dummy",
 		},
-		ContainerLanguages: map[string][]languagemodels.Language{
-			"container-1": {
-				{
-					Name: "java",
-				},
-				{
-					Name: "js",
-				},
-			},
-			"container-2": {
-				{
-					Name: "python",
-				},
-			},
+		InjectableLanguages: langUtil.ContainersLanguages{
+			*langUtil.NewContainer("container-1"): {"java": {}, "js": {}},
+			*langUtil.NewContainer("container-2"): {"python": {}},
 		},
 	})
 
@@ -118,20 +107,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   "custom/dummy",
 		},
-		ContainerLanguages: map[string][]languagemodels.Language{
-			"container-1": {
-				{
-					Name: "ruby",
-				},
-				{
-					Name: "python",
-				},
-			},
-			"container-2": {
-				{
-					Name: "java",
-				},
-			},
+		InjectableLanguages: langUtil.ContainersLanguages{
+			*langUtil.NewContainer("container-1"): {"ruby": {}, "python": {}},
+			*langUtil.NewContainer("container-2"): {"java": {}},
 		},
 	})
 

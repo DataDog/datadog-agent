@@ -12,31 +12,10 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from .libs.common.color import color_message
-from .libs.common.github_api import GithubAPI
-from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
-from .libs.datadog_api import create_count, send_metrics
-from .libs.pipeline_data import get_failed_jobs
-from .libs.pipeline_notifications import (
-    GITHUB_SLACK_MAP,
-    base_message,
-    check_for_missing_owners_slack_and_jira,
-    find_job_owners,
-    get_failed_tests,
-    read_owners,
-    send_slack_message,
-)
-from .libs.pipeline_stats import get_failed_jobs_stats
-from .libs.pipeline_tools import (
-    FilteredOutException,
-    cancel_pipelines_with_confirmation,
-    get_running_pipelines_on_same_ref,
-    gracefully_cancel_pipeline,
-    trigger_agent_pipeline,
-    wait_for_pipeline,
-)
-from .libs.types import FailedJobs, SlackMessage, TeamMessage
-from .utils import (
+from tasks.libs.common.color import color_message
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
+from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
     check_clean_branch_state,
@@ -45,6 +24,27 @@ from .utils import (
     nightly_entry_for,
     release_entry_for,
 )
+from tasks.libs.datadog_api import create_count, send_metrics
+from tasks.libs.pipeline_data import get_failed_jobs
+from tasks.libs.pipeline_notifications import (
+    GITHUB_SLACK_MAP,
+    base_message,
+    check_for_missing_owners_slack_and_jira,
+    find_job_owners,
+    get_failed_tests,
+    read_owners,
+    send_slack_message,
+)
+from tasks.libs.pipeline_stats import get_failed_jobs_stats
+from tasks.libs.pipeline_tools import (
+    FilteredOutException,
+    cancel_pipelines_with_confirmation,
+    get_running_pipelines_on_same_ref,
+    gracefully_cancel_pipeline,
+    trigger_agent_pipeline,
+    wait_for_pipeline,
+)
+from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
 
 
 class GitlabReference(yaml.YAMLObject):
@@ -239,6 +239,7 @@ def run(
     all_builds=True,
     kitchen_tests=True,
     e2e_tests=False,
+    rc_build=False,
     rc_k8s_deployments=False,
 ):
     """
@@ -248,6 +249,10 @@ def run(
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
+
+    Release Candidate related flags:
+    Use --rc-build to mark the build as Release Candidate.
+    Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
 
     By default, the nightly release.json entries (nightly and nightly-a7) are used.
     Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
@@ -345,6 +350,7 @@ def run(
             all_builds=all_builds,
             kitchen_tests=kitchen_tests,
             e2e_tests=e2e_tests,
+            rc_build=rc_build,
             rc_k8s_deployments=rc_k8s_deployments,
         )
     except FilteredOutException:
@@ -438,13 +444,14 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dic
     return messages_to_send
 
 
-@task
-def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
+@task(iterable=['variable'])
+def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True):
     """
     Trigger a child pipeline on a target repository and git ref.
     Used in CI jobs only (requires CI_JOB_TOKEN).
 
-    Use --variables to specify the environment variables that should be passed to the child pipeline, as a comma-separated list.
+    Use --variable to specify the environment variables that should be passed to the child pipeline.
+    You can pass the argument multiple times for each new variable you wish to forward
 
     Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
 
@@ -470,8 +477,20 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
     data = {"token": os.environ['CI_JOB_TOKEN'], "ref": git_ref, "variables": {}}
 
     # Fill the environment variables to pass to the child pipeline.
-    for v in variables.split(','):
-        data['variables'][v] = os.environ[v]
+    if variable:
+        for v in variable:
+            # An empty string or a terminal ',' will yield an empty string which
+            # we don't need to bother with
+            if not v:
+                continue
+            if v not in os.environ:
+                print(
+                    color_message(
+                        f"WARNING: attempting to pass undefined variable \"{v}\" to downstream pipeline", "orange"
+                    )
+                )
+                continue
+            data['variables'][v] = os.environ[v]
 
     print(
         f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}",
@@ -547,6 +566,21 @@ def changelog(ctx, new_commit_sha):
     if not old_commit_sha:
         print("Old commit sha not found, exiting")
         return
+
+    commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
+    empty_changelog_msg = "No new System Probe related commits in this release :cricket:"
+    no_commits_msg = "No new commits in this release :cricket:"
+    slack_message = (
+        "The nightly deployment is rolling out to Staging :siren: \n"
+        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+    )
+
+    if old_commit_sha == new_commit_sha:
+        print("No new commits found, exiting")
+        slack_message += no_commits_msg
+        send_slack_message("system-probe-ops", slack_message)
+        return
+
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
     commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     owners = read_owners(".github/CODEOWNERS")
@@ -573,11 +607,6 @@ def changelog(ctx, new_commit_sha):
         time.sleep(1)  # necessary to prevent slack/sdm API rate limits
         messages.append(f"{message_link} {author_handle}")
 
-    commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
-    slack_message = (
-        "The nightly deployment is rolling out to Staging :siren: \n"
-        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
-    )
     if messages:
         slack_message += (
             "\n".join(messages) + "\n:wave: Authors, please check the "
@@ -587,7 +616,7 @@ def changelog(ctx, new_commit_sha):
             "&tpl_var_cluster_name%5B5%5D=lagaffe&tpl_var_datacenter%5B0%5D=%2A|dashboard> for issues"
         )
     else:
-        slack_message += "No new System Probe related commits in this release :cricket:"
+        slack_message += empty_changelog_msg
 
     print(f"Posting message to slack: \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)

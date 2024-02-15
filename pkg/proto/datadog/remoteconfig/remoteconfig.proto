@@ -54,6 +54,7 @@ message LatestConfigsRequest {
   string error = 12;
   string trace_agent_env = 13;
   string org_uuid = 14;
+  repeated string tags = 15;
 }
 
 message LatestConfigsResponse {
@@ -84,6 +85,9 @@ message Client {
   ClientAgent client_agent = 9;
   uint64 last_seen = 10;
   bytes capabilities = 11;
+  reserved 12, 13;
+  bool is_updater = 14;
+  ClientUpdater client_updater = 15;
 }
 
 message ClientTracer {
@@ -103,6 +107,29 @@ message ClientAgent {
   string cluster_name = 3;
   string cluster_id = 4;
   repeated string cws_workloads = 5;
+}
+
+message ClientUpdater {
+  repeated string tags = 1;
+  repeated PackageState packages = 2;
+}
+
+enum ExperimentState {
+  NO_EXPERIMENT = 0;
+  DOWNLOADING = 1;
+  INSTALLING = 2;
+  PENDING = 3;
+  RUNNING = 4;
+  ERROR = 5;
+}
+
+message PackageState {
+  string package = 1;
+  string stable_version = 2;
+  string experiment_version = 3;
+  ExperimentState experiment_state = 4;
+  uint64 experiment_error_code = 5;
+  string experiment_error_message = 6;
 }
 
 message ConfigState {

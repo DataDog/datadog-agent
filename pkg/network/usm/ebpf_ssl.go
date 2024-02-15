@@ -26,12 +26,11 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -420,12 +419,11 @@ var opensslSpec = &protocols.ProtocolSpec{
 
 type sslProgram struct {
 	cfg          *config.Config
-	sockFDMap    *ebpf.Map
 	watcher      *sharedlibraries.Watcher
 	istioMonitor *istioMonitor
 }
 
-func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) protocols.ProtocolFactory {
+func newSSLProgramProtocolFactory(m *manager.Manager, bpfTelemetry *ebpftelemetry.EBPFTelemetry) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
 		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring {
 			return nil, nil
@@ -464,7 +462,6 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 		return &sslProgram{
 			cfg:          c,
 			watcher:      watcher,
-			sockFDMap:    sockFDMap,
 			istioMonitor: newIstioMonitor(c, m),
 		}, nil
 	}
@@ -479,16 +476,6 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-
-	if options.MapEditors == nil {
-		options.MapEditors = make(map[string]*ebpf.Map)
-	}
-
-	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
-		MaxEntries: o.cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
-	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 }
 
 func (o *sslProgram) PreStart(*manager.Manager) error {

@@ -40,7 +40,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -291,8 +291,8 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
-			telemetry.RegisterCollector(ebpf.NewDebugFsStatCollector())
-			if pc := ebpf.NewPerfUsageCollector(); pc != nil {
+			telemetry.RegisterCollector(ebpftelemetry.NewDebugFsStatCollector())
+			if pc := ebpftelemetry.NewPerfUsageCollector(); pc != nil {
 				telemetry.RegisterCollector(pc)
 			}
 		}
@@ -310,7 +310,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 	// Setup healthcheck port
 	healthPort := cfg.HealthPort
 	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, healthPort)
+		err := healthprobe.Serve(ctx, ddconfig.Datadog, healthPort)
 		if err != nil {
 			return log.Errorf("error starting health check server, exiting: %s", err)
 		}

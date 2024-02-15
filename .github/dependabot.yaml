@@ -112,7 +112,6 @@ updates:
       - dev/tooling
       - team/agent-platform
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
     milestone: 22
     schedule:
@@ -139,7 +138,6 @@ updates:
       - dependencies-go
       - team/agent-e2e-test
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
       - dev/testing
     milestone: 22
@@ -158,26 +156,11 @@ updates:
       - dependencies-go
       - team/agent-e2e-test
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
       - dev/testing
     milestone: 22
     schedule:
       interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: pip
-    directory: /.circleci
-    labels:
-      - dependencies
-      - python
-      - team/agent-platform
-      - changelog/no-changelog
-      - qa/skip-qa
-      - qa/no-code-change
-      - dev/tooling
-    milestone: 22
-    schedule:
-      interval: monthly
     open-pull-requests-limit: 100
   - package-ecosystem: pip
     directory: /test/e2e/cws-tests
@@ -186,7 +169,6 @@ updates:
       - python
       - team/agent-security
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
       - dev/tooling
     milestone: 22
@@ -199,7 +181,6 @@ updates:
       - dependencies
       - team/agent-e2e-test
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
       - dev/testing
     milestone: 22
@@ -213,7 +194,6 @@ updates:
       - dependencies-github-actions
       - team/agent-platform
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
       - dev/tooling
     milestone: 22

@@ -416,7 +416,7 @@ func TestJSONPatchCorrectness(t *testing.T) {
 	podJSON, err := json.Marshal(pod)
 	assert.NoError(t, err)
 
-	jsonPatch, err := mutate(podJSON, "bar", injectConfig, nil)
+	jsonPatch, err := Mutate(podJSON, "bar", injectConfig, nil)
 	assert.NoError(t, err)
 
 	expected, err := os.ReadFile("./testdata/expected_jsonpatch.json")
@@ -443,7 +443,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		jsonPatch, err := mutate(podJSON, "foobar-bax", injectConfig, nil)
+		jsonPatch, err := Mutate(podJSON, "foobar-bax", injectConfig, nil)
 		if err != nil {
 			b.Fatal(err)
 		}

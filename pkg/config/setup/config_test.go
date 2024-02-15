@@ -720,6 +720,10 @@ runtime_security_config:
     endpoints:
         logs_dd_url: somehost:1234
 
+compliance_config:
+    endpoints:
+        logs_dd_url: somehost:1234
+
 proxy:
   http: http://localhost:1234
   https: https://localhost:1234
@@ -736,6 +740,8 @@ proxy:
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
+	assert.Equal(t, false, testConfig.GetBool("compliance_config.endpoints.use_http"))
+	assert.Equal(t, false, testConfig.GetBool("compliance_config.endpoints.logs_no_ssl"))
 	assert.NotNil(t, testConfig.GetProxies())
 
 	datadogYamlFips := datadogYaml + `
@@ -758,6 +764,8 @@ fips:
 	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
+	assert.Equal(t, true, testConfig.GetBool("compliance_config.endpoints.use_http"))
+	assert.Equal(t, true, testConfig.GetBool("compliance_config.endpoints.logs_no_ssl"))
 	assert.Nil(t, testConfig.GetProxies())
 
 	datadogYamlFips = datadogYaml + `
@@ -809,6 +817,7 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseURL+"09", c.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"12", c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL+"13", c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"14", c.GetString("compliance_config.endpoints.logs_dd_url"))
 		assert.Equal(t, expectedBaseURL+"15", c.GetString("network_devices.netflow.forwarder.logs_dd_url"))
 
 	} else {
@@ -825,6 +834,7 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("compliance_config.endpoints.logs_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.netflow.forwarder.logs_dd_url"))
 	}
 }
@@ -1167,6 +1177,38 @@ use_proxy_for_cloud_metadata: true
 	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "5"}, "invalid")
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
+}
+
+var testSimpleConf = []byte(`secret_backend_command: some command
+secret_backend_arguments:
+- ENC[pass1]
+`)
+
+func TestConfigAssignAtPathSimple(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	config := Conf()
+	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testSimpleConf, 0600)
+	config.SetConfigFile(configPath)
+
+	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
+	assert.NoError(t, err)
+
+	expectedYaml := `secret_backend_arguments:
+- password1
+secret_backend_command: some command
+use_proxy_for_cloud_metadata: true
+`
+	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	yamlText := string(yamlConf)
+	assert.Equal(t, expectedYaml, yamlText)
 }
 
 func TestConfigMustMatchOrigin(t *testing.T) {

@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -43,6 +44,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -50,8 +53,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -96,12 +97,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-				fx.Provide(func() demultiplexerimpl.Params {
-					params := demultiplexerimpl.NewDefaultParams()
-					params.UseEventPlatformForwarder = false
-
-					return params
-				}),
+				eventplatformimpl.Module(),
+				fx.Supply(eventplatformimpl.NewDisabledParams()),
+				eventplatformreceiverimpl.Module(),
+				fx.Supply(demultiplexerimpl.NewDefaultParams()),
 				// workloadmeta setup
 				collectors.GetCatalog(),
 				workloadmeta.Module(),
@@ -116,6 +115,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return workloadmeta.Params{
 						AgentType: catalog,
 					}
+				}),
+				tagger.Module(),
+				fx.Provide(func(config config.Component) tagger.Params {
+					if config.GetBool("security_agent.remote_tagger") {
+						return tagger.NewNodeRemoteTaggerParams()
+					}
+					return tagger.NewTaggerParams()
 				}),
 			)
 		},
@@ -169,8 +175,6 @@ func handleSignals(log log.Component, stopCh chan struct{}) {
 			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
-
-			_ = tagger.Stop()
 
 			stopCh <- struct{}{}
 			return
@@ -257,20 +261,6 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 	statsdClient, err := statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
 	if err != nil {
 		return log.Criticalf("Error creating statsd Client: %s", err)
-	}
-
-	// Initialize the remote tagger
-	if config.GetBool("security_agent.remote_tagger") {
-		options, err := remote.NodeAgentOptions()
-		if err != nil {
-			log.Errorf("unable to configure the remote tagger: %s", err)
-		} else {
-			tagger.SetDefaultTagger(remote.NewTagger(options))
-			err := tagger.Init(ctx)
-			if err != nil {
-				log.Errorf("failed to start the tagger: %s", err)
-			}
-		}
 	}
 
 	complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)

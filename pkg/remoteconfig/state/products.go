@@ -6,6 +6,9 @@
 package state
 
 var validProducts = map[string]struct{}{
+	ProductUpdaterCatalogDD:  {},
+	ProductUpdaterAgent:      {},
+	ProductUpdaterTask:       {},
 	ProductAgentConfig:       {},
 	ProductAgentTask:         {},
 	ProductAgentIntegrations: {},
@@ -18,11 +21,18 @@ var validProducts = map[string]struct{}{
 	ProductASMDD:             {},
 	ProductASMData:           {},
 	ProductAPMTracing:        {},
+	ProductLiveDebugging:     {},
 	ProductTesting1:          {},
 	ProductTesting2:          {},
 }
 
 const (
+	// ProductUpdaterCatalogDD is the product used to receive the package catalog from datadog
+	ProductUpdaterCatalogDD = "UPDATER_CATALOG_DD"
+	// ProductUpdaterAgent is the product used to receive defaults versions to install
+	ProductUpdaterAgent = "UPDATER_AGENT"
+	// ProductUpdaterTask is the product used to receive tasks to execute
+	ProductUpdaterTask = "UPDATER_TASK"
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentIntegrations is to receive integrations to schedule
@@ -47,6 +57,8 @@ const (
 	ProductASMData = "ASM_DATA"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing = "APM_TRACING"
+	// ProductLiveDebugging is the dynamic instrumentation product
+	ProductLiveDebugging = "LIVE_DEBUGGING"
 	// ProductTesting1 is a product used for testing remote config
 	ProductTesting1 = "TESTING1"
 	// ProductTesting2 is a product used for testing remote config

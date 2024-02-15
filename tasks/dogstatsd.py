@@ -10,11 +10,12 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .flavor import AgentFlavor
-from .go import deps
-from .utils import REPO_PATH, bin_name, get_build_flags, get_root, get_version, load_release_versions
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from tasks.agent import bundle_install_omnibus
+from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.go import deps
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root, get_version, load_release_versions
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
@@ -220,12 +221,9 @@ def omnibus_build(
         include_pipeline_id=True,
     )
 
-    with ctx.cd("omnibus"):
-        cmd = "bundle install"
-        if gem_path:
-            cmd += f" --path {gem_path}"
-        ctx.run(cmd, env=env)
+    bundle_install_omnibus(ctx, gem_path=gem_path, env=env)
 
+    with ctx.cd("omnibus"):
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build dogstatsd --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {"omnibus": omnibus, "log_level": log_level, "overrides": overrides_cmd, "populate_s3_cache": ""}

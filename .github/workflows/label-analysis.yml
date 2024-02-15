@@ -3,47 +3,70 @@ name: "Label analysis"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
     branches:
       - main
       - "[0-9]+.[0-9]+.x"
 
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_REPO: ${{ github.repository }}
+
 jobs:
+  fetch-labels:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    outputs:
+      LABELS: ${{ steps.pr-labels.outputs.LABELS }}
+    steps:
+      - name: Get PR labels
+        id: pr-labels
+        run: |
+          labels=$(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name' | tr '\n' ' ')
+          echo "Fetched labels for PR ${{github.event.number}}: $labels"
+          echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
   team-label:
+    needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install dependencies
+      - name: Check team assignment
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Run PR check for team assignment label
+          for label in $LABELS; do
+            if [[ "$label" =~ ^qa/ ]]; then
+              echo "A label to skip QA is set -- no need for team assignment"
+              exit 0
+            fi
+            if [[ "$label" =~ ^team/ && "$label" != team/triage ]]; then
+              echo "Team label found: $label"
+              exit 0
+            fi
+          done
+          echo "PR ${{github.event.number}} requires at least one non-triage team assignment label (label starting by 'team/')"
+          exit 1
         env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          PR_ID: ${{ github.event.pull_request.number }}
-        run: |
-          inv -e lint-teamassignment
+          LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
   skip-qa:
+    needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install dependencies
+      - name: Check qa/[done|no-code-change] labels are not set together
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Run PR check for QA labels
+          is_qa_done=1
+          is_qa_no_code_change=1
+          for label in $LABELS; do
+            if [[ "$label" == "qa/done" ]]; then
+              is_qa_done=0
+            fi
+            if [[ "$label" == "qa/no-code-change" ]]; then
+              is_qa_no_code_change=0
+            fi
+          done
+          if [ $is_qa_done -eq 0 ] && [ $is_qa_no_code_change -eq 0 ]; then
+            echo "Both 'qa/done' and 'qa/no-code-change' labels are set -- only one of them should be set"
+            exit 1
+          fi
+          echo "No issue with 'qa/done' and 'qa/no-code-change' labels"
         env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          PR_ID: ${{ github.event.pull_request.number }}
-        run: |
-          inv -e lint-skip-qa
+          LABELS: ${{ needs.fetch-labels.outputs.LABELS}}

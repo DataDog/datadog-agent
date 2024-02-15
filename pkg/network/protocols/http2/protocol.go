@@ -30,11 +30,9 @@ import (
 
 // Protocol implements the interface that represents a protocol supported by USM for HTTP/2.
 type Protocol struct {
-	cfg *config.Config
-	mgr *manager.Manager
-	// TODO: Do we need to duplicate?
-	telemetry *http.Telemetry
-	// TODO: Do we need to duplicate?
+	cfg                     *config.Config
+	mgr                     *manager.Manager
+	telemetry               *http.Telemetry
 	statkeeper              *http.StatKeeper
 	http2InFlightMapCleaner *ddebpf.MapCleaner[http2StreamKey, EbpfTx]
 	eventsConsumer          *events.Consumer[EbpfTx]
@@ -57,7 +55,11 @@ const (
 	headersParserTailCall     = "socket__http2_headers_parser"
 	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
-	telemetryMap              = "http2_telemetry"
+
+	// TelemetryMap is the name of the map used to retrieve plaintext metrics from the kernel
+	TelemetryMap = "http2_telemetry"
+	// TLSTelemetryMap is the name of the map used to retrieve metrics from the eBPF probes for TLS
+	TLSTelemetryMap = "tls_http2_telemetry"
 
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
@@ -248,7 +250,7 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 		return
 	}
 
-	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, http.NewIncompleteBuffer(p.cfg, p.telemetry))
+	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg))
 	p.eventsConsumer.Start()
 
 	return
@@ -265,17 +267,30 @@ func (p *Protocol) PostStart(mgr *manager.Manager) error {
 	return p.dynamicTable.postStart(mgr, p.cfg)
 }
 
-func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
-	mp, _, err := mgr.GetMap(telemetryMap)
+func getMap(mgr *manager.Manager, name string) (*ebpf.Map, error) {
+	m, _, err := mgr.GetMap(name)
 	if err != nil {
-		log.Warnf("unable to get http2 telemetry map: %s", err)
+		return nil, fmt.Errorf("error getting %q map: %s", name, err)
+	}
+	if m == nil {
+		return nil, fmt.Errorf("%q map is nil", name)
+	}
+	return m, nil
+}
+
+func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
+	mp, err := getMap(mgr, TelemetryMap)
+	if err != nil {
+		log.Warn(err)
 		return
 	}
 
-	if mp == nil {
-		log.Warn("http2 telemetry map is nil")
+	tlsMap, err := getMap(mgr, TLSTelemetryMap)
+	if err != nil {
+		log.Warn(err)
 		return
 	}
+
 	var zero uint32
 	http2Telemetry := &HTTP2Telemetry{}
 	ticker := time.NewTicker(30 * time.Second)
@@ -287,11 +302,17 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 			select {
 			case <-ticker.C:
 				if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-					log.Errorf("unable to lookup http2 telemetry map: %s", err)
+					log.Errorf("unable to lookup %q map: %s", TelemetryMap, err)
 					return
 				}
+				p.http2Telemetry.update(http2Telemetry, false)
 
-				p.http2Telemetry.update(http2Telemetry)
+				if err := tlsMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", TLSTelemetryMap, err)
+					return
+				}
+				p.http2Telemetry.update(http2Telemetry, true)
+
 				p.http2Telemetry.Log()
 			case <-p.kernelTelemetryStopChannel:
 				return
@@ -334,8 +355,8 @@ func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	} else if mapName == dynamicTable {
 		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
-		var key http2DynamicTableIndex
-		var value http2DynamicTableEntry
+		var key HTTP2DynamicTableIndex
+		var value HTTP2DynamicTableEntry
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
@@ -389,22 +410,4 @@ func (p *Protocol) GetStats() *protocols.ProtocolStats {
 // IsBuildModeSupported returns always true, as http2 module is supported by all modes.
 func (*Protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
-}
-
-// GetHTTP2KernelTelemetry returns the HTTP2 kernel telemetry
-func (p *Protocol) GetHTTP2KernelTelemetry() (*HTTP2Telemetry, error) {
-	http2Telemetry := &HTTP2Telemetry{}
-	var zero uint32
-
-	mp, _, err := p.mgr.GetMap(telemetryMap)
-	if err != nil {
-		log.Errorf("unable to get http2 telemetry map: %s", err)
-		return nil, err
-	}
-
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-		log.Errorf("unable to lookup http2 telemetry map: %s", err)
-		return nil, err
-	}
-	return http2Telemetry, nil
 }

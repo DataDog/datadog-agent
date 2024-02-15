@@ -15,24 +15,27 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
-
+	"github.com/stretchr/testify/require"
 	admiv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
 
 var v1beta1Cfg = NewConfig(false, false)
 
 func TestSecretNotFoundV1beta1(t *testing.T) {
 	f := newFixtureV1beta1(t)
-	c := f.run(t)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	c := f.run(stopCh)
 
 	_, err := c.webhooksLister.Get(v1beta1Cfg.getWebhookName())
 	if !errors.IsNotFound(err) {
@@ -42,7 +45,7 @@ func TestSecretNotFoundV1beta1(t *testing.T) {
 	// The queue might not be closed yet because it's done asynchronously
 	assert.Eventually(t, func() bool {
 		return c.queue.Len() == 0
-	}, 1*time.Second, 5*time.Millisecond, "Work queue isn't empty")
+	}, waitFor, tick, "Work queue isn't empty")
 }
 
 func TestCreateWebhookV1beta1(t *testing.T) {
@@ -56,20 +59,23 @@ func TestCreateWebhookV1beta1(t *testing.T) {
 	secret := buildSecret(data, v1beta1Cfg)
 	f.populateSecretsCache(secret)
 
-	c := f.run(t)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	c := f.run(stopCh)
 
-	webhook, err := c.webhooksLister.Get(v1beta1Cfg.getWebhookName())
-	if err != nil {
-		t.Fatalf("Failed to get the Webhook: %v", err)
-	}
+	var webhook *admiv1beta1.MutatingWebhookConfiguration
+	require.Eventually(t, func() bool {
+		webhook, err = c.webhooksLister.Get(v1beta1Cfg.getWebhookName())
+		return err == nil
+	}, waitFor, tick)
 
 	if err := validateV1beta1(webhook, secret); err != nil {
 		t.Fatalf("Invalid Webhook: %v", err)
 	}
 
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
-	}
+	assert.Eventually(t, func() bool {
+		return c.queue.Len() == 0
+	}, waitFor, tick, "Work queue isn't empty")
 }
 
 func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
@@ -99,24 +105,23 @@ func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
 
 	f.populateWebhooksCache(webhook)
 
-	c := f.run(t)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	c := f.run(stopCh)
 
-	newWebhook, err := c.webhooksLister.Get(v1beta1Cfg.getWebhookName())
-	if err != nil {
-		t.Fatalf("Failed to get the Webhook: %v", err)
-	}
-
-	if reflect.DeepEqual(webhook, newWebhook) {
-		t.Fatal("The Webhook hasn't been modified")
-	}
+	var newWebhook *admiv1beta1.MutatingWebhookConfiguration
+	require.Eventually(t, func() bool {
+		newWebhook, err = c.webhooksLister.Get(v1beta1Cfg.getWebhookName())
+		return err == nil && !reflect.DeepEqual(webhook, newWebhook)
+	}, waitFor, tick)
 
 	if err := validateV1beta1(newWebhook, secret); err != nil {
 		t.Fatalf("Invalid Webhook: %v", err)
 	}
 
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
-	}
+	assert.Eventually(t, func() bool {
+		return c.queue.Len() == 0
+	}, waitFor, tick, "Work queue isn't empty")
 }
 
 func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
@@ -668,6 +673,170 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				return []admiv1beta1.MutatingWebhook{podWebhook, execWebhook}
 			},
 		},
+		{
+			name: "agent sidecar injection, no selectors specified, supported provider specified",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "fargate")
+			},
+			configFunc: func() Config { return NewConfig(true, true) },
+			want: func() []admiv1beta1.MutatingWebhook {
+				podWebhook := webhook(
+					"datadog.webhook.agent.sidecar",
+					"/agentsidecar",
+					&metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"agent.datadoghq.com/sidecar": "fargate",
+						},
+					},
+					nil,
+					[]admiv1beta1.OperationType{admiv1beta1.Create},
+					[]string{"pods"},
+				)
+				return []admiv1beta1.MutatingWebhook{podWebhook}
+			},
+		},
+		{
+			name: "agent sidecar injection, no selectors specified, unsupported provider specified",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "unsupported-prov")
+			},
+			configFunc: func() Config { return NewConfig(true, true) },
+			want: func() []admiv1beta1.MutatingWebhook {
+				return []admiv1beta1.MutatingWebhook{}
+			},
+		},
+		{
+			name: "agent sidecar injection, no selectors specified, no provider specified",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+			},
+			configFunc: func() Config { return NewConfig(true, true) },
+			want: func() []admiv1beta1.MutatingWebhook {
+				return []admiv1beta1.MutatingWebhook{}
+			},
+		},
+		{
+			name: "agent sidecar injection, only single namespace selector, no provider specified",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"NamespaceSelector\": {\"MatchLabels\": {\"labelKey\": \"labelVal\"}}}]")
+			},
+			configFunc: func() Config { return NewConfig(true, true) },
+			want: func() []admiv1beta1.MutatingWebhook {
+				podWebhook := webhook(
+					"datadog.webhook.agent.sidecar",
+					"/agentsidecar",
+					&metav1.LabelSelector{},
+					&metav1.LabelSelector{
+						MatchLabels: map[string]string{"labelKey": "labelVal"},
+					},
+					[]admiv1beta1.OperationType{admiv1beta1.Create},
+					[]string{"pods"},
+				)
+				return []admiv1beta1.MutatingWebhook{podWebhook}
+			},
+		},
+		{
+			name: "agent sidecar injection, only single object selector, no provider specified",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"ObjectSelector\": {\"MatchLabels\": {\"labelKey\": \"labelVal\"}}}]")
+			},
+			configFunc: func() Config { return NewConfig(true, true) },
+			want: func() []admiv1beta1.MutatingWebhook {
+				podWebhook := webhook(
+					"datadog.webhook.agent.sidecar",
+					"/agentsidecar",
+					&metav1.LabelSelector{MatchLabels: map[string]string{"labelKey": "labelVal"}},
+					&metav1.LabelSelector{},
+					[]admiv1beta1.OperationType{admiv1beta1.Create},
+					[]string{"pods"},
+				)
+				return []admiv1beta1.MutatingWebhook{podWebhook}
+			},
+		},
+		{
+			name: "agent sidecar injection, one object selector and one namespace selector, no provider specified",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"ObjectSelector\": {\"MatchLabels\": {\"labelKey1\": \"labelVal1\"}}, \"NamespaceSelector\": {\"MatchLabels\": {\"labelKey2\": \"labelVal2\"}}}]")
+			},
+			configFunc: func() Config { return NewConfig(true, true) },
+			want: func() []admiv1beta1.MutatingWebhook {
+				podWebhook := webhook(
+					"datadog.webhook.agent.sidecar",
+					"/agentsidecar",
+					&metav1.LabelSelector{MatchLabels: map[string]string{"labelKey1": "labelVal1"}},
+					&metav1.LabelSelector{MatchLabels: map[string]string{"labelKey2": "labelVal2"}},
+					[]admiv1beta1.OperationType{admiv1beta1.Create},
+					[]string{"pods"},
+				)
+				return []admiv1beta1.MutatingWebhook{podWebhook}
+			},
+		},
+		{
+			name: "agent sidecar injection, multiple selectors (should refuse to create webhook), provider specified",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "fargate")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"NamespaceSelector\": {\"MatchLabels\":{\"labelKey1\": \"labelVal1\"}}} , {\"ObjectSelector\": {\"MatchLabels\": {\"labelKey2\": \"labelVal2\"}}}]")
+			},
+			configFunc: func() Config { return NewConfig(true, true) },
+			want: func() []admiv1beta1.MutatingWebhook {
+				return []admiv1beta1.MutatingWebhook{}
+			},
+		},
 	}
 
 	mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
@@ -815,15 +984,11 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 	), factory
 }
 
-func (f *fixtureV1beta1) run(t *testing.T) *ControllerV1beta1 { //nolint:revive // TODO fix revive unused-parameter
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-
+func (f *fixtureV1beta1) run(stopCh chan struct{}) *ControllerV1beta1 {
 	c, factory := f.createController()
+
 	factory.Start(stopCh)
 	go c.Run(stopCh)
-
-	f.waitOnActions()
 
 	return c
 }

@@ -20,22 +20,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
+
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"go.opentelemetry.io/collector/component/componenttest"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 
 	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -121,9 +122,9 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		client, err := rc.NewGRPCClient(
 			ipcAddress,
 			coreconfig.GetIPCPort(),
-			security.FetchAuthToken,
+			func() (string, error) { return security.FetchAuthToken(c) },
 			rc.WithAgent(rcClientName, version.AgentVersion),
-			rc.WithProducts([]data.Product{data.ProductAPMSampling, data.ProductAgentConfig}),
+			rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
 			rc.WithPollInterval(rcClientPollInterval),
 			rc.WithDirectorRootOverride(c.GetString("remote_configuration.director_root")),
 		)
@@ -603,6 +604,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "apm_config.debugger_additional_endpoints"; core.IsSet(k) {
 		c.DebuggerProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
+	if k := "apm_config.debugger_diagnostics_dd_url"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.DDURL = core.GetString(k)
+	}
+	if k := "apm_config.debugger_diagnostics_api_key"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.APIKey = core.GetString(k)
+	}
+	if k := "apm_config.debugger_diagnostics_additional_endpoints"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	if k := "apm_config.symdb_dd_url"; core.IsSet(k) {
 		c.SymDBProxy.DDURL = core.GetString(k)
