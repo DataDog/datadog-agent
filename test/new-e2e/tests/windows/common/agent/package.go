@@ -9,6 +9,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
 	"os"
 	"strings"
 
