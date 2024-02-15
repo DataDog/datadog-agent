@@ -66,7 +66,6 @@ func runFxWrapper(params *cliParams) error {
 			Package: params.Package,
 		}),
 		fx.Supply(&rcservice.Params{
-			ForceEnabled: true,
 			Options: []service.Option{
 				service.WithDatabaseFileName("remote-config-updater.db"),
 			},

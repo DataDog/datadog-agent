@@ -19,8 +19,6 @@ import (
 type Params struct {
 	// Options is the set of options for the remote config service.
 	Options []service.Option
-	// ForceEnabled is a flag to overwrite the remote config service enabled flag.
-	ForceEnabled bool
 }
 
 // Component is the component type.

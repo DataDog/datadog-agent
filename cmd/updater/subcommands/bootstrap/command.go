@@ -66,7 +66,6 @@ func boostrapFxWrapper(ctx context.Context, params *cliParams) error {
 		}),
 		core.Bundle(),
 		fx.Supply(&rcservice.Params{
-			ForceEnabled: true,
 			Options: []service.Option{
 				service.WithDatabaseFileName("remote-config-updater.db"),
 			},
