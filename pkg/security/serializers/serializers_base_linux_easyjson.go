@@ -253,7 +253,7 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers(in
 		case "is_kworker":
 			out.IsKworker = bool(in.Bool())
 		case "is_exec_child":
-			out.IsExecChild = bool(in.Bool())
+			out.IsExecExec = bool(in.Bool())
 		case "source":
 			out.Source = string(in.String())
 		default:
@@ -462,10 +462,10 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers(ou
 		out.RawString(prefix)
 		out.Bool(bool(in.IsKworker))
 	}
-	if in.IsExecChild {
+	if in.IsExecExec {
 		const prefix string = ",\"is_exec_child\":"
 		out.RawString(prefix)
-		out.Bool(bool(in.IsExecChild))
+		out.Bool(bool(in.IsExecExec))
 	}
 	if in.Source != "" {
 		const prefix string = ",\"source\":"
@@ -952,8 +952,6 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 			}
 		case "origin":
 			out.Origin = string(in.String())
-		case "suppressed":
-			out.Suppressed = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -1032,16 +1030,6 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 			out.RawString(prefix)
 		}
 		out.String(string(in.Origin))
-	}
-	if in.Suppressed {
-		const prefix string = ",\"suppressed\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.Bool(bool(in.Suppressed))
 	}
 	out.RawByte('}')
 }

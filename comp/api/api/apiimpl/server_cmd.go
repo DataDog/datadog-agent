@@ -10,9 +10,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 
 	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -42,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -56,7 +58,7 @@ func startCMDServer(
 	cmdAddr string,
 	tlsConfig *tls.Config,
 	tlsCertPool *x509.CertPool,
-	configService *remoteconfig.Service,
+	configService optional.Option[rcservice.Component],
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
@@ -73,6 +75,7 @@ func startCMDServer(
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
+	eventPlatformReceiver eventplatformreceiver.Component,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	cmdListener, err = getListener(cmdAddr)
@@ -151,6 +154,7 @@ func startCMDServer(
 				invChecks,
 				pkgSigning,
 				statusComponent,
+				eventPlatformReceiver,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)

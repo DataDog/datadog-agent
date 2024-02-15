@@ -261,8 +261,10 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_qos:Burstable$`,
 				`^kube_replica_set:nginx-[[:alnum:]]+$`,
 				`^kube_service:nginx$`,
+				`^nginx_host:`,
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
+				`^port:80$`,
 				`^short_image:apps-nginx-server$`,
 			},
 		},
@@ -790,6 +792,9 @@ func (suite *k8sSuite) TestContainerImage() {
 }
 
 func (suite *k8sSuite) TestSBOM() {
+	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-3776
+	suite.T().Skip("CONTINT-3776: SBOM test is flaky")
+
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged

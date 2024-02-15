@@ -12,8 +12,6 @@
 package process
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
@@ -53,6 +51,5 @@ func Bundle() fxutil.BundleOptions {
 		expvarsimpl.Module(),
 		apiserver.Module(),
 		forwardersimpl.Module(),
-		workloadmeta.Module(),
-		tagger.Module())
+	)
 }

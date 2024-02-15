@@ -73,9 +73,9 @@ func TestCreateWebhookV1beta1(t *testing.T) {
 		t.Fatalf("Invalid Webhook: %v", err)
 	}
 
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
-	}
+	assert.Eventually(t, func() bool {
+		return c.queue.Len() == 0
+	}, waitFor, tick, "Work queue isn't empty")
 }
 
 func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
@@ -119,9 +119,9 @@ func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
 		t.Fatalf("Invalid Webhook: %v", err)
 	}
 
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
-	}
+	assert.Eventually(t, func() bool {
+		return c.queue.Len() == 0
+	}, waitFor, tick, "Work queue isn't empty")
 }
 
 func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {

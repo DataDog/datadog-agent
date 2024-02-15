@@ -9,7 +9,7 @@ package languagedetection
 
 import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
-const subsystem = "language_detection_dca_handler"
+const subsystem = "language_detection_patcher"
 
 var (
 	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
@@ -48,25 +48,7 @@ var (
 		subsystem,
 		"skipped_patch",
 		[]string{"owner_kind", "owner_name", "namespace"},
-		"Tracks the number of times a patch was skipped because no new languages are detected",
-		commonOpts,
-	)
-
-	// OkResponses tracks the number the request was processed successfully
-	OkResponses = telemetry.NewCounterWithOpts(
-		subsystem,
-		"ok_response",
-		[]string{},
-		"Tracks the number the request was processed successfully",
-		commonOpts,
-	)
-
-	// ErrorResponses tracks the number of times request processsing fails
-	ErrorResponses = telemetry.NewCounterWithOpts(
-		subsystem,
-		"fail_response",
-		[]string{},
-		"Tracks the number of times request processsing fails",
+		"Tracks the number of times a patch was skipped because no new languages are detected or old languages were expired",
 		commonOpts,
 	)
 )

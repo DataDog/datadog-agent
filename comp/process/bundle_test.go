@@ -33,6 +33,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
+		workloadmeta.Module(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
 		fx.Provide(func() context.Context { return context.TODO() }),
 	)

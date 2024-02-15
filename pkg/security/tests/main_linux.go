@@ -22,8 +22,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+const (
+	fakePasswdPath = "/tmp/fake_passwd"
+	fakeGroupPath  = "/tmp/fake_group"
+)
+
+func SkipIfNotEBPFLess(t *testing.T) {
+	if !ebpfLessEnabled {
+		t.Skip("only supports ebpfless")
+	}
+}
+
 func SkipIfNotAvailable(t *testing.T) {
 	if ebpfLessEnabled {
+		if testEnvironment == DockerEnvironment {
+			t.Skip("skipping ebpfless test in docker")
+		}
+
 		available := []string{
 			"~TestProcess",
 			"~TestOpen",
@@ -33,6 +48,12 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestRename",
 			"~TestMkdir",
 			"~TestUtimes",
+			"~TestHardLink",
+			"~TestLink",
+			"~TestChmod",
+			"~TestChown",
+			"~TestLoadModule",
+			"~TestUnloadModule",
 		}
 
 		exclude := []string{
@@ -48,6 +69,11 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestRenameReuseInode",
 			"TestUnlink/io_uring",
 			"TestRmdir/unlinkat-io_uring",
+			"TestHardLinkExecsWithERPC",
+			"TestHardLinkExecsWithMaps",
+			"TestLink/io_uring",
+			"TestLoadModule/load_module_with_truncated_params",
+			"~TestChown32",
 		}
 
 		match := func(list []string) bool {
@@ -80,6 +106,9 @@ func preTestsHook() {
 			return arg == "-trace"
 		})
 		args = append(args, "-ebpfless")
+
+		os.Setenv(ptracer.EnvPasswdPathOverride, fakePasswdPath)
+		os.Setenv(ptracer.EnvGroupPathOverride, fakeGroupPath)
 
 		envs := os.Environ()
 

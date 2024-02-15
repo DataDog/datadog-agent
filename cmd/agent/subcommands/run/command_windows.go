@@ -15,6 +15,7 @@ import (
 
 	apmetwtracer "github.com/DataDog/datadog-agent/comp/apm/etwtracer"
 	apmetwtracerimpl "github.com/DataDog/datadog-agent/comp/apm/etwtracer/impl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
@@ -108,6 +109,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			agentAPI internalAPI.Component,
 			pkgSigning packagesigning.Component,
 			statusComponent status.Component,
+			collector collector.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server, agentAPI)
@@ -131,6 +133,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				agentAPI,
 				invChecks,
 				statusComponent,
+				collector,
 			)
 			if err != nil {
 				return err

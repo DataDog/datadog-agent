@@ -8,9 +8,12 @@ package apiimpl
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	stdLog "log"
 	"net"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 
 	"github.com/cihub/seelog"
 
@@ -32,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -62,7 +64,7 @@ func stopServer(listener net.Listener, name string) {
 
 // StartServers creates certificates and starts API servers
 func StartServers(
-	configService *remoteconfig.Service,
+	configService optional.Option[rcservice.Component],
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
@@ -79,6 +81,7 @@ func StartServers(
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
+	eventPlatformReceiver eventplatformreceiver.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -103,7 +106,7 @@ func StartServers(
 		MinVersion:   tls.VersionTLS12,
 	}
 
-	if err := util.CreateAndSetAuthToken(); err != nil {
+	if err := util.CreateAndSetAuthToken(config.Datadog); err != nil {
 		return err
 	}
 
@@ -129,6 +132,7 @@ func StartServers(
 		invChecks,
 		pkgSigning,
 		statusComponent,
+		eventPlatformReceiver,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}
