@@ -1203,7 +1203,6 @@ func DecodeSecurityProfile(path string) (*profile.SecurityProfile, error) {
 	newProfile := profile.NewSecurityProfile(
 		cgroupModel.WorkloadSelector{},
 		[]model.EventType{model.ExecEventType, model.DNSEventType},
-		[]model.EventType{},
 	)
 	if newProfile == nil {
 		return nil, errors.New("Profile creation")
