@@ -897,7 +897,7 @@ api_key:
 
   ## @param ping - custom object - optional
   ## Configure ICMP pings for all hosts in SNMP autodiscovery
-  ## Each device will be pinged with these settings each time the SNMP
+  ## Devices will be pinged with these settings each time the SNMP
   ## check is run.
   ##
   ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
