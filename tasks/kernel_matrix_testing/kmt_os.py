@@ -141,3 +141,11 @@ class MacOS:
         )  # launchctl returns an error code even if there is no error
 
         ctx.sudo("brew services start libvirt")
+
+        # Enable IP forwarding for the VMs
+        ctx.sudo("sysctl -w net.inet.ip.forwarding=1")
+
+        # Enable the bootp service that manages DHCP requests
+        # Add || true to the commands because they might fail if it's already loaded/started
+        ctx.sudo("launchctl load -w /System/Library/LaunchDaemons/bootps.plist || true")
+        ctx.sudo("launchctl start com.apple.bootpd || true")
