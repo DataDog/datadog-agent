@@ -7,6 +7,7 @@ package providers
 
 import (
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -80,4 +81,11 @@ func newProviderCache() *providerCache {
 		mostRecentMod: 0,
 		count:         0,
 	}
+}
+
+// ignoreADTagsFromAnnotations returns of the `ad.datadoghq.com/{endpoints,service}.ignore_autodiscovery_tags` annotation
+// TODO(CINT)(Agent 7.53+) Remove support for hybrid scenarios
+func ignoreADTagsFromAnnotations(annotations map[string]string, prefix string) bool {
+	ignoreAdForHybridScenariosTags, _ := strconv.ParseBool(annotations[prefix+"ignore_autodiscovery_tags"])
+	return ignoreAdForHybridScenariosTags
 }

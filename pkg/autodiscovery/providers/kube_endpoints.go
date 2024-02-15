@@ -10,7 +10,6 @@ package providers
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
@@ -264,7 +263,7 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 			resolveMode = endpointResolveMode(value)
 		}
 
-		ignoreAdForHybridScenariosTags, _ := strconv.ParseBool(svc.GetAnnotations()[kubeEndpointAnnotationPrefix+"ignore_autodiscovery_tags"])
+		ignoreAdForHybridScenariosTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeEndpointAnnotationPrefix)
 		for i := range endptConf {
 			endptConf[i].Source = "kube_endpoints:" + endpointsID
 			if cfg.GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {

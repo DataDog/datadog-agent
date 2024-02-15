@@ -10,7 +10,6 @@ package providers
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -186,7 +185,7 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 			delete(k.configErrors, serviceID)
 		}
 
-		ignoreAdForHybridScenariosTags, _ := strconv.ParseBool(svc.GetAnnotations()[kubeServiceAnnotationPrefix+"ignore_autodiscovery_tags"])
+		ignoreAdForHybridScenariosTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
