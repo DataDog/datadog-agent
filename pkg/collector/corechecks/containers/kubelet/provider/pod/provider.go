@@ -120,6 +120,10 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	if len(tags) == 0 {
 		return
 	}
+	// Skip recording containers without kubelet information in tagger
+	if !isTagKeyPresent("kube_namespace", tags) {
+		return
+	}
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
 
 	for r, value := range container.Resources.Requests {
@@ -137,6 +141,10 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 
 	tags, _ := tagger.Tag(containerID, collectors.OrchestratorCardinality)
 	if len(tags) == 0 {
+		return
+	}
+	// Skip recording containers without kubelet information in tagger
+	if !isTagKeyPresent("kube_namespace", tags) {
 		return
 	}
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
