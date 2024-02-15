@@ -30,9 +30,16 @@ func buildAgentSidecarObjectSelectors() (namespaceSelector, objectSelector *meta
 	// Read and parse selectors
 	selectorsJSON := config.Datadog.GetString("admission_controller.agent_sidecar.selectors")
 
+	// Get sidecar profiles
+	_, err := agentsidecar.LoadSidecarProfiles()
+	if err != nil {
+		log.Errorf("encountered issue when loading sidecar profiles: %s", err)
+		return nil, nil
+	}
+
 	var selectors []Selector
 
-	err := json.Unmarshal([]byte(selectorsJSON), &selectors)
+	err = json.Unmarshal([]byte(selectorsJSON), &selectors)
 	if err != nil {
 		log.Errorf("failed to parse selectors for admission controller agent sidecar injection webhook: %s", err)
 		return nil, nil
@@ -43,17 +50,16 @@ func buildAgentSidecarObjectSelectors() (namespaceSelector, objectSelector *meta
 		return nil, nil
 	}
 
+	provider := config.Datadog.GetString("admission_controller.agent_sidecar.provider")
+	if !agentsidecar.ProviderIsSupported(provider) {
+		log.Errorf("agent sidecar provider is not supported: %v", provider)
+		return nil, nil
+	}
+
 	if len(selectors) == 1 {
 		namespaceSelector = &selectors[0].NamespaceSelector
 		objectSelector = &selectors[0].ObjectSelector
-	} else {
-		provider := config.Datadog.GetString("admission_controller.agent_sidecar.provider")
-
-		if !agentsidecar.ProviderIsSupported(provider) {
-			log.Errorf("agent sidecar provider is not supported: %v", provider)
-			return nil, nil
-		}
-
+	} else if provider != "" {
 		log.Infof("using default selector \"agent.datadoghq.com/sidecar\": \"%v\" for provider %v", provider, provider)
 		namespaceSelector = nil
 		objectSelector = &metav1.LabelSelector{

@@ -16,98 +16,123 @@ import (
 	"testing"
 )
 
-func TestProviderIsSupported(t *testing.T) {
-
-	tests := []struct {
-		name              string
-		provider          string
-		expectIsSupported bool
-	}{
-		{
-			name:              "supported provider",
-			provider:          "fargate",
-			expectIsSupported: true,
-		},
-		{
-			name:              "unsupported provider",
-			provider:          "foo-provider",
-			expectIsSupported: false,
-		},
-		{
-			name:              "empty provider",
-			provider:          "",
-			expectIsSupported: false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
-			isSupported := ProviderIsSupported(test.provider)
-			if test.expectIsSupported {
-				assert.True(tt, isSupported)
-			} else {
-				assert.False(tt, isSupported)
-			}
-		})
-	}
-}
-
-func TestApplyProviderOverrides(t *testing.T) {
+func TestLoadSidecarProfiles(t *testing.T) {
 	mockConfig := config.Mock(t)
 
 	tests := []struct {
-		name          string
-		provider      string
-		baseContainer *corev1.Container
-		// assertions assume the order of overrides is deterministic
-		// changing the order will cause the tests to fail
-		expectedContainerAfterOverride *corev1.Container
+		name             string
+		profilesJSON     string
+		expectedProfiles []ProfileOverride
+		expectError      bool
 	}{
 		{
-			name:                           "nil container should be skipped",
-			provider:                       "fargate",
-			baseContainer:                  nil,
-			expectedContainerAfterOverride: nil,
+			name:             "misconfigured profiles",
+			profilesJSON:     "I am a misconfigurations (^_^)",
+			expectedProfiles: nil,
+			expectError:      true,
 		},
 		{
-			name:          "fargate provider",
-			provider:      "fargate",
-			baseContainer: &corev1.Container{},
-			expectedContainerAfterOverride: &corev1.Container{
-				Env: []corev1.EnvVar{
-					{
-						Name:  "DD_EKS_FARGATE",
-						Value: "true",
+			name: "single valid profile",
+			profilesJSON: `[
+				{
+					"env": [
+						{"name": "ENV_VAR_1", "value": "value1"},
+						{"name": "ENV_VAR_2", "value": "value2"}
+					],
+					"resources": {
+						"limits": {
+							"cpu": "1",
+							"memory": "512Mi"
+						},
+						"requests": {
+							"cpu": "0.5",
+							"memory": "256Mi"
+						}
+					}
+				}
+			]`,
+			expectedProfiles: []ProfileOverride{
+				{
+					EnvVars: []corev1.EnvVar{
+						{Name: "ENV_VAR_1", Value: "value1"},
+						{Name: "ENV_VAR_2", Value: "value2"},
+					},
+					ResourceRequirements: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							"cpu":    resource.MustParse("1"),
+							"memory": resource.MustParse("512Mi"),
+						},
+						Requests: corev1.ResourceList{
+							"cpu":    resource.MustParse("0.5"),
+							"memory": resource.MustParse("256Mi"),
+						},
 					},
 				},
 			},
+			expectError: false,
 		},
 		{
-			name:                           "unsupported provider",
-			provider:                       "foo-provider",
-			baseContainer:                  &corev1.Container{},
-			expectedContainerAfterOverride: &corev1.Container{},
+			name: "multiple profiles",
+			profilesJSON: `[
+				{
+					"env": [
+						{"name": "ENV_VAR_1", "value": "value1"},
+						{"name": "ENV_VAR_2", "value": "value2"}
+					],
+					"resources": {
+						"limits": {
+							"cpu": "1",
+							"memory": "512Mi"
+						},
+						"requests": {
+							"cpu": "0.5",
+							"memory": "256Mi"
+						}
+					}
+				},
+				{
+					"env": [
+						{"name": "ENV_VAR_1", "value": "value1"},
+						{"name": "ENV_VAR_2", "value": "value2"}
+					],
+					"resources": {
+						"limits": {
+							"cpu": "1",
+							"memory": "512Mi"
+						},
+						"requests": {
+							"cpu": "0.5",
+							"memory": "256Mi"
+						}
+					}
+				}
+			]`,
+			expectedProfiles: nil,
+			expectError:      true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
-			applyProviderOverrides(test.baseContainer)
+			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
+			profiles, err := LoadSidecarProfiles()
 
-			if test.expectedContainerAfterOverride == nil {
-				assert.Nil(tt, test.baseContainer)
+			if test.expectError {
+				assert.Error(tt, err)
+				assert.Nil(tt, profiles)
 			} else {
-				assert.NotNil(tt, test.baseContainer)
-				assert.Truef(tt,
-					reflect.DeepEqual(*test.baseContainer, *test.expectedContainerAfterOverride),
-					"overrides not applied as expected. expected %v, but found %v",
-					*test.expectedContainerAfterOverride,
-					*test.baseContainer,
+				assert.NoError(tt, err)
+				assert.Truef(
+					tt,
+					reflect.DeepEqual(test.expectedProfiles, profiles),
+					"expected %v, found %v",
+					test.expectedProfiles,
+					profiles,
 				)
 			}
 		})
 	}
+
 }
 
 func TestApplyProfileOverrides(t *testing.T) {
@@ -118,12 +143,14 @@ func TestApplyProfileOverrides(t *testing.T) {
 		profilesJSON      string
 		baseContainer     *corev1.Container
 		expectedContainer *corev1.Container
+		expectError       bool
 	}{
 		{
 			name:              "nil container should be skipped",
 			profilesJSON:      "",
 			baseContainer:     nil,
 			expectedContainer: nil,
+			expectError:       true,
 		},
 		{
 			name: "apply profile overrides",
@@ -162,6 +189,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 					},
 				},
 			},
+			expectError: false,
 		},
 		{
 			name:         "no profile provided",
@@ -180,6 +208,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
 				},
 			},
+			expectError: false,
 		},
 		{
 			name: "empty profile provided",
@@ -200,6 +229,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
 				},
 			},
+			expectError: false,
 		},
 		{
 			name: "apply profile overrides with ValueFrom",
@@ -232,6 +262,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
 				},
 			},
+			expectError: false,
 		},
 		{
 			name: "profile overrides should override any existing configuration",
@@ -275,6 +306,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
 				},
 			},
+			expectError: false,
 		},
 		{
 			name: "more than one profile provided",
@@ -312,25 +344,32 @@ func TestApplyProfileOverrides(t *testing.T) {
     ]`,
 			baseContainer:     &corev1.Container{},
 			expectedContainer: &corev1.Container{},
+			expectError:       true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
-			applyProfileOverrides(test.baseContainer)
+			err := applyProfileOverrides(test.baseContainer)
 
-			if test.expectedContainer == nil {
-				assert.Nil(tt, test.baseContainer)
+			if test.expectError {
+				assert.Error(tt, err)
 			} else {
-				assert.NotNil(tt, test.baseContainer)
-				assert.Truef(tt,
-					reflect.DeepEqual(*test.baseContainer, *test.expectedContainer),
-					"overrides not applied as expected. expected %v, but found %v",
-					*test.expectedContainer,
-					*test.baseContainer,
-				)
+				assert.NoError(tt, err)
+				if test.expectedContainer == nil {
+					assert.Nil(tt, test.baseContainer)
+				} else {
+					assert.NotNil(tt, test.baseContainer)
+					assert.Truef(tt,
+						reflect.DeepEqual(*test.baseContainer, *test.expectedContainer),
+						"overrides not applied as expected. expected %v, but found %v",
+						*test.expectedContainer,
+						*test.baseContainer,
+					)
+				}
 			}
+
 		})
 	}
 }

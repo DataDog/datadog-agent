@@ -17,29 +17,6 @@ import (
 	"testing"
 )
 
-func withEnvOverrides(container *corev1.Container, extraEnv ...corev1.EnvVar) {
-	for _, envVarOverride := range extraEnv {
-		// Check if the environment variable already exists in the container
-		var found bool
-		for i, envVar := range container.Env {
-			if envVar.Name == envVarOverride.Name {
-				// Override the existing environment variable value
-				container.Env[i] = envVarOverride
-				found = true
-				break
-			}
-		}
-		// If the environment variable doesn't exist, add it to the container
-		if !found {
-			container.Env = append(container.Env, envVarOverride)
-		}
-	}
-}
-
-func withResourceLimits(container *corev1.Container, resourceLimits corev1.ResourceRequirements) {
-	container.Resources = resourceLimits
-}
-
 func TestInjectAgentSidecar(t *testing.T) {
 	mockConfig := config.Mock(t)
 
@@ -83,6 +60,36 @@ func TestInjectAgentSidecar(t *testing.T) {
 						Containers: []corev1.Container{
 							{Name: "container-name"},
 							*getDefaultSidecarTemplate(),
+						},
+					},
+				}
+			},
+		},
+		{
+			Name: "idempotency test: should not inject sidecar if sidecar already exists",
+			Pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pod-name",
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "container-name"},
+						{Name: agentSidecarContainerName},
+					},
+				},
+			},
+			provider:     "",
+			profilesJSON: "[]",
+			ExpectError:  false,
+			ExpectedPodAfterInjection: func() *corev1.Pod {
+				return &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "pod-name",
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{Name: "container-name"},
+							{Name: agentSidecarContainerName},
 						},
 					},
 				}
