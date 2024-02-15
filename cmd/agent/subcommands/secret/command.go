@@ -7,9 +7,7 @@
 package secret
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/url"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -17,8 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -61,49 +58,22 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func showSecretInfo(config config.Component) error {
-	r, err := callAPIEndpoint("/agent/secrets", config)
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(r))
-	return nil
+	return getAndPrintIPCEndpoint(config, "agent/secrets")
 }
 
 func secretRefresh(config config.Component) error {
-	r, err := callAPIEndpoint("/agent/secret/refresh", config)
+	return getAndPrintIPCEndpoint(config, "agent/secret/refresh")
+}
+
+func getAndPrintIPCEndpoint(config config.Component, endpointURL string) error {
+	endpoint, err := apiutil.NewIPCEndpoint(config, endpointURL)
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(r))
+	res, err := endpoint.DoGet()
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(res))
 	return nil
-}
-
-func callAPIEndpoint(apiEndpointPath string, config config.Component) ([]byte, error) {
-	if err := util.SetAuthToken(config); err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-	c := util.GetClient(false)
-	ipcAddress, err := pkgconfig.GetIPCAddress()
-	if err != nil {
-		return nil, err
-	}
-	apiConfigURL := url.URL{
-		Scheme: "https",
-		Host:   fmt.Sprintf("%s:%d", ipcAddress, config.GetInt("cmd_port")),
-		Path:   apiEndpointPath,
-	}
-
-	r, err := util.DoGet(c, apiConfigURL.String(), util.LeaveConnectionOpen)
-	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap) //nolint:errcheck
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			return nil, fmt.Errorf("%s", e)
-		}
-
-		return nil, fmt.Errorf("Could not reach agent: %v\nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
-	}
-	return r, nil
 }
