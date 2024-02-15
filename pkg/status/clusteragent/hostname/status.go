@@ -28,16 +28,19 @@ type Provider struct {
 //go:embed status_templates
 var templatesFS embed.FS
 
+// NewProvider returns a Provider struct
 func NewProvider(conf config.Component) Provider {
 	return Provider{
 		config: conf,
 	}
 }
 
+// Name returns the name
 func (Provider) Name() string {
 	return "Hostname"
 }
 
+// Index returns the index
 func (Provider) Index() int {
 	return 1
 }
