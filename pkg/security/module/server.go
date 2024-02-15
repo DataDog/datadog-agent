@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -295,7 +294,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := marshalEvent(e, rule.Opts)
+	probeJSON, err := marshalEvent(e)
 	if err != nil {
 		seclog.Errorf("failed to marshal event: %v", err)
 		return
@@ -337,9 +336,9 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	a.enqueue(msg)
 }
 
-func marshalEvent(event events.Event, opts *eval.Opts) ([]byte, error) {
+func marshalEvent(event events.Event) ([]byte, error) {
 	if ev, ok := event.(*model.Event); ok {
-		return serializers.MarshalEvent(ev, opts)
+		return serializers.MarshalEvent(ev)
 	}
 
 	if ev, ok := event.(events.EventMarshaler); ok {

@@ -78,7 +78,7 @@ if __name__ == "__main__":
     for name, definition in json_top_node["$defs"].items():
         references = []
         descriptions = []
-        for prop_name, prop in definition.get("properties", {}).items():
+        for prop_name, prop in definition["properties"].items():
             if "$ref" in prop:
                 ref_name, ref_anchor = extract_ref_name_and_anchor(prop["$ref"])
                 references.append(DefinitionReference(ref_name, ref_anchor))

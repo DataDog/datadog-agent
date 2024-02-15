@@ -648,12 +648,12 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 			}
 
+			rs.NotifyRuleMatch(rule, event)
+			result = true
+
 			if err := rs.runRuleActions(event, ctx, rule); err != nil {
 				rs.logger.Errorf("Error while executing rule actions: %s", err)
 			}
-
-			rs.NotifyRuleMatch(rule, event)
-			result = true
 		}
 	}
 
