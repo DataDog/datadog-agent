@@ -76,7 +76,7 @@ func runAgentSidekicks(ag *agent) error {
 	// the trace agent.
 	// pkg/config is not a go-module yet and pulls a large chunk of Agent code base with it. Using it within the
 	// trace-agent would largely increase the number of module pulled by OTEL when using the pkg/trace go-module.
-	if err := apiutil.CreateAndSetAuthToken(); err != nil {
+	if err := apiutil.CreateAndSetAuthToken(coreconfig.Datadog); err != nil {
 		log.Errorf("could not set auth token: %s", err)
 	} else {
 		ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
@@ -188,5 +188,5 @@ func newConfigFetcher() (rc.ConfigUpdater, error) {
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, coreconfig.GetIPCPort(), security.FetchAuthToken)
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, coreconfig.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(coreconfig.Datadog) })
 }
