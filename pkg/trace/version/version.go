@@ -19,6 +19,9 @@ const (
 
 // GetVersionDataFromContainerTags will return the git commit sha and image tag from container tags, if present.
 func GetVersionDataFromContainerTags(containerID string, conf *config.AgentConfig) (gitCommitSha, imageTag string, err error) {
+	if conf == nil || conf.ContainerTags == nil {
+		return "", "", nil
+	}
 	cTags, err := conf.ContainerTags(containerID)
 	if err != nil {
 		return "", "", err

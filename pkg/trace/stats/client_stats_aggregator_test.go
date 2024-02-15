@@ -470,6 +470,8 @@ func deepCopy(p *proto.ClientStatsPayload) *proto.ClientStatsPayload {
 		Service:          p.GetService(),
 		ContainerID:      p.GetContainerID(),
 		Tags:             p.GetTags(),
+		GitCommitSha:     p.GetGitCommitSha(),
+		ImageTag:         p.GetImageTag(),
 	}
 	new.Stats = deepCopyStatsBucket(p.Stats)
 	return new

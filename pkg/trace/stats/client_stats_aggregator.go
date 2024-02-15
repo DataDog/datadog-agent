@@ -203,14 +203,18 @@ func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool, conf *conf
 			ContainerID:      p.GetContainerID(),
 			Tags:             p.GetTags(),
 			GitCommitSha:     p.GetGitCommitSha(),
+			// NOTE: Do we ever expect this to be set by the tracer?
+			ImageTag: p.GetImageTag(),
 		}
 		if b.first.ContainerID != "" {
 			gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(b.first.ContainerID, conf)
 			if err != nil {
 				log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", b.first.ContainerID, err)
 			} else {
-				b.first.ImageTag = imageTag
-				// Only override the GitCommitSha we got from the payload if it's empty.
+				// Only override if the payload's original values were empty strings.
+				if b.first.ImageTag == "" {
+					b.first.ImageTag = imageTag
+				}
 				if b.first.GitCommitSha == "" {
 					b.first.GitCommitSha = gitCommitSha
 				}
@@ -299,6 +303,8 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 			Hostname:         payloadKey.Hostname,
 			Env:              payloadKey.Env,
 			Version:          payloadKey.Version,
+			ImageTag:         payloadKey.ImageTag,
+			GitCommitSha:     payloadKey.GitCommitSha,
 			Stats:            clientBuckets,
 			AgentAggregation: keyCounts,
 		})
