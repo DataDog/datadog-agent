@@ -12,16 +12,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/yusufpapurcu/wmi"
 	"reflect"
+	"strings"
+	"time"
 
+	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/DataDog/gopsutil/host"
-
-	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
-	"github.com/yusufpapurcu/wmi"
 )
 
 // Win32_QuickFixEngineering WMI class represents a small system-wide update, commonly referred to as a quick-fix engineering
@@ -34,6 +34,38 @@ type Win32_QuickFixEngineering struct {
 	Description string
 }
 
+// This is a global variable that will be used to fetch the OS information only once
+var osInfo *Win32_OperatingSystem
+
+// Win32_OperatingSystem WMI class represents the properties of a system
+//
+//nolint:revive
+type Win32_OperatingSystem struct {
+	Version        string
+	Caption        string
+	ProductType    uint32
+	BuildNumber    string
+	OSArchitecture string
+	LastBootUpTime time.Time
+}
+
+func getOSInfo() (Win32_OperatingSystem, error) {
+	if osInfo != nil {
+		return *osInfo, nil
+	}
+
+	var dst []Win32_OperatingSystem
+	q := wmi.CreateQuery(&dst, "")
+	err := wmi.Query(q, &dst)
+	if err != nil {
+		return Win32_OperatingSystem{}, err
+	}
+
+	osInfo = &dst[0]
+
+	return dst[0], nil
+}
+
 // Report describes a SBOM report along with its marshaler
 type Report struct {
 	KBS      []Win32_QuickFixEngineering
@@ -42,6 +74,7 @@ type Report struct {
 	platform string
 	family   string
 	build    string
+	arch     string
 }
 
 // ToCycloneDX returns the report as a CycloneDX SBOM
@@ -55,6 +88,10 @@ func (r *Report) ToCycloneDX() (*cyclonedxgo.BOM, error) {
 		}, {
 			Name:  "Build",
 			Value: r.build,
+		},
+		{
+			Name:  "Architecture",
+			Value: r.arch,
 		},
 	}
 
@@ -94,6 +131,7 @@ type Collector struct {
 	platform string
 	family   string
 	build    string
+	arch     string
 }
 
 // CleanCache cleans the cache
@@ -107,7 +145,27 @@ func (c *Collector) Init(_ config.Config) (err error) {
 		return err
 	}
 
-	c.platform, c.family, c.build, err = host.PlatformInformation()
+	tmpOsInfo, err := getOSInfo()
+	osInfo = &tmpOsInfo
+
+	// Platform
+	c.platform = strings.Trim(osInfo.Caption, " ")
+
+	// Platform Family
+	switch osInfo.ProductType {
+	case 1:
+		c.family = "Standalone Workstation"
+	case 2:
+		c.family = "Server (Domain Controller)"
+	case 3:
+		c.family = "Server"
+	}
+
+	// Platform Version
+	c.build = fmt.Sprintf("%s Build %s", osInfo.Version, osInfo.BuildNumber)
+
+	// Platform Architecture
+	c.arch = osInfo.OSArchitecture
 	return err
 }
 
@@ -119,7 +177,7 @@ func (c *Collector) Scan(_ context.Context, request sbom.ScanRequest, _ sbom.Sca
 	}
 	log.Infof("host scan request [%v]", hostScanRequest.ID())
 
-	report := Report{version: c.version, platform: c.platform, family: c.family, build: c.build}
+	report := Report{version: c.version, platform: c.platform, family: c.family, build: c.build, arch: c.arch}
 	q := wmi.CreateQuery(&report.KBS, "")
 	err := wmi.Query(q, &report.KBS)
 	if err != nil {
