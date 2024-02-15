@@ -27,11 +27,15 @@ func GetVersionDataFromContainerTags(containerID string, conf *config.AgentConfi
 		return "", "", err
 	}
 	for _, t := range cTags {
-		if val, ok := strings.CutPrefix(t, gitCommitShaTagPrefix); ok && val != "" {
-			gitCommitSha = val
+		if gitCommitSha == "" {
+			if sha, ok := strings.CutPrefix(t, gitCommitShaTagPrefix); ok {
+				gitCommitSha = sha
+			}
 		}
-		if val, ok := strings.CutPrefix(t, imageTagPrefix); ok && val != "" {
-			imageTag = val
+		if imageTag == "" {
+			if image, ok := strings.CutPrefix(t, imageTagPrefix); ok {
+				imageTag = image
+			}
 		}
 		if gitCommitSha != "" && imageTag != "" {
 			break
