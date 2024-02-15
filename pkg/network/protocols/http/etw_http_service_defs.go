@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -82,43 +80,6 @@ func VerbToMethod(verb uint32) Method {
 func FormatUnixTime(t uint64) string {
 	tm := time.Unix(int64(t/1000000000), int64(t%1000000000))
 	return tm.Format("01/02/2006 03:04:05.000000 pm")
-}
-
-// ParseUnicodeString takes a slice of bytes and converts it to a string
-func ParseUnicodeString(data []byte, offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {
-	termZeroIdx := bytesIndexOfDoubleZero(data[offset:])
-	var lenString int
-	var skip int
-	if termZeroIdx == 0 || termZeroIdx%2 == 1 {
-		return "", -1, false, offset + termZeroIdx
-	}
-	if termZeroIdx == -1 {
-		// wasn't null terminated.  Assume it's still a valid string though
-		lenString = len(data) - offset
-	} else {
-		lenString = termZeroIdx
-		skip = 2
-	}
-	val = winutil.ConvertWindowsString(data[offset : offset+lenString])
-	nextOffset = offset + lenString + skip
-	valFound = true
-	foundTermZeroIdx = termZeroIdx
-	return
-}
-
-func bytesIndexOfDoubleZero(data []byte) int {
-	dataLen := len(data)
-	if dataLen < 2 {
-		return -1
-	}
-
-	for i := 0; i < dataLen-1; i += 2 {
-		if data[i] == 0 && data[i+1] == 0 {
-			return i
-		}
-	}
-
-	return -1
 }
 
 // FormatUInt converts a uint64 to a string with commas in every 3 orders of magnitude.

@@ -186,3 +186,25 @@ type Session interface {
 type Component interface {
 	NewSession(sessionName string) (Session, error)
 }
+
+// UserData offers a wrapper around the UserData field of an ETW event.
+type UserData interface {
+	// ParseUnicodeString reads from the userdata field, and returns the string
+	// the next offset in the buffer of the next field, whether the value was found,
+	// and if a terminating null was found, the index of that
+	ParseUnicodeString(offset int) (string, int, bool, int)
+
+	// GetUint64 reads a uint64 from the userdata field
+	GetUint64(offset int) uint64
+
+	// GetUint32 reads a uint32 from the userdata field
+	GetUint32(offset int) uint32
+
+	// GetUint16 reads a uint16 from the userdata field
+	GetUint16(offset int) uint16
+
+	// Bytes returns the selected slice of bytes
+	Bytes(offset int, length int) []byte
+	// Length returns the length of the userdata field
+	Length() int
+}

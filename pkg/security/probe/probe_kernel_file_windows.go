@@ -7,14 +7,12 @@
 package probe
 
 import (
-	"encoding/binary"
 	"fmt"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/etw"
-	etwutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 )
 
 const (
@@ -134,26 +132,26 @@ func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	ca := &createHandleArgs{
 		DDEventHeader: e.EventHeader,
 	}
-	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
+	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
-		ca.irp = binary.LittleEndian.Uint64(data[0:8])
-		ca.threadID = binary.LittleEndian.Uint64(data[8:16])
-		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[16:24]))
-		ca.createOptions = binary.LittleEndian.Uint32(data[24:28])
-		ca.createAttributes = binary.LittleEndian.Uint32(data[28:32])
-		ca.shareAccess = binary.LittleEndian.Uint32(data[32:36])
+		ca.irp = data.GetUint64(0)
+		ca.threadID = data.GetUint64(8)
+		ca.fileObject = fileObjectPointer(data.GetUint64(16))
+		ca.createOptions = data.GetUint32(24)
+		ca.createAttributes = data.GetUint32(28)
+		ca.shareAccess = data.GetUint32(32)
 
-		ca.fileName, _, _, _ = etwutil.ParseUnicodeString(data, 36)
+		ca.fileName, _, _, _ = data.ParseUnicodeString(36)
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
 
-		ca.irp = binary.LittleEndian.Uint64(data[0:8])
-		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[8:16]))
-		ca.threadID = uint64(binary.LittleEndian.Uint32(data[16:20]))
-		ca.createOptions = binary.LittleEndian.Uint32(data[20:24])
-		ca.createAttributes = binary.LittleEndian.Uint32(data[24:38])
-		ca.shareAccess = binary.LittleEndian.Uint32(data[28:32])
+		ca.irp = data.GetUint64(0)
+		ca.fileObject = fileObjectPointer(data.GetUint64(8))
+		ca.threadID = uint64(data.GetUint32(16))
+		ca.createOptions = data.GetUint32(20)
+		ca.createAttributes = data.GetUint32(24)
+		ca.shareAccess = data.GetUint32(28)
 
-		ca.fileName, _, _, _ = etwutil.ParseUnicodeString(data, 32)
+		ca.fileName, _, _, _ = data.ParseUnicodeString(32)
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
@@ -221,22 +219,22 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	sia := &setInformationArgs{
 		DDEventHeader: e.EventHeader,
 	}
-	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
 
+	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
-		sia.irp = binary.LittleEndian.Uint64(data[0:8])
-		sia.threadID = binary.LittleEndian.Uint64(data[8:16])
-		sia.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[16:24]))
-		sia.fileKey = binary.LittleEndian.Uint64(data[24:32])
-		sia.extraInfo = binary.LittleEndian.Uint64(data[32:40])
-		sia.infoClass = binary.LittleEndian.Uint32(data[40:44])
+		sia.irp = data.GetUint64(0)
+		sia.threadID = data.GetUint64(8)
+		sia.fileObject = fileObjectPointer(data.GetUint64(16))
+		sia.fileKey = data.GetUint64(24)
+		sia.extraInfo = data.GetUint64(32)
+		sia.infoClass = data.GetUint32(40)
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
-		sia.irp = binary.LittleEndian.Uint64(data[0:8])
-		sia.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[8:16]))
-		sia.fileKey = binary.LittleEndian.Uint64(data[16:24])
-		sia.extraInfo = binary.LittleEndian.Uint64(data[24:32])
-		sia.threadID = uint64(binary.LittleEndian.Uint32(data[32:36]))
-		sia.infoClass = binary.LittleEndian.Uint32(data[36:40])
+		sia.irp = data.GetUint64(0)
+		sia.fileObject = fileObjectPointer(data.GetUint64(8))
+		sia.fileKey = data.GetUint64(16)
+		sia.extraInfo = data.GetUint64(24)
+		sia.threadID = uint64(data.GetUint32(32))
+		sia.infoClass = data.GetUint32(36)
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
@@ -292,19 +290,18 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	ca := &cleanupArgs{
 		DDEventHeader: e.EventHeader,
 	}
-	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
-
+	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
-		ca.irp = binary.LittleEndian.Uint64(data[0:8])
-		ca.threadID = binary.LittleEndian.Uint64(data[8:16])
-		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[16:24]))
-		ca.fileKey = binary.LittleEndian.Uint64(data[24:32])
+		ca.irp = data.GetUint64(0)
+		ca.threadID = data.GetUint64(8)
+		ca.fileObject = fileObjectPointer(data.GetUint64(16))
+		ca.fileKey = data.GetUint64(24)
 
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
-		ca.irp = binary.LittleEndian.Uint64(data[0:8])
-		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[8:16]))
-		ca.fileKey = binary.LittleEndian.Uint64(data[16:24])
-		ca.threadID = uint64(binary.LittleEndian.Uint32(data[24:28]))
+		ca.irp = data.GetUint64(0)
+		ca.fileObject = fileObjectPointer(data.GetUint64(8))
+		ca.fileKey = data.GetUint64(16)
+		ca.threadID = uint64(data.GetUint32(24))
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}

@@ -136,6 +136,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/etw"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -681,7 +682,7 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEventRecord) {
 	// 	    8:  uint32_t httpVerb;
 	// 	    12: unint8_t url;           // Unicode wide char zero terminating string
 	// } EVENT_PARAM_HttpService_HTTPRequestTraceTaskParse;
-	userData := unsafe.Slice(eventInfo.UserData, int(eventInfo.UserDataLength))
+	userData := etwimpl.GetUserData(eventInfo)
 
 	// Check for size
 	if eventInfo.UserDataLength < 14 {
@@ -698,11 +699,11 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEventRecord) {
 	}
 
 	// Verb (in future we can cast number to)
-	httpConnLink.http.Txn.RequestMethod = uint32(VerbToMethod(binary.LittleEndian.Uint32(userData[8:12])))
+	httpConnLink.http.Txn.RequestMethod = uint32(VerbToMethod(userData.GetUint32(8)))
 
 	// Parse Url
 	urlOffset := 12
-	uri, _, urlFound, urlTermZeroIdx := ParseUnicodeString(userData, urlOffset)
+	uri, _, urlFound, urlTermZeroIdx := userData.ParseUnicodeString(urlOffset)
 	if !urlFound {
 		parsingErrorCount++
 		log.Errorf("*** Error: ActivityId:%v. HTTPRequestTraceTaskParse could not find terminating zero for Url. termZeroIdx=%v\n\n",
@@ -771,7 +772,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 	// 	        uint8_t  url[xxx];               // Unicode zero terminating string
 	// 	        uint32_t status;
 	// 	} EVENT_PARAM_HttpService_HTTPRequestTraceTaskDeliver;
-	userData := unsafe.Slice(eventInfo.UserData, int(eventInfo.UserDataLength))
+	userData := etwimpl.GetUserData(eventInfo)
 
 	// Check for size
 	if eventInfo.UserDataLength < 24 {
@@ -797,7 +798,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 
 	// Parse RequestQueueName
 	appPoolOffset := 20
-	appPool, urlOffset, appPoolFound, appPoolTermZeroIdx := ParseUnicodeString(userData, appPoolOffset)
+	appPool, urlOffset, appPoolFound, appPoolTermZeroIdx := userData.ParseUnicodeString(appPoolOffset)
 	if !appPoolFound {
 		parsingErrorCount++
 		log.Errorf("*** Error: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskDeliver could not find terminating zero for RequestQueueName. termZeroIdx=%v\n\n",
@@ -809,10 +810,10 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 	}
 
 	httpConnLink.http.AppPool = appPool
-	httpConnLink.http.SiteID = binary.LittleEndian.Uint32(userData[16:24])
+	httpConnLink.http.SiteID = userData.GetUint32(16)
 	httpConnLink.http.SiteName = iisConfig.GetSiteNameFromID(httpConnLink.http.SiteID)
 	// Parse url
-	if urlOffset > len(userData) {
+	if urlOffset > userData.Length() {
 		parsingErrorCount++
 
 		log.Errorf("*** Error: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskDeliver could not find beginning of Url\n\n",
@@ -856,7 +857,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEventRecord) {
 	//          uint32_t  cachePolicy
 	// 	} EVENT_PARAM_HttpService_HTTPRequestTraceTaskRecvResp;
 
-	userData := unsafe.Slice(eventInfo.UserData, int(eventInfo.UserDataLength))
+	userData := etwimpl.GetUserData(eventInfo)
 
 	// Check for size
 	if eventInfo.UserDataLength < 24 {
@@ -871,7 +872,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEventRecord) {
 	if !found {
 		return
 	}
-	httpConnLink.http.Txn.ResponseStatusCode = binary.LittleEndian.Uint16(userData[16:18])
+	httpConnLink.http.Txn.ResponseStatusCode = userData.GetUint16(16)
 
 	// <<<MORE ETW HttpService DETAILS>>>
 	// verbOffset := 18
@@ -984,13 +985,13 @@ func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEventRecor
 	//      //  uint64_t expirationTime;
 	// } EVENT_PARAM_HttpService_HTTPCacheTraceTaskAddedCacheEntry;
 
-	userData := unsafe.Slice(eventInfo.UserData, int(eventInfo.UserDataLength))
+	userData := etwimpl.GetUserData(eventInfo)
 
 	cacheEntry := &HttpCache{}
 
 	// Parse Url
 	urlOffset := 0
-	url, statusCodeOffset, urlFound, urlTermZeroIdx := ParseUnicodeString(userData, urlOffset)
+	url, statusCodeOffset, urlFound, urlTermZeroIdx := userData.ParseUnicodeString(urlOffset)
 	if !urlFound {
 		parsingErrorCount++
 		log.Errorf("*** Error: HTTPCacheTraceTaskAddedCacheEntry could not find terminating zero for RequestQueueName. termZeroIdx=%v\n\n", urlTermZeroIdx)
@@ -998,7 +999,7 @@ func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEventRecor
 	}
 
 	// Status code
-	cacheEntry.cache.statusCode = binary.LittleEndian.Uint16(userData[statusCodeOffset : statusCodeOffset+2])
+	cacheEntry.cache.statusCode = userData.GetUint16(statusCodeOffset)
 
 	// <<<MORE ETW HttpService DETAILS>>>
 	// // Parse Verb
@@ -1064,11 +1065,11 @@ func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEventRecord) 
 	//      //  uint64_t expirationTime;
 	// } EVENT_PARAM_HttpService_HTTPCacheTraceTaskAddedCacheEntry;
 
-	userData := unsafe.Slice(eventInfo.UserData, int(eventInfo.UserDataLength))
+	userData := etwimpl.GetUserData(eventInfo)
 
 	// Parse Url
 	urlOffset := 0
-	url, _, urlFound, urlTermZeroIdx := ParseUnicodeString(userData, urlOffset)
+	url, _, urlFound, urlTermZeroIdx := userData.ParseUnicodeString(urlOffset)
 	if !urlFound {
 		parsingErrorCount++
 		log.Errorf("*** Error: HTTPCacheTraceTaskFlushedCache could not find terminating zero for RequestQueueName. termZeroIdx=%v\n\n", urlTermZeroIdx)
