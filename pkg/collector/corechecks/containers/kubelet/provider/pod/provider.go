@@ -182,6 +182,10 @@ func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStat
 	if len(tags) == 0 {
 		return
 	}
+	// Skip recording containers without kubelet information in tagger
+	if !isTagKeyPresent("kube_namespace", tags) {
+		return
+	}
 	hashTags := generateTagHash(tags)
 	r.runningContainersCounter[hashTags]++
 	if _, ok := r.runningContainersTags[hashTags]; !ok {
@@ -229,4 +233,13 @@ func generateTagHash(tags []string) string {
 	copy(sortedTags, tags)
 	sort.Strings(sortedTags)
 	return strings.Join(sortedTags, ",")
+}
+
+func isTagKeyPresent(key string, tags []string) bool {
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, key+":") {
+			return true
+		}
+	}
+	return false
 }
