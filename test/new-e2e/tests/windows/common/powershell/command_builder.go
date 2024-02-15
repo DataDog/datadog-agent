@@ -20,7 +20,11 @@ type powerShellCommandBuilder struct {
 //
 //nolint:revive
 func PsHost() *powerShellCommandBuilder {
-	return &powerShellCommandBuilder{}
+	return &powerShellCommandBuilder{
+		cmds: []string{
+			"$ErrorActionPreference = \"Stop\"",
+		},
+	}
 }
 
 // GetLastBootTime uses the win32_operatingsystem Cim class to get the last time the computer was booted.
