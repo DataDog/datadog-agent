@@ -8,7 +8,6 @@ package host
 
 import (
 	"context"
-	"time"
 
 	"github.com/benbjohnson/clock"
 
@@ -59,9 +58,6 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	duration := c.config.GetDuration("expected_tags_duration")
 	if duration <= 0 {
 		return nil
-	}
-	if duration <= time.Minute {
-		log.Debugf("Tags are checked for expiration once per minute. expected_tags_duration should be at least one minute and in minute intervals.")
 	}
 
 	log.Debugf("Adding host tags to metrics for %v", duration)
