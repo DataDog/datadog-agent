@@ -216,5 +216,10 @@ func shouldInject(pod *corev1.Pod) bool {
 		}
 	}
 
-	return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+	apmWebhook, err := GetAPMInstrumentationWebhook()
+	if err != nil {
+		return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+	}
+
+	return apmWebhook.isEnabled(pod.Namespace) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }

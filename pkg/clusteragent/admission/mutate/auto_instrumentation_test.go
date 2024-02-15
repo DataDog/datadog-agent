@@ -230,7 +230,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			apmInstrumentation, err := NewAPMInstrumentationWebhook()
+			apmInstrumentation, err := newAPMInstrumentationWebhook()
 			require.NoError(t, err)
 
 			err = apmInstrumentation.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
@@ -614,7 +614,7 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			apmInstrumentation, err := NewAPMInstrumentationWebhook()
+			apmInstrumentation, err := newAPMInstrumentationWebhook()
 			require.NoError(t, err)
 
 			libsToInject, _ := apmInstrumentation.extractLibInfo(tt.pod, tt.containerRegistry)
@@ -1561,7 +1561,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			apmInstrumentation, err := NewAPMInstrumentationWebhook()
+			apmInstrumentation, err := newAPMInstrumentationWebhook()
 			require.NoError(t, err)
 
 			err = apmInstrumentation.injectAutoInstrumentation(tt.pod, "", fake.NewSimpleDynamicClient(scheme))
@@ -1748,10 +1748,12 @@ func TestShouldInject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig = config.Mock(nil)
 			tt.setupConfig()
-			apmInstrumentation, err := NewAPMInstrumentationWebhook()
-			require.NoError(t, err)
 
-			if got := apmInstrumentation.shouldInject(tt.pod); got != tt.want {
+			// Need to create a new instance of the webhook to take into account
+			// the config changes.
+			apmInstrumentationWebhook, errInitAPMInstrumentation = newAPMInstrumentationWebhook()
+
+			if got := shouldInject(tt.pod); got != tt.want {
 				t.Errorf("shouldInject() = %v, want %v", got, tt.want)
 			}
 		})

@@ -399,7 +399,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl, apiCl.Cl)
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl, apiCl.Cl)
 
-			apmInstrumentationWebhook, err := mutate.NewAPMInstrumentationWebhook()
+			apmInstrumentationWebhook, err := mutate.GetAPMInstrumentationWebhook()
 			if err != nil {
 				pkglog.Errorf("failed to register APM Instrumentation webhook: %v", err)
 			} else {

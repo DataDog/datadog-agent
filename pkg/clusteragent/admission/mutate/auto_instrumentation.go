@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -115,6 +116,16 @@ var (
 		Name:  instrumentationInstallTypeEnvVarName,
 		Value: localLibraryInstrumentationInstallType,
 	}
+
+	// We need a global variable to store the APMInstrumentationWebhook instance
+	// because other webhooks depend on it. The "config" and the "tags" webhooks
+	// depend on the "auto_instrumentation" webhook to decide if a pod should be
+	// injected. They first check if the pod has the label to enable mutations.
+	// If it doesn't, they mutate the pod if the option to mutate unlabeled is
+	// set to true or if APM SSI is enabled in the namespace.
+	apmInstrumentationWebhook *APMInstrumentationWebhook
+	errInitAPMInstrumentation error
+	initOnce                  sync.Once
 )
 
 // APMInstrumentationWebhook is the main handler for the APM instrumentation mutating webhook endpoints
@@ -123,8 +134,20 @@ type APMInstrumentationWebhook struct {
 	filter *containers.Filter
 }
 
-// NewAPMInstrumentationWebhook returns a new instance of APMInstrumentationWebhook
-func NewAPMInstrumentationWebhook() (*APMInstrumentationWebhook, error) {
+// GetAPMInstrumentationWebhook returns the APMInstrumentationWebhook instance,
+// creating it if it doesn't exist
+func GetAPMInstrumentationWebhook() (*APMInstrumentationWebhook, error) {
+	initOnce.Do(func() {
+		if apmInstrumentationWebhook == nil {
+			apmInstrumentationWebhook, errInitAPMInstrumentation = newAPMInstrumentationWebhook()
+		}
+	})
+
+	return apmInstrumentationWebhook, errInitAPMInstrumentation
+}
+
+// newAPMInstrumentationWebhook returns a new instance of APMInstrumentationWebhook
+func newAPMInstrumentationWebhook() (*APMInstrumentationWebhook, error) {
 	filter, err := apmSSINamespaceFilter()
 	if err != nil {
 		return nil, err
@@ -308,7 +331,7 @@ func (w *APMInstrumentationWebhook) extractLibInfo(pod *corev1.Pod, containerReg
 	}
 
 	// The library version specified via annotation on the Pod takes precedence over libraries injected with Single Step Instrumentation
-	if w.shouldInject(pod) {
+	if shouldInject(pod) {
 		libInfoList = extractLibrariesFromAnnotations(pod, containerRegistry, libInfoMap)
 
 		// If user doesn't provide langages information, try getting the languages from process languages auto-detection. The langages information are available in workloadmeta-store and attached on the pod's owner.
@@ -447,23 +470,6 @@ func (w *APMInstrumentationWebhook) isEnabled(namespace string) bool {
 	}
 
 	return !w.filter.IsExcluded(nil, "", "", namespace)
-}
-
-// shouldInject returns true if Admission Controller should inject standard tags, APM configs and APM libraries
-func (w *APMInstrumentationWebhook) shouldInject(pod *corev1.Pod) bool {
-	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
-	if val, found := pod.GetLabels()[common.EnabledLabelKey]; found {
-		switch val {
-		case "true":
-			return true
-		case "false":
-			return false
-		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", common.EnabledLabelKey, val, podString(pod))
-		}
-	}
-
-	return w.isEnabled(pod.Namespace) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
 
 func (w *APMInstrumentationWebhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetected bool, injectionType string) error {
