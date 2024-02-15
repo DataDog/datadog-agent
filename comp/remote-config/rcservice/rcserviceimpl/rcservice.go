@@ -48,7 +48,7 @@ type dependencies struct {
 // newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
 func newRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservice.Component] {
 	none := optional.NewNoneOption[rcservice.Component]()
-	if !config.IsRemoteConfigEnabled(deps.Cfg) {
+	if !config.IsRemoteConfigEnabled(deps.Cfg) && (deps.Params == nil || !deps.Params.ForceEnabled) {
 		return none
 	}
 

@@ -7,13 +7,34 @@
 package run
 
 import (
-	"fmt"
+	"context"
+
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
-	"github.com/DataDog/datadog-agent/pkg/updater"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	"github.com/DataDog/datadog-agent/comp/updater/localapi"
+	"github.com/DataDog/datadog-agent/comp/updater/localapi/localapiimpl"
+	"github.com/DataDog/datadog-agent/comp/updater/updater"
+	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/spf13/cobra"
 )
+
+type cliParams struct {
+	command.GlobalParams
+}
 
 // Commands returns the run command
 func Commands(global *command.GlobalParams) []*cobra.Command {
@@ -22,28 +43,45 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		Short: "Runs the updater",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(global.Package)
+			return runFxWrapper(&cliParams{
+				GlobalParams: *global,
+			})
 		},
 	}
 	return []*cobra.Command{runCmd}
 }
 
-func run(pkg string) error {
-	orgConfig, err := updater.NewOrgConfig()
-	if err != nil {
-		return fmt.Errorf("could not create org config: %w", err)
-	}
-	u, err := updater.NewUpdater(orgConfig, pkg)
-	if err != nil {
-		return fmt.Errorf("could not create updater: %w", err)
-	}
+func runFxWrapper(params *cliParams) error {
+	ctx := context.Background()
+	return fxutil.Run(
+		fx.Provide(func() context.Context { return ctx }),
+		fx.Supply(core.BundleParams{
+			ConfigParams:         config.NewAgentParams(params.GlobalParams.ConfFilePath),
+			SecretParams:         secrets.NewEnabledParams(),
+			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
+			LogParams:            logimpl.ForDaemon("UPDATER", "updater.log_file", pkgconfig.DefaultUpdaterLogFile),
+		}),
+		core.Bundle(),
+		fx.Supply(updaterimpl.Options{
+			Package: params.Package,
+		}),
+		fx.Supply(&rcservice.Params{
+			ForceEnabled: true,
+			Options: []service.Option{
+				service.WithDatabaseFileName("remote-config-updater.db"),
+			},
+		}),
+		rctelemetryreporterimpl.Module(),
+		rcserviceimpl.Module(),
+		updaterimpl.Module(),
+		localapiimpl.Module(),
+		fx.Invoke(run),
+	)
+}
 
-	u.Start()
-	defer u.Stop()
+func run(updater updater.Component, localAPI localapi.Component) error {
+	updater.Start()
+	defer updater.Stop()
 
-	api, err := updater.NewLocalAPI(u)
-	if err != nil {
-		return fmt.Errorf("could not create local API: %w", err)
-	}
-	return api.Serve()
+	return localAPI.Serve()
 }
