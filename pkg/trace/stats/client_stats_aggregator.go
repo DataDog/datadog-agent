@@ -147,7 +147,8 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 			a.buckets[ts.Unix()] = b
 		}
 		p.Stats = []*pb.ClientStatsBucket{clientBucket}
-		a.flush(b.add(p, a.peerTagsAggregation, a.conf))
+		a.setVersionDataFromContainerTags(p)
+		a.flush(b.add(p, a.peerTagsAggregation))
 	}
 }
 
@@ -162,6 +163,23 @@ func (a *ClientStatsAggregator) flush(p []*pb.ClientStatsPayload) {
 		AgentHostname:  a.agentHostname,
 		AgentVersion:   a.agentVersion,
 		ClientComputed: true,
+	}
+}
+
+func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStatsPayload) {
+	if p.ContainerID != "" {
+		gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(p.ContainerID, a.conf)
+		if err != nil {
+			log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
+		} else {
+			// Only override if the payload's original values were empty strings.
+			if p.ImageTag == "" {
+				p.ImageTag = imageTag
+			}
+			if p.GitCommitSha == "" {
+				p.GitCommitSha = gitCommitSha
+			}
+		}
 	}
 }
 
@@ -186,7 +204,7 @@ type bucket struct {
 	agg map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts
 }
 
-func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool, conf *config.AgentConfig) []*pb.ClientStatsPayload {
+func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool) []*pb.ClientStatsPayload {
 	b.n++
 	if b.n == 1 {
 		b.first = &pb.ClientStatsPayload{
@@ -203,22 +221,7 @@ func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool, conf *conf
 			ContainerID:      p.GetContainerID(),
 			Tags:             p.GetTags(),
 			GitCommitSha:     p.GetGitCommitSha(),
-			// NOTE: Do we ever expect this to be set by the tracer?
-			ImageTag: p.GetImageTag(),
-		}
-		if b.first.ContainerID != "" {
-			gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(b.first.ContainerID, conf)
-			if err != nil {
-				log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", b.first.ContainerID, err)
-			} else {
-				// Only override if the payload's original values were empty strings.
-				if b.first.ImageTag == "" {
-					b.first.ImageTag = imageTag
-				}
-				if b.first.GitCommitSha == "" {
-					b.first.GitCommitSha = gitCommitSha
-				}
-			}
+			ImageTag:         p.GetImageTag(),
 		}
 		return nil
 	}
