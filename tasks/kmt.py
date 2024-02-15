@@ -463,14 +463,17 @@ def ssh_config(_, stacks=None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version
             continue
 
         for _, instance in build_infrastructure(stack, remote_ssh_key="").items():
-            print(f"Host kmt-{stack_name}-{instance.arch}")
-            print(f"    HostName {instance.ip}")
-            print("    User ubuntu")
-            print("")
+            if instance.arch != "local":
+                print(f"Host kmt-{stack_name}-{instance.arch}")
+                print(f"    HostName {instance.ip}")
+                print("    User ubuntu")
+                print("")
+
             for domain in instance.microvms:
                 print(f"Host kmt-{stack_name}-{instance.arch}-{domain.tag}")
                 print(f"    HostName {domain.ip}")
-                print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
+                if instance.arch != "local":
+                    print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
                 print(f"    IdentityFile {ddvm_rsa}")
                 print("    User root")
                 # Disable host key checking, the IPs of the QEMU machines are reused and we don't want constant
