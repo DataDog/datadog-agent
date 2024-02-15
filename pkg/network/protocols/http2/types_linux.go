@@ -102,3 +102,12 @@ const (
 	K404Value      StaticTableEnumValue = 0xd
 	K500Value      StaticTableEnumValue = 0xe
 )
+
+type InterestingHeaderType uint8
+
+const (
+	HeaderUnknown InterestingHeaderType = 0x0
+	HeaderMethod  InterestingHeaderType = 0x1
+	HeaderPath    InterestingHeaderType = 0x2
+	HeaderStatus  InterestingHeaderType = 0x4
+)

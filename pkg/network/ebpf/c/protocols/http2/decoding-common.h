@@ -27,6 +27,17 @@ static __always_inline bool is_status_index(const __u64 index) {
     return k200 <= index && index <= k500;
 }
 
+// Returns kHeaderMethod if the given index represents a method index, kHeaderPath if the given index represents a path
+// index, and kHeaderStatus if the given index represents a status index, and kHeaderUnknown otherwise.
+static __always_inline interesting_header_type_t get_header_type(const __u64 index) {
+    // each method (is_status, is_path, and is_method) returns 1 if the index is relevant to the header type, and 0
+    // otherwise. The values of the enum interesting_header_type_t are multiplication of 2, so we can form the following
+    // calculation to get the relevant header type.
+    return kHeaderStatus * is_status_index(index) +
+           kHeaderPath * is_path_index(index) +
+           kHeaderMethod * is_method_index(index);
+}
+
 // returns true if the given index is one of the relevant headers we care for in the static table.
 // The full table can be found in the user mode code `createStaticTable`.
 static __always_inline bool is_interesting_static_entry(const __u64 index) {

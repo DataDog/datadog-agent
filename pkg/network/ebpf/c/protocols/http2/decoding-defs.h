@@ -108,6 +108,16 @@ typedef enum {
     __MAX_STATIC_TABLE_INDEX = 255,
 } __attribute__((packed)) static_table_value_t;
 
+// The enum represents the different types of interesting headers we look for.
+typedef enum {
+    kHeaderUnknown = 0,
+    kHeaderMethod = 1 << 0, // 1
+    kHeaderPath = 1 << 1, // 2
+    kHeaderStatus = 1 << 2, // 4
+
+    __MAX_INTERESTING_HEADER_TYPE = 255,
+} __attribute__((packed)) interesting_header_type_t;
+
 typedef struct {
     char buffer[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
     __u32 original_index;

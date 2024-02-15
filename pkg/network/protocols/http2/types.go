@@ -52,3 +52,12 @@ const (
 	K404Value      StaticTableEnumValue = C.k404
 	K500Value      StaticTableEnumValue = C.k500
 )
+
+type InterestingHeaderType C.interesting_header_type_t
+
+const (
+	HeaderUnknown InterestingHeaderType = C.kHeaderUnknown
+	HeaderMethod  InterestingHeaderType = C.kHeaderMethod
+	HeaderPath    InterestingHeaderType = C.kHeaderPath
+	HeaderStatus  InterestingHeaderType = C.kHeaderStatus
+)
