@@ -350,8 +350,7 @@ func parseCommandContextNodeJs(se *ServiceExtractor, process *procutil.Process, 
 				skipNext = false
 				continue
 			}
-			isArg := strings.HasPrefix(a, "-")
-			if isArg {
+			if strings.HasPrefix(a, "-") {
 				if a == "-r" || a == "--require" {
 					// next arg can be a js file but not the entry point. skip it
 					skipNext = !strings.ContainsRune(a, '=') // in this case the value is already in this arg
