@@ -1119,7 +1119,7 @@ api_key:
     #   timeout: 3000             # timeout in milliseconds
     #   count: 2                  # number of ping packets to send per check run
     #   interval: 10              # time between sending pings (up to `count` packets) in milliseconds
-    #   linux:                    # linux specific configuration
+    #   linux:                    # linux-specific configuration
     #     use_raw_socket: true    # send pings in a privileged fashion using a raw socket
     #                             # this may be required if your system doesn't support
     #                             # sending pings in an unprivileged fashion (using a UDP socket)
