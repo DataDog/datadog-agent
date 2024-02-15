@@ -86,10 +86,19 @@ type HTTPReceiver struct {
 	outOfCPUCounter *atomic.Uint32
 
 	statsd statsd.ClientInterface
+	timing timing.Reporter
+	info   *watchdog.CurrentInfo
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) *HTTPReceiver {
+func NewHTTPReceiver(
+	conf *config.AgentConfig,
+	dynConf *sampler.DynamicConfig,
+	out chan *Payload,
+	statsProcessor StatsProcessor,
+	telemetryCollector telemetry.TelemetryCollector,
+	statsd statsd.ClientInterface,
+	timing timing.Reporter) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -128,6 +137,8 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		outOfCPUCounter: atomic.NewUint32(0),
 
 		statsd: statsd,
+		timing: timing,
+		info:   watchdog.NewCurrentInfo(),
 	}
 }
 
@@ -433,7 +444,7 @@ type StatsProcessor interface {
 
 // handleStats handles incoming stats payloads.
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
-	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
+	defer r.timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
 
 	ts := r.tagStats(V07, req.Header)
 	rd := apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
@@ -646,9 +657,9 @@ var killProcess = func(format string, a ...interface{}) {
 // the configuration MaxMemory and MaxCPU. If these values are 0, all limits are disabled and the rate
 // limiter will accept everything.
 func (r *HTTPReceiver) watchdog(now time.Time) {
-	cpu, _ := watchdog.CPU(now)
+	cpu, _ := r.info.CPU(now)
 	wi := watchdog.Info{
-		Mem: watchdog.Mem(),
+		Mem: r.info.Mem(),
 		CPU: cpu,
 	}
 	if r.conf.MaxMemory > 0 {

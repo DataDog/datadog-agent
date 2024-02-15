@@ -35,7 +35,7 @@ func NewWindowsModel(_ *WindowsProbe) *model.Model {
 
 // NewWindowsEvent returns a new event
 func NewWindowsEvent(fh *FieldHandlers) *model.Event {
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.FieldHandlers = fh
 	return event
 }

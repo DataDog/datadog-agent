@@ -401,6 +401,9 @@
 /pkg/proto/pbgo/languagedetection       @DataDog/agent-apm
 /pkg/proto/pbgo/process                 @DataDog/processes
 /pkg/proto/pbgo/core                    @DataDog/agent-shared-components
+/pkg/proto/pbgo/core/remoteconfig.pb.go       @DataDog/remote-config
+/pkg/proto/pbgo/core/remoteconfig_gen.go      @DataDog/remote-config
+/pkg/proto/pbgo/core/remoteconfig_gen_test.go @DataDog/remote-config
 /pkg/proto/pbgo/mocks/core              @DataDog/agent-shared-components
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/Networks
@@ -526,6 +529,7 @@
 /test/new-e2e/tests/agent-metric-logs   @DataDog/agent-metrics-logs
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
+/test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm

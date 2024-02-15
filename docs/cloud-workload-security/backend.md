@@ -123,6 +123,10 @@ CSM Threats logs have the following JSON schema:
                     "type": "string",
                     "format": "date-time",
                     "description": "Creation time of the container"
+                },
+                "variables": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "Variables values"
                 }
             },
             "additionalProperties": false,
@@ -225,6 +229,10 @@ CSM Threats logs have the following JSON schema:
                 "origin": {
                     "type": "string",
                     "description": "Origin of the event"
+                },
+                "variables": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "Variables values"
                 }
             },
             "additionalProperties": false,
@@ -900,11 +908,15 @@ CSM Threats logs have the following JSON schema:
                 },
                 "is_exec_child": {
                     "type": "boolean",
-                    "description": "Indicates wether the process is an exec child of its parent"
+                    "description": "Indicates whether the process is an exec following another exec"
                 },
                 "source": {
                     "type": "string",
                     "description": "Process source"
+                },
+                "variables": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "Variables values"
                 }
             },
             "additionalProperties": false,
@@ -1028,11 +1040,15 @@ CSM Threats logs have the following JSON schema:
                 },
                 "is_exec_child": {
                     "type": "boolean",
-                    "description": "Indicates wether the process is an exec child of its parent"
+                    "description": "Indicates whether the process is an exec following another exec"
                 },
                 "source": {
                     "type": "string",
                     "description": "Process source"
+                },
+                "variables": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "Variables values"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
@@ -1320,6 +1336,10 @@ CSM Threats logs have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "description": "UserSessionContextSerializer serializes the user session context to JSON"
+        },
+        "Variables": {
+            "type": "object",
+            "description": "Variables serializes the variable values"
         }
     },
     "properties": {
@@ -1606,6 +1626,10 @@ CSM Threats logs have the following JSON schema:
             "type": "string",
             "format": "date-time",
             "description": "Creation time of the container"
+        },
+        "variables": {
+            "$ref": "#/$defs/Variables",
+            "description": "Variables values"
         }
     },
     "additionalProperties": false,
@@ -1619,7 +1643,11 @@ CSM Threats logs have the following JSON schema:
 | ----- | ----------- |
 | `id` | Container ID |
 | `created_at` | Creation time of the container |
+| `variables` | Variables values |
 
+| References |
+| ---------- |
+| [Variables](#variables) |
 
 ## `DDContext`
 
@@ -1766,6 +1794,10 @@ CSM Threats logs have the following JSON schema:
         "origin": {
             "type": "string",
             "description": "Origin of the event"
+        },
+        "variables": {
+            "$ref": "#/$defs/Variables",
+            "description": "Variables values"
         }
     },
     "additionalProperties": false,
@@ -1783,7 +1815,11 @@ CSM Threats logs have the following JSON schema:
 | `async` | True if the event was asynchronous |
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
 | `origin` | Origin of the event |
+| `variables` | Variables values |
 
+| References |
+| ---------- |
+| [Variables](#variables) |
 
 ## `ExitEvent`
 
@@ -2710,11 +2746,15 @@ CSM Threats logs have the following JSON schema:
         },
         "is_exec_child": {
             "type": "boolean",
-            "description": "Indicates wether the process is an exec child of its parent"
+            "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
             "type": "string",
             "description": "Process source"
+        },
+        "variables": {
+            "$ref": "#/$defs/Variables",
+            "description": "Variables values"
         }
     },
     "additionalProperties": false,
@@ -2755,8 +2795,9 @@ CSM Threats logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
-| `is_exec_child` | Indicates wether the process is an exec child of its parent |
+| `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `source` | Process source |
+| `variables` | Variables values |
 
 | References |
 | ---------- |
@@ -2765,6 +2806,7 @@ CSM Threats logs have the following JSON schema:
 | [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
+| [Variables](#variables) |
 
 ## `ProcessContext`
 
@@ -2883,11 +2925,15 @@ CSM Threats logs have the following JSON schema:
         },
         "is_exec_child": {
             "type": "boolean",
-            "description": "Indicates wether the process is an exec child of its parent"
+            "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
             "type": "string",
             "description": "Process source"
+        },
+        "variables": {
+            "$ref": "#/$defs/Variables",
+            "description": "Variables values"
         },
         "parent": {
             "$ref": "#/$defs/Process",
@@ -2939,8 +2985,9 @@ CSM Threats logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
-| `is_exec_child` | Indicates wether the process is an exec child of its parent |
+| `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `source` | Process source |
+| `variables` | Variables values |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 
@@ -2951,6 +2998,7 @@ CSM Threats logs have the following JSON schema:
 | [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
+| [Variables](#variables) |
 | [Process](#process) |
 
 ## `ProcessCredentials`
@@ -3375,6 +3423,19 @@ CSM Threats logs have the following JSON schema:
 | `k8s_uid` | UID of the Kubernetes "kubectl exec" session |
 | `k8s_groups` | Groups of the Kubernetes "kubectl exec" session |
 | `k8s_extra` | Extra of the Kubernetes "kubectl exec" session |
+
+
+## `Variables`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "type": "object",
+    "description": "Variables serializes the variable values"
+}
+
+{{< /code-block >}}
+
 
 
 

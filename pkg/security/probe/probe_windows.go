@@ -483,7 +483,7 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
 
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event)
+		eventJSON, err := serializers.MarshalEvent(event, nil)
 		return eventJSON, event.GetEventType(), err
 	})
 

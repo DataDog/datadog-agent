@@ -53,7 +53,7 @@ func NewEBPFLessModel() *model.Model {
 
 // NewEBPFLessEvent returns a new event
 func NewEBPFLessEvent(fh *EBPFLessFieldHandlers) *model.Event {
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.FieldHandlers = fh
 	return event
 }
