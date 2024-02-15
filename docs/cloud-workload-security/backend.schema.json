@@ -209,10 +209,6 @@
         "origin": {
           "type": "string",
           "description": "Origin of the event"
-        },
-        "suppressed": {
-          "type": "boolean",
-          "description": "True if the event has been suppressed"
         }
       },
       "additionalProperties": false,
@@ -888,7 +884,7 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
@@ -1016,7 +1012,7 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
@@ -1196,6 +1192,10 @@
           },
           "type": "array",
           "description": "List of tags associated to this profile"
+        },
+        "event_in_profile": {
+          "type": "boolean",
+          "description": "True if the corresponding event is part of this profile"
         }
       },
       "additionalProperties": false,
@@ -1203,7 +1203,8 @@
       "required": [
         "name",
         "version",
-        "tags"
+        "tags",
+        "event_in_profile"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },

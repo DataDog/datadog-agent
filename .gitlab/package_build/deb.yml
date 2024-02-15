@@ -304,6 +304,22 @@ dogstatsd_deb-arm64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
+updater_deb-amd64:
+  extends: .updater_build_common_deb
+  rules:
+    !reference [.on_a7]
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_mod_tidy_check", "go_deps", "generate_minimized_btfs_x64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    PACKAGE_ARCH: amd64
+    DESTINATION_DEB: 'datadog-updater_7_amd64.deb'
+    DESTINATION_DBG_DEB: 'datadog-updater-dbg_7_amd64.deb'
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+
 updater_deb-arm64:
   extends: .updater_build_common_deb
   rules:

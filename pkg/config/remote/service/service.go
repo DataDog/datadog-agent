@@ -89,11 +89,13 @@ type Service struct {
 	// The number of errors we're currently tracking within the context of our backoff policy
 	backoffErrorCount int
 
-	// Handle to stop the services main goroutine
-	cancel context.CancelFunc
+	// Channels to stop the services main goroutines
+	stopOrgPoller    chan struct{}
+	stopConfigPoller chan struct{}
 
 	clock         clock.Clock
 	hostname      string
+	tags          []string
 	traceAgentEnv string
 	db            *bbolt.DB
 	uptane        uptaneClient
@@ -154,7 +156,7 @@ func WithTraceAgentEnv(env string) func(s *Service) {
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...func(s *Service)) (*Service, error) {
+func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...func(s *Service)) (*Service, error) {
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 
 	var refreshInterval time.Duration
@@ -267,6 +269,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetry
 		products:                       make(map[rdata.Product]struct{}),
 		newProducts:                    make(map[rdata.Product]struct{}),
 		hostname:                       hostname,
+		tags:                           tags,
 		clock:                          clock,
 		db:                             db,
 		api:                            http,
@@ -285,6 +288,8 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetry
 		},
 		telemetryReporter: telemetryReporter,
 		agentVersion:      agentVersion,
+		stopOrgPoller:     make(chan struct{}),
+		stopConfigPoller:  make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -303,22 +308,23 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 }
 
 // Start the remote configuration management service
-func (s *Service) Start(ctx context.Context) {
-	ctx, cancel := context.WithCancel(ctx)
-	s.cancel = cancel
+func (s *Service) Start() {
 	go func() {
 		s.pollOrgStatus()
 		for {
 			select {
 			case <-s.clock.After(orgStatusPollInterval):
 				s.pollOrgStatus()
-			case <-ctx.Done():
+			case <-s.stopOrgPoller:
+				log.Infof("Stopping Remote Config org status poller")
 				return
 			}
 		}
 	}()
 	go func() {
-		defer cancel()
+		defer func() {
+			close(s.stopOrgPoller)
+		}()
 
 		err := s.refresh()
 		if err != nil {
@@ -343,7 +349,8 @@ func (s *Service) Start(ctx context.Context) {
 					s.telemetryReporter.IncRateLimit()
 				}
 				close(response)
-			case <-ctx.Done():
+			case <-s.stopConfigPoller:
+				log.Infof("Stopping Remote Config configuration poller")
 				return
 			}
 
@@ -361,8 +368,8 @@ func (s *Service) Start(ctx context.Context) {
 
 // Stop stops the refresh loop and closes the on-disk DB cache
 func (s *Service) Stop() error {
-	if s.cancel != nil {
-		s.cancel()
+	if s.stopConfigPoller != nil {
+		close(s.stopConfigPoller)
 	}
 
 	return s.db.Close()
@@ -435,7 +442,7 @@ func (s *Service) refresh() error {
 		return err
 	}
 
-	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tags, s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
 	s.Unlock()
 	ctx := context.Background()
 	response, err := s.api.Fetch(ctx, request)

@@ -29,6 +29,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
+const (
+	defaultPasswdPath = "/etc/passwd"
+	defaultGroupPath  = "/etc/group"
+	// EnvPasswdPathOverride define the env to set to override the default passwd file path
+	EnvPasswdPathOverride = "TEST_DD_PASSWD_PATH"
+	// EnvGroupPathOverride define the env to set to override the default group file path
+	EnvGroupPathOverride = "TEST_DD_GROUP_PATH"
+)
+
+var (
+	passwdPath = defaultPasswdPath
+	groupPath  = defaultGroupPath
+)
+
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
 
 type shouldSendFunc func(ret int64) bool
@@ -131,6 +145,13 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 
 	logger.Debugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
 
+	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
+		passwdPath = path
+	}
+	if path := os.Getenv(EnvGroupPathOverride); path != "" {
+		groupPath = path
+	}
+
 	var (
 		client      net.Conn
 		clientReady = make(chan bool, 1)
@@ -141,6 +162,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 		logger.Debugf("connection to system-probe...")
 		if async {
 			go func() {
+				// use a local err variable to avoid race condition
+				var err error
 				client, err = initConn(probeAddr, 600)
 				if err != nil {
 					return
@@ -311,6 +334,12 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 						EUID: uid,
 						GID:  gid,
 						EGID: gid,
+					}
+					if !disableStats {
+						syscallMsg.Exec.Credentials.User = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.UID))
+						syscallMsg.Exec.Credentials.EUser = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.EUID))
+						syscallMsg.Exec.Credentials.Group = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.GID))
+						syscallMsg.Exec.Credentials.EGroup = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.EGID))
 					}
 				}
 

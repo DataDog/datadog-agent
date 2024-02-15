@@ -55,17 +55,6 @@ type CurrentInfo struct {
 	lastCPU     CPUInfo
 }
 
-// globalCurrentInfo is a global default object one can safely use
-// if only one goroutine is polling for CPU() and Mem()
-var globalCurrentInfo *CurrentInfo
-
-func ensureGlobalInfo() {
-	if globalCurrentInfo != nil {
-		return
-	}
-	globalCurrentInfo = NewCurrentInfo()
-}
-
 // NewCurrentInfo creates a new CurrentInfo referring to the current running program.
 func NewCurrentInfo() *CurrentInfo {
 	return &CurrentInfo{
@@ -107,16 +96,4 @@ func (pi *CurrentInfo) Mem() MemInfo {
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
 	return MemInfo{Alloc: ms.Alloc}
-}
-
-// CPU returns basic CPU info, or the previous valid CPU info and an error.
-func CPU(now time.Time) (CPUInfo, error) {
-	ensureGlobalInfo()
-	return globalCurrentInfo.CPU(now)
-}
-
-// Mem returns basic memory info.
-func Mem() MemInfo {
-	ensureGlobalInfo()
-	return globalCurrentInfo.Mem()
 }

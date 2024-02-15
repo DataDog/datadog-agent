@@ -215,3 +215,18 @@ type mongoDBConfig struct {
 		AuthenticationMechanisms  *string `yaml:"authenticationMechanisms,omitempty" json:"authenticationMechanisms,omitempty"`
 	} `yaml:"setParameter,omitempty" json:"setParameter,omitempty"`
 }
+
+type cassandraDBConfig struct {
+	Authenticator           string `yaml:"authenticator" json:"authenticator"`
+	LogbackFilePath         string `yaml:"logback_file_path" json:"logback_file_path"`
+	LogbackFileContent      string `yaml:"logback_file_content" json:"logback_file_content"`
+	Authorizer              string `yaml:"authorizer" json:"authorizer"`
+	ListenAddress           string `yaml:"listen_address" json:"listen_address"`
+	ClientEncryptionOptions struct {
+		Enabled  bool `yaml:"enabled" json:"enabled"`
+		Optional bool `yaml:"optional" json:"optional"`
+	} `yaml:"client_encryption_options" json:"client_encryption_options"`
+	ServerEncryptionOptions struct {
+		InternodeEncryption string `yaml:"internode_encryption" json:"internode_encryption"`
+	} `yaml:"server_encryption_options" json:"server_encryption_options"`
+}

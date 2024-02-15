@@ -7,6 +7,17 @@
 
 package compliance
 
+// FileWatchRule is used to audit access to particular files or directories
+// that you may be interested in.
+type FileWatchRule struct {
+	Path string
+}
+
+// Resolve the file watch rule
+func (r *FileWatchRule) Resolve() interface{} {
+	return nil
+}
+
 func newLinuxAuditClient() (LinuxAuditClient, error) {
 	return nil, ErrIncompatibleEnvironment
 }

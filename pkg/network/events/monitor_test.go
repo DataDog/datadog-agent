@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package events handles process events
 package events
 
 import (
@@ -40,7 +40,7 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 					},
 				},
 				ContainerContext: &model.ContainerContext{ID: "cid_exec"},
-				FieldHandlers:    &model.DefaultFieldHandlers{},
+				FieldHandlers:    &model.FakeFieldHandlers{},
 			}}
 		evHandler := &eventHandlerWrapper{}
 		_p := evHandler.Copy(ev)
@@ -76,7 +76,7 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 					},
 				},
 				ContainerContext: &model.ContainerContext{ID: "cid_fork"},
-				FieldHandlers:    &model.DefaultFieldHandlers{},
+				FieldHandlers:    &model.FakeFieldHandlers{},
 			}}
 		evHandler := &eventHandlerWrapper{}
 		_p := evHandler.Copy(ev)

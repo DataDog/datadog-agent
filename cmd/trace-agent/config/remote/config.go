@@ -19,10 +19,10 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -44,7 +44,7 @@ func putBuffer(buffer *bytes.Buffer) {
 }
 
 // ConfigHandler is the HTTP handler for configs
-func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *config.AgentConfig) http.Handler {
+func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) http.Handler {
 	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
@@ -52,7 +52,7 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 		statusCode := http.StatusOK
 		defer func() {
 			tags = append(tags, fmt.Sprintf("status_code:%d", statusCode))
-			metrics.Count("datadog.trace_agent.receiver.config_request", 1, tags, 1)
+			_ = statsd.Count("datadog.trace_agent.receiver.config_request", 1, tags, 1)
 		}()
 
 		buf := getBuffer()
@@ -78,13 +78,12 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 		}
 		cfg, err := client.ClientGetConfigs(req.Context(), &configsRequest)
 		if err != nil {
+			statusCode = http.StatusInternalServerError
 			if e, ok := status.FromError(err); ok {
 				switch e.Code() {
 				case codes.Unimplemented, codes.NotFound:
 					statusCode = http.StatusNotFound
 				}
-			} else {
-				statusCode = http.StatusInternalServerError
 			}
 			http.Error(w, err.Error(), statusCode)
 			return

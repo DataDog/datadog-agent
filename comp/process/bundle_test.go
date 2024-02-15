@@ -33,6 +33,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
+		workloadmeta.Module(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
 		fx.Provide(func() context.Context { return context.TODO() }),
 	)
@@ -65,6 +66,10 @@ func TestBundleOneShot(t *testing.T) {
 
 			mockCoreBundleParams,
 		),
+		// sets a static hostname to avoid grpc call to get hostname from core-agent
+		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
+			"hostname": "testhost",
+		}}),
 		core.MockBundle(),
 		Bundle(),
 	)

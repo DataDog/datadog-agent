@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,13 +33,13 @@ type Destination struct {
 }
 
 // NewDestination returns a new destination.
-func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext, shouldRetry bool) *Destination {
+func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext, shouldRetry bool, status statusinterface.Status) *Destination {
 	prefix := endpoint.APIKey + string(' ')
 	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 	return &Destination{
 		prefixer:            newPrefixer(prefix),
 		delimiter:           NewDelimiter(useProto),
-		connManager:         NewConnectionManager(endpoint),
+		connManager:         NewConnectionManager(endpoint, status),
 		destinationsContext: destinationsContext,
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,

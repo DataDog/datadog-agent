@@ -30,8 +30,6 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, cf
 		{Name: probes.UDPPortBindingsMap},
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
-		{Name: probes.SockByPidFDMap},
-		{Name: probes.PidFDBySockMap},
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},
 	}
@@ -47,7 +45,7 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, cf
 		},
 	}
 	mgr.PerfMaps = []*manager.PerfMap{pm}
-	ebpf.ReportPerfMapTelemetry(pm)
+	ebpftelemetry.ReportPerfMapTelemetry(pm)
 
 	for funcName := range programs {
 		p := &manager.Probe{

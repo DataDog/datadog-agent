@@ -71,7 +71,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSend
 		getProcessChecks(fb, config.GetProcessAPIAddressPort)
 	}
 
-	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
+	fb.RegisterFilePerm(security.GetAuthTokenFilepath(config.Datadog))
 
 	systemProbeConfigBPFDir := config.SystemProbe.GetString("system_probe_config.bpf_dir")
 	if systemProbeConfigBPFDir != "" {
@@ -183,8 +183,10 @@ func getExpVar(fb flaretypes.FlareBuilder) error {
 }
 
 func getSystemProbeStats() ([]byte, error) {
-	sysProbeStats := systemprobeStatus.GetStatus(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
-	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
+	// TODO: (components) - Temporary until we can use the status component to extract the system probe status from it.
+	stats := map[string]interface{}{}
+	systemprobeStatus.GetStatus(stats, config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+	sysProbeBuf, err := yaml.Marshal(stats["systemProbeStats"])
 	if err != nil {
 		return nil, err
 	}

@@ -125,6 +125,7 @@ def build(
     windows_sysprobe=False,
     cmake_options='',
     bundle=None,
+    bundle_ebpf=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -177,7 +178,7 @@ def build(
         build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
     else:
         all_tags = set()
-        if development and "system-probe" in bundled_agents:
+        if bundle_ebpf and "system-probe" in bundled_agents:
             all_tags.add("ebpf_bindata")
 
         for build in bundled_agents:
@@ -313,6 +314,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
+        # Ensure the config folders are not world writable
+        os.chmod(check_dir, mode=0o755)
 
     ## add additional windows-only corechecks, only on windows. Otherwise the check loader
     ## on linux will throw an error because the module is not found, but the config is.
@@ -433,8 +436,6 @@ def hacky_dev_image_build(
     base_image=None,
     target_image="agent",
     target_tag="latest",
-    process_agent=False,
-    trace_agent=False,
     push=False,
     signed_pull=False,
 ):
@@ -472,16 +473,6 @@ def hacky_dev_image_build(
         ctx.run(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
-        if process_agent:
-            ctx.run("inv process-agent.build")
-        if trace_agent:
-            ctx.run("inv trace-agent.build")
-
-    copy_extra_agents = ""
-    if process_agent:
-        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
-    if trace_agent:
-        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -524,8 +515,11 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
-{copy_extra_agents}
-RUN agent completion bash > /usr/share/bash-completion/completions/agent
+RUN agent          completion bash > /usr/share/bash-completion/completions/agent
+RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
+RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent
+RUN system-probe   completion bash > /usr/share/bash-completion/completions/system-probe
+RUN trace-agent    completion bash > /usr/share/bash-completion/completions/trace-agent
 
 ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 '''

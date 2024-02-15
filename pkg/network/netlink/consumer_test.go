@@ -28,7 +28,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 			ProcRoot: "/proc",
 		},
 		ConntrackRateLimit:           1,
-		ConntrackRateLimitInterval:   1 * time.Second,
+		ConntrackRateLimitInterval:   500 * time.Millisecond,
 		EnableRootNetNs:              true,
 		EnableConntrackAllNamespaces: false,
 	}
@@ -53,7 +53,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	}()
 
 	isRecvLoopRunning := c.recvLoopRunning.Load
-	require.Eventually(t, isRecvLoopRunning, cfg.ConntrackRateLimitInterval, 100*time.Millisecond)
+	require.Eventually(t, isRecvLoopRunning, cfg.ConntrackRateLimitInterval*2, 100*time.Millisecond)
 
 	srv := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 0, ns)
 	defer srv.Close()
@@ -65,7 +65,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	// `tickInterval` seconds (3s currently) for
 	// the circuit breaker to detect the over-limit
 	// rate of updates
-	sleepAmt := 250 * time.Millisecond
+	sleepAmt := 100 * time.Millisecond
 	loopCount := (cfg.ConntrackRateLimitInterval.Nanoseconds() / sleepAmt.Nanoseconds()) + 1
 
 	for i := int64(0); i < loopCount; i++ {
@@ -82,11 +82,11 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			assert.False(collect, isRecvLoopRunning(), "receive loop should not be running")
 			assert.True(collect, c.breaker.IsOpen(), "breaker should be open")
-		}, cfg.ConntrackRateLimitInterval, 100*time.Millisecond)
+		}, 2*cfg.ConntrackRateLimitInterval, 100*time.Millisecond)
 	} else {
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			assert.Lessf(collect, c.samplingRate, 1.0, "sampling rate should be less than 1.0")
-		}, cfg.ConntrackRateLimitInterval, 100*time.Millisecond)
+		}, 2*cfg.ConntrackRateLimitInterval, 100*time.Millisecond)
 		require.True(t, isRecvLoopRunning())
 	}
 }

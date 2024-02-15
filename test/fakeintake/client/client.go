@@ -73,6 +73,7 @@ const (
 	apmStatsEndpoint             = "/api/v0.2/stats"
 	orchestratorEndpoint         = "/api/v2/orch"
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
+	metadataEndpoint             = "/api/v1/metadata"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
@@ -96,6 +97,7 @@ type Client struct {
 	apmStatsAggregator             aggregator.APMStatsAggregator
 	orchestratorAggregator         aggregator.OrchestratorAggregator
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
+	metadataAggregator             aggregator.MetadataAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -117,6 +119,7 @@ func NewClient(fakeIntakeURL string) *Client {
 		apmStatsAggregator:             aggregator.NewAPMStatsAggregator(),
 		orchestratorAggregator:         aggregator.NewOrchestratorAggregator(),
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
+		metadataAggregator:             aggregator.NewMetadataAggregator(),
 	}
 }
 
@@ -506,6 +509,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 		return err
 	}
 	c.checkRunAggregator.Reset()
+	c.connectionAggregator.Reset()
 	c.metricAggregator.Reset()
 	c.logAggregator.Reset()
 	return nil
@@ -697,6 +701,23 @@ func (c *Client) FilterSBOMs(id string, options ...MatchOpt[*aggregator.SBOMPayl
 		}
 	}
 	return filteredSBOMs, nil
+}
+
+// GetMetadata fetches fakeintake on `/api/v1/metadata` endpoint and returns a list of metadata payloads
+func (c *Client) GetMetadata() ([]*aggregator.MetadataPayload, error) {
+	payloads, err := c.getFakePayloads(metadataEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	err = c.metadataAggregator.UnmarshallPayloads(payloads)
+	if err != nil {
+		return nil, err
+	}
+	metadata := make([]*aggregator.MetadataPayload, 0, len(c.metadataAggregator.GetNames()))
+	for _, name := range c.metadataAggregator.GetNames() {
+		metadata = append(metadata, c.metadataAggregator.GetPayloadsByName(name)...)
+	}
+	return metadata, nil
 }
 
 // GetOrchestratorResources fetches fakeintake on `/api/v2/orch` endpoint and returns

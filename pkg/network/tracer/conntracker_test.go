@@ -154,7 +154,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 		require.Eventually(t, func() bool {
 			trans = ct.GetTranslationForConn(cs)
 			return trans != nil
-		}, 5*time.Second, 1*time.Second, "timed out waiting for TCP NAT conntrack entry for %s", cs.String())
+		}, 5*time.Second, 100*time.Millisecond, "timed out waiting for TCP NAT conntrack entry for %s", cs.String())
 		assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
 
 		// now dial TCP directly
@@ -196,7 +196,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 		require.Eventually(t, func() bool {
 			trans = ct.GetTranslationForConn(cs)
 			return trans != nil
-		}, 5*time.Second, 1*time.Second, "timed out waiting for UDP NAT conntrack entry for %s", cs.String())
+		}, 5*time.Second, 100*time.Millisecond, "timed out waiting for UDP NAT conntrack entry for %s", cs.String())
 		assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
 	})
 }
@@ -227,7 +227,7 @@ func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {
 	require.Eventually(t, func() bool {
 		trans = ct.GetTranslationForConn(cs)
 		return trans != nil
-	}, 5*time.Second, 1*time.Second, "timed out waiting for conntrack entry for %s", cs.String())
+	}, 5*time.Second, 100*time.Millisecond, "timed out waiting for conntrack entry for %s", cs.String())
 
 	assert.Equal(t, uint16(8080), trans.ReplSrcPort)
 }
@@ -239,8 +239,10 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 	netlinktestutil.SetupDNAT(t)
 
 	// Setup TCP server on root namespace
-	srv := nettestutil.StartServerTCP(t, net.ParseIP("1.1.1.1"), 80)
+	srv := nettestutil.StartServerTCP(t, net.ParseIP("1.1.1.1"), 0)
 	defer srv.Close()
+
+	port := srv.(net.Listener).Addr().(*net.TCPAddr).Port
 
 	// Now switch to the test namespace and make a request to the root namespace server
 	var laddr *net.TCPAddr
@@ -263,7 +265,7 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 		defer netns.Set(originalNS)
 		defer close(done)
 		netns.Set(testNS)
-		laddr = nettestutil.MustPingTCP(t, net.ParseIP("3.3.3.3"), 80).LocalAddr().(*net.TCPAddr)
+		laddr = nettestutil.MustPingTCP(t, net.ParseIP("3.3.3.3"), port).LocalAddr().(*net.TCPAddr)
 	}()
 	<-done
 
@@ -274,14 +276,14 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 		Source: util.AddressFromNetIP(laddr.IP),
 		SPort:  uint16(laddr.Port),
 		Dest:   util.AddressFromString("3.3.3.3"),
-		DPort:  uint16(80),
+		DPort:  uint16(port),
 		Type:   network.TCP,
 		NetNS:  testIno,
 	}
 	require.Eventually(t, func() bool {
 		trans = ct.GetTranslationForConn(cs)
 		return trans != nil
-	}, 5*time.Second, 1*time.Second, "timed out waiting for conntrack entry for %s", cs.String())
+	}, 5*time.Second, 100*time.Millisecond, "timed out waiting for conntrack entry for %s", cs.String())
 
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
 }

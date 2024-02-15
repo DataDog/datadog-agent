@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -76,6 +78,9 @@ func main() {
 		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
+		eventplatformimpl.Module(),
+		fx.Supply(eventplatformimpl.NewDefaultParams()),
+		eventplatformreceiverimpl.Module(),
 		fx.Provide(newSerializer),
 		fx.Provide(func(cfg config.Component) demultiplexerimpl.Params {
 			params := demultiplexerimpl.NewDefaultParams()
