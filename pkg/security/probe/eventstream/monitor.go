@@ -38,6 +38,27 @@ type MapStats struct {
 	Lost  *atomic.Uint64
 }
 
+type invalidEventStats struct {
+	bytes *atomic.Uint64
+	count *atomic.Uint64
+}
+
+// InvalidEventCause is an enum that represents the cause of an invalid event
+type InvalidEventCause int
+
+const (
+	// InvalidType indicates that the type of an event is invalid
+	InvalidType InvalidEventCause = iota
+	maxInvalidEventCause
+)
+
+func (cause InvalidEventCause) String() string {
+	if cause < 0 || cause >= maxInvalidEventCause {
+		return "unknown"
+	}
+	return [...]string{"invalid_type"}[cause]
+}
+
 // NewEventStreamMapStats returns a new MapStats correctly initialized
 func NewEventStreamMapStats() MapStats {
 	return MapStats{
@@ -86,6 +107,8 @@ type Monitor struct {
 	readLostEvents map[string][]*atomic.Uint64
 	// sortingErrorStats holds the count of events that indicate that at least 1 event is miss ordered
 	sortingErrorStats map[string][model.MaxKernelEventType]*atomic.Int64
+	// badEventsStats tracks statistics for invalid events retrieved from the eventstream
+	invalidEventStats map[string][maxInvalidEventCause]*invalidEventStats
 
 	// lastTimestamp is used to track the timestamp of the last event retrieved from the perf map
 	lastTimestamp uint64
@@ -120,6 +143,7 @@ func NewEventStreamMonitor(config *config.Config, eRPC *erpc.ERPC, manager *mana
 		kernelStats:       make(map[string][][model.MaxKernelEventType]MapStats),
 		readLostEvents:    make(map[string][]*atomic.Uint64),
 		sortingErrorStats: make(map[string][model.MaxKernelEventType]*atomic.Int64),
+		invalidEventStats: make(map[string][maxInvalidEventCause]*invalidEventStats),
 
 		onEventLost: onEventLost,
 	}
@@ -176,6 +200,7 @@ func NewEventStreamMonitor(config *config.Config, eRPC *erpc.ERPC, manager *mana
 		var stats, kernelStats [][model.MaxKernelEventType]MapStats
 		var usrLostEvents []*atomic.Uint64
 		var sortingErrorStats [model.MaxKernelEventType]*atomic.Int64
+		var invalidEventStats [maxInvalidEventCause]*invalidEventStats
 
 		for i := 0; i < pbm.numCPU; i++ {
 			stats = append(stats, initEventStreamMapStatsArray())
@@ -187,13 +212,29 @@ func NewEventStreamMonitor(config *config.Config, eRPC *erpc.ERPC, manager *mana
 			sortingErrorStats[i] = atomic.NewInt64(0)
 		}
 
+		for i := 0; i < int(maxInvalidEventCause); i++ {
+			invalidEventStats[i] = newInvalidEventStats()
+		}
+
 		pbm.stats[mapName] = stats
 		pbm.kernelStats[mapName] = kernelStats
 		pbm.readLostEvents[mapName] = usrLostEvents
 		pbm.sortingErrorStats[mapName] = sortingErrorStats
+		pbm.invalidEventStats[mapName] = invalidEventStats
 	}
 	log.Debugf("monitoring perf ring buffer on %d CPU, %d events", pbm.numCPU, model.MaxKernelEventType)
 	return &pbm, nil
+}
+
+func newInvalidEventStats() *invalidEventStats {
+	return &invalidEventStats{
+		bytes: atomic.NewUint64(0),
+		count: atomic.NewUint64(0),
+	}
+}
+
+func (s *invalidEventStats) getAndReset() (uint64, uint64) {
+	return s.count.Swap(0), s.bytes.Swap(0)
 }
 
 func initEventStreamMapStatsArray() [model.MaxKernelEventType]MapStats {
@@ -403,6 +444,16 @@ func (pbm *Monitor) CountEvent(eventType model.EventType, timestamp uint64, coun
 	pbm.stats[mapName][cpu][eventType].Bytes.Add(size)
 }
 
+// CountInvalidEvent counts the size of one invalid event of the specified cause
+func (pbm *Monitor) CountInvalidEvent(mapName string, cause InvalidEventCause, size uint64) {
+	// sanity check
+	if len(pbm.invalidEventStats[mapName]) <= int(cause) {
+		return
+	}
+	pbm.invalidEventStats[mapName][cause].count.Add(1)
+	pbm.invalidEventStats[mapName][cause].bytes.Add(size)
+}
+
 func (pbm *Monitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {
 	var count int64
 	var err error
@@ -435,6 +486,24 @@ func (pbm *Monitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) e
 			}
 		}
 	}
+
+	for mapName, causes := range pbm.invalidEventStats {
+		for cause, stats := range causes {
+			count, bytes := stats.getAndReset()
+			tags := []string{fmt.Sprintf("map:%s", mapName), fmt.Sprintf("cause:%s", InvalidEventCause(cause).String())}
+			if count > 0 {
+				if err := client.Count(metrics.MetricPerfBufferInvalidEventsCount, int64(count), tags, 1.0); err != nil {
+					return err
+				}
+			}
+			if bytes > 0 {
+				if err := client.Count(metrics.MetricPerfBufferInvalidEventsBytes, int64(bytes), tags, 1.0); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	return nil
 }
 

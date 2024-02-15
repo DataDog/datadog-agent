@@ -56,7 +56,8 @@ type provides struct {
 	// implements diagnosesendermanager.Component). This has the nice consequence of preventing having
 	// demultiplexerimpl.Module and diagnosesendermanagerimpl.Module in the same fx.App because there would
 	// be two ways to create diagnosesendermanager.Component.
-	SenderManager           diagnosesendermanager.Component
+	DiagnosticSenderManager diagnosesendermanager.Component
+	SenderManager           sender.SenderManager
 	StatusProvider          status.InformationProvider
 	AggregatorDemultiplexer aggregator.Demultiplexer
 }
@@ -88,8 +89,9 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	}})
 
 	return provides{
-		Comp:          demultiplexer,
-		SenderManager: demultiplexer,
+		Comp:                    demultiplexer,
+		DiagnosticSenderManager: demultiplexer,
+		SenderManager:           demultiplexer,
 		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
 			Log: deps.Log,
 		}),

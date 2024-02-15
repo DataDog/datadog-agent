@@ -30,6 +30,7 @@ type domainForwarder struct {
 	log                       log.Component
 	isRetrying                *atomic.Bool
 	domain                    string
+	isHA                      bool
 	numberOfWorkers           int
 	highPrio                  chan transaction.Transaction // use to receive new transactions
 	lowPrio                   chan transaction.Transaction // use to retry transactions
@@ -50,6 +51,7 @@ func newDomainForwarder(
 	config config.Component,
 	log log.Component,
 	domain string,
+	ha bool,
 	retryQueue *retry.TransactionRetryQueue,
 	numberOfWorkers int,
 	connectionResetInterval time.Duration,
@@ -59,6 +61,7 @@ func newDomainForwarder(
 		config:                    config,
 		log:                       log,
 		isRetrying:                atomic.NewBool(false),
+		isHA:                      ha,
 		domain:                    domain,
 		numberOfWorkers:           numberOfWorkers,
 		retryQueue:                retryQueue,
@@ -263,6 +266,30 @@ func (f *domainForwarder) State() uint32 {
 }
 
 func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
+	// Metadata types should always be submitted in dual-shipping fashion - no special considerations for
+	// Metadata transactions.
+	if f.isHA && t.GetKind() != transaction.Metadata {
+		if f.State() == Disabled {
+			if f.config.GetBool("ha.enabled") && f.config.GetBool("ha.failover") {
+				f.m.Lock()
+				f.internalState = Started
+				f.m.Unlock()
+				f.log.Debugf("Forwarder for domain %v has been failed over to, enabling it for HA.", t.GetTarget())
+			} else {
+				f.log.Debugf("Forwarder for domain %v is disabled; dropping transaction for this domain.", t.GetTarget())
+				return
+			}
+		} else {
+			if (!f.config.GetBool("ha.enabled") || !f.config.GetBool("ha.failover")) && f.State() != Disabled {
+				f.m.Lock()
+				f.internalState = Disabled
+				f.m.Unlock()
+				f.log.Infof("Forwarder for domain %v was disabled; transactions will be dropped for this domain.", t.GetTarget())
+				return
+			}
+		}
+	}
+
 	// We don't want to block the collector if the highPrio queue is full
 	select {
 	case f.highPrio <- t:
