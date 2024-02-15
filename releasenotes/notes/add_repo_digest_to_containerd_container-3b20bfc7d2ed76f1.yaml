@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    add ``repo_digest`` to containerd ContainerImage which will be used to remove duplicate images in container images UI.
+    Add ``repo_digest`` to containerd ContainerImage to remove duplicate images in container images UI.
