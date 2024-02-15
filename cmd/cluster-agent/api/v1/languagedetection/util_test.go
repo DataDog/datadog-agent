@@ -21,6 +21,16 @@ import (
 	"time"
 )
 
+var (
+	unexpiredTime = time.Now().Add(10 * time.Minute)
+	expiredTime   = time.Now().Add(-10 * time.Minute)
+)
+
+const (
+	eventuallyTestTimeout = 2 * time.Second
+	eventuallyTestTick    = 100 * time.Millisecond
+)
+
 ////////////////////////////////
 //                            //
 //   Owners Languages Tests   //
@@ -311,8 +321,8 @@ func TestOwnersLanguagesFlush(t *testing.T) {
 			})
 
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should find deploymentA in workloadmeta store with the correct languages")
 
 	// Assertion: deploymentB is added to the store with the correct detected languages
@@ -360,7 +370,7 @@ func TestOwnersLanguagesFlush(t *testing.T) {
 			*langUtil.NewContainer("some-container"):       {"java": {}},
 			*langUtil.NewContainer("some-other-container"): {"cpp": {}},
 		})
-	}, 2*time.Second, 100*time.Millisecond, "Should find deploymentB in workloadmeta store with the correct languages")
+	}, eventuallyTestTimeout, eventuallyTestTick, "Should find deploymentB in workloadmeta store with the correct languages")
 
 	// Assertion: dirty flags of flushed languages are reset to false
 	assert.False(t, ownersLanguages.containersLanguages[mockSupportedOwnerA].dirty, "deploymentA dirty flag should be reset to false")
@@ -410,8 +420,8 @@ func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 			})
 
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should find deploymentA in workloadmeta store with the correct languages")
 
 	mockOwnersLanguagesFromRequest := OwnersLanguages{
@@ -455,8 +465,8 @@ func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 			})
 
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should find deploymentA in workloadmeta store with the correct languages")
 
 	// Assertion: dirty flags of flushed languages are reset to false
@@ -510,8 +520,8 @@ func TestCleanExpiredLanguages(t *testing.T) {
 			mockSupportedOwnerA: {
 				languages: langUtil.TimedContainersLanguages{
 					*langUtil.NewContainer("some-container"): {
-						"python": time.Now().Add(-5 * time.Minute),
-						"java":   time.Now().Add(5 * time.Minute),
+						"python": expiredTime,
+						"java":   unexpiredTime,
 					},
 				},
 				dirty: false,
@@ -519,8 +529,8 @@ func TestCleanExpiredLanguages(t *testing.T) {
 			mockSupportedOwnerB: {
 				languages: langUtil.TimedContainersLanguages{
 					*langUtil.NewContainer("some-container"): {
-						"python": time.Now().Add(-5 * time.Minute),
-						"java":   time.Now().Add(-5 * time.Minute),
+						"python": expiredTime,
+						"java":   expiredTime,
 					},
 				},
 				dirty: false,
@@ -544,8 +554,8 @@ func TestCleanExpiredLanguages(t *testing.T) {
 			})
 
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should find deploymentA in workloadmeta store with the correct languages")
 
 	assert.Eventuallyf(t,
@@ -553,8 +563,8 @@ func TestCleanExpiredLanguages(t *testing.T) {
 			_, err := mockStore.GetKubernetesDeployment("ns/deploymentB")
 			return err != nil
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should remove deploymentB from workloadmeta store since all languages are expired")
 
 }
@@ -573,8 +583,8 @@ func TestCleanRemovedOwners(t *testing.T) {
 			mockSupportedOwnerA: {
 				languages: langUtil.TimedContainersLanguages{
 					*langUtil.NewContainer("some-container"): {
-						"python": time.Now().Add(5 * time.Minute),
-						"java":   time.Now().Add(5 * time.Minute),
+						"python": unexpiredTime,
+						"java":   unexpiredTime,
 					},
 				},
 				dirty: false,
@@ -621,8 +631,6 @@ func TestCleanRemovedOwners(t *testing.T) {
 	},
 	)
 
-	time.Sleep(1 * time.Second)
-
 	//simulate deleting deployment
 	mockStore.Push("kubeapiserver", workloadmeta.Event{
 		Type: workloadmeta.EventTypeUnset,
@@ -640,8 +648,8 @@ func TestCleanRemovedOwners(t *testing.T) {
 			_, err := mockStore.GetKubernetesDeployment("ns/deploymentA")
 			return err != nil
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should remove deploymentA from workloadmeta")
 }
 

@@ -29,6 +29,11 @@ import (
 	"time"
 )
 
+const (
+	eventuallyTestTimeout = 2 * time.Second
+	eventuallyTestTick    = 100 * time.Millisecond
+)
+
 func newMockLanguagePatcher(ctx context.Context, mockClient dynamic.Interface, mockStore workloadmeta.Mock, mockLogger log.Mock) languagePatcher {
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -236,8 +241,8 @@ func TestHandleDeploymentEvent(t *testing.T) {
 			})
 
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should find deploymentA in workloadmeta store with the correct languages")
 
 	mockDeploymentEvent := workloadmeta.Event{
@@ -276,8 +281,8 @@ func TestHandleDeploymentEvent(t *testing.T) {
 				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
 			})
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should find deploymentA in workloadmeta store with the correct languages")
 
 	// Apply the patch
@@ -344,8 +349,8 @@ func TestHandleDeploymentEvent(t *testing.T) {
 				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
 			})
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should find deploymentA in workloadmeta store with the correct languages")
 
 	////////////////////////////////
@@ -378,8 +383,8 @@ func TestHandleDeploymentEvent(t *testing.T) {
 				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
 			})
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should find deploymentA in workloadmeta store with the correct languages")
 
 	// Apply the patch
@@ -578,8 +583,8 @@ func TestRun(t *testing.T) {
 				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
 			})
 		},
-		2*time.Second,
-		100*time.Millisecond,
+		eventuallyTestTimeout,
+		eventuallyTestTick,
 		"Should find deploymentA in workloadmeta store with the correct languages")
 
 	////////////////////////////////

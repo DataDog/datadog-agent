@@ -31,7 +31,7 @@ func TestToAnnotations(t *testing.T) {
 			expectedAnnotations: map[string]string{},
 		},
 		{
-			name: "Empty containers languages",
+			name: "Non-empty containers languages",
 			self: ContainersLanguages{
 				*NewContainer("cont-1"):     {"java": {}, "python": {}},
 				*NewInitContainer("cont-2"): {"java": {}, "python": {}},
