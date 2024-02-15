@@ -206,10 +206,16 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(cfg *config.Config) error {
 func (dt *DynamicTable) handleNewDynamicTableEntry(val *http2DynamicTableValue) {
 	var err error
 	var dynamicValue string
-	if err := validatePathSize(val.String_len); err != nil {
-		log.Errorf("failed handling a new dynamic table entry: %s", err)
+
+	if val.String_len == 0 {
+		log.Error("failed handling a new dynamic table entry: got an empty value")
 		return
 	}
+	if val.String_len > maxHTTP2Path {
+		log.Errorf("failed handling a new dynamic table entry: value size (%d) has exceeded the maximum limit", val.String_len)
+		return
+	}
+
 	if val.Is_huffman_encoded {
 		dynamicValue, err = hpack.HuffmanDecodeToString(val.Buf[:val.String_len])
 		if err != nil {

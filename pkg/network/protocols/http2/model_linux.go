@@ -61,17 +61,6 @@ func validatePath(str string) error {
 	return nil
 }
 
-// validatePathSize validates the given path size.
-func validatePathSize(size uint8) error {
-	if size == 0 {
-		return errors.New("empty path")
-	}
-	if size > maxHTTP2Path {
-		return fmt.Errorf("path size has exceeded the maximum limit: %d", size)
-	}
-	return nil
-}
-
 // ebpfTXWrapper is a wrapper around the eBPF transaction.
 // It extends the basic type with a pointer to an interned string, which will be filled by processHTTP2 method.
 type ebpfTXWrapper struct {
