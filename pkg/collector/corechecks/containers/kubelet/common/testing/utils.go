@@ -51,6 +51,25 @@ var (
 		"container_id://5f93d91c7aee0230f77fbe9ec642dd60958f5098e76de270a933285c24dfdc6f": {
 			"pod_name:demo-app-success-c485bc67b-klj45",
 		},
+		"container_id://580cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b06": {
+			"kube_container_name:prometheus-to-sd-exporter",
+			"kube_deployment:fluentd-gcp-v2.0.10",
+			"kube_namespace:default",
+		},
+		"container_id://6941ed2471c0e458b6b95db40ba05d1a5ee168256638a0264f08703e48d76562": {
+			"kube_container_name:fluentd-gcp",
+			"kube_deployment:fluentd-gcp-v2.0.10",
+			"kube_namespace:default",
+		},
+		"container_id://690cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b06": {
+			"kube_container_name:prometheus-to-sd-exporter",
+			"kube_deployment:fluentd-gcp-v2.0.10",
+			"kube_namespace:default",
+		},
+		"container_id://5f93d91c7aee0230f77fbe9ec642dd60958f5098e76de270a933285c24dfdc6g": {
+			"pod_name:demo-app-success-c485bc67b-klj45",
+			"kube_namespace:default",
+		},
 		"kubernetes_pod_uid://d2e71e36-10d0-11e8-bd5a-42010af00137": {"pod_name:dd-agent-q6hpw"},
 		"kubernetes_pod_uid://260c2b1d43b094af6d6b4ccba082c2db": {
 			"pod_name:kube-proxy-gke-haissam-default-pool-be5066f1-wnvn",

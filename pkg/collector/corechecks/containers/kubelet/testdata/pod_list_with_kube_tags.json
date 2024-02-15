@@ -1,0 +1,706 @@
+{
+    "items": [
+      {
+        "status": {
+          "qosClass": "Burstable",
+          "containerStatuses": [
+            {
+              "restartCount": 0,
+              "name": "fluentd-gcp",
+              "image": "asia.gcr.io/google-containers/fluentd-gcp:2.0.10",
+              "imageID": "docker-pullable://asia.gcr.io/google-containers/fluentd-gcp@sha256:a81a2c0137aee9f8a3e870898773976df9b63b27809bed2a4b9297531fb3c3c9",
+              "state": {
+                "running": {
+                  "startedAt": "2018-02-13T16:10:45Z"
+                }
+              },
+              "ready": true,
+              "lastState": {},
+              "containerID": "docker://5741ed2471c0e458b6b95db40ba05d1a5ee168256638a0264f08703e48d76561"
+            },
+            {
+              "restartCount": 0,
+              "name": "prometheus-to-sd-exporter",
+              "image": "asia.gcr.io/google-containers/prometheus-to-sd:v0.2.2",
+              "imageID": "docker-pullable://asia.gcr.io/google-containers/prometheus-to-sd@sha256:5831390762c790b0375c202579fd41dd5f40c71950f7538adbe14b0c16f35d56",
+              "state": {
+                "running": {
+                  "startedAt": "2018-02-13T16:10:46Z"
+                }
+              },
+              "ready": true,
+              "lastState": {},
+              "containerID": "docker://580cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b06"
+            }
+          ],
+          "podIP": "10.8.2.4",
+          "startTime": "2018-02-13T14:57:17Z",
+          "hostIP": "10.132.0.4",
+          "phase": "Running",
+          "conditions": [
+            {
+              "status": "True",
+              "lastProbeTime": null,
+              "type": "Initialized",
+              "lastTransitionTime": "2018-02-13T14:57:17Z"
+            },
+            {
+              "status": "True",
+              "lastProbeTime": null,
+              "type": "Ready",
+              "lastTransitionTime": "2018-02-13T16:10:47Z"
+            },
+            {
+              "status": "True",
+              "lastProbeTime": null,
+              "type": "PodScheduled",
+              "lastTransitionTime": "2018-02-13T14:57:27Z"
+            }
+          ]
+        },
+        "spec": {
+          "dnsPolicy": "Default",
+          "securityContext": {},
+          "serviceAccountName": "fluentd-gcp",
+          "schedulerName": "default-scheduler",
+          "serviceAccount": "fluentd-gcp",
+          "nodeSelector": {
+            "beta.kubernetes.io/fluentd-ds-ready": "true"
+          },
+          "terminationGracePeriodSeconds": 30,
+          "restartPolicy": "Always",
+          "volumes": [
+            {
+              "hostPath": {
+                "path": "/var/log",
+                "type": ""
+              },
+              "name": "varlog"
+            },
+            {
+              "hostPath": {
+                "path": "/var/lib/docker/containers",
+                "type": ""
+              },
+              "name": "varlibdockercontainers"
+            },
+            {
+              "hostPath": {
+                "path": "/usr/lib64",
+                "type": ""
+              },
+              "name": "libsystemddir"
+            },
+            {
+              "configMap": {
+                "name": "fluentd-gcp-config-v1.2.3",
+                "defaultMode": 420
+              },
+              "name": "config-volume"
+            },
+            {
+              "secret": {
+                "defaultMode": 420,
+                "secretName": "fluentd-gcp-token-vcd8d"
+              },
+              "name": "fluentd-gcp-token-vcd8d"
+            }
+          ],
+          "tolerations": [
+            {
+              "effect": "NoSchedule",
+              "key": "node.alpha.kubernetes.io/ismaster"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoExecute"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoSchedule"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/not-ready"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/unreachable"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoSchedule",
+              "key": "node.kubernetes.io/disk-pressure"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoSchedule",
+              "key": "node.kubernetes.io/memory-pressure"
+            }
+          ],
+          "containers": [
+            {
+              "livenessProbe": {
+                "timeoutSeconds": 1,
+                "exec": {
+                  "command": [
+                    "/bin/sh",
+                    "-c",
+                    "LIVENESS_THRESHOLD_SECONDS=${LIVENESS_THRESHOLD_SECONDS:-300}; STUCK_THRESHOLD_SECONDS=${LIVENESS_THRESHOLD_SECONDS:-900}; if [ ! -e /var/log/fluentd-buffers ]; then\n  exit 1;\nfi; LAST_MODIFIED_DATE=`stat /var/log/fluentd-buffers | grep Modify | sed -r \"s/Modify: (.*)/\\1/\"`; LAST_MODIFIED_TIMESTAMP=`date -d \"$LAST_MODIFIED_DATE\" +%s`; if [ `date +%s` -gt `expr $LAST_MODIFIED_TIMESTAMP + $STUCK_THRESHOLD_SECONDS` ]; then\n  rm -rf /var/log/fluentd-buffers;\n  exit 1;\nfi; if [ `date +%s` -gt `expr $LAST_MODIFIED_TIMESTAMP + $LIVENESS_THRESHOLD_SECONDS` ]; then\n  exit 1;\nfi;\n"
+                  ]
+                },
+                "initialDelaySeconds": 600,
+                "periodSeconds": 60,
+                "successThreshold": 1,
+                "failureThreshold": 3
+              },
+              "terminationMessagePath": "/dev/termination-log",
+              "name": "fluentd-gcp",
+              "image": "gcr.io/google-containers/fluentd-gcp:2.0.10",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/log",
+                  "name": "varlog"
+                },
+                {
+                  "readOnly": true,
+                  "mountPath": "/var/lib/docker/containers",
+                  "name": "varlibdockercontainers"
+                },
+                {
+                  "readOnly": true,
+                  "mountPath": "/host/lib",
+                  "name": "libsystemddir"
+                },
+                {
+                  "mountPath": "/etc/fluent/config.d",
+                  "name": "config-volume"
+                },
+                {
+                  "readOnly": true,
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "fluentd-gcp-token-vcd8d"
+                }
+              ],
+              "terminationMessagePolicy": "File",
+              "env": [
+                {
+                  "name": "FLUENTD_ARGS",
+                  "value": "--no-supervisor -q"
+                }
+              ],
+              "imagePullPolicy": "IfNotPresent",
+              "resources": {
+                "requests": {
+                  "cpu": "100m",
+                  "memory": "200Mi"
+                },
+                "limits": {
+                  "memory": "300Mi"
+                }
+              }
+            },
+            {
+              "terminationMessagePath": "/dev/termination-log",
+              "name": "prometheus-to-sd-exporter",
+              "image": "gcr.io/google-containers/prometheus-to-sd:v0.2.2",
+              "volumeMounts": [
+                {
+                  "readOnly": true,
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "fluentd-gcp-token-vcd8d"
+                }
+              ],
+              "terminationMessagePolicy": "File",
+              "command": [
+                "/monitor",
+                "--stackdriver-prefix=container.googleapis.com/internal/addons",
+                "--api-override=https://monitoring.googleapis.com/",
+                "--source=fluentd:http://localhost:31337?whitelisted=stackdriver_successful_requests_count,stackdriver_failed_requests_count,stackdriver_ingested_entries_count,stackdriver_dropped_entries_count",
+                "--pod-id=$(POD_NAME)",
+                "--namespace-id=$(POD_NAMESPACE)"
+              ],
+              "env": [
+                {
+                  "valueFrom": {
+                    "fieldRef": {
+                      "fieldPath": "metadata.name",
+                      "apiVersion": "v1"
+                    }
+                  },
+                  "name": "POD_NAME"
+                },
+                {
+                  "valueFrom": {
+                    "fieldRef": {
+                      "fieldPath": "metadata.namespace",
+                      "apiVersion": "v1"
+                    }
+                  },
+                  "name": "POD_NAMESPACE"
+                }
+              ],
+              "imagePullPolicy": "IfNotPresent",
+              "resources": {}
+            }
+          ],
+          "nodeName": "gke-haissam-default-pool-be5066f1-wnvn"
+        },
+        "metadata": {
+          "name": "fluentd-gcp-v2.0.10-9q9t4",
+          "labels": {
+            "k8s-app": "fluentd-gcp",
+            "version": "v2.0.10",
+            "pod-template-generation": "1",
+            "kubernetes.io/cluster-service": "true",
+            "controller-revision-hash": "1108666223"
+          },
+          "namespace": "kube-system",
+          "ownerReferences": [
+            {
+              "kind": "DaemonSet",
+              "name": "fluentd-gcp-v2.0.10",
+              "apiVersion": "extensions/v1beta1",
+              "controller": true,
+              "blockOwnerDeletion": true,
+              "uid": "77585c76-10cc-11e8-bd5a-42010af00137"
+            }
+          ],
+          "resourceVersion": "30704838",
+          "generateName": "fluentd-gcp-v2.0.10-",
+          "creationTimestamp": "2018-02-13T14:57:17Z",
+          "annotations": {
+            "scheduler.alpha.kubernetes.io/critical-pod": "",
+            "kubernetes.io/config.source": "api",
+            "kubernetes.io/config.seen": "2018-02-13T16:10:19.509264637Z"
+          },
+          "selfLink": "/api/v1/namespaces/kube-system/pods/fluentd-gcp-v2.0.10-9q9t4",
+          "uid": "2edfd4d9-10ce-11e8-bd5a-42010af00137"
+        }
+      },
+      {
+        "status": {
+          "qosClass": "Burstable",
+          "containerStatuses": [
+            {
+              "restartCount": 0,
+              "name": "fluentd-gcp",
+              "image": "asia.gcr.io/google-containers/fluentd-gcp:2.0.10",
+              "imageID": "docker-pullable://asia.gcr.io/google-containers/fluentd-gcp@sha256:a81a2c0137aee9f8a3e870898773976df9b63b27809bed2a4b9297531fb3c3c9",
+              "state": {
+                "running": {
+                  "startedAt": "2018-02-13T16:10:45Z"
+                }
+              },
+              "ready": true,
+              "lastState": {},
+              "containerID": "docker://6941ed2471c0e458b6b95db40ba05d1a5ee168256638a0264f08703e48d76562"
+            },
+            {
+              "restartCount": 0,
+              "name": "prometheus-to-sd-exporter",
+              "image": "asia.gcr.io/google-containers/prometheus-to-sd:v0.2.2",
+              "imageID": "docker-pullable://asia.gcr.io/google-containers/prometheus-to-sd@sha256:5831390762c790b0375c202579fd41dd5f40c71950f7538adbe14b0c16f35d56",
+              "state": {
+                "running": {
+                  "startedAt": "2018-02-13T16:10:46Z"
+                }
+              },
+              "ready": true,
+              "lastState": {},
+              "containerID": "docker://690cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b06"
+            }
+          ],
+          "podIP": "10.8.2.4",
+          "startTime": "2018-02-13T14:57:17Z",
+          "hostIP": "10.132.0.4",
+          "phase": "Running",
+          "conditions": [
+            {
+              "status": "True",
+              "lastProbeTime": null,
+              "type": "Initialized",
+              "lastTransitionTime": "2018-02-13T14:57:17Z"
+            },
+            {
+              "status": "True",
+              "lastProbeTime": null,
+              "type": "Ready",
+              "lastTransitionTime": "2018-02-13T16:10:47Z"
+            },
+            {
+              "status": "True",
+              "lastProbeTime": null,
+              "type": "PodScheduled",
+              "lastTransitionTime": "2018-02-13T14:57:27Z"
+            }
+          ]
+        },
+        "spec": {
+          "dnsPolicy": "Default",
+          "securityContext": {},
+          "serviceAccountName": "fluentd-gcp",
+          "schedulerName": "default-scheduler",
+          "serviceAccount": "fluentd-gcp",
+          "nodeSelector": {
+            "beta.kubernetes.io/fluentd-ds-ready": "true"
+          },
+          "terminationGracePeriodSeconds": 30,
+          "restartPolicy": "Always",
+          "volumes": [
+            {
+              "hostPath": {
+                "path": "/var/log",
+                "type": ""
+              },
+              "name": "varlog"
+            },
+            {
+              "hostPath": {
+                "path": "/var/lib/docker/containers",
+                "type": ""
+              },
+              "name": "varlibdockercontainers"
+            },
+            {
+              "hostPath": {
+                "path": "/usr/lib64",
+                "type": ""
+              },
+              "name": "libsystemddir"
+            },
+            {
+              "configMap": {
+                "name": "fluentd-gcp-config-v1.2.3",
+                "defaultMode": 420
+              },
+              "name": "config-volume"
+            },
+            {
+              "secret": {
+                "defaultMode": 420,
+                "secretName": "fluentd-gcp-token-vcd8d"
+              },
+              "name": "fluentd-gcp-token-vcd8d"
+            }
+          ],
+          "tolerations": [
+            {
+              "effect": "NoSchedule",
+              "key": "node.alpha.kubernetes.io/ismaster"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoExecute"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoSchedule"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/not-ready"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/unreachable"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoSchedule",
+              "key": "node.kubernetes.io/disk-pressure"
+            },
+            {
+              "operator": "Exists",
+              "effect": "NoSchedule",
+              "key": "node.kubernetes.io/memory-pressure"
+            }
+          ],
+          "containers": [
+            {
+              "livenessProbe": {
+                "timeoutSeconds": 1,
+                "exec": {
+                  "command": [
+                    "/bin/sh",
+                    "-c",
+                    "LIVENESS_THRESHOLD_SECONDS=${LIVENESS_THRESHOLD_SECONDS:-300}; STUCK_THRESHOLD_SECONDS=${LIVENESS_THRESHOLD_SECONDS:-900}; if [ ! -e /var/log/fluentd-buffers ]; then\n  exit 1;\nfi; LAST_MODIFIED_DATE=`stat /var/log/fluentd-buffers | grep Modify | sed -r \"s/Modify: (.*)/\\1/\"`; LAST_MODIFIED_TIMESTAMP=`date -d \"$LAST_MODIFIED_DATE\" +%s`; if [ `date +%s` -gt `expr $LAST_MODIFIED_TIMESTAMP + $STUCK_THRESHOLD_SECONDS` ]; then\n  rm -rf /var/log/fluentd-buffers;\n  exit 1;\nfi; if [ `date +%s` -gt `expr $LAST_MODIFIED_TIMESTAMP + $LIVENESS_THRESHOLD_SECONDS` ]; then\n  exit 1;\nfi;\n"
+                  ]
+                },
+                "initialDelaySeconds": 600,
+                "periodSeconds": 60,
+                "successThreshold": 1,
+                "failureThreshold": 3
+              },
+              "terminationMessagePath": "/dev/termination-log",
+              "name": "fluentd-gcp",
+              "image": "gcr.io/google-containers/fluentd-gcp:2.0.10",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/log",
+                  "name": "varlog"
+                },
+                {
+                  "readOnly": true,
+                  "mountPath": "/var/lib/docker/containers",
+                  "name": "varlibdockercontainers"
+                },
+                {
+                  "readOnly": true,
+                  "mountPath": "/host/lib",
+                  "name": "libsystemddir"
+                },
+                {
+                  "mountPath": "/etc/fluent/config.d",
+                  "name": "config-volume"
+                },
+                {
+                  "readOnly": true,
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "fluentd-gcp-token-vcd8d"
+                }
+              ],
+              "terminationMessagePolicy": "File",
+              "env": [
+                {
+                  "name": "FLUENTD_ARGS",
+                  "value": "--no-supervisor -q"
+                }
+              ],
+              "imagePullPolicy": "IfNotPresent",
+              "resources": {
+                "requests": {
+                  "cpu": "100m",
+                  "memory": "200Mi"
+                },
+                "limits": {
+                  "memory": "300Mi"
+                }
+              }
+            },
+            {
+              "terminationMessagePath": "/dev/termination-log",
+              "name": "prometheus-to-sd-exporter",
+              "image": "gcr.io/google-containers/prometheus-to-sd:v0.2.2",
+              "volumeMounts": [
+                {
+                  "readOnly": true,
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "fluentd-gcp-token-vcd8d"
+                }
+              ],
+              "terminationMessagePolicy": "File",
+              "command": [
+                "/monitor",
+                "--stackdriver-prefix=container.googleapis.com/internal/addons",
+                "--api-override=https://monitoring.googleapis.com/",
+                "--source=fluentd:http://localhost:31337?whitelisted=stackdriver_successful_requests_count,stackdriver_failed_requests_count,stackdriver_ingested_entries_count,stackdriver_dropped_entries_count",
+                "--pod-id=$(POD_NAME)",
+                "--namespace-id=$(POD_NAMESPACE)"
+              ],
+              "env": [
+                {
+                  "valueFrom": {
+                    "fieldRef": {
+                      "fieldPath": "metadata.name",
+                      "apiVersion": "v1"
+                    }
+                  },
+                  "name": "POD_NAME"
+                },
+                {
+                  "valueFrom": {
+                    "fieldRef": {
+                      "fieldPath": "metadata.namespace",
+                      "apiVersion": "v1"
+                    }
+                  },
+                  "name": "POD_NAMESPACE"
+                }
+              ],
+              "imagePullPolicy": "IfNotPresent",
+              "resources": {}
+            }
+          ],
+          "nodeName": "gke-haissam-default-pool-be5066f1-wnvn"
+        },
+        "metadata": {
+          "name": "fluentd-gcp-v2.0.10-p13r3",
+          "labels": {
+            "k8s-app": "fluentd-gcp",
+            "version": "v2.0.10",
+            "pod-template-generation": "1",
+            "kubernetes.io/cluster-service": "true",
+            "controller-revision-hash": "1108666223"
+          },
+          "namespace": "kube-system",
+          "ownerReferences": [
+            {
+              "kind": "DaemonSet",
+              "name": "fluentd-gcp-v2.0.10",
+              "apiVersion": "extensions/v1beta1",
+              "controller": true,
+              "blockOwnerDeletion": true,
+              "uid": "77585c76-10cc-11e8-bd5a-42010af00137"
+            }
+          ],
+          "resourceVersion": "30704838",
+          "generateName": "fluentd-gcp-v2.0.10-",
+          "creationTimestamp": "2018-02-13T14:57:17Z",
+          "annotations": {
+            "scheduler.alpha.kubernetes.io/critical-pod": "",
+            "kubernetes.io/config.source": "api",
+            "kubernetes.io/config.seen": "2018-02-13T16:10:19.509264637Z"
+          },
+          "selfLink": "/api/v1/namespaces/kube-system/pods/fluentd-gcp-v2.0.10-p13r3",
+          "uid": "2fdfd4d9-10ce-11e8-bd5a-42010af00137"
+        }
+      },
+      {
+        "status": {
+          "qosClass": "Burstable",
+          "containerStatuses": [
+            {
+              "restartCount": 0,
+              "name": "demo-app",
+              "image": "hkaj/demo-app:latest",
+              "imageID": "docker-pullable://hkaj/demo-app@sha256:0b638d574b905c853c67f69801677d219ae177c38d7fab25292934ec5564642f",
+              "state": {
+                "running": {
+                  "startedAt": "2018-02-13T16:11:44Z"
+                }
+              },
+              "ready": true,
+              "lastState": {},
+              "containerID": "docker://5f93d91c7aee0230f77fbe9ec642dd60958f5098e76de270a933285c24dfdc6g"
+            }
+          ],
+          "podIP": "10.8.2.5",
+          "startTime": "2018-02-13T16:11:38Z",
+          "hostIP": "10.132.0.4",
+          "phase": "Pending",
+          "conditions": [
+            {
+              "status": "True",
+              "lastProbeTime": null,
+              "type": "Initialized",
+              "lastTransitionTime": "2018-02-13T16:11:38Z"
+            },
+            {
+              "status": "True",
+              "lastProbeTime": null,
+              "type": "Ready",
+              "lastTransitionTime": "2018-02-13T16:11:45Z"
+            },
+            {
+              "status": "True",
+              "lastProbeTime": null,
+              "type": "PodScheduled",
+              "lastTransitionTime": "2018-02-13T16:11:38Z"
+            }
+          ]
+        },
+        "spec": {
+          "dnsPolicy": "ClusterFirst",
+          "securityContext": {},
+          "serviceAccountName": "default",
+          "schedulerName": "default-scheduler",
+          "serviceAccount": "default",
+          "terminationGracePeriodSeconds": 30,
+          "restartPolicy": "Always",
+          "volumes": [
+            {
+              "secret": {
+                "defaultMode": 420,
+                "secretName": "default-token-zkdf2"
+              },
+              "name": "default-token-zkdf2"
+            }
+          ],
+          "tolerations": [
+            {
+              "operator": "Exists",
+              "tolerationSeconds": 300,
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/not-ready"
+            },
+            {
+              "operator": "Exists",
+              "tolerationSeconds": 300,
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/unreachable"
+            }
+          ],
+          "containers": [
+            {
+              "terminationMessagePath": "/dev/termination-log",
+              "name": "demo-app",
+              "image": "hkaj/demo-app:latest",
+              "volumeMounts": [
+                {
+                  "readOnly": true,
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "default-token-zkdf2"
+                }
+              ],
+              "terminationMessagePolicy": "File",
+              "imagePullPolicy": "Always",
+              "ports": [
+                {
+                  "protocol": "TCP",
+                  "containerPort": 80
+                }
+              ],
+              "resources": {
+                "requests": {
+                  "cpu": "100m"
+                }
+              }
+            }
+          ],
+          "nodeName": "gke-haissam-default-pool-be5066f1-wnvn"
+        },
+        "metadata": {
+          "name": "demo-app-success-c485bc67b-klj45",
+          "labels": {
+            "pod-template-hash": "704167236",
+            "project": "cncf",
+            "app": "demo-app",
+            "version": "1"
+          },
+          "namespace": "default",
+          "ownerReferences": [
+            {
+              "kind": "ReplicaSet",
+              "name": "demo-app-success-c485bc67b",
+              "apiVersion": "extensions/v1beta1",
+              "controller": true,
+              "blockOwnerDeletion": true,
+              "uid": "390ee05e-0c3d-11e8-a231-42010af000a9"
+            }
+          ],
+          "resourceVersion": "30705944",
+          "generateName": "demo-app-success-c485bc67b-",
+          "creationTimestamp": "2018-02-13T16:08:35Z",
+          "annotations": {
+            "kubernetes.io/config.seen": "2018-02-13T16:11:38.235504619Z",
+            "service-discovery.datadoghq.com/demo-app.init_configs": "[{}]",
+            "service-discovery.datadoghq.com/demo-app.check_names": "[\"go_expvar\"]",
+            "kubernetes.io/config.source": "api",
+            "service-discovery.datadoghq.com/demo-app.instances": "[{\"expvar_url\": \"http://%%host%%:8080\", \"metrics\": [{\"path\": \"demo.requests.failures\", \"type\": \"counter\"}, {\"path\": \"demo.requests.success\", \"type\": \"counter\"}], \"tags\": [\"%%tags%%\"]}]",
+            "kubernetes.io/limit-ranger": "LimitRanger plugin set: cpu request for container demo-app"
+          },
+          "selfLink": "/api/v1/namespaces/default/pods/demo-app-success-c485bc67b-klj45",
+          "uid": "24d6daa3-10d8-11e8-bd5a-42010af00137"
+        }
+      }
+    ],
+    "kind": "PodList",
+    "apiVersion": "v1",
+    "metadata": {}
+  }
+  
