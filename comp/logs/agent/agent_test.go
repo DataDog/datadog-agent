@@ -303,12 +303,12 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 		{
 			"logs enabled",
 			true,
-			flaretypes.FlareCallback(flareController.NewFlareController().FillFlare),
+			flaretypes.NewProvider(flareController.NewFlareController().FillFlare),
 		},
 		{
 			"logs disabled",
 			false,
-			flaretypes.FlareCallback(func(flaretypes.FlareBuilder) error { return nil }),
+			flaretypes.NewEmptyProvider(),
 		},
 	}
 
@@ -324,7 +324,8 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 
 			provides := newLogsAgent(deps)
 
-			assert.IsType(suite.T(), test.expected, provides.FlareProvider.Provider)
+			assert.IsType(suite.T(), test.expected, provides.FlareProvider)
+			assert.NotNil(suite.T(), provides.FlareProvider.Provider)
 		})
 	}
 }
