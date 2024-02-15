@@ -973,6 +973,7 @@ workflow:
         - tools/windows/DatadogAgentInstaller/**/*
         - .gitlab/new-e2e_testing/windows.yml
         - test/new-e2e/tests/windows/install-test/**/*
+        - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
