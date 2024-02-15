@@ -156,7 +156,8 @@ func ParseJSONValue(value string) ([][]integration.Data, error) {
 }
 
 // BuildTemplates returns check configurations configured according to the
-// passed in AD identifier, check names, init and instance configs
+// passed in AD identifier, check names, init, instance configs and their
+// `ignoreAutoDiscoveryTags` field.
 func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][]integration.Data, ignoreAutodiscoveryTags bool) []integration.Config {
 	templates := make([]integration.Config, 0)
 
