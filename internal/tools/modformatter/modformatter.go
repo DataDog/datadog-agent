@@ -183,7 +183,7 @@ func main() {
 			continue
 		}
 
-		if !ReplaceMap[modname] {
+		if replace, ok := ReplaceMap[modname]; !ok {
 			modversion := require.Syntax.Token[1]
 			fmt.Printf("Required %s %s is missing in replace of %s\n", modname, modversion, modFilePath)
 			if *formatFile {
