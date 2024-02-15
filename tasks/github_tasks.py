@@ -1,7 +1,7 @@
 import os
 import re
 import time
-from functools import cache
+from functools import lru_cache
 
 from invoke import Exit, task
 
@@ -18,7 +18,7 @@ from tasks.libs.github_actions_tools import (
 from tasks.release import _get_release_json_value
 
 
-@cache
+@lru_cache(maxsize=None)
 def concurrency_key():
     branch_name = get_git_branch_name()
 
