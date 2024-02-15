@@ -117,7 +117,7 @@ var (
 
 // InjectAutoInstrumentation injects APM libraries into pods
 func InjectAutoInstrumentation(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ k8s.Interface) ([]byte, error) {
-	return mutate(rawPod, ns, injectAutoInstrumentation, dc)
+	return Mutate(rawPod, ns, injectAutoInstrumentation, dc)
 }
 
 func initContainerName(lang language) string {

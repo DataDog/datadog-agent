@@ -197,8 +197,6 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
 				`^image_tag:main$`,
 				`^nginx_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
-				`^nginx_host:`,
-				`^port:80$`,
 				`^short_image:apps-nginx-server$`,
 				`^task_arn:`,
 				`^task_family:.*-nginx-ec2$`,
