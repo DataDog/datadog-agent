@@ -336,7 +336,7 @@ func (a *Agent) Process(p *api.Payload) {
 			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
-		a.setPayloadAttributes(p, root, chunk, p.TracerPayload.ContainerID)
+		a.setPayloadAttributes(p, root, chunk)
 
 		pt := processedTrace(p, chunk, root, p.TracerPayload.ContainerID, a.conf)
 		if !p.ClientComputedStats {
