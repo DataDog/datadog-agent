@@ -42,11 +42,13 @@ const (
 
 // NewProcessCheck returns an instance of the ProcessCheck.
 func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader) *ProcessCheck {
+	serviceExtractorEnabled := true
+	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	check := &ProcessCheck{
-		config:             config,
-		scrubber:           procutil.NewDefaultDataScrubber(),
-		lookupIdProbe:      NewLookupIDProbe(config),
-		sysprobeYamlConfig: sysprobeYamlConfig,
+		config:           config,
+		scrubber:         procutil.NewDefaultDataScrubber(),
+		lookupIdProbe:    NewLookupIDProbe(config),
+		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName),
 	}
 
 	return check
@@ -152,9 +154,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.initConnRates()
 
-	serviceExtractorEnabled := true
-	useWindowsServiceName := p.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	p.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
 	if !oneShot && workloadmeta.Enabled(p.config) {
