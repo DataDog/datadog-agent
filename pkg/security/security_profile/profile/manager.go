@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -160,18 +161,16 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		return nil, fmt.Errorf("secprofs_syscalls map not found")
 	}
 
-	eventTypesSlices := [][]model.EventType{config.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes, config.RuntimeSecurity.AnomalyDetectionEventTypes}
-	eventTypesUniq := map[model.EventType]struct{}{}
-	for _, eventTypes := range eventTypesSlices {
-		for _, eventType := range eventTypes {
-			eventTypesUniq[eventType] = struct{}{}
-		}
+	var eventTypes []model.EventType
+	if config.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
+		eventTypes = append(eventTypes, config.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes...)
 	}
-
-	eventTypes := make([]model.EventType, 0, len(eventTypesUniq))
-	for eventType := range eventTypesUniq {
-		eventTypes = append(eventTypes, eventType)
+	if config.RuntimeSecurity.AnomalyDetectionEnabled {
+		eventTypes = append(eventTypes, config.RuntimeSecurity.AnomalyDetectionEventTypes...)
 	}
+	// merge and remove duplicated event types
+	slices.Sort(eventTypes)
+	eventTypes = slices.Clip(slices.Compact(eventTypes))
 
 	m := &SecurityProfileManager{
 		config:                     config,
