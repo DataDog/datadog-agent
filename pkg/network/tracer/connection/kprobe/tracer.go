@@ -154,7 +154,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
 
-	ringbufferEnabled := ringBufferSupported(config)
+	ringbufferEnabled := RingBufferSupported(config)
 	AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffer_enabled")
 	tcpEnabled := config.CollectTCPv4Conns || config.CollectTCPv6Conns
 
@@ -396,6 +396,7 @@ func isCORETracerSupported() error {
 	return errCORETracerNotSupported
 }
 
-func ringBufferSupported(c *config.Config) bool {
+// RingBufferSupported returns true if ring buffer is supported on the kernel and enabled in the config
+func RingBufferSupported(c *config.Config) bool {
 	return (features.HaveMapType(ebpf.RingBuf) == nil) && c.RingbufferEnabled
 }

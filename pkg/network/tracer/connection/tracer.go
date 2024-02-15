@@ -19,7 +19,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
@@ -221,7 +220,7 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 		closedChannelSize = config.ClosedChannelSize
 	}
 	var connCloseEventHandler ddebpf.EventHandler
-	if (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled {
+	if kprobe.RingBufferSupported(config) {
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)

@@ -35,9 +35,9 @@ var (
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
 
-// ComputeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
+// computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 // Must be a power of 2 and a multiple of the page size
-func ComputeDefaultEventsRingBufferSize() uint32 {
+func computeDefaultEventsRingBufferSize() uint32 {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		numCPU = 1
@@ -211,7 +211,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 	}
 	if opts.UseRingBuffers {
 		if opts.RingBufferSize == 0 {
-			opts.RingBufferSize = ComputeDefaultEventsRingBufferSize()
+			opts.RingBufferSize = computeDefaultEventsRingBufferSize()
 		}
 		editors["events"] = manager.MapSpecEditor{
 			MaxEntries: opts.RingBufferSize,

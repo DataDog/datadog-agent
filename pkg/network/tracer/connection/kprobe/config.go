@@ -30,7 +30,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	kv5180 := kernel.VersionCode(5, 18, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv650 := kernel.VersionCode(6, 5, 0)
-	ringBufferSupported := ringBufferSupported(c)
+	ringBufferSupported := RingBufferSupported(c)
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, err

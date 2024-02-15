@@ -15,7 +15,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -60,7 +59,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 
 		device := file.Sys().(*syscall.Stat_t).Dev
 		inode := file.Sys().(*syscall.Stat_t).Ino
-		ringbufferEnabled := ringBufferSupported(config)
+		ringbufferEnabled := kprobe.RingBufferSupported(config)
 
 		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
 			Name:  "systemprobe_device",
@@ -107,8 +106,4 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 	}
 
 	return m.Manager, nil, nil
-}
-
-func ringBufferSupported(c *config.Config) bool {
-	return (features.HaveMapType(ebpf.RingBuf) == nil) && c.RingbufferEnabled
 }
