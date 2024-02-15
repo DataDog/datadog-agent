@@ -336,9 +336,11 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 current_stream->path.index = current_header->index;
             } else if (is_status_index(dynamic_value->original_index)) {
                 current_stream->status_code.index = current_header->index;
+                __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (is_method_index(dynamic_value->original_index)) {
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method.index = current_header->index;
+                __sync_fetch_and_add(&http2_tel->request_seen, 1);
             }
         } else {
             // We're in new dynamic header or new dynamic header not indexed states.
@@ -363,10 +365,12 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
             } else if (dynamic_table_value->type == kHeaderStatus) {
                 current_stream->status_code.index = dynamic_table_value->key.index;
                 current_stream->status_code.temporary = dynamic_table_value->temporary;
+                __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else {
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method.index = dynamic_table_value->key.index;
                 current_stream->request_method.temporary = dynamic_table_value->temporary;
+                __sync_fetch_and_add(&http2_tel->request_seen, 1);
             }
 
             // Send dynamic value over a per-event to the user mode.
