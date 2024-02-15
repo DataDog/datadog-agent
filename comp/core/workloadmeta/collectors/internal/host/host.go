@@ -67,13 +67,13 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 }
 
 func (c *collector) Pull(ctx context.Context) error {
-	// Feature is disbled or timeout has previously occurred
+	// Feature is disabled or timeout has previously occurred
 	if c.timeoutTimer == nil {
 		return nil
 	}
 
 	// Timeout reached - expire any host tags in the store
-	if c.isTimedOut() {
+	if c.resetTimerIfTimedOut() {
 		c.store.Notify(makeEvent([]string{}))
 		return nil
 	}
@@ -91,7 +91,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func (c *collector) isTimedOut() bool {
+func (c *collector) resetTimerIfTimedOut() bool {
 	select {
 	case <-c.timeoutTimer.C:
 		c.timeoutTimer = nil
