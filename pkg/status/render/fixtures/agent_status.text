@@ -188,7 +188,6 @@ Collector
     datadog_cluster_agent (2.4.0)
     -----------------------------
       Instance ID: datadog_cluster_agent:4b0f56c49d48c92e [OK]
-      Long Running Check: false
       Configuration Source: file:/etc/datadog-agent/conf.d/datadog_cluster_agent.d/auto_conf.yaml
       Total Runs: 842
       Metric Samples: Last Run: 125, Total: 104,832
@@ -199,7 +198,6 @@ Collector
       Last Successful Execution Date : 2022-12-20 22:52:01 UTC (1671576721000)
       
       Instance ID: datadog_cluster_agent:79dc7329a0398f09 [OK]
-      Long Running Check: false
       Configuration Source: file:/etc/datadog-agent/conf.d/datadog_cluster_agent.d/auto_conf.yaml
       Total Runs: 838
       Metric Samples: Last Run: 61, Total: 50,672
@@ -213,7 +211,6 @@ Collector
     network (2.9.2)
     ---------------
       Instance ID: network:d884b5186b651429 [OK]
-      Long Running Check: false
       Configuration Source: file:/etc/datadog-agent/conf.d/network.d/conf.yaml.default
       Total Runs: 841
       Metric Samples: Last Run: 174, Total: 146,334

@@ -13,7 +13,6 @@
 {{- end -}}
 {{- define "checkStats" -}}
               Instance ID: {{.CheckID}} {{status .}}<br>
-              Long Running Check: false<br>
               Total Runs: {{humanize .TotalRuns}}<br>
               Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
               Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>

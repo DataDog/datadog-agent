@@ -21,7 +21,6 @@ Collector
 {{- end }}
 {{- define "checkStats" -}}
       Instance ID: {{.CheckID}} {{status .}}
-      Long Running Check: false
       Configuration Source: {{.CheckConfigSource}}
       Total Runs: {{humanize .TotalRuns}}
       Metric Samples: Last Run: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}

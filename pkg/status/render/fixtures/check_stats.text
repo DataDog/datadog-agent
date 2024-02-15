@@ -12,7 +12,6 @@ Collector
     cpu
     ---
       Instance ID: cpu [OK]
-      Long Running Check: false
       Configuration Source: file:/opt/datadog-agent/etc/conf.d/cpu.d/conf.yaml.default
       Total Runs: 124
       Metric Samples: Last Run: 8, Total: 985
@@ -26,7 +25,6 @@ Collector
     disk
     ----
       Instance ID: disk [OK]
-      Long Running Check: false
       Configuration Source: file:/opt/datadog-agent/etc/conf.d/disk.d/conf.yaml.default
       Total Runs: 123
       Metric Samples: Last Run: 84, Total: 10,332
@@ -40,7 +38,6 @@ Collector
     file_handle
     -----------
       Instance ID: file_handle [ERROR]
-      Long Running Check: false
       Configuration Source: file:/Users/gustavo.caso/go/src/github.com/DataDog/datadog-agent/bin/agent/dist/conf.d/file_handle.d/conf.yaml.default
       Total Runs: 123
       Metric Samples: Last Run: 0, Total: 0
@@ -55,7 +52,6 @@ Collector
     io
     --
       Instance ID: io [OK]
-      Long Running Check: false
       Configuration Source: file:/opt/datadog-agent/etc/conf.d/io.d/conf.yaml.default
       Total Runs: 123
       Metric Samples: Last Run: 15, Total: 1,836
@@ -69,7 +65,6 @@ Collector
     load
     ----
       Instance ID: load [OK]
-      Long Running Check: false
       Configuration Source: file:/opt/datadog-agent/etc/conf.d/load.d/conf.yaml.default
       Total Runs: 123
       Metric Samples: Last Run: 6, Total: 738
@@ -83,7 +78,6 @@ Collector
     memory
     ------
       Instance ID: memory [OK]
-      Long Running Check: false
       Configuration Source: file:/opt/datadog-agent/etc/conf.d/memory.d/conf.yaml.default
       Total Runs: 123
       Metric Samples: Last Run: 11, Total: 1,353
@@ -97,7 +91,6 @@ Collector
     ntp
     ---
       Instance ID: ntp:3c427a42a70bbf8 [OK]
-      Long Running Check: false
       Configuration Source: file:/opt/datadog-agent/etc/conf.d/ntp.d/conf.yaml.default
       Total Runs: 3
       Metric Samples: Last Run: 1, Total: 3
@@ -111,7 +104,6 @@ Collector
     uptime
     ------
       Instance ID: uptime [OK]
-      Long Running Check: false
       Configuration Source: file:/opt/datadog-agent/etc/conf.d/uptime.d/conf.yaml.default
       Total Runs: 124
       Metric Samples: Last Run: 1, Total: 124
