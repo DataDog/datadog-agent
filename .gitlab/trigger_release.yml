@@ -28,13 +28,7 @@
       --variable RELEASE_PRODUCT
       --variable RELEASE_VERSION
       --variable TARGET_REPO
-      --variable TARGET_REPO_BRANCH
-      --variable APPS
-      --variable BAZEL_TARGET
-      --variable DDR
-      --variable DDR_WORKFLOW_ID
-      --variable TARGET_ENV
-      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS'
+      --variable TARGET_REPO_BRANCH'
   dependencies: []
 
 trigger_auto_staging_release:

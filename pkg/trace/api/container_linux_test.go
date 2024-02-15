@@ -20,6 +20,8 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -51,7 +53,7 @@ func TestConnContext(t *testing.T) {
 	if err := os.Chmod(sockPath, 0o722); err != nil {
 		t.Fatalf("error setting socket permissions: %v", err)
 	}
-	ln = NewMeasuredListener(ln, "uds_connections", 10)
+	ln = NewMeasuredListener(ln, "uds_connections", 10, &statsd.NoOpClient{})
 	defer ln.Close()
 
 	s := &http.Server{

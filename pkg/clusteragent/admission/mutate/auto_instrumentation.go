@@ -117,7 +117,7 @@ var (
 
 // InjectAutoInstrumentation injects APM libraries into pods
 func InjectAutoInstrumentation(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ k8s.Interface) ([]byte, error) {
-	return mutate(rawPod, ns, injectAutoInstrumentation, dc)
+	return Mutate(rawPod, ns, injectAutoInstrumentation, dc)
 }
 
 func initContainerName(lang language) string {
@@ -614,12 +614,10 @@ func getServiceNameFromPod(pod *corev1.Pod) (string, error) {
 // when no other config has been provided.
 func basicConfig() common.LibConfig {
 	return common.LibConfig{
-		Tracing:             pointer.Ptr(true),
-		LogInjection:        pointer.Ptr(true),
-		HealthMetrics:       pointer.Ptr(true),
-		RuntimeMetrics:      pointer.Ptr(true),
-		TracingSamplingRate: pointer.Ptr(1.0),
-		TracingRateLimit:    pointer.Ptr(100),
+		Tracing:        pointer.Ptr(true),
+		LogInjection:   pointer.Ptr(true),
+		HealthMetrics:  pointer.Ptr(true),
+		RuntimeMetrics: pointer.Ptr(true),
 	}
 }
 
