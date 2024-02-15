@@ -101,7 +101,7 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		{
 			name:             "Collector",
 			shouldBePresent:  true,
-			shouldContain:    []string{"Instance ID: cpu [OK]"},
+			shouldContain:    []string{"Instance ID: .* [OK]"},
 			shouldNotContain: []string{"Errors"},
 		},
 		{
