@@ -1019,7 +1019,7 @@ core,github.com/googleapis/gax-go/v2/apierror,BSD-3-Clause,Copyright 2017 Google
 core,github.com/googleapis/gax-go/v2/apierror/internal/proto,BSD-3-Clause,Copyright 2017 Google Inc.
 core,github.com/googleapis/gax-go/v2/callctx,BSD-3-Clause,Copyright 2017 Google Inc.
 core,github.com/googleapis/gax-go/v2/internal,BSD-3-Clause,Copyright 2017 Google Inc.
-core,github.com/gorilla/mux,BSD-3-Clause,Copyright (c) 2012-2018 The Gorilla Authors. All rights reserved | Google LLC (https://opensource.google.com/) | Kamil Kisielk <kamil@kamilkisiel.net> | Matt Silverlock <matt@eatsleeprepeat.net> | Rodrigo Moraes (https://github.com/moraes)
+core,github.com/gorilla/mux,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
 core,github.com/gosnmp/gosnmp,BSD-2-Clause,Copyright 2012-2020 The GoSNMP Authors. All rights reserved.
 core,github.com/grpc-ecosystem/go-grpc-middleware,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/go-grpc-middleware/auth,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
