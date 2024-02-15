@@ -90,7 +90,9 @@ func (tx *ebpfTXWrapper) resolvePath() bool {
 	}
 
 	tup := tx.Tuple
-	// TODO: Support flipped tuples.
+	if tx.Stream.Conn_tuple_flipped {
+		tup = flipTuple(tup)
+	}
 
 	path, exists := tx.dynamicTable.resolveValue(tup, tx.Stream.Path.Index, tx.Stream.Path.Temporary)
 	if !exists {
@@ -190,7 +192,9 @@ func (tx *ebpfTXWrapper) resolveMethod() bool {
 	}
 
 	tup := tx.Tuple
-	// TODO: Support flipped tuples.
+	if tx.Stream.Conn_tuple_flipped {
+		tup = flipTuple(tup)
+	}
 
 	stringMethod, exists := tx.dynamicTable.resolveValue(tup, tx.Stream.Request_method.Index, tx.Stream.Request_method.Temporary)
 	if !exists {
@@ -239,8 +243,10 @@ func (tx *ebpfTXWrapper) resolveStatusCode() bool {
 		return !tx.statusCode.malformed
 	}
 
-	tup := tx.Tuple
-	// TODO: Support flipped tuples.
+	tup := flipTuple(tx.Tuple)
+	if tx.Stream.Conn_tuple_flipped {
+		tup = tx.Tuple
+	}
 
 	stringStatusCode, exists := tx.dynamicTable.resolveValue(tup, tx.Stream.Status_code.Index, tx.Stream.Status_code.Temporary)
 	if !exists {
