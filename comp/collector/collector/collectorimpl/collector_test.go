@@ -5,27 +5,33 @@
 
 //go:build test
 
-package collector
+package collectorimpl
 
 import (
+	"context"
 	"sort"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	tmock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
-	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // FIXTURE
 type TestCheck struct {
 	stub.StubCheck
-	mock.Mock
+	tmock.Mock
 	uniqueID checkid.ID
 	name     string
 	stop     chan bool
@@ -81,16 +87,21 @@ func (p ChecksList) Less(i, j int) bool { return p[i] < p[j] }
 
 type CollectorTestSuite struct {
 	suite.Suite
-	c *collector
+	c *collectorImpl
 }
 
 func (suite *CollectorTestSuite) SetupTest() {
-	suite.c = NewCollector(aggregator.NewNoOpSenderManager(), 500*time.Millisecond).(*collector)
-	suite.c.Start()
+	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
+		core.MockBundle(),
+		demultiplexerimpl.MockModule(),
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
+		})))
+	suite.c.start(context.TODO())
 }
 
 func (suite *CollectorTestSuite) TearDownTest() {
-	suite.c.Stop()
+	suite.c.stop(context.TODO())
 	suite.c = nil
 }
 
@@ -101,7 +112,7 @@ func (suite *CollectorTestSuite) TestNewCollector() {
 }
 
 func (suite *CollectorTestSuite) TestStop() {
-	suite.c.Stop()
+	suite.c.stop(context.TODO())
 	assert.Nil(suite.T(), suite.c.runner)
 	assert.Nil(suite.T(), suite.c.scheduler)
 	assert.Equal(suite.T(), stopped, suite.c.state.Load())
@@ -177,7 +188,7 @@ func (suite *CollectorTestSuite) TestDelete() {
 
 func (suite *CollectorTestSuite) TestStarted() {
 	assert.True(suite.T(), suite.c.started())
-	suite.c.Stop()
+	suite.c.stop(context.TODO())
 	assert.False(suite.T(), suite.c.started())
 }
 
