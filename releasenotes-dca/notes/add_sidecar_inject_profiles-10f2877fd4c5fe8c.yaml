@@ -8,5 +8,4 @@
 ---
 features:
   - |
-    Allow customising agent sidecar injection by setting sidecar profiles.
-    It allows overriding environment variables and/or resource requirements for the injected sidecar.
+    Allow customizing Agent sidecar injection by overriding environment variables and resource requirements for sidecar profiles.
