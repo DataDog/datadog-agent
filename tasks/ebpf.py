@@ -91,7 +91,7 @@ def cleanup_verifier_stats(verifier_stats):
         "jsonfmt": "Output in json format rather than tabulating",
         "out": "Output file to write results to. By default results are written to stdout",
         "debug_build": "Collect verification statistics for debug builds",
-        "filter_file": "List of files to load ebpf program from. By default we load everything",
+        "filter_file": "List of files to load ebpf program from, specified without extension. By default we load everything",
         "grep": "Regex to filter program statistics",
     },
     iterable=['filter_file', 'grep'],
