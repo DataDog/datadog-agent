@@ -101,7 +101,7 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
-func addBoolConst(options *manager.Options, flag bool, name string) {
+func AddBoolConst(options *manager.Options, flag bool, name string) {
 	val := uint64(1)
 	if !flag {
 		val = uint64(0)
@@ -181,7 +181,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
 
 	ringbufferEnabled := ringBufferSupported(config)
-	addBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffer_enabled")
+	AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffer_enabled")
 	tcpEnabled := config.CollectTCPv4Conns || config.CollectTCPv6Conns
 
 	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
@@ -232,7 +232,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 	var closeProtocolClassifierSocketFilterFn func()
 	classificationSupported := ClassificationSupported(config)
-	addBoolConst(&mgrOpts, classificationSupported, "protocol_classification_enabled")
+	AddBoolConst(&mgrOpts, classificationSupported, "protocol_classification_enabled")
 
 	if classificationSupported {
 		if ringbufferEnabled {

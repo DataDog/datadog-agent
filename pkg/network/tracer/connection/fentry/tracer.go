@@ -14,12 +14,16 @@ import (
 	"syscall"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -56,6 +60,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 
 		device := file.Sys().(*syscall.Stat_t).Dev
 		inode := file.Sys().(*syscall.Stat_t).Ino
+		ringbufferEnabled := ringBufferSupported(config)
 
 		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
 			Name:  "systemprobe_device",
@@ -65,6 +70,17 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 			Name:  "systemprobe_ino",
 			Value: inode,
 		})
+		kprobe.AddBoolConst(&o, ringbufferEnabled, "ringbuffer_enabled")
+
+		if ringbufferEnabled {
+			mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
+				Type:       ebpf.RingBuf,
+				MaxEntries: uint32(kprobe.ComputeDefaultClosedConnRingBufferSize()),
+				KeySize:    0,
+				ValueSize:  0,
+				EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
+			}
+		}
 
 		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 		for _, p := range m.Probes {
@@ -91,4 +107,8 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 	}
 
 	return m.Manager, nil, nil
+}
+
+func ringBufferSupported(c *config.Config) bool {
+	return (features.HaveMapType(ebpf.RingBuf) == nil) && c.RingbufferEnabled
 }

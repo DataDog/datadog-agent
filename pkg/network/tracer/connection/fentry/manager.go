@@ -39,7 +39,8 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 			RecordGetter:     handler.RecordGetter,
 			RecordHandler:    handler.RecordHandler,
 			TelemetryEnabled: cfg.InternalTelemetryEnabled,
-			RingBufferSize:   kprobe.ComputeDefaultClosedConnRingBufferSize(),
+			// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
+			RingBufferSize: kprobe.ComputeDefaultClosedConnRingBufferSize(),
 		}
 		rb := &manager.RingBuffer{
 			Map:               manager.Map{Name: probes.ConnCloseEventMap},
