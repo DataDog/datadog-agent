@@ -25,6 +25,9 @@ var processCheckConfigStr string
 //go:embed config/process_discovery_check.yaml
 var processDiscoveryCheckConfigStr string
 
+//go:embed config/process_check_in_core_agent.yaml
+var processCheckInCoreAgentConfigStr string
+
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
 
@@ -71,6 +74,14 @@ func assertProcessCollected(
 
 	require.True(t, found, "%s process not found", process)
 	assert.True(t, populated, "no %s process had all data populated", process)
+}
+
+// assertProcessNotCollected asserts that the given process is NOT collected by the process check
+func assertProcessNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, process string) {
+	for _, payload := range payloads {
+		found, _ := findProcess(process, payload.Processes, false)
+		require.False(t, found, "%s process found", process)
+	}
 }
 
 // findProcess returns whether the process with the given name exists in the given list of
