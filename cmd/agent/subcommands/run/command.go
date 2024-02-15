@@ -510,6 +510,9 @@ func startAgent(
 			// Subscribe to `AGENT_TASK` product
 			rcclient.SubscribeAgentTask()
 
+			// Subscribe to `APM_TRACING` product
+			rcclient.SubscribeApmTracing()
+
 			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
 				// Spin up the config provider to schedule integrations through remote-config
 				rcProvider := providers.NewRemoteConfigProvider()
@@ -585,8 +588,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)
-	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption[pkgcollector.Collector](collector), demultiplexer), true)
-	collector.Start()
+	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 	diagnose.Init(optional.NewOption(collector))
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
