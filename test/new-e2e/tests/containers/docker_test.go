@@ -7,11 +7,12 @@ package containers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	dockervm "github.com/DataDog/test-infra-definitions/scenarios/aws/dockerVM"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
 	"os"
@@ -34,14 +35,22 @@ func (suite *DockerSuite) SetupSuite() {
 		"ddagent:fakeintake": auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "docker-stack", stackConfig, dockervm.Run, false)
+	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "dockerstack", stackConfig, ec2.VMRunWithDocker, false)
 	suite.Require().NoError(err)
 
-	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
-	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
+	var fakeintake components.FakeIntake
+	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-aws-vm"].Value)
+	suite.Require().NoError(err)
+	suite.Require().NoError(fakeintake.Import(fiSerialized, &fakeintake))
+	suite.Require().NoError(fakeintake.Init(suite))
+	suite.Fakeintake = fakeintake.Client()
 
-	vmConnection := stackOutput.Outputs["vm-connection"].Value.(map[string]interface{})
-	suite.clusterName = fmt.Sprintf("%s-%v", os.Getenv("USER"), vmConnection["host"])
+	var host components.RemoteHost
+	hostSerialized, err := json.Marshal(stackOutput.Outputs["dd-Host-aws-vm"].Value)
+	suite.Require().NoError(err)
+	suite.Require().NoError(host.Import(hostSerialized, &host))
+	suite.Require().NoError(host.Init(suite))
+	suite.clusterName = fmt.Sprintf("%s-%v", os.Getenv("USER"), host.Address)
 
 	suite.baseSuite.SetupSuite()
 }
@@ -56,16 +65,16 @@ func (suite *DockerSuite) TestDSDWithUDS() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
+				`^container_id:`,
 				`^container_name:metric-sender-uds$`,
-				`^short_image`,
-				`^image_tag`,
-				`^docker_image`,
-				`^git.commit.sha`,
-				`^git.repository_url`,
-				`^series`,
-				`^image_name`,
-				`^image_id`,
-				`^container_id`,
+				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:main$`,
+				`^git.commit.sha:`,
+				`^git.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
+				`^image_id:sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
+				`^image_tag:main$`,
+				`^series:`,
+				`^short_image:apps-dogstatsd$`,
 			},
 		},
 	})
@@ -79,19 +88,18 @@ func (suite *DockerSuite) TestDSDWithUDP() {
 				`container_name:metric-sender-udp`,
 			},
 		},
-
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
+				`^container_id:`,
 				`^container_name:metric-sender-udp$`,
-				`^short_image`,
-				`^image_tag`,
-				`^docker_image`,
-				`^git.commit.sha`,
-				`^git.repository_url`,
-				`^series`,
-				`^image_name`,
-				`^image_id`,
-				`^container_id`,
+				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:main$`,
+				`^git.commit.sha:`,
+				`^git.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
+				`^image_id:sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
+				`^image_tag:main$`,
+				`^series:`,
+				`^short_image:apps-dogstatsd$`,
 			},
 		},
 	})
