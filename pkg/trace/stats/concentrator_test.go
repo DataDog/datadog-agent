@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/golang/protobuf/proto"
@@ -35,7 +36,7 @@ func NewTestConcentrator(now time.Time) *Concentrator {
 		DefaultEnv:     "env",
 		Hostname:       "hostname",
 	}
-	return NewConcentrator(&cfg, statsChan, now)
+	return NewConcentrator(&cfg, statsChan, now, &statsd.NoOpClient{})
 }
 
 // getTsInBucket gives a timestamp in ns which is `offset` buckets late
@@ -97,6 +98,7 @@ func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual [
 }
 
 func TestNewConcentratorPeerTags(t *testing.T) {
+	statsd := &statsd.NoOpClient{}
 	t.Run("nothing enabled", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
@@ -105,7 +107,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			DefaultEnv:     "env",
 			Hostname:       "hostname",
 		}
-		c := NewConcentrator(&cfg, nil, time.Now())
+		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
 		assert.False(c.peerTagsAggregation)
 		assert.Nil(c.peerTagKeys)
 	})
@@ -118,7 +120,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			Hostname:               "hostname",
 			PeerServiceAggregation: true,
 		}
-		c := NewConcentrator(&cfg, nil, time.Now())
+		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
 		assert.True(c.peerTagsAggregation)
 		assert.Equal(defaultPeerTags, c.peerTagKeys)
 	})
@@ -132,7 +134,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			PeerServiceAggregation: true,
 			PeerTags:               []string{"zz_tag"},
 		}
-		c := NewConcentrator(&cfg, nil, time.Now())
+		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
 		assert.True(c.peerTagsAggregation)
 		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
 	})
@@ -146,7 +148,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			PeerServiceAggregation: true,
 			PeerTagsAggregation:    true,
 		}
-		c := NewConcentrator(&cfg, nil, time.Now())
+		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
 		assert.True(c.peerTagsAggregation)
 		assert.Equal(defaultPeerTags, c.peerTagKeys)
 	})
@@ -161,7 +163,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			PeerTagsAggregation:    true,
 			PeerTags:               []string{"zz_tag"},
 		}
-		c := NewConcentrator(&cfg, nil, time.Now())
+		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
 		assert.True(c.peerTagsAggregation)
 		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
 	})
@@ -174,7 +176,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			Hostname:            "hostname",
 			PeerTagsAggregation: true,
 		}
-		c := NewConcentrator(&cfg, nil, time.Now())
+		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
 		assert.True(c.peerTagsAggregation)
 		assert.Equal(defaultPeerTags, c.peerTagKeys)
 	})
@@ -188,7 +190,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			PeerTagsAggregation: true,
 			PeerTags:            []string{"zz_tag"},
 		}
-		c := NewConcentrator(&cfg, nil, time.Now())
+		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
 		assert.True(c.peerTagsAggregation)
 		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
 	})
