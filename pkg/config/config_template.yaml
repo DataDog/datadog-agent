@@ -906,7 +906,7 @@ api_key:
   ## https://sturmflut.github.io/linux/ubuntu/2015/01/17/unprivileged-icmp-sockets-on-linux/
   ##
   ## If `linux.use_raw_socket` is set, you must enable the `ping` module
-  ## of the system-probe for elevated privileges. See
+  ## of system-probe for elevated privileges. See
   ## system-probe.yaml.example for details.
   #
   # ping:
