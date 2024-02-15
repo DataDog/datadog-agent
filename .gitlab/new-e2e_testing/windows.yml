@@ -87,7 +87,7 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
     - .new-e2e_agent_a7
   needs: ["deploy_windows_testing-a7"]
   rules:
-    - !reference [.on_default_new-e2e_tests_a7]
+    - !reference [.on_deploy_a7]
     - !reference [.on_windows_installer_changes_or_manual]
 
 ## single test for PRs
