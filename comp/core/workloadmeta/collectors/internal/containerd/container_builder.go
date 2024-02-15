@@ -29,6 +29,7 @@ import (
 const kataRuntimePrefix = "io.containerd.kata"
 
 const (
+	// SHA256 is the prefix used by containerd for the repo digest
 	SHA256 = "@sha256:"
 )
 
