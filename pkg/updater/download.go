@@ -113,33 +113,57 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 		return fmt.Errorf("invalid hash for %s: expected %s, got %x", pkg.URL, pkg.SHA256, sha256)
 	}
 
-	// Extract OCI archive to temporary directory
-	ociExtractionPath := filepath.Join(tmpDir, "oci")
-	if err := os.Mkdir(ociExtractionPath, 0755); err != nil {
-		return fmt.Errorf("could not create OCI extraction directory: %w", err)
+	// Extract OCI archive to a temporary directory
+	extractedArchivePath := filepath.Join(tmpDir, "oci")
+	if err := os.Mkdir(extractedArchivePath, 0755); err != nil {
+		return fmt.Errorf("could not create archive extraction directory: %w", err)
 	}
 
-	err = extractTarXz(archivePath, ociExtractionPath)
+	err = extractTarXz(archivePath, extractedArchivePath)
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
 
 	// Extract package from OCI archive
-	err = extractOCI(ociExtractionPath, destinationPath)
+	extractedOCIPath := filepath.Join(tmpDir, "extracted")
+	if err := os.Mkdir(extractedOCIPath, 0755); err != nil {
+		return fmt.Errorf("could not create OCI extraction directory: %w", err)
+	}
+
+	err = extractOCI(extractedArchivePath, extractedOCIPath)
 	if err != nil {
 		return fmt.Errorf("could not extract OCI archive: %w", err)
+	}
+
+	// As we are extracting into a temporary path and we can't Rename to an existing path,
+	// we need to remove the existing destination path. It also lets us make sure that the
+	// destination path is not in a half-extracted state and only contains the new version.
+	err = os.RemoveAll(destinationPath)
+	if err != nil {
+		return fmt.Errorf("could not remove existing destination path: %w", err)
+	}
+
+	// Execute any additional operation on the extracted archive, depending on the package name
+	switch pkg.Name {
+	case "datadog-agent":
+		// Only extract /opt/datadog-agent from the OCI archive
+		err = os.Rename(filepath.Join(extractedOCIPath, defaultRepositoryPath, pkg.Name, pkg.Version), destinationPath)
+		if err != nil {
+			return fmt.Errorf("could not move OCI archive: %w", err)
+		}
+	default:
+		// By default, move the entire extracted archive to the destination path
+		err = os.Rename(extractedOCIPath, destinationPath)
+		if err != nil {
+			return fmt.Errorf("could not move OCI archive: %w", err)
+		}
 	}
 
 	log.Debugf("Successfully downloaded package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
 	return nil
 }
 
-// extractTarXz extracts a tar.xz archive to the given destination path.
-//
-// Note on security: This function does not currently attempt to mitigate zip-slip attacks.
-// This is purposeful as the archive is extracted only after its SHA256 hash has been validated
-// against its reference in the package catalog. This catalog is itself sent over Remote Config
-// which guarantees its integrity.
+// extractTarXz extracts a tar.xz archive to the given destination path
 func extractTarXz(archivePath string, destinationPath string) error {
 	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
 
