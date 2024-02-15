@@ -57,7 +57,8 @@ static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key
 
 // get_dynamic_counter returns the current dynamic counter by the conn tuple.
 static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
-    __u64 counter = 0;
+    // The dynamic table index starts from 62, and we need to add 1 to the counter to match the index.
+    const __u64 counter = MAX_STATIC_TABLE_INDEX + 1;
     bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
 }

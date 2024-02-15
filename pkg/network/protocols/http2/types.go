@@ -23,6 +23,7 @@ const (
 	http2RawStatusCodeMaxLength = C.HTTP2_STATUS_CODE_MAX_LEN
 	// The max number of headers we process in the request/response.
 	Http2MaxHeadersCountPerFiltering = C.HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING
+	http2staticTableMaxEntry         = C.MAX_STATIC_TABLE_INDEX
 )
 
 type connTuple = C.conn_tuple_t
