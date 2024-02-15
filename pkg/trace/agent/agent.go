@@ -406,7 +406,7 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, contain
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
 		GitCommitSha:           version.GetGitCommitShaFromTrace(root, chunk),
 	}
-	// FIXME: We should find a way to not repeat container ID resolution downstream in the stats writer.
+	// TODO: We should find a way to not repeat container ID resolution downstream in the stats writer.
 	// We will first need to deprecate the `enable_cid_stats` feature flag.
 	gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(containerID, conf)
 	if err != nil {

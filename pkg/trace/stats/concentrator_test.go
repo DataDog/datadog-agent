@@ -877,8 +877,7 @@ func TestImageTag(t *testing.T) {
 	}
 	spans := []*pb.Span{sp, sp2}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "test-123", "")
-	testTrace.GitCommitSha = "abc123"
+	testTrace := toProcessedTrace(spans, "none", "", "test-123", "abc123")
 	c := NewTestConcentrator(now)
 	c.peerTagsAggregation = true
 	c.addNow(testTrace, "")
