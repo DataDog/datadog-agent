@@ -44,6 +44,8 @@ func easyjsonB97b45a3DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			out.Name = string(in.String())
 		case "signal":
 			out.Signal = string(in.String())
+		case "scope":
+			out.Scope = string(in.String())
 		case "created_at":
 			if data := in.Raw(); in.Ok() {
 				in.AddError((out.CreatedAt).UnmarshalJSON(data))
@@ -93,6 +95,11 @@ func easyjsonB97b45a3EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		const prefix string = ",\"signal\":"
 		out.RawString(prefix)
 		out.String(string(in.Signal))
+	}
+	{
+		const prefix string = ",\"scope\":"
+		out.RawString(prefix)
+		out.String(string(in.Scope))
 	}
 	{
 		const prefix string = ",\"created_at\":"

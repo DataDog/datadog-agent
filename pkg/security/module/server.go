@@ -56,12 +56,16 @@ type pendingMsg struct {
 }
 
 func (p *pendingMsg) ToJSON() ([]byte, error) {
+	if len(p.actionReports) > 0 {
+		p.backendEvent.RuleActions = make(map[string][]json.RawMessage)
+	}
 	for _, report := range p.actionReports {
 		data, err := report.ToJSON()
 		if err != nil {
 			return nil, err
 		}
-		p.backendEvent.RuleActions = append(p.backendEvent.RuleActions, data)
+		actionType := report.Type()
+		p.backendEvent.RuleActions[actionType] = append(p.backendEvent.RuleActions[actionType], data)
 	}
 
 	backendEventJSON, err := easyjson.Marshal(p.backendEvent)

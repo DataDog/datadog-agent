@@ -12,6 +12,7 @@ package probe
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -24,6 +25,7 @@ type KillActionReport struct {
 	sync.RWMutex
 
 	Signal     string
+	Scope      string
 	Pid        uint32
 	CreatedAt  time.Time
 	DetectedAt time.Time
@@ -39,6 +41,7 @@ type KillActionReport struct {
 type JKillActionReport struct {
 	Name       string              `json:"type"`
 	Signal     string              `json:"signal"`
+	Scope      string              `json:"scope"`
 	CreatedAt  utils.EasyjsonTime  `json:"created_at"`
 	DetectedAt utils.EasyjsonTime  `json:"detected_at"`
 	KilledAt   utils.EasyjsonTime  `json:"killed_at"`
@@ -59,6 +62,7 @@ func (k *KillActionReport) ToJSON() ([]byte, error) {
 	jk := JKillActionReport{
 		Name:       rules.KillAction,
 		Signal:     k.Signal,
+		Scope:      k.Scope,
 		CreatedAt:  utils.NewEasyjsonTime(k.CreatedAt),
 		DetectedAt: utils.NewEasyjsonTime(k.DetectedAt),
 		KilledAt:   utils.NewEasyjsonTime(k.KilledAt),
@@ -70,4 +74,11 @@ func (k *KillActionReport) ToJSON() ([]byte, error) {
 	}
 
 	return utils.MarshalEasyJSON(jk)
+}
+
+// Type returns the type of the action report
+func (k *KillActionReport) Type() string {
+	k.RLock()
+	defer k.RUnlock()
+	return fmt.Sprintf("%s_%s", rules.KillAction, k.Scope)
 }

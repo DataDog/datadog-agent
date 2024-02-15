@@ -56,11 +56,14 @@ func handleKillActions(action *rules.ActionDefinition, ev *model.Event, kill fun
 	}
 
 	var pids []uint32
+	var scope string
 
 	if entry.ContainerID != "" && action.Kill.Scope == "container" {
 		pids = entry.GetContainerPIDs()
+		scope = "container"
 	} else {
 		pids = []uint32{ev.ProcessContext.Pid}
+		scope = "process"
 	}
 
 	sig := model.SignalConstants[action.Kill.Signal]
@@ -79,6 +82,7 @@ func handleKillActions(action *rules.ActionDefinition, ev *model.Event, kill fun
 	}
 
 	report := &KillActionReport{
+		Scope:      scope,
 		Signal:     action.Kill.Signal,
 		Pid:        ev.ProcessContext.Pid,
 		CreatedAt:  ev.ProcessContext.ExecTime,

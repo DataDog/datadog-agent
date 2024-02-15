@@ -102,27 +102,45 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(in *jl
 		case "rule_actions":
 			if in.IsNull() {
 				in.Skip()
-				out.RuleActions = nil
 			} else {
-				in.Delim('[')
-				if out.RuleActions == nil {
-					if !in.IsDelim(']') {
-						out.RuleActions = make([]json.RawMessage, 0, 2)
-					} else {
-						out.RuleActions = []json.RawMessage{}
-					}
+				in.Delim('{')
+				if !in.IsDelim('}') {
+					out.RuleActions = make(map[string][]json.RawMessage)
 				} else {
-					out.RuleActions = (out.RuleActions)[:0]
+					out.RuleActions = nil
 				}
-				for !in.IsDelim(']') {
-					var v1 json.RawMessage
-					if data := in.Raw(); in.Ok() {
-						in.AddError((v1).UnmarshalJSON(data))
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v1 []json.RawMessage
+					if in.IsNull() {
+						in.Skip()
+						v1 = nil
+					} else {
+						in.Delim('[')
+						if v1 == nil {
+							if !in.IsDelim(']') {
+								v1 = make([]json.RawMessage, 0, 2)
+							} else {
+								v1 = []json.RawMessage{}
+							}
+						} else {
+							v1 = (v1)[:0]
+						}
+						for !in.IsDelim(']') {
+							var v2 json.RawMessage
+							if data := in.Raw(); in.Ok() {
+								in.AddError((v2).UnmarshalJSON(data))
+							}
+							v1 = append(v1, v2)
+							in.WantComma()
+						}
+						in.Delim(']')
 					}
-					out.RuleActions = append(out.RuleActions, v1)
+					(out.RuleActions)[key] = v1
 					in.WantComma()
 				}
-				in.Delim(']')
+				in.Delim('}')
 			}
 		case "policy_name":
 			out.PolicyName = string(in.String())
@@ -162,14 +180,30 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityEvents1(out *j
 		const prefix string = ",\"rule_actions\":"
 		out.RawString(prefix)
 		{
-			out.RawByte('[')
-			for v2, v3 := range in.RuleActions {
-				if v2 > 0 {
+			out.RawByte('{')
+			v3First := true
+			for v3Name, v3Value := range in.RuleActions {
+				if v3First {
+					v3First = false
+				} else {
 					out.RawByte(',')
 				}
-				out.Raw((v3).MarshalJSON())
+				out.String(string(v3Name))
+				out.RawByte(':')
+				if v3Value == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+					out.RawString("null")
+				} else {
+					out.RawByte('[')
+					for v4, v5 := range v3Value {
+						if v4 > 0 {
+							out.RawByte(',')
+						}
+						out.Raw((v5).MarshalJSON())
+					}
+					out.RawByte(']')
+				}
 			}
-			out.RawByte(']')
+			out.RawByte('}')
 		}
 	}
 	if in.PolicyName != "" {
