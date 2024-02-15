@@ -50,6 +50,19 @@ func container1(testTime time.Time) Container {
 				Name:     "metrics",
 				Protocol: "tcp",
 			},
+			// protocol is not provided, we should merge it with the tcp one
+			{
+				Port:     42006,
+				Name:     "http",
+				Protocol: "",
+			},
+			// container1 use udp and container2 use tcp for the same port.
+			// it should keep 2 ports in the merge
+			{
+				Port:     42007,
+				Name:     "app",
+				Protocol: "udp",
+			},
 		},
 		State: ContainerState{
 			Running:    true,
@@ -95,6 +108,16 @@ func container2(testTime time.Time) Container { //nolint:revive // TODO fix revi
 			{
 				Port:     42005,
 				Name:     "http",
+				Protocol: "tcp",
+			},
+			{
+				Port:     42006,
+				Name:     "http",
+				Protocol: "tcp",
+			},
+			{
+				Port:     42007,
+				Name:     "app",
 				Protocol: "tcp",
 			},
 		},
@@ -155,6 +178,21 @@ func TestMerge(t *testing.T) {
 			Port:     42005,
 			Name:     "http",
 			Protocol: "tcp",
+		},
+		{
+			Port:     42006,
+			Name:     "http",
+			Protocol: "tcp",
+		},
+		{
+			Port:     42007,
+			Name:     "app",
+			Protocol: "tcp",
+		},
+		{
+			Port:     42007,
+			Name:     "app",
+			Protocol: "udp",
 		},
 	}
 

@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/imdario/mergo"
@@ -59,6 +60,9 @@ func portSliceMerge(dst, src reflect.Value) error {
 	// Not allocation the map if nothing to do
 	if len(srcSlice) == 0 && len(dstSlice) == 0 {
 		return nil
+	} else if len(dstSlice) == 0 {
+		dst.Set(reflect.ValueOf(srcSlice))
+		return nil
 	}
 
 	mergeMap := make(map[string]ContainerPort, len(srcSlice)+len(dstSlice))
@@ -91,7 +95,12 @@ func selectString(input []string) string {
 }
 
 func mergeContainerPort(mergeMap map[string]ContainerPort, inputPort ContainerPort) {
-	portKey := strconv.Itoa(inputPort.Port)
+	protocol := strings.ToLower(inputPort.Protocol)
+	if protocol == "tcp" {
+		// consider the protocol tcp as the default one.
+		protocol = ""
+	}
+	portKey := strconv.Itoa(inputPort.Port) + protocol
 	if existingPort, found := mergeMap[portKey]; found {
 		existingPort.Name = selectString([]string{existingPort.Name, inputPort.Name})
 		existingPort.Protocol = selectString([]string{existingPort.Protocol, inputPort.Protocol})
