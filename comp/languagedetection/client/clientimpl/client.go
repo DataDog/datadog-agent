@@ -8,7 +8,6 @@ package clientimpl
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -246,8 +245,6 @@ func (c *client) startStreaming() {
 			}
 		// less frequently, send the entire batch
 		case <-periodicFlushTimer.C:
-			fmt.Println("Sending full batch:")
-			fmt.Println(c.currentBatch)
 			data := c.getCurrentBatchProto()
 			err := c.send(ctx, data)
 			if err != nil {

@@ -51,9 +51,7 @@ func loadOwnersLanguages(wlm workloadmeta.Component) *OwnersLanguages {
 		go func() {
 			cleanupTicker := time.NewTicker(cleanupPeriod)
 			for range cleanupTicker.C {
-				fmt.Println("Cleaning up detected languages...")
 				ownersLanguages.cleanExpiredLanguages(wlm)
-
 			}
 		}()
 

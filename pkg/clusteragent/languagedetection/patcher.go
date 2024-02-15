@@ -170,8 +170,6 @@ func (lp *languagePatcher) handleEvent(eventBundle workloadmeta.EventBundle) {
 }
 
 func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
-	fmt.Println("Handling deployment event")
-
 	deploymentID := event.Entity.(*workloadmeta.KubernetesDeployment).ID
 
 	// extract deployment name and namespace from entity id

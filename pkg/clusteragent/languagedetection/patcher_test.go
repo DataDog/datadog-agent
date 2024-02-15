@@ -225,8 +225,6 @@ func TestHandleDeploymentEvent(t *testing.T) {
 				return false
 			}
 
-			fmt.Println(deployment)
-
 			return reflect.DeepEqual(deployment.InjectableLanguages, langUtil.ContainersLanguages{
 				*langUtil.NewContainer("some-cont"): {
 					"java": {},
@@ -265,8 +263,6 @@ func TestHandleDeploymentEvent(t *testing.T) {
 				return false
 			}
 
-			fmt.Println(deployment)
-
 			return reflect.DeepEqual(deployment.InjectableLanguages, langUtil.ContainersLanguages{
 				*langUtil.NewContainer("some-cont"): {
 					"java": {},
@@ -298,13 +294,11 @@ func TestHandleDeploymentEvent(t *testing.T) {
 		// Check the patch
 		got, err := lp.k8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
-			fmt.Println("deployment not found")
 			return false
 		}
 
 		annotations, found, err := unstructured.NestedStringMap(got.Object, "metadata", "annotations")
 		if err != nil || !found {
-			fmt.Println("couldn't get annotations")
 			return false
 		}
 
@@ -341,8 +335,6 @@ func TestHandleDeploymentEvent(t *testing.T) {
 			if err != nil {
 				return false
 			}
-
-			fmt.Println(deployment)
 
 			return reflect.DeepEqual(deployment.InjectableLanguages, langUtil.ContainersLanguages{
 				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
@@ -381,8 +373,6 @@ func TestHandleDeploymentEvent(t *testing.T) {
 				return false
 			}
 
-			fmt.Println(deployment)
-
 			return reflect.DeepEqual(deployment.InjectableLanguages, langUtil.ContainersLanguages{
 				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
 				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
@@ -404,17 +394,13 @@ func TestHandleDeploymentEvent(t *testing.T) {
 		// Check the patch
 		got, err := lp.k8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
-			fmt.Println("deployment not found")
 			return false
 		}
 
 		annotations, found, err := unstructured.NestedStringMap(got.Object, "metadata", "annotations")
 		if err != nil || !found {
-			fmt.Println("couldn't get annotations")
 			return false
 		}
-		fmt.Println("expected: ", expectedAnnotations)
-		fmt.Println("found: ", annotations)
 
 		return reflect.DeepEqual(expectedAnnotations, annotations)
 	}
@@ -542,13 +528,11 @@ func TestRun(t *testing.T) {
 		// Check the patch
 		got, err := lp.k8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
-			fmt.Println("deployment not found")
 			return false
 		}
 
 		annotations, found, err := unstructured.NestedStringMap(got.Object, "metadata", "annotations")
 		if err != nil || !found {
-			fmt.Println("couldn't get annotations")
 			return false
 		}
 
@@ -585,8 +569,6 @@ func TestRun(t *testing.T) {
 			if err != nil {
 				return false
 			}
-
-			fmt.Println(deployment)
 
 			return reflect.DeepEqual(deployment.InjectableLanguages, langUtil.ContainersLanguages{
 				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
@@ -627,17 +609,13 @@ func TestRun(t *testing.T) {
 		// Check the patch
 		got, err := lp.k8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
-			fmt.Println("deployment not found")
 			return false
 		}
 
 		annotations, found, err := unstructured.NestedStringMap(got.Object, "metadata", "annotations")
 		if err != nil || !found {
-			fmt.Println("couldn't get annotations")
 			return false
 		}
-		fmt.Println("expected: ", expectedAnnotations)
-		fmt.Println("found: ", annotations)
 
 		return reflect.DeepEqual(expectedAnnotations, annotations)
 	}

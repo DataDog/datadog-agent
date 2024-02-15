@@ -445,8 +445,6 @@ func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 				return false
 			}
 
-			fmt.Println(deploymentA.DetectedLanguages)
-
 			return reflect.DeepEqual(deploymentA.DetectedLanguages, langUtil.ContainersLanguages{
 				*langUtil.NewContainer("python-container"): {
 					"python": {},
@@ -538,8 +536,6 @@ func TestCleanExpiredLanguages(t *testing.T) {
 			if err != nil {
 				return false
 			}
-
-			fmt.Println(deploymentA)
 
 			return reflect.DeepEqual(deploymentA.DetectedLanguages, langUtil.ContainersLanguages{
 				*langUtil.NewContainer("some-container"): {
