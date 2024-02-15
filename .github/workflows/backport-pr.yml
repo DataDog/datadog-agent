@@ -8,15 +8,7 @@ jobs:
   backport:
     name: Backport PR
     runs-on: ubuntu-latest
-    if: >
-      github.event.pull_request.merged
-      && (
-        github.event.action == 'closed'
-        || (
-          github.event.action == 'labeled'
-          && contains(github.event.label.name, 'backport')
-        )
-      )
+    if: github.event.pull_request.merged
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
