@@ -171,7 +171,8 @@ func (r *RegexpStringMatcher) Matches(value string) bool {
 
 // GlobStringMatcher defines a glob pattern matcher
 type GlobStringMatcher struct {
-	glob *Glob
+	glob       *Glob
+	matchCache *lru.Cache[string, bool]
 }
 
 // Compile a simple pattern
@@ -185,13 +186,25 @@ func (g *GlobStringMatcher) Compile(pattern string, caseInsensitive bool) error 
 		return err
 	}
 	g.glob = glob
+	g.matchCache, _ = lru.New[string, bool](ReMatchCacheSize)
 
 	return nil
 }
 
 // Matches returns whether the value matches
 func (g *GlobStringMatcher) Matches(value string) bool {
-	return g.glob.Matches(value)
+	if g.matchCache != nil {
+		if match, ok := g.matchCache.Get(value); ok {
+			return match
+		}
+	}
+
+	isMatch := g.glob.Matches(value)
+
+	if g.matchCache != nil {
+		g.matchCache.Add(value, isMatch)
+	}
+	return isMatch
 }
 
 // PatternStringMatcher defines a pattern matcher
