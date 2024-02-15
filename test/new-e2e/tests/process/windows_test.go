@@ -132,10 +132,6 @@ func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
-	s.T().Skip("skipping due to flakiness")
-	// MsMpEng.exe process missing IO stats
-	// Investigation & fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3757
-
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
@@ -147,5 +143,7 @@ func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 
-	assertManualProcessCheck(s.T(), check, true, "MsMpEng.exe")
+	// Check stats for Datadog agent process as it has IO stats more reliably populated than MsMpEng.exe
+	agentExe := "\"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\""
+	assertManualProcessCheck(s.T(), check, true, agentExe)
 }

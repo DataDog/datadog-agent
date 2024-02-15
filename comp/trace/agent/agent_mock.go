@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func newMock(deps dependencies, t testing.TB) Component { //nolint:revive // TODO fix revive unused-parameter
@@ -28,6 +29,7 @@ func newMock(deps dependencies, t testing.TB) Component { //nolint:revive // TOD
 			ctx,
 			deps.Config.Object(),
 			telemetryCollector,
+			&statsd.NoOpClient{},
 		),
 		cancel:             cancel,
 		config:             deps.Config,

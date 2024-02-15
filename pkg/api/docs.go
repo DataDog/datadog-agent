@@ -3,10 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
+// Package api contains logic related to the agent API servers.
 package api
-
-const (
-	netType = "tcp"
-)

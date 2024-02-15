@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package runtime
+package ebpf
 
 import (
 	"errors"
@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// PatchPrintkNewline patches log_debug calls to always print one newline, no matter what the kernel does.
+// patchPrintkNewline patches log_debug calls to always print one newline, no matter what the kernel does.
 //
 // For context, in kernel 5.9.0, bpf_trace_printk adds a newline automatically to anything it prints
 // This means that when we support both older and newer kernels, bpf_printk is going to have
@@ -26,7 +26,7 @@ import (
 // that adds a newline to the message before calling bpf_trace_printk. In older kernels
 // this ensures that a newline is added. In newer ones it would mean that two newlines are
 // added, so this patcher removes that newline in those cases.
-func PatchPrintkNewline(m *manager.Manager) error {
+func patchPrintkNewline(m *manager.Manager) error {
 	kernelVersion, err := kernel.HostVersion()
 	if err != nil {
 		return err // can't detect kernel version, don't patch
@@ -51,7 +51,7 @@ func PatchPrintkNewline(m *manager.Manager) error {
 }
 
 // patchPrintkInstructions patches the instructions of a program to remove the newline character
-// It's separated from PatchPrintkNewline so it can be tested independently, also so that we can
+// It's separated from patchPrintkNewline so it can be tested independently, also so that we can
 // check how many patches are performed
 func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 	var errs []error // list of errors that happened while patching, if any
@@ -206,4 +206,23 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 	log.Debugf("Patched %d instructions for %s, errors: %v", numPatches, p.Name, errs)
 
 	return numPatches, errors.Join(errs...)
+}
+
+// PrintkPatcherModifier adds an InstructionPatcher to the manager that removes the newline character from log_debug calls if needed
+type PrintkPatcherModifier struct {
+}
+
+func (t *PrintkPatcherModifier) String() string {
+	return "PrintkPatcherModifier"
+}
+
+// BeforeInit adds the patchPrintkNewline function to the manager
+func (t *PrintkPatcherModifier) BeforeInit(m *manager.Manager, _ *manager.Options) error {
+	m.InstructionPatchers = append(m.InstructionPatchers, patchPrintkNewline)
+	return nil
+}
+
+// AfterInit is a no-op for this modifier
+func (t *PrintkPatcherModifier) AfterInit(_ *manager.Manager, _ *manager.Options) error {
+	return nil
 }
