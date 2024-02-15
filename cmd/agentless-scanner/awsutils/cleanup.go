@@ -21,30 +21,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
-func cloudResourceTagSpec(resourceType types.ResourceType, scannerHostname string) []ec2types.TagSpecification {
-	return []ec2types.TagSpecification{
-		{
-			ResourceType: ec2types.ResourceType(resourceType),
-			Tags: []ec2types.Tag{
-				{Key: aws.String("DatadogAgentlessScanner"), Value: aws.String("true")},
-				{Key: aws.String("DatadogAgentlessScannerHostOrigin"), Value: aws.String(scannerHostname)},
-				// TODO: add origin account and instance ID
-			},
-		},
-	}
-}
-
-func cloudResourceTagFilters() []ec2types.Filter {
-	return []ec2types.Filter{
-		{
-			Name: aws.String("tag:DatadogAgentlessScanner"),
-			Values: []string{
-				"true",
-			},
-		},
-	}
-}
-
 // CleanSlate removes all volumes that are currently attached to the instance
 // and have no mountpoints.
 func CleanSlate(ctx context.Context, bds []devices.BlockDevice, roles types.RolesMapping) {

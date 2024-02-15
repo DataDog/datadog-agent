@@ -193,9 +193,9 @@ func runCmd(provider types.CloudProvider, pidfilePath string, workers, scannersM
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
+	scannerID := types.NewScannerID(provider, hostname)
 	scanner, err := runner.New(runner.Options{
-		Hostname:       hostname,
-		CloudProvider:  provider,
+		ScannerID:      scannerID,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        workers,
 		ScannersMax:    scannersMax,

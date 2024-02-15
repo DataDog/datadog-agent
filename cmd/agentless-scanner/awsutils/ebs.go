@@ -81,7 +81,7 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceW
 		snapshotCreatedAt := time.Now()
 		createSnapshotOutput, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 			VolumeId:          aws.String(volumeID.ResourceName()),
-			TagSpecifications: cloudResourceTagSpec(types.ResourceTypeSnapshot, scan.ScannerHostname),
+			TagSpecifications: cloudResourceTagSpec(scan, volumeID, types.ResourceTypeSnapshot),
 		})
 		if err != nil {
 			var aerr smithy.APIError
@@ -164,7 +164,7 @@ func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceWai
 	copyOutput, err := ec2client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
 		SourceRegion:      aws.String(snapshotID.Region()),
 		SourceSnapshotId:  aws.String(snapshotID.ResourceName()),
-		TagSpecifications: cloudResourceTagSpec(snapshotID.ResourceType(), scan.ScannerHostname),
+		TagSpecifications: cloudResourceTagSpec(scan, snapshotID, types.ResourceTypeSnapshot),
 		Encrypted:         snapshot.Encrypted,
 		KmsKeyId:          snapshot.KmsKeyId,
 	})
@@ -256,7 +256,7 @@ func AttachSnapshotWithVolume(ctx context.Context, scan *types.ScanTask, waiter 
 		VolumeType:        ec2types.VolumeTypeGp3,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
 		SnapshotId:        aws.String(localSnapshotID.ResourceName()),
-		TagSpecifications: cloudResourceTagSpec(types.ResourceTypeVolume, scan.ScannerHostname),
+		TagSpecifications: cloudResourceTagSpec(scan, localSnapshotID, types.ResourceTypeVolume),
 	})
 	if err != nil {
 		return fmt.Errorf("could not create volume from snapshot: %w", err)

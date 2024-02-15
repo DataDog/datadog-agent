@@ -93,6 +93,8 @@ func awsSnapshotCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := ctxTerminated()
+			hostname := tryGetHostname(ctx)
+			scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 			self, err := probeAWSEnv(ctx)
 			if err != nil {
 				return err
@@ -105,8 +107,8 @@ func awsSnapshotCommand() *cobra.Command {
 			scan, err := types.NewScanTask(
 				types.TaskTypeEBS,
 				volumeID.AsText(),
-				"unknown",
-				"unknown",
+				scannerID,
+				volumeID.AsText(),
 				nil,
 				globalFlags.defaultActions,
 				roles,
@@ -253,7 +255,8 @@ func awsCleanupCommand() *cobra.Command {
 }
 
 func awsScanCmd(ctx context.Context, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
-	scannerHostname := tryGetHostname(ctx)
+	hostname := tryGetHostname(ctx)
+	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	taskType, err := types.DefaultTaskType(resourceID)
 	if err != nil {
 		return err
@@ -262,7 +265,7 @@ func awsScanCmd(ctx context.Context, resourceID types.CloudID, targetHostname st
 	task, err := types.NewScanTask(
 		taskType,
 		resourceID.AsText(),
-		scannerHostname,
+		scannerID,
 		targetHostname,
 		nil,
 		actions,
@@ -273,8 +276,7 @@ func awsScanCmd(ctx context.Context, resourceID types.CloudID, targetHostname st
 	}
 
 	scanner, err := runner.New(runner.Options{
-		Hostname:       scannerHostname,
-		CloudProvider:  types.CloudProviderAWS,
+		ScannerID:      scannerID,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        1,
 		ScannersMax:    8,
@@ -301,15 +303,15 @@ func awsScanCmd(ctx context.Context, resourceID types.CloudID, targetHostname st
 func awsOfflineCmd(ctx context.Context, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	defer statsd.Flush()
 
-	scannerHostname, err := utils.GetHostnameWithContext(ctx)
+	hostname, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
+	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	roles := getDefaultRolesMapping(types.CloudProviderAWS)
 	scanner, err := runner.New(runner.Options{
-		Hostname:       scannerHostname,
-		CloudProvider:  types.CloudProviderAWS,
+		ScannerID:      scannerID,
 		DdEnv:          pkgconfig.Datadog.GetString("env"),
 		Workers:        workers,
 		ScannersMax:    8,
@@ -384,7 +386,7 @@ func awsOfflineCmd(ctx context.Context, workers int, taskType types.TaskType, ac
 						scan, err := types.NewScanTask(
 							types.TaskTypeEBS,
 							volumeID.AsText(),
-							scannerHostname,
+							scannerID,
 							*instance.InstanceId,
 							ec2TagsToStringTags(instance.Tags),
 							actions,
@@ -468,7 +470,7 @@ func awsOfflineCmd(ctx context.Context, workers int, taskType types.TaskType, ac
 						scan, err := types.NewScanTask(
 							types.TaskTypeAMI,
 							imageID.AsText(),
-							scannerHostname,
+							scannerID,
 							*image.ImageId,
 							ec2TagsToStringTags(image.Tags),
 							actions,
@@ -524,7 +526,7 @@ func awsOfflineCmd(ctx context.Context, workers int, taskType types.TaskType, ac
 				scan, err := types.NewScanTask(
 					types.TaskTypeLambda,
 					*function.FunctionArn,
-					scannerHostname,
+					scannerID,
 					*fn.Configuration.Version,
 					functionTags,
 					actions,
@@ -596,12 +598,13 @@ func awsCleanupCmd(ctx context.Context, region, account string, dryRun bool, del
 }
 
 func awsAttachCmd(ctx context.Context, resourceID types.CloudID, mount bool, diskMode types.DiskMode, defaultActions []types.ScanAction) error {
-	scannerHostname := tryGetHostname(ctx)
+	hostname := tryGetHostname(ctx)
+	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	roles := getDefaultRolesMapping(types.CloudProviderAWS)
 	scan, err := types.NewScanTask(
 		types.TaskTypeEBS,
 		resourceID.AsText(),
-		scannerHostname,
+		scannerID,
 		resourceID.ResourceName(),
 		nil,
 		defaultActions,
