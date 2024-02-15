@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package nodejs wraps functions to guess service name for node applications
-package nodejs
+// Package nodejsparser wraps functions to guess service name for node applications
+package nodejsparser
 
 import (
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type packageName struct {
@@ -21,37 +22,36 @@ type packageName struct {
 
 // FindNameFromNearestPackageJSON finds the package.json walking up from the absFilePath.
 // if a package.json is found, returns the value of the field name if declared
-func FindNameFromNearestPackageJSON(absFilePath string) (bool, string) {
+func FindNameFromNearestPackageJSON(absFilePath string) (string, bool) {
 	current := filepath.Dir(absFilePath)
 	up := filepath.Dir(current)
 	for run := true; run; run = current != up {
-		ok, value := maybeExtractServiceName(filepath.Join(current, "package.json"))
+		value, ok := maybeExtractServiceName(filepath.Join(current, "package.json"))
 		if ok {
-			return ok && len(value) > 0, value
+			return value, ok && len(value) > 0
 		}
 		current = up
 		up = path.Dir(current)
 	}
-	ok, value := maybeExtractServiceName(filepath.Join(current, "package.json")) // this is for the root folder
-	return ok && len(value) > 0, value
+	value, ok := maybeExtractServiceName(filepath.Join(current, "package.json")) // this is for the root folder
+	return value, ok && len(value) > 0
 
 }
 
 // maybeExtractServiceName return true if a package.json has been found and eventually the value of its name field inside.
-func maybeExtractServiceName(filename string) (bool, string) {
-	// we can use a reader and use a json decoder also to limit the memory used and generally speaking to be safe.
-	// However, package.json files are supposed to be small and Unmarshall offers validation
-	bytes, err := os.ReadFile(filename)
+func maybeExtractServiceName(filename string) (string, bool) {
+	reader, err := os.Open(filename)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			log.Tracef("Error opening package.js file at %s: %v", filename, err)
 		}
-		return false, ""
+		return "", false
 	}
+	defer reader.Close()
 	pn := packageName{}
-	err = json.Unmarshal(bytes, &pn)
+	err = json.NewDecoder(reader).Decode(&pn)
 	if err != nil {
 		log.Tracef("Error decoding package.js file at %s: %v", filename, err)
 	}
-	return true, pn.Name
+	return pn.Name, true
 }

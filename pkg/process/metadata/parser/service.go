@@ -17,7 +17,7 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
-	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser/nodejs"
+	nodejsparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/nodejs"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -343,38 +343,39 @@ func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []st
 }
 
 func parseCommandContextNodeJs(se *ServiceExtractor, process *procutil.Process, args []string) string {
-	if se.useImprovedAlgorithm {
-		skipNext := false
-		for _, a := range args {
-			if skipNext {
-				skipNext = false
+	if !se.useImprovedAlgorithm {
+		return "node"
+	}
+	skipNext := false
+	for _, a := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			if a == "-r" || a == "--require" {
+				// next arg can be a js file but not the entry point. skip it
+				skipNext = !strings.ContainsRune(a, '=') // in this case the value is already in this arg
 				continue
 			}
-			if strings.HasPrefix(a, "-") {
-				if a == "-r" || a == "--require" {
-					// next arg can be a js file but not the entry point. skip it
-					skipNext = !strings.ContainsRune(a, '=') // in this case the value is already in this arg
-					continue
+		} else if strings.HasSuffix(strings.ToLower(a), ".js") {
+			absFile := abs(filepath.Clean(a), process.Cwd)
+			if _, err := os.Stat(absFile); err == nil {
+				value, ok := nodejsparser.FindNameFromNearestPackageJSON(absFile)
+				if ok {
+					return value
 				}
-			} else if strings.HasSuffix(strings.ToLower(a), ".js") {
-				absFile := abs(filepath.Clean(a), process.Cwd)
-				if _, err := os.Stat(absFile); err == nil {
-					// here we are
-					ok, value := nodejs.FindNameFromNearestPackageJSON(absFile)
-					if ok {
-						return value
-					}
-					break
-				}
+				break
 			}
 		}
 	}
-	return ""
+	return "node"
 }
 
+// abs returns the path itself is already absolute or the absolute path by joining cwd with path
+// This is a variant of filepath.Abs since on windows it likely returns false when the drive/volume is missing
+// hence, since we accept also paths, we test if the first char is a path separator
 func abs(path string, cwd string) string {
-	// on windows IsAbs likely returns false when the drive is missing
-	// hence, since we accept also paths, we test if the first char is a path separator
 	if !(filepath.IsAbs(path) || path[0] == os.PathSeparator) && len(cwd) > 0 {
 		return filepath.Join(cwd, path)
 	}

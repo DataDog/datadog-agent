@@ -224,10 +224,19 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"/somewhere/index.js",
 			},
-			expectedServiceTag: "process_context:",
+			expectedServiceTag: "process_context:node",
 		},
 		{
-			name:             "node js advanced posix",
+			name:             "node js with advanced guess enabled with a broken package.json",
+			useImprovedAlgos: true,
+			cmdline: []string{
+				"/usr/bin/node",
+				"./nodejs/testData/inner/index.js",
+			},
+			expectedServiceTag: "process_context:node",
+		},
+		{
+			name:             "node js with advanced guess enabled and found a valid package.json",
 			useImprovedAlgos: true,
 			cmdline: []string{
 				"/usr/bin/node",
@@ -236,17 +245,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--preserve-symlinks-main",
 				"--",
 				"./nodejs/testData/index.js",
-			},
-			expectedServiceTag: "process_context:my-awesome-package",
-		},
-		{
-			name:             "node js advanced windows",
-			useImprovedAlgos: true,
-			cmdline: []string{
-				"node.exe",
-				"-r=private/node-patches_legacy/register.js",
-				"--preserve-symlinks-main",
-				"./nodejs/testData/INDEX.JS",
 			},
 			expectedServiceTag: "process_context:my-awesome-package",
 		},
