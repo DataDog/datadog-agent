@@ -9,14 +9,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
-	"os"
-	"testing"
 )
 
 type DockerSuite struct {
@@ -65,15 +66,15 @@ func (suite *DockerSuite) TestDSDWithUDS() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^container_id`,
+				`^container_id:`,
 				`^container_name:metric-sender-uds$`,
-				`^docker_image`,
-				`^git.commit.sha`,
-				`^git.repository_url`,
+				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:main$`,
+				`^git.commit.sha:`,
+				`^git.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
 				`^image_id:sha256:`,
-				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
+				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
 				`^image_tag:main$`,
-				`^series`,
+				`^series:`,
 				`^short_image:apps-dogstatsd$`,
 			},
 		},
@@ -90,15 +91,15 @@ func (suite *DockerSuite) TestDSDWithUDP() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^container_id`,
+				`^container_id:`,
 				`^container_name:metric-sender-udp$`,
-				`^docker_image`,
-				`^git.commit.sha`,
-				`^git.repository_url`,
+				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:main$`,
+				`^git.commit.sha:`,
+				`^git.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
 				`^image_id:sha256:`,
-				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
+				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
 				`^image_tag:main$`,
-				`^series`,
+				`^series:`,
 				`^short_image:apps-dogstatsd$`,
 			},
 		},
