@@ -44,6 +44,7 @@ type RCListener map[data.Product]func(updates map[string]state.RawConfig, applyS
 
 type rcClient struct {
 	client        *client.Client
+	clientHA      *client.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
 
@@ -86,11 +87,26 @@ func newRemoteConfigClient(deps dependencies) (provides, error) {
 		return provides{}, err
 	}
 
+	var clientHA *client.Client
+	if config.Datadog.GetBool("ha.enabled") {
+		clientHA, err = client.NewUnverifiedHAGRPCClient(
+			ipcAddress,
+			config.GetIPCPort(),
+			func() (string, error) { return security.FetchAuthToken(config.Datadog) },
+			client.WithAgent("unknown", version.AgentVersion), // We have to create the client in the constructor and set its name later
+			client.WithPollInterval(5*time.Second),
+		)
+		if err != nil {
+			return provides{}, err
+		}
+	}
+
 	rc := rcClient{
 		listeners:     deps.Listeners,
 		taskListeners: deps.TaskListeners,
 		m:             &sync.Mutex{},
 		client:        c,
+		clientHA:      clientHA,
 	}
 
 	return provides{
@@ -114,7 +130,55 @@ func (rc rcClient) Start(agentName string) error {
 
 	rc.client.Start()
 
+	if rc.clientHA != nil {
+		rc.clientHA.SetAgentName(agentName)
+		rc.clientHA.Subscribe(state.ProductAgentFailover, rc.haUpdateCallback)
+		rc.clientHA.Start()
+	}
+
 	return nil
+}
+
+func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	for cfgPath, update := range updates {
+		haUpdate, err := parseHighAvailabilityConfig(update.Config)
+		if err != nil {
+			pkglog.Errorf("HA update unmarshal failed: %s", err)
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			continue
+		}
+
+		// Accept and apply only the first valid update. Disregard any remaining, which will be left in the UNKNOWN state
+		if haUpdate != nil && haUpdate.Failover != nil {
+			pkglog.Infof("Setting `ha.failover: %t` through remote config", *haUpdate.Failover)
+			err = settings.SetRuntimeSetting("ha.failover", *haUpdate.Failover, model.SourceRC)
+			if err != nil {
+				pkglog.Errorf("HA failover update failed: %s", err)
+				applyStateCallback(cfgPath, state.ApplyStatus{
+					State: state.ApplyStateError,
+					Error: err.Error(),
+				})
+			} else {
+				applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			}
+		} else {
+			// Config update is nil, so we should unset the failover value if it was set via RC previously
+			shouldLog := false
+			if config.Datadog.GetSource("ha.failover") == model.SourceRC {
+				shouldLog = true
+			}
+			config.Datadog.UnsetForSource("ha.failover", model.SourceRC)
+			if shouldLog {
+				// Log the current ha.failover value AFTER unsetting the remote-config sourced value
+				pkglog.Infof("Falling back to `ha.failover: %t`", config.Datadog.GetBool("ha.failover"))
+			}
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		}
+		break
+	}
 }
 
 func (rc rcClient) SubscribeAgentTask() {
