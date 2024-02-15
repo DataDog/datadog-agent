@@ -108,7 +108,7 @@ func awsSnapshotCommand() *cobra.Command {
 				types.TaskTypeEBS,
 				volumeID.AsText(),
 				scannerID,
-				volumeID.AsText(),
+				"unknown",
 				nil,
 				globalFlags.defaultActions,
 				roles,
@@ -116,10 +116,10 @@ func awsSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cfg := awsutils.GetConfigFromCloudID(ctx, roles, scan.CloudID)
+			cfg := awsutils.GetConfigFromCloudID(ctx, roles, scan.TargetID)
 			var waiter awsutils.ResourceWaiter
 			ec2client := ec2.NewFromConfig(cfg)
-			snapshotID, err := awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, scan.CloudID)
+			snapshotID, err := awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, scan.TargetID)
 			if err != nil {
 				return err
 			}
@@ -254,7 +254,7 @@ func awsCleanupCommand() *cobra.Command {
 	return cmd
 }
 
-func awsScanCmd(ctx context.Context, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func awsScanCmd(ctx context.Context, resourceID types.CloudID, targetName string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	hostname := tryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	taskType, err := types.DefaultTaskType(resourceID)
@@ -266,7 +266,7 @@ func awsScanCmd(ctx context.Context, resourceID types.CloudID, targetHostname st
 		taskType,
 		resourceID.AsText(),
 		scannerID,
-		targetHostname,
+		targetName,
 		nil,
 		actions,
 		roles,
@@ -605,7 +605,7 @@ func awsAttachCmd(ctx context.Context, resourceID types.CloudID, mount bool, dis
 		types.TaskTypeEBS,
 		resourceID.AsText(),
 		scannerID,
-		resourceID.ResourceName(),
+		"unknown",
 		nil,
 		defaultActions,
 		roles,

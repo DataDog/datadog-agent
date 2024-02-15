@@ -34,23 +34,23 @@ const (
 // volume, attaches it to the instance and returns the list of partitions that
 // were mounted.
 func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *ResourceWaiter) error {
-	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.CloudID)
+	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.TargetID)
 	ec2client := ec2.NewFromConfig(cfg)
 
 	var snapshotID types.CloudID
 	var err error
-	switch scan.CloudID.ResourceType() {
+	switch scan.TargetID.ResourceType() {
 	case types.ResourceTypeVolume:
-		snapshotID, err = CreateSnapshot(ctx, scan, waiter, ec2client, scan.CloudID)
+		snapshotID, err = CreateSnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
 	case types.ResourceTypeSnapshot:
-		snapshotID, err = CopySnapshot(ctx, scan, waiter, ec2client, scan.CloudID)
+		snapshotID, err = CopySnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
 	case types.ResourceTypeHostImage:
-		snapshotID, err = getAMIRootSnapshot(ctx, scan, waiter, ec2client, scan.CloudID)
+		snapshotID, err = getAMIRootSnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
 		if err == nil {
 			snapshotID, err = CopySnapshot(ctx, scan, waiter, ec2client, snapshotID)
 		}
 	default:
-		err = fmt.Errorf("ebs-volume: unexpected resource type for task %q: %q", scan.Type, scan.CloudID)
+		err = fmt.Errorf("ebs-volume: unexpected resource type for task %q: %q", scan.Type, scan.TargetID)
 	}
 	if err != nil {
 		return err
