@@ -134,19 +134,6 @@ def get_image_list(distro, custom):
         return custom_kernels
 
 
-def power_log_str(x):
-    num = int(x)
-    return str(2 ** (math.ceil(math.log(num, 2))))
-
-
-def mem_to_pow_of_2(memory):
-    for i in range(len(memory)):
-        new = power_log_str(memory[i])
-        if new != memory[i]:
-            info(f"rounding up memory: {memory[i]} -> {new}")
-            memory[i] = new
-
-
 def check_memory_and_vcpus(memory, vcpus):
     for mem in memory:
         if not mem.isnumeric() or int(mem) == 0:
@@ -584,7 +571,6 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, o
     memory_ls = memory.split(',')
 
     check_memory_and_vcpus(memory_ls, vcpu_ls)
-    mem_to_pow_of_2(memory_ls)
     set_ls = list()
     if sets != "":
         set_ls = sets.split(",")
