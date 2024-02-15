@@ -78,7 +78,7 @@ func newRemoteConfigClient(deps dependencies) (provides, error) {
 	c, err := client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		config.GetIPCPort(),
-		security.FetchAuthToken,
+		func() (string, error) { return security.FetchAuthToken(config.Datadog) },
 		client.WithAgent("unknown", version.AgentVersion),
 		client.WithPollInterval(5*time.Second),
 	)

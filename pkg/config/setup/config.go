@@ -1069,6 +1069,11 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "latest")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.memory")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.provider", "")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.endpoint", "/agentsidecar")
+	// Should be able to parse it to a list of webhook selectors
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.selectors", "[]")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.

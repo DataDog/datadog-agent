@@ -106,7 +106,7 @@ func StartServers(
 		MinVersion:   tls.VersionTLS12,
 	}
 
-	if err := util.CreateAndSetAuthToken(); err != nil {
+	if err := util.CreateAndSetAuthToken(config.Datadog); err != nil {
 		return err
 	}
 
