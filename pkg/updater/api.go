@@ -40,6 +40,7 @@ type promoteExperimentResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
+// LocalAPI is the interface for the locally exposed API to interact with the updater.
 type LocalAPI interface {
 	Serve() error
 	Close() error

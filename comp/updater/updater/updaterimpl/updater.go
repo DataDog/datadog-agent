@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package updater implements the updater component.
+// Package updaterimpl implements the updater component.
 package updaterimpl
 
 import (

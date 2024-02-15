@@ -63,6 +63,7 @@ func Install(ctx context.Context, rc client.ConfigUpdater, pkg string) error {
 	return nil
 }
 
+// Updater is the updater used to update packages.
 type Updater interface {
 	Start()
 	Stop()
@@ -75,7 +76,6 @@ type Updater interface {
 	GetPackage() string
 }
 
-// Updater is the updater used to update packages.
 type updaterImpl struct {
 	m              sync.Mutex
 	pkg            string
