@@ -166,9 +166,9 @@ func (r RolesMapping) GetRole(accountID string) CloudID {
 type ScanConfigRaw struct {
 	Type  string `json:"type"`
 	Tasks []struct {
-		Type    string   `json:"type"`
-		CloudID string   `json:"arn"`
-		Actions []string `json:"actions"`
+		Type     string   `json:"type"`
+		TargetID string   `json:"arn"`
+		Actions  []string `json:"actions"`
 
 		// Options fields: TaskTypeAMI
 		ImageID   string   `json:"image_id,omitempty"`
@@ -211,17 +211,22 @@ func NewScannerID(provider CloudProvider, hostname string) ScannerID {
 // ScanTask is the representation of a scan task that performs a scan on a
 // resource.
 type ScanTask struct {
-	ID         string       `json:"ID"`
-	ScannerID  ScannerID    `json:"ScannerID"`
-	CreatedAt  time.Time    `json:"CreatedAt"`
-	StartedAt  time.Time    `json:"StartedAt"`
-	Type       TaskType     `json:"Type"`
-	CloudID    CloudID      `json:"CloudID"`
-	TargetID   string       `json:"TargetID"`
-	TargetTags []string     `json:"TargetTags"`
-	DiskMode   DiskMode     `json:"DiskMode,omitempty"`
-	Roles      RolesMapping `json:"Roles"`
-	Actions    []ScanAction `json:"Actions"`
+	Type      TaskType  `json:"Type"`
+	ID        string    `json:"ID"`
+	ScannerID ScannerID `json:"ScannerID"`
+	CreatedAt time.Time `json:"CreatedAt"`
+	StartedAt time.Time `json:"StartedAt"`
+
+	TargetID   CloudID  `json:"TargetID"`
+	TargetName string   `json:"TargetName"`
+	TargetTags []string `json:"TargetTags"`
+
+	Roles RolesMapping `json:"Roles"`
+
+	// TaskTypeEBS
+	DiskMode DiskMode     `json:"DiskMode,omitempty"`
+	Actions  []ScanAction `json:"Actions"`
+
 	// Lifecycle metadata of the task
 	CreatedResources   map[CloudID]time.Time `json:"CreatedResources"`
 	AttachedDeviceName *string               `json:"AttachedDeviceName"`
@@ -255,7 +260,7 @@ func (s *ScanTask) String() string {
 func (s *ScanTask) Tags(rest ...string) []string {
 	return append([]string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("region:%s", s.CloudID.Region()),
+		fmt.Sprintf("region:%s", s.TargetID.Region()),
 		fmt.Sprintf("type:%s", s.Type),
 	}, rest...)
 }
@@ -480,18 +485,18 @@ func ParseRolesMapping(provider CloudProvider, roles []string) RolesMapping {
 }
 
 // NewScanTask creates a new scan task.
-func NewScanTask(taskType TaskType, resourceID string, scanner ScannerID, targetID string, targetTags []string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
-	var cloudID CloudID
+func NewScanTask(taskType TaskType, resourceID string, scanner ScannerID, targetName string, targetTags []string, actions []ScanAction, roles RolesMapping, mode DiskMode) (*ScanTask, error) {
+	var targetID CloudID
 	var err error
 	switch taskType {
 	case TaskTypeEBS:
-		cloudID, err = ParseCloudID(resourceID, ResourceTypeSnapshot, ResourceTypeVolume)
+		targetID, err = ParseCloudID(resourceID, ResourceTypeSnapshot, ResourceTypeVolume)
 	case TaskTypeAMI:
-		cloudID, err = ParseCloudID(resourceID, ResourceTypeSnapshot, ResourceTypeHostImage)
+		targetID, err = ParseCloudID(resourceID, ResourceTypeSnapshot, ResourceTypeHostImage)
 	case TaskTypeHost:
-		cloudID, err = ParseCloudID(resourceID, ResourceTypeLocalDir)
+		targetID, err = ParseCloudID(resourceID, ResourceTypeLocalDir)
 	case TaskTypeLambda:
-		cloudID, err = ParseCloudID(resourceID, ResourceTypeFunction)
+		targetID, err = ParseCloudID(resourceID, ResourceTypeFunction)
 	default:
 		err = fmt.Errorf("task: unsupported type %q", taskType)
 	}
@@ -499,11 +504,11 @@ func NewScanTask(taskType TaskType, resourceID string, scanner ScannerID, target
 		return nil, err
 	}
 
-	task := ScanTask{
+	scan := ScanTask{
 		Type:             taskType,
-		CloudID:          cloudID,
 		ScannerID:        scanner,
 		TargetID:         targetID,
+		TargetName:       targetName,
 		TargetTags:       targetTags,
 		Roles:            roles,
 		DiskMode:         mode,
@@ -514,30 +519,30 @@ func NewScanTask(taskType TaskType, resourceID string, scanner ScannerID, target
 
 	switch taskType {
 	case TaskTypeEBS, TaskTypeAMI: // TODO: TastTypeLambda
-		if task.TargetID == "" {
+		if scan.TargetName == "" {
 			return nil, fmt.Errorf("task: missing target ID (hostname, image ID, ...)")
 		}
 	}
 
 	{
 		h := sha256.New()
-		createdAt, _ := task.CreatedAt.MarshalBinary()
-		cloudID, _ := task.CloudID.MarshalText()
+		createdAt, _ := scan.CreatedAt.MarshalBinary()
+		targetID, _ := scan.TargetID.MarshalText()
 		h.Write(createdAt)
-		h.Write([]byte(task.Type))
-		h.Write([]byte(cloudID))
-		h.Write([]byte(task.TargetID))
-		for _, tag := range task.TargetTags {
+		h.Write([]byte(scan.Type))
+		h.Write([]byte(targetID))
+		h.Write([]byte(scan.TargetName))
+		for _, tag := range scan.TargetTags {
 			h.Write([]byte(tag))
 		}
-		h.Write([]byte(task.ScannerID.Hostname))
-		h.Write([]byte(task.DiskMode))
-		for _, action := range task.Actions {
+		h.Write([]byte(scan.ScannerID.Hostname))
+		h.Write([]byte(scan.DiskMode))
+		for _, action := range scan.Actions {
 			h.Write([]byte(action))
 		}
-		task.ID = string(task.Type) + "-" + hex.EncodeToString(h.Sum(nil))[:8]
+		scan.ID = string(scan.Type) + "-" + hex.EncodeToString(h.Sum(nil))[:8]
 	}
-	return &task, nil
+	return &scan, nil
 }
 
 // ParseScanAction parses a scan action from a string.
@@ -608,26 +613,26 @@ func UnmarshalConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction,
 		if err != nil {
 			return nil, err
 		}
-		var targetID string
+		var targetName string
 		var targetTags []string
 		switch scanType {
 		case TaskTypeHost:
-			targetID = rawScan.Hostname
+			targetName = rawScan.Hostname
 			targetTags = rawScan.HostTags
 		case TaskTypeEBS:
-			targetID = rawScan.Hostname
+			targetName = rawScan.Hostname
 			targetTags = rawScan.HostTags
 		case TaskTypeAMI:
-			targetID = rawScan.ImageID
+			targetName = rawScan.ImageID
 			targetTags = rawScan.ImageTags
 		case TaskTypeLambda:
-			targetID = rawScan.LambdaVersion
+			targetName = rawScan.LambdaVersion
 			targetTags = rawScan.LambdaTags
 		}
-		task, err := NewScanTask(scanType,
-			rawScan.CloudID,
+		scan, err := NewScanTask(scanType,
+			rawScan.TargetID,
 			scannerID,
-			targetID,
+			targetName,
 			targetTags,
 			actions,
 			config.Roles,
@@ -636,10 +641,10 @@ func UnmarshalConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction,
 		if err != nil {
 			return nil, err
 		}
-		if config.Type == ConfigTypeAWS && task.CloudID.Provider() != CloudProviderAWS {
-			return nil, fmt.Errorf("config: invalid cloud resource identifier %q: expecting cloud provider %s", rawScan.CloudID, CloudProviderAWS)
+		if config.Type == ConfigTypeAWS && scan.TargetID.Provider() != CloudProviderAWS {
+			return nil, fmt.Errorf("config: invalid cloud resource identifier %q: expecting cloud provider %s", rawScan.TargetID, CloudProviderAWS)
 		}
-		config.Tasks = append(config.Tasks, task)
+		config.Tasks = append(config.Tasks, scan)
 	}
 	return &config, nil
 }

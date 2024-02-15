@@ -64,14 +64,14 @@ func downloadAndUnzipLambda(ctx context.Context, scan *types.ScanTask, lambdaDir
 		}
 	}()
 
-	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.CloudID)
+	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.TargetID)
 	lambdaclient := lambda.NewFromConfig(cfg)
 	if err != nil {
 		return "", err
 	}
 
 	lambdaFunc, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
-		FunctionName: aws.String(scan.CloudID.AsText()),
+		FunctionName: aws.String(scan.TargetID.AsText()),
 	})
 	if err != nil {
 		return "", err

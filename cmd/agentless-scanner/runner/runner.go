@@ -408,17 +408,17 @@ func (s *Runner) Start(ctx context.Context) {
 				if s.regionsCleanup == nil {
 					s.regionsCleanup = make(map[string]types.CloudID)
 				}
-				s.regionsCleanup[scan.CloudID.Region()] = scan.Roles.GetCloudIDRole(scan.CloudID)
+				s.regionsCleanup[scan.TargetID.Region()] = scan.Roles.GetCloudIDRole(scan.TargetID)
 				s.regionsCleanupMu.Unlock()
 
 				// Avoid pushing a scan that we are already performing.
 				// TODO: this guardrail could be avoided with a smarter scheduling.
 				s.scansInProgressMu.Lock()
-				if _, ok := s.scansInProgress[scan.CloudID]; ok {
+				if _, ok := s.scansInProgress[scan.TargetID]; ok {
 					s.scansInProgressMu.Unlock()
 					continue
 				}
-				s.scansInProgress[scan.CloudID] = struct{}{}
+				s.scansInProgress[scan.TargetID] = struct{}{}
 				s.scansInProgressMu.Unlock()
 
 				if err := s.launchScan(ctx, scan); err != nil {
@@ -428,7 +428,7 @@ func (s *Runner) Start(ctx context.Context) {
 				}
 
 				s.scansInProgressMu.Lock()
-				delete(s.scansInProgress, scan.CloudID)
+				delete(s.scansInProgress, scan.TargetID)
 				s.scansInProgressMu.Unlock()
 			}
 		}()
@@ -501,7 +501,7 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 	switch scan.Type {
 	case types.TaskTypeHost:
 		assert(s.ScannerID.Provider == types.CloudProviderNone)
-		s.scanRootFilesystems(ctx, scan, []string{scan.CloudID.ResourceName()}, pool)
+		s.scanRootFilesystems(ctx, scan, []string{scan.TargetID.ResourceName()}, pool)
 
 	case types.TaskTypeAMI:
 		if err := awsutils.SetupEBS(ctx, scan, &s.waiter); err != nil {
@@ -664,8 +664,8 @@ func (s *Runner) sendSBOM(result types.ScanResult) error {
 	reservedTags := [3]string{"agentless_scanner_host", "region", "account_id"}
 	ddTags := []string{
 		"agentless_scanner_host:" + s.ScannerID.Hostname,
-		"region:" + result.Scan.CloudID.Region(),
-		"account_id:" + result.Scan.CloudID.AccountID(),
+		"region:" + result.Scan.TargetID.Region(),
+		"account_id:" + result.Scan.TargetID.AccountID(),
 	}
 
 	for _, tag := range vulns.Tags {
@@ -735,7 +735,7 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 			})
 			if result.Vulns != nil {
 				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM // TODO: sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-				result.Vulns.ID = scan.TargetID
+				result.Vulns.ID = scan.TargetName
 				result.Vulns.Tags = scan.TargetTags
 			}
 			s.resultsCh <- result
@@ -754,7 +754,7 @@ func (s *Runner) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, 
 	})
 	if result.Vulns != nil {
 		result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-		result.Vulns.ID = scan.TargetID
+		result.Vulns.ID = scan.TargetName
 		result.Vulns.Tags = scan.TargetTags
 	}
 	s.resultsCh <- result
@@ -778,7 +778,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 			})
 			if result.Vulns != nil {
 				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-				result.Vulns.ID = scan.TargetID
+				result.Vulns.ID = scan.TargetName
 				result.Vulns.Tags = scan.TargetTags
 			}
 			s.resultsCh <- result
@@ -851,10 +851,10 @@ func (s *Runner) scanApplication(ctx context.Context, scan *types.ScanTask, root
 	})
 	if result.Vulns != nil {
 		result.Vulns.SourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA
-		result.Vulns.ID = scan.CloudID.AsText()
+		result.Vulns.ID = scan.TargetID.AsText()
 		result.Vulns.Tags = append([]string{
-			"runtime_id:" + scan.CloudID.AsText(),
-			fmt.Sprintf("service_version:%s", scan.TargetID),
+			"runtime_id:" + scan.TargetID.AsText(),
+			fmt.Sprintf("service_version:%s", scan.TargetName),
 		}, scan.TargetTags...)
 	}
 	s.resultsCh <- result
