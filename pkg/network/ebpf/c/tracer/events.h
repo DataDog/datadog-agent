@@ -131,6 +131,9 @@ static __always_inline bool cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     return true;
 }
 
+
+// This function is used to emit a conn_close_event for a single connection that is being closed.
+// It is only called on older kernel versions that do not support ring buffers.
 __maybe_unused static __always_inline void emit_conn_close_event(void *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_t* conn_ptr = bpf_map_lookup_elem(&pending_individual_conn_flushes, &pid_tgid);
@@ -147,6 +150,8 @@ __maybe_unused static __always_inline void emit_conn_close_event(void *ctx) {
     bpf_map_delete_elem(&pending_individual_conn_flushes, &pid_tgid);
 }
 
+// This function is used to emit a conn_close_event for a single connection that is being closed.
+// It is only called on newer kernel versions that support ring buffers.
 __maybe_unused static __always_inline void emit_conn_close_event_ringbuffer(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -162,6 +167,9 @@ __maybe_unused static __always_inline void emit_conn_close_event_ringbuffer(void
     bpf_map_delete_elem(&pending_individual_conn_flushes, &pid_tgid);
 }
 
+
+// This function is used to flush the conn_close_batch to the perf buffer.
+// It is only called on older kernel versions that do not support ring buffers.
 __maybe_unused static __always_inline void flush_conn_close_if_full_perfbuffer(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
@@ -180,6 +188,9 @@ __maybe_unused static __always_inline void flush_conn_close_if_full_perfbuffer(v
     bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
 }
 
+
+// This function is used to flush the conn_close_batch to the ring buffer.
+// It is only called on newer kernel versions that support ring buffers.
 __maybe_unused static __always_inline void flush_conn_close_if_full_ringbuffer(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);

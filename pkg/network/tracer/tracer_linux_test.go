@@ -1861,15 +1861,16 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 
 func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	t := s.T()
-	c := testConfig()
-	testPreexistingEmptyIncomingConnectionDirection(t, c)
-}
-
-func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirectionRingBuffDisabled() {
-	t := s.T()
-	c := testConfig()
-	c.RingbuffersEnabled = false
-	testPreexistingEmptyIncomingConnectionDirection(t, c)
+	t.Run("ringbuff_enabled", func(t *testing.T) {
+		// ringbuffers are enabled by default
+		c := testConfig()
+		testPreexistingEmptyIncomingConnectionDirection(t, c)
+	})
+	t.Run("ringbuff_disabled", func(t *testing.T) {
+		c := testConfig()
+		c.RingbuffersEnabled = false
+		testPreexistingEmptyIncomingConnectionDirection(t, c)
+	})
 }
 
 func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *config.Config) {
