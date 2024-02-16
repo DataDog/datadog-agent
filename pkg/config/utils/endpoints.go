@@ -127,7 +127,7 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 }
 
 // GetHAEndpoint returns the HA DD URL defined in the config, based on `ha.site` and the prefix, or ddHaURLKey
-func GetHAEndpoint(c pkgconfigmodel.Reader, prefix string, ddHaURLKey string) string {
+func GetHAEndpoint(c pkgconfigmodel.Reader, prefix, ddHaURLKey string) string {
 	// value under ddURLKey takes precedence over 'ha.site'
 	if c.IsSet(ddHaURLKey) && c.GetString(ddHaURLKey) != "" {
 		return getResolvedHaDdURL(c, ddHaURLKey)
