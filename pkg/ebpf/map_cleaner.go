@@ -126,6 +126,7 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 	it := mc.emap.IterateWithBatchSize(int(mc.batchSize))
 
 	for it.Next(&key, &val) {
+		totalCount++
 		if !shouldClean(nowTS, key, val) {
 			continue
 		}
