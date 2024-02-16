@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2020-present Datadog, Inc.
+
 package listeners
 
 import (
@@ -55,7 +60,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					adIdentifier: dbmAdIdentifier,
 					entityID:     "19514be0f2d4837d",
 					checkName:    "postgres",
-					clusterId:    "my-cluster-1",
+					clusterID:    "my-cluster-1",
 					instance: &aws.Instance{
 						Endpoint:   "my-endpoint",
 						Port:       5432,
@@ -111,7 +116,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					adIdentifier: dbmAdIdentifier,
 					entityID:     "19514be0f2d4837d",
 					checkName:    "postgres",
-					clusterId:    "my-cluster-1",
+					clusterID:    "my-cluster-1",
 					instance: &aws.Instance{
 						Endpoint:   "my-endpoint",
 						Port:       5432,
@@ -123,7 +128,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					adIdentifier: dbmAdIdentifier,
 					entityID:     "9c140ca81a81f639",
 					checkName:    "postgres",
-					clusterId:    "my-cluster-1",
+					clusterID:    "my-cluster-1",
 					instance: &aws.Instance{
 						Endpoint:   "foo-endpoint",
 						Port:       5432,
@@ -135,7 +140,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					adIdentifier: dbmAdIdentifier,
 					entityID:     "26b65ecd56cd0a64",
 					checkName:    "postgres",
-					clusterId:    "my-cluster-1",
+					clusterID:    "my-cluster-1",
 					instance: &aws.Instance{
 						Endpoint:   "bar-endpoint",
 						Port:       5444,
@@ -206,7 +211,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					adIdentifier: dbmAdIdentifier,
 					entityID:     "19514be0f2d4837d",
 					checkName:    "postgres",
-					clusterId:    "my-cluster-1",
+					clusterID:    "my-cluster-1",
 					instance: &aws.Instance{
 						Endpoint:   "my-endpoint",
 						Port:       5432,
@@ -218,7 +223,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					adIdentifier: dbmAdIdentifier,
 					entityID:     "9c140ca81a81f639",
 					checkName:    "postgres",
-					clusterId:    "my-cluster-1",
+					clusterID:    "my-cluster-1",
 					instance: &aws.Instance{
 						Endpoint:   "foo-endpoint",
 						Port:       5432,
@@ -230,7 +235,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					adIdentifier: dbmAdIdentifier,
 					entityID:     "26b65ecd56cd0a64",
 					checkName:    "postgres",
-					clusterId:    "my-cluster-1",
+					clusterID:    "my-cluster-1",
 					instance: &aws.Instance{
 						Endpoint:   "bar-endpoint",
 						Port:       5444,
@@ -244,7 +249,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					adIdentifier: dbmAdIdentifier,
 					entityID:     "19514be0f2d4837d",
 					checkName:    "postgres",
-					clusterId:    "my-cluster-1",
+					clusterID:    "my-cluster-1",
 					instance: &aws.Instance{
 						Endpoint:   "my-endpoint",
 						Port:       5432,
@@ -256,7 +261,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					adIdentifier: dbmAdIdentifier,
 					entityID:     "9c140ca81a81f639",
 					checkName:    "postgres",
-					clusterId:    "my-cluster-1",
+					clusterID:    "my-cluster-1",
 					instance: &aws.Instance{
 						Endpoint:   "foo-endpoint",
 						Port:       5432,

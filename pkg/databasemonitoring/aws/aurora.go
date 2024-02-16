@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2020-present Datadog, Inc.
+
+// Package aws contains database-monitoring specific aurora discovery logic
 package aws
 
 import (
@@ -102,11 +108,11 @@ func parseAWSRegion(availabilityZone string) (string, error) {
 }
 
 // Digest returns a hash value representing the data stored in this configuration, minus the network address
-func (c *Instance) Digest(checkType, clusterId string) string {
+func (c *Instance) Digest(checkType, clusterID string) string {
 	h := fnv.New64()
 	// Hash write never returns an error
 	h.Write([]byte(checkType))                       //nolint:errcheck
-	h.Write([]byte(clusterId))                       //nolint:errcheck
+	h.Write([]byte(clusterID))                       //nolint:errcheck
 	h.Write([]byte(c.Endpoint))                      //nolint:errcheck
 	h.Write([]byte(fmt.Sprintf("%d", c.Port)))       //nolint:errcheck
 	h.Write([]byte(c.Region))                        //nolint:errcheck
