@@ -154,8 +154,8 @@ func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applySta
 				continue
 			}
 			failover = haUpdate.Failover
-			pkglog.Infof("Setting `ha.failover: %t` through remote config", &failover)
-			err = settings.SetRuntimeSetting("ha.failover", &failover, model.SourceRC)
+			pkglog.Infof("Setting `ha.failover: %t` through remote config", *failover)
+			err = settings.SetRuntimeSetting("ha.failover", *failover, model.SourceRC)
 			if err != nil {
 				pkglog.Errorf("HA failover update failed: %s", err)
 				applyStateCallback(cfgPath, state.ApplyStatus{
