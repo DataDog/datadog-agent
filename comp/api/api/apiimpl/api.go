@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -104,6 +105,7 @@ func (server *apiServer) StartServer(
 	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
 ) error {
 	return StartServers(server.rcService,
 		server.flare,
@@ -122,6 +124,7 @@ func (server *apiServer) StartServer(
 		server.invChecks,
 		server.pkgSigning,
 		server.statusComponent,
+		collector,
 		server.eventPlatformReceiver,
 	)
 }
