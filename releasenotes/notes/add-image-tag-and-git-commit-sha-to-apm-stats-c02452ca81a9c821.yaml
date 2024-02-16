@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    APM stats will now include, if present, the git commit sha from traces (or container tags) and the image tag from container tags.
+    APM stats will now include, if present, the Git commit SHA from traces (or container tags) and the image tag from container tags.
