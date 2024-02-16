@@ -43,12 +43,12 @@ func (b *BaseAgentInstallerSuite[Env]) InstallAgent(host *components.RemoteHost,
 	}
 
 	var args []string
-	typeOfInstallAgentParams := reflect.TypeOf(p)
+	typeOfInstallAgentParams := reflect.TypeOf(*p)
 	for fieldIndex := 0; fieldIndex < typeOfInstallAgentParams.NumField(); fieldIndex++ {
 		field := typeOfInstallAgentParams.Field(fieldIndex)
 		installerArg := field.Tag.Get("installer_arg")
 		if installerArg != "" {
-			installerArgValue := reflect.ValueOf(p).FieldByName(field.Name).String()
+			installerArgValue := reflect.ValueOf(*p).FieldByName(field.Name).String()
 			if installerArgValue != "" {
 				args = append(args, fmt.Sprintf("%s=%s", installerArg, installerArgValue))
 			}
