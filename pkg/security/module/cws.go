@@ -258,7 +258,7 @@ func (c *CWSConsumer) sendStats() {
 	if err := c.apiServer.SendStats(); err != nil {
 		seclog.Debugf("failed to send api server stats: %s", err)
 	}
-	for ruleID, counter := range c.ruleEngine.AutoSuppressions.GetStats() {
+	for ruleID, counter := range c.ruleEngine.AutoSuppression.GetStats() {
 		if counter > 0 {
 			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, []string{fmt.Sprintf("rule_id:%s", ruleID)}, 1.0)
 		}
