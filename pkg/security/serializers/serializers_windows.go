@@ -92,7 +92,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 }
 
 func newUserContextSerializer(e *model.Event) *UserContextSerializer {
-	if e.ProcessContext == nil || e.ProcessContext.Process == nil {
+	if e.ProcessContext == nil || e.ProcessContext.Pid == 0 || e == nil {
 		return nil
 	}
 	return &UserContextSerializer{
