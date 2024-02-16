@@ -33,7 +33,7 @@ type Instance struct {
 // requires the dbClusterIdentifier for the cluster
 func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[string]*AuroraCluster, error) {
 	if len(dbClusterIdentifiers) == 0 {
-		return nil, fmt.Errorf("at least one database clusterInstances identifier is required")
+		return nil, fmt.Errorf("at least one database cluster identifier is required")
 	}
 	idVals := make([]*string, len(dbClusterIdentifiers))
 	for i, id := range dbClusterIdentifiers {
@@ -49,7 +49,7 @@ func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[s
 			},
 		})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error describing aurora DB clusters: %v", err)
 	}
 	clusters := make(map[string]*AuroraCluster, 0)
 	for _, db := range clusterInstances.DBInstances {
@@ -87,7 +87,7 @@ func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[s
 		}
 	}
 	if len(clusters) == 0 {
-		log.Debugf("No endpoints found for the Aurora clusters with ids %s", strings.Join(dbClusterIdentifiers, ", "))
+		return nil, fmt.Errorf("no endpoints found for aurora clusters with id(s): %s", strings.Join(dbClusterIdentifiers, ", "))
 	}
 	return clusters, nil
 }

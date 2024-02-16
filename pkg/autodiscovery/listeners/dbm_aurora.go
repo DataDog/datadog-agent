@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
-	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/integrations"
+	dbmconfig "github.com/DataDog/datadog-agent/pkg/databasemonitoring/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strconv"
@@ -31,9 +31,11 @@ type DBMAuroraListener struct {
 	delService       chan<- Service
 	stop             chan bool
 	services         map[string]Service
-	config           integrations.AutodiscoverClustersConfig
-	awsClients       map[string]aws.RDSClient // cached clients by region
+	config           dbmconfig.AutodiscoverClustersConfig
+	awsClients       map[string]aws.RDSClient
 	previousServices map[string]struct{}
+	ticks            <-chan time.Time
+	ticker           *time.Ticker
 }
 
 var _ Service = &DBMAuroraService{}
@@ -48,30 +50,29 @@ type DBMAuroraService struct {
 }
 
 func NewDBMAuroraListener(Config) (ServiceListener, error) {
-	config, err := integrations.NewAutodiscoverClustersConfig()
+	config, err := dbmconfig.NewAutodiscoverClustersConfig()
 	if err != nil {
 		return nil, err
 	}
-	l := &DBMAuroraListener{
-		stop:       make(chan bool),
-		config:     config,
-		services:   make(map[string]Service),
-		awsClients: make(map[string]aws.RDSClient),
-	}
-	return l, nil
+	clients := make(map[string]aws.RDSClient)
+	previousServices := make(map[string]struct{})
+	return newDBMAuroraListener(config, previousServices, clients, nil), nil
 }
 
-func newDBMAuroraListener(cfg Config, awsClients map[string]aws.RDSClient) (ServiceListener, error) {
-	config, err := integrations.NewAutodiscoverClustersConfig()
-	if err != nil {
-		return nil, err
-	}
+func newDBMAuroraListener(config dbmconfig.AutodiscoverClustersConfig, previousServices map[string]struct{}, awsClients map[string]aws.RDSClient, ticks <-chan time.Time) ServiceListener {
 	l := &DBMAuroraListener{
-		config:     config,
-		services:   make(map[string]Service),
-		awsClients: awsClients,
+		config:           config,
+		services:         make(map[string]Service),
+		stop:             make(chan bool),
+		awsClients:       awsClients,
+		previousServices: previousServices,
+		ticks:            ticks,
 	}
-	return l, nil
+	if l.ticks == nil {
+		l.ticker = time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
+		l.ticks = l.ticker.C
+	}
+	return l
 }
 
 // Listen listens for new and deleted aurora endpoints
@@ -88,7 +89,11 @@ func (l *DBMAuroraListener) Stop() {
 
 // discoverAuroraClusters discovers aurora clusters according to the configuration
 func (l *DBMAuroraListener) discoverAuroraClusters() {
-	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
+	defer func() {
+		if l.ticker != nil {
+			l.ticker.Stop()
+		}
+	}()
 	for {
 		for _, cluster := range l.config.Clusters {
 			ids := make([]string, 0)
@@ -96,14 +101,14 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 			if _, ok := l.awsClients[cluster.Region]; !ok {
 				c, err := aws.NewRDSClient(cluster.Region, l.config.RoleArn)
 				if err != nil {
-					log.Errorf("error creating aws client for region %s: %s", cluster.Region, err)
+					_ = log.Errorf("error creating aws client for region %s: %s", cluster.Region, err)
 					continue
 				}
 				l.awsClients[cluster.Region] = c
 			}
 			auroraCluster, err := l.awsClients[cluster.Region].GetAuroraClusterEndpoints(ids)
 			if err != nil {
-				log.Errorf("error discovering aurora cluster, skipping: %s", err)
+				_ = log.Error(err)
 				continue
 			}
 			discoveredServices := make(map[string]struct{})
@@ -124,7 +129,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 			select {
 			case <-l.stop:
 				return
-			case <-discoveryTicker.C:
+			case <-l.ticks:
 			}
 		}
 	}
