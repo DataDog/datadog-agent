@@ -78,7 +78,7 @@ type language string
 
 type pinnedLibraries struct {
 	libraries []libInfo
-	libsMutex *sync.Mutex
+	once      *sync.Once
 }
 
 const (
@@ -121,10 +121,7 @@ var (
 		Value: localLibraryInstrumentationInstallType,
 	}
 
-	pinnedLibs = pinnedLibraries{
-		libraries: nil,
-		libsMutex: &sync.Mutex{},
-	}
+	pinnedLibs = &pinnedLibraries{}
 )
 
 // InjectAutoInstrumentation injects APM libraries into pods
@@ -234,38 +231,24 @@ func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string)
 
 // getPinnedLibraries returns tracing libraries to inject as configured by apm_config.instrumentation.lib_versions
 func getPinnedLibraries(registry string) []libInfo {
-	// check if pinned libraries have been cached
-	pinnedLibs.libsMutex.Lock()
-	libsToInject := pinnedLibs.libraries
-	pinnedLibs.libsMutex.Unlock()
 
-	if libsToInject != nil {
-		return libsToInject
-	}
+	pinnedLibs.once.Do(func() {
+		var libVersion string
+		singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
 
-	// get pinned libraries and cache them
-	var libVersion string
-	singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
-	if len(singleStepLibraryVersions) == 0 {
-		return []libInfo{}
-	}
-	libs := []libInfo{}
-
-	// If APM Instrumentation is enabled and configuration apm_config.instrumentation.lib_versions specified, inject only the libraries from the configuration
-	for lang, version := range singleStepLibraryVersions {
-		if !slices.Contains(supportedLanguages, language(lang)) {
-			log.Warnf("APM Instrumentation detected configuration for unsupported language: %s. Tracing library for %s will not be injected", lang, lang)
-			continue
+		// If APM Instrumentation is enabled and configuration apm_config.instrumentation.lib_versions specified, inject only the libraries from the configuration
+		for lang, version := range singleStepLibraryVersions {
+			if !slices.Contains(supportedLanguages, language(lang)) {
+				log.Warnf("APM Instrumentation detected configuration for unsupported language: %s. Tracing library for %s will not be injected", lang, lang)
+				continue
+			}
+			log.Infof("Library version %s is specified for language %s", version, lang)
+			libVersion = version
+			pinnedLibs.libraries = append(pinnedLibs.libraries, libInfo{lang: language(lang), image: libImageName(registry, language(lang), libVersion)})
 		}
-		log.Infof("Library version %s is specified for language %s", version, lang)
-		libVersion = version
-		libs = append(libs, libInfo{lang: language(lang), image: libImageName(registry, language(lang), libVersion)})
-	}
-	pinnedLibs.libsMutex.Lock()
-	defer pinnedLibs.libsMutex.Unlock()
-	pinnedLibs.libraries = libs
+	})
 
-	return libs
+	return pinnedLibs.libraries
 }
 
 // getLibrariesLanguageDetection runs process language auto-detection and returns languages to inject for APM Instrumentation.
@@ -313,6 +296,22 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool)
 	// Get libraries to inject for APM Instrumentation
 	if isApmInstrumentationEnabled(pod.Namespace) {
 		libInfoList, autoDetected = getLibrariesToInjectForApmInstrumentation(pod, containerRegistry)
+		if len(libInfoList) > 0 {
+			return libInfoList, autoDetected
+		}
+	}
+
+	// Get libraries to inject for Remote Instrumentation
+	// Inject all if admission.datadoghq.com/all-lib.version exists
+	// without any other language-specific annotations.
+	// This annotation is typically expected to be set via remote-config
+	// for batch instrumentation without language detection.
+	injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
+	if version, found := pod.Annotations[injectAllAnnotation]; found {
+		if version != "latest" {
+			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
+		}
+		libInfoList = getAllLatestLibraries(containerRegistry)
 	}
 
 	return libInfoList, autoDetected
