@@ -10,20 +10,20 @@ if [ "$os_family" == "Linux" ]; then
     # Install dependencies
     sudo apt update
     sudo apt install -y \
-        aria2 \
-        fio \
-        socat \
-        qemu-kvm \
-        libvirt-daemon-system \
-        curl \
-        debootstrap \
-        libguestfs-tools \
-        libvirt-dev \
-        python3-pip \
-        nfs-kernel-server \
-        rpcbind \
-        ssh-askpass \
-        xsltproc
+    aria2 \
+    fio \
+    socat \
+    qemu-kvm \
+    libvirt-daemon-system \
+    curl \
+    debootstrap \
+    libguestfs-tools \
+    libvirt-dev \
+    python3-pip \
+    nfs-kernel-server \
+    rpcbind \
+    ssh-askpass \
+    xsltproc
 
     if [ "$(uname -m )" == "aarch64" ]; then
         sudo apt install -y qemu-efi-aarch64
@@ -32,10 +32,11 @@ if [ "$os_family" == "Linux" ]; then
     sudo systemctl start nfs-kernel-server.service
 else
     brew install \
-        aria2 \
-        fio \
-        socat \
-        curl
+    aria2 \
+    fio \
+    socat \
+    curl \
+    libvirt
 fi
 
 pip3 install -r "${DIR_NAME}"/requirements.txt
@@ -46,5 +47,6 @@ fi
 
 
 # Pulumi Setup
+# shellcheck disable=SC1090
 source ~/.bashrc
 pulumi login --local

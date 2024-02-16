@@ -87,12 +87,17 @@ class MacOS:
 
     @staticmethod
     def init_local(ctx: Context):
-        ctx.run("brew install libvirt")
+        # Configure libvirt sockets
         ctx.run(
             f"gsed -i -E 's%(# *)?unix_sock_dir = .*%unix_sock_dir = \"{MacOS.libvirt_system_dir}\"%' {MacOS.libvirt_conf}"
         )
         ctx.run(f"gsed -i -E 's%(# *)?unix_sock_ro_perms = .*%unix_sock_ro_perms = \"0777\"%' {MacOS.libvirt_conf}")
         ctx.run(f"gsed -i -E 's%(# *)?unix_sock_rw_perms = .*%unix_sock_rw_perms = \"0777\"%' {MacOS.libvirt_conf}")
+
+        # Configure default socket URI for libvirt
+        ctx.run(
+            f"gsed -i -E 's%(# *)?uri_default = .*%uri_default = \"{MacOS.libvirt_socket}\"%' {get_homebrew_prefix() / 'etc/libvirt/libvirt.conf'}"
+        )
 
         # Enable logging, but only if it was commented (disabled). Do not overwrite
         # custom settings
@@ -126,39 +131,39 @@ class MacOS:
             }
 
             # Allow writing the file without superuser permissions
-            ctx.sudo(f"touch {virtlogd_plist_path}")
-            ctx.sudo(f"chmod 666 {virtlogd_plist_path}")
+            ctx.run(f"sudo touch {virtlogd_plist_path}")
+            ctx.run(f"sudo chmod 666 {virtlogd_plist_path}")
             with open(virtlogd_plist_path, "wb") as f:
                 plistlib.dump(plist_data, f)
 
             # Now we can set the correct permissions and load the service
-            ctx.sudo(f"chmod 644 {virtlogd_plist_path}")
-            ctx.sudo(f"launchctl load -w {virtlogd_plist_path}")
+            ctx.run(f"sudo chmod 644 {virtlogd_plist_path}")
+            ctx.run(f"sudo launchctl load -w {virtlogd_plist_path}")
 
-        ctx.sudo("launchctl enable system/org.libvirt.virtlogd")
-        ctx.sudo(
-            "launchctl start system/org.libvirt.virtlogd || true"
+        ctx.run("sudo launchctl enable system/org.libvirt.virtlogd")
+        ctx.run(
+            "sudo launchctl start system/org.libvirt.virtlogd || true"
         )  # launchctl returns an error code even if there is no error
 
-        ctx.sudo("brew services start libvirt")
+        ctx.run("sudo brew services start libvirt")
 
         # Enable IP forwarding for the VMs
-        ctx.sudo("sysctl -w net.inet.ip.forwarding=1")
+        ctx.run("sudo sysctl -w net.inet.ip.forwarding=1")
 
         # Enable the bootp service that manages DHCP requests
         # Add || true to the commands because they might fail if it's already loaded/started
-        ctx.sudo("launchctl load -w /System/Library/LaunchDaemons/bootps.plist || true")
-        ctx.sudo("launchctl start com.apple.bootpd || true")
+        ctx.run("sudo launchctl load -w /System/Library/LaunchDaemons/bootps.plist || true")
+        ctx.run("sudo launchctl start com.apple.bootpd || true")
 
         # Configure sharing of the kmt directory
-        ctx.sudo(f"mkdir -p {MacOS.shared_dir}")
+        ctx.run(f"sudo mkdir -p {MacOS.shared_dir}")
 
         exports_file = Path("/etc/exports")
 
         if not exports_file.exists() or os.fspath(MacOS.shared_dir) not in exports_file.read_text():
-            ctx.sudo(
-                f"echo '/opt/kernel-version-testing -network 192.168.0.0 -mask 255.255.0.0' | tee -a {exports_file}"
+            ctx.run(
+                f"echo '/opt/kernel-version-testing -network 192.168.0.0 -mask 255.255.0.0' | sudo tee -a {exports_file}"
             )
 
-        ctx.sudo("nfsd enable || true")
-        ctx.sudo("nfsd restart")
+        ctx.run("sudo nfsd enable || true")
+        ctx.run("sudo nfsd restart")
