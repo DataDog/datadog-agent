@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var mainProbes = []probes.ProbeFuncName{
@@ -171,16 +172,13 @@ func ComputeDefaultClosedConnRingBufferSize() int {
 	if err != nil {
 		numCPU = 1
 	}
-
-	if numCPU <= 16 {
-		return 8 * 8 * pageSize
-	}
-
-	return 16 * 8 * pageSize
+	log.Debugf("setting closed conn ringbuffer size based on %d CPUs and a page size of %d", numCPU, pageSize)
+	return 8 * numCPU * pageSize
 }
 
 // ComputeDefaultClosedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.
 // Must be a multiple of the page size
 func ComputeDefaultClosedConnPerfBufferSize() int {
+	log.Debugf("setting closed conn perfbuffer size based on a page size of %d", os.Getpagesize())
 	return 8 * os.Getpagesize()
 }

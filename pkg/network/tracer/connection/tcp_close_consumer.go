@@ -125,8 +125,10 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				switch {
 				case l >= netebpf.SizeofBatch:
 					batch := netebpf.ToBatch(batchData.Data)
+					//log.Debugf("received conn close batch of size %d", batch.Len)
 					c.batchManager.ExtractBatchInto(c.buffer, batch)
 				case l >= netebpf.SizeofConn:
+					log.Debugf("received single conn close event")
 					c.extractConn(batchData.Data)
 				default:
 					log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d or %d", len(batchData.Data), netebpf.SizeofConn, netebpf.SizeofBatch)

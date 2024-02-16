@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -80,6 +81,7 @@ func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b 
 	}
 
 	batchID := b.Id
+	//log.Debugf("Extracting batch %d from CPU %d", batchID, cpu)
 	cpuState := &p.stateByCPU[cpu]
 	start := uint16(0)
 	if bState, ok := cpuState.processed[batchID]; ok {
@@ -111,6 +113,7 @@ func (p *perfBatchManager) GetPendingConns(buffer *network.ConnectionBuffer) {
 		// have we already processed these messages?
 		start := uint16(0)
 		batchID := b.Id
+		log.Debugf("Getting pending conns from batch %d on CPU %d", batchID, cpu)
 		if bState, ok := cpuState.processed[batchID]; ok {
 			start = bState.offset
 		}
