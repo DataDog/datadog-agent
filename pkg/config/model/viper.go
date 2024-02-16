@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -89,13 +90,18 @@ func (c *safeConfig) Set(key string, value interface{}, source Source) {
 		return
 	}
 
-	c.Lock()
-	defer c.Unlock()
-	c.configSources[source].Set(key, value)
-	c.mergeViperInstances(key)
+	// modify the config then release the lock to avoid deadlocks
+	var receivers []NotificationReceiver
+	func() {
+		c.Lock()
+		defer c.Unlock()
+		c.configSources[source].Set(key, value)
+		c.mergeViperInstances(key)
+		receivers = slices.Clone(c.notificationReceivers)
+	}()
 
 	// notifying all receiver about the updated setting
-	for _, receiver := range c.notificationReceivers {
+	for _, receiver := range receivers {
 		receiver(key)
 	}
 }

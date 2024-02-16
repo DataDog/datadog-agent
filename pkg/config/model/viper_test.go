@@ -281,3 +281,15 @@ func TestNotification(t *testing.T) {
 	assert.Equal(t, []string{"foo", "foo", "foo2"}, updatedKeyCB1)
 	assert.Equal(t, []string{"foo", "foo2"}, updatedKeyCB2)
 }
+
+func TestNotificationCanUseGet(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	var actualValue interface{}
+	config.OnUpdate(func(key string) {
+		actualValue = config.Get("foo")
+	})
+
+	config.Set("foo", "bar", SourceFile)
+	assert.Equal(t, "bar", actualValue)
+}
