@@ -200,7 +200,7 @@ type ContainerStatus struct {
 	RestartCount  int            `json:"restartCount"`
 	State         ContainerState `json:"state"`
 	LastState     ContainerState `json:"lastState"`
-	LastSeenReady time.Time      `json:"lastSeenReady"`
+	LastSeenReady time.Time
 }
 
 // IsPending returns if the container doesn't have an ID

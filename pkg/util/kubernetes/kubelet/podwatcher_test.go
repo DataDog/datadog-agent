@@ -389,8 +389,7 @@ func TestPodwatcherTestSuite(t *testing.T) {
 
 func newWatcher() *PodWatcher {
 	return &PodWatcher{
-		lastSeen: make(map[string]time.Time),
-		// lastSeenReady:  make(map[string]time.Time),
+		lastSeen:       make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		oldPhase:       make(map[string]string),
 		oldReadiness:   make(map[string]bool),
