@@ -90,7 +90,7 @@ const (
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
 
 	// defaultMilliCPURequest defines default milli cpu request number.
-	defaultMilliCPURequest int64 = 10 // 0.01 core
+	defaultMilliCPURequest int64 = 50 // 0.05 core
 	// defaultMemoryRequest defines default memory request size.
 	defaultMemoryRequest int64 = 20 * 1024 * 1024 // 20 MB
 

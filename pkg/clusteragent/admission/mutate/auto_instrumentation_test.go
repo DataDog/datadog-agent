@@ -713,7 +713,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCPU: "10m",
+			wantCPU: "50m",
 			wantMem: "20Mi",
 		},
 		{
@@ -744,7 +744,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCPU: "10m",
+			wantCPU: "50m",
 			wantMem: "512Mi",
 		},
 		{
@@ -754,7 +754,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: true,
-			wantCPU: "10m",
+			wantCPU: "50m",
 			wantMem: "20Mi",
 		},
 	}
