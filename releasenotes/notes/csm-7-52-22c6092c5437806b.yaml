@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    CWS: Add ``chdir`` event allowing recent container escape detection.
+    CWS: Add ``chdir`` event to allow recent container escape detection.
   - |
     CWS: [BETA] Add File Integrity Monitoring support on Windows, supporting both files and registry.
   - |
