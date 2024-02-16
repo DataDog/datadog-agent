@@ -388,7 +388,7 @@ type ScanFinding struct {
 // Container is the representation of a container.
 type Container struct {
 	Runtime           string          `json:"Runtime"`
-	MountName         string          `json:"MountName"`
+	MountPoint        string          `json:"MountPoint"`
 	ImageRefTagged    reference.Field `json:"ImageRefTagged"`    // public.ecr.aws/datadog/agent:7-rc
 	ImageRefCanonical reference.Field `json:"ImageRefCanonical"` // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
 	ContainerName     string          `json:"ContainerName"`
