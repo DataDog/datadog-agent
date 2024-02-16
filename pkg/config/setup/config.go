@@ -1279,7 +1279,15 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Language Detection
 	config.BindEnvAndSetDefault("language_detection.enabled", false)
+	// client period represents how frequently newly detected languages are reported to the language detection handler
 	config.BindEnvAndSetDefault("language_detection.client_period", "10s")
+	// cleanup period represents how frequently we check for expired languages and remove them
+	config.BindEnvAndSetDefault("language_detection.cleanup.period", "10m")
+	// TTL refresh period represents how frequently we refresh the TTL of detected languages
+	config.BindEnvAndSetDefault("language_detection.cleanup.ttl_refresh_period", "20m")
+	// language TTL represents the TTL that is set for each language when it is detected
+	// it is also used when refreshing the expiration timestamp of the language
+	config.BindEnvAndSetDefault("language_detection.cleanup.language_ttl", "30m")
 
 	setupAPM(config)
 	OTLP(config)

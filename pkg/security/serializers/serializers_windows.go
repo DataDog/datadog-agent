@@ -93,8 +93,8 @@ func newRegistrySerializer(re *model.RegistryEvent, _ *model.Event, _ ...uint64)
 }
 func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *ProcessSerializer {
 	psSerializer := &ProcessSerializer{
-		ExecTime: getTimeIfNotZero(ps.ExecTime),
-		ExitTime: getTimeIfNotZero(ps.ExitTime),
+		ExecTime: utils.NewEasyjsonTimeIfNotZero(ps.ExecTime),
+		ExitTime: utils.NewEasyjsonTimeIfNotZero(ps.ExitTime),
 
 		Pid:            ps.Pid,
 		PPid:           getUint32Pointer(&ps.PPid),
