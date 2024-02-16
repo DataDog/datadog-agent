@@ -185,7 +185,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 6ba25fcf6a61
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: dfdd12299b97
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -967,20 +967,27 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_windows_installer_changes_or_manual:
-  - <<: *if_main_branch
-  - <<: *if_mergequeue
-    when: never
-  - changes:
+.if_windows_installer_changes: &if_windows_installer_changes
+  changes:
       paths:
         - tools/windows/DatadogAgentInstaller/**/*
         - .gitlab/new-e2e_testing/windows.yml
         - test/new-e2e/tests/windows/install-test/**/*
         - tasks/msi.py
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_windows_installer_changes_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
+  - <<: *if_windows_installer_changes
     when: on_success
   - when: manual
     allow_failure: true
+
+.except_windows_installer_changes:
+  - <<: *if_windows_installer_changes
+    when: never
 
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
@@ -1081,6 +1088,25 @@ workflow:
     when: never
   - <<: *if_kitchen
     when: manual
+    allow_failure: true
+
+.on_apm_or_e2e_changes_or_manual:
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - pkg/trace/**/*
+        - cmd/trace-agent/**/*
+        - comp/trace/**/*
+        - test/new-e2e/tests/apm/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
     allow_failure: true
 
 .on_trace_agent_changes_or_manual:

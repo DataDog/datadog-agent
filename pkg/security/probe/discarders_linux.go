@@ -6,6 +6,7 @@
 package probe
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -60,7 +61,7 @@ type onDiscarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFP
 var (
 	allDiscarderHandlers   = make(map[eval.EventType][]onDiscarderHandler)
 	dentryInvalidDiscarder = []string{""}
-	eventZeroDiscarder     = model.NewDefaultEvent()
+	eventZeroDiscarder     = model.NewFakeEvent()
 )
 
 // InvalidDiscarders exposes list of values that are not discarders
@@ -89,8 +90,8 @@ func bumpDiscardersRevision(e *erpc.ERPC) error {
 }
 
 func marshalDiscardHeader(req *erpc.Request, eventType model.EventType, timeout uint64) int {
-	model.ByteOrder.PutUint64(req.Data[0:8], uint64(eventType))
-	model.ByteOrder.PutUint64(req.Data[8:16], timeout)
+	binary.NativeEndian.PutUint64(req.Data[0:8], uint64(eventType))
+	binary.NativeEndian.PutUint64(req.Data[8:16], timeout)
 
 	return 16
 }
@@ -104,7 +105,7 @@ type pidDiscarders struct {
 func (p *pidDiscarders) discardWithTimeout(req *erpc.Request, eventType model.EventType, pid uint32, timeout int64) error {
 	req.OP = erpc.DiscardPidOp
 	offset := marshalDiscardHeader(req, eventType, uint64(timeout))
-	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
+	binary.NativeEndian.PutUint32(req.Data[offset:offset+4], pid)
 
 	return p.erpc.Request(req)
 }
@@ -141,10 +142,10 @@ type PidDiscarderParams struct {
 
 // DiscarderParams describes a map value
 type DiscarderParams struct {
-	EventMask  uint64                                                               `yaml:"event_mask"`
-	Timestamps [model.LastDiscarderEventType - model.FirstDiscarderEventType]uint64 `yaml:"-"`
-	ExpireAt   uint64                                                               `yaml:"expire_at"`
-	IsRetained uint32                                                               `yaml:"is_retained"`
+	EventMask  uint64                                                                   `yaml:"event_mask"`
+	Timestamps [model.LastDiscarderEventType + 1 - model.FirstDiscarderEventType]uint64 `yaml:"-"`
+	ExpireAt   uint64                                                                   `yaml:"expire_at"`
+	IsRetained uint32                                                                   `yaml:"is_retained"`
 	Revision   uint32
 }
 
@@ -212,9 +213,9 @@ func (id *inodeDiscarders) discardInode(req *erpc.Request, eventType model.Event
 	req.OP = erpc.DiscardInodeOp
 
 	offset := marshalDiscardHeader(req, eventType, 0)
-	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
-	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
-	model.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
+	binary.NativeEndian.PutUint64(req.Data[offset:offset+8], inode)
+	binary.NativeEndian.PutUint32(req.Data[offset+8:offset+12], mountID)
+	binary.NativeEndian.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
 
 	return id.erpc.Request(req)
 }

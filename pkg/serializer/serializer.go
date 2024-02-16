@@ -292,7 +292,7 @@ func (s *Serializer) SendEvents(events event.Events) error {
 		return fmt.Errorf("dropping event payload: %s", err)
 	}
 
-	return s.Forwarder.SubmitV1Intake(eventPayloads, extraHeaders)
+	return s.Forwarder.SubmitV1Intake(eventPayloads, transaction.Events, extraHeaders)
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
@@ -439,7 +439,8 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 	if err != nil {
 		return fmt.Errorf("could not compress processes metadata payload: %s", err)
 	}
-	if err := s.Forwarder.SubmitV1Intake(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), jsonExtraHeadersWithCompression); err != nil {
+	if err := s.Forwarder.SubmitV1Intake(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}),
+		transaction.Events, jsonExtraHeadersWithCompression); err != nil {
 		return err
 	}
 
