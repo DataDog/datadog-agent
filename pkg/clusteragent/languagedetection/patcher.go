@@ -96,14 +96,13 @@ func Stop() {
 func (lp *languagePatcher) run() {
 	defer lp.logger.Info("Shutting down language detection patcher")
 
+	// Capture all set events
 	filterParams := workloadmeta.FilterParams{
 		Kinds: []workloadmeta.Kind{
 			// Currently only deployments are supported
 			workloadmeta.KindKubernetesDeployment,
 		},
-		// We use SourceAll in order to receive the complete entity data instead of partial data
-		// Using a specific source would include only fields populated by that specific source
-		Source:    workloadmeta.SourceAll,
+		Source:    workloadmeta.SourceLanguageDetectionServer,
 		EventType: workloadmeta.EventTypeAll,
 	}
 
@@ -171,17 +170,21 @@ func (lp *languagePatcher) handleEvent(eventBundle workloadmeta.EventBundle) {
 }
 
 func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
-	deployment := event.Entity.(*workloadmeta.KubernetesDeployment)
-	detectedLanguages := deployment.DetectedLanguages
-	injectableLanguages := deployment.InjectableLanguages
+	deploymentID := event.Entity.(*workloadmeta.KubernetesDeployment).ID
 
 	// extract deployment name and namespace from entity id
-	deploymentIds := strings.Split(deployment.GetID().ID, "/")
+	deploymentIds := strings.Split(deploymentID, "/")
 	namespace := deploymentIds[0]
 	deploymentName := deploymentIds[1]
 
-	// Calculate annotations patch
-	annotationsPatch := lp.generateAnnotationsPatch(injectableLanguages, detectedLanguages)
+	// get the complete entity
+	deployment, err := lp.store.GetKubernetesDeployment(deploymentID)
+
+	if err != nil {
+		lp.logger.Info("Didn't find deployment in store, skipping")
+		// skip if not in store
+		return
+	}
 
 	// construct namespaced owner reference
 	owner := langUtil.NewNamespacedOwnerReference(
@@ -191,10 +194,30 @@ func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
 		namespace,
 	)
 
-	if len(annotationsPatch) > 0 {
-		lp.patchOwner(&owner, annotationsPatch)
-	} else {
+	if event.Type == workloadmeta.EventTypeUnset {
+		// In case of unset event, we should clear language detection annotations if they are still present
+		// If they aren't present, then the resource has been deleted, so we should skip
+
+		if len(deployment.InjectableLanguages) > 0 {
+			// If some annotations still exist, remove them
+			annotationsPatch := lp.generateAnnotationsPatch(deployment.InjectableLanguages, langUtil.ContainersLanguages{})
+			lp.patchOwner(&owner, annotationsPatch)
+			return
+		}
+
 		SkippedPatches.Inc(owner.Kind, owner.Name, owner.Namespace)
+	} else if event.Type == workloadmeta.EventTypeSet {
+		detectedLanguages := deployment.DetectedLanguages
+		injectableLanguages := deployment.InjectableLanguages
+
+		// Calculate annotations patch
+		annotationsPatch := lp.generateAnnotationsPatch(injectableLanguages, detectedLanguages)
+		if len(annotationsPatch) > 0 {
+			lp.patchOwner(&owner, annotationsPatch)
+		} else {
+			SkippedPatches.Inc(owner.Kind, owner.Name, owner.Namespace)
+		}
+
 	}
 }
 

@@ -10,32 +10,75 @@ import (
 	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
+	"time"
 )
 
-////////////////////////////////
-//                            //
-// Containers Languages Tests //
-//                            //
-////////////////////////////////
+//////////////////////////////////////////
+//                                      //
+//      ContainersLanguages Tests       //
+//                                      //
+//////////////////////////////////////////
+
+func TestToAnnotations(t *testing.T) {
+	tests := []struct {
+		name                string
+		self                ContainersLanguages
+		expectedAnnotations map[string]string
+	}{
+		{
+			name:                "Empty containers languages",
+			self:                make(ContainersLanguages),
+			expectedAnnotations: map[string]string{},
+		},
+		{
+			name: "Non-empty containers languages",
+			self: ContainersLanguages{
+				*NewContainer("cont-1"):     {"java": {}, "python": {}},
+				*NewInitContainer("cont-2"): {"java": {}, "python": {}},
+			},
+			expectedAnnotations: map[string]string{
+				"internal.dd.datadoghq.com/cont-1.detected_langs":      "java,python",
+				"internal.dd.datadoghq.com/init.cont-2.detected_langs": "java,python",
+			},
+		},
+	}
+
+	for _, test := range tests {
+
+		t.Run(test.name, func(tt *testing.T) {
+			annotations := test.self.ToAnnotations()
+			assert.Truef(tt, reflect.DeepEqual(test.expectedAnnotations, annotations), "expected %v, found %v", test.expectedAnnotations, annotations)
+		})
+	}
+
+}
+
+//////////////////////////////////////////
+//                                      //
+//    TimedContainersLanguages Tests    //
+//                                      //
+//////////////////////////////////////////
 
 func TestContainersLanguagesGetOrInitialize(t *testing.T) {
+	mockExpiration := time.Now()
+
 	tests := []struct {
 		name               string
-		containerLanguages ContainersLanguages
+		containerLanguages TimedContainersLanguages
 		container          Container
-		expected           *LanguageSet
+		expected           *TimedLanguageSet
 	}{
 		{
 			name:               "missing existing container should get initialized",
-			containerLanguages: make(ContainersLanguages),
+			containerLanguages: make(TimedContainersLanguages),
 			container:          *NewContainer("some-container"),
-			expected:           &LanguageSet{},
+			expected:           &TimedLanguageSet{},
 		},
 		{
 			name:               "should return language set for existing container",
-			containerLanguages: map[Container]LanguageSet{*NewContainer("some-container"): {"java": struct{}{}}},
+			containerLanguages: map[Container]TimedLanguageSet{*NewContainer("some-container"): {"java": mockExpiration}},
 			container:          *NewContainer("some-container"),
-			expected:           &LanguageSet{"java": struct{}{}},
+			expected:           &TimedLanguageSet{"java": mockExpiration},
 		},
 	}
 
@@ -46,45 +89,47 @@ func TestContainersLanguagesGetOrInitialize(t *testing.T) {
 	}
 }
 
-func TestContainersLanguagesMerge(t *testing.T) {
+func TestTimedContainersLanguagesMerge(t *testing.T) {
+	mockExpiration := time.Now()
+
 	tests := []struct {
 		name               string
-		containerLanguages ContainersLanguages
-		other              ContainersLanguages
-		expectedAfterMerge ContainersLanguages
+		containerLanguages TimedContainersLanguages
+		other              TimedContainersLanguages
+		expectedAfterMerge TimedContainersLanguages
 	}{
 		{
 			name:               "merge empty containers languages",
-			containerLanguages: make(ContainersLanguages),
-			other:              make(ContainersLanguages),
-			expectedAfterMerge: make(ContainersLanguages),
+			containerLanguages: make(TimedContainersLanguages),
+			other:              make(TimedContainersLanguages),
+			expectedAfterMerge: make(TimedContainersLanguages),
 		},
 		{
 			name:               "merge non-empty other container to empty self",
-			containerLanguages: make(ContainersLanguages),
-			other:              ContainersLanguages{*NewContainer("some-container"): {"java": struct{}{}}},
-			expectedAfterMerge: ContainersLanguages{*NewContainer("some-container"): {"java": struct{}{}}},
+			containerLanguages: make(TimedContainersLanguages),
+			other:              TimedContainersLanguages{*NewContainer("some-container"): {"java": mockExpiration}},
+			expectedAfterMerge: TimedContainersLanguages{*NewContainer("some-container"): {"java": mockExpiration}},
 		},
 		{
 			name:               "merge empty other container to non-empty self",
-			containerLanguages: ContainersLanguages{*NewContainer("some-container"): {"java": struct{}{}}},
-			other:              make(ContainersLanguages),
-			expectedAfterMerge: ContainersLanguages{*NewContainer("some-container"): {"java": struct{}{}}},
+			containerLanguages: TimedContainersLanguages{*NewContainer("some-container"): {"java": mockExpiration}},
+			other:              make(TimedContainersLanguages),
+			expectedAfterMerge: TimedContainersLanguages{*NewContainer("some-container"): {"java": mockExpiration}},
 		},
 		{
 			name: "merge non-empty other container to non-empty self",
-			containerLanguages: ContainersLanguages{
-				*NewContainer("some-container"):          {"java": struct{}{}},
-				*NewInitContainer("some-init-container"): {"go": struct{}{}},
+			containerLanguages: TimedContainersLanguages{
+				*NewContainer("some-container"):          {"java": mockExpiration},
+				*NewInitContainer("some-init-container"): {"go": mockExpiration},
 			},
-			other: ContainersLanguages{
-				*NewContainer("some-other-container"): {"ruby": struct{}{}},
-				*NewContainer("some-container"):       {"cpp": struct{}{}, "java": struct{}{}},
+			other: TimedContainersLanguages{
+				*NewContainer("some-other-container"): {"ruby": mockExpiration},
+				*NewContainer("some-container"):       {"cpp": mockExpiration, "java": mockExpiration},
 			},
-			expectedAfterMerge: ContainersLanguages{
-				*NewContainer("some-other-container"):    {"ruby": struct{}{}},
-				*NewContainer("some-container"):          {"cpp": struct{}{}, "java": struct{}{}},
-				*NewInitContainer("some-init-container"): {"go": struct{}{}},
+			expectedAfterMerge: TimedContainersLanguages{
+				*NewContainer("some-other-container"):    {"ruby": mockExpiration},
+				*NewContainer("some-container"):          {"cpp": mockExpiration, "java": mockExpiration},
+				*NewInitContainer("some-init-container"): {"go": mockExpiration},
 			},
 		},
 	}
@@ -101,23 +146,23 @@ func TestEqualTo(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		self           ContainersLanguages
-		other          ContainersLanguages
+		self           TimedContainersLanguages
+		other          TimedContainersLanguages
 		expectAreEqual bool
 	}{
 		{
 			name:           "Should not be equal to nil",
-			self:           make(ContainersLanguages),
+			self:           make(TimedContainersLanguages),
 			other:          nil,
 			expectAreEqual: false,
 		},
 		{
 			name: "equality test",
-			self: ContainersLanguages{
+			self: TimedContainersLanguages{
 				*NewContainer("cont-1"):     {"java": {}, "python": {}},
 				*NewInitContainer("cont-2"): {"java": {}, "python": {}},
 			},
-			other: ContainersLanguages{
+			other: TimedContainersLanguages{
 				*NewContainer("cont-1"):     {"python": {}, "java": {}},
 				*NewInitContainer("cont-2"): {"java": {}, "python": {}},
 			},
@@ -125,11 +170,11 @@ func TestEqualTo(t *testing.T) {
 		},
 		{
 			name: "inequality test",
-			self: ContainersLanguages{
+			self: TimedContainersLanguages{
 				*NewContainer("cont-1"):     {"java": {}, "python": {}},
 				*NewInitContainer("cont-2"): {"java": {}, "python": {}},
 			},
-			other: ContainersLanguages{
+			other: TimedContainersLanguages{
 				*NewContainer("cont-1"):     {"python": {}, "java": {}},
 				*NewInitContainer("cont-2"): {"java": {}, "python": {}},
 				*NewContainer("intruder"):   {"cpp": {}},
@@ -152,36 +197,18 @@ func TestEqualTo(t *testing.T) {
 	}
 }
 
-func TestToAnnotations(t *testing.T) {
-	tests := []struct {
-		name                string
-		self                ContainersLanguages
-		expectedAnnotations map[string]string
-	}{
-		{
-			name:                "Empty containers languages",
-			self:                make(ContainersLanguages),
-			expectedAnnotations: map[string]string{},
-		},
-		{
-			name: "Empty containers languages",
-			self: ContainersLanguages{
-				*NewContainer("cont-1"):     {"java": {}, "python": {}},
-				*NewInitContainer("cont-2"): {"java": {}, "python": {}},
-			},
-			expectedAnnotations: map[string]string{
-				"internal.dd.datadoghq.com/cont-1.detected_langs":      "java,python",
-				"internal.dd.datadoghq.com/init.cont-2.detected_langs": "java,python",
-			},
-		},
+func TestRemoveExpiredLanguages(t *testing.T) {
+	mockTime := time.Now()
+	mixedlangset := TimedLanguageSet{"java": mockTime.Add(10 * time.Minute), "cpp": mockTime.Add(-10 * time.Minute)}
+	expiredlangset := TimedLanguageSet{"java": mockTime.Add(-10 * time.Minute), "cpp": mockTime.Add(-10 * time.Minute)}
+	containersLanguages := TimedContainersLanguages{
+		*NewContainer("cont-name"):         mixedlangset,
+		*NewContainer("another-cont-name"): expiredlangset,
 	}
+	removedAny := containersLanguages.RemoveExpiredLanguages()
+	assert.True(t, removedAny)
 
-	for _, test := range tests {
-
-		t.Run(test.name, func(tt *testing.T) {
-			annotations := test.self.ToAnnotations()
-			assert.Truef(tt, reflect.DeepEqual(test.expectedAnnotations, annotations), "expected %v, found %v", test.expectedAnnotations, annotations)
-		})
-	}
-
+	expectedLangset := TimedLanguageSet{"java": mockTime.Add(10 * time.Minute)}
+	expectedTimedContainersLanguages := TimedContainersLanguages{*NewContainer("cont-name"): expectedLangset}
+	assert.Truef(t, reflect.DeepEqual(containersLanguages, expectedTimedContainersLanguages), "Expected %v, found %v", expectedTimedContainersLanguages, containersLanguages)
 }

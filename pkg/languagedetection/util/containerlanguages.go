@@ -8,7 +8,6 @@ package util
 import (
 	"fmt"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-
 	"reflect"
 	"sort"
 	"strings"
@@ -51,38 +50,6 @@ func NewInitContainer(containerName string) *Container {
 // ContainersLanguages handles mapping containers to language sets
 type ContainersLanguages map[Container]LanguageSet
 
-// DeepCopy returns a copy of the containers languages map
-func (c ContainersLanguages) DeepCopy() ContainersLanguages {
-	cCopy := make(ContainersLanguages)
-
-	for container, langSet := range c {
-		cCopy[container] = langSet.DeepCopy()
-	}
-
-	return cCopy
-}
-
-// GetOrInitialize returns the language set of a container if it exists, or initializes it otherwise
-func (c ContainersLanguages) GetOrInitialize(container Container) *LanguageSet {
-	if _, found := c[container]; !found {
-		c[container] = LanguageSet{}
-	}
-	languageSet := c[container]
-	return &languageSet
-}
-
-// Merge merges another containers languages object to the current object
-// Returns true if languages were modified after merge, and false otherwise
-func (c ContainersLanguages) Merge(other ContainersLanguages) bool {
-	modified := false
-	for container, languageSet := range other {
-		if c.GetOrInitialize(container).Merge(languageSet) {
-			modified = true
-		}
-	}
-	return modified
-}
-
 // ToProto returns two proto messages ContainerLanguageDetails
 // The first one contains standard containers
 // The second one contains init containers
@@ -104,27 +71,6 @@ func (c ContainersLanguages) ToProto() (containersDetailsProto, initContainersDe
 
 	}
 	return containersDetailsProto, initContainersDetailsProto
-}
-
-// EqualTo checks if current ContainersLanguages object has identical content
-// in comparison another ContainersLanguages
-func (c ContainersLanguages) EqualTo(other ContainersLanguages) bool {
-	if other == nil {
-		return false
-	}
-
-	if len(c) != len(other) {
-		return false
-	}
-
-	for container, languageSet := range c {
-		otherLanguageSet, found := other[container]
-
-		if !found || !reflect.DeepEqual(languageSet, otherLanguageSet) {
-			return false
-		}
-	}
-	return true
 }
 
 // ToAnnotations converts the containers languages to language annotations
@@ -152,4 +98,73 @@ func (c ContainersLanguages) ToAnnotations() map[string]string {
 	}
 
 	return annotations
+}
+
+////////////////////////////////
+//                            //
+// Timed Containers Languages //
+//                            //
+////////////////////////////////
+
+// TimedContainersLanguages handles mapping containers to timed language sets
+type TimedContainersLanguages map[Container]TimedLanguageSet
+
+// RemoveExpiredLanguages removes expired languages from each container language set
+// Returns true if at least one language is expired and removed
+func (c TimedContainersLanguages) RemoveExpiredLanguages() bool {
+	atLeastOneLangRemoved := false
+
+	for container, langset := range c {
+		removedAny := langset.RemoveExpired()
+
+		if len(langset) == 0 {
+			delete(c, container)
+		}
+
+		atLeastOneLangRemoved = atLeastOneLangRemoved || removedAny
+	}
+
+	return atLeastOneLangRemoved
+}
+
+// GetOrInitialize returns the language set of a container if it exists, or initializes it otherwise
+func (c TimedContainersLanguages) GetOrInitialize(container Container) *TimedLanguageSet {
+	if _, found := c[container]; !found {
+		c[container] = TimedLanguageSet{}
+	}
+	languageSet := c[container]
+	return &languageSet
+}
+
+// Merge merges another containers languages object to the current object
+// Returns true if new languages were added, and false otherwise
+func (c TimedContainersLanguages) Merge(other TimedContainersLanguages) bool {
+	modified := false
+	for container, languageSet := range other {
+		if c.GetOrInitialize(container).Merge(languageSet) {
+			modified = true
+		}
+	}
+	return modified
+}
+
+// EqualTo checks if current TimedContainersLanguages object has identical content
+// in comparison another TimedContainersLanguages
+func (c TimedContainersLanguages) EqualTo(other TimedContainersLanguages) bool {
+	if other == nil {
+		return false
+	}
+
+	if len(c) != len(other) {
+		return false
+	}
+
+	for container, languageSet := range c {
+		otherTimedLanguageSet, found := other[container]
+
+		if !found || !reflect.DeepEqual(languageSet, otherTimedLanguageSet) {
+			return false
+		}
+	}
+	return true
 }
