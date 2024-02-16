@@ -124,7 +124,7 @@ func (u *updaterImpl) GetPackage() string {
 }
 
 // Start starts the garbage collector.
-func (u *updaterImpl) Start(ctx context.Context) error {
+func (u *updaterImpl) Start(_ context.Context) error {
 	go func() {
 		for {
 			select {
@@ -134,8 +134,6 @@ func (u *updaterImpl) Start(ctx context.Context) error {
 					log.Errorf("updater: could not run GC: %v", err)
 				}
 			case <-u.stopChan:
-				return
-			case <-ctx.Done():
 				return
 			}
 		}
