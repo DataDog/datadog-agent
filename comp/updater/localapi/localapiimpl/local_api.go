@@ -25,16 +25,16 @@ func Module() fxutil.Module {
 	)
 }
 
-// Params contains the parameters to build the updater.
-type Params struct {
+// dependencies contains the dependencies to build the updater local api.
+type dependencies struct {
 	fx.In
 
 	Updater updatercomp.Component
 	Log     log.Component
 }
 
-func newLocalAPIComponent(params Params) (localapi.Component, error) {
-	localAPI, err := updater.NewLocalAPI(params.Updater)
+func newLocalAPIComponent(dependencies dependencies) (localapi.Component, error) {
+	localAPI, err := updater.NewLocalAPI(dependencies.Updater)
 	if err != nil {
 		return nil, fmt.Errorf("could not create local API: %w", err)
 	}
