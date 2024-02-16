@@ -192,14 +192,15 @@ type Conditions struct {
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
 type ContainerStatus struct {
-	Name         string         `json:"name"`
-	Image        string         `json:"image"`
-	ImageID      string         `json:"imageID"`
-	ID           string         `json:"containerID"`
-	Ready        bool           `json:"ready"`
-	RestartCount int            `json:"restartCount"`
-	State        ContainerState `json:"state"`
-	LastState    ContainerState `json:"lastState"`
+	Name          string         `json:"name"`
+	Image         string         `json:"image"`
+	ImageID       string         `json:"imageID"`
+	ID            string         `json:"containerID"`
+	Ready         bool           `json:"ready"`
+	RestartCount  int            `json:"restartCount"`
+	State         ContainerState `json:"state"`
+	LastState     ContainerState `json:"lastState"`
+	LastSeenReady time.Time      `json:"lastSeenReady"`
 }
 
 // IsPending returns if the container doesn't have an ID

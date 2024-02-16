@@ -272,6 +272,7 @@ func (c *collector) parsePodContainers(
 			containerState.StartedAt = st.StartedAt
 			containerState.FinishedAt = st.FinishedAt
 		}
+		containerState.LastSeenReady = container.LastSeenReady
 
 		podContainers = append(podContainers, podContainer)
 		events = append(events, workloadmeta.CollectorEvent{

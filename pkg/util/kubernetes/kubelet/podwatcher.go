@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const unreadinessTimeout = 30 * time.Second
+// const unreadinessTimeout = 30 * time.Second
 
 // PodWatcher regularly pools the kubelet for new/changed/removed containers.
 // It keeps an internal state to only send the updated pods.
@@ -27,7 +27,6 @@ type PodWatcher struct {
 	kubeUtil       KubeUtilInterface
 	expiryDuration time.Duration
 	lastSeen       map[string]time.Time
-	lastSeenReady  map[string]time.Time
 	tagsDigest     map[string]string
 	oldPhase       map[string]string
 	oldReadiness   map[string]bool
@@ -44,7 +43,6 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	watcher := &PodWatcher{
 		kubeUtil:       kubeutil,
 		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		oldPhase:       make(map[string]string),
 		oldReadiness:   make(map[string]bool),
@@ -116,7 +114,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			w.oldReadiness[container.ID] = isPodReady
 
 			if isPodReady {
-				w.lastSeenReady[container.ID] = now
+				container.LastSeenReady = now
 			}
 		}
 
@@ -163,20 +161,19 @@ func (w *PodWatcher) Expire() ([]string, error) {
 		// pod was removed from the pod list, we can safely cleanup everything
 		if now.Sub(lastSeen) > w.expiryDuration {
 			delete(w.lastSeen, id)
-			delete(w.lastSeenReady, id)
 			delete(w.tagsDigest, id)
 			delete(w.oldPhase, id)
 			delete(w.oldReadiness, id)
 			expiredContainers = append(expiredContainers, id)
 		}
 	}
-	for id, lastSeenReady := range w.lastSeenReady {
-		// we keep pods gone unready for 25 seconds and then force removal
-		if now.Sub(lastSeenReady) > unreadinessTimeout {
-			delete(w.lastSeenReady, id)
-			expiredContainers = append(expiredContainers, id)
-		}
-	}
+	// for id, lastSeenReady := range w.lastSeenReady {
+	// 	// we keep pods gone unready for 25 seconds and then force removal
+	// 	if now.Sub(lastSeenReady) > unreadinessTimeout {
+	// 		delete(w.lastSeenReady, id)
+	// 		expiredContainers = append(expiredContainers, id)
+	// 	}
+	// }
 
 	return expiredContainers, nil
 }

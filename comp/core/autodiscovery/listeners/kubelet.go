@@ -25,6 +25,8 @@ type KubeletListener struct {
 	workloadmetaListener
 }
 
+const unreadinessTimeout = 30 * time.Second
+
 // NewKubeletListener returns a new KubeletListener.
 func NewKubeletListener(Config) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
@@ -131,6 +133,11 @@ func (l *KubeletListener) createContainerService(
 			log.Debugf("container %q not running for too long, skipping", container.ID)
 			return
 		}
+	}
+
+	if time.Since(container.LastSeenReady) > unreadinessTimeout {
+		log.Debugf("container %q last seen ready exceeds the unreadiness timeout, skipping", container.ID)
+		return
 	}
 
 	ports := make([]ContainerPort, 0, len(container.Ports))

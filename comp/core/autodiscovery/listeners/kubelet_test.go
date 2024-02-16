@@ -165,7 +165,8 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		State: workloadmeta.ContainerState{
 			Running: true,
 		},
-		Runtime: workloadmeta.ContainerRuntimeDocker,
+		Runtime:       workloadmeta.ContainerRuntimeDocker,
+		LastSeenReady: time.Now().Add(1 * time.Hour),
 	}
 
 	recentlyStoppedContainer := &workloadmeta.Container{
@@ -175,7 +176,8 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		State: workloadmeta.ContainerState{
 			Running: false,
 		},
-		Runtime: workloadmeta.ContainerRuntimeDocker,
+		Runtime:       workloadmeta.ContainerRuntimeDocker,
+		LastSeenReady: time.Now().Add(1 * time.Hour),
 	}
 
 	runningContainerWithFinishedAtTime := &workloadmeta.Container{
@@ -186,7 +188,8 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			Running:    true,
 			FinishedAt: time.Now().Add(-48 * time.Hour), // Older than default "container_exclude_stopped_age" config
 		},
-		Runtime: workloadmeta.ContainerRuntimeDocker,
+		Runtime:       workloadmeta.ContainerRuntimeDocker,
+		LastSeenReady: time.Now().Add(1 * time.Hour),
 	}
 
 	multiplePortsContainer := &workloadmeta.Container{
@@ -206,7 +209,8 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		State: workloadmeta.ContainerState{
 			Running: true,
 		},
-		Runtime: workloadmeta.ContainerRuntimeDocker,
+		Runtime:       workloadmeta.ContainerRuntimeDocker,
+		LastSeenReady: time.Now().Add(1 * time.Hour),
 	}
 
 	customIDsContainer := &workloadmeta.Container{
@@ -216,7 +220,20 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		State: workloadmeta.ContainerState{
 			Running: true,
 		},
-		Runtime: workloadmeta.ContainerRuntimeDocker,
+		Runtime:       workloadmeta.ContainerRuntimeDocker,
+		LastSeenReady: time.Now().Add(1 * time.Hour),
+	}
+
+	containerExceedsUnreadiness := &workloadmeta.Container{
+		EntityID:   containerEntityID,
+		EntityMeta: containerEntityMeta,
+		Image:      basicImage,
+		State: workloadmeta.ContainerState{
+			Running:    false,
+			FinishedAt: time.Now().Add(-48 * time.Hour),
+		},
+		Runtime:       workloadmeta.ContainerRuntimeDocker,
+		LastSeenReady: time.Now().Add(-48 * time.Hour),
 	}
 
 	tests := []struct {
@@ -343,6 +360,17 @@ func TestKubeletCreateContainerService(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name: "container that exceeds last seen ready does not get collected",
+			pod:  pod,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
+			container:        containerExceedsUnreadiness,
+			expectedServices: map[string]wlmListenerSvc{},
 		},
 		{
 			name: "container with multiple ports collects them in ascending order",

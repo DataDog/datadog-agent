@@ -307,13 +307,14 @@ func (c ContainerImage) String(verbose bool) string {
 
 // ContainerState is the state of a container.
 type ContainerState struct {
-	Running    bool
-	Status     ContainerStatus
-	Health     ContainerHealth
-	CreatedAt  time.Time
-	StartedAt  time.Time
-	FinishedAt time.Time
-	ExitCode   *uint32
+	Running       bool
+	Status        ContainerStatus
+	Health        ContainerHealth
+	CreatedAt     time.Time
+	StartedAt     time.Time
+	FinishedAt    time.Time
+	ExitCode      *uint32
+	LastSeenReady time.Time
 }
 
 // String returns a string representation of ContainerState.
@@ -522,6 +523,7 @@ type Container struct {
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
+	LastSeenReady   time.Time
 }
 
 // GetID implements Entity#GetID.
