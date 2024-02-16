@@ -298,7 +298,7 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta w
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(optional.NewNoneOption[collector.Component](), senderManager)
+	pkgcollector.InitCheckScheduler(collector, senderManager)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.
