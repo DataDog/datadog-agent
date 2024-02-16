@@ -11,16 +11,16 @@ import (
 )
 
 // KindVMHost is an environment that contains a Kubernetes cluster, a VM and a FakeIntake.
-type KindVMHost struct {
+type KubernetesHost struct {
 	// Components
 	KubernetesCluster *components.KubernetesCluster
 	FakeIntake        *components.FakeIntake
 	Agent             *components.KubernetesAgent
 }
 
-var _ e2e.Initializable = &KindVMHost{}
+var _ e2e.Initializable = &KubernetesHost{}
 
 // Init initializes the environment
-func (e *KindVMHost) Init(ctx e2e.Context) error {
+func (e *KubernetesHost) Init(ctx e2e.Context) error {
 	return nil
 }
