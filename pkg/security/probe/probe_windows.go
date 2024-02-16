@@ -260,7 +260,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					ecb(cka, e.EventHeader.ProcessID, model.CreateRegistryKeyEventType)
 				}
 			case idRegOpenKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
+				if cka, err := parseOpenRegistryKey(e); err == nil {
 					log.Debugf("Got idRegOpenKey %s", cka.string())
 					ecb(cka, e.EventHeader.ProcessID, model.OpenRegistryKeyEventType)
 				}
@@ -272,20 +272,20 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 				}
 			case idRegFlushKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
+				if dka, err := parseFlushKey(e); err == nil {
 					log.Tracef("Got idRegFlushKey %v", dka.string())
 				}
 			case idRegCloseKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
+				if dka, err := parseCloseKeyArgs(e); err == nil {
 					log.Debugf("Got idRegCloseKey %s", dka.string())
 					delete(regPathResolver, dka.keyObject)
 				}
 			case idQuerySecurityKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
+				if dka, err := parseQuerySecurityKeyArgs(e); err == nil {
 					log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
 				}
 			case idSetSecurityKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
+				if dka, err := parseSetSecurityKeyArgs(e); err == nil {
 					log.Tracef("Got idSetSecurityKey %v", dka.keyName)
 				}
 			case idRegSetValueKey:

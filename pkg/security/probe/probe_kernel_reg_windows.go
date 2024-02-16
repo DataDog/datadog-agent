@@ -55,6 +55,7 @@ type createKeyArgs struct {
 	relativeName     string
 	computedFullPath string
 }
+type openKeyArgs createKeyArgs
 
 /*
 		<template tid="task_0DeleteKeyArgs">
@@ -70,6 +71,10 @@ type deleteKeyArgs struct {
 	keyName          string
 	computedFullPath string
 }
+type flushKeyArgs deleteKeyArgs
+type closeKeyArgs deleteKeyArgs
+type querySecurityKeyArgs deleteKeyArgs
+type setSecurityKeyArgs deleteKeyArgs
 
 /*
 <template tid="task_0SetValueKeyArgs">
@@ -146,6 +151,14 @@ func (cka *createKeyArgs) translateBasePaths() {
 		}
 	}
 }
+func parseOpenRegistryKey(e *etw.DDEventRecord) (*openKeyArgs, error) {
+	cka, err := parseCreateRegistryKey(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*openKeyArgs)(cka), nil
+}
+
 func (cka *createKeyArgs) computeFullPath() {
 
 	// var regPathResolver map[regObjectPointer]string
@@ -190,6 +203,10 @@ func (cka *createKeyArgs) string() string {
 	return output.String()
 }
 
+func (cka *openKeyArgs) string() string {
+	return (*createKeyArgs)(cka).string()
+}
+
 func parseDeleteRegistryKey(e *etw.DDEventRecord) (*deleteKeyArgs, error) {
 
 	dka := &deleteKeyArgs{
@@ -208,6 +225,36 @@ func parseDeleteRegistryKey(e *etw.DDEventRecord) (*deleteKeyArgs, error) {
 	return dka, nil
 }
 
+func parseFlushKey(e *etw.DDEventRecord) (*flushKeyArgs, error) {
+	dka, err := parseDeleteRegistryKey(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*flushKeyArgs)(dka), nil
+}
+
+func parseCloseKeyArgs(e *etw.DDEventRecord) (*closeKeyArgs, error) {
+	dka, err := parseDeleteRegistryKey(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*closeKeyArgs)(dka), nil
+}
+func parseQuerySecurityKeyArgs(e *etw.DDEventRecord) (*querySecurityKeyArgs, error) {
+	dka, err := parseDeleteRegistryKey(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*querySecurityKeyArgs)(dka), nil
+}
+func parseSetSecurityKeyArgs(e *etw.DDEventRecord) (*setSecurityKeyArgs, error) {
+	dka, err := parseDeleteRegistryKey(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*setSecurityKeyArgs)(dka), nil
+}
+
 func (dka *deleteKeyArgs) string() string {
 	var output strings.Builder
 
@@ -219,6 +266,23 @@ func (dka *deleteKeyArgs) string() string {
 	//output.WriteString("  CapturedSize: " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + " pvssize: " + strconv.Itoa(int(sv.previousDataSize)) + " capturedpvssize " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + "\n")
 	return output.String()
 
+}
+
+func (fka *flushKeyArgs) string() string {
+	return (*deleteKeyArgs)(fka).string()
+}
+func (cka *closeKeyArgs) string() string {
+	return (*deleteKeyArgs)(cka).string()
+}
+
+//nolint:unused
+func (qka *querySecurityKeyArgs) string() string {
+	return (*deleteKeyArgs)(qka).string()
+}
+
+//nolint:unused
+func (ska *setSecurityKeyArgs) string() string {
+	return (*deleteKeyArgs)(ska).string()
 }
 
 func parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs, error) {
