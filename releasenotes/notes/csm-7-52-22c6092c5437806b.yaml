@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    CWS: Add ``chdir`` event allowing recent container escape detection.
+  - |
+    CWS: [BETA] Add File Integrity Monitoring support on Windows, supporting both files and registry.
+  - |
+    CWS: The Agent will now automatically suppress benign security events if they have already been reported for a particular container image.
+enhancements:
+  - |
+    CWS: Improved coverage on platforms with no eBPF support.
+  - |
+    CWS: Send context of variables in events.
