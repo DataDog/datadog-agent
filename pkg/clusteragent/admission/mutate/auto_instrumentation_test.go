@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic/fake"
 )
@@ -774,18 +775,18 @@ func TestInjectLibInitContainer(t *testing.T) {
 				return
 			}
 			require.Len(t, tt.pod.Spec.InitContainers, 1)
-			if tt.cpu != "" {
-				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
-				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
-				require.Equal(t, tt.wantCPU, req.String())
-				require.Equal(t, tt.wantCPU, lim.String())
-			}
-			if tt.mem != "" {
-				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
-				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
-				require.Equal(t, tt.wantMem, req.String())
-				require.Equal(t, tt.wantMem, lim.String())
-			}
+
+			req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
+			lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
+			wantCPUQuantity := resource.MustParse(tt.wantCPU)
+			require.Zero(t, wantCPUQuantity.Cmp(req)) // Cmp returns 0 if equal
+			require.Zero(t, wantCPUQuantity.Cmp(lim))
+
+			req = tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
+			lim = tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
+			wantMemQuantity := resource.MustParse(tt.wantMem)
+			require.Zero(t, wantMemQuantity.Cmp(req))
+			require.Zero(t, wantMemQuantity.Cmp(lim))
 		})
 	}
 }
