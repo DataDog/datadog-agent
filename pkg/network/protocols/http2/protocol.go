@@ -227,6 +227,7 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	}
 
 	utils.EnableOption(opts, "http2_monitoring_enabled")
+	utils.EnableOption(opts, "terminated_http2_monitoring_enabled")
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)
 	p.dynamicTable.configureOptions(mgr, opts)

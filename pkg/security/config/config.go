@@ -148,8 +148,11 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileRCEnabled bool
 	// SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
 	SecurityProfileDNSMatchMaxDepth int
+
 	// SecurityProfileAutoSuppressionEnabled do not send event if part of a profile
 	SecurityProfileAutoSuppressionEnabled bool
+	// SecurityProfileAutoSuppressionEventTypes defines the list of event types the can be auto suppressed using security profiles
+	SecurityProfileAutoSuppressionEventTypes []model.EventType
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -337,14 +340,17 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverCacheSize:      coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.cache_size"),
 
 		// security profiles
-		SecurityProfileEnabled:                coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
-		SecurityProfileDir:                    coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
-		SecurityProfileWatchDir:               coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
-		SecurityProfileCacheSize:              coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
-		SecurityProfileMaxCount:               coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
-		SecurityProfileRCEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
-		SecurityProfileDNSMatchMaxDepth:       coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
-		SecurityProfileAutoSuppressionEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),
+		SecurityProfileEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileDir:              coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
+		SecurityProfileWatchDir:         coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
+		SecurityProfileCacheSize:        coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileMaxCount:         coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
+		SecurityProfileRCEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
+		SecurityProfileDNSMatchMaxDepth: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
+
+		// auto suppression
+		SecurityProfileAutoSuppressionEnabled:    coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),
+		SecurityProfileAutoSuppressionEventTypes: parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.auto_suppression.event_types")),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),

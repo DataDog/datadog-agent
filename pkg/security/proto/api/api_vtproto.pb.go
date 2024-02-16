@@ -2489,11 +2489,11 @@ func (m *SecurityProfileMessage) MarshalToSizedBufferVT(dAtA []byte) (int, error
 			dAtA[i] = 0x32
 		}
 	}
-	if len(m.AnomalyDetectionEvents) > 0 {
-		for iNdEx := len(m.AnomalyDetectionEvents) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.AnomalyDetectionEvents[iNdEx])
-			copy(dAtA[i:], m.AnomalyDetectionEvents[iNdEx])
-			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.AnomalyDetectionEvents[iNdEx])))
+	if len(m.EventTypes) > 0 {
+		for iNdEx := len(m.EventTypes) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.EventTypes[iNdEx])
+			copy(dAtA[i:], m.EventTypes[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.EventTypes[iNdEx])))
 			i--
 			dAtA[i] = 0x2a
 		}
@@ -3644,8 +3644,8 @@ func (m *SecurityProfileMessage) SizeVT() (n int) {
 	if m.ProfileCookie != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.ProfileCookie))
 	}
-	if len(m.AnomalyDetectionEvents) > 0 {
-		for _, s := range m.AnomalyDetectionEvents {
+	if len(m.EventTypes) > 0 {
+		for _, s := range m.EventTypes {
 			l = len(s)
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
@@ -9500,7 +9500,7 @@ func (m *SecurityProfileMessage) UnmarshalVT(dAtA []byte) error {
 			}
 		case 5:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AnomalyDetectionEvents", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field EventTypes", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -9528,7 +9528,7 @@ func (m *SecurityProfileMessage) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.AnomalyDetectionEvents = append(m.AnomalyDetectionEvents, string(dAtA[iNdEx:postIndex]))
+			m.EventTypes = append(m.EventTypes, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		case 6:
 			if wireType != 2 {
