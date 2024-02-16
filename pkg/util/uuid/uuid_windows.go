@@ -9,7 +9,7 @@
 
 //go:build windows
 
-package utils
+package uuid
 
 import (
 	"strings"
@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GetUUID returns the machine GUID on windows; copied from gopsutil
+// getUUID returns the machine GUID on windows; copied from gopsutil
 func getUUID() string {
 	guid, _ := cache.Get[string](
 		guidCacheKey,

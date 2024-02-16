@@ -47,7 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -149,12 +148,11 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 
 	// Set up check collector
 	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
-	diagnose.Init(optional.NewOption(collector))
 
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(wmeta, taggerComp, demultiplexer); err != nil {
+	if err = api.StartServer(wmeta, taggerComp, demultiplexer, optional.NewOption(collector)); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

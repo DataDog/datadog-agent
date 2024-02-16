@@ -35,7 +35,7 @@ var (
 
 	// Rule Suppression metrics
 
-	// MetricRulesSuppressed is the name of the metric used to count the number of events marked as suppressed
+	// MetricRulesSuppressed is the name of the metric used to count the number of auto suppressed events
 	// Tags: rule_id
 	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
 

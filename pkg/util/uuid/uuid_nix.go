@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package utils
+package uuid
 
 import (
 	gopsutilhost "github.com/shirou/gopsutil/v3/host"
@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GetUUID returns the host ID.
+// getUUID returns the host ID.
 func getUUID() string {
 	guid, _ := cache.Get[string](
 		guidCacheKey,

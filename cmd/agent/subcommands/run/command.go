@@ -100,7 +100,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -544,6 +543,7 @@ func startAgent(
 		taggerComp,
 		logsAgent,
 		demultiplexer,
+		optional.NewOption(collector),
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
@@ -589,7 +589,6 @@ func startAgent(
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)
 	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
-	diagnose.Init(optional.NewOption(collector))
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
