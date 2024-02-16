@@ -598,6 +598,10 @@ func startAgent(
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+<<<<<<< HEAD
+=======
+	diagnose.Init(optional.NewOption(collector), ac)
+>>>>>>> 67d3f7d980 (pass component to diagnose)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
