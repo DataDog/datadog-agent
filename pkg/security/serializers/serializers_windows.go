@@ -27,9 +27,9 @@ type FileSerializer struct {
 // easyjson:json
 type UserContextSerializer struct {
 	// User name
-	User string `json:"user_name,omitempty"`
+	User string `json:"name,omitempty"`
 	// Owner Sid
-	OwnerSidString string `json:"owner_sid,omitempty"`
+	OwnerSidString string `json:"sid,omitempty"`
 }
 
 // RegistrySerializer serializes a registry to JSON
@@ -93,7 +93,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 
 func newUserContextSerializer(e *model.Event) *UserContextSerializer {
 	return &UserContextSerializer{
-		User:           e.FieldHandlers.ResolveUser(e, e.ProcessContext.Process),
+		User:           e.FieldHandlers.ResolveUser(e, &e.ProcessContext.Process),
 		OwnerSidString: e.ProcessContext.Process.OwnerSidString,
 	}
 }
