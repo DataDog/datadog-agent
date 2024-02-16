@@ -25,16 +25,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/viper"
 )
@@ -61,6 +64,7 @@ type Payload struct {
 	Hostname  string        `json:"hostname"`
 	Timestamp int64         `json:"timestamp"`
 	Metadata  agentMetadata `json:"agent_metadata"`
+	UUID      string        `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -299,6 +303,37 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["system_probe_protocol_classification_enabled"] = getBoolSysProbe("network_config.enable_protocol_classification")
 	ia.data["system_probe_gateway_lookup_enabled"] = getBoolSysProbe("network_config.enable_gateway_lookup")
 	ia.data["system_probe_root_namespace_enabled"] = getBoolSysProbe("network_config.enable_root_netns")
+
+	ia.data["feature_dynamic_instrumentation_enabled"] = getBoolSysProbe("dynamic_instrumentation.enabled")
+
+	// ECS Fargate
+	ia.fetchECSFargateAgentMetadata()
+}
+
+// fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
+// Times out after 5 seconds to avoid blocking the agent startup.
+func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
+	ctx, cc := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cc()
+
+	if !env.IsECSFargate() {
+		return
+	}
+	client, err := ecsmeta.V2()
+	if err != nil {
+		ia.log.Warnf("error while initializing ECS metadata V2 client: %s", err)
+		return
+	}
+
+	// Use the task ARN as hostname
+	taskMeta, err := client.GetTask(ctx)
+	if err != nil {
+		ia.log.Warnf("error while fetching ECS Fargate metadata V2 task: %s", err)
+		return
+	}
+
+	ia.data["ecs_fargate_task_arn"] = taskMeta.TaskARN
+	ia.data["ecs_fargate_cluster_name"] = taskMeta.ClusterName
 }
 
 func (ia *inventoryagent) refreshMetadata() {
@@ -363,6 +398,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		Hostname:  ia.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  data,
+		UUID:      uuid.GetUUID(),
 	}
 }
 
