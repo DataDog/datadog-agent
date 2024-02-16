@@ -34,6 +34,9 @@ type Mock interface {
 
 	// GetConfig returns a Config Reader for the internal injected config
 	GetNotifiedEvents() []CollectorEvent
+
+	// SubscribeToEvents returns a channel that receives events
+	SubscribeToEvents() chan CollectorEvent
 }
 
 // MockModule defines the fx options for the mock component.

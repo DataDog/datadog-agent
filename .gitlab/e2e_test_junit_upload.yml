@@ -15,7 +15,7 @@ e2e_installer_test_junit_upload:
   extends: .e2e_test_junit_template
   rules:
     - !reference [.except_mergequeue]
-  when: always
+    - when: always
   stage: kitchen_tests_upload
   dependencies:
     # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here

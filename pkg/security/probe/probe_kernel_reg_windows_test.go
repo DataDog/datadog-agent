@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -40,8 +41,14 @@ func processUntilRegOpen(t *testing.T, et *etwTester) {
 
 			switch n.(type) {
 			case *createKeyArgs:
-				et.notifications = append(et.notifications, n)
-				return
+				if strings.HasPrefix(n.(*createKeyArgs).computedFullPath, "\\REGISTRY\\USER\\") {
+					et.notifications = append(et.notifications, n)
+					if len(et.notifications) >= 2 {
+						return
+					}
+				}
+				continue
+
 			case *createHandleArgs:
 				ca := n.(*createHandleArgs)
 				// we get all sorts of notifications of DLLs being loaded.
@@ -107,7 +114,7 @@ func TestETWRegistryNotifications(t *testing.T) {
 		var once sync.Once
 		mypid := os.Getpid()
 
-		err := et.p.setupEtw(func(n interface{}, pid uint32) {
+		err := et.p.setupEtw(func(n interface{}, pid uint32, _ model.EventType) {
 			once.Do(func() {
 				close(et.etwStarted)
 			})
@@ -138,7 +145,8 @@ func TestETWRegistryNotifications(t *testing.T) {
 	<-et.loopStarted
 
 	keyname := "Software\\Test"
-	expected := "\\REGISTRY\\USER\\" + sidstr + "\\" + keyname
+	expectedBase := "\\REGISTRY\\USER\\" + sidstr
+	expected := expectedBase + "\\" + keyname
 	// create the key
 	key, _, err := registry.CreateKey(windows.HKEY_CURRENT_USER, keyname, windows.KEY_READ|windows.KEY_WRITE)
 	assert.NoError(t, err)
@@ -156,11 +164,16 @@ func TestETWRegistryNotifications(t *testing.T) {
 
 	stopLoop(et, &wg)
 
-	assert.Equal(t, 1, len(et.notifications), "expected 1 notifications, got %d", len(et.notifications))
-
+	assert.Equal(t, 2, len(et.notifications), "expected 2 notifications, got %d", len(et.notifications))
+	
 	if c, ok := et.notifications[0].(*createKeyArgs); ok {
-		assert.Equal(t, expected, c.computedFullPath, "expected %s, got %s", expected, c.computedFullPath)
+		assert.Equal(t, expectedBase, c.computedFullPath, "expected %s, got %s", expectedBase, c.computedFullPath)
 	} else {
 		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+	}
+	if c, ok := et.notifications[1].(*createKeyArgs); ok {
+		assert.Equal(t, expected, c.computedFullPath, "expected %s, got %s", expected, c.computedFullPath)
+	} else {
+		t.Errorf("expected createHandleArgs, got %T", et.notifications[1])
 	}
 }

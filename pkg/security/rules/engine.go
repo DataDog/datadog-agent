@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -62,7 +63,7 @@ type RuleEngine struct {
 	statsdClient              statsd.ClientInterface
 	eventSender               events.EventSender
 	rulesetListeners          []rules.RuleSetListener
-	AutoSuppressions          *EventsAutoSuppressions
+	AutoSuppression           autosuppression.AutoSuppression
 }
 
 // APIServer defines the API server
@@ -73,6 +74,13 @@ type APIServer interface {
 
 // NewRuleEngine returns a new rule engine
 func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
+	var as autosuppression.AutoSuppression
+	if config.SecurityProfileEnabled && config.SecurityProfileAutoSuppressionEnabled {
+		as = autosuppression.Enable(config.SecurityProfileAutoSuppressionEventTypes)
+	} else {
+		as = autosuppression.Disable()
+	}
+
 	engine := &RuleEngine{
 		probe:                     probe,
 		config:                    config,
@@ -86,9 +94,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		policyLoader:              rules.NewPolicyLoader(),
 		statsdClient:              statsdClient,
 		rulesetListeners:          rulesetListeners,
-		AutoSuppressions: &EventsAutoSuppressions{
-			enabled: config.SecurityProfileEnabled && config.SecurityProfileAutoSuppressionEnabled,
-		},
+		AutoSuppression:           as,
 	}
 
 	// register as event handler
@@ -333,7 +339,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 		e.rateLimiter.Apply(probeEvaluationRuleSet, events.AllCustomRuleIDs())
 
 		// update the stats of auto-suppression rules
-		e.AutoSuppressions.apply(probeEvaluationRuleSet)
+		e.AutoSuppression.Apply(probeEvaluationRuleSet)
 	}
 
 	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
@@ -395,14 +401,12 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
-	if e.AutoSuppressions.enabled && ev.IsInProfile() && isAllowAutosuppressionRule(rule) {
-		e.AutoSuppressions.inc(rule.ID)
+	if e.AutoSuppression.CanSuppress(ev) && ev.IsInProfile() && autosuppression.IsAllowAutosuppressionRule(rule) {
+		e.AutoSuppression.Inc(rule.ID)
 		return false
 	}
 
-	if !ev.Suppressed {
-		e.probe.HandleActions(rule, event)
-	}
+	e.probe.HandleActions(rule, event)
 
 	if rule.Definition.Silent {
 		return false
@@ -413,7 +417,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
 
-	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) && !ev.Suppressed {
+	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
 	}
 
