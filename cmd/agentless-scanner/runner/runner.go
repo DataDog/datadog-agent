@@ -46,8 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
-
-	"github.com/docker/distribution/reference"
 )
 
 const (
@@ -541,7 +539,7 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 		if err != nil {
 			return err
 		}
-		s.scanApplication(ctx, scan, mountpoint, pool)
+		s.scanLambda(ctx, scan, mountpoint, pool)
 
 	default:
 		return fmt.Errorf("unknown scan type: %s", scan.Type)
@@ -727,18 +725,16 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 		wg.Add(1)
 		go func(root string) {
 			defer wg.Done()
-			result := pool.launchScanner(ctx, types.ScannerOptions{
-				Action:    types.ScanActionVulnsHostOS,
-				Scan:      scan,
-				Root:      root,
-				CreatedAt: time.Now(),
-			})
-			if result.Vulns != nil {
-				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_IMAGE
-				result.Vulns.ID = scan.TargetName
-				result.Vulns.Tags = scan.TargetTags
-			}
-			s.resultsCh <- result
+			s.resultsCh <- pool.launchScannerVulns(ctx,
+				sbommodel.SBOMSourceType_HOST_IMAGE,
+				scan.TargetName,
+				scan.TargetTags,
+				types.ScannerOptions{
+					Action:    types.ScanActionVulnsHostOS,
+					Scan:      scan,
+					Root:      root,
+					CreatedAt: time.Now(),
+				})
 		}(root)
 	}
 	wg.Wait()
@@ -746,18 +742,15 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 
 func (s *Runner) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, pool *scannersPool) {
 	assert(scan.Type == types.TaskTypeEBS)
-
-	result := pool.launchScanner(ctx, types.ScannerOptions{
-		Action:    types.ScanActionVulnsHostOSVm,
-		Scan:      scan,
-		CreatedAt: time.Now(),
-	})
-	if result.Vulns != nil {
-		result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-		result.Vulns.ID = scan.TargetName
-		result.Vulns.Tags = scan.TargetTags
-	}
-	s.resultsCh <- result
+	s.resultsCh <- pool.launchScannerVulns(ctx,
+		sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
+		scan.TargetName,
+		scan.TargetTags,
+		types.ScannerOptions{
+			Action:    types.ScanActionVulnsHostOSVm,
+			Scan:      scan,
+			CreatedAt: time.Now(),
+		})
 }
 
 func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool) {
@@ -765,72 +758,104 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 
 	var wg sync.WaitGroup
 
-	scanRoot := func(root string, action types.ScanAction) {
+	scanHost := func(root string, actions []types.ScanAction) {
 		defer wg.Done()
 
-		switch action {
-		case types.ScanActionVulnsHostOS:
-			result := pool.launchScanner(ctx, types.ScannerOptions{
-				Action:    types.ScanActionVulnsHostOS,
-				Scan:      scan,
-				Root:      root,
-				CreatedAt: time.Now(),
-			})
-			if result.Vulns != nil {
-				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-				result.Vulns.ID = scan.TargetName
-				result.Vulns.Tags = scan.TargetTags
+		for _, action := range actions {
+			assert(action == types.ScanActionVulnsHostOS || action == types.ScanActionMalware)
+			switch action {
+			case types.ScanActionVulnsHostOS:
+				s.resultsCh <- pool.launchScannerVulns(ctx,
+					sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
+					scan.TargetName,
+					scan.TargetTags,
+					types.ScannerOptions{
+						Action:    types.ScanActionVulnsHostOS,
+						Scan:      scan,
+						Root:      root,
+						CreatedAt: time.Now(),
+					})
+			case types.ScanActionMalware:
+				s.resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
+					Action:    types.ScanActionMalware,
+					Scan:      scan,
+					Root:      root,
+					CreatedAt: time.Now(),
+				})
 			}
-			s.resultsCh <- result
-		case types.ScanActionVulnsContainersOS:
-			ctrResult := pool.launchScanner(ctx, types.ScannerOptions{
-				Action:    types.ScanActionContainers,
-				Scan:      scan,
-				Root:      root,
-				CreatedAt: time.Now(),
-			})
-			if ctrResult.Err != nil {
-				s.resultsCh <- ctrResult
-			} else if len(ctrResult.Containers.Containers) > 0 {
-				log.Infof("%s: found %d containers on %q", scan, len(ctrResult.Containers.Containers), root)
-				runtimes := make(map[string]int64)
-				for _, ctr := range ctrResult.Containers.Containers {
-					runtimes[ctr.Runtime]++
-				}
-				for runtime, count := range runtimes {
-					tags := scan.Tags(fmt.Sprintf("container_runtime:%s", runtime))
-					if err := s.Statsd.Count("datadog.agentless_scanner.containers.count", count, tags, 1.0); err != nil {
-						log.Warnf("failed to send metric: %v", err)
-					}
-				}
-				for _, ctr := range ctrResult.Containers.Containers {
-					wg.Add(1)
-					go func(ctr types.Container) {
-						defer wg.Done()
-						s.resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
-							Action:    types.ScanActionVulnsContainersOS,
-							Scan:      scan,
-							Root:      root,
-							Container: &ctr,
-							CreatedAt: time.Now(),
-						})
-					}(*ctr)
-				}
+		}
+	}
+
+	scanContainers := func(root string, actions []types.ScanAction) {
+		defer wg.Done()
+
+		ctrPrepareResult := pool.launchScanner(ctx, types.ScannerOptions{
+			Action:    types.ScanActionContainersInspect,
+			Scan:      scan,
+			Root:      root,
+			CreatedAt: time.Now(),
+		})
+		if ctrPrepareResult.Err != nil {
+			s.resultsCh <- ctrPrepareResult
+			return
+		}
+		containers := ctrPrepareResult.Containers.Containers
+		if len(containers) == 0 {
+			return
+		}
+		log.Infof("%s: found %d containers on %q", scan, len(containers), root)
+		runtimes := make(map[string]int64)
+		for _, ctr := range containers {
+			runtimes[ctr.Runtime]++
+		}
+		for runtime, count := range runtimes {
+			tags := scan.Tags(fmt.Sprintf("container_runtime:%s", runtime))
+			if err := s.Statsd.Count("datadog.agentless_scanner.containers.count", count, tags, 1.0); err != nil {
+				log.Warnf("failed to send metric: %v", err)
 			}
-		case types.ScanActionMalware:
-			s.resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
-				Action:    types.ScanActionMalware,
-				Scan:      scan,
-				Root:      root,
-				CreatedAt: time.Now(),
-			})
+		}
+		ctrDoneCh := make(chan *types.Container)
+		for _, ctr := range containers {
+			go func(ctr *types.Container, actions []types.ScanAction) {
+				s.scanContainer(ctx, scan, ctr, actions, pool)
+				ctrDoneCh <- ctr
+			}(ctr, actions)
+		}
+		for i := 0; i < len(containers); i++ {
+			ctr := <-ctrDoneCh
+			// We cleanup overlays as we go instead of acumulating them. However
+			// the cleanupScan routine also cleans up any leftover. We do not rely
+			// on the parent ctx as we still want to clean these mounts even for a
+			// canceled/timeouted context.
+			cleanupctx, abort := context.WithTimeout(context.Background(), 5*time.Second)
+			devices.Umount(cleanupctx, scan, scan.Path(ctr.MountName))
+			abort()
 		}
 	}
 
 	for _, root := range roots {
+		var hostActions []types.ScanAction
+		var ctrsActions []types.ScanAction
+
 		for _, action := range scan.Actions {
+			switch action {
+			case types.ScanActionVulnsHostOS, types.ScanActionMalware:
+				hostActions = append(hostActions, action)
+			case types.ScanActionVulnsContainersApp, types.ScanActionVulnsContainersOS:
+				ctrsActions = append(ctrsActions, action)
+			default:
+				log.Infof("%s: unexpected scan action %q", scan, action)
+			}
+		}
+
+		if len(hostActions) > 0 {
 			wg.Add(1)
-			go scanRoot(root, action)
+			go scanHost(root, hostActions)
+		}
+
+		if len(ctrsActions) > 0 {
+			wg.Add(1)
+			go scanContainers(root, ctrsActions)
 		}
 	}
 	wg.Wait()
@@ -840,24 +865,59 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 	}
 }
 
-func (s *Runner) scanApplication(ctx context.Context, scan *types.ScanTask, root string, pool *scannersPool) {
+func (s *Runner) scanContainer(ctx context.Context, scan *types.ScanTask, ctr *types.Container, actions []types.ScanAction, pool *scannersPool) {
+	refTagged, refCanonical, tags := scanners.ContainerRefs(*ctr)
+	for _, action := range actions {
+		assert(action == types.ScanActionVulnsContainersApp || action == types.ScanActionVulnsContainersOS)
+
+		var sourceType sbommodel.SBOMSourceType
+		switch action {
+		case types.ScanActionVulnsContainersOS:
+			sourceType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
+		case types.ScanActionVulnsContainersApp:
+			sourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: sbommodel.SBOMSourceType_CONTAINER_APP
+		default:
+			panic("unreachable")
+		}
+
+		result := pool.launchScannerVulns(ctx,
+			sourceType,
+			ctr.ImageRefCanonical.Reference().String(),
+			tags,
+			types.ScannerOptions{
+				Action:    action,
+				Scan:      scan,
+				Root:      scan.Path(ctr.MountName),
+				Container: ctr,
+				CreatedAt: time.Now(),
+			})
+		// TODO: remove this when we backport
+		// https://github.com/DataDog/datadog-agent/pull/22161
+		if result.Vulns != nil && result.Vulns.BOM != nil {
+			appendSBOMRepoMetadata(result.Vulns.BOM, refTagged, refCanonical)
+		}
+		s.resultsCh <- result
+	}
+}
+
+func (s *Runner) scanLambda(ctx context.Context, scan *types.ScanTask, root string, pool *scannersPool) {
 	assert(scan.Type == types.TaskTypeLambda)
 
-	result := pool.launchScanner(ctx, types.ScannerOptions{
-		Action:    types.ScanActionAppVulns,
-		Scan:      scan,
-		Root:      root,
-		CreatedAt: time.Now(),
-	})
-	if result.Vulns != nil {
-		result.Vulns.SourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA
-		result.Vulns.ID = scan.TargetID.AsText()
-		result.Vulns.Tags = append([]string{
-			"runtime_id:" + scan.TargetID.AsText(),
-			fmt.Sprintf("service_version:%s", scan.TargetName),
-		}, scan.TargetTags...)
-	}
-	s.resultsCh <- result
+	tags := append([]string{
+		"runtime_id:" + scan.TargetID.AsText(),
+		fmt.Sprintf("service_version:%s", scan.TargetName),
+	}, scan.TargetTags...)
+
+	s.resultsCh <- pool.launchScannerVulns(ctx,
+		sbommodel.SBOMSourceType_CI_PIPELINE, // TODO: sbommodel.SBOMSourceType_LAMBDA
+		scan.TargetID.AsText(),
+		tags,
+		types.ScannerOptions{
+			Action:    types.ScanActionAppVulns,
+			Scan:      scan,
+			Root:      root,
+			CreatedAt: time.Now(),
+		})
 	if err := s.Statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(time.Since(scan.StartedAt).Milliseconds()), scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -873,6 +933,16 @@ func newScannersPool(noFork bool, size int) *scannersPool {
 		sem:    make(chan struct{}, size),
 		noFork: noFork,
 	}
+}
+
+func (p *scannersPool) launchScannerVulns(ctx context.Context, sourceType sbommodel.SBOMSourceType, sbomID string, tags []string, opts types.ScannerOptions) types.ScanResult {
+	result := p.launchScanner(ctx, opts)
+	if result.Vulns != nil {
+		result.Vulns.SourceType = sourceType
+		result.Vulns.ID = sbomID
+		result.Vulns.Tags = tags
+	}
+	return result
 }
 
 func (p *scannersPool) launchScanner(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
@@ -906,8 +976,15 @@ func (p *scannersPool) launchScanner(ctx context.Context, opts types.ScannerOpti
 // LaunchScannerInSameProcess launches the scanner in the same process (no fork).
 func LaunchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
 	switch opts.Action {
-	case types.ScanActionVulnsHostOS:
+	case types.ScanActionVulnsHostOS, types.ScanActionVulnsContainersOS:
 		bom, err := scanners.LaunchTrivyHost(ctx, opts)
+		if err != nil {
+			return opts.ErrResult(err)
+		}
+		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
+
+	case types.ScanActionAppVulns, types.ScanActionVulnsContainersApp:
+		bom, err := scanners.LaunchTrivyApp(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
@@ -920,76 +997,8 @@ func LaunchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) 
 		}
 		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
 
-	case types.ScanActionVulnsContainersOS:
-		ctr := *opts.Container
-		mountPoint, err := scanners.MountContainer(ctx, opts.Scan, ctr)
-		if err != nil {
-			return opts.ErrResult(err)
-		}
-		var bom *cdx.BOM
-		{
-			opts := opts
-			opts.Root = mountPoint
-			bom, err = scanners.LaunchTrivyHost(ctx, opts)
-			if err != nil {
-				return opts.ErrResult(err)
-			}
-		}
-
-		// We cleanup overlays as we go instead of acumulating them. However
-		// the cleanupScan routine also cleans up any leftover. We do not rely
-		// on the parent ctx as we still want to clean these mounts even for a
-		// canceled/timeouted context.
-		cleanupctx, abort := context.WithTimeout(context.Background(), 5*time.Second)
-		devices.Umount(cleanupctx, opts.Scan, mountPoint)
-		abort()
-
-		refTag := ctr.ImageRefTagged.Reference().(reference.NamedTagged)
-		refCan := ctr.ImageRefCanonical.Reference().(reference.Canonical)
-		// Tracking some examples as reference:
-		//     Name:  public.ecr.aws/datadog/agent
-		//      Tag:  3
-		//      Domain:  public.ecr.aws
-		//      Path:  datadog/agent
-		//      FamiliarName:  public.ecr.aws/datadog/agent
-		//      FamiliarString:  public.ecr.aws/datadog/agent:3
-		//     Name:  docker.io/library/python
-		//      Tag:  3
-		//      Domain:  docker.io
-		//      Path:  library/python
-		//      FamiliarName:  python
-		//      FamiliarString:  python:3
-		tags := []string{
-			"image_id:" + refCan.String(),                      // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-			"image_name:" + refTag.Name(),                      // public.ecr.aws/datadog/agent
-			"image_registry:" + reference.Domain(refTag),       // public.ecr.aws
-			"image_repository:" + reference.Path(refTag),       // datadog/agent
-			"short_image:" + path.Base(reference.Path(refTag)), // agent
-			"repo_digest:" + refCan.Digest().String(),          // sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
-			"image_tag:" + refTag.Tag(),                        // 7-rc
-			"container_name:" + ctr.ContainerName,
-		}
-		// TODO: remove this when we backport
-		// https://github.com/DataDog/datadog-agent/pull/22161
-		appendSBOMRepoMetadata(bom, refTag, refCan)
-
-		vulns := &types.ScanVulnsResult{
-			BOM:        bom,
-			SourceType: sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS, // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
-			ID:         ctr.ImageRefCanonical.Reference().String(),
-			Tags:       tags,
-		}
-		return types.ScanResult{ScannerOptions: opts, Vulns: vulns}
-
-	case types.ScanActionAppVulns:
-		bom, err := scanners.LaunchTrivyApp(ctx, opts)
-		if err != nil {
-			return opts.ErrResult(err)
-		}
-		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
-
-	case types.ScanActionContainers:
-		containers, err := scanners.LaunchContainers(ctx, opts)
+	case types.ScanActionContainersInspect:
+		containers, err := scanners.LaunchContainersInspect(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}

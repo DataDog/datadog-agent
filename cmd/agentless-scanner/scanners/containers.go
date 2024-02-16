@@ -33,8 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LaunchContainers is the entrypoint for the container scanner.
-func LaunchContainers(_ context.Context, opts types.ScannerOptions) (types.ScanContainerResult, error) {
+// LaunchContainersInspect is the entrypoint for the container scanner.
+func LaunchContainersInspect(ctx context.Context, opts types.ScannerOptions) (types.ScanContainerResult, error) {
 	var containers []*types.Container
 
 	containerdRoot := filepath.Join(opts.Root, "/var/lib/containerd")
@@ -61,9 +61,46 @@ func LaunchContainers(_ context.Context, opts types.ScannerOptions) (types.ScanC
 		}
 	}
 
+	for _, ctr := range containers {
+		_, err := MountContainer(ctx, opts.Scan, *ctr)
+		if err != nil {
+			return types.ScanContainerResult{}, err
+		}
+	}
+
 	return types.ScanContainerResult{
 		Containers: containers,
 	}, nil
+}
+
+// ContainerRefs returns the container references and tags.
+func ContainerRefs(ctr types.Container) (reference.NamedTagged, reference.Canonical, []string) {
+	refTag := ctr.ImageRefTagged.Reference().(reference.NamedTagged)
+	refCan := ctr.ImageRefCanonical.Reference().(reference.Canonical)
+	// Tracking some examples as reference:
+	//     Name:  public.ecr.aws/datadog/agent
+	//      Tag:  3
+	//      Domain:  public.ecr.aws
+	//      Path:  datadog/agent
+	//      FamiliarName:  public.ecr.aws/datadog/agent
+	//      FamiliarString:  public.ecr.aws/datadog/agent:3
+	//     Name:  docker.io/library/python
+	//      Tag:  3
+	//      Domain:  docker.io
+	//      Path:  library/python
+	//      FamiliarName:  python
+	//      FamiliarString:  python:3
+	tags := []string{
+		"image_id:" + refCan.String(),                      // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
+		"image_name:" + refTag.Name(),                      // public.ecr.aws/datadog/agent
+		"image_registry:" + reference.Domain(refTag),       // public.ecr.aws
+		"image_repository:" + reference.Path(refTag),       // datadog/agent
+		"short_image:" + path.Base(reference.Path(refTag)), // agent
+		"repo_digest:" + refCan.Digest().String(),          // sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
+		"image_tag:" + refTag.Tag(),                        // 7-rc
+		"container_name:" + ctr.ContainerName,
+	}
+	return refTag, refCan, tags
 }
 
 // MountContainer mounts the container layers and returns the mount point.
