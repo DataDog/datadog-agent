@@ -1,6 +1,6 @@
 version: 2
 
-# This file uses YAML anchors to deduplicate steps
+# This file uses YAML ancho rs to deduplicate steps
 # see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 # and https://learnxinyminutes.com/docs/yaml/
 
