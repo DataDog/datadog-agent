@@ -173,10 +173,10 @@ type configGetter interface {
 
 // getCorrectConfig tries to fetch the configuration from another process. It returns a new
 // configuration object on success and the fallback upon failure.
-func (ia *inventoryagent) getCorrectConfig(name string, configFetcher func(config model.Reader) (string, error), fallback configGetter) configGetter {
+func (ia *inventoryagent) getCorrectConfig(name string, conf model.Reader, configFetcher func(config model.Reader) (string, error), fallback configGetter) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
-	if remoteConfig, err := configFetcher(ia.conf); err == nil {
+	if remoteConfig, err := configFetcher(conf); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
@@ -222,21 +222,21 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
-	securityCfg := ia.getCorrectConfig("security-agent", fetchSecurityConfig, ia.conf)
+	securityCfg := ia.getCorrectConfig("security-agent", ia.conf, fetchSecurityConfig, ia.conf)
 
 	ia.data["feature_cspm_enabled"] = securityCfg.GetBool("compliance_config.enabled")
 	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 func (ia *inventoryagent) fetchTraceAgentMetadata() {
-	traceCfg := ia.getCorrectConfig("trace-agent", fetchTraceConfig, ia.conf)
+	traceCfg := ia.getCorrectConfig("trace-agent", ia.conf, fetchTraceConfig, ia.conf)
 
 	ia.data["config_apm_dd_url"] = scrub(traceCfg.GetString("apm_config.apm_dd_url"))
 	ia.data["feature_apm_enabled"] = traceCfg.GetBool("apm_config.enabled")
 }
 
 func (ia *inventoryagent) fetchProcessAgentMetadata() {
-	processCfg := ia.getCorrectConfig("process-agent", fetchProcessConfig, ia.conf)
+	processCfg := ia.getCorrectConfig("process-agent", ia.conf, fetchProcessConfig, ia.conf)
 
 	ia.data["feature_process_enabled"] = processCfg.GetBool("process_config.process_collection.enabled")
 	ia.data["feature_processes_container_enabled"] = processCfg.GetBool("process_config.container_collection.enabled")
@@ -252,7 +252,7 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	if isSet {
 		// If we can fetch the configuration from the system-probe process, we use it. If not we fallback on the
 		// local instance.
-		sysProbeConf := ia.getCorrectConfig("system-probe", fetchSystemProbeConfig, localSysProbeConf)
+		sysProbeConf := ia.getCorrectConfig("system-probe", localSysProbeConf, fetchSystemProbeConfig, localSysProbeConf)
 
 		getBoolSysProbe = sysProbeConf.GetBool
 		getIntSysProbe = sysProbeConf.GetInt
