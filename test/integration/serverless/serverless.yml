@@ -148,7 +148,7 @@ functions:
 
   metric-node:
     enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
-    runtime: nodejs14.x
+    runtime: nodejs18.x
     handler: src/metric.enhancedMetricTest
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
@@ -216,7 +216,7 @@ functions:
 
   metric-proxy:
     enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
-    runtime: nodejs14.x
+    runtime: nodejs18.x
     handler: src/proxyTestFunctions.noop
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -228,7 +228,7 @@ functions:
 
   error-node:
     enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
-    runtime: nodejs14.x
+    runtime: nodejs18.x
     handler: src/metric.errorTest
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
@@ -282,7 +282,7 @@ functions:
 
   error-proxy:
     enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
-    runtime: nodejs14.x
+    runtime: nodejs18.x
     handler: src/proxyTestFunctions.error
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -294,7 +294,7 @@ functions:
 
   timeout-node:
     enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
-    runtime: nodejs14.x
+    runtime: nodejs18.x
     timeout: 1
     handler: src/metric.timeoutMetricTest
     layers:
@@ -367,7 +367,7 @@ functions:
 
   timeout-proxy:
     enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
-    runtime: nodejs14.x
+    runtime: nodejs18.x
     handler: src/proxyTestFunctions.timeout
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -379,7 +379,7 @@ functions:
 
   log-node:
     enabled: '"${env:RUN_SUITE_LOG}" == "true"'
-    runtime: nodejs14.x
+    runtime: nodejs18.x
     package:
       individually: true
       patterns:
@@ -460,7 +460,7 @@ functions:
 
   log-proxy:
     enabled: '"${env:RUN_SUITE_LOG}" == "true"'
-    runtime: nodejs14.x
+    runtime: nodejs18.x
     package:
       individually: true
       patterns:
@@ -476,7 +476,7 @@ functions:
 
   trace-node:
     enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
-    runtime: nodejs14.x
+    runtime: nodejs18.x
     handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
@@ -545,7 +545,7 @@ functions:
 
   trace-proxy:
     enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
-    runtime: nodejs14.x
+    runtime: nodejs18.x
     handler: src/proxyTestFunctions.noop
     layers:
       - { Ref: RecorderExtensionLambdaLayer }

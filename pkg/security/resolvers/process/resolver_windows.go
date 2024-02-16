@@ -41,6 +41,8 @@ type Resolver struct {
 	cacheSize *atomic.Int64
 
 	processCacheEntryPool *Pool
+
+	exitedQueue []uint32
 }
 
 // NewResolver returns a new process resolver
@@ -85,6 +87,39 @@ func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
 	entry.Exit(exitTime)
 	delete(p.processes, entry.Pid)
 	entry.Release()
+}
+
+// AddToExitedQueue adds the exited processes to a queue
+func (p *Resolver) AddToExitedQueue(pid uint32) {
+	p.Lock()
+	defer p.Unlock()
+	p.exitedQueue = append(p.exitedQueue, pid)
+}
+
+// DequeueExited dequeue exited process
+func (p *Resolver) DequeueExited() {
+	p.Lock()
+	defer p.Unlock()
+	delEntry := func(pid uint32, exitTime time.Time) {
+		p.deleteEntry(pid, exitTime)
+	}
+
+	var toKeep []uint32
+	now := time.Now()
+	for _, pid := range p.exitedQueue {
+		entry := p.processes[pid]
+		if entry == nil {
+			continue
+		}
+
+		if tm := entry.ExecTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+			delEntry(pid, now)
+		} else {
+			toKeep = append(toKeep, pid)
+		}
+	}
+
+	p.exitedQueue = toKeep
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -148,6 +183,7 @@ func (p *Resolver) GetEnvp(pr *model.Process) []string {
 
 // GetProcessCmdLineScrubbed returns the scrubbed cmdline
 func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
+
 	if pr.ScrubbedCmdLineResolved {
 		return pr.CmdLineScrubbed
 	}

@@ -394,7 +394,7 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event)
+		eventJSON, err := serializers.MarshalEvent(event, nil)
 		return eventJSON, event.GetEventType(), err
 	})
 
@@ -443,7 +443,7 @@ func (p *EBPFProbe) GetMonitors() *EBPFMonitors {
 // EventMarshallerCtor returns the event marshaller ctor
 func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
 	return func() events.EventMarshaler {
-		return serializers.NewEventSerializer(event)
+		return serializers.NewEventSerializer(event, nil)
 	}
 }
 
@@ -542,6 +542,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	eventType := event.GetEventType()
 	if eventType > model.MaxKernelEventType {
+		p.monitors.eventStreamMonitor.CountInvalidEvent(eventstream.EventStreamMap, eventstream.InvalidType, dataLen)
 		seclog.Errorf("unsupported event type %d", eventType)
 		return
 	}
@@ -1118,7 +1119,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
-		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType)) && p.validEventTypeForConfig(eventType) {
+		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType) || p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}

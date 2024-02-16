@@ -22,6 +22,7 @@ BPF_ARRAY_MAP(open_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(selinux_enforce_status, u16, 2)
 BPF_ARRAY_MAP(splice_entry_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(splice_exit_flags_approvers, u32, 1)
+BPF_ARRAY_MAP(bpf_cmd_approvers, u64, 1)
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
 
 BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
@@ -69,8 +70,8 @@ BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU)
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)
-BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER)
-BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER)
+BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER+1)
+BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER+1)
 BPF_PERCPU_ARRAY_MAP(fb_approver_stats, struct approver_stats_t, EVENT_LAST_APPROVER+1)
 BPF_PERCPU_ARRAY_MAP(bb_approver_stats, struct approver_stats_t, EVENT_LAST_APPROVER+1)
 BPF_PERCPU_ARRAY_MAP(str_array_buffers, struct str_array_buffer_t, 1)

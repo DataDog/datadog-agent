@@ -5,6 +5,9 @@
     },
     {
       "pattern": "^https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/"
+    },
+    {
+      "pattern": "^/security/threats/"
     }
   ],
   "replacementPatterns": [

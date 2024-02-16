@@ -49,11 +49,20 @@ from tasks.go import (
     generate_protobuf,
     go_fix,
     golangci_lint,
+    internal_deps_checker,
     lint_licenses,
     reset,
     tidy_all,
 )
-from tasks.go_test import codecov, e2e_tests, get_modified_packages, integration_tests, send_unit_tests_stats, test
+from tasks.go_test import (
+    codecov,
+    e2e_tests,
+    get_impacted_packages,
+    get_modified_packages,
+    integration_tests,
+    send_unit_tests_stats,
+    test,
+)
 from tasks.install_tasks import download_tools, install_shellcheck, install_tools
 from tasks.junit_tasks import junit_macos_repack, junit_upload
 from tasks.libs.go_workspaces import handle_go_work
@@ -97,12 +106,14 @@ ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
+ns.add_task(internal_deps_checker)
 ns.add_task(check_go_version)
 ns.add_task(junit_upload)
 ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
+ns.add_task(get_impacted_packages)
 ns.add_task(modules.go_work)
 
 ns.add_task(get_modified_packages)

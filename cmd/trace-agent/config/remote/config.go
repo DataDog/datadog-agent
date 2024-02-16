@@ -15,6 +15,11 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -22,9 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 var bufferPool = sync.Pool{
@@ -44,7 +46,7 @@ func putBuffer(buffer *bytes.Buffer) {
 }
 
 // ConfigHandler is the HTTP handler for configs
-func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *config.AgentConfig, statsd statsd.ClientInterface) http.Handler {
+func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) http.Handler {
 	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
@@ -76,7 +78,7 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 			}
 			configsRequest.Client.ClientTracer.Tags = append(configsRequest.Client.ClientTracer.Tags, getContainerTags(req, cfg, cidProvider)...)
 		}
-		cfg, err := client.ClientGetConfigs(req.Context(), &configsRequest)
+		cfgResponse, err := client.ClientGetConfigs(req.Context(), &configsRequest)
 		if err != nil {
 			statusCode = http.StatusInternalServerError
 			if e, ok := status.FromError(err); ok {
@@ -88,12 +90,12 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 			http.Error(w, err.Error(), statusCode)
 			return
 		}
-		if cfg == nil {
+		if cfgResponse == nil {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
-		content, err := json.Marshal(cfg)
+		content, err := json.Marshal(cfgResponse)
 		if err != nil {
 			statusCode = http.StatusInternalServerError
 			http.Error(w, err.Error(), http.StatusInternalServerError)

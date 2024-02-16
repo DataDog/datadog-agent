@@ -66,11 +66,6 @@ func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
 }
 
 func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
-	if s.transport != uds {
-		// TODO: Container tagging with cgroup v2 currently only works over UDS
-		// We should update this to run over TCP as well once that is implemented.
-		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")
-	}
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
