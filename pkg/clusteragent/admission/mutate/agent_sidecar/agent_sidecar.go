@@ -10,6 +10,7 @@ package agentsidecar
 
 import (
 	"errors"
+	"fmt"
 	dca_ac "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,6 +62,10 @@ func getDefaultSidecarTemplate() *corev1.Container {
 		ddSite = config.DefaultSite
 	}
 
+	containerRegistry := config.Datadog.GetString("admission_controller.agent_sidecar.container_registry")
+	imageName := config.Datadog.GetString("admission_controller.agent_sidecar.image_name")
+	imageTag := config.Datadog.GetString("admission_controller.agent_sidecar.image_tag")
+
 	agentContainer := &corev1.Container{
 		Env: []corev1.EnvVar{
 			{
@@ -92,7 +97,7 @@ func getDefaultSidecarTemplate() *corev1.Container {
 				},
 			},
 		},
-		Image:           "datadog/agent",
+		Image:           fmt.Sprintf("%s/%s:%s", containerRegistry, imageName, imageTag),
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Name:            agentSidecarContainerName,
 		Resources: corev1.ResourceRequirements{

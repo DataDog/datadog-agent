@@ -253,3 +253,36 @@ func TestInjectAgentSidecar(t *testing.T) {
 	}
 
 }
+
+func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
+	mockConfig := config.Mock(t)
+
+	tests := []struct {
+		name          string
+		setConfig     func()
+		expectedImage string
+	}{
+		{
+			name:          "no configuration set",
+			setConfig:     func() {},
+			expectedImage: "gcr.io/datadoghq/agent:latest",
+		},
+		{
+			name: "setting custom registry, image and tag",
+			setConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", "my-registry")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_name", "my-image")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_tag", "my-tag")
+			},
+			expectedImage: "my-registry/my-image:my-tag",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			test.setConfig()
+			sidecar := getDefaultSidecarTemplate()
+			assert.Equal(tt, test.expectedImage, sidecar.Image)
+		})
+	}
+}

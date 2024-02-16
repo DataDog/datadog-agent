@@ -1080,6 +1080,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.selectors", "[]")
 	// Should be able to parse it to a list of env vars and resource limits
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.profiles", "[]")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.container_registry", "gcr.io/datadoghq")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
