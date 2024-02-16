@@ -190,7 +190,7 @@ func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Compo
 		return nil
 	}
 
-	if e = util.SetAuthToken(); e != nil {
+	if e = util.SetAuthToken(pkgconfig.Datadog); e != nil {
 		return e
 	}
 

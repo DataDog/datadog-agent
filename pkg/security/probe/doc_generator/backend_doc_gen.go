@@ -36,6 +36,7 @@ func generateBackendJSON(output string) error {
 	reflector.CommentMap = cleanupEasyjson(reflector.CommentMap)
 
 	schema := reflector.Reflect(&serializers.EventSerializer{})
+	schema.ID = "https://github.com/DataDog/datadog-agent/tree/main/pkg/security/serializers"
 
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {

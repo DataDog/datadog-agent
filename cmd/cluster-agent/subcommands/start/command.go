@@ -11,12 +11,16 @@ package start
 import (
 	"context"
 	"fmt"
+
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
@@ -43,18 +47,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
+	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	rcservice "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -65,10 +71,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -76,6 +80,8 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 
 	// Core checks
 
@@ -135,6 +141,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
 				collectorimpl.Module(),
+				rcserviceimpl.Module(),
+				rctelemetryreporterimpl.Module(),
 			)
 		},
 	}
@@ -142,7 +150,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component) error {
+func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component, rcService optional.Option[rccomp.Component]) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -188,7 +196,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	// Setup healthcheck port
 	healthPort := pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, healthPort)
+		err := healthprobe.Serve(mainCtx, config, healthPort)
 		if err != nil {
 			return fmt.Errorf("Error starting health port, exiting: %v", err)
 		}
@@ -196,19 +204,17 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 		pkglog.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	// Initialize remote configuration
+	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
-	var rcService *rcservice.Service
-	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
+	rcserv, isSet := rcService.Get()
+	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
 		var err error
-		rcClient, rcService, err = initializeRemoteConfig(mainCtx)
+		rcClient, err = initializeRemoteConfigClient(mainCtx, rcserv)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
-			rcService.Start(mainCtx)
 			rcClient.Start()
 			defer func() {
-				_ = rcService.Stop()
 				rcClient.Close()
 			}()
 		}
@@ -304,8 +310,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 
 	// Set up check collector
 	registerChecks()
-	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption[pkgcollector.Collector](collector), demultiplexer), true)
-	collector.Start()
+	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
@@ -393,7 +398,15 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 			server := admissioncmd.NewServer()
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl, apiCl.Cl)
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl, apiCl.Cl)
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+
+			apmInstrumentationWebhook, err := mutate.GetAPMInstrumentationWebhook()
+			if err != nil {
+				pkglog.Errorf("failed to register APM Instrumentation webhook: %v", err)
+			} else {
+				server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), apmInstrumentationWebhook.InjectAutoInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+			}
+
+			server.Register(pkgconfig.Datadog.GetString("admission_controller.agent_sidecar.endpoint"), agentsidecar.InjectAgentSidecar, apiCl.DynamicCl, apiCl.Cl)
 
 			// CWS Instrumentation webhooks
 			cwsInstrumentation, err := mutate.NewCWSInstrumentation()
@@ -484,37 +497,32 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	return handler, nil
 }
 
-func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.Service, error) {
+func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Component) (*rcclient.Client, error) {
 	clusterName := ""
 	hname, err := hostname.Get(ctx)
 	if err != nil {
-		pkglog.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
+		pkglog.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config client")
 	} else {
 		clusterName = clustername.GetClusterName(context.TODO(), hname)
 	}
 
 	clusterID, err := clustername.GetClusterID()
 	if err != nil {
-		pkglog.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
-	}
-
-	rcService, err := common.NewRemoteConfigService(hname)
-	if err != nil {
-		return nil, nil, err
+		pkglog.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config client")
 	}
 
 	rcClient, err := rcclient.NewClient(rcService,
 		rcclient.WithAgent("cluster-agent", version.AgentVersion),
 		rcclient.WithCluster(clusterName, clusterID),
-		rcclient.WithProducts([]data.Product{data.ProductAPMTracing}),
+		rcclient.WithProducts(state.ProductAPMTracing),
 		rcclient.WithPollInterval(5*time.Second),
 		rcclient.WithDirectorRootOverride(pkgconfig.Datadog.GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to create local remote-config client: %w", err)
+		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
 	}
 
-	return rcClient, rcService, nil
+	return rcClient, nil
 }
 
 func registerChecks() {

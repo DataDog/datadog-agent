@@ -120,23 +120,31 @@ runtime_security_config:
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
-    traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
-    - {{.}}
-    {{end}}
+    traced_event_types: {{range .ActivityDumpTracedEventTypes}}
+    - {{. -}}
+    {{- end}}
     local_storage:
       output_directory: {{ .ActivityDumpLocalStorageDirectory }}
       compression: {{ .ActivityDumpLocalStorageCompression }}
       formats: {{range .ActivityDumpLocalStorageFormats}}
-      - {{.}}
-      {{end}}
+      - {{. -}}
+      {{- end}}
 {{end}}
   security_profile:
     enabled: {{ .EnableSecurityProfile }}
 {{if .EnableSecurityProfile}}
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
+    auto_suppression:
+      enabled: {{ .EnableAutoSuppression }}
+      event_types: {{range .AutoSuppressionEventTypes}}
+      - {{. -}}
+      {{- end}}
     anomaly_detection:
-      enabled: true
+      enabled: {{ .EnableAnomalyDetection }}
+      event_types: {{range .AnomalyDetectionEventTypes}}
+      - {{. -}}
+      {{- end}}
       default_minimum_stable_period: {{.AnomalyDetectionDefaultMinimumStablePeriod}}
       minimum_stable_period:
         exec: {{.AnomalyDetectionMinimumStablePeriodExec}}
@@ -358,7 +366,7 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event) {
-	eventJSON, err := serializers.MarshalEvent(event)
+	eventJSON, err := serializers.MarshalEvent(event, nil)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -475,7 +483,7 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := serializers.MarshalEvent(event)
+		eventJSON, err := serializers.MarshalEvent(event, nil)
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -1192,11 +1200,10 @@ func DecodeSecurityProfile(path string) (*profile.SecurityProfile, error) {
 		return nil, errors.New("Profile parsing error")
 	}
 
-	newProfile := profile.NewSecurityProfile(cgroupModel.WorkloadSelector{},
-		[]model.EventType{
-			model.ExecEventType,
-			model.DNSEventType,
-		})
+	newProfile := profile.NewSecurityProfile(
+		cgroupModel.WorkloadSelector{},
+		[]model.EventType{model.ExecEventType, model.DNSEventType},
+	)
 	if newProfile == nil {
 		return nil, errors.New("Profile creation")
 	}

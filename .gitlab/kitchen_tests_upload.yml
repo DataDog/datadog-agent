@@ -18,9 +18,7 @@ kitchen_tests_upload_common:
     - kitchen_windows_process_agent-a7
     - kitchen_windows_upgrade5_agent-a6
     - kitchen_windows_upgrade5_agent-a7
-    - kitchen_windows_upgrade6_agent-a6
     - kitchen_windows_upgrade6_agent-a7
-    - kitchen_windows_upgrade7_agent-a7
   variables:
     DD_ENV: ci
   script:

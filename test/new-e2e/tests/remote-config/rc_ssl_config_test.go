@@ -39,8 +39,7 @@ func TestSslConfigSuite(t *testing.T) {
 // TestRemoteConfigSSLConfigMismatch tests the startup condition where the agent's SSL config is disabled but RC's TLS validation is not explicitly disabled
 func (s *sslConfigSuite) TestRemoteConfigSSLConfigMismatch() {
 	// Ensure the remote config service starts
-	// TODO uncomment the following line in https://github.com/DataDog/datadog-agent/pull/22582 (once fx lifecycle startup logging is added)
-	//assertLogsEventually(a.T(), a.Env().RemoteHost, "agent", "remote config service started", 2*time.Minute, 5*time.Second)
+	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "remote config service started", 2*time.Minute, 5*time.Second)
 
 	// Ensure the agent logs a warning about the SSL config mismatch
 	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "remote Configuration does not allow skipping TLS validation by default", 2*time.Minute, 5*time.Second)

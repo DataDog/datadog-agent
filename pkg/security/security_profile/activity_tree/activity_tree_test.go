@@ -52,7 +52,7 @@ func TestInsertFileEvent(t *testing.T) {
 	for _, path := range pathToInserts {
 		event := &model.Event{
 			BaseEvent: model.BaseEvent{
-				FieldHandlers: &model.DefaultFieldHandlers{},
+				FieldHandlers: &model.FakeFieldHandlers{},
 			},
 			Open: model.OpenEvent{
 				File: model.FileEvent{
@@ -156,7 +156,7 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 	evt := &model.Event{
 		BaseEvent: model.BaseEvent{
 			Type:             uint32(model.ExecEventType),
-			FieldHandlers:    &model.DefaultFieldHandlers{},
+			FieldHandlers:    &model.FakeFieldHandlers{},
 			ContainerContext: &model.ContainerContext{},
 			ProcessContext:   &model.ProcessContext{},
 			ProcessCacheEntry: &model.ProcessCacheEntry{

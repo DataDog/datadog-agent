@@ -103,7 +103,7 @@ func UnmarshalEvent(raw []byte) (*model.Event, error) {
 	event := model.Event{
 		BaseEvent: model.BaseEvent{
 			Type:             uint32(model.ExecEventType),
-			FieldHandlers:    &model.DefaultFieldHandlers{},
+			FieldHandlers:    &model.FakeFieldHandlers{},
 			ContainerContext: &model.ContainerContext{},
 			ProcessContext: &model.ProcessContext{
 				Process:  process,
