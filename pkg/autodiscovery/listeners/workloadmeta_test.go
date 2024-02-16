@@ -8,11 +8,16 @@
 package listeners
 
 import (
+	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type wlmListenerSvc struct {
@@ -79,17 +84,17 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 		t.Fatalf("cannot initialize container filters: %s", err)
 	}
 
-	//w := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-	//	core.MockBundle(),
-	//	fx.Supply(context.Background()),
-	//	fx.Supply(workloadmeta.NewParams()),
-	//	workloadmeta.MockModule(),
-	//))
+	w := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule(),
+	))
 
 	return &testWorkloadmetaListener{
-		t:       t,
-		filters: filters,
-		//store:    w,
+		t:        t,
+		filters:  filters,
+		store:    w,
 		services: make(map[string]wlmListenerSvc),
 	}
 }
