@@ -132,8 +132,8 @@ func rootCommand() *cobra.Command {
 	cmd.AddCommand(localGroupCommand(cmd))
 
 	defaultActions := []string{
-		string(types.ScanActionVulnsHost),
-		string(types.ScanActionVulnsContainers),
+		string(types.ScanActionVulnsHostOS),
+		string(types.ScanActionVulnsContainersOS),
 	}
 
 	pflags := cmd.PersistentFlags()

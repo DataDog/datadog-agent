@@ -63,12 +63,18 @@ const (
 type ScanAction string
 
 const (
-	// ScanActionMalware is the action to scan for malware
+	// ScanActionVulnsHostOS is the name of the scanner for host vulnerabilities
+	ScanActionVulnsHostOS ScanAction = "vulns-host-os"
+	// ScanActionVulnsHostOSVm (DEPRECATED) is the name of the scanner for host vulnerabilities (using userspace drivers for filesystems)
+	ScanActionVulnsHostOSVm ScanAction = "vulns-host-os-vm"
+	// ScanActionVulnsContainerOS is the name of the scanner for container vulnerabilities
+	ScanActionVulnsContainersOS ScanAction = "vulns-containers-os"
+	// ScanActionAppVulns is the name of the scanner for application vulnerabilities
+	ScanActionAppVulns ScanAction = "appvulns"
+	// ScanActionContainers is the name of the scanner that list and mount containers
+	ScanActionContainers ScanAction = "mount-containers"
+	// ScanActionMalware is the name of the scanner for malware
 	ScanActionMalware ScanAction = "malware"
-	// ScanActionVulnsHost is the action to scan for vulnerabilities on hosts
-	ScanActionVulnsHost ScanAction = "vulns"
-	// ScanActionVulnsContainers is the action to scan for vulnerabilities in containers
-	ScanActionVulnsContainers ScanAction = "vulnscontainers"
 )
 
 // DiskMode is the mode to attach the disk
@@ -81,24 +87,6 @@ const (
 	DiskModeNBDAttach DiskMode = "nbd-attach"
 	// DiskModeNoAttach is the mode to not attach the disk (using user-space filesystem drivers)
 	DiskModeNoAttach = "no-attach"
-)
-
-// ScannerName is the name of the scanner
-type ScannerName string
-
-const (
-	// ScannerNameHostVulns is the name of the scanner for host vulnerabilities
-	ScannerNameHostVulns ScannerName = "hostvulns"
-	// ScannerNameHostVulnsVM is the name of the scanner for host vulnerabilities (using userspace drivers for filesystems)
-	ScannerNameHostVulnsVM ScannerName = "hostvulns-vm"
-	// ScannerNameContainerVulns is the name of the scanner for container vulnerabilities
-	ScannerNameContainerVulns ScannerName = "containervulns"
-	// ScannerNameAppVulns is the name of the scanner for application vulnerabilities
-	ScannerNameAppVulns ScannerName = "appvulns"
-	// ScannerNameContainers is the name of the scanner for containers
-	ScannerNameContainers ScannerName = "containers"
-	// ScannerNameMalware is the name of the scanner for malware
-	ScannerNameMalware ScannerName = "malware"
 )
 
 // ResourceType is the type of the cloud resource
@@ -332,12 +320,12 @@ type ScanResult struct {
 
 // ScannerOptions is the options to configure a scanner.
 type ScannerOptions struct {
-	Scanner   ScannerName `json:"Scanner"`
-	Scan      *ScanTask   `json:"Scan"`
-	Root      string      `json:"Root"`
-	CreatedAt time.Time   `jons:"CreatedAt"`
-	StartedAt time.Time   `jons:"StartedAt"`
-	Container *Container  `json:"Container"`
+	Action    ScanAction `json:"Action"`
+	Scan      *ScanTask  `json:"Scan"`
+	Root      string     `json:"Root"`
+	CreatedAt time.Time  `jons:"CreatedAt"`
+	StartedAt time.Time  `jons:"StartedAt"`
+	Container *Container `json:"Container"`
 
 	// Used for ScannerNameHostVulnsVM
 	SnapshotID *CloudID `json:"SnapshotID"`
@@ -353,13 +341,13 @@ func (o ScannerOptions) ID() string {
 	h := sha256.New()
 	createdAt, _ := o.CreatedAt.MarshalBinary()
 	h.Write(createdAt)
-	h.Write([]byte(o.Scanner))
+	h.Write([]byte(o.Action))
 	h.Write([]byte(o.Root))
 	h.Write([]byte(o.Scan.ID))
 	if ctr := o.Container; ctr != nil {
 		h.Write([]byte((*ctr).String()))
 	}
-	return string(o.Scanner) + "-" + hex.EncodeToString(h.Sum(nil))[:8]
+	return string(o.Action) + "-" + hex.EncodeToString(h.Sum(nil))[:8]
 }
 
 // ScanVulnsResult is the result of a vulnerability scan.
@@ -548,10 +536,16 @@ func NewScanTask(taskType TaskType, resourceID string, scanner ScannerID, target
 // ParseScanAction parses a scan action from a string.
 func ParseScanAction(action string) (ScanAction, error) {
 	switch action {
-	case string(ScanActionVulnsHost):
-		return ScanActionVulnsHost, nil
-	case string(ScanActionVulnsContainers):
-		return ScanActionVulnsContainers, nil
+	case string(ScanActionVulnsHostOS):
+		return ScanActionVulnsHostOS, nil
+	case string(ScanActionVulnsHostOSVm):
+		return ScanActionVulnsHostOSVm, nil
+	case string(ScanActionVulnsContainersOS):
+		return ScanActionVulnsContainersOS, nil
+	case string(ScanActionAppVulns):
+		return ScanActionAppVulns, nil
+	case string(ScanActionContainers):
+		return ScanActionContainers, nil
 	case string(ScanActionMalware):
 		return ScanActionMalware, nil
 	default:
