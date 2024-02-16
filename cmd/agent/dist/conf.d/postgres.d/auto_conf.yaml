@@ -14,11 +14,6 @@ instances:
     #
     port: "%%port%%"
 
-    ## @param username - string - optional
-    ## The Datadog username created to connect to PostgreSQL.
-    #
-    username: %%env_DBM_USERNAME%%
-
     ## This block defines the configuration for AWS RDS and Aurora instances.
     ##
     ## Complete this section if you have installed the Datadog AWS Integration
