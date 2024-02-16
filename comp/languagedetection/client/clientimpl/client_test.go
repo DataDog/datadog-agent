@@ -10,6 +10,7 @@ package clientimpl
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -1168,7 +1169,7 @@ func (p *podInfo) equals(other *podInfo) bool {
 	if p == nil || other == nil {
 		return false
 	}
-	if p.namespace != other.namespace || !(*p.ownerRef == *other.ownerRef) || !p.containerInfo.EqualTo(other.containerInfo) {
+	if p.namespace != other.namespace || !(*p.ownerRef == *other.ownerRef) || !reflect.DeepEqual(p.containerInfo, other.containerInfo) {
 		return false
 	}
 	return true

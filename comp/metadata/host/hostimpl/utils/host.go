@@ -34,7 +34,6 @@ var (
 	hostCacheKey        = cache.BuildAgentKey("host", "utils", "host")
 	systemStatsCacheKey = cache.BuildAgentKey("host", "utils", "systemStats")
 	hostInfoCacheKey    = cache.BuildAgentKey("host", "utils", "hostInfo")
-	guidCacheKey        = cache.BuildAgentKey("host", "utils", "uuid")
 
 	// for testing
 	otlpIsEnabled  = otlp.IsEnabled
