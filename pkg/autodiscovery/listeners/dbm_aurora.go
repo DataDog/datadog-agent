@@ -117,7 +117,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 			for id, c := range auroraCluster {
 				for _, instance := range c.Instances {
 					if instance == nil {
-						log.Warnf("recieved malformed instance response for cluster %s, skipping", id)
+						_ = log.Warnf("received malformed instance response for cluster %s, skipping", id)
 						continue
 					}
 					entityID := instance.Digest(string(cluster.Type), cluster.Region, id)
