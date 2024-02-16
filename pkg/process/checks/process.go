@@ -97,7 +97,6 @@ type ProcessCheck struct {
 	lastPIDs []int32
 
 	sysProbeConfig     *SysProbeConfig
-	sysprobeYamlConfig ddconfig.Reader
 
 	maxBatchSize  int
 	maxBatchBytes int
