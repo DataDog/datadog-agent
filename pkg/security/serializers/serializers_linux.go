@@ -240,6 +240,8 @@ type ProcessSerializer struct {
 	IsExecExec bool `json:"is_exec_child,omitempty"`
 	// Process source
 	Source string `json:"source,omitempty"`
+	// Variables values
+	Variables Variables `json:"variables,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -556,7 +558,7 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	}
 }
 
-func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
+func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *ProcessSerializer {
 	if ps.IsNotKworker() {
 		argv := e.FieldHandlers.ResolveProcessArgvScrubbed(e, ps)
 		argvTruncated := e.FieldHandlers.ResolveProcessArgsTruncated(e, ps)
@@ -584,6 +586,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			IsKworker:     ps.IsKworker,
 			IsExecExec:    ps.IsExecExec,
 			Source:        model.ProcessSourceToString(ps.Source),
+			Variables:     newVariablesContext(e, opts, "process."),
 		}
 
 		if ps.HasInterpreter() {
@@ -610,6 +613,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 				CreatedAt: getTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
 			}
 		}
+
 		return psSerializer
 	}
 	return &ProcessSerializer{
@@ -725,7 +729,7 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
-		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, e),
+		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, e, nil),
 	}
 }
 
@@ -750,7 +754,7 @@ func newSignalEventSerializer(e *model.Event) *SignalEventSerializer {
 	ses := &SignalEventSerializer{
 		Type:   model.Signal(e.Signal.Type).String(),
 		PID:    e.Signal.PID,
-		Target: newProcessContextSerializer(e.Signal.Target, e),
+		Target: newProcessContextSerializer(e.Signal.Target, e, nil),
 	}
 	return ses
 }
@@ -830,13 +834,13 @@ func serializeOutcome(retval int64) string {
 	}
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, opts *eval.Opts) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
 
 	ps := ProcessContextSerializer{
-		ProcessSerializer: newProcessSerializer(&pc.Process, e),
+		ProcessSerializer: newProcessSerializer(&pc.Process, e, opts),
 	}
 
 	ctx := eval.NewContext(e)
@@ -852,7 +856,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		s := newProcessSerializer(&pce.Process, e)
+		s := newProcessSerializer(&pce.Process, e, opts)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -937,8 +941,8 @@ func (e *EventSerializer) MarshalJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event) ([]byte, error) {
-	s := NewEventSerializer(event)
+func MarshalEvent(event *model.Event, opts *eval.Opts) ([]byte, error) {
+	s := NewEventSerializer(event, opts)
 	return utils.MarshalEasyJSON(s)
 }
 
@@ -948,9 +952,9 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event) *EventSerializer {
+func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	s := &EventSerializer{
-		BaseEventSerializer:   NewBaseEventSerializer(event),
+		BaseEventSerializer:   NewBaseEventSerializer(event, opts),
 		UserContextSerializer: newUserContextSerializer(event),
 		DDContextSerializer:   newDDContextSerializer(event),
 	}
@@ -968,6 +972,7 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        ctx.ID,
 			CreatedAt: getTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
+			Variables: newVariablesContext(event, opts, "container."),
 		}
 	}
 

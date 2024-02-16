@@ -68,19 +68,20 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
 func (f *SyncForwarder) SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1SeriesEndpoint, payload, extra)
+	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1SeriesEndpoint, payload, transaction.Series, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSeries will send timeseries to the v2 endpoint
 func (f *SyncForwarder) SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SeriesEndpoint, payload, extra)
+	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SeriesEndpoint, payload, transaction.Series, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
-func (f *SyncForwarder) SubmitV1Intake(payload transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, extra)
+func (f *SyncForwarder) SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
+	// treat as a Series transaction
+	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, kind, extra)
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {
 		t.Headers.Set("Content-Type", "application/json")
@@ -91,29 +92,29 @@ func (f *SyncForwarder) SubmitV1Intake(payload transaction.BytesPayloads, extra 
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
 func (f *SyncForwarder) SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1CheckRunsEndpoint, payload, extra)
+	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1CheckRunsEndpoint, payload, transaction.CheckRuns, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *SyncForwarder) SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, extra)
+	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, transaction.Sketches, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *SyncForwarder) SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error {
-	return f.SubmitV1Intake(payload, extra)
+	return f.SubmitV1Intake(payload, transaction.Metadata, extra)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *SyncForwarder) SubmitMetadata(payload transaction.BytesPayloads, extra http.Header) error {
-	return f.SubmitV1Intake(payload, extra)
+	return f.SubmitV1Intake(payload, transaction.Metadata, extra)
 }
 
 // SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
 func (f *SyncForwarder) SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error {
-	return f.SubmitV1Intake(payload, extra)
+	return f.SubmitV1Intake(payload, transaction.Metadata, extra)
 }
 
 // SubmitProcessChecks sends process checks
