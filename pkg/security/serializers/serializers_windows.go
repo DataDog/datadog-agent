@@ -23,6 +23,15 @@ type FileSerializer struct {
 	Name string `json:"name,omitempty"`
 }
 
+// UserContextSerializer serializes a user context to JSON
+// easyjson:json
+type UserContextSerializer struct {
+	// User name
+	User string `json:"name,omitempty"`
+	// Owner Sid
+	OwnerSidString string `json:"sid,omitempty"`
+}
+
 // RegistrySerializer serializes a registry to JSON
 type RegistrySerializer struct {
 	// Registry key name
@@ -49,8 +58,6 @@ type ProcessSerializer struct {
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// Command line arguments
 	CmdLine string `json:"cmdline,omitempty"`
-	// User's sid
-	OwnerSidString string `json:"user_sid,omitempty"`
 	// User name
 	User string `json:"user,omitempty"`
 	// Variables values
@@ -74,12 +81,23 @@ type NetworkDeviceSerializer struct{}
 type EventSerializer struct {
 	*BaseEventSerializer
 	*RegistryEventSerializer `json:"registry,omitempty"`
+	*UserContextSerializer   `json:"usr,omitempty"`
 }
 
 func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSerializer {
 	return &FileSerializer{
 		Path: e.FieldHandlers.ResolveFilePath(e, fe),
 		Name: e.FieldHandlers.ResolveFileBasename(e, fe),
+	}
+}
+
+func newUserContextSerializer(e *model.Event) *UserContextSerializer {
+	if e.ProcessContext == nil || e.ProcessContext.Pid == 0 || e == nil {
+		return nil
+	}
+	return &UserContextSerializer{
+		User:           e.FieldHandlers.ResolveUser(e, &e.ProcessContext.Process),
+		OwnerSidString: e.ProcessContext.Process.OwnerSidString,
 	}
 }
 
@@ -93,16 +111,15 @@ func newRegistrySerializer(re *model.RegistryEvent, _ *model.Event, _ ...uint64)
 }
 func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *ProcessSerializer {
 	psSerializer := &ProcessSerializer{
-		ExecTime: getTimeIfNotZero(ps.ExecTime),
-		ExitTime: getTimeIfNotZero(ps.ExitTime),
+		ExecTime: utils.NewEasyjsonTimeIfNotZero(ps.ExecTime),
+		ExitTime: utils.NewEasyjsonTimeIfNotZero(ps.ExitTime),
 
-		Pid:            ps.Pid,
-		PPid:           getUint32Pointer(&ps.PPid),
-		Executable:     newFileSerializer(&ps.FileEvent, e),
-		CmdLine:        e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
-		OwnerSidString: ps.OwnerSidString,
-		User:           e.FieldHandlers.ResolveUser(e, ps),
-		Variables:      newVariablesContext(e, opts, "process."),
+		Pid:        ps.Pid,
+		PPid:       getUint32Pointer(&ps.PPid),
+		Executable: newFileSerializer(&ps.FileEvent, e),
+		CmdLine:    e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
+		User:       e.FieldHandlers.ResolveUser(e, ps),
+		Variables:  newVariablesContext(e, opts, "process."),
 	}
 
 	if len(ps.ContainerID) != 0 {
@@ -169,7 +186,8 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	s := &EventSerializer{
-		BaseEventSerializer: NewBaseEventSerializer(event, opts),
+		BaseEventSerializer:   NewBaseEventSerializer(event, opts),
+		UserContextSerializer: newUserContextSerializer(event),
 	}
 	eventType := model.EventType(event.Type)
 

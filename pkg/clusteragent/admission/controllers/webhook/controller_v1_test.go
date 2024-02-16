@@ -678,6 +678,26 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 		},
 		{
+			name: "agent sidecar injection, misconfigured profiles, supported provider specified",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "fargate")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "misconfigured")
+			},
+			configFunc: func() Config { return NewConfig(true, true) },
+			want: func() []admiv1.MutatingWebhook {
+				return []admiv1.MutatingWebhook{}
+			},
+		},
+		{
 			name: "agent sidecar injection, no selectors specified, supported provider specified",
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
@@ -689,6 +709,8 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "fargate")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
 			configFunc: func() Config { return NewConfig(true, true) },
 			want: func() []admiv1.MutatingWebhook {
@@ -719,6 +741,8 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "unsupported-prov")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
 			configFunc: func() Config { return NewConfig(true, true) },
 			want: func() []admiv1.MutatingWebhook {
@@ -736,6 +760,9 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
 			configFunc: func() Config { return NewConfig(true, true) },
 			want: func() []admiv1.MutatingWebhook {
@@ -753,7 +780,9 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"NamespaceSelector\": {\"MatchLabels\": {\"labelKey\": \"labelVal\"}}}]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
 			configFunc: func() Config { return NewConfig(true, true) },
 			want: func() []admiv1.MutatingWebhook {
@@ -771,6 +800,26 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 		},
 		{
+			name: "agent sidecar injection, valid selector specified, unsupported provider specified",
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "unsupported-prov")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"ObjectSelector\": {\"MatchLabels\": {\"labelKey\": \"labelVal\"}}}]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
+			},
+			configFunc: func() Config { return NewConfig(true, true) },
+			want: func() []admiv1.MutatingWebhook {
+				return []admiv1.MutatingWebhook{}
+			},
+		},
+		{
 			name: "agent sidecar injection, only single object selector, no provider specified",
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
@@ -781,7 +830,9 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"ObjectSelector\": {\"MatchLabels\": {\"labelKey\": \"labelVal\"}}}]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
 			configFunc: func() Config { return NewConfig(true, true) },
 			want: func() []admiv1.MutatingWebhook {
@@ -807,7 +858,9 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"ObjectSelector\": {\"MatchLabels\": {\"labelKey1\": \"labelVal1\"}}, \"NamespaceSelector\": {\"MatchLabels\": {\"labelKey2\": \"labelVal2\"}}}]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
 			configFunc: func() Config { return NewConfig(true, true) },
 			want: func() []admiv1.MutatingWebhook {
@@ -835,6 +888,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", "fargate")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"NamespaceSelector\": {\"MatchLabels\":{\"labelKey1\": \"labelVal1\"}}} , {\"ObjectSelector\": {\"MatchLabels\": {\"labelKey2\": \"labelVal2\"}}}]")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
 			configFunc: func() Config { return NewConfig(true, true) },
 			want: func() []admiv1.MutatingWebhook {
