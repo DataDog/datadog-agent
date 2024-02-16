@@ -308,8 +308,6 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
-
-	ia.refreshMetadata()
 }
 
 // fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.

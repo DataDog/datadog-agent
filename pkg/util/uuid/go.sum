@@ -1,9 +1,3 @@
-github.com/DataDog/datadog-agent/pkg/util/cache v0.50.2 h1:EW11APy1x30YBlAjsgS6sFCQzfKwEFFAEavQ+5+p2CA=
-github.com/DataDog/datadog-agent/pkg/util/cache v0.50.2/go.mod h1:WgoC2/8fQAa98ogA0sJV84APmaTazFf1ztQgu/VxPXs=
-github.com/DataDog/datadog-agent/pkg/util/log v0.50.2 h1:D4jzhoZtZikiugOr2pl6Xm+MMfrwkjnZziGHgTNpBLk=
-github.com/DataDog/datadog-agent/pkg/util/log v0.50.2/go.mod h1:0vyUsWVWDdIRzd6Itim0ZkjCvOF7V8Yi4IzpE5q/UPo=
-github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.2 h1:xFGXfIsTyHC0VlrrfoAVaZ1pBAJUh2ARZrS7gcdAooY=
-github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.2/go.mod h1:EOGgNrSPskIxY3+KgCl+yEggMjrGqrA2oL5va+/p2jM=
 github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 h1:kHaBemcxl8o/pQ5VM1c8PVE1PubbNx3mjUr09OqWGCs=
 github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575/go.mod h1:9d6lWj8KzO/fd/NrVaLscBKmPigpZpn5YawRPw+e3Yo=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -42,6 +36,8 @@ github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+F
 github.com/tklauser/numcpus v0.6.1/go.mod h1:1XfjsgE2zo8GVw7POkMbHENHzVg3GzmoZ9fESEdAacY=
 github.com/yusufpapurcu/wmi v1.2.3 h1:E1ctvB7uKFMOJw3fdOW32DwGE9I7t++CRUEMKvFoFiw=
 github.com/yusufpapurcu/wmi v1.2.3/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
+go.uber.org/atomic v1.11.0 h1:ZvwS0R+56ePWxUNi+Atn9dWONBPp/AUETXlHW0DxSjE=
+go.uber.org/atomic v1.11.0/go.mod h1:LUxbIzbOniOlMKjJjyPfpl4v+PKK2cNJn91OQbhoJI0=
 golang.org/x/sys v0.0.0-20190916202348-b4ddaad3f8a3/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20201204225414-ed752295db88/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.8.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
