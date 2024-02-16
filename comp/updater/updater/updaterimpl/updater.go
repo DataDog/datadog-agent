@@ -7,6 +7,7 @@
 package updaterimpl
 
 import (
+	"errors"
 	"fmt"
 
 	"go.uber.org/fx"
@@ -18,6 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/updater"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+)
+
+var (
+	errRemoteConfigRequired = errors.New("remote config is required to create the updater")
 )
 
 // Module is the fx module for the updater.
@@ -45,7 +50,7 @@ type dependencies struct {
 func newUpdaterComponent(lc fx.Lifecycle, dependencies dependencies) (updatercomp.Component, error) {
 	remoteConfig, ok := dependencies.RemoteConfig.Get()
 	if !ok {
-		return nil, fmt.Errorf("remote config is required to create the updater")
+		return nil, errRemoteConfigRequired
 	}
 	updater, err := updater.NewUpdater(remoteConfig, dependencies.Parameters.Package)
 	if err != nil {
