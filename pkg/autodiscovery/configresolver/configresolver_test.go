@@ -557,7 +557,7 @@ func TestResolve(t *testing.T) {
 				Hosts: map[string]string{
 					"": "my-cluster.cluster-123456789012.us-west-2.rds.amazonaws.com",
 				},
-				Ports:       []listeners.ContainerPort{{5432, fmt.Sprintf("p%d", 5432)}},
+				Ports:       []listeners.ContainerPort{{Port: 5432, Name: fmt.Sprintf("p%d", 5432)}},
 				CheckNames:  []string{"postgres"},
 				ExtraConfig: map[string]string{"region": "us-west-2", "dbclusteridentifier": "my-cluster", "managed_authentication_enabled": "true"},
 			},

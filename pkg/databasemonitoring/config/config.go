@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2020-present Datadog, Inc.
+
+// Package config contains database-monitoring auto-discovery configuration
 package config
 
 import (
@@ -16,6 +22,7 @@ const (
 type IntegrationType string
 
 const (
+	// Postgres represents the Postgres database-monitoring integration type
 	Postgres IntegrationType = "postgres"
 )
 

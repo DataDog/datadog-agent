@@ -45,10 +45,11 @@ type DBMAuroraService struct {
 	adIdentifier string
 	entityID     string
 	checkName    string
-	clusterId    string
+	clusterID    string
 	instance     *aws.Instance
 }
 
+// NewDBMAuroraListener returns a new DBMAuroraListener
 func NewDBMAuroraListener(Config) (ServiceListener, error) {
 	config, err := dbmconfig.NewAutodiscoverClustersConfig()
 	if err != nil {
@@ -135,7 +136,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 	}
 }
 
-func (l *DBMAuroraListener) createService(entityID, checkName, clusterId string, instance *aws.Instance) {
+func (l *DBMAuroraListener) createService(entityID, checkName, clusterID string, instance *aws.Instance) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
@@ -146,7 +147,7 @@ func (l *DBMAuroraListener) createService(entityID, checkName, clusterId string,
 		entityID:     entityID,
 		checkName:    checkName,
 		instance:     instance,
-		clusterId:    clusterId,
+		clusterID:    clusterID,
 	}
 	l.services[entityID] = svc
 	l.newService <- svc
@@ -186,17 +187,17 @@ func (d *DBMAuroraService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (d *DBMAuroraService) GetADIdentifiers(ctx context.Context) ([]string, error) {
+func (d *DBMAuroraService) GetADIdentifiers(_ context.Context) ([]string, error) {
 	return []string{d.adIdentifier}, nil
 }
 
 // GetHosts returns the host for the aurora endpoint
-func (d *DBMAuroraService) GetHosts(ctx context.Context) (map[string]string, error) {
+func (d *DBMAuroraService) GetHosts(_ context.Context) (map[string]string, error) {
 	return map[string]string{"": d.instance.Endpoint}, nil
 }
 
 // GetPorts returns the port for the aurora endpoint
-func (d *DBMAuroraService) GetPorts(ctx context.Context) ([]ContainerPort, error) {
+func (d *DBMAuroraService) GetPorts(_ context.Context) ([]ContainerPort, error) {
 	port := int(d.instance.Port)
 	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }
@@ -207,16 +208,17 @@ func (d *DBMAuroraService) GetTags() ([]string, error) {
 }
 
 // GetPid returns nil and an error because pids are currently not supported
-func (d *DBMAuroraService) GetPid(ctx context.Context) (int, error) {
+func (d *DBMAuroraService) GetPid(_ context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nothing - not supported
-func (d *DBMAuroraService) GetHostname(ctx context.Context) (string, error) {
+func (d *DBMAuroraService) GetHostname(_ context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
-func (d *DBMAuroraService) IsReady(ctx context.Context) bool {
+// IsReady returns true on DBMAuroraService
+func (d *DBMAuroraService) IsReady(_ context.Context) bool {
 	return true
 }
 
@@ -225,7 +227,7 @@ func (d *DBMAuroraService) GetCheckNames(context.Context) []string {
 	return []string{d.checkName}
 }
 
-// HasFilter returns false on SNMP
+// HasFilter returns false on DBMAuroraService
 //
 //nolint:revive
 func (d *DBMAuroraService) HasFilter(filter containers.FilterType) bool {
@@ -240,7 +242,7 @@ func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 	case "managed_authentication_enabled":
 		return strconv.FormatBool(d.instance.IamEnabled), nil
 	case "dbclusteridentifier":
-		return d.clusterId, nil
+		return d.clusterID, nil
 	}
 	return "", ErrNotSupported
 }
