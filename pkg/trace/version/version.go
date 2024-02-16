@@ -1,3 +1,4 @@
+// Package version comprises functions that are used to retrieve *app* version data from incoming traces.
 package version
 
 import (
@@ -5,10 +6,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"strings"
 )
-
-/*
-This package comprises functions that are used to retrieve *app* version data from incoming traces.
-*/
 
 const (
 	versionField          = "version"
