@@ -41,6 +41,8 @@ var includeContainerStateReason = map[string][]string{
 	"terminated": {"oomkilled", "containercannotrun", "error"},
 }
 
+const kubeNamespaceTag = "kube_namespace"
+
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
 	filter   *containers.Filter
@@ -117,11 +119,8 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 
 	tags, _ := tagger.Tag(containerID, collectors.HighCardinality)
-	if len(tags) == 0 {
-		return
-	}
-	// Skip recording containers without kubelet information in tagger
-	if !isTagKeyPresent("kube_namespace", tags) {
+	// Skip recording containers without kubelet information in tagger or if there are no tags
+	if !isTagKeyPresent(kubeNamespaceTag, tags) || len(tags) == 0 {
 		return
 	}
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
@@ -140,11 +139,8 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 	}
 
 	tags, _ := tagger.Tag(containerID, collectors.OrchestratorCardinality)
-	if len(tags) == 0 {
-		return
-	}
-	// Skip recording containers without kubelet information in tagger
-	if !isTagKeyPresent("kube_namespace", tags) {
+	// Skip recording containers without kubelet information in tagger or if there are no tags
+	if !isTagKeyPresent(kubeNamespaceTag, tags) || len(tags) == 0 {
 		return
 	}
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
@@ -187,11 +183,8 @@ func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStat
 	}
 	r.podHasRunningContainers[pod.Metadata.UID] = true
 	tags, _ := tagger.Tag(containerID, collectors.LowCardinality)
-	if len(tags) == 0 {
-		return
-	}
-	// Skip recording containers without kubelet information in tagger
-	if !isTagKeyPresent("kube_namespace", tags) {
+	// Skip recording containers without kubelet information in tagger or if there are no tags
+	if !isTagKeyPresent(kubeNamespaceTag, tags) || len(tags) == 0 {
 		return
 	}
 	hashTags := generateTagHash(tags)
