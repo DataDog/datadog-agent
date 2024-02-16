@@ -742,22 +742,15 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 
 func (s *Runner) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, pool *scannersPool) {
 	assert(scan.Type == types.TaskTypeEBS)
-	for _, action := range scan.Actions {
-		if action == types.ScanActionVulnsHostOSVm {
-			s.resultsCh <- pool.launchScannerVulns(ctx,
-				sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
-				scan.TargetName,
-				scan.TargetTags,
-				types.ScannerOptions{
-					Action:    types.ScanActionVulnsHostOSVm,
-					Scan:      scan,
-					CreatedAt: time.Now(),
-				})
-		} else {
-			log.Errorf("%s: unexpected scan action %q: %s mode only allow scanning for host vulns", scan, action, scan.DiskMode)
-		}
-	}
-
+	s.resultsCh <- pool.launchScannerVulns(ctx,
+		sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
+		scan.TargetName,
+		scan.TargetTags,
+		types.ScannerOptions{
+			Action:    types.ScanActionVulnsHostOSVm,
+			Scan:      scan,
+			CreatedAt: time.Now(),
+		})
 }
 
 func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool) {
@@ -835,7 +828,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 			// on the parent ctx as we still want to clean these mounts even for a
 			// canceled/timeouted context.
 			cleanupctx, abort := context.WithTimeout(context.Background(), 5*time.Second)
-			devices.Umount(cleanupctx, scan, scan.Path(ctr.MountName))
+			devices.Umount(cleanupctx, scan, ctr.MountPoint)
 			abort()
 		}
 	}
@@ -894,7 +887,7 @@ func (s *Runner) scanContainer(ctx context.Context, scan *types.ScanTask, ctr *t
 			types.ScannerOptions{
 				Action:    action,
 				Scan:      scan,
-				Root:      scan.Path(ctr.MountName),
+				Root:      ctr.MountPoint,
 				Container: ctr,
 				CreatedAt: time.Now(),
 			})

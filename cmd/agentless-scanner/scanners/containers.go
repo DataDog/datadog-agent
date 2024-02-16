@@ -62,8 +62,7 @@ func LaunchContainersInspect(ctx context.Context, opts types.ScannerOptions) (ty
 	}
 
 	for _, ctr := range containers {
-		_, err := MountContainer(ctx, opts.Scan, *ctr)
-		if err != nil {
+		if err := mountContainer(ctx, opts.Scan, *ctr); err != nil {
 			return types.ScanContainerResult{}, err
 		}
 	}
@@ -103,46 +102,52 @@ func ContainerRefs(ctr types.Container) (reference.NamedTagged, reference.Canoni
 	return refTag, refCan, tags
 }
 
-// MountContainer mounts the container layers and returns the mount point.
-func MountContainer(ctx context.Context, scan *types.ScanTask, ctr types.Container) (string, error) {
+// mountContainer mounts the container layers and returns the mount point.
+func mountContainer(ctx context.Context, scan *types.ScanTask, ctr types.Container) error {
 	if len(ctr.Layers) == 0 {
-		return "", fmt.Errorf("container without any layer")
+		return fmt.Errorf("container without any layer")
 	}
-	if len(ctr.Layers) == 1 {
-		// only one layer, no need to mount anything.
-		return ctr.Layers[0], nil
-	}
-	ctrMountPoint := scan.Path(ctr.MountName)
-	if err := os.MkdirAll(ctrMountPoint, 0700); err != nil {
-		return "", fmt.Errorf("could not create container mountPoint directory %q: %w", ctrMountPoint, err)
-	}
-	// We try to reduce the size of the mount options by using the longest common prefix for the layers.
-	// We are limited to a page size for mount options.
-	layersDir := path.Dir(longestLayerPrefix(ctr.Layers)) + "/"
-	layers := make([]string, 0, len(ctr.Layers))
-	for _, layer := range ctr.Layers {
-		layers = append(layers, strings.TrimPrefix(layer, layersDir))
+	if err := os.MkdirAll(ctr.MountPoint, 0700); err != nil {
+		return fmt.Errorf("could not create container mountPoint directory %q: %w", ctr.MountPoint, err)
 	}
 
-	mountPointRel, err := filepath.Rel(layersDir, ctrMountPoint)
-	if err != nil {
-		return "", err
+	var layersDir string
+	var ctrMountOpts []string
+	if len(ctr.Layers) == 1 {
+		layersDir = "/"
+		ctrMountOpts = []string{
+			"-o", "ro,noauto,nodev,noexec,nosuid",
+			"--bind", ctr.Layers[0], ctr.MountPoint,
+		}
+	} else {
+		// We try to reduce the size of the mount options by using the longest common prefix for the layers.
+		// We are limited to a page size for mount options.
+		layersDir = path.Dir(longestLayerPrefix(ctr.Layers)) + "/"
+		layers := make([]string, 0, len(ctr.Layers))
+		for _, layer := range ctr.Layers {
+			layers = append(layers, strings.TrimPrefix(layer, layersDir))
+		}
+		mountPointRel, err := filepath.Rel(layersDir, ctr.MountPoint)
+		if err != nil {
+			return err
+		}
+		ctrMountOpts = []string{
+			"-o", "ro,noauto,nodev,noexec,nosuid,index=off," + fmt.Sprintf("lowerdir=%s", strings.Join(layers, ":")),
+			"-t", "overlay",
+			"--source", "overlay",
+			"--target", mountPointRel,
+		}
 	}
-	ctrMountOpts := []string{
-		"-o", "ro,noauto,nodev,noexec,nosuid,index=off," + fmt.Sprintf("lowerdir=%s", strings.Join(layers, ":")),
-		"-t", "overlay",
-		"--source", "overlay",
-		"--target", mountPointRel,
-	}
+
 	log.Debugf("%s: execing mount (chdir=%s) %s", layersDir, scan, ctrMountOpts)
 	mountCmd := exec.CommandContext(ctx, "mount", ctrMountOpts...)
 	mountCmd.Dir = layersDir
 	mountOutput, err := mountCmd.CombinedOutput()
 	if err != nil {
-		err = fmt.Errorf("could not mount into target=%q options=%q output=%q: %w", ctrMountPoint, ctrMountOpts, string(mountOutput), err)
-		return "", err
+		err = fmt.Errorf("could not mount into target=%q options=%q output=%q: %w", ctr.MountPoint, ctrMountOpts, string(mountOutput), err)
+		return err
 	}
-	return ctrMountPoint, nil
+	return nil
 }
 
 func longestLayerPrefix(strs []string) string {
@@ -575,10 +580,10 @@ func containerdListMetadata(scan *types.ScanTask, containerdRoot string) ([]*typ
 		}
 
 		ctrLayers := containerdLayersPaths(containerdRoot, ctr.Snapshot)
-		ctrMountName := fmt.Sprintf("%s%s-%s-%d", types.ContainerMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
+		ctrMountPoint := scan.Path(fmt.Sprintf("%s%s-%s-%d", types.ContainerMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID))
 		results = append(results, &types.Container{
 			Runtime:           "containerd",
-			MountName:         ctrMountName,
+			MountPoint:        ctrMountPoint,
 			ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
 			ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
 			ContainerName:     ctr.Name,
@@ -834,7 +839,7 @@ func dockerListContainers(scan *types.ScanTask, dockerRoot string) ([]*types.Con
 		if !ctr.State.Running {
 			continue
 		}
-		ctrMountName := types.ContainerMountPrefix + ctr.ID
+		ctrMountPoint := scan.Path(types.ContainerMountPrefix + ctr.ID)
 		ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
 		if err != nil {
 			log.Errorf("%s: docker: could not get container layers %s: %v", scan, ctr, err)
@@ -842,7 +847,7 @@ func dockerListContainers(scan *types.ScanTask, dockerRoot string) ([]*types.Con
 		}
 		results = append(results, &types.Container{
 			Runtime:           "docker",
-			MountName:         ctrMountName,
+			MountPoint:        ctrMountPoint,
 			ImageRefTagged:    reference.AsField(ctr.ImageRefTagged),
 			ImageRefCanonical: reference.AsField(ctr.ImageRefCanonical),
 			ContainerName:     ctr.Name,
