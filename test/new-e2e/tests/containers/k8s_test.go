@@ -14,11 +14,12 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
+	"github.com/samber/lo"
+	"gopkg.in/zorkian/go-datadog-api.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/samber/lo"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
@@ -361,8 +362,8 @@ func (suite *k8sSuite) TestRedis() {
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^display_container_name:redis`,
-				`^image_id:docker.io/library/redis@sha256:`,
-				`^image_name:redis$`,
+				`^image_id:public.ecr.aws/docker/library/redis@sha256:`,
+				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
@@ -416,8 +417,8 @@ func (suite *k8sSuite) TestRedis() {
 				`^dirname:/var/log/pods/workload-redis_redis-`,
 				`^display_container_name:redis`,
 				`^filename:[[:digit:]]+.log$`,
-				`^image_id:docker.io/library/redis@sha256:`,
-				`^image_name:redis$`,
+				`^image_id:public.ecr.aws/docker/library/redis@sha256:`,
+				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
