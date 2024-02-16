@@ -324,6 +324,7 @@ new-e2e-apm:
     !reference [.on_apm_or_e2e_changes_or_manual]
   needs:
     - qa_agent
+    - deploy_deb_testing-a7_x64
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
