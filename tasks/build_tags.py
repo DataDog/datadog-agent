@@ -106,7 +106,7 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib"}
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess", "orchestrator"}).difference({"otlp", "python", "trivy"})
+PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
 PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(

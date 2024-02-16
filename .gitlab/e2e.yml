@@ -132,7 +132,8 @@ new-e2e-containers:
       - EXTRA_PARAMS: --run TestKindSuite
       - EXTRA_PARAMS: --run TestEKSSuite
       - EXTRA_PARAMS: --run TestECSSuite
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS)Suite"
+      - EXTRA_PARAMS: --run TestDockerSuite
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
 
 new-e2e-remote-config:
   extends: .new_e2e_template

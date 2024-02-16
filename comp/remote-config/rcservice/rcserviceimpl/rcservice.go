@@ -9,6 +9,7 @@ package rcserviceimpl
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -37,6 +38,7 @@ type dependencies struct {
 
 	Lc fx.Lifecycle
 
+	Params                *rcservice.Params `optional:"true"`
 	DdRcTelemetryReporter rctelemetryreporter.Component
 	Hostname              hostname.Component
 	Cfg                   cfgcomp.Component
@@ -70,6 +72,13 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(config.Datadog)
 	configuredTags := configUtils.GetConfiguredTags(config.Datadog, false)
 
+	options := []remoteconfig.Option{
+		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
+	}
+	if deps.Params != nil {
+		options = append(options, deps.Params.Options...)
+	}
+
 	configService, err := remoteconfig.NewService(
 		config.Datadog,
 		apiKey,
@@ -78,7 +87,7 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 		configuredTags,
 		deps.DdRcTelemetryReporter,
 		version.AgentVersion,
-		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
+		options...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create remote config service: %w", err)

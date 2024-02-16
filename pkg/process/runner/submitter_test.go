@@ -68,7 +68,6 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
-			assert.Equal(t, tc.expectedQueueSize, c.podResults.MaxSize())
 		})
 	}
 }
