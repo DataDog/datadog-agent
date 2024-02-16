@@ -14,8 +14,6 @@ import (
 	"time"
 	"unsafe"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
@@ -87,15 +85,10 @@ type ContainerContext struct {
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
-	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
-	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
-	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
-}
-
-// CanGenerateAnomaliesFor returns true if the current profile can generate anomalies for the provided event type
-func (spc SecurityProfileContext) CanGenerateAnomaliesFor(evtType EventType) bool {
-	return slices.Contains(spc.AnomalyDetectionEventTypes, evtType)
+	Name       string      `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
+	Version    string      `field:"version"`     // SECLDoc[version] Definition:`Version of the security profile`
+	Tags       []string    `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
+	EventTypes []EventType `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
 }
 
 // IPPortContext is used to hold an IP and Port
@@ -131,7 +124,6 @@ type BaseEvent struct {
 	Rules         []*MatchedRule `field:"-"`
 	ActionReports []ActionReport `field:"-"`
 	Origin        string         `field:"-"`
-	Suppressed    bool           `field:"-"`
 	Service       string         `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
 
 	// context shared with all events
@@ -216,23 +208,14 @@ func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
 }
 
+// IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
+func (e *Event) IsAnomalyDetectionEvent() bool {
+	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
+}
+
 // IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
 func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
 	return AnomalyDetectionSyscallEventType == e.GetEventType()
-}
-
-// IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
-func (e *Event) IsAnomalyDetectionEvent() bool {
-	// first, check if the current event is a kernel generated anomaly detection event
-	if e.IsKernelSpaceAnomalyDetectionEvent() {
-		return true
-	} else if !e.SecurityProfileContext.CanGenerateAnomaliesFor(e.GetEventType()) {
-		// the profile can't generate anomalies for the current event type
-		return false
-	} else if e.IsInProfile() {
-		return false
-	}
-	return true
 }
 
 // AddToFlags adds a flag to the event
