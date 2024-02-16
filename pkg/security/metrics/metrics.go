@@ -35,7 +35,7 @@ var (
 
 	// Rule Suppression metrics
 
-	// MetricRulesSuppressed is the name of the metric used to count the number of events marked as suppressed
+	// MetricRulesSuppressed is the name of the metric used to count the number of auto suppressed events
 	// Tags: rule_id
 	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
 
@@ -120,6 +120,13 @@ var (
 	// MetricPerfBufferSortingAvgOp is the name of the metric used to report average sorting operations.
 	// Tags: -
 	MetricPerfBufferSortingAvgOp = newRuntimeMetric(".perf_buffer.sorting_avg_op")
+
+	// MetricPerfBufferInvalidEventsCount is the name of the metric used to count the number of invalid events retrieved from the event stream
+	// Tags: map, cause
+	MetricPerfBufferInvalidEventsCount = newRuntimeMetric(".perf_buffer.invalid_events.count")
+	// MetricPerfBufferInvalidEventsBytes is the name of the metric used to count the number of bytes of invalid events retrieved from the event stream
+	// Tags: map, cause
+	MetricPerfBufferInvalidEventsBytes = newRuntimeMetric(".perf_buffer.invalid_events.bytes")
 
 	// Process Resolver metrics
 

@@ -280,6 +280,11 @@ func getAgentFullImagePath(e *configCommon.CommonEnvironment) string {
 	if fullImagePath := e.AgentFullImagePath(); fullImagePath != "" {
 		return fullImagePath
 	}
+
+	if e.PipelineID() != "" && e.CommitSHA() != "" {
+		return fmt.Sprintf("669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:%s-%s", e.PipelineID(), e.CommitSHA())
+	}
+
 	return agentDefaultImagePath
 }
 

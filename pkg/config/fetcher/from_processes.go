@@ -9,6 +9,7 @@ package fetcher
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -17,7 +18,7 @@ import (
 
 // SecurityAgentConfig fetch the configuration from the security-agent process by querying its HTTPS API
 func SecurityAgentConfig(config config.Reader) (string, error) {
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
 	}
@@ -31,7 +32,7 @@ func SecurityAgentConfig(config config.Reader) (string, error) {
 
 // TraceAgentConfig fetch the configuration from the trace-agent process by querying its HTTPS API
 func TraceAgentConfig(config config.Reader) (string, error) {
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
 	}
@@ -51,7 +52,7 @@ func TraceAgentConfig(config config.Reader) (string, error) {
 
 // ProcessAgentConfig fetch the configuration from the process-agent process by querying its HTTPS API
 func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, error) {
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
 	}
@@ -76,4 +77,12 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "process-agent")
 
 	return client.FullConfig()
+}
+
+// SystemProbeConfig fetch the configuration from the system-probe process by querying its API
+func SystemProbeConfig(config config.Reader) (string, error) {
+	hc := client.Get(config.GetString("system_probe_config.sysprobe_socket"))
+
+	c := settingshttp.NewClient(hc, "http://localhost/config", "system-probe")
+	return c.FullConfig()
 }

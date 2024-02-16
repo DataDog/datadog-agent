@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"time"
 
@@ -62,8 +63,11 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 	rsa.running.Store(true)
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
-	// Start activity dumps listener
-	go rsa.StartActivityDumpListener()
+
+	if runtime.GOOS == "linux" {
+		// Start activity dumps listener
+		go rsa.StartActivityDumpListener()
+	}
 
 	if rsa.telemetry != nil {
 		// Send Runtime Security Agent telemetry

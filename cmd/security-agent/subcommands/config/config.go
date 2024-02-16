@@ -129,7 +129,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(pkgconfig.Datadog)
 	if err != nil {
 		return nil, err
 	}

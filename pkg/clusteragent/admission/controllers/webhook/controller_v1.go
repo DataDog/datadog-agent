@@ -275,6 +275,26 @@ func (c *ControllerV1) generateTemplates() {
 		}
 	}
 
+	// Agent sidecar injection
+	if config.Datadog.GetBool("admission_controller.agent_sidecar.enabled") {
+		nsSelector, objSelector := buildAgentSidecarObjectSelectors()
+
+		if nsSelector != nil || objSelector != nil {
+			webhook := c.getWebhookSkeleton(
+				"agent-sidecar",
+				config.Datadog.GetString("admission_controller.agent_sidecar.endpoint"),
+				[]admiv1.OperationType{
+					admiv1.Create,
+				},
+				[]string{"pods"},
+				nsSelector,
+				objSelector,
+			)
+			log.Info("registered side car injection v1")
+			webhooks = append(webhooks, webhook)
+		}
+	}
+
 	c.webhookTemplates = webhooks
 }
 

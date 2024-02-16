@@ -36,7 +36,7 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	}
 
 	// Dump the state
-	token, err := security.FetchAuthToken()
+	token, err := security.FetchAuthToken(config.Datadog)
 	if err != nil {
 		return fmt.Errorf("Couldn't get auth token: %v", err)
 	}

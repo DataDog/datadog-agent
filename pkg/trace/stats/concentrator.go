@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // defaultBufferLen represents the default buffer length; the number of bucket size
@@ -50,6 +52,7 @@ type Concentrator struct {
 	peerTagsAggregation    bool     // flag to enable aggregation of peer tags
 	computeStatsBySpanKind bool     // flag to enable computation of stats through checking the span.kind field
 	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
+	statsd                 statsd.ClientInterface
 }
 
 var defaultPeerTags = []string{
@@ -101,7 +104,7 @@ func preparePeerTags(tags ...string) []string {
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time) *Concentrator {
+func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time, statsd statsd.ClientInterface) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
@@ -119,6 +122,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		agentVersion:           conf.AgentVersion,
 		peerTagsAggregation:    conf.PeerServiceAggregation || conf.PeerTagsAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
+		statsd:                 statsd,
 	}
 	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
 	if conf.PeerServiceAggregation || conf.PeerTagsAggregation {
@@ -131,7 +135,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 func (c *Concentrator) Start() {
 	c.exitWG.Add(1)
 	go func() {
-		defer watchdog.LogOnPanic()
+		defer watchdog.LogOnPanic(c.statsd)
 		defer c.exitWG.Done()
 		c.Run()
 	}()

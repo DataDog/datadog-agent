@@ -62,7 +62,7 @@ func state(_ *cliParams, config config.Component) error {
 	fmt.Println("Fetching the configuration and director repos state..")
 	// Call GRPC endpoint returning state tree
 
-	token, err := security.FetchAuthToken()
+	token, err := security.FetchAuthToken(config)
 	if err != nil {
 		return fmt.Errorf("couldn't get auth token: %w", err)
 	}

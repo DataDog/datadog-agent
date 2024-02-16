@@ -12,8 +12,9 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -57,10 +58,11 @@ type Sampler struct {
 	tags    []string
 	exit    chan struct{}
 	stopped chan struct{}
+	statsd  statsd.ClientInterface
 }
 
 // newSampler returns an initialized Sampler
-func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
+func newSampler(extraRate float64, targetTPS float64, tags []string, statsd statsd.ClientInterface) *Sampler {
 	s := &Sampler{
 		seen: make(map[Signature][numBuckets]float32),
 
@@ -72,6 +74,7 @@ func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
 
 		exit:    make(chan struct{}),
 		stopped: make(chan struct{}),
+		statsd:  statsd,
 	}
 	return s
 }
@@ -100,7 +103,7 @@ func (s *Sampler) updateTargetTPS(targetTPS float64) {
 // Start runs and the Sampler main loop
 func (s *Sampler) Start() {
 	go func() {
-		defer watchdog.LogOnPanic()
+		defer watchdog.LogOnPanic(s.statsd)
 		statsTicker := time.NewTicker(10 * time.Second)
 		defer statsTicker.Stop()
 		for {
@@ -313,9 +316,9 @@ func (s *Sampler) report() {
 	s.totalSeen = 0
 	s.muSeen.Unlock()
 	kept := s.totalKept.Swap(0)
-	metrics.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
-	metrics.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
-	metrics.Gauge("datadog.trace_agent.sampler.size", float64(s.size()), s.tags, 1)
+	_ = s.statsd.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
+	_ = s.statsd.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
+	_ = s.statsd.Gauge("datadog.trace_agent.sampler.size", float64(s.size()), s.tags, 1)
 }
 
 // Stop stops the main Run loop

@@ -11,6 +11,8 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -48,10 +50,12 @@ type ClientStatsAggregator struct {
 
 	exit chan struct{}
 	done chan struct{}
+
+	statsd statsd.ClientInterface
 }
 
 // NewClientStatsAggregator initializes a new aggregator ready to be started
-func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayload) *ClientStatsAggregator {
+func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayload, statsd statsd.ClientInterface) *ClientStatsAggregator {
 	c := &ClientStatsAggregator{
 		flushTicker:         time.NewTicker(time.Second),
 		In:                  make(chan *pb.ClientStatsPayload, 10),
@@ -64,6 +68,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayloa
 		oldestTs:            alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
 		exit:                make(chan struct{}),
 		done:                make(chan struct{}),
+		statsd:              statsd,
 	}
 	return c
 }
@@ -71,7 +76,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayloa
 // Start starts the aggregator.
 func (a *ClientStatsAggregator) Start() {
 	go func() {
-		defer watchdog.LogOnPanic()
+		defer watchdog.LogOnPanic(a.statsd)
 		for {
 			select {
 			case t := <-a.flushTicker.C:

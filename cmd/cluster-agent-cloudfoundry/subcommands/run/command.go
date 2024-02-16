@@ -111,7 +111,7 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 	// Setup healthcheck port
 	var healthPort = pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, healthPort)
+		err := healthprobe.Serve(mainCtx, pkgconfig.Datadog, healthPort)
 		if err != nil {
 			return pkglog.Errorf("Error starting health port, exiting: %v", err)
 		}
@@ -148,8 +148,7 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 	common.LoadComponents(secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
-	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption[pkgcollector.Collector](collector), demultiplexer), true)
-	collector.Start()
+	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 	diagnose.Init(optional.NewOption(collector))
 
 	// start the autoconfig, this will immediately run any configured check
