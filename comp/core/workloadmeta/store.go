@@ -27,7 +27,6 @@ const (
 	pullCollectorInterval         = 5 * time.Second
 	maxCollectorPullTime          = 1 * time.Minute
 	eventBundleChTimeout          = 1 * time.Second
-	eventChBufferSize             = 50
 )
 
 type subscriber struct {
@@ -374,7 +373,11 @@ func (w *workloadmeta) GetImage(id string) (*ContainerImageMetadata, error) {
 // Notify implements Store#Notify
 func (w *workloadmeta) Notify(events []CollectorEvent) {
 	if len(events) > 0 {
-		w.eventCh <- events
+		select {
+		case w.eventCh <- events:
+		default:
+			log.Warnf("workloadmeta event channel full, dropping %d events", len(events))
+		}
 	}
 }
 

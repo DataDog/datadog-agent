@@ -1132,6 +1132,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Remote process collector
 	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
 
+	config.BindEnvAndSetDefault("workloadmeta.collector_event_chan_buffer", 50)
+
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
