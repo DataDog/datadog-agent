@@ -20,12 +20,13 @@ type mockRDSClientConfigurer func(k *aws.MockRDSClient)
 
 func TestDBMAuroraListener(t *testing.T) {
 	testCases := []struct {
-		name                string
-		config              dbmconfig.AutodiscoverClustersConfig
-		rdsClientConfigurer mockRDSClientConfigurer
-		previousServices    map[string]struct{}
-		expectedServices    []*DBMAuroraService
-		expectedDelServices []*DBMAuroraService
+		name                  string
+		config                dbmconfig.AutodiscoverClustersConfig
+		numDiscoveryIntervals int
+		rdsClientConfigurer   mockRDSClientConfigurer
+		previousServices      map[string]struct{}
+		expectedServices      []*DBMAuroraService
+		expectedDelServices   []*DBMAuroraService
 	}{
 		{
 			name: "single endpoint discovered and created",
@@ -40,6 +41,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					},
 				},
 			},
+			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRDSClient) {
 				k.EXPECT().GetAuroraClusterEndpoints([]string{"my-cluster-1"}).Return(
 					map[string]*aws.AuroraCluster{
@@ -48,7 +50,6 @@ func TestDBMAuroraListener(t *testing.T) {
 								{
 									Endpoint:   "my-endpoint",
 									Port:       5432,
-									Region:     "us-east-1",
 									IamEnabled: true,
 								},
 							},
@@ -61,10 +62,10 @@ func TestDBMAuroraListener(t *testing.T) {
 					entityID:     "19514be0f2d4837d",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
 					instance: &aws.Instance{
 						Endpoint:   "my-endpoint",
 						Port:       5432,
-						Region:     "us-east-1",
 						IamEnabled: true,
 					},
 				},
@@ -84,6 +85,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					},
 				},
 			},
+			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRDSClient) {
 				k.EXPECT().GetAuroraClusterEndpoints([]string{"my-cluster-1"}).Return(
 					map[string]*aws.AuroraCluster{
@@ -92,19 +94,16 @@ func TestDBMAuroraListener(t *testing.T) {
 								{
 									Endpoint:   "my-endpoint",
 									Port:       5432,
-									Region:     "us-east-1",
 									IamEnabled: true,
 								},
 								{
 									Endpoint:   "foo-endpoint",
 									Port:       5432,
-									Region:     "us-east-1",
 									IamEnabled: true,
 								},
 								{
 									Endpoint:   "bar-endpoint",
 									Port:       5444,
-									Region:     "us-east-1",
 									IamEnabled: false,
 								},
 							},
@@ -117,10 +116,10 @@ func TestDBMAuroraListener(t *testing.T) {
 					entityID:     "19514be0f2d4837d",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
 					instance: &aws.Instance{
 						Endpoint:   "my-endpoint",
 						Port:       5432,
-						Region:     "us-east-1",
 						IamEnabled: true,
 					},
 				},
@@ -129,10 +128,10 @@ func TestDBMAuroraListener(t *testing.T) {
 					entityID:     "9c140ca81a81f639",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
 					instance: &aws.Instance{
 						Endpoint:   "foo-endpoint",
 						Port:       5432,
-						Region:     "us-east-1",
 						IamEnabled: true,
 					},
 				},
@@ -141,10 +140,10 @@ func TestDBMAuroraListener(t *testing.T) {
 					entityID:     "26b65ecd56cd0a64",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
 					instance: &aws.Instance{
 						Endpoint:   "bar-endpoint",
 						Port:       5444,
-						Region:     "us-east-1",
 						IamEnabled: false,
 					},
 				},
@@ -164,6 +163,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					},
 				},
 			},
+			numDiscoveryIntervals: 2, // 3 ticks to ensure the service is deleted
 			rdsClientConfigurer: func(k *aws.MockRDSClient) {
 				gomock.InOrder(
 					k.EXPECT().GetAuroraClusterEndpoints([]string{"my-cluster-1"}).Return(
@@ -173,24 +173,21 @@ func TestDBMAuroraListener(t *testing.T) {
 									{
 										Endpoint:   "my-endpoint",
 										Port:       5432,
-										Region:     "us-east-1",
 										IamEnabled: true,
 									},
 									{
 										Endpoint:   "foo-endpoint",
 										Port:       5432,
-										Region:     "us-east-1",
 										IamEnabled: true,
 									},
 									{
 										Endpoint:   "bar-endpoint",
 										Port:       5444,
-										Region:     "us-east-1",
 										IamEnabled: false,
 									},
 								},
 							},
-						}, nil).Times(1),
+						}, nil).Times(2),
 					k.EXPECT().GetAuroraClusterEndpoints([]string{"my-cluster-1"}).Return(
 						map[string]*aws.AuroraCluster{
 							"my-cluster-1": {
@@ -198,7 +195,6 @@ func TestDBMAuroraListener(t *testing.T) {
 									{
 										Endpoint:   "bar-endpoint",
 										Port:       5444,
-										Region:     "us-east-1",
 										IamEnabled: false,
 									},
 								},
@@ -212,10 +208,10 @@ func TestDBMAuroraListener(t *testing.T) {
 					entityID:     "19514be0f2d4837d",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
 					instance: &aws.Instance{
 						Endpoint:   "my-endpoint",
 						Port:       5432,
-						Region:     "us-east-1",
 						IamEnabled: true,
 					},
 				},
@@ -224,10 +220,10 @@ func TestDBMAuroraListener(t *testing.T) {
 					entityID:     "9c140ca81a81f639",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
 					instance: &aws.Instance{
 						Endpoint:   "foo-endpoint",
 						Port:       5432,
-						Region:     "us-east-1",
 						IamEnabled: true,
 					},
 				},
@@ -236,10 +232,10 @@ func TestDBMAuroraListener(t *testing.T) {
 					entityID:     "26b65ecd56cd0a64",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
 					instance: &aws.Instance{
 						Endpoint:   "bar-endpoint",
 						Port:       5444,
-						Region:     "us-east-1",
 						IamEnabled: false,
 					},
 				},
@@ -250,10 +246,10 @@ func TestDBMAuroraListener(t *testing.T) {
 					entityID:     "19514be0f2d4837d",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
 					instance: &aws.Instance{
 						Endpoint:   "my-endpoint",
 						Port:       5432,
-						Region:     "us-east-1",
 						IamEnabled: true,
 					},
 				},
@@ -262,10 +258,10 @@ func TestDBMAuroraListener(t *testing.T) {
 					entityID:     "9c140ca81a81f639",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
 					instance: &aws.Instance{
 						Endpoint:   "foo-endpoint",
 						Port:       5432,
-						Region:     "us-east-1",
 						IamEnabled: true,
 					},
 				},
@@ -290,8 +286,10 @@ func TestDBMAuroraListener(t *testing.T) {
 			ticks := make(chan time.Time, 1)
 			l := newDBMAuroraListener(tc.config, tc.previousServices, awsClients, ticks)
 			l.Listen(newSvc, delSvc)
-			// ensure loop executes at least once
-			ticks <- time.Now()
+			// execute loop
+			for i := 0; i < tc.numDiscoveryIntervals; i++ {
+				ticks <- time.Now()
+			}
 
 			// shutdown service, and get output from channels
 			l.Stop()

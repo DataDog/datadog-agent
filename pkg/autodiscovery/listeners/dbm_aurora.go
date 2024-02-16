@@ -32,7 +32,7 @@ type DBMAuroraListener struct {
 	stop             chan bool
 	services         map[string]Service
 	config           dbmconfig.AutodiscoverClustersConfig
-	awsClients       map[string]aws.RDSClient
+	awsRdsClients    map[string]aws.RDSClient
 	previousServices map[string]struct{}
 	ticks            <-chan time.Time
 	ticker           *time.Ticker
@@ -46,6 +46,7 @@ type DBMAuroraService struct {
 	entityID     string
 	checkName    string
 	clusterID    string
+	region       string
 	instance     *aws.Instance
 }
 
@@ -65,7 +66,7 @@ func newDBMAuroraListener(config dbmconfig.AutodiscoverClustersConfig, previousS
 		config:           config,
 		services:         make(map[string]Service),
 		stop:             make(chan bool),
-		awsClients:       awsClients,
+		awsRdsClients:    awsClients,
 		previousServices: previousServices,
 		ticks:            ticks,
 	}
@@ -99,15 +100,15 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 		for _, cluster := range l.config.Clusters {
 			ids := make([]string, 0)
 			ids = append(ids, cluster.ClusterIds...)
-			if _, ok := l.awsClients[cluster.Region]; !ok {
+			if _, ok := l.awsRdsClients[cluster.Region]; !ok {
 				c, err := aws.NewRDSClient(cluster.Region, l.config.RoleArn)
 				if err != nil {
 					_ = log.Errorf("error creating aws client for region %s: %s", cluster.Region, err)
 					continue
 				}
-				l.awsClients[cluster.Region] = c
+				l.awsRdsClients[cluster.Region] = c
 			}
-			auroraCluster, err := l.awsClients[cluster.Region].GetAuroraClusterEndpoints(ids)
+			auroraCluster, err := l.awsRdsClients[cluster.Region].GetAuroraClusterEndpoints(ids)
 			if err != nil {
 				_ = log.Error(err)
 				continue
@@ -116,11 +117,12 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 			for id, c := range auroraCluster {
 				for _, instance := range c.Instances {
 					if instance == nil {
+						log.Warnf("recieved malformed instance response for cluster %s, skipping", id)
 						continue
 					}
-					entityID := instance.Digest(string(cluster.Type), id)
+					entityID := instance.Digest(string(cluster.Type), cluster.Region, id)
 					discoveredServices[entityID] = struct{}{}
-					l.createService(entityID, string(cluster.Type), id, instance)
+					l.createService(entityID, string(cluster.Type), id, cluster.Region, instance)
 				}
 			}
 			// TODO: should we wait a certain number of run iterations before we remove instances?
@@ -136,7 +138,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 	}
 }
 
-func (l *DBMAuroraListener) createService(entityID, checkName, clusterID string, instance *aws.Instance) {
+func (l *DBMAuroraListener) createService(entityID, checkName, clusterID, region string, instance *aws.Instance) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
@@ -148,6 +150,7 @@ func (l *DBMAuroraListener) createService(entityID, checkName, clusterID string,
 		checkName:    checkName,
 		instance:     instance,
 		clusterID:    clusterID,
+		region:       region,
 	}
 	l.services[entityID] = svc
 	l.newService <- svc
@@ -238,7 +241,7 @@ func (d *DBMAuroraService) HasFilter(filter containers.FilterType) bool {
 func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 	switch key {
 	case "region":
-		return d.instance.Region, nil
+		return d.region, nil
 	case "managed_authentication_enabled":
 		return strconv.FormatBool(d.instance.IamEnabled), nil
 	case "dbclusteridentifier":
