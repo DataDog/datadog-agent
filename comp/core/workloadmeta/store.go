@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -704,13 +705,20 @@ func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 	// process an event.
 	w.storeMut.Unlock()
 
+	var wg sync.WaitGroup
+	wg.Add(len(filteredEvents))
 	for sub, evs := range filteredEvents {
 		if len(evs) == 0 {
+			wg.Done()
 			continue
 		}
 
-		w.notifyChannel(sub.name, sub.ch, evs, true)
+		go func(sub subscriber, evs []Event) {
+			w.notifyChannel(sub.name, sub.ch, evs, true)
+			wg.Done()
+		}(sub, evs)
 	}
+	wg.Wait()
 }
 
 func (w *workloadmeta) getEntityByKind(kind Kind, id string) (Entity, error) {
