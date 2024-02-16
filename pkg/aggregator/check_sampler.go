@@ -14,6 +14,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,6 +27,7 @@ type CheckSampler struct {
 	sketches               metrics.SketchSeriesList
 	contextResolver        *countBasedContextResolver
 	metrics                metrics.CheckMetrics
+	samplesWithTs          []*metrics.MetricSample
 	sketchMap              sketchMap
 	lastBucketValue        map[ckey.ContextKey]int64
 	deregistered           bool
@@ -47,6 +49,15 @@ func newCheckSampler(expirationCount int, expireMetrics bool, contextResolverMet
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
+	// See checkSender#GaugeWithTimestamp
+	if metricSample.Timestamp < 0 {
+		metricSample.Timestamp = -metricSample.Timestamp
+		if metricSample.Mtype == metrics.GaugeType {
+			cs.samplesWithTs = append(cs.samplesWithTs, metricSample)
+		}
+		return
+	}
+
 	contextKey := cs.contextResolver.trackContext(metricSample)
 
 	if metricSample.Mtype == metrics.DistributionType {
@@ -157,6 +168,26 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 
 		cs.series = append(cs.series, serie)
 	}
+
+	for _, sample := range cs.flushSamplesWithTs() {
+		serie := &metrics.Serie{
+			Name:           sample.Name,
+			Points:         []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}},
+			Tags:           tagset.CompositeTagsFromSlice(sample.Tags),
+			Host:           sample.Host,
+			MType:          metrics.APIGaugeType, // only type supported by AddSample
+			SourceTypeName: checksSourceTypeName,
+			Source:         sample.Source,
+		}
+		cs.series = append(cs.series, serie)
+	}
+	cs.samplesWithTs = nil
+}
+
+func (cs *CheckSampler) flushSamplesWithTs() []*metrics.MetricSample {
+	rv := cs.samplesWithTs
+	cs.samplesWithTs = nil
+	return rv
 }
 
 func (cs *CheckSampler) commitSketches(timestamp float64) {
