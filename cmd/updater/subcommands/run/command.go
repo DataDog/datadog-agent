@@ -53,7 +53,8 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 
 func runFxWrapper(params *cliParams) error {
 	ctx := context.Background()
-	return fxutil.Run(
+	return fxutil.OneShot(
+		run,
 		fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParams(params.GlobalParams.ConfFilePath),
@@ -62,7 +63,7 @@ func runFxWrapper(params *cliParams) error {
 			LogParams:            logimpl.ForDaemon("UPDATER", "updater.log_file", pkgconfig.DefaultUpdaterLogFile),
 		}),
 		core.Bundle(),
-		fx.Supply(updaterimpl.Options{
+		fx.Supply(updaterimpl.Parameters{
 			Package: params.Package,
 		}),
 		fx.Supply(&rcservice.Params{
@@ -74,13 +75,9 @@ func runFxWrapper(params *cliParams) error {
 		rcserviceimpl.Module(),
 		updaterimpl.Module(),
 		localapiimpl.Module(),
-		fx.Invoke(run),
 	)
 }
 
 func run(updater updater.Component, localAPI localapi.Component) error {
-	updater.Start()
-	defer updater.Stop()
-
 	return localAPI.Serve()
 }

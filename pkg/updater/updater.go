@@ -65,8 +65,8 @@ func Install(ctx context.Context, rc client.ConfigUpdater, pkg string) error {
 
 // Updater is the updater used to update packages.
 type Updater interface {
-	Start()
-	Stop()
+	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
 
 	StartExperiment(ctx context.Context, version string) error
 	StopExperiment() error
@@ -124,7 +124,7 @@ func (u *updaterImpl) GetPackage() string {
 }
 
 // Start starts the garbage collector.
-func (u *updaterImpl) Start() {
+func (u *updaterImpl) Start(ctx context.Context) error {
 	go func() {
 		for {
 			select {
@@ -135,14 +135,18 @@ func (u *updaterImpl) Start() {
 				}
 			case <-u.stopChan:
 				return
+			case <-ctx.Done():
+				return
 			}
 		}
 	}()
+	return nil
 }
 
 // Stop stops the garbage collector.
-func (u *updaterImpl) Stop() {
+func (u *updaterImpl) Stop(_ context.Context) error {
 	close(u.stopChan)
+	return nil
 }
 
 // Cleanup cleans up the repository.

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -18,5 +17,5 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"bootstrap"},
 		bootstrap,
-		func(cliParams *cliParams, coreParams core.BundleParams) {})
+		func() {})
 }

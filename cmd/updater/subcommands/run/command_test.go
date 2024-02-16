@@ -8,11 +8,14 @@ package run
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestRunCheckCmdCommand(t *testing.T) {
-	fxutil.TestRun(t, func() error {
-		return runFxWrapper(&cliParams{})
-	})
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"run"},
+		run,
+		func() {})
 }
