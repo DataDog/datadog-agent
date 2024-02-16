@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    Enable `cluster agent` in injected agent sidecar container by default.
-    Set default configuration for connection with the `cluster agent`.
+    Enable `cluster agent` in injected Agent sidecar container by default.
+    Set the default configuration for connecting with the `cluster agent`.

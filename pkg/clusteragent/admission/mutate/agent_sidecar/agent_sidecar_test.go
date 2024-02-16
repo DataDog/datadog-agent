@@ -8,7 +8,9 @@
 package agentsidecar
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -324,14 +326,14 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 						SecretKeyRef: &corev1.SecretKeySelector{
 							Key: "token",
 							LocalObjectReference: corev1.LocalObjectReference{
-								Name: "datadog-agent-cluster-agent",
+								Name: "datadog-secret",
 							},
 						},
 					},
 				},
 				{
 					Name:  "DD_CLUSTER_AGENT_URL",
-					Value: "https://datadog-cluster-agent.default.svc.cluster.local:5005",
+					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", apicommon.GetMyNamespace()),
 				},
 				{
 					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
@@ -357,14 +359,14 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 						SecretKeyRef: &corev1.SecretKeySelector{
 							Key: "token",
 							LocalObjectReference: corev1.LocalObjectReference{
-								Name: "datadog-agent-cluster-agent",
+								Name: "datadog-secret",
 							},
 						},
 					},
 				},
 				{
 					Name:  "DD_CLUSTER_AGENT_URL",
-					Value: "https://test-service-name.default.svc.cluster.local:12345",
+					Value: fmt.Sprintf("https://test-service-name.%s.svc.cluster.local:12345", apicommon.GetMyNamespace()),
 				},
 				{
 					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
