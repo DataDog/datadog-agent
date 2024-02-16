@@ -58,9 +58,11 @@ func TestHTTP2Path(t *testing.T) {
 
 				request := &EbpfTx{
 					Stream: http2Stream{
-						Is_huffman_encoded: huffmanEnabled,
-						Request_path:       arr,
-						Path_size:          uint8(len(buf)),
+						Path: http2Path{
+							Is_huffman_encoded: huffmanEnabled,
+							Raw_buffer:         arr,
+							Length:             uint8(len(buf)),
+						},
 					},
 				}
 

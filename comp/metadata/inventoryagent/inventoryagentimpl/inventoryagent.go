@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -49,8 +50,11 @@ func Module() fxutil.Module {
 
 var (
 	// for testing
-	installinfoGet      = installinfo.Get
-	fetchSecurityConfig = configFetcher.FetchSecurityAgentConfig
+	installinfoGet         = installinfo.Get
+	fetchSecurityConfig    = configFetcher.SecurityAgentConfig
+	fetchProcessConfig     = func(cfg model.Reader) (string, error) { return configFetcher.ProcessAgentConfig(cfg, true) }
+	fetchTraceConfig       = configFetcher.TraceAgentConfig
+	fetchSystemProbeConfig = configFetcher.SystemProbeConfig
 )
 
 type agentMetadata map[string]interface{}
@@ -130,34 +134,14 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	}
 }
 
+func scrub(s string) string {
+	// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
+	// are possible.
+	scrubString, _ := scrubber.ScrubString(s)
+	return scrubString
+}
+
 func (ia *inventoryagent) initData() {
-	clean := func(s string) string {
-		// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
-		// are possible.
-		cleanBytes, _ := scrubber.ScrubBytes([]byte(s))
-		return string(cleanBytes)
-	}
-
-	cfgSlice := func(name string) []string {
-		if ia.conf.IsSet(name) {
-			ss := ia.conf.GetStringSlice(name)
-			rv := make([]string, len(ss))
-			for i, s := range ss {
-				rv[i] = clean(s)
-			}
-			return rv
-		}
-		return []string{}
-	}
-
-	// if system probe configuration was loaded we use it, if not we default to false
-	getBoolSysProbe := func(key string) bool { return false }
-	getIntSysProbe := func(key string) int { return 0 }
-	if sysprobeConf, isset := ia.sysprobeConf.Get(); isset {
-		getBoolSysProbe = func(key string) bool { return sysprobeConf.GetBool(key) }
-		getIntSysProbe = func(key string) int { return sysprobeConf.GetInt(key) }
-	}
-
 	tool := "undefined"
 	toolVersion := ""
 	installerVersion := ""
@@ -181,46 +165,109 @@ func (ia *inventoryagent) initData() {
 		ia.log.Warnf("could not fetch 'hostname_source': %v", err)
 	}
 
-	// core-agent
-
 	ia.data["agent_version"] = version.AgentVersion
 	ia.data["flavor"] = flavor.GetFlavor()
+}
 
-	ia.data["config_dd_url"] = clean(ia.conf.GetString("dd_url"))
-	ia.data["config_site"] = clean(ia.conf.GetString("dd_site"))
-	ia.data["config_logs_dd_url"] = clean(ia.conf.GetString("logs_config.logs_dd_url"))
-	ia.data["config_logs_socks5_proxy_address"] = clean(ia.conf.GetString("logs_config.socks5_proxy_address"))
+type configGetter interface {
+	GetBool(string) bool
+	GetInt(string) int
+	GetString(string) string
+}
+
+// getCorrectConfig tries to fetch the configuration from another process. It returns a new
+// configuration object on success and the fallback upon failure.
+func (ia *inventoryagent) getCorrectConfig(name string, configFetcher func(config model.Reader) (string, error), fallback configGetter) configGetter {
+	// We query the configuration from another agent itself to have accurate data. If the other process isn't
+	// available we fallback on the current configuration.
+	if remoteConfig, err := configFetcher(ia.conf); err == nil {
+		cfg := viper.New()
+		cfg.SetConfigType("yaml")
+		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
+			ia.log.Error("Could not parse '%s' configuration: %s", name, err)
+		} else {
+			return cfg
+		}
+	} else {
+		ia.log.Errorf("could not fetch %s process configuration: %s", name, err)
+	}
+	return fallback
+}
+
+func (ia *inventoryagent) fetchCoreAgentMetadata() {
+	cfgSlice := func(name string) []string {
+		if ia.conf.IsSet(name) {
+			ss := ia.conf.GetStringSlice(name)
+			rv := make([]string, len(ss))
+			for i, s := range ss {
+				rv[i] = scrub(s)
+			}
+			return rv
+		}
+		return []string{}
+	}
+
+	ia.data["config_dd_url"] = scrub(ia.conf.GetString("dd_url"))
+	ia.data["config_site"] = scrub(ia.conf.GetString("dd_site"))
+	ia.data["config_logs_dd_url"] = scrub(ia.conf.GetString("logs_config.logs_dd_url"))
+	ia.data["config_logs_socks5_proxy_address"] = scrub(ia.conf.GetString("logs_config.socks5_proxy_address"))
 	ia.data["config_no_proxy"] = cfgSlice("proxy.no_proxy")
-	ia.data["config_process_dd_url"] = clean(ia.conf.GetString("process_config.process_dd_url"))
-	ia.data["config_proxy_http"] = clean(ia.conf.GetString("proxy.http"))
-	ia.data["config_proxy_https"] = clean(ia.conf.GetString("proxy.https"))
+	ia.data["config_process_dd_url"] = scrub(ia.conf.GetString("process_config.process_dd_url"))
+	ia.data["config_proxy_http"] = scrub(ia.conf.GetString("proxy.http"))
+	ia.data["config_proxy_https"] = scrub(ia.conf.GetString("proxy.https"))
 	ia.data["feature_fips_enabled"] = ia.conf.GetBool("fips.enabled")
 	ia.data["feature_logs_enabled"] = ia.conf.GetBool("logs_enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
-
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
 	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
 
-	// APM / trace-agent
+	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
+	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
+}
 
-	ia.data["config_apm_dd_url"] = clean(ia.conf.GetString("apm_config.apm_dd_url"))
-	ia.data["feature_apm_enabled"] = ia.conf.GetBool("apm_config.enabled")
+func (ia *inventoryagent) fetchSecurityAgentMetadata() {
+	securityCfg := ia.getCorrectConfig("security-agent", fetchSecurityConfig, ia.conf)
 
-	// Process / process-agent
+	ia.data["feature_cspm_enabled"] = securityCfg.GetBool("compliance_config.enabled")
+	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
+}
 
-	ia.data["feature_process_enabled"] = ia.conf.GetBool("process_config.process_collection.enabled")
-	ia.data["feature_process_language_detection_enabled"] = ia.conf.GetBool("language_detection.enabled")
-	ia.data["feature_processes_container_enabled"] = ia.conf.GetBool("process_config.container_collection.enabled")
+func (ia *inventoryagent) fetchTraceAgentMetadata() {
+	traceCfg := ia.getCorrectConfig("trace-agent", fetchTraceConfig, ia.conf)
+
+	ia.data["config_apm_dd_url"] = scrub(traceCfg.GetString("apm_config.apm_dd_url"))
+	ia.data["feature_apm_enabled"] = traceCfg.GetBool("apm_config.enabled")
+}
+
+func (ia *inventoryagent) fetchProcessAgentMetadata() {
+	processCfg := ia.getCorrectConfig("process-agent", fetchProcessConfig, ia.conf)
+
+	ia.data["feature_process_enabled"] = processCfg.GetBool("process_config.process_collection.enabled")
+	ia.data["feature_processes_container_enabled"] = processCfg.GetBool("process_config.container_collection.enabled")
+	ia.data["feature_process_language_detection_enabled"] = processCfg.GetBool("language_detection.enabled")
+}
+
+func (ia *inventoryagent) fetchSystemProbeMetadata() {
+	// If the system-probe configuration is not loaded we fallback on zero value for all metadata
+	getBoolSysProbe := func(key string) bool { return false }
+	getIntSysProbe := func(key string) int { return 0 }
+
+	localSysProbeConf, isSet := ia.sysprobeConf.Get()
+	if isSet {
+		// If we can fetch the configuration from the system-probe process, we use it. If not we fallback on the
+		// local instance.
+		sysProbeConf := ia.getCorrectConfig("system-probe", fetchSystemProbeConfig, localSysProbeConf)
+
+		getBoolSysProbe = sysProbeConf.GetBool
+		getIntSysProbe = sysProbeConf.GetInt
+	}
 
 	// Cloud Workload Security / system-probe
 
 	ia.data["feature_cws_enabled"] = getBoolSysProbe("runtime_security_config.enabled")
-	ia.data["feature_cws_network_enabled"] = getBoolSysProbe("event_monitoring_config.network.enabled")
 	ia.data["feature_cws_security_profiles_enabled"] = getBoolSysProbe("runtime_security_config.activity_dump.enabled")
 	ia.data["feature_cws_remote_config_enabled"] = getBoolSysProbe("runtime_security_config.remote_configuration.enabled")
-
-	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
-	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
+	ia.data["feature_cws_network_enabled"] = getBoolSysProbe("event_monitoring_config.network.enabled")
 
 	// Service monitoring / system-probe
 
@@ -241,6 +288,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_tcp_queue_length_enabled"] = getBoolSysProbe("system_probe_config.enable_tcp_queue_length")
 	ia.data["feature_oom_kill_enabled"] = getBoolSysProbe("system_probe_config.enable_oom_kill")
 	ia.data["feature_windows_crash_detection_enabled"] = getBoolSysProbe("windows_crash_detection.enabled")
+	ia.data["feature_dynamic_instrumentation_enabled"] = getBoolSysProbe("dynamic_instrumentation.enabled")
 
 	ia.data["system_probe_core_enabled"] = getBoolSysProbe("system_probe_config.enable_co_re")
 	ia.data["system_probe_runtime_compilation_enabled"] = getBoolSysProbe("system_probe_config.enable_runtime_compiler")
@@ -290,31 +338,17 @@ func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
 	ia.data["ecs_fargate_cluster_name"] = taskMeta.ClusterName
 }
 
-func (ia *inventoryagent) fetchSecurityAgentMetadata() {
-	type configGetter interface {
-		GetBool(string) bool
-	}
-
-	securityCfg := configGetter(ia.conf)
-	// We query the configuration from the security agent itself to have accurate data. If the security-agent isn't
-	// available we fallback on the current configuration.
-	if securityConfig, err := fetchSecurityConfig(ia.conf); err == nil {
-		cfg := viper.New()
-		cfg.SetConfigType("yaml")
-		if err = cfg.ReadConfig(strings.NewReader(securityConfig)); err != nil {
-			ia.log.Error("Could not pars security-agent configuration: %s", err)
-		} else {
-			securityCfg = cfg
-		}
-	}
-
-	ia.data["feature_cspm_enabled"] = securityCfg.GetBool("compliance_config.enabled")
-	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
-
-}
 func (ia *inventoryagent) refreshMetadata() {
+	// Core Agent / agent
+	ia.fetchCoreAgentMetadata()
 	// Compliance / security-agent
 	ia.fetchSecurityAgentMetadata()
+	// Process / process-agent
+	ia.fetchProcessAgentMetadata()
+	// APM / trace-agent
+	ia.fetchTraceAgentMetadata()
+	// system-probe ecosystem
+	ia.fetchSystemProbeMetadata()
 }
 
 // Set updates a metadata value in the payload. The given value will be stored in the cache without being copied. It is
