@@ -31,8 +31,8 @@ func (f *filters) Set(value string) error {
 	return nil
 }
 
-func (i *filters) String() string {
-	return fmt.Sprintf("%s", *i)
+func (f *filters) String() string {
+	return fmt.Sprintf("%s", *f)
 }
 
 func main() {
