@@ -145,6 +145,14 @@ remove_remote_config_db()
     fi
 }
 
+remove_apm_remote_config()
+{
+    if [ -f "$INSTALL_DIR/run/inject_config.yaml" ]; then
+        echo "Removing APM remote configuration file"
+        rm "$INSTALL_DIR/run/inject_config.yaml" || true
+    fi
+}
+
 stop_agent
 deregister_agent
 remove_custom_integrations

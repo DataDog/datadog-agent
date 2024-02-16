@@ -80,7 +80,7 @@ var (
 
 // InjectConfig adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
 func InjectConfig(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ kubernetes.Interface) ([]byte, error) {
-	return mutate(rawPod, ns, injectConfig, dc)
+	return Mutate(rawPod, ns, injectConfig, dc)
 }
 
 // injectConfig injects DD_AGENT_HOST and DD_ENTITY_ID into a pod template if needed

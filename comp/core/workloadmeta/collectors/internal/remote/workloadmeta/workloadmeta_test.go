@@ -17,18 +17,20 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/proto"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type serverSecure struct {
@@ -135,11 +137,11 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath()); os.IsNotExist(err) {
-		security.CreateOrFetchToken()
+	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog)); os.IsNotExist(err) {
+		security.CreateOrFetchToken(pkgconfig.Datadog)
 		defer func() {
 			// cleanup
-			os.Remove(security.GetAuthTokenFilepath())
+			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog))
 		}()
 	}
 
