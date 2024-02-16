@@ -17,7 +17,9 @@ const (
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = "/opt/datadog-agent/logs/process-agent.log"
 	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeAddress     = "/opt/datadog-agent/run/sysprobe.sock"
+	defaultSystemProbeAddress = "/opt/datadog-agent/run/sysprobe.sock"
+	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
+	defaultEventMonitorAddress    = "/opt/datadog-agent/run/event-monitor.sock"
 	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
