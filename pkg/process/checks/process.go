@@ -96,7 +96,7 @@ type ProcessCheck struct {
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
 
-	sysProbeConfig     *SysProbeConfig
+	sysProbeConfig *SysProbeConfig
 
 	maxBatchSize  int
 	maxBatchBytes int
