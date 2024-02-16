@@ -352,13 +352,13 @@ func (s *Runner) Start(ctx context.Context) {
 		for result := range s.resultsCh {
 			if result.Err != nil {
 				if !errors.Is(result.Err, context.Canceled) {
-					log.Errorf("%s: %s scanner reported a failure: %v", result.Scan, result.Scanner, result.Err)
+					log.Errorf("%s: %s scanner reported a failure: %v", result.Scan, result.Action, result.Err)
 				}
 				if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsFailure(result.Err), 1.0); err != nil {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
-				log.Infof("%s: scanner %s finished (waited %s | took %s): %s", result.Scan, result.Scanner, result.StartedAt.Sub(result.CreatedAt), time.Since(result.StartedAt), nResults(result))
+				log.Infof("%s: scanner %s finished (waited %s | took %s): %s", result.Scan, result.Action, result.StartedAt.Sub(result.CreatedAt), time.Since(result.StartedAt), nResults(result))
 				if vulns := result.Vulns; vulns != nil {
 					if hasResults(vulns.BOM) {
 						if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsSuccess(), 1.0); err != nil {
@@ -728,7 +728,7 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 		go func(root string) {
 			defer wg.Done()
 			result := pool.launchScanner(ctx, types.ScannerOptions{
-				Scanner:   types.ScannerNameHostVulns,
+				Action:    types.ScanActionVulnsHostOS,
 				Scan:      scan,
 				Root:      root,
 				CreatedAt: time.Now(),
@@ -748,7 +748,7 @@ func (s *Runner) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, 
 	assert(scan.Type == types.TaskTypeEBS)
 
 	result := pool.launchScanner(ctx, types.ScannerOptions{
-		Scanner:   types.ScannerNameHostVulnsVM,
+		Action:    types.ScanActionVulnsHostOSVm,
 		Scan:      scan,
 		CreatedAt: time.Now(),
 	})
@@ -769,9 +769,9 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 		defer wg.Done()
 
 		switch action {
-		case types.ScanActionVulnsHost:
+		case types.ScanActionVulnsHostOS:
 			result := pool.launchScanner(ctx, types.ScannerOptions{
-				Scanner:   types.ScannerNameHostVulns,
+				Action:    types.ScanActionVulnsHostOS,
 				Scan:      scan,
 				Root:      root,
 				CreatedAt: time.Now(),
@@ -782,9 +782,9 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 				result.Vulns.Tags = scan.TargetTags
 			}
 			s.resultsCh <- result
-		case types.ScanActionVulnsContainers:
+		case types.ScanActionVulnsContainersOS:
 			ctrResult := pool.launchScanner(ctx, types.ScannerOptions{
-				Scanner:   types.ScannerNameContainers,
+				Action:    types.ScanActionContainers,
 				Scan:      scan,
 				Root:      root,
 				CreatedAt: time.Now(),
@@ -808,7 +808,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 					go func(ctr types.Container) {
 						defer wg.Done()
 						s.resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
-							Scanner:   types.ScannerNameContainerVulns,
+							Action:    types.ScanActionVulnsContainersOS,
 							Scan:      scan,
 							Root:      root,
 							Container: &ctr,
@@ -819,7 +819,7 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 			}
 		case types.ScanActionMalware:
 			s.resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
-				Scanner:   types.ScannerNameMalware,
+				Action:    types.ScanActionMalware,
 				Scan:      scan,
 				Root:      root,
 				CreatedAt: time.Now(),
@@ -844,7 +844,7 @@ func (s *Runner) scanApplication(ctx context.Context, scan *types.ScanTask, root
 	assert(scan.Type == types.TaskTypeLambda)
 
 	result := pool.launchScanner(ctx, types.ScannerOptions{
-		Scanner:   types.ScannerNameAppVulns,
+		Action:    types.ScanActionAppVulns,
 		Scan:      scan,
 		Root:      root,
 		CreatedAt: time.Now(),
@@ -905,22 +905,22 @@ func (p *scannersPool) launchScanner(ctx context.Context, opts types.ScannerOpti
 
 // LaunchScannerInSameProcess launches the scanner in the same process (no fork).
 func LaunchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
-	switch opts.Scanner {
-	case types.ScannerNameHostVulns:
+	switch opts.Action {
+	case types.ScanActionVulnsHostOS:
 		bom, err := scanners.LaunchTrivyHost(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
 		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
 
-	case types.ScannerNameHostVulnsVM:
+	case types.ScanActionVulnsHostOSVm:
 		bom, err := scanners.LaunchTrivyHostVM(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
 		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
 
-	case types.ScannerNameContainerVulns:
+	case types.ScanActionVulnsContainersOS:
 		ctr := *opts.Container
 		mountPoint, err := scanners.MountContainer(ctx, opts.Scan, ctr)
 		if err != nil {
@@ -981,21 +981,21 @@ func LaunchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) 
 		}
 		return types.ScanResult{ScannerOptions: opts, Vulns: vulns}
 
-	case types.ScannerNameAppVulns:
+	case types.ScanActionAppVulns:
 		bom, err := scanners.LaunchTrivyApp(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
 		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
 
-	case types.ScannerNameContainers:
+	case types.ScanActionContainers:
 		containers, err := scanners.LaunchContainers(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
 		}
 		return types.ScanResult{ScannerOptions: opts, Containers: &containers}
 
-	case types.ScannerNameMalware:
+	case types.ScanActionMalware:
 		result, err := scanners.LaunchMalware(ctx, opts)
 		if err != nil {
 			return opts.ErrResult(err)
@@ -1102,9 +1102,9 @@ func launchScannerInChildProcess(ctx context.Context, opts types.ScannerOptions)
 		var errx *exec.ExitError
 		if errors.As(err, &errx) {
 			stderrx := strings.ReplaceAll(stderr.String(), "\n", "\\n")
-			log.Errorf("%s: execed scanner %q with pid=%d: %v: with output:%s", opts.Scan, opts.Scanner, cmd.Process.Pid, errx, stderrx)
+			log.Errorf("%s: execed scanner %q with pid=%d: %v: with output:%s", opts.Scan, opts.Action, cmd.Process.Pid, errx, stderrx)
 		} else {
-			log.Errorf("%s: execed scanner %q: %v", opts.Scan, opts.Scanner, err)
+			log.Errorf("%s: execed scanner %q: %v", opts.Scan, opts.Action, err)
 		}
 		return opts.ErrResult(err)
 	}
