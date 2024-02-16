@@ -1151,7 +1151,7 @@ workflow:
         - .gitlab-ci.yml
         - .gitlab/package_build.yml
         - release.json
-        - .gitlab/package_build
+        - .gitlab/package_build/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_go-version_change:
