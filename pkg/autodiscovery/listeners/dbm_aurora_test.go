@@ -292,36 +292,34 @@ func TestDBMAuroraListener(t *testing.T) {
 			l.Listen(newSvc, delSvc)
 			// ensure loop executes at least once
 			ticks <- time.Now()
-			// assert that the expected number of new services were created
-			createdServices := make([]*DBMAuroraService, 0)
-			for i := 0; i < len(tc.expectedServices); i++ {
-				select {
-				case newService := <-newSvc:
-					dbmAuroraService, ok := newService.(*DBMAuroraService)
-					if !ok {
-						require.Fail(t, "received service of incorrect type on service chan")
-					}
-					createdServices = append(createdServices, dbmAuroraService)
-				case <-time.After(2 * time.Second):
-					require.Fail(t, "timeout waiting for all expected services to be created")
-				}
-			}
-			// assert that the expected number of deleted services were created
-			deletedServices := make([]*DBMAuroraService, 0)
-			for i := 0; i < len(tc.expectedDelServices); i++ {
-				select {
-				case delService := <-delSvc:
-					dbmAuroraService, ok := delService.(*DBMAuroraService)
-					if !ok {
-						require.Fail(t, "received service of incorrect type on service chan")
-					}
-					deletedServices = append(deletedServices, dbmAuroraService)
-				case <-time.After(2 * time.Second):
-					require.Fail(t, "timeout waiting for all expected services to be deleted")
-				}
-			}
+
+			// shutdown service, and get output from channels
 			l.Stop()
+			close(newSvc)
+			close(delSvc)
+
+			// assert that the expected new services were created
+			createdServices := make([]*DBMAuroraService, 0)
+			for newService := range newSvc {
+				dbmAuroraService, ok := newService.(*DBMAuroraService)
+				if !ok {
+					require.Fail(t, "received service of incorrect type on service chan")
+				}
+				createdServices = append(createdServices, dbmAuroraService)
+			}
+			assert.Equal(t, len(tc.expectedServices), len(createdServices))
 			assert.ElementsMatch(t, tc.expectedServices, createdServices)
+
+			// assert that the expected deleted services were created
+			deletedServices := make([]*DBMAuroraService, 0)
+			for delService := range delSvc {
+				dbmAuroraService, ok := delService.(*DBMAuroraService)
+				if !ok {
+					require.Fail(t, "received service of incorrect type on service chan")
+				}
+				deletedServices = append(deletedServices, dbmAuroraService)
+			}
+			assert.Equal(t, len(tc.expectedDelServices), len(deletedServices))
 			assert.ElementsMatch(t, tc.expectedDelServices, deletedServices)
 		})
 	}
