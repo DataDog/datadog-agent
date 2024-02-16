@@ -59,15 +59,14 @@ func (s *UtfSuite) BeforeTest(suiteName, testName string) {
 	}, 1*time.Minute, 10*time.Second)
 
 	// Create a new log file for utf encoded messages
-	s.Env().RemoteHost.MustExecute("sudo touch /var/log/hello-world-utf.log")
-	s.Env().RemoteHost.MustExecute("sudo chmod +r /var/log/hello-world-utf.log")
+	s.Env().RemoteHost.WriteFile("/var/log/hello-world-utf.log", []byte{})
 }
 
 func (s *UtfSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
 	// delete log file
-	s.Env().RemoteHost.MustExecute("sudo rm /var/log/hello-world-utf.log")
+	s.Env().RemoteHost.Remove("/var/log/hello-world-utf.log")
 }
 
 func (s *UtfSuite) TestUtfTailing() {
