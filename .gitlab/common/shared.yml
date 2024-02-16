@@ -3,7 +3,7 @@
   - ARTIFACTORY_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $ARTIFACTORY_TOKEN_SSM_NAME)
 
 .get_artifactory_token_win: &get_artifactory_token_win
-  - $ARTIFACTORY_TOKEN=$(& "$env:CI_PROJECT_DIR\tools\ci\aws_ssm_get_wrapper.ps1" $ARTIFACTORY_TOKEN_SSM_NAME)
+  - $ARTIFACTORY_TOKEN=$(aws ssm get-parameter --region us-east-1 --name $ARTIFACTORY_TOKEN_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
 
 .get_artifactory_bypass_linux: &get_artifactory_bypass_linux
   - ARTIFACTORY_BYPASS=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $ARTIFACTORY_BYPASS_SSM_NAME)
