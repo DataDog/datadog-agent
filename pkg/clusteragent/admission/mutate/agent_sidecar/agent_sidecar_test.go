@@ -286,3 +286,113 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
+	mockConfig := config.Mock(t)
+
+	tests := []struct {
+		name              string
+		setConfig         func()
+		expectedEnvVars   []corev1.EnvVar
+		unexpectedEnvVars []string
+	}{
+		{
+			name: "cluster agent not enabled",
+			setConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", false)
+			},
+			unexpectedEnvVars: []string{
+				"DD_CLUSTER_AGENT_ENABLED",
+				"DD_CLUSTER_AGENT_AUTH_TOKEN",
+				"DD_CLUSTER_AGENT_URL",
+				"DD_ORCHESTRATOR_EXPLORER_ENABLED",
+			},
+		},
+		{
+			name: "cluster agent enabled with default values",
+			setConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+			},
+			expectedEnvVars: []corev1.EnvVar{
+				{
+					Name:  "DD_CLUSTER_AGENT_ENABLED",
+					Value: "true",
+				},
+				{
+					Name: "DD_CLUSTER_AGENT_AUTH_TOKEN",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							Key: "token",
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "datadog-agent-cluster-agent",
+							},
+						},
+					},
+				},
+				{
+					Name:  "DD_CLUSTER_AGENT_URL",
+					Value: "https://datadog-cluster-agent.default.svc.cluster.local:5005",
+				},
+				{
+					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
+					Value: "true",
+				},
+			},
+		},
+		{
+			name: "cluster agent enabled with custom values",
+			setConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+				mockConfig.SetWithoutSource("cluster_agent.cmd_port", 12345)
+				mockConfig.SetWithoutSource("cluster_agent.kubernetes_service_name", "test-service-name")
+			},
+			expectedEnvVars: []corev1.EnvVar{
+				{
+					Name:  "DD_CLUSTER_AGENT_ENABLED",
+					Value: "true",
+				},
+				{
+					Name: "DD_CLUSTER_AGENT_AUTH_TOKEN",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							Key: "token",
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "datadog-agent-cluster-agent",
+							},
+						},
+					},
+				},
+				{
+					Name:  "DD_CLUSTER_AGENT_URL",
+					Value: "https://test-service-name.default.svc.cluster.local:12345",
+				},
+				{
+					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
+					Value: "true",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			test.setConfig()
+			sidecar := getDefaultSidecarTemplate()
+			envVarsMap := make(map[string]corev1.EnvVar)
+			for _, envVar := range sidecar.Env {
+				envVarsMap[envVar.Name] = envVar
+			}
+
+			for _, expectedVar := range test.expectedEnvVars {
+				_, exist := envVarsMap[expectedVar.Name]
+				assert.True(t, exist)
+				assert.Equal(tt, expectedVar, envVarsMap[expectedVar.Name])
+			}
+
+			for _, unexpectedVar := range test.unexpectedEnvVars {
+				_, exist := envVarsMap[unexpectedVar]
+				assert.False(t, exist)
+			}
+		})
+	}
+}
