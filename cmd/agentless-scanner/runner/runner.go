@@ -734,7 +734,7 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 				CreatedAt: time.Now(),
 			})
 			if result.Vulns != nil {
-				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM // TODO: sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
+				result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_IMAGE
 				result.Vulns.ID = scan.TargetName
 				result.Vulns.Tags = scan.TargetTags
 			}
