@@ -28,6 +28,7 @@ var utfLittleEndianLogConfig []byte
 var utfBigEndianLogConfig []byte
 
 const utfservice = "utfservice"
+const logFile = "/var/log/hello-world-utf.log"
 
 // UTFSuite defines a test suite for the log agent tailing UTF encoded logs
 type UtfSuite struct {
@@ -59,14 +60,14 @@ func (s *UtfSuite) BeforeTest(suiteName, testName string) {
 	}, 1*time.Minute, 10*time.Second)
 
 	// Create a new log file for utf encoded messages
-	s.Env().RemoteHost.WriteFile("/var/log/hello-world-utf.log", []byte{})
+	s.Env().RemoteHost.WriteFile(logFile, []byte{})
 }
 
 func (s *UtfSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
 	// delete log file
-	s.Env().RemoteHost.Remove("/var/log/hello-world-utf.log")
+	s.Env().RemoteHost.Remove(logFile)
 }
 
 func (s *UtfSuite) TestUtfTailing() {
@@ -115,6 +116,6 @@ func (s *UtfSuite) testUtfLittleEndianCollection() {
 
 func (s *UtfSuite) generateUtfLog(endianness, content string) {
 	s.T().Helper()
-	utfLogGenerationCommand := fmt.Sprintf(`sudo python3 -c "f = open('/var/log/hello-world-utf.log', 'ab'); t = '%s\n'.encode('utf-16-%s'); f.write(t); f.close()"`, content, endianness)
+	utfLogGenerationCommand := fmt.Sprintf(`sudo python3 -c "f = open(%s, 'ab'); t = '%s\n'.encode('utf-16-%s'); f.write(t); f.close()"`, logFile, content, endianness)
 	s.Env().RemoteHost.MustExecute(utfLogGenerationCommand)
 }
