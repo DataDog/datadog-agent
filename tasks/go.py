@@ -91,6 +91,16 @@ def golangci_lint(
 
 
 @task
+def internal_deps_checker(ctx, formatFile=False):
+    """
+    Check that every required internal dependencies are correctly replaced
+    """
+    extra_params = "--formatFile true" if formatFile else ""
+    for mod in DEFAULT_MODULES.values():
+        ctx.run(f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} {extra_params}")
+
+
+@task
 def deps(ctx, verbose=False):
     """
     Setup Go dependencies
@@ -404,7 +414,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.5 linux/amd64"
+    # result is like "go version go1.21.7 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

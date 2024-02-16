@@ -137,14 +137,9 @@ func (ce *CustomEvent) GetType() string {
 	return ce.eventType.String()
 }
 
-// GetActions returns the triggred actions
-func (ce *CustomEvent) GetActions() []*model.ActionTriggered {
+// GetActionReports returns reports of the action triggered
+func (ce *CustomEvent) GetActionReports() []model.ActionReport {
 	return nil
-}
-
-// IsSuppressed returns true if the event is suppressed
-func (ce *CustomEvent) IsSuppressed() bool {
-	return false
 }
 
 // GetWorkloadID returns the workload id

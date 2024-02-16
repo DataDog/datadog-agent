@@ -33,6 +33,8 @@ const (
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
 	FileRemoveXAttrEventType
+	// FileChdirEventType chdir event
+	FileChdirEventType
 	// FileMountEventType Mount event
 	FileMountEventType
 	// FileUmountEventType Umount event
@@ -102,7 +104,7 @@ const (
 	FirstDiscarderEventType = FileOpenEventType
 
 	// LastDiscarderEventType last event that accepts discarders
-	LastDiscarderEventType = FileRemoveXAttrEventType
+	LastDiscarderEventType = FileChdirEventType
 
 	// LastApproverEventType is the last event that accepts approvers
 	LastApproverEventType = SpliceEventType
@@ -121,6 +123,16 @@ const (
 	CustomTruncatedParentsEventType
 	// CustomSelfTestEventType is the custom event used to report the results of a self test run
 	CustomSelfTestEventType
+	// CreateNewFileEventType event
+	CreateNewFileEventType
+	// CreateRegistryKeyEventType event
+	CreateRegistryKeyEventType
+	// OpenRegistryKeyEventType event
+	OpenRegistryKeyEventType
+	// SetRegistryKeyValueEventType event
+	SetRegistryKeyValueEventType
+	// DeleteRegistryKeyEventType event
+	DeleteRegistryKeyEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -153,6 +165,8 @@ func (t EventType) String() string {
 		return "setxattr"
 	case FileRemoveXAttrEventType:
 		return "removexattr"
+	case FileChdirEventType:
+		return "chdir"
 	case ForkEventType:
 		return "fork"
 	case ExecEventType:
@@ -218,6 +232,16 @@ func (t EventType) String() string {
 		return "truncated_parents"
 	case CustomSelfTestEventType:
 		return "self_test"
+	case CreateNewFileEventType:
+		return "create"
+	case CreateRegistryKeyEventType:
+		return "create_key"
+	case OpenRegistryKeyEventType:
+		return "open_key"
+	case SetRegistryKeyValueEventType:
+		return "set_key_value"
+	case DeleteRegistryKeyEventType:
+		return "delete_key"
 	default:
 		return "unknown"
 	}

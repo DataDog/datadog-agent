@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/DataDog/datadog-agent/pkg/security/serializers/event",
+  "$id": "https://github.com/DataDog/datadog-agent/tree/main/pkg/security/serializers",
   "$defs": {
     "AnomalyDetectionSyscallEvent": {
       "properties": {
@@ -107,6 +107,10 @@
           "type": "string",
           "format": "date-time",
           "description": "Creation time of the container"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -210,9 +214,9 @@
           "type": "string",
           "description": "Origin of the event"
         },
-        "suppressed": {
-          "type": "boolean",
-          "description": "True if the event has been suppressed"
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -888,11 +892,15 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
           "description": "Process source"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -1016,11 +1024,15 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
           "description": "Process source"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         },
         "parent": {
           "$ref": "#/$defs/Process",
@@ -1196,6 +1208,10 @@
           },
           "type": "array",
           "description": "List of tags associated to this profile"
+        },
+        "event_in_profile": {
+          "type": "boolean",
+          "description": "True if the corresponding event is part of this profile"
         }
       },
       "additionalProperties": false,
@@ -1203,7 +1219,8 @@
       "required": [
         "name",
         "version",
-        "tags"
+        "tags",
+        "event_in_profile"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
@@ -1303,6 +1320,10 @@
       "additionalProperties": false,
       "type": "object",
       "description": "UserSessionContextSerializer serializes the user session context to JSON"
+    },
+    "Variables": {
+      "type": "object",
+      "description": "Variables serializes the variable values"
     }
   },
   "properties": {

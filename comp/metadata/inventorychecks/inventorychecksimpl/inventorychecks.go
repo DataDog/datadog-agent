@@ -14,6 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -21,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -30,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // Module defines the fx options for this component.
@@ -49,6 +51,7 @@ type Payload struct {
 	Timestamp    int64                 `json:"timestamp"`
 	Metadata     map[string][]metadata `json:"check_metadata"`
 	LogsMetadata map[string][]metadata `json:"logs_metadata"`
+	UUID         string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -79,7 +82,7 @@ type inventorychecksImpl struct {
 
 	log      log.Component
 	conf     config.Component
-	coll     optional.Option[collector.Collector]
+	coll     optional.Option[collector.Component]
 	sources  optional.Option[*sources.LogSources]
 	hostname string
 }
@@ -90,7 +93,7 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	Coll       optional.Option[collector.Collector]
+	Coll       optional.Option[collector.Component]
 	LogAgent   optional.Option[logagent.Component]
 }
 
@@ -248,5 +251,6 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 		Timestamp:    time.Now().UnixNano(),
 		Metadata:     payloadData,
 		LogsMetadata: logsMetadata,
+		UUID:         uuid.GetUUID(),
 	}
 }

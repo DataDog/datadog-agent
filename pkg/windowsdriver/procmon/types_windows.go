@@ -44,5 +44,5 @@ type DDProcessNotification struct {
 	SidOffset         uint64
 }
 
-const DDProcessNotificationSize = 0x58
+const DDProcessNotificationSize = 0x68
 const DDProcmonStatsSize = 0x30

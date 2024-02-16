@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -29,9 +30,6 @@ import (
 const (
 	// subscriber is the workloadmeta subscriber name
 	subscriber = "language_detection_client"
-
-	// periodicalFlushPeriod parametrizes when the current batch needs to be entirely sent
-	periodicalFlushPeriod = 100 * time.Minute
 
 	// defaultProcessWithoutPodTTL defines the TTL before a process event is expired in the ProcessWithoutPod map
 	// if the associated pod is not found
@@ -125,7 +123,7 @@ func newClient(
 		processesWithoutPodTTL:           defaultProcessWithoutPodTTL,
 		processesWithoutPodCleanupPeriod: defaultprocessesWithoutPodCleanupPeriod,
 		freshlyUpdatedPods:               make(map[string]struct{}),
-		periodicalFlushPeriod:            periodicalFlushPeriod,
+		periodicalFlushPeriod:            deps.Config.GetDuration("language_detection.cleanup.ttl_refresh_period"),
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: cl.start,
@@ -348,7 +346,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 
 	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
-	added := containerInfo.Add(string(process.Language.Name))
+	added := containerInfo.Add(langUtil.Language(process.Language.Name))
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
 		delete(c.processesWithoutPod, process.ContainerID)

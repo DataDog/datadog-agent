@@ -55,7 +55,7 @@ build_iteration 1
 description 'Datadog Updater
  The Datadog Updater is a lightweight process that updates the Datadog Agent
  and Tracers.
- 
+
  See http://www.datadoghq.com/ for more information
 '
 
@@ -76,6 +76,10 @@ package :deb do
       gpg_key_name "#{ENV['DEB_GPG_KEY_NAME']}"
     end
   end
+end
+
+package :ociru do
+  skip_packager true
 end
 
 # ------------------------------------

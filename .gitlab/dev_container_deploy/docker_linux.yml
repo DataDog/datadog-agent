@@ -248,7 +248,8 @@ qa_agent:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    !reference [.on_container_or_e2e_changes_or_manual]
+    - !reference [.on_container_or_e2e_changes_or_manual]
+    - !reference [.on_apm_or_e2e_changes_or_manual]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -299,7 +300,7 @@ qa_dogstatsd:
 qa_main_cws_instrumentation:
   extends: .qa_cws_instrumentation
   rules:
-    !reference [.on_main_and_no_skip_e2e]
+    !reference [.on_main_or_rc_and_no_skip_e2e]
 
 qa_branch_cws_instrumentation:
   extends: .qa_cws_instrumentation

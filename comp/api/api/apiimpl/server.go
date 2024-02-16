@@ -13,6 +13,8 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
+
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -79,6 +81,7 @@ func StartServers(
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
+	eventPlatformReceiver eventplatformreceiver.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -103,7 +106,7 @@ func StartServers(
 		MinVersion:   tls.VersionTLS12,
 	}
 
-	if err := util.CreateAndSetAuthToken(); err != nil {
+	if err := util.CreateAndSetAuthToken(config.Datadog); err != nil {
 		return err
 	}
 
@@ -129,6 +132,7 @@ func StartServers(
 		invChecks,
 		pkgSigning,
 		statusComponent,
+		eventPlatformReceiver,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

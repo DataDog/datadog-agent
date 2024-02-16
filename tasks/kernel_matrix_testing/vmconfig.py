@@ -2,7 +2,6 @@ import copy
 import itertools
 import json
 import math
-import multiprocessing
 import os
 import platform
 from urllib.parse import urlparse
@@ -384,10 +383,6 @@ def add_console(vmset):
     vmset["console_type"] = "file"
 
 
-def add_available_cpus(vmset, cpus):
-    vmset["host"] = {"available_cpus": cpus}
-
-
 def url_to_fspath(url):
     source = urlparse(url)
     filename = os.path.basename(source.path)
@@ -479,7 +474,7 @@ def build_vmsets(normalized_vm_defs, sets):
     return vmsets
 
 
-def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci, host_cpus):
+def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
     with open(platforms_file) as f:
         platforms = json.load(f)
 
@@ -515,8 +510,6 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci, hos
         if ci:
             add_console(vmset)
 
-        add_available_cpus(vmset, host_cpus)
-
     return vm_config
 
 
@@ -541,7 +534,9 @@ def build_normalized_vm_def_set(vms):
     return normalized_vms
 
 
-def gen_config_for_stack(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, host_cpus):
+def gen_config_for_stack(
+    ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False
+):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
@@ -562,7 +557,7 @@ def gen_config_for_stack(ctx, stack, vms, sets, init_stack, vcpu, memory, new, c
         orig_vm_config = f.read()
     vm_config = json.loads(orig_vm_config)
 
-    vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_set(vms), vcpu, memory, sets, ci, host_cpus)
+    vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_set(vms), vcpu, memory, sets, ci)
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"
@@ -597,7 +592,7 @@ def list_all_distro_normalized_vms(archs):
     return vms
 
 
-def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, host_cpus):
+def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file):
     vcpu_ls = vcpu.split(',')
     memory_ls = memory.split(',')
 
@@ -608,19 +603,8 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, o
         set_ls = sets.split(",")
 
     if not ci:
-        if host_cpus is None:
-            host_cpus = multiprocessing.cpu_count()
         return gen_config_for_stack(
-            ctx,
-            stack,
-            vms,
-            set_ls,
-            init_stack,
-            ls_to_int(vcpu_ls),
-            ls_to_int(memory_ls),
-            new,
-            ci,
-            int(host_cpus),
+            ctx, stack, vms, set_ls, init_stack, ls_to_int(vcpu_ls), ls_to_int(memory_ls), new, ci
         )
 
     arch_ls = ["x86_64", "arm64"]
@@ -628,17 +612,7 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, o
         arch_ls = [arch_mapping[arch]]
 
     vms_to_generate = list_all_distro_normalized_vms(arch_ls)
-    if host_cpus is None:
-        raise Exit("no value for available cpus provided")
-    vm_config = generate_vmconfig(
-        {"vmsets": []},
-        vms_to_generate,
-        ls_to_int(vcpu_ls),
-        ls_to_int(memory_ls),
-        set_ls,
-        ci,
-        int(host_cpus),
-    )
+    vm_config = generate_vmconfig({"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci)
 
     with open(output_file, "w") as f:
         f.write(json.dumps(vm_config, indent=4))

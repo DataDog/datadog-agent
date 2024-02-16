@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -40,6 +39,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -62,6 +63,8 @@ import (
 	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
@@ -89,7 +92,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
-	"github.com/DataDog/datadog-agent/pkg/collector"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
@@ -97,13 +100,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/pkg/status/autodiscovery"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
-	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httpproxyStatus "github.com/DataDog/datadog-agent/pkg/status/httpproxy"
@@ -207,6 +210,7 @@ func run(log log.Component,
 	agentAPI internalAPI.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
+	collector collector.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, agentAPI)
@@ -267,6 +271,7 @@ func run(log log.Component,
 		agentAPI,
 		invChecks,
 		statusComponent,
+		collector,
 	); err != nil {
 		return err
 	}
@@ -304,7 +309,6 @@ func getSharedFxOption() fx.Option {
 			status.Params{
 				PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
 			},
-			status.NewInformationProvider(collectorStatus.Provider{}),
 			status.NewHeaderInformationProvider(net.Provider{}),
 			status.NewInformationProvider(jmxStatus.Provider{}),
 			status.NewInformationProvider(endpointsStatus.Provider{}),
@@ -342,11 +346,11 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, _ tagger.Component, secretResolver secrets.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, _ tagger.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
 					// create and setup the Autoconfig instance
-					common.LoadComponents(demultiplexer, secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -364,6 +368,10 @@ func getSharedFxOption() fx.Option {
 		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
+		eventplatformimpl.Module(),
+		fx.Supply(eventplatformimpl.NewDefaultParams()),
+		eventplatformreceiverimpl.Module(),
+
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -372,9 +380,7 @@ func getSharedFxOption() fx.Option {
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		snmptraps.Bundle(),
-		fx.Provide(func(demultiplexer demultiplexer.Component) optional.Option[collector.Collector] {
-			return optional.NewOption(common.LoadCollector(demultiplexer))
-		}),
+		collectorimpl.Module(),
 	)
 }
 
@@ -398,6 +404,7 @@ func startAgent(
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
+	collector collector.Component,
 ) error {
 
 	var err error
@@ -469,7 +476,7 @@ func startAgent(
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 	healthPort := pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, healthPort)
+		err := healthprobe.Serve(ctx, pkgconfig.Datadog, healthPort)
 		if err != nil {
 			return log.Errorf("Error starting health port, exiting: %v", err)
 		}
@@ -502,6 +509,9 @@ func startAgent(
 		} else {
 			// Subscribe to `AGENT_TASK` product
 			rcclient.SubscribeAgentTask()
+
+			// Subscribe to `APM_TRACING` product
+			rcclient.SubscribeApmTracing()
 
 			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
 				// Spin up the config provider to schedule integrations through remote-config
@@ -557,7 +567,7 @@ func startAgent(
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
 		log.Infof("GUI server port -1 specified: not starting the GUI.")
-	} else if err = gui.StartGUIServer(guiPort, flare, statusComponent); err != nil {
+	} else if err = gui.StartGUIServer(guiPort, flare, statusComponent, collector); err != nil {
 		log.Errorf("Error while starting GUI: %v", err)
 	}
 
@@ -573,16 +583,18 @@ func startAgent(
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 
+	// Init JMX runner and inject dogstatsd component
+	jmx.InitRunner(server)
+
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)
-	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)
-	common.Coll.Start()
+	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+	diagnose.Init(optional.NewOption(collector))
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
 	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
-		global.DSD = server
 		err := server.Start(demultiplexer)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)

@@ -230,7 +230,10 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
+			apmInstrumentation, err := newAPMInstrumentationWebhook()
+			require.NoError(t, err)
+
+			err = apmInstrumentation.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
 			require.False(t, (err != nil) != tt.wantErr)
 			if err != nil {
 				return
@@ -610,7 +613,11 @@ func TestExtractLibInfo(t *testing.T) {
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}
-			libsToInject, _ := extractLibInfo(tt.pod, tt.containerRegistry)
+
+			apmInstrumentation, err := newAPMInstrumentationWebhook()
+			require.NoError(t, err)
+
+			libsToInject, _ := apmInstrumentation.extractLibInfo(tt.pod, tt.containerRegistry)
 			require.ElementsMatch(t, tt.expectedLibsToInject, libsToInject)
 		})
 	}
@@ -696,6 +703,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 		image   string
 		lang    language
 		wantErr bool
+		wantCPU string
+		wantMem string
 	}{
 		{
 			name:    "no resources",
@@ -703,6 +712,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
+			wantCPU: "10m",
+			wantMem: "20Mi",
 		},
 		{
 			name:    "with resources",
@@ -712,6 +723,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
+			wantCPU: "100m",
+			wantMem: "500",
 		},
 		{
 			name:    "cpu only",
@@ -720,6 +733,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
+			wantCPU: "200m",
+			wantMem: "20Mi",
 		},
 		{
 			name:    "memory only",
@@ -728,6 +743,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
+			wantCPU: "10m",
+			wantMem: "512Mi",
 		},
 		{
 			name:    "with invalid resources",
@@ -736,6 +753,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: true,
+			wantCPU: "10m",
+			wantMem: "20Mi",
 		},
 	}
 	for _, tt := range tests {
@@ -758,14 +777,14 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.cpu != "" {
 				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
 				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
-				require.Equal(t, tt.cpu, req.String())
-				require.Equal(t, tt.cpu, lim.String())
+				require.Equal(t, tt.wantCPU, req.String())
+				require.Equal(t, tt.wantCPU, lim.String())
 			}
 			if tt.mem != "" {
 				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
 				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
-				require.Equal(t, tt.mem, req.String())
-				require.Equal(t, tt.mem, lim.String())
+				require.Equal(t, tt.wantMem, req.String())
+				require.Equal(t, tt.wantMem, lim.String())
 			}
 		})
 	}
@@ -773,14 +792,6 @@ func TestInjectLibInitContainer(t *testing.T) {
 
 func expBasicConfig() []corev1.EnvVar {
 	return []corev1.EnvVar{
-		{
-			Name:  "DD_TRACE_RATE_LIMIT",
-			Value: "100",
-		},
-		{
-			Name:  "DD_TRACE_SAMPLE_RATE",
-			Value: "1.00",
-		},
 		{
 			Name:  "DD_RUNTIME_METRICS_ENABLED",
 			Value: "true",
@@ -1549,7 +1560,11 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}
-			err := injectAutoInstrumentation(tt.pod, "", fake.NewSimpleDynamicClient(scheme))
+
+			apmInstrumentation, err := newAPMInstrumentationWebhook()
+			require.NoError(t, err)
+
+			err = apmInstrumentation.injectAutoInstrumentation(tt.pod, "", fake.NewSimpleDynamicClient(scheme))
 			require.False(t, (err != nil) != tt.wantErr)
 
 			container := tt.pod.Spec.Containers[0]
@@ -1593,6 +1608,154 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		t.Cleanup(func() {
 			os.Unsetenv("DD_INSTRUMENTATION_INSTALL_ID")
 			os.Unsetenv("DD_INSTRUMENTATION_INSTALL_TIME")
+		})
+	}
+}
+
+func TestShouldInject(t *testing.T) {
+	var mockConfig *config.MockConfig
+	tests := []struct {
+		name        string
+		pod         *corev1.Pod
+		setupConfig func()
+		want        bool
+	}{
+		{
+			name:        "instrumentation on, no label",
+			pod:         fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
+			want:        true,
+		},
+		{
+			name:        "instrumentation on, label disabled",
+			pod:         fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
+			want:        false,
+		},
+		{
+			name: "instrumentation on with disabled namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
+			},
+			want: false,
+		},
+		{
+			name: "instrumentation on with disabled namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns2"})
+			},
+			want: true,
+		},
+		{
+			name: "instrumentation on with disabled namespace, disabled label",
+			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
+			},
+			want: false,
+		},
+		{
+			name: "instrumentation on with disabled namespace, label enabled",
+			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
+			},
+			want: true,
+		},
+		{
+			name:        "instrumentation off, label enabled",
+			pod:         fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
+			want:        true,
+		},
+		{
+			name:        "instrumentation off, no label",
+			pod:         fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
+			want:        false,
+		},
+		{
+			name: "instrumentation off with enabled namespace, label enabled",
+			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
+			},
+			want: true,
+		},
+		{
+			name: "instrumentation off with enabled namespace, label disabled",
+			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
+			},
+			want: false,
+		},
+		{
+			name: "instrumentation off with enabled namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
+			},
+			want: false,
+		},
+		{
+			name: "instrumentation on with enabled namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
+			},
+			want: true,
+		},
+		{
+			name: "instrumentation on with enabled other namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"n2s"})
+			},
+			want: false,
+		},
+		{
+			name: "instrumentation on in kube-system namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("kube-system", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+			},
+			want: false,
+		},
+		{
+			name: "instrumentation on in default (datadog) namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("default", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("kube_resources_namespace", "default")
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig = config.Mock(nil)
+			tt.setupConfig()
+
+			// Need to create a new instance of the webhook to take into account
+			// the config changes.
+			apmInstrumentationWebhook, errInitAPMInstrumentation = newAPMInstrumentationWebhook()
+
+			if got := shouldInject(tt.pod); got != tt.want {
+				t.Errorf("shouldInject() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }

@@ -61,7 +61,7 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSeriali
 		assert.Equal(tb, "open", event.GetType(), "wrong event type")
 	})
 
-	return serializers.NewEventSerializer(workingEvent)
+	return serializers.NewEventSerializer(workingEvent, nil)
 }
 
 func BenchmarkSerializersEasyJson(b *testing.B) {
