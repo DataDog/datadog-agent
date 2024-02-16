@@ -67,12 +67,14 @@ const (
 	ScanActionVulnsHostOS ScanAction = "vulns-host-os"
 	// ScanActionVulnsHostOSVm (DEPRECATED) is the name of the scanner for host vulnerabilities (using userspace drivers for filesystems)
 	ScanActionVulnsHostOSVm ScanAction = "vulns-host-os-vm"
-	// ScanActionVulnsContainerOS is the name of the scanner for container vulnerabilities
+	// ScanActionVulnsContainersOS is the name of the scanner for container vulnerabilities
 	ScanActionVulnsContainersOS ScanAction = "vulns-containers-os"
+	// ScanActionVulnsContainersApp is the name of the scanner for application vulnerabilities running in containers
+	ScanActionVulnsContainersApp ScanAction = "vulns-containers-app"
 	// ScanActionAppVulns is the name of the scanner for application vulnerabilities
 	ScanActionAppVulns ScanAction = "appvulns"
-	// ScanActionContainers is the name of the scanner that list and mount containers
-	ScanActionContainers ScanAction = "mount-containers"
+	// ScanActionContainersInspect is the name of the scanner that list and mount containers
+	ScanActionContainersInspect ScanAction = "containers-inspect"
 	// ScanActionMalware is the name of the scanner for malware
 	ScanActionMalware ScanAction = "malware"
 )
@@ -542,10 +544,12 @@ func ParseScanAction(action string) (ScanAction, error) {
 		return ScanActionVulnsHostOSVm, nil
 	case string(ScanActionVulnsContainersOS):
 		return ScanActionVulnsContainersOS, nil
+	case string(ScanActionVulnsContainersApp):
+		return ScanActionVulnsContainersApp, nil
 	case string(ScanActionAppVulns):
 		return ScanActionAppVulns, nil
-	case string(ScanActionContainers):
-		return ScanActionContainers, nil
+	case string(ScanActionContainersInspect):
+		return ScanActionContainersInspect, nil
 	case string(ScanActionMalware):
 		return ScanActionMalware, nil
 	default:
