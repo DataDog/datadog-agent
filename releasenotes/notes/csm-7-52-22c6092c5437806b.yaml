@@ -5,7 +5,7 @@ features:
   - |
     CWS: [BETA] Add File Integrity Monitoring support on Windows, supporting both files and registry.
   - |
-    CWS: The Agent will now automatically suppress benign security events if they have already been reported for a particular container image.
+    CWS: The Agent now automatically suppresses benign security events if they have already been reported for a particular container image.
 enhancements:
   - |
     CWS: Improved coverage on platforms with no eBPF support.
