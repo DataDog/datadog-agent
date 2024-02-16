@@ -24,6 +24,15 @@ func NewEasyjsonTime(t time.Time) EasyjsonTime {
 	return EasyjsonTime{inner: t}
 }
 
+// NewEasyjsonTimeIfNotZero returns a new EasyjsonTime based on the provided time or nil if zero time
+func NewEasyjsonTimeIfNotZero(t time.Time) *EasyjsonTime {
+	if t.IsZero() {
+		return nil
+	}
+	tt := NewEasyjsonTime(t)
+	return &tt
+}
+
 // MarshalEasyJSON does JSON marshaling using easyjson interface
 func (t EasyjsonTime) MarshalEasyJSON(w *jwriter.Writer) {
 	if y := t.inner.Year(); y < 0 || y >= 10000 {

@@ -8,10 +8,18 @@ package rcservice
 
 import (
 	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // team: remote-config
+
+// Params is the set of parameters required for the remote config service.
+type Params struct {
+	// Options is the set of options for the remote config service.
+	Options []service.Option
+}
 
 // Component is the component type.
 type Component interface {

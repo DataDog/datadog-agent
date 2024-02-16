@@ -318,28 +318,12 @@ new-e2e-orchestrator-main:
 
   allow_failure: true #TODO: Remove when https://github.com/DataDog/datadog-agent/pull/22113 is merged
 
-new-e2e-apm-dev:
+new-e2e-apm:
   extends: .new_e2e_template
   rules:
-    - !reference [.if_run_e2e_tests]
-    - !reference [.on_dev_branch_manual]
+    !reference [.on_apm_or_e2e_changes_or_manual]
   needs:
     - qa_agent
-    - qa_dca
-    - qa_dogstatsd
-  variables:
-    TARGETS: ./tests/apm
-    TEAM: apm-agent
-  parallel:
-    matrix:
-      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
-      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
-      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
-      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
-
-new-e2e-apm-main:
-  extends: .new_e2e_template
-  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent

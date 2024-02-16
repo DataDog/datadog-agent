@@ -6,6 +6,9 @@
 package state
 
 var validProducts = map[string]struct{}{
+	ProductUpdaterCatalogDD:  {},
+	ProductUpdaterAgent:      {},
+	ProductUpdaterTask:       {},
 	ProductAgentConfig:       {},
 	ProductAgentTask:         {},
 	ProductAgentIntegrations: {},
@@ -24,6 +27,12 @@ var validProducts = map[string]struct{}{
 }
 
 const (
+	// ProductUpdaterCatalogDD is the product used to receive the package catalog from datadog
+	ProductUpdaterCatalogDD = "UPDATER_CATALOG_DD"
+	// ProductUpdaterAgent is the product used to receive defaults versions to install
+	ProductUpdaterAgent = "UPDATER_AGENT"
+	// ProductUpdaterTask is the product used to receive tasks to execute
+	ProductUpdaterTask = "UPDATER_TASK"
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentIntegrations is to receive integrations to schedule

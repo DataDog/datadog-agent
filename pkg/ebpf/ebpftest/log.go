@@ -35,7 +35,7 @@ func (t testLogger) ReceiveMessage(message string, level seelog.LogLevel, contex
 	return nil
 }
 
-func (t testLogger) AfterParse(initArgs seelog.CustomReceiverInitArgs) error { //nolint:revive // TODO fix revive unused-parameter
+func (t testLogger) AfterParse(_ seelog.CustomReceiverInitArgs) error {
 	return nil
 }
 
