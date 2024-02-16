@@ -349,7 +349,7 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^ecs_container_name:redis$`,
 				`^ecs_launch_type:fargate`,
 				`^image_id:sha256:`,
-				`^image_name:redis$`,
+				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
 				`^redis_host:`,
 				`^redis_port:6379$`,
