@@ -24,7 +24,7 @@ import (
 )
 
 //go:embed log-config/automulti.yaml
-var agentAutoMultiLineConfig string
+var autoMultiLineConfig string
 
 //go:embed log-config/pattern.yaml
 var multiLineLogPatternConfig string
@@ -32,6 +32,8 @@ var multiLineLogPatternConfig string
 const singleLineLog = "This is a single line log"
 const multiLineLog = "This is a multi\nline log"
 
+// MultiLineSuite defines a test suite for testing the log agents
+// auto_multi_line_detection and multi_line features
 type MultiLineSuite struct {
 	e2e.BaseSuite[environments.Host]
 	DevMode bool
@@ -57,6 +59,14 @@ func (s *MultiLineSuite) TestMultiLine() {
 
 func (s *MultiLineSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
+
+	// flush intake
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+		if assert.NoErrorf(c, err, "Having issues flushing server and resetting aggregators, retrying...") {
+			s.T().Log("Successfully flushed server and reset aggregators.")
+		}
+	}, 1*time.Minute, 10*time.Second)
 
 	// Create a new log folder location
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mkdir -p %s", utils.LinuxLogsFolderPath))
@@ -90,7 +100,7 @@ func (s *MultiLineSuite) generateMultilineLogs(prefix string, count int) {
 func (s *MultiLineSuite) detectsAutoMultiLine() {
 	agentOptions := []agentparams.Option{
 		agentparams.WithLogs(),
-		agentparams.WithIntegration("custom_logs.d", agentAutoMultiLineConfig),
+		agentparams.WithIntegration("custom_logs.d", autoMultiLineConfig),
 	}
 	// Update env to enable auto_multi_line_detection
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
@@ -111,7 +121,8 @@ func (s *MultiLineSuite) detectsAutoMultiLine() {
 		}
 
 		// Auto Multiline is working if the log message contains the complete log contents with newlines
-		logs, err := client.FilterLogs(service, fi.WithMessageContaining(content))
+		// logs, err := client.FilterLogs(service, fi.WithMessageContaining(content))
+		logs, err := client.FilterLogs(service)
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
 		}
@@ -128,12 +139,12 @@ func (s *MultiLineSuite) detectsPatternMultiLine() {
 	// Update env to add log_processing_rules with multi_line pattern
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
 
-	s.generateMultilineLogs("custom-log-prefix", 100)
+	s.generateMultilineLogs("fake-log-prefix", 100)
 
 	client := s.Env().FakeIntake.Client()
 
-	// Raw string since '\n' literal will be in the log.Message
-	content := `custom-log-prefix | This is a multi\nline log`
+	// regex pattern to ensure that the log consists entirely of only one multi line log
+	content := `^fake-log-prefix \| This is a multi\\nline log$`
 	service := "hello"
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -143,7 +154,7 @@ func (s *MultiLineSuite) detectsPatternMultiLine() {
 		}
 
 		// multi_line pattern is working if the log message contains the complete log contents with newlines
-		logs, err := client.FilterLogs(service, fi.WithMessageContaining(content))
+		logs, err := client.FilterLogs(service, fi.WithMessageMatching(content))
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
 		}
