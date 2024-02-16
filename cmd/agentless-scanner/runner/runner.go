@@ -866,23 +866,32 @@ func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, 
 }
 
 func (s *Runner) scanContainer(ctx context.Context, scan *types.ScanTask, ctr *types.Container, actions []types.ScanAction, pool *scannersPool) {
-	refTagged, refCanonical, tags := scanners.ContainerRefs(*ctr)
+	imageRefTagged, imageRefCanonical, imageTags := scanners.ContainerRefs(*ctr)
 	for _, action := range actions {
 		assert(action == types.ScanActionVulnsContainersApp || action == types.ScanActionVulnsContainersOS)
 
 		var sourceType sbommodel.SBOMSourceType
+		var sbomID string
+		var tags []string
 		switch action {
 		case types.ScanActionVulnsContainersOS:
 			sourceType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
+			sbomID = imageRefCanonical.String()
+			tags = imageTags
 		case types.ScanActionVulnsContainersApp:
 			sourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: sbommodel.SBOMSourceType_CONTAINER_APP
+			sbomID = imageRefCanonical.Name()
+			tags = append([]string{
+				fmt.Sprintf("runtime_id:%s", imageRefTagged.Name()),
+				fmt.Sprintf("service_version:%s", imageRefTagged.Tag()),
+			}, imageTags...)
 		default:
 			panic("unreachable")
 		}
 
 		result := pool.launchScannerVulns(ctx,
 			sourceType,
-			ctr.ImageRefCanonical.Reference().String(),
+			sbomID,
 			tags,
 			types.ScannerOptions{
 				Action:    action,
@@ -894,7 +903,7 @@ func (s *Runner) scanContainer(ctx context.Context, scan *types.ScanTask, ctr *t
 		// TODO: remove this when we backport
 		// https://github.com/DataDog/datadog-agent/pull/22161
 		if result.Vulns != nil && result.Vulns.BOM != nil {
-			appendSBOMRepoMetadata(result.Vulns.BOM, refTagged, refCanonical)
+			appendSBOMRepoMetadata(result.Vulns.BOM, imageRefTagged, imageRefCanonical)
 		}
 		s.resultsCh <- result
 	}
@@ -904,7 +913,7 @@ func (s *Runner) scanLambda(ctx context.Context, scan *types.ScanTask, root stri
 	assert(scan.Type == types.TaskTypeLambda)
 
 	tags := append([]string{
-		"runtime_id:" + scan.TargetID.AsText(),
+		fmt.Sprintf("runtime_id:%s", scan.TargetID.AsText()),
 		fmt.Sprintf("service_version:%s", scan.TargetName),
 	}, scan.TargetTags...)
 
