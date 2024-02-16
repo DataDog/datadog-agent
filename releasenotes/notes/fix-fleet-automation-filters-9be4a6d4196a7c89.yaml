@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fleet Automation filters in the DataDog website now accurately reflect which products are enabled when deployed with the official DataDog Helm Chart on Kubernetes.
