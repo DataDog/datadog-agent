@@ -137,8 +137,8 @@ func (ce *CustomEvent) GetType() string {
 	return ce.eventType.String()
 }
 
-// GetActions returns the triggred actions
-func (ce *CustomEvent) GetActions() []*model.ActionTriggered {
+// GetActionReports returns reports of the action triggered
+func (ce *CustomEvent) GetActionReports() []model.ActionReport {
 	return nil
 }
 
