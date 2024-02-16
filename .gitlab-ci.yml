@@ -1031,6 +1031,39 @@ workflow:
   - when: manual
     allow_failure: true
 
+.always_on_container_or_e2e_changes_or_manual:
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_main_branch
+    when: always
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - comp/core/tagger/**/*
+        - comp/core/workloadmeta/**/*
+        - pkg/autodiscovery/listeners/**/*
+        - pkg/autodiscovery/providers/**/*
+        - pkg/collector/corechecks/cluster/**/*
+        - pkg/collector/corechecks/containers/**/*
+        - pkg/collector/corechecks/containerimage/**/*
+        - pkg/collector/corechecks/containerlifecycle/**/*
+        - pkg/collector/corechecks/kubernetes/**/*
+        - pkg/collector/corechecks/sbom/**/*
+        - pkg/util/clusteragent/**/*
+        - pkg/util/containerd/**/*
+        - pkg/util/containers/**/*
+        - pkg/util/docker/**/*
+        - pkg/util/ecs/**/*
+        - pkg/util/kubernetes/**/*
+        - pkg/util/cgroups/**/*
+        - test/new-e2e/tests/containers/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: always
+  - when: manual
+    allow_failure: true
+
 .on_container_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e
     when: never
