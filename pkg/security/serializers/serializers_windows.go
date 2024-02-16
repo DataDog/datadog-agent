@@ -23,6 +23,16 @@ type FileSerializer struct {
 	Name string `json:"name,omitempty"`
 }
 
+// RegistrySerializer serializes a registry to JSON
+type RegistrySerializer struct {
+	// Registry key name
+	KeyName string `json:"key_name,omitempty"`
+	// Registry key path
+	KeyPath string `json:"key_path,omitempty"`
+	// Value name of the key value
+	ValueName string `json:"value_name,omitempty"`
+}
+
 // ProcessSerializer serializes a process to JSON
 type ProcessSerializer struct {
 	// Process ID
@@ -52,12 +62,18 @@ type FileEventSerializer struct {
 	FileSerializer
 }
 
+// RegistryEventSerializer serializes a registry event to JSON
+type RegistryEventSerializer struct {
+	RegistrySerializer
+}
+
 // NetworkDeviceSerializer serializes the network device context to JSON
 type NetworkDeviceSerializer struct{}
 
 // EventSerializer serializes an event to JSON
 type EventSerializer struct {
 	*BaseEventSerializer
+	*RegistryEventSerializer `json:"registry,omitempty"`
 }
 
 func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSerializer {
@@ -67,6 +83,14 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 	}
 }
 
+func newRegistrySerializer(re *model.RegistryEvent, _ *model.Event, _ ...uint64) *RegistrySerializer {
+	rs := &RegistrySerializer{
+		KeyName:   re.KeyName,
+		KeyPath:   re.KeyPath,
+		ValueName: re.ValueName,
+	}
+	return rs
+}
 func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *ProcessSerializer {
 	psSerializer := &ProcessSerializer{
 		ExecTime: getTimeIfNotZero(ps.ExecTime),
@@ -144,7 +168,33 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
-	return &EventSerializer{
+	s := &EventSerializer{
 		BaseEventSerializer: NewBaseEventSerializer(event, opts),
 	}
+	eventType := model.EventType(event.Type)
+
+	switch eventType {
+	case model.CreateNewFileEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.CreateNewFile.File, event),
+		}
+	case model.CreateRegistryKeyEventType:
+		s.RegistryEventSerializer = &RegistryEventSerializer{
+			RegistrySerializer: *newRegistrySerializer(&event.CreateRegistryKey.Registry, event),
+		}
+	case model.OpenRegistryKeyEventType:
+		s.RegistryEventSerializer = &RegistryEventSerializer{
+			RegistrySerializer: *newRegistrySerializer(&event.OpenRegistryKey.Registry, event),
+		}
+	case model.SetRegistryKeyValueEventType:
+		s.RegistryEventSerializer = &RegistryEventSerializer{
+			RegistrySerializer: *newRegistrySerializer(&event.SetRegistryKeyValue.Registry, event),
+		}
+	case model.DeleteRegistryKeyEventType:
+		s.RegistryEventSerializer = &RegistryEventSerializer{
+			RegistrySerializer: *newRegistrySerializer(&event.DeleteRegistryKey.Registry, event),
+		}
+	}
+
+	return s
 }

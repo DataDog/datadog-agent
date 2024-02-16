@@ -46,4 +46,5 @@ func resetMockConfig(c *config.MockConfig) {
 	c.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 	c.SetWithoutSource("admission_controller.add_aks_selectors", false)
 	c.SetWithoutSource("admission_controller.admission_controller.cws_instrumentation.enabled", false)
+	c.SetWithoutSource("admission_controller.agent_sidecar.enabled", false)
 }

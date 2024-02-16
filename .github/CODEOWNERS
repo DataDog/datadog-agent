@@ -390,7 +390,6 @@
 /pkg/process/util/address*.go           @DataDog/Networks
 /pkg/process/util/netns*.go             @DataDog/Networks
 /pkg/process/checks/net*.go             @DataDog/Networks
-/pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks
 /pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks @DataDog/windows-kernel-integrations
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring

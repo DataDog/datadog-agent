@@ -17,6 +17,7 @@ import (
 
 	// Required to initialize the "dogstatsd" expvar
 	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {
