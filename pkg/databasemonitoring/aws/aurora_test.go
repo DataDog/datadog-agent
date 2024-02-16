@@ -61,6 +61,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
 						},
 					},
 				}, nil).Times(1)
@@ -72,7 +73,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 						{
 							Endpoint:   "test-endpoint",
 							Port:       5432,
-							Region:     "us-east-1",
 							IamEnabled: true,
 						},
 					},
@@ -92,6 +92,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
 						},
 						{
 							Endpoint: &rds.Endpoint{
@@ -101,6 +102,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(false),
 							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
 						},
 						{
 							Endpoint: &rds.Endpoint{
@@ -110,6 +112,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(false),
 							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
 						},
 					},
 				}, nil).Times(1)
@@ -121,20 +124,68 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 						{
 							Endpoint:   "test-endpoint",
 							Port:       5432,
-							Region:     "us-east-1",
 							IamEnabled: true,
 						},
 						{
 							Endpoint:   "test-endpoint-2",
 							Port:       5432,
-							Region:     "us-east-1",
 							IamEnabled: false,
 						},
 						{
 							Endpoint:   "test-endpoint-3",
 							Port:       5444,
-							Region:     "us-east-1",
 							IamEnabled: false,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "single cluster id returns some unavailable endpoints from API",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []*rds.DBInstance{
+						{
+							Endpoint: &rds.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int64(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+						},
+						{
+							Endpoint: &rds.Endpoint{
+								Address: aws.String("test-endpoint-2"),
+								Port:    aws.Int64(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(false),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("terminating"),
+						},
+						{
+							Endpoint: &rds.Endpoint{
+								Address: aws.String("test-endpoint-3"),
+								Port:    aws.Int64(5444),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(false),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("terminating"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIds: []string{"test-cluster"},
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							Endpoint:   "test-endpoint",
+							Port:       5432,
+							IamEnabled: true,
 						},
 					},
 				},
@@ -153,6 +204,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
 						},
 					},
 				}, nil).Times(1)
@@ -164,7 +216,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 						{
 							Endpoint:   "test-endpoint",
 							Port:       5432,
-							Region:     "us-east-1",
 							IamEnabled: true,
 						},
 					},
@@ -184,6 +235,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
 						},
 						{
 							Endpoint: &rds.Endpoint{
@@ -193,6 +245,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(false),
 							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
 						},
 						{
 							Endpoint: &rds.Endpoint{
@@ -202,6 +255,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBClusterIdentifier:              aws.String("test-cluster-2"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1c"),
+							DBInstanceStatus:                 aws.String("available"),
 						},
 					},
 				}, nil).Times(1)
@@ -213,13 +267,11 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 						{
 							Endpoint:   "test-endpoint",
 							Port:       5432,
-							Region:     "us-east-1",
 							IamEnabled: true,
 						},
 						{
 							Endpoint:   "test-endpoint-2",
 							Port:       5432,
-							Region:     "us-east-1",
 							IamEnabled: false,
 						},
 					},
@@ -229,7 +281,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 						{
 							Endpoint:   "test-endpoint-3",
 							Port:       5444,
-							Region:     "us-east-1",
 							IamEnabled: true,
 						},
 					},
@@ -251,57 +302,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedAuroraClusterEndpoints, clusters)
-		})
-	}
-}
-
-func TestParseAWSRegion(t *testing.T) {
-	tests := []struct {
-		name             string
-		availabilityZone string
-		expectedRegion   string
-		expectedErr      error
-	}{
-		{
-			name:             "Valid availability zone",
-			availabilityZone: "us-east-1a",
-			expectedRegion:   "us-east-1",
-			expectedErr:      nil,
-		},
-		{
-			name:             "Invalid availability zone",
-			availabilityZone: "invalid-zone",
-			expectedRegion:   "",
-			expectedErr:      errors.New("unable to parse AWS region from availability zone: invalid-zone"),
-		},
-		{
-			name:             "Empty availability zone",
-			availabilityZone: "",
-			expectedRegion:   "",
-			expectedErr:      errors.New("unable to parse AWS region from availability zone: "),
-		},
-		{
-			name:             "Invalid availability zone format no number",
-			availabilityZone: "us-west-b",
-			expectedRegion:   "",
-			expectedErr:      errors.New("unable to parse AWS region from availability zone: us-west-b"),
-		},
-		{
-			name:             "Invalid availability zone format multiple letters",
-			availabilityZone: "us-west-2bbb",
-			expectedRegion:   "",
-			expectedErr:      errors.New("unable to parse AWS region from availability zone: us-west-2bbb"),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actualRegion, err := parseAWSRegion(tt.availabilityZone)
-			if tt.expectedErr != nil {
-				require.EqualError(t, err, tt.expectedErr.Error())
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.expectedRegion, actualRegion)
 		})
 	}
 }

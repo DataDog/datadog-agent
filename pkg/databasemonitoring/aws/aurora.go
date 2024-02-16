@@ -8,31 +8,24 @@ package aws
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"hash/fnv"
-	"regexp"
 	"strconv"
 
 	"strings"
 )
 
-const regexPattern = `^([a-z]+-[a-z]+-\d+)[a-z]$`
-
-var awsRegionRegex = regexp.MustCompile(regexPattern)
-
 // AuroraCluster represents an Aurora cluster
 type AuroraCluster struct {
-	Instances []*Instance `json:"instances,omitempty"`
+	Instances []*Instance
 }
 
 // Instance represents an Aurora instance
 type Instance struct {
-	Endpoint   string `json:"endpoint,omitempty"`
-	Port       int64  `json:"port,omitempty"`
-	Region     string `json:"region,omitempty"`
-	IamEnabled bool   `json:"iam_enabled,omitempty"`
+	Endpoint   string
+	Port       int64
+	IamEnabled bool
 }
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
@@ -60,7 +53,7 @@ func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[s
 	clusters := make(map[string]*AuroraCluster, 0)
 	for _, db := range clusterInstances.DBInstances {
 		if db.Endpoint != nil && db.DBClusterIdentifier != nil {
-			if db.Endpoint.Address == nil {
+			if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
 				continue
 			}
 			// Add to list of instances for the cluster
@@ -74,15 +67,6 @@ func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[s
 			// Set the port, if it is known
 			if db.Endpoint.Port != nil {
 				instance.Port = *db.Endpoint.Port
-			}
-			// Set the region, if it is known
-			if db.AvailabilityZone != nil {
-				region, err := parseAWSRegion(*db.AvailabilityZone)
-				if err != nil {
-					_ = log.Errorf("Error parsing AWS region from availability zone: %s", *db.AvailabilityZone)
-					continue
-				}
-				instance.Region = region
 			}
 			if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
 				clusters[*db.DBClusterIdentifier] = &AuroraCluster{
@@ -98,24 +82,15 @@ func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[s
 	return clusters, nil
 }
 
-func parseAWSRegion(availabilityZone string) (string, error) {
-	// Use the awsRegionRegex pattern to find matches in the availability zone.
-	matches := awsRegionRegex.FindStringSubmatch(availabilityZone)
-	if len(matches) == 2 {
-		return matches[1], nil
-	}
-	return "", fmt.Errorf("unable to parse AWS region from availability zone: %s", availabilityZone)
-}
-
 // Digest returns a hash value representing the data stored in this configuration, minus the network address
-func (c *Instance) Digest(checkType, clusterID string) string {
+func (c *Instance) Digest(checkType, region, clusterID string) string {
 	h := fnv.New64()
 	// Hash write never returns an error
 	h.Write([]byte(checkType))                       //nolint:errcheck
 	h.Write([]byte(clusterID))                       //nolint:errcheck
 	h.Write([]byte(c.Endpoint))                      //nolint:errcheck
 	h.Write([]byte(fmt.Sprintf("%d", c.Port)))       //nolint:errcheck
-	h.Write([]byte(c.Region))                        //nolint:errcheck
+	h.Write([]byte(region))                          //nolint:errcheck
 	h.Write([]byte(fmt.Sprintf("%t", c.IamEnabled))) //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)
