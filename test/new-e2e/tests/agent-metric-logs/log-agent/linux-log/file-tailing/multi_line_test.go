@@ -121,8 +121,7 @@ func (s *MultiLineSuite) detectsAutoMultiLine() {
 		}
 
 		// Auto Multiline is working if the log message contains the complete log contents with newlines
-		// logs, err := client.FilterLogs(service, fi.WithMessageContaining(content))
-		logs, err := client.FilterLogs(service)
+		logs, err := client.FilterLogs(service, fi.WithMessageContaining(content))
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
 		}
