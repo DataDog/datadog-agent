@@ -249,7 +249,7 @@ message SecurityProfileMessage {
     string LoadedInKernelTimestamp = 2;
     WorkloadSelectorMessage Selector = 3;
     uint64 ProfileCookie = 4;
-    repeated string AnomalyDetectionEvents = 5;
+    repeated string EventTypes = 5;
     repeated LastAnomalyTimestampMessage LastAnomalies = 6;
     repeated InstanceMessage Instances = 7;
     string Status = 8;

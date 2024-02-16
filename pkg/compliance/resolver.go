@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
@@ -578,7 +580,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			})
 		}
 	case "container":
-		list, err := cl.ContainerList(ctx, dockertypes.ContainerListOptions{All: true})
+		list, err := cl.ContainerList(ctx, container.ListOptions{All: true})
 		if err != nil {
 			return nil, err
 		}

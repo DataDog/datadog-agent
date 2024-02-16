@@ -35,7 +35,7 @@ func TestProviderIsSupported(t *testing.T) {
 		{
 			name:              "empty provider",
 			provider:          "",
-			expectIsSupported: false,
+			expectIsSupported: true,
 		},
 	}
 
@@ -55,18 +55,25 @@ func TestApplyProviderOverrides(t *testing.T) {
 	mockConfig := config.Mock(t)
 
 	tests := []struct {
-		name          string
-		provider      string
-		baseContainer *corev1.Container
-		// assertions assume the order of overrides is deterministic
-		// changing the order will cause the tests to fail
+		name                           string
+		provider                       string
+		baseContainer                  *corev1.Container
 		expectedContainerAfterOverride *corev1.Container
+		expectError                    bool
 	}{
 		{
 			name:                           "nil container should be skipped",
 			provider:                       "fargate",
 			baseContainer:                  nil,
 			expectedContainerAfterOverride: nil,
+			expectError:                    true,
+		},
+		{
+			name:                           "empty provider",
+			provider:                       "",
+			baseContainer:                  &corev1.Container{},
+			expectedContainerAfterOverride: &corev1.Container{},
+			expectError:                    false,
 		},
 		{
 			name:          "fargate provider",
@@ -80,31 +87,40 @@ func TestApplyProviderOverrides(t *testing.T) {
 					},
 				},
 			},
+			expectError: false,
 		},
 		{
 			name:                           "unsupported provider",
 			provider:                       "foo-provider",
 			baseContainer:                  &corev1.Container{},
 			expectedContainerAfterOverride: &corev1.Container{},
+			expectError:                    true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
-			applyProviderOverrides(test.baseContainer)
+			err := applyProviderOverrides(test.baseContainer)
 
-			if test.expectedContainerAfterOverride == nil {
-				assert.Nil(tt, test.baseContainer)
+			if test.expectError {
+				assert.Error(tt, err)
 			} else {
-				assert.NotNil(tt, test.baseContainer)
-				assert.Truef(tt,
-					reflect.DeepEqual(*test.baseContainer, *test.expectedContainerAfterOverride),
-					"overrides not applied as expected. expected %v, but found %v",
-					*test.expectedContainerAfterOverride,
-					*test.baseContainer,
-				)
+				assert.NoError(tt, err)
+
+				if test.expectedContainerAfterOverride == nil {
+					assert.Nil(tt, test.baseContainer)
+				} else {
+					assert.NotNil(tt, test.baseContainer)
+					assert.Truef(tt,
+						reflect.DeepEqual(*test.baseContainer, *test.expectedContainerAfterOverride),
+						"overrides not applied as expected. expected %v, but found %v",
+						*test.expectedContainerAfterOverride,
+						*test.baseContainer,
+					)
+				}
 			}
+
 		})
 	}
 }
