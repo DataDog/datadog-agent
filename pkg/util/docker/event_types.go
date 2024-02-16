@@ -42,9 +42,7 @@ var actionPrefixes = []events.Action{
 	events.ActionExecStart,
 	events.ActionExecDetach,
 	events.ActionExecCreate,
-	events.ActionHealthStatusRunning,
-	events.ActionHealthStatusHealthy,
-	events.ActionHealthStatusUnhealthy,
+	events.ActionHealthStatus,
 }
 
 // ContainerEvent describes a container event from the docker daemon
