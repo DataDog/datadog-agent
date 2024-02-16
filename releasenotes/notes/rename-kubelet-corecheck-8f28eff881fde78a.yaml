@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Rename ``kubelet_core`` check to ``kubelet`` and change metrics prefix 
-    from ``kubernetes_core`` to ``kubernetes`` to allow as replacement for 
-    Python ``kubelet`` check.
+    Rename the ``kubelet_core`` check to ``kubelet`` and change the metrics 
+    prefix from ``kubernetes_core`` to ``kubernetes`` so that it can replace 
+    the Python ``kubelet`` check.
