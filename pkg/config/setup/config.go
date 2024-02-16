@@ -20,6 +20,9 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slices"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -28,8 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"golang.org/x/exp/slices"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -739,6 +740,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// all the metadata for the VM.
 	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
+
+	// Duration during which the host tags will be submitted with metrics.
+	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
 
 	// EC2
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
