@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // Module defines the fx options for this component.
@@ -51,6 +51,7 @@ type Payload struct {
 	Timestamp    int64                 `json:"timestamp"`
 	Metadata     map[string][]metadata `json:"check_metadata"`
 	LogsMetadata map[string][]metadata `json:"logs_metadata"`
+	UUID         string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -121,7 +122,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 	// component we can migrate it there and remove the entire logic to emit event from the collector.
 
 	if coll, isSet := ic.coll.Get(); isSet {
-		coll.AddEventReceiver(func(_ checkid.ID, _ pkgcollector.EventType) { ic.Refresh() })
+		coll.AddEventReceiver(func(_ checkid.ID, _ collector.EventType) { ic.Refresh() })
 	}
 
 	if logAgent, isSet := deps.LogAgent.Get(); isSet {
@@ -250,5 +251,6 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 		Timestamp:    time.Now().UnixNano(),
 		Metadata:     payloadData,
 		LogsMetadata: logsMetadata,
+		UUID:         uuid.GetUUID(),
 	}
 }

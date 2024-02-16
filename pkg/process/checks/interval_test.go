@@ -45,11 +45,6 @@ func TestLegacyIntervalDefault(t *testing.T) {
 			checkName:        ConnectionsCheckName,
 			expectedInterval: ConnectionsCheckDefaultInterval,
 		},
-		{
-			name:             "pod default",
-			checkName:        PodCheckName,
-			expectedInterval: PodCheckDefaultInterval,
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.Mock(t)
@@ -91,7 +86,6 @@ func TestLegacyIntervalOverride(t *testing.T) {
 			setting:   "process_config.intervals.connections",
 			checkName: ConnectionsCheckName,
 		},
-		// Note: non-default overridden handling of pod check interval is in pkg/orhestrator/config
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.Mock(t)

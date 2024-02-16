@@ -20,6 +20,9 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slices"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -28,8 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"golang.org/x/exp/slices"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -740,6 +741,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
 
+	// Duration during which the host tags will be submitted with metrics.
+	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
+
 	// EC2
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
 	config.BindEnvAndSetDefault("ec2_metadata_timeout", 300)          // value in milliseconds
@@ -1116,7 +1120,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
-	config.BindEnvAndSetDefault("orchestrator_explorer.run_on_node_agent", true)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -1276,7 +1279,15 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Language Detection
 	config.BindEnvAndSetDefault("language_detection.enabled", false)
+	// client period represents how frequently newly detected languages are reported to the language detection handler
 	config.BindEnvAndSetDefault("language_detection.client_period", "10s")
+	// cleanup period represents how frequently we check for expired languages and remove them
+	config.BindEnvAndSetDefault("language_detection.cleanup.period", "10m")
+	// TTL refresh period represents how frequently we refresh the TTL of detected languages
+	config.BindEnvAndSetDefault("language_detection.cleanup.ttl_refresh_period", "20m")
+	// language TTL represents the TTL that is set for each language when it is detected
+	// it is also used when refreshing the expiration timestamp of the language
+	config.BindEnvAndSetDefault("language_detection.cleanup.language_ttl", "30m")
 
 	setupAPM(config)
 	OTLP(config)

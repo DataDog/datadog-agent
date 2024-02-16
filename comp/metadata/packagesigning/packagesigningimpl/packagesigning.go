@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"go.uber.org/fx"
 )
 
@@ -42,6 +43,7 @@ type Payload struct {
 	Hostname  string           `json:"hostname"`
 	Timestamp int64            `json:"timestamp"`
 	Metadata  *signingMetadata `json:"signing_metadata"`
+	UUID      string           `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -156,5 +158,6 @@ func (is *pkgSigning) getPayload() marshaler.JSONMarshaler {
 		Hostname:  is.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  &signingMetadata{is.getData()},
+		UUID:      uuid.GetUUID(),
 	}
 }

@@ -5,20 +5,26 @@
 
 //go:build test
 
-package collector
+package collectorimpl
 
 import (
+	"context"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -28,18 +34,25 @@ type CollectorDemuxTestSuite struct {
 	suite.Suite
 
 	demux demultiplexer.FakeSamplerMock
-	c     *collector
+	c     *collectorImpl
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
 	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), logimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
-	suite.c = NewCollector(suite.demux, 500*time.Millisecond).(*collector)
+	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
+		core.MockBundle(),
+		fx.Provide(func() sender.SenderManager {
+			return suite.demux
+		}),
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
+		})))
 
-	suite.c.Start()
+	suite.c.start(context.TODO())
 }
 
 func (suite *CollectorDemuxTestSuite) TearDownTest() {
-	suite.c.Stop()
+	suite.c.stop(context.TODO())
 	suite.demux.Stop(false)
 	suite.c = nil
 }
@@ -119,7 +132,7 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckDestroysSender() {
 
 	newSender, err := suite.demux.GetSender(ch.ID())
 	assert.Nil(suite.T(), err)
-	assert.NotEqual(suite.T(), sender, newSender) // GetSedner returns a new instance, which means the old sender was destroyed correctly.
+	assert.NotEqual(suite.T(), sender, newSender) // GetSender returns a new instance, which means the old sender was destroyed correctly.
 }
 
 func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
