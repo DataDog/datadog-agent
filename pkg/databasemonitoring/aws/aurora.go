@@ -5,7 +5,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"hash/fnv"
 	"regexp"
+	"strconv"
 
 	"strings"
 )
@@ -16,7 +18,7 @@ var awsRegionRegex = regexp.MustCompile(regexPattern)
 
 // AuroraCluster represents an Aurora cluster
 type AuroraCluster struct {
-	Instances []Instance `json:"instances,omitempty"`
+	Instances []*Instance `json:"instances,omitempty"`
 }
 
 // Instance represents an Aurora instance
@@ -47,7 +49,7 @@ func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[s
 			},
 		})
 	if err != nil {
-		return nil, fmt.Errorf("error describing aurora DB clusters: %v", err)
+		return nil, err
 	}
 	clusters := make(map[string]*AuroraCluster, 0)
 	for _, db := range clusterInstances.DBInstances {
@@ -56,16 +58,10 @@ func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[s
 				continue
 			}
 			// Add to list of instances for the cluster
-			instance := Instance{
+			instance := &Instance{
 				Endpoint: *db.Endpoint.Address,
 			}
-			if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
-				clusters[*db.DBClusterIdentifier] = &AuroraCluster{
-					Instances: make([]Instance, 0),
-				}
-			}
 			// Set if IAM is configured for the endpoint
-			clusters[*db.DBClusterIdentifier].Instances = append(clusters[*db.DBClusterIdentifier].Instances, instance)
 			if db.IAMDatabaseAuthenticationEnabled != nil {
 				instance.IamEnabled = *db.IAMDatabaseAuthenticationEnabled
 			}
@@ -82,13 +78,17 @@ func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[s
 				}
 				instance.Region = region
 			}
+			if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
+				clusters[*db.DBClusterIdentifier] = &AuroraCluster{
+					Instances: make([]*Instance, 0),
+				}
+			}
+			clusters[*db.DBClusterIdentifier].Instances = append(clusters[*db.DBClusterIdentifier].Instances, instance)
 		}
 	}
-
 	if len(clusters) == 0 {
 		log.Debugf("No endpoints found for the Aurora clusters with ids %s", strings.Join(dbClusterIdentifiers, ", "))
 	}
-
 	return clusters, nil
 }
 
@@ -99,4 +99,18 @@ func parseAWSRegion(availabilityZone string) (string, error) {
 		return matches[1], nil
 	}
 	return "", fmt.Errorf("unable to parse AWS region from availability zone: %s", availabilityZone)
+}
+
+// Digest returns a hash value representing the data stored in this configuration, minus the network address
+func (c *Instance) Digest(checkType, clusterId string) string {
+	h := fnv.New64()
+	// Hash write never returns an error
+	h.Write([]byte(checkType))                       //nolint:errcheck
+	h.Write([]byte(clusterId))                       //nolint:errcheck
+	h.Write([]byte(c.Endpoint))                      //nolint:errcheck
+	h.Write([]byte(fmt.Sprintf("%d", c.Port)))       //nolint:errcheck
+	h.Write([]byte(c.Region))                        //nolint:errcheck
+	h.Write([]byte(fmt.Sprintf("%t", c.IamEnabled))) //nolint:errcheck
+
+	return strconv.FormatUint(h.Sum64(), 16)
 }

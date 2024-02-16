@@ -9,7 +9,7 @@ import (
 
 const (
 	defaultDiscoveryIntervalSeconds = 300
-	autoDiscoveryConfigKey          = "autodiscover_aurora_clusters"
+	autoDiscoveryConfigKey          = "database_monitoring.autodiscover_aurora_clusters"
 )
 
 // IntegrationType represents the type of database-monitoring integration

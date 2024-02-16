@@ -2,11 +2,11 @@ ad_identifiers:
   - database_monitoring_aurora
 init_config:
 instances:
-    ## @param host - string - optional
-    ## The hostname to connect to.
-    ## NOTE: Even if the server name is `localhost`, the Agent connects to PostgreSQL using TCP/IP unless you also
-    ## provide a value for the sock key.
-    #
+  ## @param host - string - optional
+  ## The hostname to connect to.
+  ## NOTE: Even if the server name is `localhost`, the Agent connects to PostgreSQL using TCP/IP unless you also
+  ## provide a value for the sock key.
+  #
   - host: "%%host%%"
 
     ## @param port - integer - optional - default: 5432
@@ -44,4 +44,8 @@ instances:
       ## `aws.region` is required to enable IAM Authentication.
       #
       managed_authentication:
-        enabled: %%extra_managed_authentication_enabled%%
+        enabled: "%%extra_managed_authentication_enabled%%"
+
+    tags:
+      - "dbclusteridentifier:%%extra_dbclusteridentifier%%"
+      - "region:%%extra_region%%"
