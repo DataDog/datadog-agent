@@ -8,17 +8,13 @@ package nodejsparser
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-type packageName struct {
-	// Name of the package in the json file
-	Name string `json:"name,omitempty"`
-}
 
 // FindNameFromNearestPackageJSON finds the package.json walking up from the absFilePath.
 // if a package.json is found, returns the value of the field name if declared
@@ -48,10 +44,50 @@ func maybeExtractServiceName(filename string) (string, bool) {
 		return "", false
 	}
 	defer reader.Close()
-	pn := packageName{}
-	err = json.NewDecoder(reader).Decode(&pn)
-	if err != nil {
-		log.Tracef("Error decoding package.js file at %s: %v", filename, err)
+	value := doStreamingParse(reader, "name", 0)
+	return value, true
+}
+
+// doStreamingParse returns the first occurrence of the key at provided level
+func doStreamingParse(reader io.Reader, key string, level int) string {
+	decoder := json.NewDecoder(reader)
+
+	n := 0
+	expect := false
+	isKey := false
+	t, err := decoder.Token()
+	if err != nil || t != json.Delim('{') {
+		// expected start of object and no error
+		return ""
 	}
-	return pn.Name, true
+	for {
+		t, err := decoder.Token()
+		if err != nil {
+			return ""
+		}
+		tokenRune, ok := t.(rune)
+		if ok {
+			switch tokenRune {
+			case '{', '[':
+				n++
+				continue
+			case '}', ']':
+				n--
+				continue
+			}
+		}
+
+		if n == level {
+			isKey = !isKey
+			if isKey && t == key {
+				expect = true
+			} else if expect {
+				val, _ := t.(string)
+				return val
+			}
+		} else if expect {
+			// expected a value, but it's a nested object or array
+			return ""
+		}
+	}
 }

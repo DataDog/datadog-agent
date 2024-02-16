@@ -372,7 +372,7 @@ func parseCommandContextNodeJs(se *ServiceExtractor, process *procutil.Process, 
 	return "node"
 }
 
-// abs returns the path itself is already absolute or the absolute path by joining cwd with path
+// abs returns the path itself if already absolute or the absolute path by joining cwd with path
 // This is a variant of filepath.Abs since on windows it likely returns false when the drive/volume is missing
 // hence, since we accept also paths, we test if the first char is a path separator
 func abs(path string, cwd string) string {
