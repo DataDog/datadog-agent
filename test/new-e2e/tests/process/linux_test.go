@@ -130,7 +130,7 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 	assertProcessCollected(t, payloads, false, "stress")
 
 	// check that the process agent is not collected as it should not be running
-	assertProcessNotCollected(t, payloads, "process-agent")
+	requireProcessNotCollected(t, payloads, "process-agent")
 }
 
 func (s *linuxTestSuite) TestManualProcessCheck() {

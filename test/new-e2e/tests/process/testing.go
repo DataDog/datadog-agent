@@ -76,8 +76,8 @@ func assertProcessCollected(
 	assert.True(t, populated, "no %s process had all data populated", process)
 }
 
-// assertProcessNotCollected asserts that the given process is NOT collected by the process check
-func assertProcessNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, process string) {
+// requireProcessNotCollected asserts that the given process is NOT collected by the process check
+func requireProcessNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, process string) {
 	for _, payload := range payloads {
 		found, _ := findProcess(process, payload.Processes, false)
 		require.False(t, found, "%s process found", process)
