@@ -559,12 +559,18 @@ func ParseScanAction(action string) (ScanAction, error) {
 
 // ParseScanActions parses a list of actions as strings into a list of scan actions.
 func ParseScanActions(actions []string) ([]ScanAction, error) {
-	var scanActions []ScanAction
+	actionsMap := make(map[ScanAction]struct{}, len(actions))
 	for _, a := range actions {
 		action, err := ParseScanAction(a)
 		if err != nil {
 			return nil, err
 		}
+		if _, exists := actionsMap[action]; !exists {
+			actionsMap[action] = struct{}{}
+		}
+	}
+	scanActions := make([]ScanAction, 0, len(actionsMap))
+	for action := range actionsMap {
 		scanActions = append(scanActions, action)
 	}
 	return scanActions, nil
