@@ -20,14 +20,14 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/pkg/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -72,6 +72,8 @@ type Client struct {
 
 // Options describes the client options
 type Options struct {
+	isUpdater            bool
+	updaterTags          []string
 	agentVersion         string
 	agentName            string
 	products             []string
@@ -155,12 +157,9 @@ func NewUnverifiedGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher
 }
 
 // WithProducts specifies the product lists
-func WithProducts(products []data.Product) func(opts *Options) {
+func WithProducts(products ...string) func(opts *Options) {
 	return func(opts *Options) {
-		opts.products = make([]string, len(products))
-		for i, product := range products {
-			opts.products[i] = string(product)
-		}
+		opts.products = products
 	}
 }
 
@@ -187,6 +186,14 @@ func WithDirectorRootOverride(directorRootOverride string) func(opts *Options) {
 // WithAgent specifies the client name and version
 func WithAgent(name, version string) func(opts *Options) {
 	return func(opts *Options) { opts.agentName, opts.agentVersion = name, version }
+}
+
+// WithUpdater specifies that this client is an updater
+func WithUpdater(tags ...string) func(opts *Options) {
+	return func(opts *Options) {
+		opts.isUpdater = true
+		opts.updaterTags = tags
+	}
 }
 
 func newClient(updater ConfigUpdater, opts ...func(opts *Options)) (*Client, error) {
@@ -486,17 +493,31 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			},
 			Id:       c.ID,
 			Products: c.products,
-			IsAgent:  true,
-			IsTracer: false,
-			ClientAgent: &pbgo.ClientAgent{
-				Name:         c.agentName,
-				Version:      c.agentVersion,
-				ClusterName:  c.clusterName,
-				ClusterId:    c.clusterID,
-				CwsWorkloads: c.cwsWorkloads,
-			},
 		},
 		CachedTargetFiles: pbCachedFiles,
+	}
+
+	switch c.Options.isUpdater {
+	case true:
+		req.Client.IsUpdater = true
+		req.Client.ClientUpdater = &pbgo.ClientUpdater{
+			Tags: c.Options.updaterTags,
+			Packages: []*pbgo.PackageState{
+				{
+					Package:       "datadog-agent",
+					StableVersion: "7.50.0",
+				},
+			},
+		}
+	case false:
+		req.Client.IsAgent = true
+		req.Client.ClientAgent = &pbgo.ClientAgent{
+			Name:         c.agentName,
+			Version:      c.agentVersion,
+			ClusterName:  c.clusterName,
+			ClusterId:    c.clusterID,
+			CwsWorkloads: c.cwsWorkloads,
+		}
 	}
 
 	return req, nil

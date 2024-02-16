@@ -105,30 +105,6 @@ agent_deb-x64-a7:
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
-agent_deb-x64-a7-auto:
-  extends: .agent_build_common_deb
-  rules:
-    - !reference [.on_a7]
-  stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs:
-    [
-      "go_mod_tidy_check",
-      "build_system-probe-x64",
-      "go_deps",
-      "generate_minimized_btfs_x64",
-    ]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
-    PACKAGE_ARCH: amd64
-    DESTINATION_DEB: "datadog-agent_7_auto_amd64.deb"
-    DESTINATION_DBG_DEB: "datadog-agent-dbg_7_auto_amd64.deb"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - export INSTALL_DIR=/opt/datadog/agents/$RELEASE_VERSION_7
-
 agent_deb-arm64-a6:
   extends: .agent_build_common_deb
   rules:

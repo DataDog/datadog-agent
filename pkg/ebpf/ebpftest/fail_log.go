@@ -43,7 +43,7 @@ func (l *failureTestLogger) ReceiveMessage(message string, level seelog.LogLevel
 }
 
 // AfterParse implements logger.CustomReceiver
-func (l *failureTestLogger) AfterParse(initArgs seelog.CustomReceiverInitArgs) error { //nolint:revive // TODO fix revive unused-parameter
+func (l *failureTestLogger) AfterParse(_ seelog.CustomReceiverInitArgs) error {
 	return nil
 }
 

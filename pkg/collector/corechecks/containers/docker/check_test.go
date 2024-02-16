@@ -12,12 +12,9 @@ import (
 	"testing"
 
 	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -28,8 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestDockerCheckGenericPart(t *testing.T) {
@@ -175,7 +175,7 @@ func TestDockerCustomPart(t *testing.T) {
 		"sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6": "datadog/agent:latest",
 		"sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f": "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
 	}
-	dockerClient.FakeImages = []dockerTypes.ImageSummary{
+	dockerClient.FakeImages = []image.Summary{
 		{
 			ID:          "sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6",
 			Size:        50,

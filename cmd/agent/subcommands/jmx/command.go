@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -144,6 +145,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
 			fx.Provide(func() status.Component { return nil }),
 			fx.Provide(func() eventplatformreceiver.Component { return nil }),
+			fx.Provide(func() optional.Option[collector.Component] { return optional.NewNoneOption[collector.Component]() }),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
 		)
@@ -274,7 +276,7 @@ func disableCmdPort() {
 
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
 // with the Console reporter
-func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta workloadmeta.Component, taggerComp tagger.Component, diagnoseSendermanager diagnosesendermanager.Component, secretResolver secrets.Component, agentAPI internalAPI.Component) error {
+func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta workloadmeta.Component, taggerComp tagger.Component, diagnoseSendermanager diagnosesendermanager.Component, secretResolver secrets.Component, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
@@ -296,7 +298,7 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta w
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(optional.NewNoneOption[pkgcollector.Collector](), senderManager)
+	pkgcollector.InitCheckScheduler(collector, senderManager)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.
@@ -313,7 +315,7 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta w
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, taggerComp, diagnoseSendermanager, agentAPI)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, taggerComp, diagnoseSendermanager, agentAPI, collector)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

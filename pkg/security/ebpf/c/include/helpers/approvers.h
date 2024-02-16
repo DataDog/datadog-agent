@@ -216,4 +216,19 @@ int __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *sysca
     return basename_approver(syscall, syscall->setattr.dentry, EVENT_UTIME);
 }
 
+int __attribute__((always_inline)) bpf_approvers(struct syscall_cache_t *syscall) {
+    int pass_to_userspace = 0;
+
+    if ((syscall->policy.flags & FLAGS) > 0) {
+        u32 key = 0;
+        u64 *cmd_bitmask = bpf_map_lookup_elem(&bpf_cmd_approvers, &key);
+        if (cmd_bitmask != NULL && ((1 << syscall->bpf.cmd) & *cmd_bitmask) > 0) {
+            monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
+            pass_to_userspace = 1;
+        }
+    }
+
+    return pass_to_userspace;
+}
+
 #endif

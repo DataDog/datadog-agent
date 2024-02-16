@@ -25,16 +25,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/viper"
 )
@@ -61,6 +64,7 @@ type Payload struct {
 	Hostname  string        `json:"hostname"`
 	Timestamp int64         `json:"timestamp"`
 	Metadata  agentMetadata `json:"agent_metadata"`
+	UUID      string        `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -173,10 +177,10 @@ type configGetter interface {
 
 // getCorrectConfig tries to fetch the configuration from another process. It returns a new
 // configuration object on success and the fallback upon failure.
-func (ia *inventoryagent) getCorrectConfig(name string, configFetcher func(config model.Reader) (string, error), fallback configGetter) configGetter {
+func (ia *inventoryagent) getCorrectConfig(name string, conf model.Reader, configFetcher func(config model.Reader) (string, error), fallback configGetter) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
-	if remoteConfig, err := configFetcher(ia.conf); err == nil {
+	if remoteConfig, err := configFetcher(conf); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
@@ -222,21 +226,21 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
-	securityCfg := ia.getCorrectConfig("security-agent", fetchSecurityConfig, ia.conf)
+	securityCfg := ia.getCorrectConfig("security-agent", ia.conf, fetchSecurityConfig, ia.conf)
 
 	ia.data["feature_cspm_enabled"] = securityCfg.GetBool("compliance_config.enabled")
 	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 func (ia *inventoryagent) fetchTraceAgentMetadata() {
-	traceCfg := ia.getCorrectConfig("trace-agent", fetchTraceConfig, ia.conf)
+	traceCfg := ia.getCorrectConfig("trace-agent", ia.conf, fetchTraceConfig, ia.conf)
 
 	ia.data["config_apm_dd_url"] = scrub(traceCfg.GetString("apm_config.apm_dd_url"))
 	ia.data["feature_apm_enabled"] = traceCfg.GetBool("apm_config.enabled")
 }
 
 func (ia *inventoryagent) fetchProcessAgentMetadata() {
-	processCfg := ia.getCorrectConfig("process-agent", fetchProcessConfig, ia.conf)
+	processCfg := ia.getCorrectConfig("process-agent", ia.conf, fetchProcessConfig, ia.conf)
 
 	ia.data["feature_process_enabled"] = processCfg.GetBool("process_config.process_collection.enabled")
 	ia.data["feature_processes_container_enabled"] = processCfg.GetBool("process_config.container_collection.enabled")
@@ -252,7 +256,7 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	if isSet {
 		// If we can fetch the configuration from the system-probe process, we use it. If not we fallback on the
 		// local instance.
-		sysProbeConf := ia.getCorrectConfig("system-probe", fetchSystemProbeConfig, localSysProbeConf)
+		sysProbeConf := ia.getCorrectConfig("system-probe", localSysProbeConf, fetchSystemProbeConfig, localSysProbeConf)
 
 		getBoolSysProbe = sysProbeConf.GetBool
 		getIntSysProbe = sysProbeConf.GetInt
@@ -299,6 +303,37 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["system_probe_protocol_classification_enabled"] = getBoolSysProbe("network_config.enable_protocol_classification")
 	ia.data["system_probe_gateway_lookup_enabled"] = getBoolSysProbe("network_config.enable_gateway_lookup")
 	ia.data["system_probe_root_namespace_enabled"] = getBoolSysProbe("network_config.enable_root_netns")
+
+	ia.data["feature_dynamic_instrumentation_enabled"] = getBoolSysProbe("dynamic_instrumentation.enabled")
+
+	// ECS Fargate
+	ia.fetchECSFargateAgentMetadata()
+}
+
+// fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
+// Times out after 5 seconds to avoid blocking the agent startup.
+func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
+	ctx, cc := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cc()
+
+	if !env.IsECSFargate() {
+		return
+	}
+	client, err := ecsmeta.V2()
+	if err != nil {
+		ia.log.Warnf("error while initializing ECS metadata V2 client: %s", err)
+		return
+	}
+
+	// Use the task ARN as hostname
+	taskMeta, err := client.GetTask(ctx)
+	if err != nil {
+		ia.log.Warnf("error while fetching ECS Fargate metadata V2 task: %s", err)
+		return
+	}
+
+	ia.data["ecs_fargate_task_arn"] = taskMeta.TaskARN
+	ia.data["ecs_fargate_cluster_name"] = taskMeta.ClusterName
 }
 
 func (ia *inventoryagent) refreshMetadata() {
@@ -363,6 +398,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		Hostname:  ia.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  data,
+		UUID:      uuid.GetUUID(),
 	}
 }
 

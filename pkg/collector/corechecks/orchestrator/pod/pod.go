@@ -81,10 +81,6 @@ func (c *Check) Configure(
 	if err != nil {
 		return err
 	}
-	if !c.config.CoreCheck {
-		log.Warn("The Node Agent version for pods is currently disabled. See the changelog.")
-		return nil
-	}
 	if !c.config.OrchestrationCollectionEnabled {
 		log.Warn("orchestrator pod check is configured but the feature is disabled")
 		return nil
@@ -115,11 +111,6 @@ func (c *Check) Configure(
 
 // Run executes the check
 func (c *Check) Run() error {
-
-	if !c.config.CoreCheck {
-		return nil
-	}
-
 	if c.clusterID == "" {
 		clusterID, err := clustername.GetClusterID()
 		if err != nil {
