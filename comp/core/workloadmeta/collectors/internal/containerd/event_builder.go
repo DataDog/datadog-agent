@@ -27,10 +27,11 @@ func (c *collector) buildCollectorEvent(
 	containerdEvent *containerdevents.Envelope,
 	containerID string,
 	container containerd.Container,
+	store workloadmeta.Component,
 ) (workloadmeta.CollectorEvent, error) {
 	switch containerdEvent.Topic {
 	case containerCreationTopic, containerUpdateTopic:
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, store)
 
 	case containerDeletionTopic:
 		exitInfo := c.getExitInfo(containerID)
@@ -45,7 +46,7 @@ func (c *collector) buildCollectorEvent(
 		}
 
 		c.cacheExitInfo(containerID, &exited.ExitStatus, exited.ExitedAt.AsTime())
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, store)
 
 	case TaskDeleteTopic:
 		deleted := &events.TaskDelete{}
@@ -54,22 +55,26 @@ func (c *collector) buildCollectorEvent(
 		}
 
 		c.cacheExitInfo(containerID, &deleted.ExitStatus, deleted.ExitedAt.AsTime())
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, store)
 
 	case TaskStartTopic, TaskOOMTopic, TaskPausedTopic, TaskResumedTopic:
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, store)
 
 	default:
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("unknown action type %s, ignoring", containerdEvent.Topic)
 	}
 }
 
-func createSetEvent(container containerd.Container, namespace string, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
+func createSetEvent(
+	container containerd.Container,
+	namespace string,
+	containerdClient cutil.ContainerdItf,
+	store workloadmeta.Component) (workloadmeta.CollectorEvent, error) {
 	if container == nil {
 		return workloadmeta.CollectorEvent{}, errNoContainer
 	}
 
-	entity, err := buildWorkloadMetaContainer(namespace, container, containerdClient)
+	entity, err := buildWorkloadMetaContainer(namespace, container, containerdClient, store)
 	if err != nil {
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch info for container %s: %s", container.ID(), err)
 	}
