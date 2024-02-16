@@ -7,6 +7,7 @@ package aws
 import (
 	reflect "reflect"
 
+	rds "github.com/aws/aws-sdk-go/service/rds"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -46,4 +47,42 @@ func (m *MockRDSClient) GetAuroraClusterEndpoints(dbClusterIdentifiers []string)
 func (mr *MockRDSClientMockRecorder) GetAuroraClusterEndpoints(dbClusterIdentifiers interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuroraClusterEndpoints", reflect.TypeOf((*MockRDSClient)(nil).GetAuroraClusterEndpoints), dbClusterIdentifiers)
+}
+
+// MockrdsService is a mock of rdsService interface.
+type MockrdsService struct {
+	ctrl     *gomock.Controller
+	recorder *MockrdsServiceMockRecorder
+}
+
+// MockrdsServiceMockRecorder is the mock recorder for MockrdsService.
+type MockrdsServiceMockRecorder struct {
+	mock *MockrdsService
+}
+
+// NewMockrdsService creates a new mock instance.
+func NewMockrdsService(ctrl *gomock.Controller) *MockrdsService {
+	mock := &MockrdsService{ctrl: ctrl}
+	mock.recorder = &MockrdsServiceMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockrdsService) EXPECT() *MockrdsServiceMockRecorder {
+	return m.recorder
+}
+
+// DescribeDBInstances mocks base method.
+func (m *MockrdsService) DescribeDBInstances(input *rds.DescribeDBInstancesInput) (*rds.DescribeDBInstancesOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeDBInstances", input)
+	ret0, _ := ret[0].(*rds.DescribeDBInstancesOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeDBInstances indicates an expected call of DescribeDBInstances.
+func (mr *MockrdsServiceMockRecorder) DescribeDBInstances(input interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBInstances", reflect.TypeOf((*MockrdsService)(nil).DescribeDBInstances), input)
 }

@@ -8,12 +8,20 @@ import (
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=rdsclient_mockgen.go
+
+// RDSClient is the interface for describing aurora cluster endpoints
 type RDSClient interface {
 	GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[string]*AuroraCluster, error)
 }
 
+// rdsService defines the interface for describing cluster instances. It exists here to facilitate testing
+// but the *rds.RDS client will be the implementation for production code.
+type rdsService interface {
+	DescribeDBInstances(input *rds.DescribeDBInstancesInput) (*rds.DescribeDBInstancesOutput, error)
+}
+
 type Client struct {
-	client *rds.RDS
+	client rdsService
 }
 
 // NewRDSClient creates a new AWS client for querying RDS

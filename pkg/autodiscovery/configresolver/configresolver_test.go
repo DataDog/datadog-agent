@@ -550,6 +550,30 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
+			testName: "database monitoring aurora configuration resolves",
+			svc: &dummyService{
+				ID:            "dummy",
+				ADIdentifiers: []string{"database_monitoring_aurora"},
+				Hosts: map[string]string{
+					"": "my-cluster.cluster-123456789012.us-west-2.rds.amazonaws.com",
+				},
+				Ports:       []listeners.ContainerPort{{5432, fmt.Sprintf("p%d", 5432)}},
+				CheckNames:  []string{"postgres"},
+				ExtraConfig: map[string]string{"region": "us-west-2", "dbclusteridentifier": "my-cluster", "managed_authentication_enabled": "true"},
+			},
+			tpl: integration.Config{
+				Name:          "postgres",
+				ADIdentifiers: []string{"database_monitoring_aurora"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\nport: %%port%%\nregion: %%extra_region%%\nmanaged_authentication_enabled: %%extra_managed_authentication_enabled%%\ndbclusteridentifier: %%extra_dbclusteridentifier%%")},
+			},
+			out: integration.Config{
+				Name:          "postgres",
+				ADIdentifiers: []string{"database_monitoring_aurora"},
+				Instances:     []integration.Data{integration.Data("dbclusteridentifier: my-cluster\nhost: my-cluster.cluster-123456789012.us-west-2.rds.amazonaws.com\nmanaged_authentication_enabled: true\nport: 5432\nregion: us-west-2\ntags:\n- foo:bar\n")},
+				ServiceID:     "dummy",
+			},
+		},
+		{
 			testName: "with IgnoreAutodiscoveryTags disabled",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
