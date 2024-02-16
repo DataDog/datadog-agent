@@ -742,15 +742,22 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 
 func (s *Runner) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, pool *scannersPool) {
 	assert(scan.Type == types.TaskTypeEBS)
-	s.resultsCh <- pool.launchScannerVulns(ctx,
-		sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
-		scan.TargetName,
-		scan.TargetTags,
-		types.ScannerOptions{
-			Action:    types.ScanActionVulnsHostOSVm,
-			Scan:      scan,
-			CreatedAt: time.Now(),
-		})
+	for _, action := range scan.Actions {
+		if action == types.ScanActionVulnsHostOSVm {
+			s.resultsCh <- pool.launchScannerVulns(ctx,
+				sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
+				scan.TargetName,
+				scan.TargetTags,
+				types.ScannerOptions{
+					Action:    types.ScanActionVulnsHostOSVm,
+					Scan:      scan,
+					CreatedAt: time.Now(),
+				})
+		} else {
+			log.Errorf("%s: unexpected scan action %q: %s mode only allow scanning for host vulns", scan, action, scan.DiskMode)
+		}
+	}
+
 }
 
 func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool) {
