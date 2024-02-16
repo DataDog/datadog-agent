@@ -279,8 +279,6 @@ def go_work(_: Context):
     and the go version contained in the file .go-version.
     If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
     """
-    from semver import VersionInfo
-
     print(
         color_message(
             "WARNING: Using a go.work file is not supported and can cause weird errors "
@@ -294,8 +292,7 @@ def go_work(_: Context):
     # read go version from the .go-version file, removing the bugfix part of the version
 
     with open(".go-version") as f:
-        go_version = VersionInfo.parse(f.read().strip())
-        go_version = f"{go_version.major}.{go_version.minor}"
+        go_version = f.read().strip()
 
     if os.path.exists("go.work"):
         print("go.work already exists. Renaming to go.work.backup")
