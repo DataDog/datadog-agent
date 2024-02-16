@@ -92,6 +92,9 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 }
 
 func newUserContextSerializer(e *model.Event) *UserContextSerializer {
+	if e.ProcessContext == nil || e.ProcessContext.Process == nil {
+		return nil
+	}
 	return &UserContextSerializer{
 		User:           e.FieldHandlers.ResolveUser(e, &e.ProcessContext.Process),
 		OwnerSidString: e.ProcessContext.Process.OwnerSidString,
