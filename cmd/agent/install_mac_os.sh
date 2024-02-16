@@ -283,7 +283,7 @@ export TMPDIR
 # shellcheck disable=SC2016
 install_user_home=$($cmd_real_user bash -c 'echo "$HOME"')
 # shellcheck disable=SC2016
-user_uid=$($cmd_real_user bash -c 'echo "$UID"')
+user_uid=$($cmd_real_user bash -c 'id -u')
 user_plist_file=${install_user_home}/Library/LaunchAgents/${service_name}.plist
 
 # In order to install with the right user

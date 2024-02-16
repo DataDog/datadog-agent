@@ -103,7 +103,7 @@ echo '# Deleting old datadog-agent files'
 rm -rf $INSTALL_DIR/agent || true
 rm -rf $INSTALL_DIR/checks.d || true
 
-user_uid=$(echo "$UID")
+user_uid=$(id -u)
 install_user_home=$(echo "$HOME")
 user_plist_file=${install_user_home}/Library/LaunchAgents/com.datadoghq.agent.plist
 gui_user_plist_file=${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist
