@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/tests/e2e/containers/otlp_sender
 
-go 1.21
+go 1.21.7
 
 require (
 	go.opentelemetry.io/collector/component v0.91.0

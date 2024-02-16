@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/json
 
-go 1.21
+go 1.21.7
 
 require (
 	github.com/json-iterator/go v1.1.12
