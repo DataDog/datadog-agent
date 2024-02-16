@@ -13,11 +13,11 @@ import (
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
 type InstallAgentParams struct {
-	AgentUser         string // DDAGENTUSER_NAME
-	AgentUserPassword string // DDAGENTUSER_PASSWORD
-	Site              string // SITE
-	DdURL             string // DD_URL
-	APIKey            string // APIKEY
+	AgentUser         string `installer_arg:"DDAGENTUSER_NAME"`
+	AgentUserPassword string `installer_arg:"DDAGENTUSER_PASSWORD"`
+	Site              string `installer_arg:"SITE"`
+	DdURL             string `installer_arg:"DD_URL"`
+	APIKey            string `installer_arg:"APIKEY"`
 	InstallLogFile    string
 	Package           *Package
 }

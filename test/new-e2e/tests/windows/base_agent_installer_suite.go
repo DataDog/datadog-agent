@@ -16,6 +16,7 @@ import (
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	infraCommon "github.com/DataDog/test-infra-definitions/common"
 	"path/filepath"
+	"reflect"
 	"strings"
 )
 
@@ -42,21 +43,16 @@ func (b *BaseAgentInstallerSuite[Env]) InstallAgent(host *components.RemoteHost,
 	}
 
 	var args []string
-
-	if p.AgentUser != "" {
-		args = append(args, fmt.Sprintf("DDAGENTUSER_NAME=%s", p.AgentUser))
-	}
-	if p.AgentUserPassword != "" {
-		args = append(args, fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", p.AgentUserPassword))
-	}
-	if p.Site != "" {
-		args = append(args, fmt.Sprintf("SITE=%s", p.Site))
-	}
-	if p.APIKey != "" {
-		args = append(args, fmt.Sprintf("APIKEY=%s", p.APIKey))
-	}
-	if p.DdURL != "" {
-		args = append(args, fmt.Sprintf("DD_URL=%s", p.DdURL))
+	typeOfInstallAgentParams := reflect.TypeOf(p)
+	for fieldIndex := 0; fieldIndex < typeOfInstallAgentParams.NumField(); fieldIndex++ {
+		field := typeOfInstallAgentParams.Field(fieldIndex)
+		installerArg := field.Tag.Get("installer_arg")
+		if installerArg != "" {
+			installerArgValue := reflect.ValueOf(p).FieldByName(field.Name).String()
+			if installerArgValue != "" {
+				args = append(args, fmt.Sprintf("%s=%s", installerArg, installerArgValue))
+			}
+		}
 	}
 
 	remoteMSIPath, err := common.GetTemporaryFile(host)
