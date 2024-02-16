@@ -43,6 +43,7 @@ type DBMAuroraService struct {
 	adIdentifier string
 	entityID     string
 	checkName    string
+	clusterId    string
 	instance     *aws.Instance
 }
 
@@ -52,9 +53,10 @@ func NewDBMAuroraListener(Config) (ServiceListener, error) {
 		return nil, err
 	}
 	l := &DBMAuroraListener{
-		stop:     make(chan bool),
-		config:   config,
-		services: make(map[string]Service),
+		stop:       make(chan bool),
+		config:     config,
+		services:   make(map[string]Service),
+		awsClients: make(map[string]aws.RDSClient),
 	}
 	return l, nil
 }
@@ -101,16 +103,21 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 			}
 			auroraCluster, err := l.awsClients[cluster.Region].GetAuroraClusterEndpoints(ids)
 			if err != nil {
-				log.Errorf("error discovering aurora cluster: %s", err)
+				log.Errorf("error discovering aurora cluster, skipping: %s", err)
+				continue
 			}
 			discoveredServices := make(map[string]struct{})
 			for id, c := range auroraCluster {
 				for _, instance := range c.Instances {
-					entityID := fmt.Sprintf("%s-%s-%s", cluster.Type, id, instance.Endpoint)
+					if instance == nil {
+						continue
+					}
+					entityID := instance.Digest(string(cluster.Type), id)
 					discoveredServices[entityID] = struct{}{}
-					l.createService(entityID, string(cluster.Type), &instance)
+					l.createService(entityID, string(cluster.Type), id, instance)
 				}
 			}
+			// TODO: should we wait a certain number of run iterations before we remove instances?
 			deletedServices := findDeletedServices(l.previousServices, discoveredServices)
 			l.deleteServices(deletedServices)
 			l.previousServices = discoveredServices
@@ -123,7 +130,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 	}
 }
 
-func (l *DBMAuroraListener) createService(entityID, checkName string, instance *aws.Instance) {
+func (l *DBMAuroraListener) createService(entityID, checkName, clusterId string, instance *aws.Instance) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
@@ -134,6 +141,7 @@ func (l *DBMAuroraListener) createService(entityID, checkName string, instance *
 		entityID:     entityID,
 		checkName:    checkName,
 		instance:     instance,
+		clusterId:    clusterId,
 	}
 	l.services[entityID] = svc
 	l.newService <- svc
@@ -164,7 +172,7 @@ func findDeletedServices(previousServices, discoveredServices map[string]struct{
 
 // GetServiceID returns the unique entity name linked to that service
 func (d *DBMAuroraService) GetServiceID() string {
-	return d.adIdentifier
+	return d.entityID
 }
 
 // GetTaggerEntity returns the tagger entity
@@ -226,6 +234,8 @@ func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 		return d.instance.Region, nil
 	case "managed_authentication_enabled":
 		return strconv.FormatBool(d.instance.IamEnabled), nil
+	case "dbclusteridentifier":
+		return d.clusterId, nil
 	}
 	return "", ErrNotSupported
 }
