@@ -85,7 +85,7 @@ func TestBuildVerifierStats(t *testing.T) {
 	for _, path := range objectFiles {
 		files = append(files, path)
 	}
-	stats, failedToLoad, err := BuildVerifierStats(files)
+	stats, failedToLoad, err := BuildVerifierStats(files, nil)
 	require.NoError(t, err)
 
 	assert.True(t, len(stats) > 0)
