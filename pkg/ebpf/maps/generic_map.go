@@ -269,17 +269,17 @@ func (g *genericMapItemIterator[K, V]) Err() error {
 // genericMapBatchIterator is an iterator for a map that, under the hood, uses BatchLookup to reduce
 // the number of syscalls
 type genericMapBatchIterator[K any, V any] struct {
-	m                            *ebpf.Map        // Map to iterate
-	batchSize                    int              // Number of items to fetch per batch
-	cursor                       ebpf.BatchCursor // Cursor that maintains the state of the iteration
-	keys                         []K              // Buffer for storing the keys of the current batch
-	values                       []V              // Buffer for storing the values of the current batch
-	currentBatchSize             int              // Number of elements in the current batch, as returned by BatchLookup
-	inBatchIndex                 int              // Index of the next element to return in the current batch
-	err                          error            // Last error that happened during iteration
-	totalCount                   int              // Total number of elements returned so far
-	lastBatch                    bool             // True if this is the last batch, used to avoid extra calls to BatchLookup
-	valueTypeCanUseUnsafePointer bool             // True if the value type can be passed as an unsafe.Pointer or not. Helps avoid allocations
+	m                            *ebpf.Map           // Map to iterate
+	batchSize                    int                 // Number of items to fetch per batch
+	cursor                       ebpf.MapBatchCursor // Cursor that maintains the state of the iteration
+	keys                         []K                 // Buffer for storing the keys of the current batch
+	values                       []V                 // Buffer for storing the values of the current batch
+	currentBatchSize             int                 // Number of elements in the current batch, as returned by BatchLookup
+	inBatchIndex                 int                 // Index of the next element to return in the current batch
+	err                          error               // Last error that happened during iteration
+	totalCount                   int                 // Total number of elements returned so far
+	lastBatch                    bool                // True if this is the last batch, used to avoid extra calls to BatchLookup
+	valueTypeCanUseUnsafePointer bool                // True if the value type can be passed as an unsafe.Pointer or not. Helps avoid allocations
 }
 
 // Next fills K and V with the next key/value pair in the map. It returns false if there are no more elements
