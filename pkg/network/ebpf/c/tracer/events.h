@@ -151,13 +151,15 @@ static __always_inline conn_flush_t handle_tcp_close(struct pt_regs *ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
+    conn_flush_t conn = cleanup_conn(ctx, &t, sk);
+
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
     // so, there is no one to use the map and clean it.
     if (is_protocol_classification_supported()) {
         bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     }
 
-    return cleanup_conn(ctx, &t, sk);
+    return conn;
 }
 
 
