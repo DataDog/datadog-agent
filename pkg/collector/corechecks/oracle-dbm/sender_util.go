@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -75,4 +76,23 @@ func sendMetric(c *Check, method metricType, metric string, value float64, tags 
 
 func sendMetricWithDefaultTags(c *Check, method metricType, metric string, value float64) {
 	sendMetric(c, method, metric, value, c.tags)
+}
+
+func sendServiceCheck(c *Check, service string, status servicecheck.ServiceCheckStatus, message string) {
+	sender, err := c.GetSender()
+	if err != nil {
+		log.Errorf("%s failed to get metric sender %s", err)
+		return
+	}
+
+	sender.ServiceCheck("oracle.can_query", status, c.dbHostname, c.tags, message)
+}
+
+func commit(c *Check) {
+	sender, err := c.GetSender()
+	if err != nil {
+		log.Errorf("%s failed to get metric sender %s", err)
+		return
+	}
+	sender.Commit()
 }
