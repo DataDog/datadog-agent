@@ -93,66 +93,64 @@ static __always_inline bool tls_handle_non_pseudo_headers(tls_dispatcher_argumen
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
-static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header) {
-    __u64 str_len = 0;
-    bool is_huffman_encoded = false;
+static __always_inline bool tls_parse_field_literal(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, __u64 index, __u64 global_dynamic_counter, http2_telemetry_t *http2_tel, bool save_header, bool flipped) {
+    dynamic_table_value->string_len = 0;
+    dynamic_table_value->is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-    if (!tls_read_hpack_int(info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+    if (!tls_read_hpack_int(info, MAX_7_BITS, &dynamic_table_value->string_len, &dynamic_table_value->is_huffman_encoded)) {
         return false;
     }
 
     // The header name is new and inserted in the dynamic table - we skip the new value.
     if (index == 0) {
-        info->data_off += str_len;
-        str_len = 0;
+        info->data_off += dynamic_table_value->string_len;
+        dynamic_table_value->string_len = 0;
         // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
         // At this point the huffman code is not interesting due to the fact that we already read the string length,
         // We are reading the current size in order to skip it.
-        if (!tls_read_hpack_int(info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+        if (!tls_read_hpack_int(info, MAX_7_BITS, &dynamic_table_value->string_len, &dynamic_table_value->is_huffman_encoded)) {
             return false;
         }
+
         goto end;
     }
 
-    // Path headers in HTTP2 that are not "/" or "/index.html"  are represented
-    // with an indexed name, literal value, reusing the index 4 and 5 in the
-    // static table. A different index means that the header is not a path, so
-    // we skip it.
+    dynamic_table_value->key.index = global_dynamic_counter - 1;
+
     if (is_path_index(index)) {
-        update_path_size_telemetry(http2_tel, str_len);
-    } else if ((!is_status_index(index)) && (!is_method_index(index))) {
-        goto end;
+        update_path_size_telemetry(http2_tel, dynamic_table_value->string_len);
+        current_stream->path.dynamic_table_entry = global_dynamic_counter - 1;
+        current_stream->path.temporary = !save_header;
+        current_stream->path.tuple_flipped = flipped;
+//    } else if (is_status_index(index)) {
+//        current_stream->status_code.dynamic_table_entry = global_dynamic_counter - 1;
+//        current_stream->status_code.temporary = !save_header;
+//        current_stream->status_code.tuple_flipped = flipped;
+//        __sync_fetch_and_add(&http2_tel->response_seen, 1);
+//    } else if (is_method_index(index)) {
+//        current_stream->request_started = bpf_ktime_get_ns();
+//        __sync_fetch_and_add(&http2_tel->request_seen, 1);
+//        current_stream->request_method.dynamic_table_entry = global_dynamic_counter - 1;
+//        current_stream->request_method.temporary = !save_header;
+//        current_stream->request_method.tuple_flipped = flipped;
+//    } else {
+//        goto end;
     }
 
-    // We skip if:
-    // - The string is too big
-    // - This is not a path
-    // - We won't be able to store the header info
-    if (headers_to_process == NULL) {
-        goto end;
-    }
+//    if (info->data_off + dynamic_table_value->string_len > info->data_end) {
+//        __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
+//        goto end;
+//    }
 
-    if (info->data_off + str_len > info->data_end) {
-        __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
-        goto end;
-    }
-
-    if (save_header) {
-        headers_to_process->index = global_dynamic_counter - 1;
-        headers_to_process->type = kNewDynamicHeader;
-    } else {
-        headers_to_process->type = kNewDynamicHeaderNotIndexed;
-    }
-    headers_to_process->original_index = index;
-    headers_to_process->new_dynamic_value_offset = info->data_off;
-    headers_to_process->new_dynamic_value_size = str_len;
-    headers_to_process->is_huffman_encoded = is_huffman_encoded;
-    // If the string len (`str_len`) is in the range of [0, HTTP2_MAX_PATH_LEN], and we don't exceed packet boundaries
-    // (info->off + str_len <= info->len) and the index is kIndexPath, then we have a path header,
-    // and we're increasing the counter. In any other case, we're not increasing the counter.
-    *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN);
+//    read_into_user_buffer_http2_path(dynamic_table_value->buf, info->buffer_ptr + info->data_off);
+//    // Send dynamic value over a per-event to the user mode.
+//    dynamic_table_value->temporary = !save_header;
+//    bpf_perf_event_output(ctx, &http2_dynamic_table_perf_buffer, bpf_get_smp_processor_id(), dynamic_table_value, sizeof(dynamic_table_value_t));
+//    if (save_header) {
+//        bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_table_value->key.index, BPF_ANY);
+//    }
 end:
-    info->data_off += str_len;
+    info->data_off += dynamic_table_value->string_len;
     return true;
 }
 
@@ -183,10 +181,8 @@ static __always_inline void tls_handle_dynamic_table_update(tls_dispatcher_argum
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments_t *info, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
+static __always_inline void tls_filter_relevant_headers(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, __u32 frame_length, http2_telemetry_t *http2_tel, bool flipped) {
     __u8 current_ch;
-    __u8 interesting_headers = 0;
-    http2_header_t *current_header;
     const __u32 frame_end = info->data_off + frame_length;
     const __u32 end = frame_end < info->data_end + 1 ? frame_end : info->data_end + 1;
     bool is_indexed = false;
@@ -196,7 +192,7 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
 
     __u64 *global_dynamic_counter = get_dynamic_counter(&info->tup);
     if (global_dynamic_counter == NULL) {
-        return 0;
+        return;
     }
 
     tls_handle_dynamic_table_update(info);
@@ -228,16 +224,11 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
             break;
         }
 
-        current_header = NULL;
-        if (interesting_headers < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING) {
-            current_header = &headers_to_process[interesting_headers];
-        }
-
         if (is_indexed) {
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers);
+            parse_field_indexed(current_stream, &dynamic_table_value->key, index, *global_dynamic_counter, http2_tel, flipped);
             continue;
         }
         // Increment the global dynamic counter for each literal header field.
@@ -245,9 +236,9 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
 
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!tls_parse_field_literal(info, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal)) {
-            break;
-        }
+//        if (!tls_parse_field_literal(ctx, info, current_stream, dynamic_table_value, index, *global_dynamic_counter, http2_tel, is_literal, flipped)) {
+//            break;
+//        }
     }
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
@@ -293,105 +284,7 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
         }
     }
 
-    return interesting_headers;
-}
-
-// tls_process_headers processes the headers that were filtered in
-// tls_filter_relevant_headers, looking for requests path, status code, and method.
-static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers, http2_telemetry_t *http2_tel) {
-    http2_header_t *current_header;
-    dynamic_table_entry_t dynamic_value = {};
-
-#pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
-    for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
-        if (iteration >= interesting_headers) {
-            break;
-        }
-
-        current_header = &headers_to_process[iteration];
-
-        if (current_header->type == kStaticHeader) {
-            if (is_method_index(current_header->index)) {
-                // TODO: mark request
-                current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method.static_table_entry = current_header->index;
-                current_stream->request_method.finalized = true;
-                __sync_fetch_and_add(&http2_tel->request_seen, 1);
-            } else if (is_status_index(current_header->index)) {
-                current_stream->status_code.static_table_entry = current_header->index;
-                current_stream->status_code.finalized = true;
-                __sync_fetch_and_add(&http2_tel->response_seen, 1);
-            } else if (is_path_index(current_header->index)) {
-                current_stream->path.static_table_entry = current_header->index;
-                current_stream->path.finalized = true;
-            }
-            continue;
-        }
-
-        dynamic_index->index = current_header->index;
-        if (current_header->type == kExistingDynamicHeader) {
-            dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
-            if (dynamic_value == NULL) {
-                break;
-            }
-            if (is_path_index(dynamic_value->original_index)) {
-                current_stream->path.length = dynamic_value->string_len;
-                current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->path.finalized = true;
-                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
-            } else if (is_status_index(dynamic_value->original_index)) {
-                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
-                current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->status_code.finalized = true;
-            } else if (is_method_index(dynamic_value->original_index)) {
-                current_stream->request_started = bpf_ktime_get_ns();
-                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
-                current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
-                current_stream->request_method.finalized = true;
-            }
-        } else {
-            // We're in new dynamic header or new dynamic header not indexed states.
-            read_into_user_buffer_http2_path(dynamic_value.buffer, info->buffer_ptr + current_header->new_dynamic_value_offset);
-            // If the value is indexed - add it to the dynamic table.
-            if (current_header->type == kNewDynamicHeader) {
-                dynamic_value.string_len = current_header->new_dynamic_value_size;
-                dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
-                dynamic_value.original_index = current_header->original_index;
-                bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
-            }
-            if (is_path_index(current_header->original_index)) {
-                current_stream->path.length = current_header->new_dynamic_value_size;
-                current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->path.finalized = true;
-                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
-            } else if (is_status_index(current_header->original_index)) {
-                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
-                current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->status_code.finalized = true;
-            } else if (is_method_index(current_header->original_index)) {
-                current_stream->request_started = bpf_ktime_get_ns();
-                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
-                current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
-                current_stream->request_method.finalized = true;
-            }
-        }
-    }
-}
-
-static __always_inline void tls_process_headers_frame(tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
-    const __u32 zero = 0;
-
-    // Allocating an array of headers, to hold all interesting headers from the frame.
-    http2_header_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
-    if (headers_to_process == NULL) {
-        return;
-    }
-    bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
-
-    __u8 interesting_headers = tls_filter_relevant_headers(info, dynamic_index, headers_to_process, current_frame_header->length, http2_tel);
-    tls_process_headers(info, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
+    return;
 }
 
 // tls_skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
@@ -774,8 +667,8 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
         return 0;
     }
 
-    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
-    if (http2_ctx == NULL) {
+    http2_stream_key_t *http2_stream_key = bpf_map_lookup_elem(&http2_stream_key_heap, &zero);
+    if (http2_stream_key == NULL) {
         goto delete_iteration;
     }
 
@@ -784,14 +677,18 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
         goto delete_iteration;
     }
 
+    dynamic_table_value_t *dynamic_table_value = bpf_map_lookup_elem(&http2_dynamic_table_heap, &zero);
+    if (dynamic_table_value == NULL) {
+        goto delete_iteration;
+    }
+    dynamic_table_value->key.tup = dispatcher_args_copy.tup;
+
     http2_frame_with_offset *frames_array = tail_call_state->frames_array;
     http2_frame_with_offset current_frame;
 
-    // create the http2 ctx for the current http2 frame.
-    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
-    normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
+    bpf_memset(http2_stream_key, 0, sizeof(http2_stream_key_t));
+    http2_stream_key->tup = dispatcher_args_copy.tup;
+    bool flipped = normalize_tuple(&http2_stream_key->tup);
 
     http2_stream_t *current_stream = NULL;
 
@@ -811,13 +708,13 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
             continue;
         }
 
-        http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        http2_stream_key->stream_id = current_frame.frame.stream_id;
+        current_stream = http2_fetch_stream(http2_stream_key);
         if (current_stream == NULL) {
             continue;
         }
         dispatcher_args_copy.data_off = current_frame.offset;
-        tls_process_headers_frame(&dispatcher_args_copy, current_stream, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
+        tls_filter_relevant_headers(ctx, &dispatcher_args_copy, current_stream, dynamic_table_value, current_frame.frame.length, http2_tel, flipped);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
@@ -871,13 +768,13 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     http2_frame_with_offset *frames_array = tail_call_state->frames_array;
     http2_frame_with_offset current_frame;
 
-    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
-    if (http2_ctx == NULL) {
+    http2_stream_key_t *http2_stream_key = bpf_map_lookup_elem(&http2_stream_key_heap, &zero);
+    if (http2_stream_key == NULL) {
         goto delete_iteration;
     }
-    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
-    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+    bpf_memset(http2_stream_key, 0, sizeof(http2_stream_key_t));
+    http2_stream_key->tup = dispatcher_args_copy.tup;
+    normalize_tuple(&http2_stream_key->tup);
 
     bool is_rst = false, is_end_of_stream = false;
     http2_stream_t *current_stream = NULL;
@@ -901,8 +798,8 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
             continue;
         }
 
-        http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        http2_stream_key->stream_id = current_frame.frame.stream_id;
+        current_stream = http2_fetch_stream(http2_stream_key);
         if (current_stream == NULL) {
             continue;
         }
@@ -910,8 +807,8 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         // When we accept an RST, it means that the current stream is terminated.
         // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
         // If rst, and stream is empty (no status code, or no response) then delete from inflight
-        if (is_rst && (!current_stream->status_code.finalized || current_stream->request_started == 0)) {
-            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+        if (is_rst && ((current_stream->status_code.dynamic_table_entry == 0 && current_stream->status_code.static_table_entry) || current_stream->request_started == 0)) {
+            bpf_map_delete_elem(&http2_in_flight, http2_stream_key);
             continue;
         }
 
@@ -920,7 +817,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
             __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
         }
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
+        handle_end_of_stream(current_stream, http2_stream_key, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&

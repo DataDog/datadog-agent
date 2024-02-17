@@ -45,16 +45,17 @@ type Protocol struct {
 }
 
 const (
-	inFlightMap               = "http2_in_flight"
-	dynamicTable              = "http2_dynamic_table"
-	dynamicTableCounter       = "http2_dynamic_counter_table"
-	http2IterationsTable      = "http2_iterations"
-	tlsHTTP2IterationsTable   = "tls_http2_iterations"
-	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
-	filterTailCall            = "socket__http2_filter"
-	headersParserTailCall     = "socket__http2_headers_parser"
-	eosParserTailCall         = "socket__http2_eos_parser"
-	eventStream               = "http2"
+	inFlightMap                 = "http2_in_flight"
+	dynamicTable                = "http2_dynamic_table"
+	dynamicTableCounter         = "http2_dynamic_counter_table"
+	http2IterationsTable        = "http2_iterations"
+	tlsHTTP2IterationsTable     = "tls_http2_iterations"
+	firstFrameHandlerTailCall   = "socket__http2_handle_first_frame"
+	filterTailCall              = "socket__http2_filter"
+	headersParserTailCall       = "socket__http2_headers_parser"
+	eosParserTailCall           = "socket__http2_eos_parser"
+	eventStream                 = "http2"
+	http2DynamicTablePerfBuffer = "http2_dynamic_table_perf_buffer"
 
 	// TelemetryMap is the name of the map used to retrieve plaintext metrics from the kernel
 	TelemetryMap = "http2_telemetry"
@@ -88,16 +89,10 @@ var Spec = &protocols.ProtocolSpec{
 			Name: tlsHTTP2IterationsTable,
 		},
 		{
-			Name: "http2_headers_to_process",
-		},
-		{
 			Name: "http2_frames_to_process",
 		},
 		{
-			Name: "http2_stream_heap",
-		},
-		{
-			Name: "http2_ctx_heap",
+			Name: "http2_stream_key_heap",
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -184,7 +179,7 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 		telemetry:                  telemetry,
 		http2Telemetry:             http2KernelTelemetry,
 		kernelTelemetryStopChannel: make(chan struct{}),
-		dynamicTable:               NewDynamicTable(),
+		dynamicTable:               NewDynamicTable(int(cfg.MaxUSMConcurrentRequests)),
 	}, nil
 }
 
@@ -357,7 +352,7 @@ func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key HTTP2DynamicTableIndex
-		var value HTTP2DynamicTableEntry
+		var value uint32
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
@@ -366,7 +361,11 @@ func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 
 func (p *Protocol) processHTTP2(events []EbpfTx) {
 	for i := range events {
-		tx := &events[i]
+		event := events[i]
+		tx := &ebpfTXWrapper{
+			EbpfTx:       &event,
+			dynamicTable: p.dynamicTable,
+		}
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
 	}

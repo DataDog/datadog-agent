@@ -46,11 +46,6 @@
 // A limit of max pseudo headers which we process in the request/response.
 #define HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING 4
 
-// Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
-// For request - those are method, path. For response - status code.
-// Thus differentiating between the limits can allow reducing code size.
-#define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 2
-
 // Maximum size for the path buffer.
 #define HTTP2_MAX_PATH_LEN 160
 
@@ -109,61 +104,47 @@ typedef enum {
 } __attribute__((packed)) static_table_value_t;
 
 typedef struct {
-    char buffer[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
-    __u32 original_index;
-    __u8 string_len;
-    bool is_huffman_encoded;
-} dynamic_table_entry_t;
-
-typedef struct {
     __u64 index;
     conn_tuple_t tup;
 } dynamic_table_index_t;
+
+// The struct represents a dynamic-table value being sent to the user mode.
+typedef struct {
+    // The key of the dynamic table value. Contains a connection tuple and the index.
+    dynamic_table_index_t key;
+
+    // This boolean is used to mark the entry as temporary, which means the value came from Literal Header Field
+    // Without Indexing or Literal Header Field Never Indexed, in opposed to regular Literal Headers.
+    bool temporary;
+    // Whether the value is huffman encoded or passed as is.
+    bool is_huffman_encoded;
+    // The length of the value.
+    __u64 string_len;
+    // The raw buffer of the value. We need to use the max size among all dynamic table options. We care for path,
+    // method, and status. Path is the only value that does not have known "options", and can be very long, thus we use
+    // its max path.
+    char buf[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
+} dynamic_table_value_t;
 
 typedef struct {
     conn_tuple_t tup;
     __u32 stream_id;
 } http2_stream_key_t;
 
-// If the path is huffman encoded then the length is 2, but if it is not, then the length is 3.
-#define HTTP2_STATUS_CODE_MAX_LEN 3
-
-// Max length of the method is 7.
-#define HTTP2_METHOD_MAX_LEN 7
-
 typedef struct {
-    __u8 raw_buffer[HTTP2_STATUS_CODE_MAX_LEN];
-    bool is_huffman_encoded;
-
+    __u64 dynamic_table_entry;
+    bool temporary;
     __u8 static_table_entry;
-    bool finalized;
-} status_code_t;
-
-typedef struct {
-    __u8 raw_buffer[HTTP2_METHOD_MAX_LEN];
-    bool is_huffman_encoded;
-
-    __u8 static_table_entry;
-    __u8 length;
-    bool finalized;
-} method_t;
-
-typedef struct {
-    __u8 raw_buffer[HTTP2_MAX_PATH_LEN];
-    bool is_huffman_encoded;
-
-    __u8 static_table_entry;
-    __u8 length;
-    bool finalized;
-} path_t;
+    bool tuple_flipped;
+} interesting_value_t;
 
 typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
 
-    status_code_t status_code;
-    method_t request_method;
-    path_t path;
+    interesting_value_t status_code;
+    interesting_value_t request_method;
+    interesting_value_t path;
     bool request_end_of_stream;
 } http2_stream_t;
 
@@ -171,27 +152,6 @@ typedef struct {
     conn_tuple_t tuple;
     http2_stream_t stream;
 } http2_event_t;
-
-typedef struct {
-    dynamic_table_index_t dynamic_index;
-    http2_stream_key_t http2_stream_key;
-} http2_ctx_t;
-
-typedef enum {
-    kStaticHeader = 0,
-    kExistingDynamicHeader = 1,
-    kNewDynamicHeader = 2,
-    kNewDynamicHeaderNotIndexed = 3,
-} __attribute__((packed)) http2_header_type_t;
-
-typedef struct {
-    __u32 original_index;
-    __u32 index;
-    __u32 new_dynamic_value_offset;
-    __u32 new_dynamic_value_size;
-    http2_header_type_t type;
-    bool is_huffman_encoded;
-} http2_header_t;
 
 typedef struct {
     http2_frame_t frame;
