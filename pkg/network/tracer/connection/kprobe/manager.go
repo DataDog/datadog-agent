@@ -11,12 +11,12 @@ import (
 	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
+	cebpf "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,12 +34,11 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPRecvMsgReturn,
 	probes.TCPReadSock,
 	probes.TCPReadSockReturn,
-	probes.TCPClose,
+	probes.TCPCloseRingbuffer,
+	probes.TCPClosePerfbuffer,
 	probes.TCPCloseCleanProtocolsReturn,
 	probes.TCPCloseFlushReturnRingbuffer,
-	probes.TCPConnCloseEmitEventRingbuffer,
 	probes.TCPCloseFlushReturnPerfbuffer,
-	probes.TCPConnCloseEmitEventPerfbuffer,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
@@ -54,10 +53,12 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPRetransmitRet,
 	probes.InetCskAcceptReturn,
 	probes.InetCskListenStop,
-	probes.UDPDestroySock,
+	probes.UDPDestroySockRingbuffer,
+	probes.UDPDestroySockPerfbuffer,
 	probes.UDPDestroySockReturnRingbuffer,
 	probes.UDPDestroySockReturnPerfbuffer,
-	probes.UDPv6DestroySock,
+	probes.UDPv6DestroySockRingbuffer,
+	probes.UDPv6DestroySockPerfbuffer,
 	probes.UDPv6DestroySockReturnRingbuffer,
 	probes.UDPv6DestroySockReturnPerfbuffer,
 	probes.InetBind,
@@ -167,13 +168,13 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 // ComputeDefaultClosedConnRingBufferSize is the default buffer size of the ring buffer for closed connection events.
 // Must be a power of 2 and a multiple of the page size
 func ComputeDefaultClosedConnRingBufferSize() int {
-	numCPU, err := utils.NumCPU()
+	numCPUs, err := cebpf.PossibleCPU()
 	pageSize := os.Getpagesize()
 	if err != nil {
-		numCPU = 1
+		numCPUs = 1
 	}
-	log.Debugf("setting closed conn ringbuffer size based on %d CPUs and a page size of %d", numCPU, pageSize)
-	return 8 * numCPU * pageSize
+	log.Debugf("setting closed conn ringbuffer size based on %d CPUs and a page size of %d", numCPUs, pageSize)
+	return 8 * numCPUs * pageSize
 }
 
 // ComputeDefaultClosedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.

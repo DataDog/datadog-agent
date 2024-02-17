@@ -241,8 +241,9 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    if (cleanup_conn(ctx, &t, sk)) {
-        emit_conn_close_event_ringbuffer(ctx);
+    conn_flush_t conn = cleanup_conn(ctx, &t, sk);
+    if (conn.needs_individual_flush) {
+        emit_conn_close_event_ringbuffer(&conn.conn, ctx);
     }
     return 0;
 }
@@ -530,8 +531,9 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        if (cleanup_conn(ctx, &tup, sk)) {
-            emit_conn_close_event_ringbuffer(ctx);
+        conn_flush_t conn = cleanup_conn(ctx, &tup, sk);
+        if (conn.needs_individual_flush) {
+            emit_conn_close_event_ringbuffer(&conn.conn, ctx);
         }
         lport = tup.sport;
     } else {

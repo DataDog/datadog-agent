@@ -80,18 +80,16 @@ const (
 	// TCPReadSockReturn traces the return for the tcp_read_sock() kernel function
 	TCPReadSockReturn ProbeFuncName = "kretprobe__tcp_read_sock"
 
-	// TCPClose traces the tcp_close() system call
-	TCPClose ProbeFuncName = "kprobe__tcp_close"
+	// TCPCloseRingbuffer traces the tcp_close() system call on kernels with ringbuffer support
+	TCPCloseRingbuffer ProbeFuncName = "kprobe__tcp_close_ringbuffer"
+	// TCPClosePerfbuffer traces the tcp_close() system call on kernels without ringbuffer support
+	TCPClosePerfbuffer ProbeFuncName = "kprobe__tcp_close_perfbuffer"
 	// TCPCloseCleanProtocolsReturn traces the return of tcp_close() system call
 	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
 	// TCPCloseFlushReturnRingbuffer traces the return of tcp_close() system call on kernels with ringbuffer support
 	TCPCloseFlushReturnRingbuffer ProbeFuncName = "kretprobe__tcp_close_flush_batch_ringbuffer"
 	// TCPCloseFlushReturnPerfbuffer traces the return of tcp_close() system call on kernels without ringbuffer support
 	TCPCloseFlushReturnPerfbuffer ProbeFuncName = "kretprobe__tcp_close_flush_batch_perfbuffer"
-	// TCPConnCloseEmitEventRingbuffer is a tail call used to emit a single connection close event on kernels with ringbuffer support
-	TCPConnCloseEmitEventRingbuffer ProbeFuncName = "tail_call_target_tcp_close_flush_individual_conn_ringbuffer"
-	// TCPConnCloseEmitEventPerfbuffer is a tail call used to emit a single connection close event on kernels without ringbuffer support
-	TCPConnCloseEmitEventPerfbuffer ProbeFuncName = "tail_call_target_tcp_close_flush_individual_conn_perfbuffer"
 
 	// We use the following two probes for UDP sends
 
@@ -141,15 +139,19 @@ const (
 	// UnderscoredSKBFreeDatagramLocked traces __skb_free_datagram_locked()
 	UnderscoredSKBFreeDatagramLocked ProbeFuncName = "kprobe____skb_free_datagram_locked"
 
-	// UDPDestroySock traces the udp_destroy_sock() function
-	UDPDestroySock ProbeFuncName = "kprobe__udp_destroy_sock"
+	// UDPDestroySockRingbuffer traces the udp_destroy_sock() function on kernels with ringbuffer support
+	UDPDestroySockRingbuffer ProbeFuncName = "kprobe__udp_destroy_sock_ringbuffer"
+	// UDPDestroySockPerfbuffer traces the udp_destroy_sock() function on kernels without ringbuffer support
+	UDPDestroySockPerfbuffer ProbeFuncName = "kprobe__udp_destroy_sock_perfbuffer"
 	// UDPDestroySockReturnRingbuffer traces the return of the udp_destroy_sock() system call on kernels with ringbuffer support
 	UDPDestroySockReturnRingbuffer ProbeFuncName = "kretprobe__udp_destroy_sock_ringbuffer"
 	// UDPDestroySockReturnPerfbuffer traces the return of the udp_destroy_sock() system call on kernels without ringbuffer support
 	UDPDestroySockReturnPerfbuffer ProbeFuncName = "kretprobe__udp_destroy_sock_perfbuffer"
 
-	// UDPv6DestroySock traces the udpv6_destroy_sock() function
-	UDPv6DestroySock ProbeFuncName = "kprobe__udpv6_destroy_sock"
+	// UDPv6DestroySockRingbuffer traces the udpv6_destroy_sock() function on kernels with ringbuffer support
+	UDPv6DestroySockRingbuffer ProbeFuncName = "kprobe__udpv6_destroy_sock_ringbuffer"
+	// UDPv6DestroySockPerfbuffer traces the udpv6_destroy_sock() function on kernels without ringbuffer support
+	UDPv6DestroySockPerfbuffer ProbeFuncName = "kprobe__udpv6_destroy_sock_perfbuffer"
 	// UDPv6DestroySockReturnRingbuffer traces the return of the udpv6_destroy_sock() system call on kernels with ringbuffer support
 	UDPv6DestroySockReturnRingbuffer ProbeFuncName = "kretprobe__udpv6_destroy_sock_ringbuffer"
 	// UDPv6DestroySockReturnPerfbuffer traces the return of the udpv6_destroy_sock() system call on kernels without ringbuffer support

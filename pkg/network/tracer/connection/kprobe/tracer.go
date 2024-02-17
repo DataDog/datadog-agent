@@ -156,7 +156,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 	ringbufferEnabled := RingBufferSupported(config)
 	AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffer_enabled")
-	tcpEnabled := config.CollectTCPv4Conns || config.CollectTCPv6Conns
 
 	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
@@ -206,24 +205,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		},
 	}
 	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls)+2)
-	if tcpEnabled {
-		probePair := manager.ProbeIdentificationPair{
-			EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer,
-			UID:          probeUID,
-		}
-		if ringbufferEnabled {
-			probePair.EBPFFuncName = probes.TCPConnCloseEmitEventRingbuffer
-		}
-		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
-			{
-				ProgArrayName:           probes.ConnCloseProgsIndvMap,
-				Key:                     0,
-				ProbeIdentificationPair: probePair,
-			},
-		}...)
-		tailCallsIdentifiersSet[probePair] = struct{}{}
-	}
-
 	var undefinedProbes []manager.ProbeIdentificationPair
 
 	var closeProtocolClassifierSocketFilterFn func()
