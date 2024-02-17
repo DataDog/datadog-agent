@@ -135,7 +135,7 @@ static __always_inline conn_flush_t cleanup_conn(void *ctx, conn_tuple_t *tup, s
     return conn_flush;
 }
 
-static __always_inline conn_flush_t handle_tcp_close(void *ctx) {
+static __always_inline conn_flush_t handle_tcp_close(struct pt_regs *ctx) {
     struct sock *sk;
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
