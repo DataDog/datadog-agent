@@ -91,7 +91,6 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		{Name: probes.TcpRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
-		{Name: probes.ConnCloseProgsIndvMap},
 	}
 	switch handler := connCloseEventHandler.(type) {
 	case *ebpf.RingBufferHandler:

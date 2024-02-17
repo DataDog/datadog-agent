@@ -122,8 +122,6 @@ static __always_inline conn_flush_t cleanup_conn(void *ctx, conn_tuple_t *tup, s
     // We send the connection outside of a batch anyway. This is likely not as
     // frequent of a case to cause performance issues and avoid cases where
     // we drop whole connections, which impacts things USM connection matching.
-    // u64 pid_tgid = bpf_get_current_pid_tgid();
-    // bpf_map_update_with_telemetry(pending_individual_conn_flushes, &pid_tgid, &conn, BPF_ANY);
     if (is_tcp) {
         increment_telemetry_count(unbatched_tcp_close);
     }

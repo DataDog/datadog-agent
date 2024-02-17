@@ -246,7 +246,4 @@ const (
 	ClassificationProgsMap BPFMapName = "classification_progs"
 	//nolint:revive // TODO(NET) Fix revive linter
 	TCPCloseProgsMap BPFMapName = "tcp_close_progs"
-	// ConnCloseProgsIndvMap is the map that stores the tail call programs to be called when a connection is closed
-	// and it is not sent to userspace in a batch
-	ConnCloseProgsIndvMap BPFMapName = "conn_close_individual_progs"
 )
