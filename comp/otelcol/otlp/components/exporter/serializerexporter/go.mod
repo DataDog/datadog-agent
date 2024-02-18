@@ -3,7 +3,9 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/se
 go 1.21
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../../../cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/log => ../../../../../core/log
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../../../core/status
@@ -13,17 +15,21 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../../../../pkg/config/logs
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../../../pkg/metrics
+	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../../../../pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../../../../pkg/orchestrator/model
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../../../pkg/proto
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../../../pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../../../../pkg/serializer
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../../../pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/trace => ../../../../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../../../pkg/util/backoff/
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../../../pkg/util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../../../../../pkg/util/common/
@@ -41,6 +47,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../../../../../../pkg/util/sort/
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../../../pkg/util/system/
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../../../pkg/util/system/socket/
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../../../pkg/util/testutil/
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../../../pkg/util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../../../pkg/version
 
