@@ -301,6 +301,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 
+	cfg.BindEnvAndSetDefault(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"), 5)
+
 	cfg.BindEnvAndSetDefault(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"), 30)
 
 	// Default value (300) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.

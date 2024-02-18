@@ -178,6 +178,8 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	t.Run("Not enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 5*time.Second)
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
@@ -1557,7 +1559,7 @@ system_probe_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := modelCfgFromYAML(t, `
 system_probe_config:
-  process_service_inference: 
+  process_service_inference:
     enabled: true`)
 		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
 	})
