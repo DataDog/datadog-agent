@@ -54,6 +54,7 @@ const (
 	filterTailCall            = "socket__http2_filter"
 	headersParserTailCall     = "socket__http2_headers_parser"
 	eosParserTailCall         = "socket__http2_eos_parser"
+	cleanupParserTailCall     = "socket__http2_frames_cleanup"
 	eventStream               = "http2"
 
 	// TelemetryMap is the name of the map used to retrieve plaintext metrics from the kernel
@@ -65,6 +66,7 @@ const (
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
 	tlsHeadersParserTailCall = "uprobe__http2_tls_headers_parser"
 	tlsEOSParserTailCall     = "uprobe__http2_tls_eos_parser"
+	tlsCleanupParserTailCall = "uprobe__http2_tls_frames_cleanup"
 	tlsTerminationTailCall   = "uprobe__http2_tls_termination"
 )
 
@@ -130,6 +132,13 @@ var Spec = &protocols.ProtocolSpec{
 			},
 		},
 		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2Cleanup),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: cleanupParserTailCall,
+			},
+		},
+		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramTLSHTTP2FirstFrame),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -155,6 +164,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramTLSHTTP2EOSParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsEOSParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2CleanupParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsCleanupParserTailCall,
 			},
 		},
 		{
@@ -385,13 +401,17 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key http2StreamKey, val EbpfTx) bool {
+	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, key http2StreamKey, val EbpfTx) bool {
 		if updated := int64(val.Stream.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(val.Stream.Request_started)
-		return started > 0 && (now-started) > ttl
+		if started := int64(val.Stream.Request_started); started > 0 {
+			return (now - started) > ttl
+		}
+
+		// If we've seen only responses, then remove from the map the half stream.
+		return val.Stream.Status_code.Finalized
 	})
 
 	p.http2InFlightMapCleaner = mapCleaner
