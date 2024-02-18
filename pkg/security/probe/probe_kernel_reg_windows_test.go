@@ -165,7 +165,7 @@ func TestETWRegistryNotifications(t *testing.T) {
 	stopLoop(et, &wg)
 
 	assert.Equal(t, 2, len(et.notifications), "expected 2 notifications, got %d", len(et.notifications))
-	
+
 	if c, ok := et.notifications[0].(*createKeyArgs); ok {
 		assert.Equal(t, expectedBase, c.computedFullPath, "expected %s, got %s", expectedBase, c.computedFullPath)
 	} else {

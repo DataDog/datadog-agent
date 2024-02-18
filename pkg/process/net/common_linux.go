@@ -36,3 +36,7 @@ func CheckPath(path string) error {
 	}
 	return nil
 }
+
+func dialFunc(path string) (net.Conn, error) {
+	return net.Dial(netType, path)
+}
