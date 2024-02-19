@@ -62,7 +62,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.52.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.1 // indirect
 	github.com/DataDog/datadog-go/v5 v5.1.1 // indirect
-	github.com/DataDog/go-sqllexer v0.0.9 // indirect
+	github.com/DataDog/go-sqllexer v0.0.10 // indirect
 	github.com/DataDog/go-tuf v1.0.2-0.5.2 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.13.3 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
