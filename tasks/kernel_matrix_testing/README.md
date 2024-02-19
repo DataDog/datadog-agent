@@ -274,23 +274,32 @@ inv -e kmt.stack [--stack=<name>]
 
 > At the moment this just prints the running VMs and their IP addresses. This information will be enriched in later versions of the tool.
 
+### Testing system-probe
+KMT is inteded to easily run the testsuite across a kernel/distribuion matrix.
+Developers can easily run tests against VMs transparently using the provided invoke tasks.
+```bash
+inv -e kmt.test --vms=<vms-list>
+```
+
+Similar to `system-probe.tests`, tests can be run against specific packages, and can also be filtered down to specific tests via a regex.
+```bash
+inv -e kmt.test --vms=jammy-local-distro --packages=./pkg/network/tracer --run="TestTracerSuite/prebuilt/TestDNSStats/valid_domain"
+```
+
+Various other parameters are provided to control different aspects of running the test. Refer to the help for this invoke task for more information.
+```bash
+inv --help=kmt.test
+```
+
+
+### Building system-probe
+System probe can be built locally and shared with specified VMs.
+```bash
+inv -e kmt.build --vms=<vms-list>
+```
+
 ### Pausing the stack
 This is only relevant for VMs running in the local environment. This has no effect on VMs running on remote instances. Pausing the stack essentially stops the running VMs and frees their resources. However, the VM environment is left intact so that it may be brought up again.
 
 ### Resuming the stack
 This resumes a previously paused stack. This is only applicable for VMs running locally.
-
-
-### Syncing VMs
-The recommended workflow is to develop on the local machine, push changes to the target VMs, and then build and test there.
-
-To support this, a task for syncing the local datadog-agent repo with target VMs is provided.
-
-> We are working on providing tasks which will automatically sync with the target VMs, and build and run tests. However, this is a work in progress.
-
-If syncing to VMs running on remote machine the ssh-key-name is required. For local VMs it is not required.
-The VMs list has the same rules as listed for the task `gen-config`.
-```bash
-inv -e kmt.sync  --vms=local-amazon4.14-distro,jammy-local-distro,focal-arm-distro,amazon5.4-x86-distro --ssh-key=<ssh-key-name>
-```
-
