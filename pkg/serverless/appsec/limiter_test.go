@@ -322,6 +322,13 @@ func (t *TestTicker) stop() {
 	t.tokenTicker.Stop()
 	close(t.ticks)
 	// syncChan is closed by the token ticker when sure that nothing else will be sent on it.
+	for {
+		// Read until closed to synchronize on the goroutine having finished.
+		_, ok := <-t.syncChan
+		if !ok {
+			return
+		}
+	}
 }
 
 func (t *TestTicker) tick(timeStamp time.Time) {
