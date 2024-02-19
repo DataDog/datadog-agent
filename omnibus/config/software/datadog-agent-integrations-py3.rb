@@ -76,8 +76,16 @@ build do
 
   # Install dependencies
   package_index_url = ENV['PYTHON_INDEX_URL']
-  lockfile = windows_safe_path(project_dir, ".deps", "resolved", "linux-x86_64_py3.txt")
-  command "#{python} -m pip install --require-hashes --only-binary=:all: "\
+  lockfile_name = case
+    when linux_target?
+      arm_target? ? "linux-aarch64_py3.txt" : "linux-x86_64_py3.txt"
+    when osx_target?
+      "macos-x86_64_py3.txt"
+    when windows_target?
+      "windows-x86_64_py3.txt"
+  end
+  lockfile = windows_safe_path(project_dir, ".deps", "resolved", lockfile_name)
+  command "#{python} -m pip install --require-hashes --only-binary=:all: --no-deps "\
           "--index-url #{package_index_url}/built --extra-index-url #{package_index_url}/external "\
           "-r #{lockfile}"
 
