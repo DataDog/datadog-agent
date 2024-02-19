@@ -765,7 +765,7 @@ def get_impacted_packages(ctx, build_tags=None):
             formatted_path = Path(os.path.dirname(file)).as_posix()
             while len(formatted_path) > 0:
                 if glob.glob(f"{formatted_path}/*.go"):
-                    print(f"Found {file} belongs to package {formatted_path}")
+                    print(f"Found {file} belonging to package {formatted_path}")
                     modified_packages.add(f"github.com/DataDog/datadog-agent/{formatted_path}")
                     break
                 formatted_path = "/".join(formatted_path.split("/")[:-1])
