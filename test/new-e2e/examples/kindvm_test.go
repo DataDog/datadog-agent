@@ -17,15 +17,15 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type myKindVMSuite struct {
-	e2e.BaseSuite[environments.KindVMHost]
+type myKindSuite struct {
+	e2e.BaseSuite[environments.KubernetesHost]
 }
 
-func TestMyKindVMSuite(t *testing.T) {
-	e2e.Run(t, &myKindVMSuite{}, e2e.WithProvisioner(kubernetes.Provisioner(kubernetes.WithoutFakeIntake())))
+func TestMyKindSuite(t *testing.T) {
+	e2e.Run(t, &myKindSuite{}, e2e.WithProvisioner(kubernetes.Provisioner(kubernetes.WithoutFakeIntake())))
 }
 
-func (v *myKindVMSuite) TestIsAmazonLinux() {
+func (v *myKindSuite) TestClusterAgentInstalled() {
 	res, _ := v.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.TODO(), v1.ListOptions{})
 	containsClusterAgent := false
 	for _, pod := range res.Items {

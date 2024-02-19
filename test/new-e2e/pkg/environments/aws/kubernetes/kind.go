@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	localKubernetes "github.com/DataDog/test-infra-definitions/components/kubernetes"
+	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	provisionerBaseID = "aws-kindvm-"
-	defaultVMName     = "kindvm"
+	provisionerBaseID = "aws-kind-"
+	defaultVMName     = "kind"
 )
 
 // ProvisionerParams contains all the parameters needed to create the environment
@@ -110,22 +110,26 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 }
 
 // Provisioner creates a new provisioner
-func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.KindVMHost] {
+func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.KubernetesHost] {
+	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
+	// and it's easy to forget about it, leading to hard to debug issues.
 	params := newProvisionerParams()
 	_ = optional.ApplyOptions(params, opts)
 
-	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.KindVMHost) error {
+	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.KubernetesHost) error {
+		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
+		// and it's easy to forget about it, leading to hard to debug issues.
 		params := newProvisionerParams()
 		_ = optional.ApplyOptions(params, opts)
 
-		return KindVMRunFunc(ctx, env, params)
+		return KindRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
 	return provisioner
 }
 
-// KindVMRunFunc is the Pulumi run function that runs the provisioner
-func KindVMRunFunc(ctx *pulumi.Context, env *environments.KindVMHost, params *ProvisionerParams) error {
+// KindRunFunc is the Pulumi run function that runs the provisioner
+func KindRunFunc(ctx *pulumi.Context, env *environments.KubernetesHost, params *ProvisionerParams) error {
 
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
@@ -137,7 +141,7 @@ func KindVMRunFunc(ctx *pulumi.Context, env *environments.KindVMHost, params *Pr
 		return err
 	}
 
-	kindCluster, err := localKubernetes.NewKindCluster(*awsEnv.CommonEnvironment, host, awsEnv.CommonNamer.ResourceName("kind"), params.name, awsEnv.KubernetesVersion())
+	kindCluster, err := kubeComp.NewKindCluster(*awsEnv.CommonEnvironment, host, awsEnv.CommonNamer.ResourceName("kind"), params.name, awsEnv.KubernetesVersion())
 	if err != nil {
 		return err
 	}

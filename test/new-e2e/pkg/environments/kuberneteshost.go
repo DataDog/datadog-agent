@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 )
 
-// KindVMHost is an environment that contains a Kubernetes cluster, a VM and a FakeIntake.
+// KubernetesHost is an environment that contains a Kubernetes cluster, the Agent and a FakeIntake.
 type KubernetesHost struct {
 	// Components
 	KubernetesCluster *components.KubernetesCluster
