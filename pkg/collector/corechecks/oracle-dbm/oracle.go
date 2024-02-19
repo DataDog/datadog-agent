@@ -55,6 +55,8 @@ const (
 	MaxSQLFullTextVSQLStats = 1000
 )
 
+const serviceCheckName = "oracle.can_query"
+
 type hostingCode string
 
 const (

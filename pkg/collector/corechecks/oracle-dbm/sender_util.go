@@ -85,7 +85,7 @@ func sendServiceCheck(c *Check, service string, status servicecheck.ServiceCheck
 		return
 	}
 
-	sender.ServiceCheck("oracle.can_query", status, c.dbHostname, c.tags, message)
+	sender.ServiceCheck(service, status, c.dbHostname, c.tags, message)
 }
 
 func commit(c *Check) {
