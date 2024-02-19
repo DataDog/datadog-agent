@@ -34,7 +34,7 @@ type orgConfig struct {
 }
 
 // NewOrgConfig returns a new OrgConfig.
-func newOrgConfig(rc client.ConfigUpdater) (*orgConfig, error) {
+func newOrgConfig(rc client.ConfigFetcher) (*orgConfig, error) {
 	rcClient, err := newRemoteConfigClient(rc)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
@@ -121,7 +121,7 @@ func (c *orgConfig) onCatalogUpdate(catalogConfigs map[string]state.RawConfig, a
 	})
 }
 
-func newRemoteConfigClient(rc client.ConfigUpdater) (*client.Client, error) {
+func newRemoteConfigClient(rc client.ConfigFetcher) (*client.Client, error) {
 	client, err := client.NewClient(
 		rc,
 		client.WithUpdater("injector_tag:test"),

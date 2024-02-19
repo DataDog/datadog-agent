@@ -31,7 +31,7 @@ const (
 
 // Install installs the default version for the given package.
 // It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, rc client.ConfigUpdater, pkg string) error {
+func Install(ctx context.Context, rc client.ConfigFetcher, pkg string) error {
 	log.Infof("Updater: Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
 	repository := &repository.Repository{
@@ -87,7 +87,7 @@ type updaterImpl struct {
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(rc client.ConfigUpdater, pkg string) (Updater, error) {
+func NewUpdater(rc client.ConfigFetcher, pkg string) (Updater, error) {
 	repository := &repository.Repository{
 		RootPath:  path.Join(defaultRepositoryPath, pkg),
 		LocksPath: path.Join(defaultLocksPath, pkg),
