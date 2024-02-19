@@ -126,6 +126,8 @@
 
 /.gitlab/new-e2e_testing/windows.yml                 @DataDog/agent-platform @DataDog/windows-agent
 
+/.gitlab/software_composition_analysis.yml           @DataDog/software-integrity-and-trust
+
 /chocolatey/                            @DataDog/windows-agent
 
 /cmd/                                   @DataDog/agent-shared-components
