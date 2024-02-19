@@ -12,6 +12,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent/installers/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
@@ -44,9 +46,11 @@ type Package struct {
 	URL string
 }
 
-// AgentVersion returns the Package version without the -1 suffix, which should match the Agent version.
+// AgentVersion returns a string containing version number and the pre only, e.g. `0.0.0-beta.1`
 func (p *Package) AgentVersion() string {
-	return strings.TrimSuffix(p.Version, "-1")
+	// Trim the package suffix and parse the remaining version info
+	ver, _ := version.New(strings.TrimSuffix(p.Version, "-1"), "")
+	return ver.GetNumberAndPre()
 }
 
 // GetBetaMSIURL returns the URL for the beta agent MSI

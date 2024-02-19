@@ -12,6 +12,7 @@ import (
 	"time"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -26,8 +27,9 @@ func FakeSamplerMockModule() fxutil.Module {
 
 type fakeSamplerMockDependencies struct {
 	fx.In
-	Lc  fx.Lifecycle
-	Log log.Component
+	Lc       fx.Lifecycle
+	Log      log.Component
+	Hostname hostname.Component
 }
 
 type fakeSamplerMock struct {
@@ -47,7 +49,7 @@ func (f *fakeSamplerMock) Stop(flush bool) {
 }
 
 func newFakeSamplerMock(deps fakeSamplerMockDependencies) demultiplexerComp.FakeSamplerMock {
-	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, time.Hour)
+	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, deps.Hostname, time.Hour)
 	mock := &fakeSamplerMock{
 		TestAgentDemultiplexer: demux,
 	}

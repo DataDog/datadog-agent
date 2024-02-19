@@ -9,11 +9,11 @@ package api
 import (
 	"net"
 
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -27,11 +27,11 @@ import (
 // Component is the component type.
 type Component interface {
 	StartServer(
-		configService *remoteconfig.Service,
 		wmeta workloadmeta.Component,
 		tagger tagger.Component,
 		logsAgent optional.Option[logsAgent.Component],
 		senderManager sender.DiagnoseSenderManager,
+		collector optional.Option[collector.Component],
 	) error
 	StopServer()
 	ServerAddress() *net.TCPAddr

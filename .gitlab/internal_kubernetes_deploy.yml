@@ -2,6 +2,9 @@
 # internal_kubernetes_deploy stage
 # Contains jobs to trigger a pipeline in our k8s-datadog-agent-ops repo
 
+include:
+  - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
+
 internal_kubernetes_deploy_experimental:
   stage: internal_kubernetes_deploy
   rules:
@@ -43,6 +46,7 @@ internal_kubernetes_deploy_experimental:
 
 notify-slack:
   stage: internal_kubernetes_deploy
+  extends: .slack-notifier-base
   rules:
     - if: $FORCE_K8S_DEPLOYMENT == "true"
       when: always
@@ -51,9 +55,9 @@ notify-slack:
     - if: $DDR != "true"
       when: never
     - !reference [ .on_deploy_a7 ]
-  image: registry.ddbuild.io/slack-notifier:sdm
   tags: ["arch:amd64"]
   needs: ["internal_kubernetes_deploy_experimental"]
   script:
+    - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
     - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA}

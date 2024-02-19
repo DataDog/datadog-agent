@@ -300,6 +300,7 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("load_module_with_truncated_params", func(t *testing.T) {
+		SkipIfNotAvailable(t)
 		var args []string
 		for i := 0; i != 10; i++ {
 			args = append(args, fmt.Sprintf("CIFSMaxBufSize=%d", 8192+i))

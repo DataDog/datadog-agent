@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
-	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 type mockNetError struct{ timeout bool }
@@ -117,10 +116,9 @@ func TestMockListener(t *testing.T) {
 func TestMeasuredListener(t *testing.T) {
 	assert := assert.New(t)
 	stats := &teststatsd.Client{}
-	defer testutil.WithStatsClient(stats)()
 
 	var mockln mockListener
-	ln := NewMeasuredListener(&mockln, "test-metric", 1000).(*measuredListener)
+	ln := NewMeasuredListener(&mockln, "test-metric", 1000, stats).(*measuredListener)
 	mockln.SetSuccess()
 	ln.Accept()
 	ln.Accept()

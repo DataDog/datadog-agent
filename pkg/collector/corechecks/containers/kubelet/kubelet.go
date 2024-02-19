@@ -31,7 +31,7 @@ import (
 
 const (
 	// CheckName is the name of the check
-	CheckName = "kubelet_core"
+	CheckName = "kubelet"
 )
 
 // Provider provides the metrics related to a given Kubelet endpoint

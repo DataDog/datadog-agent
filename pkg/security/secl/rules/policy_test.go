@@ -67,7 +67,7 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.SetFieldValue("open.file.path", "/tmp/test")
 	event.SetFieldValue("process.comm", "/usr/bin/vi")
 
@@ -258,7 +258,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal("failed to find test_rule in ruleset")
 	}
 
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()

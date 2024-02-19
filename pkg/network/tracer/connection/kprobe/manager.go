@@ -9,7 +9,6 @@ package kprobe
 
 import (
 	"os"
-	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -17,12 +16,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-)
-
-const (
-	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
-	maxActive = 128
 )
 
 var mainProbes = []probes.ProbeFuncName{
@@ -64,8 +57,6 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.Inet6Bind,
 	probes.InetBindRet,
 	probes.Inet6BindRet,
-	probes.SockFDLookup,
-	probes.SockFDLookupRet,
 	probes.UDPSendPage,
 	probes.UDPSendPageReturn,
 }
@@ -82,10 +73,7 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ru
 		{Name: probes.UDPPortBindingsMap},
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
-		{Name: probes.SockByPidFDMap},
 		{Name: probes.ConnectionProtocolMap},
-		{Name: probes.PidFDBySockMap},
-		{Name: probes.SockFDLookupArgsMap},
 		{Name: probes.TcpSendMsgArgsMap},
 		{Name: probes.TcpSendPageArgsMap},
 		{Name: probes.UdpSendPageArgsMap},
@@ -115,9 +103,6 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ru
 				EBPFFuncName: funcName,
 				UID:          probeUID,
 			},
-		}
-		if strings.HasPrefix(funcName, "kretprobe") {
-			p.KProbeMaxActive = maxActive
 		}
 		mgr.Probes = append(mgr.Probes, p)
 	}

@@ -79,7 +79,7 @@ func secretRefresh(config config.Component) error {
 }
 
 func callAPIEndpoint(apiEndpointPath string, config config.Component) ([]byte, error) {
-	if err := util.SetAuthToken(); err != nil {
+	if err := util.SetAuthToken(config); err != nil {
 		fmt.Println(err)
 		return nil, err
 	}

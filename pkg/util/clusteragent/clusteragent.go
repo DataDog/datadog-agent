@@ -115,7 +115,7 @@ func (c *DCAClient) init() error {
 		return err
 	}
 
-	authToken, err := security.GetClusterAgentAuthToken()
+	authToken, err := security.GetClusterAgentAuthToken(config.Datadog)
 	if err != nil {
 		return err
 	}
