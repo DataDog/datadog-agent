@@ -270,8 +270,20 @@ def full_arch(arch):
     return arch
 
 
+def build_tests_package(ctx, source_dir, stack, arch, ci, verbose=True):
+    root = os.path.join(source_dir, "kmt-deps")
+    test_archive = f"tests-{arch}.tar.gz"
+    if not ci:
+        system_probe_tests = os.path.join(root, stack, "opt/system-probe-tests")
+        test_pkgs = os.path.join(source_dir, "test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
+        ctx.run(f"rm -rf {system_probe_tests} && mkdir -p {system_probe_tests}", hide=(not verbose))
+        ctx.run(f"cp -R {test_pkgs} {system_probe_tests}", hide=(not verbose))
+        with ctx.cd(os.path.join(root, stack)):
+            ctx.run(f"tar czvf {test_archive} opt", hide=(not verbose))
+
+
 @task
-def build_dependencies(ctx, layout_file, source_dir, ci=False, stack=None):
+def build_dependencies(ctx, arch, layout_file, source_dir, ci=False, stack=None, verbose=True):
     root = os.path.join(source_dir, "kmt-deps")
     deps_dir = os.path.join(root, "dependencies")
     if not ci:
@@ -290,35 +302,45 @@ def build_dependencies(ctx, layout_file, source_dir, ci=False, stack=None):
         deps_layout = json.load(f)
     with ctx.cd(deps_dir):
         for new_dirs in deps_layout["layout"]:
-            ctx.run(f"mkdir -p {new_dirs}")
+            ctx.run(f"mkdir -p {new_dirs}", hide=(not verbose))
 
     for source in deps_layout["copy"]:
         target = deps_layout["copy"][source]
-        ctx.run(f"cp {os.path.join(source_dir, source)} {os.path.join(deps_dir, target)}")
+        ctx.run(f"cp {os.path.join(source_dir, source)} {os.path.join(deps_dir, target)}", hide=(not verbose))
 
-    exec_context = lambda ctx, command, directory: docker_exec(ctx, command, run_dir=f"/datadog-agent/{directory}")
+    exec_context = lambda ctx, command, directory: docker_exec(ctx, command, run_dir=f"/datadog-agent/{directory}", verbose=verbose)
     if ci:
-        exec_context = lambda ctx, command, directory: ctx.run(f"cd {os.path.join(source_dir, directory)} && {command}")
+        exec_context = lambda ctx, command, directory: ctx.run(f"cd {os.path.join(source_dir, directory)} && {command}", hide=(not verbose))
     for build in deps_layout["build"]:
         directory = deps_layout["build"][build]["directory"]
         command = deps_layout["build"][build]["command"]
         artifact = os.path.join(source_dir, deps_layout["build"][build]["artifact"])
         exec_context(ctx, command, directory)
-        ctx.run(f"cp {artifact} {deps_dir}")
+        ctx.run(f"cp {artifact} {deps_dir}", hide=(not verbose))
 
-    if not ci:
-        system_probe_tests = os.path.join(root, stack, "system-probe-tests")
-        test_pkgs = os.path.join(source_dir, "test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
-        ctx.run(f"rm -rf {system_probe_tests} && mkdir -p {system_probe_tests}")
-        ctx.run(f"cp -R {test_pkgs} {system_probe_tests}")
-
-    archive_name = f"dependencies-{platform.machine()}.tar.gz"
+    archive_name = f"dependencies-{arch}.tar.gz"
     with ctx.cd(os.path.join(root, stack)):
-        ctx.run(f"tar czvf {archive_name} dependencies")
+        ctx.run(f"tar czvf {archive_name} dependencies", hide=(not verbose))
 
 
 def is_root():
     return os.getuid() == 0
+
+
+def vms_have_correct_deps(ctx, domains, depsfile):
+    deps_dir = os.path.dirname(depsfile)
+    sha256sum = ctx.run(f"cd {deps_dir} && sha256sum {os.path.basename(depsfile)}", warn=True)
+    if not sha256sum.ok:
+        return False
+
+    check = sha256sum.stdout.rstrip('\n')
+    for d in domains:
+        if not d.run_cmd(ctx, f"cd / && echo \"{check}\" | sha256sum --check", allow_fail=True):
+            error(f"[-] VM {d} does not have dependencies.")
+            return False
+
+    return True
+
 
 @task
 def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, full_rebuild=False, packages="", verbose=True):
@@ -326,19 +348,20 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, full_rebuild=False, p
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    build_from_scratch = full_rebuild or (not os.path.exists(f"kmt-deps/{stack}"))
-
     if vms == "":
         raise Exit("No vms specified to sync with")
 
     if not arch:
         arch = platform.machine()
 
-    if not compiler_running(ctx):
-        start_compiler(ctx)
-
     infra = build_infrastructure(stack, ssh_key)
     domains = filter_target_domains(vms, infra)
+    build_from_scratch = full_rebuild  \
+        or (not os.path.exists(f"kmt-deps/{stack}")) \
+        or (not vms_have_correct_deps(ctx, domains, os.path.join("kmt-deps", stack, f"dependencies-{arch}.tar.gz")))
+
+    if not compiler_running(ctx):
+        start_compiler(ctx)
 
     constrain_pkgs = ""
     if not build_from_scratch:
@@ -355,18 +378,22 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, full_rebuild=False, p
         target_instances.append(d.instance)
 
     if build_from_scratch:
-        build_dependencies(ctx, "test/new-e2e/system-probe/test-runner/files/system-probe-dependencies.json", "./", stack=stack)
+        info("[+] Building all dependencies from scratch")
+        build_dependencies(ctx, arch, "test/new-e2e/system-probe/test-runner/files/system-probe-dependencies.json", "./", stack=stack)
 
         for instance in target_instances:
             instance.copy_to_all_vms(ctx, f"kmt-deps/{stack}/dependencies-{full_arch(instance.arch)}.tar.gz")
 
         for d in domains:
-            d.run_cmd(ctx, f"/root/fetch_dependencies.sh {platform.machine()}", allow_fail=True, verbose=verbose)
+            d.run_cmd(ctx, f"/root/fetch_dependencies.sh {arch}", allow_fail=True, verbose=verbose)
+            info(f"[+] Dependencies shared with target VM {d}")
 
-    for instance in target_instances:
-        instance.copy_to_all_vms(ctx, f"kmt-deps/{stack}/system-probe-tests")
-    sudo = "sudo" if not is_root() else ""
-    ctx.run(f"{sudo} chown root:root -R /opt/kernel-version-testing/system-probe-tests")
+    tests_archive = f"tests-{arch}.tar.gz"
+    build_tests_package(ctx, "./", stack, arch, False)
+    for d in domains:
+        d.copy(ctx, f"kmt-deps/{stack}/{tests_archive}", "/")
+        d.run_cmd(ctx, f"cd / && tar xzf {tests_archive}")
+        info(f"[+] Tests packages setup in target VM {d}")
 
 
 def build_run_config(run, packages):
@@ -386,13 +413,28 @@ def build_run_config(run, packages):
     return c
 
 
-@task
-def test(ctx, vms, stack=None, packages="", run=None, retry=2, run_count = 1, full_rebuild=False, ssh_key=None, verbose=True, test_logs=False):
+@task(
+    help={
+        "vms": "Comma seperated list of vms to target when running tests",
+        "stack": "Stack in which the VMs exist. If not provided stack is autogenerated based on branch name",
+        "packages": "Similar to 'system-probe.test'. Specify the package from which to run the tests",
+        "run": "Similar to 'system-probe.test'. Specify the regex to match specific tests to run",
+        "quick": "Assume no need to rebuild anything, and directly run the tests",
+        "retry": "Number of times to retry a failing test",
+        "run-count": "Number of times to run a tests regardless of status",
+        "full-rebuild": "Do a full rebuild of all test dependencies to share with VMs, before running tests. Useful when changes are not being picked up correctly",
+        "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM",
+        "verbose": "Enable full output of all commands executed",
+        "test-logs": "Set 'gotestsum' verbosity to 'standard-verbose' to print all test logs. Default is 'testname'",
+    }
+)
+def test(ctx, vms, stack=None, packages="", run=None, quick=False, retry=2, run_count = 1, full_rebuild=False, ssh_key=None, verbose=True, test_logs=False):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, full_rebuild=full_rebuild, packages=packages)
+    if not quick:
+        prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, full_rebuild=full_rebuild, packages=packages)
 
     infra = build_infrastructure(stack, ssh_key)
     domains = filter_target_domains(vms, infra)
@@ -412,14 +454,22 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, run_count = 1, fu
             f"-retry {retry}",
             f"-verbose" if test_logs else "",
             f"-run-count {run_count}",
-            "-test-root /opt/kernel-version-testing/system-probe-tests",
+            "-test-root /opt/system-probe-tests",
         ]
         for d in domains:
             d.copy(ctx, f"{tmp.name}", "/tmp")
             d.run_cmd(ctx, f"bash /micro-vm-init.sh {' '.join(args)}", verbose=verbose)
 
 
-@task
+@task(
+    help={
+        "vms": "Comma seperated list of vms to target when running tests",
+        "stack": "Stack in which the VMs exist. If not provided stack is autogenerated based on branch name",
+        "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM",
+        "full-rebuild": "Do a full rebuild of all test dependencies to share with VMs, before running tests. Useful when changes are not being picked up correctly",
+        "verbose": "Enable full output of all commands executed",
+    }
+)
 def build(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, verbose=True):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
@@ -428,14 +478,16 @@ def build(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, verbose=True):
     if not os.path.exists(f"kmt-deps/{stack}"):
         ctx.run(f"mkdir -p kmt-deps/{stack}")
 
+    arch = platform.machine()
     infra = build_infrastructure(stack, ssh_key)
     domains = filter_target_domains(vms, infra)
-    if full_rebuild:
-        docker_exec(
-            ctx,
-            f"./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
-            run_dir="/datadog-agent",
-        )
+
+    build_from_scratch = full_rebuild  \
+        or (not os.path.exists(f"kmt-deps/{stack}")) \
+        or (not vms_have_correct_deps(ctx, domains, os.path.join("kmt-deps", stack, f"dependencies-{arch}.tar.gz")))
+
+    if build_from_scratch:
+        build_dependencies(ctx, arch, "test/new-e2e/system-probe/test-runner/files/system-probe-dependencies.json", "./", stack=stack)
 
         target_instances = list()
         for d in domains:
@@ -446,9 +498,10 @@ def build(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, verbose=True):
 
         for d in domains:
             d.run_cmd(ctx, f"/root/fetch_dependencies.sh {arch_mapping[platform.machine()]}")
+            info(f"[+] Dependencies shared with target VM {d}")
 
     docker_exec(
-        ctx, "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.build"
+        ctx, "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.build --no-bundle"
     )
     docker_exec(ctx, f"tar cf /datadog-agent/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
     for d in domains:
