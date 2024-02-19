@@ -139,8 +139,7 @@ build do
   if sysprobe_support
     if not bundled_agents.include? "system-probe"
       if windows_target?
-        ## don't bother with system probe build on x86.
-        command "invoke -e system-probe.build --windows"
+        command "invoke -e system-probe.build"
       elsif linux_target?
         command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle"
       end
@@ -273,6 +272,10 @@ build do
         dest: "#{conf_dir}/com.datadoghq.agent.plist.example",
         mode: 0644,
         vars: { install_dir: install_dir }
+
+    erb source: "gui.launchd.plist.erb",
+        dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
+        mode: 0644
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"

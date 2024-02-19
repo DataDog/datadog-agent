@@ -159,6 +159,7 @@ variables:
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
+  BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
@@ -168,23 +169,23 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_WINBUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_ARMBUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v27950662-17e84032
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v27246432-de27d514
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v27950662-17e84032
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 9f1c04270e18
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: dfdd12299b97
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -208,8 +209,8 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
-  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-00e807c0351f270b7"
-  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0be4fd85ce146ab3b"
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
   RUN_E2E_TESTS: "manual" # Should be "auto", "manual", "off" it will change the trigger condition for new-e2e tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
@@ -966,20 +967,27 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_windows_installer_changes_or_manual:
-  - <<: *if_main_branch
-  - <<: *if_mergequeue
-    when: never
-  - changes:
+.if_windows_installer_changes: &if_windows_installer_changes
+  changes:
       paths:
         - tools/windows/DatadogAgentInstaller/**/*
         - .gitlab/new-e2e_testing/windows.yml
         - test/new-e2e/tests/windows/install-test/**/*
         - tasks/msi.py
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_windows_installer_changes_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
+  - <<: *if_windows_installer_changes
     when: on_success
   - when: manual
     allow_failure: true
+
+.except_windows_installer_changes:
+  - <<: *if_windows_installer_changes
+    when: never
 
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
@@ -1023,10 +1031,47 @@ workflow:
   - when: manual
     allow_failure: true
 
+.always_on_container_or_e2e_changes_or_manual:
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_main_branch
+    when: always
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - comp/core/tagger/**/*
+        - comp/core/workloadmeta/**/*
+        - pkg/autodiscovery/listeners/**/*
+        - pkg/autodiscovery/providers/**/*
+        - pkg/collector/corechecks/cluster/**/*
+        - pkg/collector/corechecks/containers/**/*
+        - pkg/collector/corechecks/containerimage/**/*
+        - pkg/collector/corechecks/containerlifecycle/**/*
+        - pkg/collector/corechecks/kubernetes/**/*
+        - pkg/collector/corechecks/sbom/**/*
+        - pkg/util/clusteragent/**/*
+        - pkg/util/containerd/**/*
+        - pkg/util/containers/**/*
+        - pkg/util/docker/**/*
+        - pkg/util/ecs/**/*
+        - pkg/util/kubernetes/**/*
+        - pkg/util/cgroups/**/*
+        - test/new-e2e/tests/containers/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: always
+  - when: manual
+    allow_failure: true
+
 .on_container_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e
     when: never
   - <<: *if_main_branch
+    when: on_success
+  - <<: *if_release_branch
+    when: on_success
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
     when: on_success
   - <<: *if_mergequeue
     when: never
@@ -1056,6 +1101,24 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_rc_or_e2e_changes_or_manual:
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success
+  - <<: *if_release_branch
+    when: on_success
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - pkg/config/remote/**/*
+        - comp/remote-config/**/*
+        - test/new-e2e/tests/remote-config/**/*
+  - when: manual
+    allow_failure: true
 
 .on_install_script_release_manual:
   - <<: *if_not_version_7
@@ -1066,6 +1129,29 @@ workflow:
     when: never
   - <<: *if_kitchen
     when: manual
+    allow_failure: true
+
+.on_apm_or_e2e_changes_or_manual:
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success
+  - <<: *if_release_branch
+    when: on_success
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - pkg/trace/**/*
+        - cmd/trace-agent/**/*
+        - comp/trace/**/*
+        - test/new-e2e/tests/apm/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
     allow_failure: true
 
 .on_trace_agent_changes_or_manual:
@@ -1085,9 +1171,13 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_main_and_no_skip_e2e:
+.on_main_or_rc_and_no_skip_e2e:
   - <<: *if_not_e2e
     when: never
+  - <<: *if_release_branch
+    when: on_success
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
   - <<: *if_main_branch
     when: on_success
 

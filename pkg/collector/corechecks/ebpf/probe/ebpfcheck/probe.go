@@ -734,14 +734,19 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 	totalCount := int64(0)
 	enoughSpaceForFullBatch := batchSize >= mp.MaxEntries()
 
+	if batchSize == 0 {
+		return -1, errors.New("buffers are not big enough to hold a single entry")
+	}
+
 	if !enoughSpaceForFullBatch {
 		buffers.prepareFirstBatchKeys(mp)
 	}
 
-	// To avoid inifinte loops, we limit the number of restarts and we
-	for restarts, batchIndex := 0, uint32(0); restarts < maxRestarts && batchIndex*batchSize < mp.MaxEntries(); batchIndex++ {
+	// To avoid inifinte loops, we limit the number of restarts and also limit that we don't get more elements that can be in the map
+	restarts := 0
+	for restarts < maxRestarts && totalCount <= int64(mp.MaxEntries()) {
 		// Ensure that we get a different hash if we get restarted, so false positives caused by hash collisions can be mitigated
-		// It shouldn't overflow (we're not allowing hundreds of restarts), but even if it does it's ok to wrap around, we just want to mitigate collisions)
+		// It shouldn't overflow (we're not allowing hundreds of restarts), but even if it does it's ok to wrap around, we just want to mitigate collisions.
 		buffers.firstBatchKeys.seed = byte(restarts)
 
 		// Prepare the arguments to the lookup call
@@ -751,9 +756,8 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 			Keys:     NewPointer(unsafe.Pointer(&buffers.keys[0])),
 			Count:    batchSize,
 			OutBatch: NewPointer(unsafe.Pointer(&buffers.cursor[0])),
-			InBatch:  NewPointer(nil), // nil means start at the beginning
 		}
-		if batchIndex == 0 {
+		if totalCount == 0 {
 			// First batch, start at the beginning
 			attr.InBatch = NewPointer(nil)
 		} else {
@@ -767,16 +771,15 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 			return -1, fmt.Errorf("invalid keys buffer size: %d < %d, batchSize = %d", len(buffers.keys), attr.Count*mp.KeySize(), batchSize)
 		}
 		if len(buffers.values) < int(attr.Count*mp.ValueSize()) {
-			return -1, fmt.Errorf("invalid values buffer size: %d < %d ; %d", len(buffers.values), attr.Count*mp.ValueSize(), batchSize)
+			return -1, fmt.Errorf("invalid values buffer size: %d < %d, batchSize = %d", len(buffers.values), attr.Count*mp.ValueSize(), batchSize)
 		}
 		if len(buffers.cursor) < int(mp.KeySize()) {
 			return -1, fmt.Errorf("invalid cursor buffer size: %d < %d", len(buffers.cursor), mp.KeySize())
 		}
 
 		_, _, errno := unix.Syscall(unix.SYS_BPF, uintptr(BpfMapLookupBatchCommandCode), uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
-		totalCount += int64(attr.Count)
 
-		if errno == 0 && batchIndex == 0 {
+		if errno == 0 && totalCount == 0 {
 			// We got a batch and it's the first one, and we didn't reach the end of the map, so we need to store the keys we got here
 			// so that later on we can check against them to see if we got an iteration restart
 			if enoughSpaceForFullBatch { // A sanity check
@@ -785,7 +788,7 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 
 			// Keep track the keys of the first batch so we can look them up later to see if we got restarted
 			buffers.firstBatchKeys.load(buffers.keys, int(attr.Count))
-		} else if (errno == 0 || errno == unix.ENOENT) && batchIndex > 0 {
+		} else if (errno == 0 || errno == unix.ENOENT) && totalCount > 0 {
 			// We got a batch and it's not the first one. Check against the keys received in the first batch
 			// to see if we got an iteration restart. We have to do this even when we get to the end of the
 			// map (indicated by the return code ENOENT): for example, if we're in between batches and enough
@@ -793,14 +796,14 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 			// we would get a restart, and then all of the entries in a single batch: we would need to update
 			// the counts to get to that situation.
 			if buffers.firstBatchKeys.containsAny(buffers.keys, int(attr.Count)) {
-				// We got a restart, reset the counters and start from this batch as if were the first
+				// We got a restart, reset the counters and start from this batch as if it were the first
 				buffers.firstBatchKeys.load(buffers.keys, int(attr.Count))
 				restarts++
-				batchIndex = 0
 				totalCount = int64(attr.Count)
 				continue
 			}
 		}
+		totalCount += int64(attr.Count)
 
 		if errno == unix.ENOENT {
 			// We looked up all elements, count is valid, return it
@@ -812,7 +815,10 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 
 	}
 
-	return -1, fmt.Errorf("the iteration got restarted too many times for map %s (%d entries)", mp.String(), mp.MaxEntries())
+	if restarts >= maxRestarts {
+		return -1, fmt.Errorf("the iteration got restarted too many times (%d, limit is %d) for map %s (%d entries)", restarts, maxRestarts, mp.String(), mp.MaxEntries())
+	}
+	return -1, fmt.Errorf("the iteration looped too many times (found %d elements already) for map %s (%d entries)", totalCount, mp.String(), mp.MaxEntries())
 }
 
 func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffers, maxRestarts int) (int64, error) {

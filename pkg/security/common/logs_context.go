@@ -49,7 +49,7 @@ func NewLogContext(logsConfig *logsconfig.LogsConfigKeys, endpointPrefix string,
 	if err != nil {
 		endpoints, err = logsconfig.BuildHTTPEndpoints(pkgconfig.Datadog, intakeTrackType, intakeProtocol, intakeOrigin)
 		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, pkgconfig.Datadog)
 			endpoints, err = logsconfig.BuildEndpoints(pkgconfig.Datadog, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 		}
 	}

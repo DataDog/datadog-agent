@@ -22,9 +22,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -159,7 +162,7 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	server := http.NewTestServer(200)
+	server := http.NewTestServer(200, coreConfig.Datadog)
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
@@ -217,12 +220,12 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 		{
 			"logs enabled",
 			true,
-			statusProvider{},
+			NewStatusProvider(),
 		},
 		{
 			"logs disabled",
 			false,
-			statusProvider{},
+			NewStatusProvider(),
 		},
 	}
 
@@ -287,6 +290,42 @@ func (suite *AgentTestSuite) TestStatusOut() {
 	for _, test := range tests {
 		suite.T().Run(test.name, func(t *testing.T) {
 			test.assertFunc(suite.T())
+		})
+	}
+}
+
+func (suite *AgentTestSuite) TestFlareProvider() {
+	tests := []struct {
+		name     string
+		enabled  bool
+		expected interface{}
+	}{
+		{
+			"logs enabled",
+			true,
+			flaretypes.NewProvider(flareController.NewFlareController().FillFlare),
+		},
+		{
+			"logs disabled",
+			false,
+			flaretypes.NewEmptyProvider(),
+		},
+	}
+
+	for _, test := range tests {
+		suite.T().Run(test.name, func(*testing.T) {
+			suite.configOverrides["logs_enabled"] = test.enabled
+
+			deps := fxutil.Test[dependencies](suite.T(), fx.Options(
+				core.MockBundle(),
+				fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
+				inventoryagentimpl.MockModule(),
+			))
+
+			provides := newLogsAgent(deps)
+
+			assert.IsType(suite.T(), test.expected, provides.FlareProvider)
+			assert.NotNil(suite.T(), provides.FlareProvider.Provider)
 		})
 	}
 }

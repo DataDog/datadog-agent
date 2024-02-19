@@ -771,6 +771,11 @@ func (ev *Event) GetEventAsync() bool {
 	return ev.FieldHandlers.ResolveAsync(ev)
 }
 
+// GetEventService returns the value of the field, resolving if necessary
+func (ev *Event) GetEventService() string {
+	return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+}
+
 // GetEventTimestamp returns the value of the field, resolving if necessary
 func (ev *Event) GetEventTimestamp() int {
 	return ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)

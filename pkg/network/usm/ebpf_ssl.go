@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -420,12 +419,11 @@ var opensslSpec = &protocols.ProtocolSpec{
 
 type sslProgram struct {
 	cfg          *config.Config
-	sockFDMap    *ebpf.Map
 	watcher      *sharedlibraries.Watcher
 	istioMonitor *istioMonitor
 }
 
-func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *ebpftelemetry.EBPFTelemetry) protocols.ProtocolFactory {
+func newSSLProgramProtocolFactory(m *manager.Manager, bpfTelemetry *ebpftelemetry.EBPFTelemetry) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
 		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring {
 			return nil, nil
@@ -464,7 +462,6 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 		return &sslProgram{
 			cfg:          c,
 			watcher:      watcher,
-			sockFDMap:    sockFDMap,
 			istioMonitor: newIstioMonitor(c, m),
 		}, nil
 	}
@@ -478,17 +475,6 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
-	}
-
-	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
-		MaxEntries: o.cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
-	if o.sockFDMap != nil {
-		if options.MapEditors == nil {
-			options.MapEditors = make(map[string]*ebpf.Map)
-		}
-		options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 	}
 }
 

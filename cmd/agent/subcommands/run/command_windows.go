@@ -15,6 +15,7 @@ import (
 
 	apmetwtracer "github.com/DataDog/datadog-agent/comp/apm/etwtracer"
 	apmetwtracerimpl "github.com/DataDog/datadog-agent/comp/apm/etwtracer/impl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
@@ -60,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -94,6 +96,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
+			processAgent optional.Option[processAgent.Component],
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
@@ -108,6 +111,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			agentAPI internalAPI.Component,
 			pkgSigning packagesigning.Component,
 			statusComponent status.Component,
+			collector collector.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server, agentAPI)
@@ -124,6 +128,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				taggerComp,
 				rcclient,
 				logsAgent,
+				processAgent,
 				forwarder,
 				sharedSerializer,
 				otelcollector,
@@ -131,6 +136,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				agentAPI,
 				invChecks,
 				statusComponent,
+				collector,
 			)
 			if err != nil {
 				return err

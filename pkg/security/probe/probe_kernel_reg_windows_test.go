@@ -9,15 +9,14 @@
 package probe
 
 import (
-	"fmt"
 	"os"
 	"os/user"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/etw"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,96 +24,69 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// createTestProbe and teardownTestProbe are implemented in the file test, but
-// the same one can be used.
-
-func (et *etwTester) runTestEtwRegistry() error {
-
-	var once sync.Once
-	mypid := os.Getpid()
-	err := et.p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
-		/*
-			 	* this works because we're registered on the whole system.  Therefore, we'll get
-			 	* some file or registry callback events from other processes we're not interested in.
-				*
-				* so sooner or later we'll get one.  If we don't, we'll deadlock in the test init routine below
-		*/
-		once.Do(func() {
-			close(et.etwStarted)
-		})
-
-		// since this is for testing, skip any notification not from our pid
-		if e.EventHeader.ProcessID != uint32(mypid) {
-			return
-		}
-		switch e.EventHeader.ProviderID {
-		case etw.DDGUID(et.p.regguid):
-			switch e.EventHeader.EventDescriptor.ID {
-			case idRegCreateKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
-					select {
-					case et.notify <- cka:
-						// message sent
-					default:
-						// message dropped.  Which is OK.  In the test code, we want to leave the receive loop
-						// running, but only catch messages when we're expecting them
-						fmt.Printf("Dropped message\n")
-					}
-				}
-			case idRegOpenKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
-					log.Debugf("Got idRegOpenKey %s", cka.string())
-				}
-
-			case idRegDeleteKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Infof("Got idRegDeleteKey %v", dka.string())
-				}
-			case idRegFlushKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Infof("Got idRegFlushKey %v", dka.string())
-				}
-			case idRegCloseKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Debugf("Got idRegCloseKey %s", dka.string())
-					delete(regPathResolver, dka.keyObject)
-				}
-			case idQuerySecurityKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Infof("Got idQuerySecurityKey %v", dka.keyName)
-				}
-			case idSetSecurityKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Infof("Got idSetSecurityKey %v", dka.keyName)
-				}
-			case idRegSetValueKey:
-				if svk, err := parseSetValueKey(e); err == nil {
-					log.Infof("Got idRegSetValueKey %s", svk.string())
-				}
-
-			}
-		}
-	})
-	return err
-}
-
 func processUntilRegOpen(t *testing.T, et *etwTester) {
 
+	skippedObjects := make(map[fileObjectPointer]struct{})
 	defer func() {
 		et.loopExited <- struct{}{}
 	}()
 	et.loopStarted <- struct{}{}
 	for {
+
 		select {
 		case <-et.stopLoop:
 			return
 
 		case n := <-et.notify:
-			et.notifications = append(et.notifications, n)
+
 			switch n.(type) {
 			case *createKeyArgs:
-				return
+				if strings.HasPrefix(n.(*createKeyArgs).computedFullPath, "\\REGISTRY\\USER\\") {
+					et.notifications = append(et.notifications, n)
+					if len(et.notifications) >= 2 {
+						return
+					}
+				}
+				continue
+
+			case *createHandleArgs:
+				ca := n.(*createHandleArgs)
+				// we get all sorts of notifications of DLLs being loaded.
+				// skip those
+
+				// check the last 4 chars of the filename
+				if l := len(ca.fileName); l >= 4 {
+					// see if it's a .dll
+					ext := ca.fileName[l-4:]
+
+					// check to see if it's a dll
+					if strings.EqualFold(ext, ".dll") {
+						skippedObjects[ca.fileObject] = struct{}{}
+						// don't add
+						continue
+					}
+				}
+			case *cleanupArgs:
+				ca := n.(*cleanupArgs)
+
+				// check to see if we already saw the createHandle for this, and if
+				// so, just skip
+				if _, ok := skippedObjects[ca.fileObject]; ok {
+					continue
+				}
+			case *closeArgs:
+				ca := n.(*closeArgs)
+				// check to see if we already saw the createHandle for this, and if
+				// so, just skip
+				if _, ok := skippedObjects[ca.fileObject]; ok {
+					// remove it from the map, since it's being closed.  it could be
+					// reused.
+					delete(skippedObjects, ca.fileObject)
+					continue
+				}
+
 			}
+			et.notifications = append(et.notifications, n)
 		}
 	}
 
@@ -139,7 +111,22 @@ func TestETWRegistryNotifications(t *testing.T) {
 	wp.fimwg.Add(1)
 	go func() {
 		defer wp.fimwg.Done()
-		err := et.runTestEtwRegistry()
+		var once sync.Once
+		mypid := os.Getpid()
+
+		err := et.p.setupEtw(func(n interface{}, pid uint32, _ model.EventType) {
+			once.Do(func() {
+				close(et.etwStarted)
+			})
+			if pid != uint32(mypid) {
+				return
+			}
+			select {
+			case et.notify <- n:
+				// message sent
+			default:
+			}
+		})
 		assert.NoError(t, err)
 	}()
 
@@ -158,7 +145,8 @@ func TestETWRegistryNotifications(t *testing.T) {
 	<-et.loopStarted
 
 	keyname := "Software\\Test"
-	expected := "\\REGISTRY\\USER\\" + sidstr + "\\" + keyname
+	expectedBase := "\\REGISTRY\\USER\\" + sidstr
+	expected := expectedBase + "\\" + keyname
 	// create the key
 	key, _, err := registry.CreateKey(windows.HKEY_CURRENT_USER, keyname, windows.KEY_READ|windows.KEY_WRITE)
 	assert.NoError(t, err)
@@ -176,11 +164,16 @@ func TestETWRegistryNotifications(t *testing.T) {
 
 	stopLoop(et, &wg)
 
-	assert.Equal(t, 1, len(et.notifications), "expected 1 notifications, got %d", len(et.notifications))
-
+	assert.Equal(t, 2, len(et.notifications), "expected 2 notifications, got %d", len(et.notifications))
+	
 	if c, ok := et.notifications[0].(*createKeyArgs); ok {
-		assert.Equal(t, expected, c.computedFullPath, "expected %s, got %s", expected, c.computedFullPath)
+		assert.Equal(t, expectedBase, c.computedFullPath, "expected %s, got %s", expectedBase, c.computedFullPath)
 	} else {
 		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+	}
+	if c, ok := et.notifications[1].(*createKeyArgs); ok {
+		assert.Equal(t, expected, c.computedFullPath, "expected %s, got %s", expected, c.computedFullPath)
+	} else {
+		t.Errorf("expected createHandleArgs, got %T", et.notifications[1])
 	}
 }

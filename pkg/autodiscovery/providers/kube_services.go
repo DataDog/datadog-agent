@@ -65,6 +65,13 @@ func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvide
 		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
 	}
 
+	if config.Datadog.GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
+		log.Warnf("The `cluster_checks.support_hybrid_ignore_ad_tags` flag is" +
+			" deprecated and will be removed in a future version. Please replace " +
+			"`ad.datadoghq.com/service.ignore_autodiscovery_tags` in your service annotations" +
+			"using adv2 for check specification and adv1 for `ignore_autodiscovery_tags`.")
+	}
+
 	return p, nil
 }
 
@@ -83,7 +90,7 @@ func (k *KubeServiceConfigProvider) Collect(ctx context.Context) ([]integration.
 	}
 	k.upToDate = true
 
-	return k.parseServiceAnnotations(services)
+	return k.parseServiceAnnotations(services, config.Datadog)
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
@@ -153,7 +160,7 @@ func valuesDiffer(first, second map[string]string, prefix string) bool {
 	return matchingInFirst != matchingInSecond
 }
 
-func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Service) ([]integration.Config, error) {
+func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Service, ddConf config.Config) ([]integration.Config, error) {
 	var configs []integration.Config
 
 	setServiceIDs := map[string]struct{}{}
@@ -166,7 +173,7 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 
 		serviceID := apiserver.EntityForService(svc)
 		setServiceIDs[serviceID] = struct{}{}
-		svcConf, errors := utils.ExtractTemplatesFromPodAnnotations(serviceID, svc.Annotations, kubeServiceID)
+		svcConf, errors := utils.ExtractTemplatesFromAnnotations(serviceID, svc.Annotations, kubeServiceID)
 		if len(errors) > 0 {
 			errMsgSet := make(ErrorMsgSet)
 			for _, err := range errors {
@@ -178,13 +185,15 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 			delete(k.configErrors, serviceID)
 		}
 
-		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
-
+		ignoreAdForHybridScenariosTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
 			svcConf[i].Source = "kube_services:" + serviceID
-			svcConf[i].IgnoreAutodiscoveryTags = ignoreADTags
+			// TODO(CINT)(Agent 7.53+) Remove support for hybrid scenarios
+			if ddConf.GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
+				svcConf[i].IgnoreAutodiscoveryTags = svcConf[i].IgnoreAutodiscoveryTags || ignoreAdForHybridScenariosTags
+			}
 		}
 
 		configs = append(configs, svcConf...)

@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -109,6 +110,7 @@ func (s *service) Run(svcctx context.Context) error {
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		eventplatformimpl.Module(),
 		fx.Supply(eventplatformimpl.NewDisabledParams()),
+		eventplatformreceiverimpl.Module(),
 		fx.Supply(demultiplexerimpl.NewDefaultParams()),
 
 		// workloadmeta setup

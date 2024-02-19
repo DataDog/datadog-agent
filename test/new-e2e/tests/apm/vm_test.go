@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -16,16 +17,49 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 )
 
 type VMFakeintakeSuite struct {
 	e2e.BaseSuite[environments.Host]
-	transport transport
+	transport    transport
+	extraLogging bool
+}
+
+// NewVMFakeintakeSuite returns a new VMFakeintakeSuite
+func NewVMFakeintakeSuite(tr transport) *VMFakeintakeSuite {
+	extraLogging := false
+	if v, found := os.LookupEnv("EXTRA_LOGGING"); found {
+		extraLogging, _ = strconv.ParseBool(v)
+	}
+	return &VMFakeintakeSuite{
+		transport:    tr,
+		extraLogging: extraLogging,
+	}
 }
 
 func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
-	opts = append(opts, awshost.WithDocker())
+	setupScript := `#!/bin/bash
+# /var/run/datadog directory is necessary for UDS socket creation
+sudo mkdir -p /var/run/datadog
+sudo groupadd -r dd-agent
+sudo useradd -r -M -g dd-agent dd-agent
+sudo chown dd-agent:dd-agent /var/run/datadog
+
+# Agent must be in the docker group to be able to open and read
+# container info from the docker socket.
+sudo groupadd -f -r docker
+sudo usermod -a -G docker dd-agent
+`
+	opts = append(opts,
+		awshost.WithDocker(),
+		// Create the /var/run/datadog directory and ensure
+		// permissions are correct so the agent can create
+		// unix sockets for the UDS transport and communicate with the docker socket.
+		awshost.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
+	)
+
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
 		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
@@ -35,26 +69,19 @@ func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOpt
 
 // TestVMFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
 func TestVMFakeintakeSuiteUDS(t *testing.T) {
-	// FIXME: fix flakiness reaching the agent then enable the test
-	t.Skip("Skipping flaky test - incident-25117 AIT-9390")
-
 	cfg := `
 apm_config.enabled: true
 apm_config.receiver_socket: /var/run/datadog/apm.socket
 `
 
-	options := vmSuiteOpts(uds, awshost.WithAgentOptions(
+	options := vmSuiteOpts(uds,
 		// Enable the UDS receiver in the trace-agent
-		agentparams.WithAgentConfig(cfg),
-	))
-	e2e.Run(t, &VMFakeintakeSuite{transport: uds}, options...)
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(cfg)))
+	e2e.Run(t, NewVMFakeintakeSuite(uds), options...)
 }
 
 // TestVMFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestVMFakeintakeSuiteTCP(t *testing.T) {
-	// FIXME: fix flakiness reaching the agent then enable the test
-	t.Skip("Skipping flaky test - incident-25117 AIT-9390")
-
 	cfg := `
 apm_config.enabled: true
 `
@@ -66,25 +93,7 @@ apm_config.enabled: true
 		),
 		awshost.WithEC2InstanceOptions(),
 	)
-	e2e.Run(t, &VMFakeintakeSuite{transport: tcp}, options...)
-}
-
-func (s *VMFakeintakeSuite) SetupSuite() {
-	s.BaseSuite.SetupSuite()
-	h := s.Env().RemoteHost
-	// Agent must be in the docker group to be able to open and
-	// read container info from the docker socket.
-	h.MustExecute("sudo groupadd -f -r docker")
-	h.MustExecute("sudo usermod -a -G docker dd-agent")
-
-	// Create the /var/run/datadog directory and ensure
-	// permissions are correct so the agent can create
-	// unix sockets for the UDS transport
-	h.MustExecute("sudo mkdir -p /var/run/datadog")
-	h.MustExecute("sudo chown dd-agent:dd-agent /var/run/datadog")
-
-	// Restart the agent
-	h.MustExecute("sudo systemctl restart datadog-agent")
+	e2e.Run(t, NewVMFakeintakeSuite(tcp), options...)
 }
 
 func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
@@ -95,17 +104,13 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
 		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
-	}, 2*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
+		s.logJournal()
+	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
 func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
-	if s.transport != uds {
-		// TODO: Container tagging with cgroup v2 currently only works over UDS
-		// We should update this to run over TCP as well once that is implemented.
-		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")
-	}
-
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -121,8 +126,10 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
 		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
-	}, 2*time.Minute, 10*time.Second, "Failed finding traces with container tags")
+		s.logJournal()
+	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
 func (s *VMFakeintakeSuite) TestStatsForService() {
@@ -141,8 +148,10 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
 		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
-	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
+		s.logJournal()
+	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
 func (s *VMFakeintakeSuite) TestBasicTrace() {
@@ -162,8 +171,26 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
-	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+		s.logJournal()
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+}
+
+type statusReporter struct {
+	v *VMFakeintakeSuite
+}
+
+func (r *statusReporter) String() string {
+	log, err := r.v.Env().RemoteHost.Execute("sudo journalctl -n1000 -xu datadog-agent-trace")
+	if err != nil {
+		log = fmt.Sprintf("Failed to run journalctl to get trace agent logs: %v", err)
+	}
+	status, err := r.v.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
+	if err != nil {
+		status = fmt.Sprintf("Failed to run systemctl status to get trace agent status: %v", status)
+	}
+	return log + "\n" + status
 }
 
 func waitRemotePort(v *VMFakeintakeSuite, port uint16) error {
@@ -171,6 +198,7 @@ func waitRemotePort(v *VMFakeintakeSuite, port uint16) error {
 		c   net.Conn
 		err error
 	)
+
 	v.Eventually(func() bool {
 		v.T().Logf("Waiting for remote:%v", port)
 		// TODO: Use the e2e context
@@ -182,6 +210,30 @@ func waitRemotePort(v *VMFakeintakeSuite, port uint16) error {
 		v.T().Logf("Connected to remote:%v\n", port)
 		defer c.Close()
 		return true
-	}, 60*time.Second, 1*time.Second, "Failed to dial remote:%v: %s\n", port, err)
+	}, 60*time.Second, 1*time.Second, "Failed to dial remote:%v: %s\n%s", port, err, &statusReporter{v})
 	return err
+}
+
+func (s *VMFakeintakeSuite) logStatus() {
+	if !s.extraLogging {
+		return
+	}
+	status, err := s.Env().RemoteHost.Execute("sudo systemctl status datadog-agent-trace")
+	if err != nil {
+		s.T().Log("cannot log status", err)
+		return
+	}
+	s.T().Log(status)
+}
+
+func (s *VMFakeintakeSuite) logJournal() {
+	if !s.extraLogging {
+		return
+	}
+	journal, err := s.Env().RemoteHost.Execute("sudo journalctl -n1000 -xu datadog-agent-trace")
+	if err != nil {
+		s.T().Log("cannot log journal", err)
+		return
+	}
+	s.T().Log(journal)
 }

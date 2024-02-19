@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
@@ -42,9 +40,7 @@ type services struct {
 func setUp(t *testing.T) *services {
 	t.Helper()
 	s := fxutil.Test[services](t,
-		hostnameimpl.MockModule(),
 		configimpl.MockModule(),
-		logimpl.MockModule(),
 		senderhelper.Opts,
 		formatterimpl.MockModule(),
 		listenerimpl.MockModule(),

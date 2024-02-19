@@ -92,13 +92,6 @@
 
 #define MAX_FRAME_SIZE 16384
 
-// Definitions representing empty and /index.html paths. These types are sent using the static table.
-// We include these to eliminate the necessity of copying the specified encoded path to the buffer.
-#define HTTP2_ROOT_PATH      "/"
-#define HTTP2_ROOT_PATH_LEN  (sizeof(HTTP2_ROOT_PATH) - 1)
-#define HTTP2_INDEX_PATH     "/index.html"
-#define HTTP2_INDEX_PATH_LEN (sizeof(HTTP2_INDEX_PATH) - 1)
-
 typedef enum {
     kGET = 2,
     kPOST = 3,
@@ -156,16 +149,22 @@ typedef struct {
 } method_t;
 
 typedef struct {
+    __u8 raw_buffer[HTTP2_MAX_PATH_LEN];
+    bool is_huffman_encoded;
+
+    __u8 static_table_entry;
+    __u8 length;
+    bool finalized;
+} path_t;
+
+typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
 
     status_code_t status_code;
     method_t request_method;
-    __u8 path_size;
+    path_t path;
     bool request_end_of_stream;
-    bool is_huffman_encoded;
-
-    __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
 } http2_stream_t;
 
 typedef struct {
@@ -222,19 +221,21 @@ typedef struct {
 // response_seen                        Count of HTTP/2 responses seen
 // end_of_stream                        Count of END STREAM flag seen
 // end_of_stream_rst                    Count of RST flags seen
-// path_exceeds_frame                   Count of times we couldn't retrieve the path due to reaching the end of the frame.
+// literal_value_exceeds_frame          Count of times we couldn't retrieve the literal value due to reaching the end of the frame.
 // exceeding_max_interesting_frames		Count of times we reached the max number of frames per iteration.
 // exceeding_max_frames_to_filter		Count of times we have left with more frames to filter than the max number of frames to filter.
 // path_size_bucket                     Count of path sizes and divided into buckets.
+// frames_split_count                   Count of times we tried to read more data than the end of the data end.
 typedef struct {
     __u64 request_seen;
     __u64 response_seen;
     __u64 end_of_stream;
     __u64 end_of_stream_rst;
-    __u64 path_exceeds_frame;
+    __u64 literal_value_exceeds_frame;
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
+    __u64 fragmented_frame_count;
 } http2_telemetry_t;
 
 #endif

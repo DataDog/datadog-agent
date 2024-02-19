@@ -19,6 +19,7 @@ tests_macos:
     - inv -e github.trigger-macos-test --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT"
   after_script:
     - inv -e junit-macos-repack --infile junit-tests_macos.tgz --outfile junit-tests_macos-repacked.tgz
+  timeout: 6h
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -36,6 +37,7 @@ lint_macos:
   tags: ["arch:amd64"]
   variables:
     PYTHON_RUNTIMES: '3'
+  timeout: 6h
   script:
     - source /root/.bashrc
     - export GITHUB_KEY_B64=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_key_b64 --with-decryption --query "Parameter.Value" --out text)

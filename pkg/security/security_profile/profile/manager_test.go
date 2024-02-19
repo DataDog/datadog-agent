@@ -39,7 +39,7 @@ type testIteration struct {
 }
 
 func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) *model.Event {
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.Type = uint32(ti.eventType)
 	event.ContainerContext.CreatedAt = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 	event.TimestampRaw = uint64(t0.Add(ti.eventTimestampRaw).UnixNano())
