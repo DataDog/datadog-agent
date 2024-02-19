@@ -309,7 +309,7 @@ func pathEmbedded(fullPath, embedded string) bool {
 	return strings.Contains(fullPath, normalized)
 }
 
-func fixAssetPermissions() error {
+func fixAssetPermissions(testDirRoot string) error {
 	matches, err := glob(testDirRoot, `.*\.o`, func(path string) bool {
 		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
 	})
@@ -336,7 +336,7 @@ func run() error {
 		return fmt.Errorf("failed to build test configuration: %w", err)
 	}
 
-	if err := fixAssetPermissions(); err != nil {
+	if err := fixAssetPermissions(testConfig.testDirRoot); err != nil {
 		return fmt.Errorf("asset perms: %s", err)
 	}
 
