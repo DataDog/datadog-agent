@@ -62,6 +62,5 @@ func run(diagnoseSenderManager diagnosesendermanager.Component) error {
 		RunLocal: true, // do not attept to run in actual runnin agent (may need to implement it in future)
 		Include:  []string{"connectivity-datadog-autodiscovery"},
 	}
-	diagnose.Init(optional.NewNoneOption[collector.Component]())
-	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseSenderManager)
+	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseSenderManager, optional.NewNoneOption[collector.Component]())
 }

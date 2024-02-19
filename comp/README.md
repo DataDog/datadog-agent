@@ -374,6 +374,10 @@ Package remoteconfig defines the fx options for the Bundle
 
 Package rcservice is a remote config service that can run within the agent to receive remote config updates from the DD backend.
 
+### [comp/remote-config/rcserviceha](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha)
+
+Package rcserviceha is a remote config service that can run in the Agent to receive remote config updates from the DD failover DC backend.
+
 ### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
 
 Package rctelemetryreporter provides a component that sends RC-specific metrics to the DD backend.

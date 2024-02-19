@@ -10,8 +10,10 @@ package agentsidecar
 
 import (
 	"errors"
+	"fmt"
 	dca_ac "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -61,6 +63,10 @@ func getDefaultSidecarTemplate() *corev1.Container {
 		ddSite = config.DefaultSite
 	}
 
+	containerRegistry := config.Datadog.GetString("admission_controller.agent_sidecar.container_registry")
+	imageName := config.Datadog.GetString("admission_controller.agent_sidecar.image_name")
+	imageTag := config.Datadog.GetString("admission_controller.agent_sidecar.image_tag")
+
 	agentContainer := &corev1.Container{
 		Env: []corev1.EnvVar{
 			{
@@ -92,7 +98,7 @@ func getDefaultSidecarTemplate() *corev1.Container {
 				},
 			},
 		},
-		Image:           "datadog/agent",
+		Image:           fmt.Sprintf("%s/%s:%s", containerRegistry, imageName, imageTag),
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Name:            agentSidecarContainerName,
 		Resources: corev1.ResourceRequirements{
@@ -105,6 +111,34 @@ func getDefaultSidecarTemplate() *corev1.Container {
 				"cpu":    resource.MustParse("200m"),
 			},
 		},
+	}
+
+	clusterAgentEnabled := config.Datadog.GetBool("admission_controller.agent_sidecar.cluster_agent.enabled")
+
+	if clusterAgentEnabled {
+		clusterAgentCmdPort := config.Datadog.GetInt("cluster_agent.cmd_port")
+		clusterAgentServiceName := config.Datadog.GetString("cluster_agent.kubernetes_service_name")
+
+		_ = withEnvOverrides(agentContainer, corev1.EnvVar{
+			Name:  "DD_CLUSTER_AGENT_ENABLED",
+			Value: "true",
+		}, corev1.EnvVar{
+			Name: "DD_CLUSTER_AGENT_AUTH_TOKEN",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					Key: "token",
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "datadog-secret",
+					},
+				},
+			},
+		}, corev1.EnvVar{
+			Name:  "DD_CLUSTER_AGENT_URL",
+			Value: fmt.Sprintf("https://%s.%s.svc.cluster.local:%v", clusterAgentServiceName, apiCommon.GetMyNamespace(), clusterAgentCmdPort),
+		}, corev1.EnvVar{
+			Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
+			Value: "true",
+		})
 	}
 
 	return agentContainer

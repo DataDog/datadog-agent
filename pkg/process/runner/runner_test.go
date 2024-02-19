@@ -26,7 +26,7 @@ func TestUpdateRTStatus(t *testing.T) {
 	cfg := ddconfig.Mock(t)
 
 	assert := assert.New(t)
-	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg)}, nil)
+	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -62,7 +62,7 @@ func TestUpdateRTStatus(t *testing.T) {
 func TestUpdateRTInterval(t *testing.T) {
 	cfg := ddconfig.Mock(t)
 	assert := assert.New(t)
-	c, err := NewRunner(ddconfig.Mock(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg)}, nil)
+	c, err := NewRunner(ddconfig.Mock(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -128,7 +128,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 			mockConfig.SetWithoutSource("process_config.disable_realtime_checks", tc.disableRealtime)
 
 			assert := assert.New(t)
-			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig)}
+			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig, mockConfig)}
 
 			c, err := NewRunner(mockConfig, nil, &checks.HostInfo{}, expectedChecks, nil)
 			assert.NoError(err)

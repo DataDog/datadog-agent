@@ -229,10 +229,12 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	weight := weight(pt.Root)
 	aggKey := PayloadAggregationKey{
-		Env:         env,
-		Hostname:    hostname,
-		Version:     pt.AppVersion,
-		ContainerID: containerID,
+		Env:          env,
+		Hostname:     hostname,
+		Version:      pt.AppVersion,
+		ContainerID:  containerID,
+		GitCommitSha: pt.GitCommitSha,
+		ImageTag:     pt.ImageTag,
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
@@ -299,11 +301,13 @@ func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 	sb := make([]*pb.ClientStatsPayload, 0, len(m))
 	for k, s := range m {
 		p := &pb.ClientStatsPayload{
-			Env:         k.Env,
-			Hostname:    k.Hostname,
-			ContainerID: k.ContainerID,
-			Version:     k.Version,
-			Stats:       s,
+			Env:          k.Env,
+			Hostname:     k.Hostname,
+			ContainerID:  k.ContainerID,
+			Version:      k.Version,
+			GitCommitSha: k.GitCommitSha,
+			ImageTag:     k.ImageTag,
+			Stats:        s,
 		}
 		sb = append(sb, p)
 	}

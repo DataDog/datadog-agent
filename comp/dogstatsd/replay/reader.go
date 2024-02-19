@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/zstd"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proto "github.com/golang/protobuf/proto"
@@ -100,10 +99,11 @@ func (tc *TrafficCaptureReader) Read(ready chan struct{}) {
 	}
 	tc.Unlock()
 
-	last := int64(0)
+	first := int64(0)
 
 	// we are all ready to go - let the caller know
 	ready <- struct{}{}
+	start := time.Now()
 
 	// The state must be read out of band, it makes zero sense in the context
 	// of the replaying process, it must be pushed to the agent. We just read
@@ -118,13 +118,13 @@ func (tc *TrafficCaptureReader) Read(ready chan struct{}) {
 			break
 		}
 
-		if last != 0 {
-			if msg.Timestamp > last {
-				util.Wait(tsResolution * time.Duration(msg.Timestamp-last))
-			}
+		if first == 0 {
+			first = msg.Timestamp
 		}
 
-		last = msg.Timestamp
+		t := time.Duration(msg.Timestamp-first) * tsResolution
+		time.Sleep(t - time.Since(start))
+
 		tc.Traffic <- msg
 
 		select {
