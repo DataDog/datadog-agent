@@ -307,7 +307,7 @@ func (c *Check) Run() error {
 		status = servicecheck.ServiceCheckCritical
 		message = allErrors.Error()
 	}
-	sendServiceCheck(c, "oracle.can_query", status, message)
+	sendServiceCheck(c, serviceCheckName, status, message)
 	commit(c)
 	return allErrors
 }
