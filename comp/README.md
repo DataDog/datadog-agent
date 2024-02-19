@@ -28,6 +28,12 @@ Package api implements the "api" bundle,
 
 Package api implements the internal Agent API which exposes endpoints such as config, flare or status
 
+### [comp/api/authtoken](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/authtoken)
+
+Package authtoken implements the creation and access to the auth_token used to communicate between Agent processes.
+This component offers two implementations: one to create and fetch the auth_token and another that doesn't create the
+auth_token file but can fetch it it's available.
+
 ## [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer) (Component Bundle)
 
 *Datadog Team*: windows-agent
