@@ -169,8 +169,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ profiler.Component,
 			_ expvars.Component,
 			_ apiserver.Component,
-			// TODO: This is needed by the container-provider and should be updated to be handled by it
-			_ tagger.Component,
 			processAgent optional.Option[agent.Component],
 		) error {
 			if !processAgent.IsSet() {
