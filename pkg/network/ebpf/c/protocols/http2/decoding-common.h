@@ -27,6 +27,17 @@ static __always_inline bool is_status_index(const __u64 index) {
     return k200 <= index && index <= k500;
 }
 
+// Returns kHeaderMethod if the given index represents a method index, kHeaderPath if the given index represents a path
+// index, and kHeaderStatus if the given index represents a status index, and kHeaderUnknown otherwise.
+static __always_inline interesting_header_type_t get_header_type(const __u64 index) {
+    // each method (is_status, is_path, and is_method) returns 1 if the index is relevant to the header type, and 0
+    // otherwise. The values of the enum interesting_header_type_t are multiplication of 2, so we can form the following
+    // calculation to get the relevant header type.
+    return kHeaderStatus * is_status_index(index) +
+           kHeaderPath * is_path_index(index) +
+           kHeaderMethod * is_method_index(index);
+}
+
 // returns true if the given index is one of the relevant headers we care for in the static table.
 // The full table can be found in the user mode code `createStaticTable`.
 static __always_inline bool is_interesting_static_entry(const __u64 index) {
@@ -39,25 +50,20 @@ static __always_inline bool is_static_table_entry(const __u64 index) {
 }
 
 // http2_fetch_stream returns the current http2 in flight stream.
-static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key_t *http2_stream_key) {
+static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key_t *http2_stream_key, http2_stream_t *base) {
     http2_stream_t *http2_stream_ptr = bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
     if (http2_stream_ptr != NULL) {
         return http2_stream_ptr;
     }
 
-    const __u32 zero = 0;
-    http2_stream_ptr = bpf_map_lookup_elem(&http2_stream_heap, &zero);
-    if (http2_stream_ptr == NULL) {
-        return NULL;
-    }
-    bpf_memset(http2_stream_ptr, 0, sizeof(http2_stream_t));
-    bpf_map_update_elem(&http2_in_flight, http2_stream_key, http2_stream_ptr, BPF_NOEXIST);
+    bpf_map_update_elem(&http2_in_flight, http2_stream_key, base, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
 }
 
 // get_dynamic_counter returns the current dynamic counter by the conn tuple.
 static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
-    __u64 counter = 0;
+    // The dynamic table index starts from 62, and we need to add 1 to the counter to match the index.
+    const __u64 counter = MAX_STATIC_TABLE_INDEX + 1;
     bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
 }

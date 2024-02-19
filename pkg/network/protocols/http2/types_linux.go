@@ -9,9 +9,8 @@ const (
 
 	HTTP2TerminatedBatchSize = 0x50
 
-	http2RawStatusCodeMaxLength = 0x3
-
 	Http2MaxHeadersCountPerFiltering = 0x21
+	http2staticTableMaxEntry         = 0x3d
 )
 
 type connTuple = struct {
@@ -29,46 +28,34 @@ type HTTP2DynamicTableIndex struct {
 	Index uint64
 	Tup   connTuple
 }
-type HTTP2DynamicTableEntry struct {
-	Buffer             [160]int8
-	Original_index     uint32
-	String_len         uint8
-	Is_huffman_encoded bool
-	Pad_cgo_0          [2]byte
-}
 type http2StreamKey struct {
 	Tup       connTuple
 	Id        uint32
 	Pad_cgo_0 [4]byte
 }
-type http2StatusCode struct {
-	Raw_buffer         [3]uint8
-	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Finalized          bool
-}
-type http2requestMethod struct {
-	Raw_buffer         [7]uint8
-	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Length             uint8
-	Finalized          bool
-}
-type http2Path struct {
-	Raw_buffer         [160]uint8
-	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Length             uint8
-	Finalized          bool
+type http2InterestingValue struct {
+	Index     uint64
+	Temporary bool
+	Pad_cgo_0 [7]byte
 }
 type http2Stream struct {
 	Response_last_seen    uint64
 	Request_started       uint64
-	Status_code           http2StatusCode
-	Request_method        http2requestMethod
-	Path                  http2Path
+	Status_code           http2InterestingValue
+	Request_method        http2InterestingValue
+	Path                  http2InterestingValue
 	Request_end_of_stream bool
-	Pad_cgo_0             [2]byte
+	Conn_tuple_flipped    bool
+	Pad_cgo_0             [6]byte
+}
+type http2DynamicTableValue struct {
+	Key                HTTP2DynamicTableIndex
+	Type               uint8
+	Temporary          bool
+	Is_huffman_encoded bool
+	String_len         uint8
+	Pad_cgo_0          [4]byte
+	Buf                [160]byte
 }
 type EbpfTx struct {
 	Tuple  connTuple
@@ -100,4 +87,13 @@ const (
 	K400Value      StaticTableEnumValue = 0xc
 	K404Value      StaticTableEnumValue = 0xd
 	K500Value      StaticTableEnumValue = 0xe
+)
+
+type InterestingHeaderType uint8
+
+const (
+	HeaderUnknown InterestingHeaderType = 0x0
+	HeaderMethod  InterestingHeaderType = 0x1
+	HeaderPath    InterestingHeaderType = 0x2
+	HeaderStatus  InterestingHeaderType = 0x4
 )

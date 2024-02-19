@@ -298,9 +298,9 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
 
 // tls_process_headers processes the headers that were filtered in
 // tls_filter_relevant_headers, looking for requests path, status code, and method.
-static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers, http2_telemetry_t *http2_tel) {
+static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, dynamic_table_value_t *dynamic_table_value, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers, http2_telemetry_t *http2_tel) {
+    u32 cpu = bpf_get_smp_processor_id();
     http2_header_t *current_header;
-    dynamic_table_entry_t dynamic_value = {};
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
@@ -314,73 +314,69 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
             if (is_method_index(current_header->index)) {
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method.static_table_entry = current_header->index;
-                current_stream->request_method.finalized = true;
+                current_stream->request_method.index = current_header->index;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (is_status_index(current_header->index)) {
-                current_stream->status_code.static_table_entry = current_header->index;
-                current_stream->status_code.finalized = true;
+                current_stream->status_code.index = current_header->index;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (is_path_index(current_header->index)) {
-                current_stream->path.static_table_entry = current_header->index;
-                current_stream->path.finalized = true;
+                current_stream->path.index = current_header->index;
             }
             continue;
         }
 
-        dynamic_index->index = current_header->index;
+        dynamic_table_value->key.index = current_header->index;
         if (current_header->type == kExistingDynamicHeader) {
-            dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
-            if (dynamic_value == NULL) {
+            interesting_header_type_t *type = bpf_map_lookup_elem(&http2_dynamic_table, &dynamic_table_value->key);
+            if (type == NULL) {
                 break;
             }
-            if (is_path_index(dynamic_value->original_index)) {
-                current_stream->path.length = dynamic_value->string_len;
-                current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->path.finalized = true;
-                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
-            } else if (is_status_index(dynamic_value->original_index)) {
-                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
-                current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->status_code.finalized = true;
-            } else if (is_method_index(dynamic_value->original_index)) {
+            if (*type == kHeaderPath) {
+                current_stream->path.index = current_header->index;
+            } else if (*type == kHeaderStatus) {
+                current_stream->status_code.index = current_header->index;
+                __sync_fetch_and_add(&http2_tel->response_seen, 1);
+            } else {
                 current_stream->request_started = bpf_ktime_get_ns();
-                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
-                current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
-                current_stream->request_method.finalized = true;
+                current_stream->request_method.index = current_header->index;
+                __sync_fetch_and_add(&http2_tel->request_seen, 1);
             }
         } else {
             // We're in new dynamic header or new dynamic header not indexed states.
-            read_into_user_buffer_http2_path(dynamic_value.buffer, info->buffer_ptr + current_header->new_dynamic_value_offset);
-            // If the value is indexed - add it to the dynamic table.
-            if (current_header->type == kNewDynamicHeader) {
-                dynamic_value.string_len = current_header->new_dynamic_value_size;
-                dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
-                dynamic_value.original_index = current_header->original_index;
-                bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
+            read_into_user_buffer_http2_path(dynamic_table_value->buf, info->buffer_ptr + current_header->new_dynamic_value_offset);
+            dynamic_table_value->type = get_header_type(current_header->original_index);
+            dynamic_table_value->temporary = current_header->type != kNewDynamicHeader;
+            dynamic_table_value->key.index = current_header->index;
+            if (dynamic_table_value->temporary) {
+                // If the key is temporary, we need to have a unique index, thus taking the current time.
+                dynamic_table_value->key.index = bpf_ktime_get_ns();
             }
-            if (is_path_index(current_header->original_index)) {
-                current_stream->path.length = current_header->new_dynamic_value_size;
-                current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->path.finalized = true;
-                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
-            } else if (is_status_index(current_header->original_index)) {
-                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
-                current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->status_code.finalized = true;
-            } else if (is_method_index(current_header->original_index)) {
+            if (dynamic_table_value->type == kHeaderPath) {
+                current_stream->path.index = dynamic_table_value->key.index;
+                current_stream->path.temporary = dynamic_table_value->temporary;
+            } else if (dynamic_table_value->type == kHeaderStatus) {
+                current_stream->status_code.index = dynamic_table_value->key.index;
+                current_stream->status_code.temporary = dynamic_table_value->temporary;
+                __sync_fetch_and_add(&http2_tel->response_seen, 1);
+            } else {
                 current_stream->request_started = bpf_ktime_get_ns();
-                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
-                current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
-                current_stream->request_method.finalized = true;
+                current_stream->request_method.index = dynamic_table_value->key.index;
+                current_stream->request_method.temporary = dynamic_table_value->temporary;
+                __sync_fetch_and_add(&http2_tel->request_seen, 1);
+            }
+
+            // Send dynamic value over a per-event to the user mode.
+            dynamic_table_value->string_len = current_header->new_dynamic_value_size;
+            dynamic_table_value->is_huffman_encoded = current_header->is_huffman_encoded;
+            bpf_perf_event_output(ctx, &http2_dynamic_table_perf_buffer, cpu, dynamic_table_value, sizeof(dynamic_table_value_t));
+            if (!dynamic_table_value->temporary) {
+                bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_table_value->type, BPF_ANY);
             }
         }
     }
 }
 
-static __always_inline void tls_process_headers_frame(tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
+static __always_inline void tls_process_headers_frame(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
     const __u32 zero = 0;
 
     // Allocating an array of headers, to hold all interesting headers from the frame.
@@ -390,8 +386,8 @@ static __always_inline void tls_process_headers_frame(tls_dispatcher_arguments_t
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
-    __u8 interesting_headers = tls_filter_relevant_headers(info, dynamic_index, headers_to_process, current_frame_header->length, http2_tel);
-    tls_process_headers(info, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
+    __u8 interesting_headers = tls_filter_relevant_headers(info, &dynamic_table_value->key, headers_to_process, current_frame_header->length, http2_tel);
+    tls_process_headers(ctx, info, dynamic_table_value, current_stream, headers_to_process, interesting_headers, http2_tel);
 }
 
 // tls_skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
@@ -774,8 +770,8 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
         return 0;
     }
 
-    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
-    if (http2_ctx == NULL) {
+    http2_stream_key_t *http2_stream_key = bpf_map_lookup_elem(&http2_stream_key_heap, &zero);
+    if (http2_stream_key == NULL) {
         goto delete_iteration;
     }
 
@@ -784,14 +780,19 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
         goto delete_iteration;
     }
 
+    dynamic_table_value_t *dynamic_table_value = bpf_map_lookup_elem(&http2_dynamic_table_heap, &zero);
+    if (dynamic_table_value == NULL) {
+        goto delete_iteration;
+    }
+    dynamic_table_value->key.tup = dispatcher_args_copy.tup;
+
     http2_frame_with_offset *frames_array = tail_call_state->frames_array;
     http2_frame_with_offset current_frame;
 
-    // create the http2 ctx for the current http2 frame.
-    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
-    normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
+    bpf_memset(http2_stream_key, 0, sizeof(http2_stream_key_t));
+    http2_stream_key->tup = dispatcher_args_copy.tup;
+    http2_stream_t base_stream = {0};
+    base_stream.conn_tuple_flipped = normalize_tuple(&http2_stream_key->tup);
 
     http2_stream_t *current_stream = NULL;
 
@@ -811,13 +812,13 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
             continue;
         }
 
-        http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        http2_stream_key->stream_id = current_frame.frame.stream_id;
+        current_stream = http2_fetch_stream(http2_stream_key, &base_stream);
         if (current_stream == NULL) {
             continue;
         }
         dispatcher_args_copy.data_off = current_frame.offset;
-        tls_process_headers_frame(&dispatcher_args_copy, current_stream, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
+        tls_process_headers_frame(ctx, &dispatcher_args_copy, current_stream, dynamic_table_value, &current_frame.frame, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
@@ -871,13 +872,14 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     http2_frame_with_offset *frames_array = tail_call_state->frames_array;
     http2_frame_with_offset current_frame;
 
-    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
-    if (http2_ctx == NULL) {
+    http2_stream_key_t *http2_stream_key = bpf_map_lookup_elem(&http2_stream_key_heap, &zero);
+    if (http2_stream_key == NULL) {
         goto delete_iteration;
     }
-    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
-    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+    bpf_memset(http2_stream_key, 0, sizeof(http2_stream_key_t));
+    http2_stream_key->tup = dispatcher_args_copy.tup;
+    http2_stream_t base_stream = {0};
+    base_stream.conn_tuple_flipped = normalize_tuple(&http2_stream_key->tup);
 
     bool is_rst = false, is_end_of_stream = false;
     http2_stream_t *current_stream = NULL;
@@ -901,8 +903,8 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
             continue;
         }
 
-        http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        http2_stream_key->stream_id = current_frame.frame.stream_id;
+        current_stream = http2_fetch_stream(http2_stream_key, &base_stream);
         if (current_stream == NULL) {
             continue;
         }
@@ -910,8 +912,8 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         // When we accept an RST, it means that the current stream is terminated.
         // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
         // If rst, and stream is empty (no status code, or no response) then delete from inflight
-        if (is_rst && (!current_stream->status_code.finalized || current_stream->request_started == 0)) {
-            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+        if (is_rst && (current_stream->status_code.index == 0 || current_stream->request_started == 0)) {
+            bpf_map_delete_elem(&http2_in_flight, http2_stream_key);
             continue;
         }
 
@@ -920,7 +922,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
             __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
         }
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
+        handle_end_of_stream(current_stream, http2_stream_key, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&

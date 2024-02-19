@@ -417,6 +417,9 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	t := s.T()
 	cfg := s.getCfg()
+	// This value controls the size of the dynamic table (usermode and eBPF), thus, we set the value to ensure that
+	// the test guarantees that the dynamic table is full and triggers evictions.
+	cfg.MaxUSMConcurrentRequests = 1024
 
 	// Start local server and register its cleanup.
 	t.Cleanup(startH2CServer(t, authority, s.isTLS))
@@ -433,41 +436,58 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 	const (
 		repetitionsPerRequest = 2
-		// Should be bigger than the length of the http2_dynamic_table which is 1024
-		numberOfRequests         = 1500
-		expectedNumberOfRequests = numberOfRequests * repetitionsPerRequest
+		batchSize             = 100
+		// Should be bigger than the length of the http2_dynamic_table which is 1024 (cfg.MaxUSMConcurrentRequests)
+		batches          = 20
+		numberOfRequests = batches * batchSize
 	)
+	// Ensuring any future test won't pass "accidentally" as we miscalculated the number of requests.
+	require.Greater(t, uint32(numberOfRequests), cfg.MaxUSMConcurrentRequests)
 	clients := getHTTP2UnixClientArray(1, unixPath)
-	for i := 0; i < numberOfRequests; i++ {
-		for j := 0; j < repetitionsPerRequest; j++ {
-			req, err := clients[0].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
-			require.NoError(t, err, "could not make request")
-			_ = req.Body.Close()
-		}
-	}
+	for batchIdx := 0; batchIdx < batches; batchIdx++ {
+		seenRequests := map[string]int{}
 
-	matches := PrintableInt(0)
-
-	seenRequests := map[string]int{}
-	assert.Eventuallyf(t, func() bool {
-		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
-			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
-				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
-					seenRequests[key.Path.Content.Get()] = 0
-				}
-				seenRequests[key.Path.Content.Get()] += stat.Data[200].Count
-				matches.Add(stat.Data[200].Count)
+		for i := 0; i < batchSize; i++ {
+			pathIndex := batchIdx*batchSize + i + 1
+			for j := 0; j < repetitionsPerRequest; j++ {
+				req, err := clients[0].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, pathIndex), "application/json", bytes.NewReader([]byte("test")))
+				require.NoError(t, err, "could not make request")
+				req.Body.Close()
 			}
 		}
 
-		// Due to a known issue in http2, we might consider an RST packet as a response to a request and therefore
-		// we might capture a request twice. This is why we are expecting to see 2*numberOfRequests instead of
-		return (expectedNumberOfRequests-1) <= matches.Load() && matches.Load() <= (expectedNumberOfRequests+1)
-	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, expectedNumberOfRequests)
+		assert.Eventually(t, func() bool {
+			for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
+				if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+					if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
+						seenRequests[key.Path.Content.Get()] = 0
+					}
+					seenRequests[key.Path.Content.Get()] += stat.Data[200].Count
+				}
+			}
 
-	for i := 0; i < numberOfRequests; i++ {
-		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != repetitionsPerRequest {
-			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, repetitionsPerRequest, v)
+			// Due to a known issue in http2, we might consider an RST packet as a response to a request and therefore
+			// we might capture a request twice. This is why we are expecting to see 2*numberOfRequests instead of
+			fail := false
+			for i := 0; i < batchSize; i++ {
+				pathIndex := batchIdx*batchSize + i + 1
+				if v, ok := seenRequests[fmt.Sprintf("/test-%d", pathIndex)]; !ok || v < repetitionsPerRequest {
+					fail = true
+				}
+			}
+			return !fail
+		}, time.Second*10, time.Millisecond*100)
+
+		if t.Failed() {
+			// In case of a failure, we want to print the requests that were not captured as expected and then
+			// fail the test, as there is no point in continuing for the rest of the batches.
+			for i := 0; i < batchSize; i++ {
+				pathIndex := batchIdx*batchSize + i + 1
+				if v, ok := seenRequests[fmt.Sprintf("/test-%d", pathIndex)]; !ok || v < repetitionsPerRequest {
+					t.Logf("path: /test-%d should have %d occurrences but instead has %d", pathIndex, repetitionsPerRequest, v)
+				}
+			}
+			t.FailNow()
 		}
 	}
 }
@@ -1294,7 +1314,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 					Method: usmhttp.MethodPost,
 				}: 10,
 			},
-			expectedDynamicTablePathIndexes: []int{1, 7, 13, 19, 25, 31, 37, 43, 49, 55},
+			expectedDynamicTablePathIndexes: []int{63, 69, 75, 81, 87, 93, 99, 105, 111, 117},
 		},
 	}
 	for _, tt := range tests {
@@ -1392,11 +1412,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				if !validateStats(usmMonitor, res, tt.expectedEndpoints) {
-					return false
-				}
-
-				return validateHuffmanEncoded(t, usmMonitor.ebpfProgram, tt.expectedHuffmanEncoded)
+				return validateStats(usmMonitor, res, tt.expectedEndpoints)
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
@@ -1710,7 +1726,7 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	require.NoError(t, err)
 	resultIndexes := make([]int, 0)
 	var key usmhttp2.HTTP2DynamicTableIndex
-	var value usmhttp2.HTTP2DynamicTableEntry
+	var value usmhttp2.InterestingHeaderType
 	iterator := dynamicTableMap.Iterate()
 
 	for iterator.Next(&key, &value) {
@@ -1718,25 +1734,6 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	}
 	sort.Ints(resultIndexes)
 	require.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes)
-}
-
-// validateHuffmanEncoded validates that the dynamic table map contains the expected huffman encoded paths.
-func validateHuffmanEncoded(t *testing.T, ebpfProgram *ebpfProgram, expectedHuffmanEncoded map[int]bool) bool {
-	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
-	if err != nil {
-		t.Logf("could not get dynamic table map: %v", err)
-		return false
-	}
-	resultEncodedPaths := make(map[int]bool, 0)
-
-	var key usmhttp2.HTTP2DynamicTableIndex
-	var value usmhttp2.HTTP2DynamicTableEntry
-	iterator := dynamicTableMap.Iterate()
-	for iterator.Next(&key, &value) {
-		resultEncodedPaths[int(value.String_len)] = value.Is_huffman_encoded
-	}
-	// we compare the size of the path and if it is huffman encoded.
-	return reflect.DeepEqual(expectedHuffmanEncoded, resultEncodedPaths)
 }
 
 // dialHTTP2Server dials the http2 server and performs the initial handshake
