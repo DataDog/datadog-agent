@@ -336,7 +336,7 @@ def vms_have_correct_deps(ctx, domains, depsfile):
     check = sha256sum.stdout.rstrip('\n')
     for d in domains:
         if not d.run_cmd(ctx, f"cd / && echo \"{check}\" | sha256sum --check", allow_fail=True):
-            error(f"[-] VM {d} does not have dependencies.")
+            warn(f"[-] VM {d} does not have dependencies.")
             return False
 
     return True
