@@ -13,6 +13,14 @@ fi
 if [ -f "$(pwd)/ssh-key.pub" ]; then
   rm ssh-key.pub
 fi
+# Set a PARENT_DIR variable to call the aws_ssm wrapper in both local and CI contexts
+pushd ../..
+if [ -n "$CI_PROJECT_DIR" ]; then
+  PARENT_DIR="$CI_PROJECT_DIR"
+else
+  PARENT_DIR="$(pwd)"
+fi
+popd
 
 # in docker we cannot interact to do this so we must disable it
 mkdir -p ~/.ssh
@@ -46,25 +54,25 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
   # These should not be printed out
   set +x
   if [ -z ${AZURE_CLIENT_ID+x} ]; then
-    AZURE_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_client_id)
+    AZURE_CLIENT_ID=$($PARENT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_client_id)
     # make sure whitespace is removed
     AZURE_CLIENT_ID="$(echo -e "${AZURE_CLIENT_ID}" | tr -d '[:space:]')"
     export AZURE_CLIENT_ID
   fi
   if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
-    AZURE_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_client_secret)
+    AZURE_CLIENT_SECRET=$($PARENT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_client_secret)
     # make sure whitespace is removed
     AZURE_CLIENT_SECRET="$(echo -e "${AZURE_CLIENT_SECRET}" | tr -d '[:space:]')"
     export AZURE_CLIENT_SECRET
   fi
   if [ -z ${AZURE_TENANT_ID+x} ]; then
-    AZURE_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_tenant_id)
+    AZURE_TENANT_ID=$($PARENT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_tenant_id)
     # make sure whitespace is removed
     AZURE_TENANT_ID="$(echo -e "${AZURE_TENANT_ID}" | tr -d '[:space:]')"
     export AZURE_TENANT_ID
   fi
   if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
-    AZURE_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_subscription_id)
+    AZURE_SUBSCRIPTION_ID=$($PARENT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_subscription_id)
     # make sure whitespace is removed
     AZURE_SUBSCRIPTION_ID="$(echo -e "${AZURE_SUBSCRIPTION_ID}" | tr -d '[:space:]')"
     export AZURE_SUBSCRIPTION_ID
@@ -94,7 +102,7 @@ elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
     export KITCHEN_EC2_SSH_KEY_ID="datadog-agent-kitchen"
     export KITCHEN_EC2_SSH_KEY_PATH="$(pwd)/aws-ssh-key"
     touch $KITCHEN_EC2_SSH_KEY_PATH && chmod 600 $KITCHEN_EC2_SSH_KEY_PATH
-    $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.aws_ec2_kitchen_ssh_key > $KITCHEN_EC2_SSH_KEY_PATH
+    $PARENT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.aws_ec2_kitchen_ssh_key > $KITCHEN_EC2_SSH_KEY_PATH
   fi
   set -x
 fi
