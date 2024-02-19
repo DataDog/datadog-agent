@@ -26,7 +26,7 @@ type testDependencies struct {
 
 type mockLifecycle struct{}
 
-func (m *mockLifecycle) Append(h fx.Hook) {}
+func (m *mockLifecycle) Append(_ fx.Hook) {}
 
 func TestUpdaterWithoutRemoteConfig(t *testing.T) {
 	deps := fxutil.Test[testDependencies](t, fx.Options(
