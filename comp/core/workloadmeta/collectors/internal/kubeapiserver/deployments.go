@@ -10,14 +10,13 @@ package kubeapiserver
 
 import (
 	"context"
-	"strings"
-
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
@@ -30,11 +29,7 @@ type deploymentFilter struct{}
 
 func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 	deployment := entity.(*workloadmeta.KubernetesDeployment)
-	return deployment == nil ||
-		(deployment.Env == "" &&
-			deployment.Version == "" &&
-			deployment.Service == "" &&
-			len(deployment.InjectableLanguages) == 0)
+	return deployment == nil
 }
 
 func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
@@ -76,8 +71,12 @@ func newdeploymentParser() objectParser {
 }
 
 func updateContainerLanguage(cl languagedetectionUtil.ContainersLanguages, container languagedetectionUtil.Container, languages string) {
+	if _, found := cl[container]; !found {
+		cl[container] = make(languagedetectionUtil.LanguageSet)
+	}
+
 	for _, lang := range strings.Split(languages, ",") {
-		cl.GetOrInitialize(container).Add(languagedetectionUtil.Language(strings.TrimSpace(lang)))
+		cl[container][languagedetectionUtil.Language(strings.TrimSpace(lang))] = struct{}{}
 	}
 }
 

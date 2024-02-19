@@ -137,7 +137,7 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Series(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitSeries(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitV1Intake(nil, transaction.Series, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
 }
 
@@ -152,7 +152,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, transaction.Series, headers)
 	require.Len(t, transactions, 4)
 	assert.Equal(t, testVersionDomain, transactions[0].Domain)
 	assert.Equal(t, testVersionDomain, transactions[1].Domain)
@@ -184,7 +184,7 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, transaction.Series, headers)
 	require.Len(t, transactions, 3, "should contain 3 transactions, contains %d", len(transactions))
 
 	var txNormal, txBar []*transaction.HTTPTransaction
@@ -225,7 +225,7 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, transaction.Series, headers)
 	require.Len(t, transactions, 4, "should contain 4 transactions, contains %d", len(transactions))
 
 	var txNormal, txBar, txVector []*transaction.HTTPTransaction
@@ -270,14 +270,14 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, transaction.Series, headers)
 	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
 
 	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo")
 	assert.Equal(t, transactions[0].Domain, testVersionDomain)
 
 	endpoint.Name = "diverted"
-	transactions = forwarder.createHTTPTransactions(endpoint, payloads, headers)
+	transactions = forwarder.createHTTPTransactions(endpoint, payloads, transaction.Series, headers)
 	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
 
 	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo")
@@ -294,7 +294,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	payload := []byte("A payload")
 	headers := make(http.Header)
 
-	transactions := forwarder.createHTTPTransactions(endpoint, transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload}), headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload}), transaction.Series, headers)
 	require.True(t, len(transactions) > 0)
 	assert.Equal(t, "true", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
 }
@@ -307,7 +307,7 @@ func TestSendHTTPTransactions(t *testing.T) {
 	p1 := []byte("A payload")
 	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
 	headers := make(http.Header)
-	tr := forwarder.createHTTPTransactions(endpoint, payloads, headers)
+	tr := forwarder.createHTTPTransactions(endpoint, payloads, transaction.Series, headers)
 
 	// fw is stopped, we should get an error
 	err := forwarder.sendHTTPTransactions(tr)
@@ -336,7 +336,7 @@ func TestSubmitV1Intake(t *testing.T) {
 	defer func() { df.highPrio = bk }()
 
 	p := []byte("test")
-	assert.Nil(t, forwarder.SubmitV1Intake(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p}), make(http.Header)))
+	assert.Nil(t, forwarder.SubmitV1Intake(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p}), transaction.Metadata, make(http.Header)))
 
 	select {
 	case tr := <-df.highPrio:
@@ -386,7 +386,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	assert.Nil(t, f.SubmitSeries(payload, headers))
 	numReqs += 4
 
-	assert.Nil(t, f.SubmitV1Intake(payload, headers))
+	assert.Nil(t, f.SubmitV1Intake(payload, transaction.Series, headers))
 	numReqs += 4
 
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
@@ -431,7 +431,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, transaction.Series, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := atomic.NewInt64(0)
@@ -486,7 +486,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, transaction.Series, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := atomic.NewInt64(0)
@@ -537,7 +537,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, transaction.Series, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := atomic.NewInt64(0)
@@ -591,7 +591,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, transaction.Series, headers)
 	require.Len(t, transactions, 1)
 
 	responses, err := f.submitProcessLikePayload(endpoints.SeriesEndpoint, payload, headers, true)

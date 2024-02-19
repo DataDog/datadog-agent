@@ -327,10 +327,6 @@ Package forwarders implements a component to provide forwarders used by the proc
 
 Package hostinfo wraps the hostinfo inside a component. This is useful because it is relied on by other components.
 
-### [comp/process/podcheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/podcheck)
-
-Package podcheck implements a component to handle Kubernetes data collection in the Process Agent.
-
 ### [comp/process/processcheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/processcheck)
 
 Package processcheck implements a component to handle Process data collection in the Process Agent.
@@ -377,6 +373,10 @@ Package remoteconfig defines the fx options for the Bundle
 ### [comp/remote-config/rcservice](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservice)
 
 Package rcservice is a remote config service that can run within the agent to receive remote config updates from the DD backend.
+
+### [comp/remote-config/rcserviceha](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha)
+
+Package rcserviceha is a remote config service that can run in the Agent to receive remote config updates from the DD failover DC backend.
 
 ### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
 

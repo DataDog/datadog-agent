@@ -9,6 +9,8 @@ package probe
 import (
 	"context"
 	"errors"
+	"fmt"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/cenkalti/backoff"
 
 	"golang.org/x/sys/windows"
 )
@@ -66,7 +69,7 @@ type WindowsProbe struct {
  * pid is provided for testing purposes, to allow filtering on pid.  it is
  * not expected to be used at runtime
  */
-type etwCallback func(n interface{}, pid uint32)
+type etwCallback func(n interface{}, pid uint32, eventType model.EventType)
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
@@ -206,29 +209,29 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idCreate:
 				if ca, err := parseCreateHandleArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID)
+					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
 				}
 
 			case idCreateNewFile:
 				if ca, err := parseCreateNewFileArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID)
+					ecb(ca, e.EventHeader.ProcessID, model.CreateNewFileEventType)
 				}
 			case idCleanup:
 				if ca, err := parseCleanupArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID)
+					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
 				}
 
 			case idClose:
 				if ca, err := parseCloseArgs(e); err == nil {
 					//fmt.Printf("Received Close event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID)
+					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
 					if e.EventHeader.EventDescriptor.ID == idClose {
 						delete(filePathResolver, ca.fileObject)
 					}
 				}
 			case idFlush:
 				if fa, err := parseFlushArgs(e); err == nil {
-					ecb(fa, e.EventHeader.ProcessID)
+					ecb(fa, e.EventHeader.ProcessID, model.UnknownEventType)
 				}
 			case idSetInformation:
 				fallthrough
@@ -251,16 +254,19 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idRegCreateKey:
 				if cka, err := parseCreateRegistryKey(e); err == nil {
 					log.Tracef("Got idRegCreateKey %s", cka.string())
-					ecb(cka, e.EventHeader.ProcessID)
+					ecb(cka, e.EventHeader.ProcessID, model.CreateRegistryKeyEventType)
 				}
 			case idRegOpenKey:
 				if cka, err := parseCreateRegistryKey(e); err == nil {
 					log.Debugf("Got idRegOpenKey %s", cka.string())
+					ecb(cka, e.EventHeader.ProcessID, model.OpenRegistryKeyEventType)
 				}
 
 			case idRegDeleteKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
 					log.Tracef("Got idRegDeleteKey %v", dka.string())
+					ecb(dka, e.EventHeader.ProcessID, model.DeleteRegistryKeyEventType)
+
 				}
 			case idRegFlushKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
@@ -282,6 +288,8 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idRegSetValueKey:
 				if svk, err := parseSetValueKey(e); err == nil {
 					log.Tracef("Got idRegSetValueKey %s", svk.string())
+					ecb(svk, e.EventHeader.ProcessID, model.SetRegistryKeyValueEventType)
+
 				}
 
 			}
@@ -302,18 +310,70 @@ func (p *WindowsProbe) Start() error {
 
 		go func() {
 			defer p.fimwg.Done()
-			err := p.setupEtw(func(n interface{}, pid uint32) {
-				// pid will most likely be ignored here.
+			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.EventType) {
+				// resolve process context
+				ev := p.zeroEvent()
 
 				// handle incoming events here
-
 				// each event will come in as a different type
 				// parse it with
-				switch n.(type) {
-				case *createKeyArgs:
-					// do something
+				switch eventType {
+				case model.CreateNewFileEventType:
+					cnfa := n.(*createNewFileArgs)
+					ev.Type = uint32(model.CreateNewFileEventType)
+					ev.CreateNewFile = model.CreateNewFileEvent{
+						File: model.FileEvent{
+							PathnameStr: cnfa.fileName,
+							BasenameStr: filepath.Base(cnfa.fileName),
+						},
+					}
+				case model.CreateRegistryKeyEventType:
+					cka := n.(*createKeyArgs)
+					ev.Type = uint32(model.CreateRegistryKeyEventType)
+					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
+						Registry: model.RegistryEvent{
+							KeyPath: cka.computedFullPath,
+							KeyName: filepath.Base(cka.computedFullPath),
+						},
+					}
+				case model.OpenRegistryKeyEventType:
+					cka := n.(*createKeyArgs)
+					ev.Type = uint32(model.OpenRegistryKeyEventType)
+					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
+						Registry: model.RegistryEvent{
+							KeyPath: cka.computedFullPath,
+							KeyName: filepath.Base(cka.computedFullPath),
+						},
+					}
+				case model.DeleteRegistryKeyEventType:
+					dka := n.(*deleteKeyArgs)
+					ev.Type = uint32(model.DeleteRegistryKeyEventType)
+					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
+						Registry: model.RegistryEvent{
+							KeyName: filepath.Base(dka.computedFullPath),
+							KeyPath: dka.computedFullPath,
+						},
+					}
+				case model.SetRegistryKeyValueEventType:
+					svka := n.(*setValueKeyArgs)
+					ev.Type = uint32(model.SetRegistryKeyValueEventType)
+					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
+						Registry: model.RegistryEvent{
+							KeyName:   filepath.Base(svka.computedFullPath),
+							KeyPath:   svka.computedFullPath,
+							ValueName: svka.valueName,
+						},
+					}
 				}
-				// etc.
+				if ev.Type != uint32(model.UnknownEventType) {
+					errRes := p.setProcessContext(pid, ev)
+					if errRes != nil {
+						log.Debugf("%v", errRes)
+					}
+					// Dispatch event
+					p.DispatchEvent(ev)
+				}
+
 			})
 			log.Infof("Done StartTracing %v", err)
 		}()
@@ -329,7 +389,6 @@ func (p *WindowsProbe) Start() error {
 			var pce *model.ProcessCacheEntry
 			var err error
 			ev := p.zeroEvent()
-			var pidToCleanup uint32
 
 			select {
 			case <-p.ctx.Done():
@@ -379,7 +438,7 @@ func (p *WindowsProbe) Start() error {
 				log.Debugf("Received stop %v", stop)
 
 				pce = p.Resolvers.ProcessResolver.GetEntry(pid)
-				pidToCleanup = pid
+				p.Resolvers.ProcessResolver.AddToExitedQueue(pid)
 
 				ev.Type = uint32(model.ExitEventType)
 				if pce == nil {
@@ -397,19 +456,32 @@ func (p *WindowsProbe) Start() error {
 			ev.ProcessCacheEntry = pce
 			ev.ProcessContext = &pce.ProcessContext
 
+			p.Resolvers.ProcessResolver.DequeueExited()
+
 			p.DispatchEvent(ev)
 
-			if pidToCleanup != 0 {
-				p.Resolvers.ProcessResolver.DeleteEntry(pidToCleanup, time.Now())
-				pidToCleanup = 0
-			}
 		}
 	}()
 	return p.pm.Start()
 }
 
+func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
+	err := backoff.Retry(func() error {
+		pce := p.Resolvers.ProcessResolver.GetEntry(pid)
+		if pce == nil {
+			return fmt.Errorf("Could not resolve process for Process: %v", pid)
+		}
+		event.ProcessCacheEntry = pce
+		event.ProcessContext = &pce.ProcessContext
+		return nil
+
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(50*time.Millisecond), 5))
+	return err
+}
+
 // DispatchEvent sends an event to the probe event handler
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
+
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
 		eventJSON, err := serializers.MarshalEvent(event, nil)
 		return eventJSON, event.GetEventType(), err
