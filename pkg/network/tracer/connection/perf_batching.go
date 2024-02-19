@@ -12,6 +12,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -181,6 +182,9 @@ func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
 		return nil, fmt.Errorf("unable to get map %s: %s", probes.ConnCloseBatchMap, err)
 	}
 	numCPUs, err := utils.NumCPU()
+	log.Debugf("security CPU count: %d CPUs", numCPUs)
+	numCPUs2, _ := ebpf.PossibleCPU()
+	log.Debugf("ebpf CPU count: %d CPUs", numCPUs2)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get number of CPUs: %s", err)
 	}
