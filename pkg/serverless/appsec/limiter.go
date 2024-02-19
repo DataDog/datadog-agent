@@ -53,7 +53,12 @@ func (t *TokenTicker) updateBucket(ticksChan <-chan time.Time, startTime time.Ti
 				close(syncChan)
 			}
 			return
-		case stamp := <-ticksChan:
+		case stamp, ok := <-ticksChan:
+			if !ok {
+				// The ticksChan was closed.
+				continue
+			}
+
 			// Compute the time in nanoseconds that passed between the previous timestamp and this one
 			// This will be used to know how many tokens can be added into the bucket depending on the limiter rate
 			elapsedNs += stamp.Sub(prevStamp).Nanoseconds()
