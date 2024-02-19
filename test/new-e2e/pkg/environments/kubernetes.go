@@ -10,17 +10,17 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 )
 
-// KubernetesHost is an environment that contains a Kubernetes cluster, the Agent and a FakeIntake.
-type KubernetesHost struct {
+// Kubernetes is an environment that contains a Kubernetes cluster, the Agent and a FakeIntake.
+type Kubernetes struct {
 	// Components
 	KubernetesCluster *components.KubernetesCluster
 	FakeIntake        *components.FakeIntake
 	Agent             *components.KubernetesAgent
 }
 
-var _ e2e.Initializable = &KubernetesHost{}
+var _ e2e.Initializable = &Kubernetes{}
 
 // Init initializes the environment
-func (e *KubernetesHost) Init(ctx e2e.Context) error {
+func (e *Kubernetes) Init(ctx e2e.Context) error {
 	return nil
 }

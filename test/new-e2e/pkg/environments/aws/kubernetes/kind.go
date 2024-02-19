@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
@@ -110,13 +110,13 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 }
 
 // Provisioner creates a new provisioner
-func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.KubernetesHost] {
+func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 	// and it's easy to forget about it, leading to hard to debug issues.
 	params := newProvisionerParams()
 	_ = optional.ApplyOptions(params, opts)
 
-	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.KubernetesHost) error {
+	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := newProvisionerParams()
@@ -129,7 +129,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ku
 }
 
 // KindRunFunc is the Pulumi run function that runs the provisioner
-func KindRunFunc(ctx *pulumi.Context, env *environments.KubernetesHost, params *ProvisionerParams) error {
+func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
 
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {

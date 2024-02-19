@@ -18,7 +18,7 @@ import (
 )
 
 type myKindSuite struct {
-	e2e.BaseSuite[environments.KubernetesHost]
+	e2e.BaseSuite[environments.Kubernetes]
 }
 
 func TestMyKindSuite(t *testing.T) {
