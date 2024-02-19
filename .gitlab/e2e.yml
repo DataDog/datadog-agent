@@ -175,6 +175,7 @@ new-e2e-agent-subcommands:
 new-e2e-language-detection:
   extends: .new_e2e_template
   rules: !reference [.on_language-detection_or_e2e_changes_or_manual]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
