@@ -1,32 +1,26 @@
 # From the root folder 
 # DOCKER_BUILDKIT=1 docker buildx build --platform linux/amd64 -f Dockerfile.serverless -t go-serverless-build --out . .
 
-FROM golang:1.21 AS build
-
-# create a build dir
-RUN mkdir /build
+FROM public.ecr.aws/lambda/provided:al2 as builder
+RUN mkdir -p /build
 WORKDIR /build
 
+RUN yum install -y wget tar git gzip gcc
+RUN wget -O go1.21.7.linux-amd64.tar.gz https://go.dev/dl/go1.21.7.linux-amd64.tar.gz; \
+    tar -C /usr/local -xzf go1.21.7.linux-amd64.tar.gz
+
 ENV CGO_ENABLED=1
-ENV GOARCH=amd64 
+ENV GOARCH=amd64
 ENV GOOS=linux
 
-# # copy module dependencies
-COPY go.mod .
-COPY go.sum .
-
-# copy the project itself
-COPY . .
-
-# download dependencies
-RUN go mod download
-
-# Since I have replace directive I have to vendor my dependencies locally
+# pull repo 
+RUN git clone --branch severless-agent-without-tracer https://github.com/DataDog/datadog-agent.git
 
 # build the serverless binary
-RUN cd cmd/serverless && GOWORK=off go build -a -ldflags="-w -X github.com/DataDog/datadog-agent/pkg/serverless/tags.currentExtensionVersion=gustavo-test -X github.com/DataDog/datadog-agent/pkg/version.agentVersionDefault=gustavo-test" -tags "serverless otlp" -o datadog-agent
-RUN mv cmd/serverless/datadog-agent .
+RUN cd datadog-agent/cmd/serverless && GOWORK=off /usr/local/go/bin/go build -a -ldflags="-w -X github.com/DataDog/datadog-agent/pkg/serverless/tags.currentExtensionVersion=gustavo-test -X github.com/DataDog/datadog-agent/pkg/version.agentVersionDefault=gustavo-test" -tags "serverless" -o serverless
+
+RUN mv datadog-agent/cmd/serverless/serverless .
 
 FROM scratch AS export-stage
-COPY --from=build /build/datadog-agent .
+COPY --from=builder /build/serverless .
 
