@@ -7,6 +7,8 @@
 package stats
 
 import (
+	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -285,4 +287,12 @@ func TranslateEventPlatformEventTypes(aggregatorStats interface{}) (interface{},
 		result[k] = v
 	}
 	return result, nil
+}
+
+// Sqrt returns the square root of x.
+func Sqrt(x float64) (float64, error) {
+	if x < 0 {
+		return 0, fmt.Errorf("can't take sqrt of negative number")
+	}
+	return math.Sqrt(x), nil
 }
