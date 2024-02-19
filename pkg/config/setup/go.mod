@@ -20,6 +20,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
 
 	// Internal deps fix version
