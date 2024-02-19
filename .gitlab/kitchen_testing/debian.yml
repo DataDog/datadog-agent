@@ -18,17 +18,6 @@
 # Kitchen: scenarios (os * agent * (cloud + arch))
 # -------------------------------
 
-.kitchen_scenario_debian_a6_x64:
-  variables:
-    KITCHEN_OSVERS: "debian-9,debian-10,debian-11,debian-12"
-    KITCHEN_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
-    DEFAULT_KITCHEN_OSVERS: "debian-11"
-  extends:
-    - .kitchen_agent_a6
-    - .kitchen_os_debian
-    - .kitchen_azure_x64
-  needs: ["deploy_deb_testing-a6_x64"]
-
 .kitchen_scenario_debian_a7_x64:
   variables:
     KITCHEN_OSVERS: "debian-9,debian-10,debian-11,debian-12"
@@ -39,48 +28,6 @@
     - .kitchen_os_debian
     - .kitchen_azure_x64
   needs: ["deploy_deb_testing-a7_x64"]
-
-.kitchen_scenario_debian_a6_arm64:
-  variables:
-    KITCHEN_OSVERS: "debian-10"
-    KITCHEN_CWS_SUPPORTED_OSVERS: "debian-10"
-    DEFAULT_KITCHEN_OSVERS: "debian-10"
-  extends:
-    - .kitchen_agent_a6
-    - .kitchen_os_debian
-    - .kitchen_ec2_arm64
-  needs: ["deploy_deb_testing-a6_arm64"]
-
-.kitchen_scenario_debian_a7_arm64:
-  variables:
-    KITCHEN_OSVERS: "debian-10"
-    KITCHEN_CWS_SUPPORTED_OSVERS: "debian-10"
-    DEFAULT_KITCHEN_OSVERS: "debian-10"
-  extends:
-    - .kitchen_agent_a7
-    - .kitchen_os_debian
-    - .kitchen_ec2_arm64
-  needs: ["deploy_deb_testing-a7_arm64"]
-
-# Kitchen: final test matrix (tests * scenarios)
-# ----------------------------------------------
-
-kitchen_debian_install_script_agent-a6_x64:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a6_x64
-    - .kitchen_test_install_script_agent
-
-kitchen_debian_install_script_agent-a6_arm64:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a6_arm64
-    - .kitchen_test_install_script_agent
-
-kitchen_debian_install_script_heroku_agent-a6:
-  extends:
-    - .kitchen_scenario_debian_a6_x64
-    - .kitchen_test_install_script_heroku_agent
 
 # We only want to run step-by-step tests on deploy pipelines,
 # which is why they have a different rule (if_deploy_6/7)

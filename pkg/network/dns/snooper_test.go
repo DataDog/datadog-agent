@@ -9,6 +9,7 @@ package dns
 
 import (
 	"net"
+	"os"
 	"strconv"
 	"syscall"
 	"testing"
@@ -251,14 +252,14 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		"failedserver.com",
 		"failedservertoo.com",
 	}
-	queryIP, queryPort, reps = testdns.SendDNSQueriesAndCheckError(t, domains, net.ParseIP(localhost), "udp")
+	queryIP, queryPort, reps = testdns.SendDNSQueriesAndCheckError(t, domains, testdns.GetServerIP(t), "udp")
 	for _, rep := range reps {
 		require.NotNil(t, rep)
 		require.Equal(t, rep.Rcode, mdns.RcodeServerFailure) // All the queries should have failed
 	}
 
 	// Next check the one sent over UDP. Expected error type: ServFail
-	key2 := getKey(queryIP, queryPort, localhost, syscall.IPPROTO_UDP)
+	key2 := getKey(queryIP, queryPort, testdns.GetServerIP(t).String(), syscall.IPPROTO_UDP)
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return hasDomains(allStats[key2], domains...)
@@ -333,7 +334,9 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 
 	invalidServerIP := "8.8.8.90"
 	domainQueried := "agafsdfsdasdfsd"
-	queryIP, queryPort, reps := testdns.SendDNSQueriesAndCheckError(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
+	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "error should be i/o timeout")
+	require.Len(t, reps, 1)
 	require.Nil(t, reps[0])
 
 	var allStats StatsByKeyByNameByType
@@ -355,7 +358,9 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 
 	invalidServerIP := "8.8.8.90"
 	domainQueried := "agafsdfsdasdfsd"
-	queryIP, queryPort, reps := testdns.SendDNSQueriesAndCheckError(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
+	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "error should be i/o timeout")
+	require.Len(t, reps, 1)
 	require.Nil(t, reps[0])
 
 	key := getKey(queryIP, queryPort, invalidServerIP, syscall.IPPROTO_UDP)

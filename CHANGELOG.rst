@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.50.3:
+
+7.50.3 / 6.50.3
+======
+
+.. _Release Notes_7.50.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-01-11
+
+
+.. _Release Notes_7.50.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix incorrect metadata about system-probe being sent to Inventory and Fleet Automation products.
+
+
 .. _Release Notes_7.50.2:
 
 7.50.2 / 6.50.2

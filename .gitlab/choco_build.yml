@@ -27,7 +27,7 @@ windows_choco_offline_7_x64:
 # it is run only once the msi package is pushed
 windows_choco_online_7_x64:
   rules:
-    !reference [.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7]
+    !reference [.on_deploy_stable_or_beta_repo_branch_a7_manual]
   stage: choco_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["deploy_staging_windows_tags-7"]

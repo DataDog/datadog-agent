@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 var (
@@ -22,7 +23,7 @@ var (
 
 // SetAuthToken sets the session token
 // Requires that the config has been set up before calling
-func SetAuthToken() error {
+func SetAuthToken(config model.Reader) error {
 	// Noop if token is already set
 	if token != "" {
 		return nil
@@ -30,13 +31,13 @@ func SetAuthToken() error {
 
 	// token is only set once, no need to mutex protect
 	var err error
-	token, err = security.FetchAuthToken()
+	token, err = security.FetchAuthToken(config)
 	return err
 }
 
 // CreateAndSetAuthToken creates and sets the authorization token
 // Requires that the config has been set up before calling
-func CreateAndSetAuthToken() error {
+func CreateAndSetAuthToken(config model.Reader) error {
 	// Noop if token is already set
 	if token != "" {
 		return nil
@@ -44,7 +45,7 @@ func CreateAndSetAuthToken() error {
 
 	// token is only set once, no need to mutex protect
 	var err error
-	token, err = security.CreateOrFetchToken()
+	token, err = security.CreateOrFetchToken(config)
 	return err
 }
 
@@ -55,7 +56,7 @@ func GetAuthToken() string {
 
 // InitDCAAuthToken initialize the session token for the Cluster Agent based on config options
 // Requires that the config has been set up before calling
-func InitDCAAuthToken() error {
+func InitDCAAuthToken(config model.Reader) error {
 	// Noop if dcaToken is already set
 	if dcaToken != "" {
 		return nil
@@ -63,7 +64,7 @@ func InitDCAAuthToken() error {
 
 	// dcaToken is only set once, no need to mutex protect
 	var err error
-	dcaToken, err = security.CreateOrGetClusterAgentAuthToken()
+	dcaToken, err = security.CreateOrGetClusterAgentAuthToken(config)
 	return err
 }
 

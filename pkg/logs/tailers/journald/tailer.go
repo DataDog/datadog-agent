@@ -111,8 +111,6 @@ func (t *Tailer) setup() error {
 
 	matchRe := regexp.MustCompile("^([^=]+)=(.+)$")
 
-	t.initializeTagger()
-
 	// add filters to collect only the logs of the units defined in the configuration,
 	// if no units for both System and User, and no matches are defined,
 	// collect all the logs of the journal by default.

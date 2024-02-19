@@ -53,13 +53,13 @@ func (c *Check) OS_Stats() error {
 		if r.StatName == "NUM_CPUS" {
 			numCPUsFound = true
 		}
-		s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, name), value, "", c.tags)
+		sendMetricWithDefaultTags(c, gauge, fmt.Sprintf("%s.%s", common.IntegrationName, name), value)
 	}
 
 	var cpuCount float64
 	if !numCPUsFound {
 		if err := c.db.Get(&cpuCount, "SELECT value FROM v$parameter WHERE name = 'cpu_count'"); err == nil {
-			s.Gauge(fmt.Sprintf("%s.num_cpus", common.IntegrationName), cpuCount, "", c.tags)
+			sendMetricWithDefaultTags(c, gauge, fmt.Sprintf("%s.num_cpus", common.IntegrationName), cpuCount)
 		} else {
 			log.Errorf("%s failed to get cpu_count: %s", c.logPrompt, err)
 		}

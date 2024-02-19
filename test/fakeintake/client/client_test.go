@@ -44,6 +44,15 @@ var apiV2ContainerLifecycle []byte
 //go:embed fixtures/api_v2_sbom_response
 var apiV2SBOM []byte
 
+//go:embed fixtures/api_v02_trace_response
+var apiV02Trace []byte
+
+//go:embed fixtures/api_v02_apm_stats_response
+var apiV02APMStats []byte
+
+//go:embed fixtures/api_v1_metadata_response
+var apiV1Metadata []byte
+
 func TestClient(t *testing.T) {
 	t.Run("getFakePayloads should properly format the request", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -447,5 +456,45 @@ func TestClient(t *testing.T) {
 			WithTags[*aggregator.SBOMPayload]([]string{"git.repository_url:https://github.com/DataDog/datadog-agent"}))
 		require.NoError(t, err)
 		assert.NotEmpty(t, sboms)
+	})
+
+	t.Run("getTraces", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV02Trace)
+		}))
+		defer ts.Close()
+		client := NewClient(ts.URL)
+		err := client.getTraces()
+		require.NoError(t, err)
+		assert.True(t, client.traceAggregator.ContainsPayloadName("dev.host"))
+		assert.False(t, client.traceAggregator.ContainsPayloadName("not.found"))
+	})
+
+	t.Run("getAPMStats", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV02APMStats)
+		}))
+		defer ts.Close()
+		client := NewClient(ts.URL)
+		err := client.getAPMStats()
+		require.NoError(t, err)
+		assert.True(t, client.apmStatsAggregator.ContainsPayloadName("dev.host"))
+		assert.False(t, client.apmStatsAggregator.ContainsPayloadName("not.found"))
+	})
+
+	t.Run("GetMetadata", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV1Metadata)
+		}))
+		defer ts.Close()
+		client := NewClient(ts.URL)
+		payloads, err := client.GetMetadata()
+		require.NoError(t, err)
+		const expectedHostname = "i-0473fb6c2bd4591b4"
+		assert.NotEmpty(t, payloads)
+		assert.Len(t, payloads, 3)
+		for _, p := range payloads {
+			assert.Equal(t, expectedHostname, p.Hostname)
+		}
 	})
 }

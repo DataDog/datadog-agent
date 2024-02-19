@@ -9,23 +9,23 @@ package tags
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tagger defines a Tagger for the Tags Resolver
 type Tagger interface {
-	Init(context.Context) error
+	Start(ctx context.Context) error
 	Stop() error
 	Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 }
 
 type nullTagger struct{}
 
-func (n *nullTagger) Init(_ context.Context) error {
+func (n *nullTagger) Start(_ context.Context) error {
 	return nil
 }
 
@@ -54,7 +54,7 @@ type DefaultResolver struct {
 // Start the resolver
 func (t *DefaultResolver) Start(ctx context.Context) error {
 	go func() {
-		if err := t.tagger.Init(ctx); err != nil {
+		if err := t.tagger.Start(ctx); err != nil {
 			log.Errorf("failed to init tagger: %s", err)
 		}
 	}()
@@ -91,7 +91,7 @@ func (t *DefaultResolver) Stop() error {
 // NewResolver returns a new tags resolver
 func NewResolver(config *config.Config) Resolver {
 	if config.RemoteTaggerEnabled {
-		options, err := remote.NodeAgentOptions()
+		options, err := remote.NodeAgentOptionsForSecruityResolvers()
 		if err != nil {
 			log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {

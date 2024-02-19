@@ -32,8 +32,11 @@ type Component interface {
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings
 
-	// SetHandler sets http handler for config
+	// SetHandler returns a handler for runtime configuration changes.
 	SetHandler() http.Handler
+
+	// GetConfigHandler returns a handler to fetch the runtime configuration.
+	GetConfigHandler() http.Handler
 
 	// SetMaxMemCPU
 	SetMaxMemCPU(isContainerized bool)

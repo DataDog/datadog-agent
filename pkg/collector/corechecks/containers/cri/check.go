@@ -24,10 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	criCheckName  = "cri"
+	// CheckName is the name of the check// CheckName
+	CheckName     = "cri"
 	cacheValidity = 2 * time.Second
 )
 
@@ -41,18 +43,18 @@ type CRICheck struct {
 	core.CheckBase
 	instance  *CRIConfig
 	processor generic.Processor
+	store     workloadmeta.Component
 }
 
-func init() {
-	core.RegisterCheck(criCheckName, CRIFactory)
-}
-
-// CRIFactory is exported for integration testing
-func CRIFactory() check.Check {
-	return &CRICheck{
-		CheckBase: core.NewCheckBase(criCheckName),
-		instance:  &CRIConfig{},
-	}
+// Factory is exported for integration testing
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &CRICheck{
+			CheckBase: core.NewCheckBase(CheckName),
+			instance:  &CRIConfig{},
+			store:     store,
+		}
+	})
 }
 
 // Parse parses the CRICheck config and set default values
@@ -79,7 +81,7 @@ func (c *CRICheck) Configure(senderManager sender.SenderManager, integrationConf
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
-	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(containerFilter))
+	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(containerFilter, c.store))
 	if c.instance.CollectDisk {
 		c.processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) {
 			return cri.GetUtil()
@@ -104,14 +106,14 @@ func (c *CRICheck) runProcessor(sender sender.Sender) error {
 	return c.processor.Run(sender, cacheValidity)
 }
 
-func getProcessorFilter(legacyFilter *containers.Filter) generic.ContainerFilter {
+func getProcessorFilter(legacyFilter *containers.Filter, store workloadmeta.Component) generic.ContainerFilter {
 	// Reject all containers that are not run by Docker
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.FuncContainerFilter(func(container *workloadmeta.Container) bool {
 				return container.Labels[kubernetes.CriContainerNamespaceLabel] == ""
 			}),
-			generic.LegacyContainerFilter{OldFilter: legacyFilter},
+			generic.LegacyContainerFilter{OldFilter: legacyFilter, Store: store},
 		},
 	}
 }

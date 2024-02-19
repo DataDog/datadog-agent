@@ -15,7 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/ringbuf"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 )
@@ -47,7 +47,7 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 		rb.ringBuffer.RingBufferOptions.RingBufferSize = config.EventStreamBufferSize
 	}
 
-	ddebpf.ReportRingBufferTelemetry(rb.ringBuffer)
+	ebpfTelemetry.ReportRingBufferTelemetry(rb.ringBuffer)
 	return nil
 }
 

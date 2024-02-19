@@ -19,7 +19,7 @@ func LogTracePipeSelf(*testing.T) {
 }
 
 // LogTracePipeProcess is unsupported
-func LogTracePipeProcess(_ *testing.T, pid uint32) { //nolint:revive // TODO fix revive unused-parameter
+func LogTracePipeProcess(_ *testing.T, _ uint32) {
 }
 
 // LogTracePipeFilter is unsupported

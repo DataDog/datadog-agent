@@ -10,6 +10,7 @@ package reorderer
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"sync"
@@ -19,7 +20,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -54,7 +55,7 @@ func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error
 		m.perfMap.PerfMapOptions.PerfRingBufferSize = config.EventStreamBufferSize
 	}
 
-	ddebpf.ReportPerfMapTelemetry(m.perfMap)
+	ebpfTelemetry.ReportPerfMapTelemetry(m.perfMap)
 	return nil
 }
 
@@ -95,8 +96,8 @@ func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	}
 
 	return QuickInfo{
-		CPU:       model.ByteOrder.Uint64(record.RawSample[0:8]),
-		Timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
+		CPU:       binary.NativeEndian.Uint64(record.RawSample[0:8]),
+		Timestamp: binary.NativeEndian.Uint64(record.RawSample[8:16]),
 	}, nil
 }
 

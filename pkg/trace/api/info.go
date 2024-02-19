@@ -62,22 +62,24 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.Memcached = o.Memcached
 	}
 	txt, err := json.MarshalIndent(struct {
-		Version          string        `json:"version"`
-		GitCommit        string        `json:"git_commit"`
-		Endpoints        []string      `json:"endpoints"`
-		FeatureFlags     []string      `json:"feature_flags,omitempty"`
-		ClientDropP0s    bool          `json:"client_drop_p0s"`
-		SpanMetaStructs  bool          `json:"span_meta_structs"`
-		LongRunningSpans bool          `json:"long_running_spans"`
-		Config           reducedConfig `json:"config"`
+		Version                string        `json:"version"`
+		GitCommit              string        `json:"git_commit"`
+		Endpoints              []string      `json:"endpoints"`
+		FeatureFlags           []string      `json:"feature_flags,omitempty"`
+		ClientDropP0s          bool          `json:"client_drop_p0s"`
+		SpanMetaStructs        bool          `json:"span_meta_structs"`
+		LongRunningSpans       bool          `json:"long_running_spans"`
+		EvpProxyAllowedHeaders []string      `json:"evp_proxy_allowed_headers"`
+		Config                 reducedConfig `json:"config"`
 	}{
-		Version:          r.conf.AgentVersion,
-		GitCommit:        r.conf.GitCommit,
-		Endpoints:        all,
-		FeatureFlags:     r.conf.AllFeatures(),
-		ClientDropP0s:    true,
-		SpanMetaStructs:  true,
-		LongRunningSpans: true,
+		Version:                r.conf.AgentVersion,
+		GitCommit:              r.conf.GitCommit,
+		Endpoints:              all,
+		FeatureFlags:           r.conf.AllFeatures(),
+		ClientDropP0s:          true,
+		SpanMetaStructs:        true,
+		LongRunningSpans:       true,
+		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
 		Config: reducedConfig{
 			DefaultEnv:             r.conf.DefaultEnv,
 			TargetTPS:              r.conf.TargetTPS,

@@ -10,9 +10,9 @@ package docker
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,7 +42,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 	)
 
 	for _, ev := range events {
-		if _, ok := t.collectedEventTypes[ev.Action]; !ok {
+		if _, ok := t.collectedEventTypes[string(ev.Action)]; !ok {
 			continue
 		}
 
@@ -69,8 +69,8 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 			Tags:           tags,
 			Priority:       event.EventPriorityNormal,
 			Host:           t.hostname,
-			SourceTypeName: dockerCheckName,
-			EventType:      dockerCheckName,
+			SourceTypeName: CheckName,
+			EventType:      CheckName,
 			AlertType:      alertType,
 			Ts:             ev.Timestamp.Unix(),
 			AggregationKey: fmt.Sprintf("docker:%s", ev.ContainerID),

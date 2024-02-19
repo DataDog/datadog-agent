@@ -6,18 +6,9 @@
 // Package orchestrator implements the orchestrator forwarder component.
 package orchestrator
 
-import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+import "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 
 // team: agent-metrics-logs
 
-// Component is the component type.
-// The main method of this component is `Get` which returns the forwarder instance only if it enabled.
-type Component interface {
-	// Get the forwarder instance if it exists.
-	Get() (defaultforwarder.Forwarder, bool)
-
-	// TODO: (components): This function is used to know if Stop was already called in AgentDemultiplexer.Stop.
-	// Reset results `Get` methods to return false.
-	// Remove it when Stop is not part of this interface.
-	Reset()
-}
+// Component is the alias of orchestratorinterface.Component.
+type Component = orchestratorinterface.Component

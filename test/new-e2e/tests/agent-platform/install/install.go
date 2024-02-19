@@ -11,14 +11,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
-	"github.com/stretchr/testify/require"
 )
 
 // Unix install the agent from install script, by default will install the agent 7 build corresponding to the CI if running in the CI, else the latest Agent 7 version
 func Unix(t *testing.T, client *common.TestClient, options ...installparams.Option) {
-
 	params := installparams.NewParams(options...)
 	commandLine := ""
 
@@ -67,7 +67,7 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 		require.NoError(tt, err, "failed to download install script from %s: ", source, err)
 
 		cmd := fmt.Sprintf(`DD_API_KEY="%s" %v DD_SITE="datadoghq.eu" bash installscript.sh`, apikey, commandLine)
-		output, err := client.VMClient.ExecuteWithError(cmd)
+		output, err := client.Host.Execute(cmd)
 		tt.Log(output)
 		require.NoError(tt, err, "agent installation should not return any error: ", err)
 	})

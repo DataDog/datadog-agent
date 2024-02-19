@@ -33,6 +33,7 @@ func createJavaTempFile(t *testing.T, dir string) string {
 }
 
 func TestJavaInjection(t *testing.T) {
+	t.Skip("JavaTLS tests are currently disabled")
 	cfg := networkconfig.New()
 	cfg.EnableJavaTLSSupport = true
 	if !http.TLSSupported(cfg) {

@@ -12,6 +12,6 @@ import (
 )
 
 // VerifyAssetPermissions is for verifying the permissions of bpf programs
-func VerifyAssetPermissions(assetPath string) error { //nolint:revive // TODO fix revive unused-parameter
+func VerifyAssetPermissions(_ string) error {
 	return fmt.Errorf("verification of bpf assets is not supported on windows")
 }

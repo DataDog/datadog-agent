@@ -171,7 +171,7 @@ func Test_counterAggregator(t *testing.T) {
 		},
 	}
 
-	ksmCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), &KSMConfig{})
+	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{})
 
 	for _, tt := range tests {
 		s := mocksender.NewMockSender("ksm")
@@ -276,7 +276,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 		},
 	}
 
-	ksmCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), &KSMConfig{})
+	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{})
 
 	for _, tt := range tests {
 		s := mocksender.NewMockSender("ksm")

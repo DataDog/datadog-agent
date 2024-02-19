@@ -259,7 +259,7 @@ func TestRun(t *testing.T) {
 				kubeObjects = append(kubeObjects, configMap)
 			}
 
-			check := factory().(*HelmCheck)
+			check := newCheck().(*HelmCheck)
 			check.runLeaderElection = false
 
 			check.instance.HelmValuesAsTags = map[string]string{
@@ -271,7 +271,7 @@ func TestRun(t *testing.T) {
 				time.Minute,
 			)
 
-			mockedSender := mocksender.NewMockSender(checkName)
+			mockedSender := mocksender.NewMockSender(CheckName)
 			mockedSender.SetupAcceptAll()
 
 			// The informers are set up in the first run, but the first metrics
@@ -299,7 +299,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestRun_withCollectEvents(t *testing.T) {
-	check := factory().(*HelmCheck)
+	check := newCheck().(*HelmCheck)
 	check.runLeaderElection = false
 	check.instance.CollectEvents = true
 	check.startTS = time.Now()
@@ -329,7 +329,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	k8sClient := fake.NewSimpleClientset()
 	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 
-	mockedSender := mocksender.NewMockSender(checkName)
+	mockedSender := mocksender.NewMockSender(CheckName)
 	mockedSender.SetupAcceptAll()
 
 	// First run to set up the informers.
@@ -391,7 +391,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 }
 
 func TestRun_skipEventForExistingRelease(t *testing.T) {
-	check := factory().(*HelmCheck)
+	check := newCheck().(*HelmCheck)
 	check.runLeaderElection = false
 	check.instance.CollectEvents = true
 	check.startTS = time.Now()
@@ -419,7 +419,7 @@ func TestRun_skipEventForExistingRelease(t *testing.T) {
 	k8sClient := fake.NewSimpleClientset()
 	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 
-	mockedSender := mocksender.NewMockSender(checkName)
+	mockedSender := mocksender.NewMockSender(CheckName)
 	mockedSender.SetupAcceptAll()
 
 	// Create a new release and check that we never send an event for it
@@ -548,14 +548,14 @@ func TestRun_ServiceCheck(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			check := factory().(*HelmCheck)
+			check := newCheck().(*HelmCheck)
 			check.runLeaderElection = false
 
 			for _, rel := range releases {
 				check.store.add(rel, test.storage, commonTags(rel, test.storage), check.tagsForMetricsAndEvents(rel, true))
 			}
 
-			mockedSender := mocksender.NewMockSender(checkName)
+			mockedSender := mocksender.NewMockSender(CheckName)
 			mockedSender.SetupAcceptAll()
 
 			k8sClient := fake.NewSimpleClientset()

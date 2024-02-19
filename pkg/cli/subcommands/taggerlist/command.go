@@ -15,9 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -69,7 +69,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 func taggerList(_ log.Component, config config.Component, _ *cliParams) error {
 	// Set session token
-	if err := util.SetAuthToken(); err != nil {
+	if err := util.SetAuthToken(config); err != nil {
 		return err
 	}
 

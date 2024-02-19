@@ -139,3 +139,10 @@ instances:
     ## Example: `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]`
     #
     interface_configs: "%%extra_interface_configs%%"
+
+    ## @param ping - string - optional
+    ## Ping config is used to configure ping for the device
+    ## From snmp_listener, the value is a string of json content
+    ## Example: `{enabled: true, timeout: 4000, interval: 500, count: 3, linux: {use_raw_socket: true}}`
+    #
+    ping: "%%extra_ping%%"

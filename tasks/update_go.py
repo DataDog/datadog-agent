@@ -5,10 +5,10 @@ from invoke import exceptions
 from invoke.context import Context
 from invoke.tasks import task
 
-from .go import tidy_all
-from .libs.common.color import color_message
-from .modules import DEFAULT_MODULES
-from .pipeline import update_circleci_config, update_gitlab_config
+from tasks.go import tidy_all
+from tasks.libs.common.color import color_message
+from tasks.modules import DEFAULT_MODULES
+from tasks.pipeline import update_circleci_config, update_gitlab_config
 
 GO_VERSION_FILE = "./.go-version"
 

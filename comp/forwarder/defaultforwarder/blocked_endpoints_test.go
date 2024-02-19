@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -26,7 +26,7 @@ func init() {
 }
 
 func TestMinBackoffFactorValid(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
@@ -52,7 +52,7 @@ func TestMinBackoffFactorValid(t *testing.T) {
 }
 
 func TestBaseBackoffTimeValid(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
@@ -79,7 +79,7 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 }
 
 func TestMaxBackoffTimeValid(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
@@ -106,7 +106,7 @@ func TestMaxBackoffTimeValid(t *testing.T) {
 }
 
 func TestRecoveryIntervalValid(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
@@ -115,7 +115,7 @@ func TestRecoveryIntervalValid(t *testing.T) {
 
 	// Verify default
 	defaultValue := policy.RecoveryInterval
-	recoveryReset := config.Datadog.GetBool("forwarder_recovery_reset")
+	recoveryReset := pkgconfigsetup.Datadog.GetBool("forwarder_recovery_reset")
 	assert.Equal(t, 2, defaultValue)
 	assert.Equal(t, false, recoveryReset)
 
@@ -143,7 +143,7 @@ func TestRecoveryIntervalValid(t *testing.T) {
 
 // Test we increase delay on average
 func TestGetBackoffDurationIncrease(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 	previousBackoffDuration := time.Duration(0) * time.Second
@@ -171,7 +171,7 @@ func TestGetBackoffDurationIncrease(t *testing.T) {
 }
 
 func TestMaxGetBackoffDuration(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 	backoffDuration := e.getBackoffDuration(100)
@@ -183,7 +183,7 @@ func TestMaxGetBackoffDuration(t *testing.T) {
 }
 
 func TestMaxErrors(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 	previousBackoffDuration := time.Duration(0) * time.Second
@@ -209,7 +209,7 @@ func TestMaxErrors(t *testing.T) {
 }
 
 func TestBlock(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
@@ -221,7 +221,7 @@ func TestBlock(t *testing.T) {
 }
 
 func TestMaxBlock(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 	e.close("test")
@@ -242,7 +242,7 @@ func TestMaxBlock(t *testing.T) {
 }
 
 func TestUnblock(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
@@ -262,7 +262,7 @@ func TestUnblock(t *testing.T) {
 }
 
 func TestMaxUnblock(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
@@ -277,7 +277,7 @@ func TestMaxUnblock(t *testing.T) {
 }
 
 func TestUnblockUnknown(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
@@ -287,7 +287,7 @@ func TestUnblockUnknown(t *testing.T) {
 }
 
 func TestIsBlock(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
@@ -301,7 +301,7 @@ func TestIsBlock(t *testing.T) {
 }
 
 func TestIsBlockTiming(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
@@ -315,7 +315,7 @@ func TestIsBlockTiming(t *testing.T) {
 }
 
 func TestIsblockUnknown(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 

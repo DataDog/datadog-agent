@@ -20,7 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
 const versionStr = "7.48.0~rc.1-1"
@@ -29,7 +31,7 @@ const versionStr = "7.48.0~rc.1-1"
 var configStr string
 
 type languageDetectionSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestLanguageDetectionSuite(t *testing.T) {
@@ -42,7 +44,7 @@ func TestLanguageDetectionSuite(t *testing.T) {
 		agentParams = append(agentParams, agentparams.WithVersion(versionStr))
 	}
 
-	e2e.Run(t, &languageDetectionSuite{}, e2e.AgentStackDef(e2e.WithAgentParams(agentParams...)))
+	e2e.Run(t, &languageDetectionSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))))
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string) {
@@ -68,11 +70,11 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 			pid, language, actualLanguage, err),
 	)
 
-	s.Env().VM.Execute(fmt.Sprintf("kill -SIGTERM %s", pid))
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -SIGTERM %s", pid))
 }
 
 func (s *languageDetectionSuite) getPidForCommand(command string) string {
-	pid, err := s.Env().VM.ExecuteWithError(fmt.Sprintf("ps -C %s -o pid=", command))
+	pid, err := s.Env().RemoteHost.Execute(fmt.Sprintf("ps -C %s -o pid=", command))
 	if err != nil {
 		return ""
 	}
@@ -80,7 +82,7 @@ func (s *languageDetectionSuite) getPidForCommand(command string) string {
 }
 
 func (s *languageDetectionSuite) getLanguageForPid(pid string) (string, error) {
-	wl := s.Env().VM.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
+	wl := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
 	if len(strings.TrimSpace(wl)) == 0 {
 		return "", errors.New("agent workload-list was empty")
 	}

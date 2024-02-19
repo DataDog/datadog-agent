@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -45,6 +45,8 @@ func createOverlayLayers(t *testing.T, test *testModule) (string, string, string
 }
 
 func TestOverlayFS(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "Suse 12 kernels", func(kv *kernel.Version) bool {
 		return kv.IsSuse12Kernel()
 	})

@@ -24,10 +24,12 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	ebpfCheckName = "ebpf"
+	// CheckName is the name of the check
+	CheckName = "ebpf"
 )
 
 // EBPFCheckConfig is the config of the EBPF check
@@ -41,16 +43,16 @@ type EBPFCheck struct {
 	core.CheckBase
 }
 
-// EBPFCheckFactory is exported for integration testing
-func EBPFCheckFactory() check.Check {
-	return &EBPFCheck{
-		CheckBase: core.NewCheckBase(ebpfCheckName),
-		config:    &EBPFCheckConfig{},
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(ebpfCheckName, EBPFCheckFactory)
+func newCheck() check.Check {
+	return &EBPFCheck{
+		CheckBase: core.NewCheckBase(CheckName),
+		config:    &EBPFCheckConfig{},
+	}
 }
 
 // Parse parses the check configuration
@@ -118,6 +120,9 @@ func (m *EBPFCheck) Run() error {
 		sender.Gauge("ebpf.maps.max_entries", float64(mapStats.MaxEntries), "", tags)
 		if mapStats.RSS > 0 {
 			sender.Gauge("ebpf.maps.memory_rss", float64(mapStats.RSS), "", tags)
+		}
+		if mapStats.Entries >= 0 {
+			sender.Gauge("ebpf.maps.entry_count", float64(mapStats.Entries), "", tags)
 		}
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS

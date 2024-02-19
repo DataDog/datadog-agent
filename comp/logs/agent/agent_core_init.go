@@ -39,10 +39,10 @@ func (a *agent) SetupPipeline(
 	auditorTTL := time.Duration(a.config.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(a.config.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)
@@ -51,9 +51,9 @@ func (a *agent) SetupPipeline(
 		filelauncher.DefaultSleepDuration,
 		a.config.GetBool("logs_config.validate_pod_container_id"),
 		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
-		a.config.GetString("logs_config.file_wildcard_selection_mode")))
+		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller))
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
-	lnchrs.AddLauncher(journald.NewLauncher())
+	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
 	lnchrs.AddLauncher(container.NewLauncher(a.sources))
 
@@ -71,7 +71,7 @@ func (a *agent) SetupPipeline(
 func buildEndpoints(coreConfig pkgConfig.Reader) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main)
+		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 	}
 	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }

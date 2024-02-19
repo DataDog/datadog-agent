@@ -3,7 +3,7 @@ set -eEuxo pipefail
 
 retry_count=$1
 pkgs_run_config_file=$2
-docker_dir=/kmt-docker
+docker_dir=/kmt-dockers
 
 # Add provisioning steps here !
 ## Start docker

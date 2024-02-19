@@ -16,9 +16,7 @@ import (
 
 // CheckInstallation run tests to check the installation of the agent
 func CheckInstallation(t *testing.T, client *TestClient) {
-
 	t.Run("example config file", func(tt *testing.T) {
-
 		exampleFilePath := client.Helper.GetConfigFolder() + fmt.Sprintf("%s.example", client.Helper.GetConfigFileName())
 
 		_, err := client.FileManager.FileExists(exampleFilePath)
@@ -26,18 +24,20 @@ func CheckInstallation(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("datdog-agent binary", func(tt *testing.T) {
-
 		binaryPath := client.Helper.GetBinaryPath()
 
 		_, err := client.FileManager.FileExists(binaryPath)
 		require.NoError(tt, err, "datadog-agent binary should be present")
 	})
+}
 
+// CheckSigningKeys ensures datadog-signing-keys package is installed
+func CheckSigningKeys(t *testing.T, client *TestClient) {
 	t.Run("datadog-signing-keys package", func(tt *testing.T) {
-		if _, err := client.VMClient.ExecuteWithError("dpkg --version"); err != nil {
+		if _, err := client.Host.Execute("dpkg --version"); err != nil {
 			tt.Skip()
 		}
-		_, err := client.VMClient.ExecuteWithError(("dpkg -l datadog-signing-keys"))
+		_, err := client.Host.Execute(("dpkg -l datadog-signing-keys"))
 		require.NoError(tt, err, "datadog-signing-keys package should be installed")
 	})
 }
@@ -45,19 +45,18 @@ func CheckInstallation(t *testing.T, client *TestClient) {
 // CheckInstallationMajorAgentVersion run tests to check the installation of an agent has the correct major version
 func CheckInstallationMajorAgentVersion(t *testing.T, client *TestClient, expectedVersion string) bool {
 	return t.Run("Check datadog-agent status version", func(tt *testing.T) {
-		versionRegexPattern := regexp.MustCompile(`(?m:^Agent \(v([0-9]).*\)$)`)
+		versionRegexPattern := regexp.MustCompile(`(?m:^(IoT )?Agent \(v([0-9]).*\)$)`)
 		tmpCmd := fmt.Sprintf("sudo %s status", client.Helper.GetBinaryPath())
 		output, err := client.ExecuteWithRetry(tmpCmd)
 		require.NoError(tt, err, "datadog-agent status failed")
 		matchList := versionRegexPattern.FindStringSubmatch(output)
-		require.NotEmpty(tt, matchList, "wasn't able to retrieve datadog-agent version on the following output : %s", output)
-		require.True(tt, matchList[1] == expectedVersion, "Expected datadog-agent version %s got %s", expectedVersion, matchList[0])
+		require.NotEmpty(tt, matchList, "wasn't able to retrieve datadog-agent major version on the following output : %s", output)
+		require.True(tt, matchList[2] == expectedVersion, "Expected datadog-agent major version %s got %s", expectedVersion, matchList[2])
 	})
 }
 
 // CheckInstallationInstallScript run tests to check the installation of the agent with the install script
 func CheckInstallationInstallScript(t *testing.T, client *TestClient) {
-
 	t.Run("site config attribute", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 
@@ -87,30 +86,21 @@ func CheckInstallationInstallScript(t *testing.T, client *TestClient) {
 		require.True(tt, installerVersionRegex.MatchString(installMethodJSON["installer_version"]))
 		require.Equal(tt, installMethodJSON["tool"], "install_script")
 	})
-
 }
 
 // CheckUninstallation runs check to see if the agent uninstall properly
-func CheckUninstallation(t *testing.T, client *TestClient, packageName string) {
+func CheckUninstallation(t *testing.T, client *TestClient) {
 
-	t.Run("remove the agent", func(tt *testing.T) {
-		_, err := client.PkgManager.Remove(packageName)
-		require.NoError(tt, err, "should uninstall the agent")
-	})
-
-	t.Run("no agent process running", func(tt *testing.T) {
-		agentProcesses := []string{client.Helper.GetServiceName(), "system-probe", "security-agent"}
-		for _, process := range agentProcesses {
-			_, err := client.VMClient.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
-			require.Error(tt, err, fmt.Sprintf("process %s should not be running", process))
-		}
+	t.Run("no running processes", func(tt *testing.T) {
+		running, err := RunningAgentProcesses(client)
+		require.NoError(tt, err)
+		require.Empty(tt, running, "no agent process should be running")
 	})
 
 	t.Run("remove install directory", func(tt *testing.T) {
 		installFolderPath := client.Helper.GetInstallFolder()
 
-		foundFiles, err := client.FileManager.FindFileInFolder(installFolderPath)
-		require.Error(tt, err, "should not find anything in install folder, found: ", foundFiles)
+		entries, err := client.FileManager.ReadDir(installFolderPath)
+		require.Error(tt, err, "should not find anything in install folder, found %v dir entries ", len(entries))
 	})
-
 }

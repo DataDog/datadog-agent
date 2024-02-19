@@ -37,7 +37,6 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
 	demux := deps.Demultiplexer
-	defer demux.Stop(false)
 	_ = s.Start(demux)
 	defer s.Stop()
 

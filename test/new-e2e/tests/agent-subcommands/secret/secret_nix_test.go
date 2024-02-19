@@ -8,10 +8,11 @@ package secret
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,13 +20,13 @@ type linuxSecretSuite struct {
 	baseSecretSuite
 }
 
-func TestLinuxSecretSuite(t *testing.T) {
-	e2e.Run(t, &linuxSecretSuite{}, e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.UbuntuOS))))
+func TestAgentSecretSuite(t *testing.T) {
+	e2e.Run(t, &linuxSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (v *linuxSecretSuite) TestAgentSecretExecDoesNotExist() {
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
-	output := v.Env().Agent.Secret()
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
+	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /does/not/exist")
 	assert.Contains(v.T(), output, "Executable permissions: error: invalid executable '/does/not/exist': can't stat it: no such file or directory")
@@ -33,9 +34,9 @@ func (v *linuxSecretSuite) TestAgentSecretExecDoesNotExist() {
 }
 
 func (v *linuxSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("secret_backend_command: /usr/bin/echo"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /usr/bin/echo"))))
 
-	output := v.Env().Agent.Secret()
+	output := v.Env().Agent.Client.Secret()
 
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /usr/bin/echo")
@@ -50,11 +51,24 @@ printf '{"alias_secret": {"value": "a_super_secret_string"}}\n'`
 host_aliases:
   - ENC[alias_secret]`
 
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false))))
-	v.Env().VM.Execute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false), agentparams.WithAgentConfig(config))))
+	v.UpdateEnv(
+		awshost.ProvisionerNoFakeIntake(
+			awshost.WithAgentOptions(
+				agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false),
+			),
+		),
+	)
+	v.Env().RemoteHost.MustExecute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
+	v.UpdateEnv(
+		awshost.ProvisionerNoFakeIntake(
+			awshost.WithAgentOptions(
+				agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false),
+				agentparams.WithAgentConfig(config),
+			),
+		),
+	)
 
-	output := v.Env().Agent.Secret()
+	output := v.Env().Agent.Client.Secret()
 
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /tmp/bin/secret.sh")

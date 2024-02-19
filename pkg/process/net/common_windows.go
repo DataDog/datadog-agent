@@ -22,6 +22,8 @@ const (
 
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
 	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
+	// pingURL is not used in windows, the value is added to avoid compilation error in windows
+	pingURL = "http://localhost:3333/" + string(sysconfig.PingModule) + "/ping/"
 )
 
 // CheckPath is used to make sure the globalSocketPath has been set before attempting to connect

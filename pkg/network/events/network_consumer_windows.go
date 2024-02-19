@@ -5,11 +5,12 @@
 
 //go:build windows
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package events handles process events
 package events
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 )
 

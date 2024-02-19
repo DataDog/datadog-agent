@@ -9,6 +9,7 @@ package demultiplexerimpl
 
 import (
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -24,7 +25,7 @@ func MockModule() fxutil.Module {
 }
 
 type mock struct {
-	demultiplexerComp.Component
+	*aggregator.AgentDemultiplexer
 	sender *sender.Sender
 }
 
@@ -36,7 +37,7 @@ func (m *mock) GetDefaultSender() (sender.Sender, error) {
 	if m.sender != nil {
 		return *m.sender, nil
 	}
-	return m.Component.GetDefaultSender()
+	return m.AgentDemultiplexer.GetDefaultSender()
 }
 
 func (m *mock) LazyGetSenderManager() (sender.SenderManager, error) {
@@ -45,7 +46,8 @@ func (m *mock) LazyGetSenderManager() (sender.SenderManager, error) {
 
 type mockDependencies struct {
 	fx.In
-	Log log.Component
+	Log      log.Component
+	Hostname hostname.Component
 }
 
 func newMock(deps mockDependencies) (demultiplexerComp.Component, demultiplexerComp.Mock) {
@@ -54,12 +56,10 @@ func newMock(deps mockDependencies) (demultiplexerComp.Component, demultiplexerC
 
 	aggDeps := aggregator.TestDeps{
 		Log:             deps.Log,
+		Hostname:        deps.Hostname,
 		SharedForwarder: defaultforwarder.NoopForwarder{},
 	}
-	demultiplexer := demultiplexer{
-		AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, ""),
-	}
 
-	instance := &mock{Component: demultiplexer}
+	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}
 	return instance, instance
 }

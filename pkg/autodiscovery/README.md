@@ -58,7 +58,7 @@ The [listeners](https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/autodisc
 Each service has two entity identifiers: the AD service ID (from `svc.GetServiceID()`) and the Tagger entity (`svc.GetTaggerEntity()`).
 These both uniquely identify an entity, but using different syntax.
 
-<!-- NOTE: a similar table appears in pkg/tagger/README.md; please keep both in sync -->
+<!-- NOTE: a similar table appears in comp/core/tagger/README.md; please keep both in sync -->
 | *Service*                         | *Service ID*                                                      | *Tagger Entity*                                                    |
 |-----------------------------------|-------------------------------------------------------------------|--------------------------------------------------------------------|
 | workloadmeta.KindContainer        | `<runtime>://<sha>`                                               | `container_id://<sha>`                                             |

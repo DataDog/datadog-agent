@@ -55,7 +55,7 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler) error {
 
 	// CLC Runner token
 	// Use the Cluster Agent token
-	err = util.InitDCAAuthToken()
+	err = util.InitDCAAuthToken(config.Datadog)
 	if err != nil {
 		return err
 	}
@@ -104,11 +104,6 @@ func StopCLCRunnerServer() {
 	if clcListener != nil {
 		clcListener.Close()
 	}
-}
-
-// ServerCLCRunnerAddress returns the server address.
-func ServerCLCRunnerAddress() *net.TCPAddr {
-	return clcListener.Addr().(*net.TCPAddr)
 }
 
 func validateCLCRunnerToken(next http.Handler) http.Handler {

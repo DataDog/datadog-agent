@@ -9,23 +9,24 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
-// UpstartSvcManager is a service manager for upstart
-type UpstartSvcManager struct {
-	vmClient client.VM
+// Upstart is a service manager for upstart
+type Upstart struct {
+	host *components.RemoteHost
 }
 
-// NewUpstartSvcManager return upstart service manager
-func NewUpstartSvcManager(vmClient client.VM) *UpstartSvcManager {
-	return &UpstartSvcManager{vmClient}
+var _ ServiceManager = &Upstart{}
+
+// NewUpstart return upstart service manager
+func NewUpstart(host *components.RemoteHost) *Upstart {
+	return &Upstart{host}
 }
 
 // Status returns status from upstart
-func (s *UpstartSvcManager) Status(service string) (string, error) {
-	status, err := s.vmClient.ExecuteWithError("sudo /sbin/initctl status " + service)
-
+func (s *Upstart) Status(service string) (string, error) {
+	status, err := s.host.Execute("sudo /sbin/initctl status " + service)
 	if err != nil {
 		return status, err
 	}
@@ -37,16 +38,16 @@ func (s *UpstartSvcManager) Status(service string) (string, error) {
 }
 
 // Stop executes stop command from upstart
-func (s *UpstartSvcManager) Stop(service string) (string, error) {
-	return s.vmClient.ExecuteWithError("sudo /sbin/initctl stop " + service)
+func (s *Upstart) Stop(service string) (string, error) {
+	return s.host.Execute("sudo /sbin/initctl stop " + service)
 }
 
 // Start executes start command from upstart
-func (s *UpstartSvcManager) Start(service string) (string, error) {
-	return s.vmClient.ExecuteWithError("sudo /sbin/initctl start " + service)
+func (s *Upstart) Start(service string) (string, error) {
+	return s.host.Execute("sudo /sbin/initctl start " + service)
 }
 
 // Restart executes restart command from upstart
-func (s *UpstartSvcManager) Restart(service string) (string, error) {
-	return s.vmClient.ExecuteWithError("sudo /sbin/initctl restart " + service)
+func (s *Upstart) Restart(service string) (string, error) {
+	return s.host.Execute("sudo /sbin/initctl restart " + service)
 }

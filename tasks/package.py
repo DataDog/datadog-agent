@@ -3,7 +3,7 @@ import glob
 from invoke import task
 from invoke.exceptions import Exit
 
-from .libs.common.color import color_message
+from tasks.libs.common.color import color_message
 
 
 def get_package_path(glob_pattern):

@@ -39,5 +39,6 @@ func Test_BuildStackParameters(t *testing.T) {
 		"ddinfra:aws/defaultPrivateKeyPath":     auto.ConfigValue{Value: "private_key_path", Secret: false},
 		"ddinfra:aws/defaultPrivateKeyPassword": auto.ConfigValue{Value: "private_key_password", Secret: true},
 		"ddagent:pipeline_id":                   auto.ConfigValue{Value: "pipeline_id", Secret: false},
+		"ddagent:commit_sha":                    auto.ConfigValue{Value: "commit_sha", Secret: false},
 	}, configMap)
 }

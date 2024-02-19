@@ -9,9 +9,9 @@ from time import sleep
 
 from invoke.exceptions import Exit
 
-from ..utils import DEFAULT_BRANCH
-from .common.color import color_message
-from .common.github_api import GithubAPI
+from tasks.libs.common.color import color_message
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.utils import DEFAULT_BRANCH
 
 
 def trigger_macos_workflow(
@@ -101,15 +101,18 @@ def follow_workflow_run(run):
 
     minutes = 0
     failures = 0
+    # Wait time (in minutes) between two queries of the workflow status
+    interval = 5
     MAX_FAILURES = 5
     while True:
         # Do not fail outright for temporary failures
         try:
             github = GithubAPI('DataDog/datadog-agent-macos-build')
             run = github.workflow_run(run.id)
-        except GithubException:
+        except GithubException as e:
             failures += 1
             print(f"Workflow run not found, retrying in 15 seconds (failure {failures}/{MAX_FAILURES})")
+            print("Error: ", e)
             if failures == MAX_FAILURES:
                 raise Exit(code=1)
             sleep(15)
@@ -127,8 +130,8 @@ def follow_workflow_run(run):
             # able to see where's the job at in the logs. The following line forces the flush.
             sys.stdout.flush()
 
-        minutes += 1
-        sleep(60)
+        minutes += interval
+        sleep(60 * interval)
 
 
 def print_workflow_conclusion(conclusion, workflow_uri):

@@ -22,7 +22,6 @@ func SecurityProfileToProto(input *SecurityProfile) *proto.SecurityProfile {
 	}
 
 	output := proto.SecurityProfile{
-		Status:   uint32(input.Status),
 		Version:  input.Version,
 		Metadata: mtdt.ToProto(&input.Metadata),
 		Syscalls: input.Syscalls,

@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
 
@@ -47,8 +47,8 @@ func newBlockedEndpoints(config config.Component, log log.Component) *blockedEnd
 
 	recInterval := config.GetInt("forwarder_recovery_interval")
 	if recInterval <= 0 {
-		log.Warnf("Configured forwarder_recovery_interval (%v) is not positive; %v will be used", recInterval, pkgconfig.DefaultForwarderRecoveryInterval)
-		recInterval = pkgconfig.DefaultForwarderRecoveryInterval
+		log.Warnf("Configured forwarder_recovery_interval (%v) is not positive; %v will be used", recInterval, pkgconfigsetup.DefaultForwarderRecoveryInterval)
+		recInterval = pkgconfigsetup.DefaultForwarderRecoveryInterval
 	}
 
 	recoveryReset := config.GetBool("forwarder_recovery_reset")

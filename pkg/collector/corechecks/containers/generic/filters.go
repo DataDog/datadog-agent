@@ -43,6 +43,7 @@ func (f ANDContainerFilter) IsExcluded(container *workloadmeta.Container) bool {
 // LegacyContainerFilter allows to use old containers.Filter within this new framework
 type LegacyContainerFilter struct {
 	OldFilter *containers.Filter
+	Store     workloadmeta.Component
 }
 
 // IsExcluded returns if a container should be excluded or not
@@ -51,12 +52,8 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 		return false
 	}
 	var annotations map[string]string
-	// TODO*components): stop using globals, instead rely on injected worklaodmeta component.
-	store := workloadmeta.GetGlobalStore()
-	if store != nil {
-		if pod, err := store.GetKubernetesPodForContainer(container.ID); err == nil {
-			annotations = pod.Annotations
-		}
+	if pod, err := f.Store.GetKubernetesPodForContainer(container.ID); err == nil {
+		annotations = pod.Annotations
 	}
 
 	return f.OldFilter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])

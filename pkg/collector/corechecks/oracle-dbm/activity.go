@@ -400,8 +400,8 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
-	sender.Count("dd.oracle.activity.samples_count", float64(len(sessionRows)), "", c.tags)
-	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
+	sendMetricWithDefaultTags(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)))
+	sendMetricWithDefaultTags(c, gauge, "dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()))
 	sender.Commit()
 
 	return nil

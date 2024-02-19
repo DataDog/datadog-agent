@@ -42,8 +42,6 @@ build do
     mkdir "/etc/init"
     mkdir "/var/log/datadog"
 
-    move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
-    move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
     copy 'bin/updater', "#{install_dir}/bin/"
 
     # Systemd

@@ -14,12 +14,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/selftestscmd"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
 )
 
-// EnvDisableStats defines the environ variable to set to disable aviodable stats
-const EnvDisableStats = "DD_CWS_INSTRUMENTATION_DISABLE_STATS"
+const (
+	// envDisableStats defines the environ variable to set to disable aviodable stats
+	envDisableStats = "DD_CWS_INSTRUMENTATION_DISABLE_STATS"
+)
 
 const (
 	// gRPCAddr defines the system-probe addr
@@ -66,12 +68,12 @@ func Command() []*cobra.Command {
 		},
 	}
 
-	traceCmd.Flags().StringVar(&params.ProbeAddr, probeAddr, setup.DefaultEBPFLessProbeAddr, "system-probe eBPF less GRPC address")
+	traceCmd.Flags().StringVar(&params.ProbeAddr, probeAddr, constants.DefaultEBPFLessProbeAddr, "system-probe eBPF less GRPC address")
 	traceCmd.Flags().BoolVar(&params.Verbose, verbose, false, "enable verbose output")
 	traceCmd.Flags().Int32Var(&params.UID, uid, -1, "uid used to start the tracee")
 	traceCmd.Flags().Int32Var(&params.GID, gid, -1, "gid used to start the tracee")
 	traceCmd.Flags().BoolVar(&params.Async, async, false, "enable async GRPC connection")
-	if os.Getenv(EnvDisableStats) != "" {
+	if os.Getenv(envDisableStats) != "" {
 		params.DisableStats = true
 	} else {
 		traceCmd.Flags().BoolVar(&params.DisableStats, disableStats, false, "disable use of stats")

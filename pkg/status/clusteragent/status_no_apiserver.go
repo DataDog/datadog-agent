@@ -8,6 +8,8 @@
 package clusteragent
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -17,7 +19,14 @@ func getLeaderElectionDetails() map[string]string {
 }
 
 // GetDCAStatus empty function for agents not running in a  k8s environment
-func GetDCAStatus() map[string]string {
+func GetDCAStatus(_ map[string]interface{}) {
 	log.Info("Not implemented")
-	return nil
 }
+
+// GetProvider returns NoopProvider
+func GetProvider(_ config.Component) status.Provider {
+	return status.NoopProvider{}
+}
+
+// Provider provides the functionality to populate the status output
+type Provider status.NoopProvider

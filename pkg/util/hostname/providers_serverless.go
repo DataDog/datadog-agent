@@ -9,16 +9,6 @@ package hostname
 
 import "context"
 
-// IsConfigurationProvider returns false for serverless
-func (h Data) FromConfiguration() bool {
-	return false
-}
-
-// fromFargate returns true if the hostname was found through Fargate
-func (h Data) FromFargate() bool {
-	return false
-}
-
 // GetWithProvider returns an empty Data for serverless
 func GetWithProvider(ctx context.Context) (Data, error) {
 	return Data{}, nil

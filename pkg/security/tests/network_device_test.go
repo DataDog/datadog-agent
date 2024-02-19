@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -31,6 +31,8 @@ import (
 )
 
 func TestNetDevice(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
@@ -140,6 +142,8 @@ func TestNetDevice(t *testing.T) {
 }
 
 func TestTCFilters(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()

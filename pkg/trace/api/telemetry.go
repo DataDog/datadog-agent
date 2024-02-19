@@ -20,7 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const functionARNKeyTag = "function_arn"
@@ -56,6 +57,7 @@ const (
 type telemetryMultiTransport struct {
 	Transport http.RoundTripper
 	Endpoints []*config.Endpoint
+	statsd    statsd.ClientInterface
 }
 
 // telemetryProxyHandler parses returns a new HTTP handler which will proxy requests to the configured intakes.
@@ -94,6 +96,7 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 	transport := telemetryMultiTransport{
 		Transport: underlyingTransport,
 		Endpoints: endpoints,
+		statsd:    r.statsd,
 	}
 	limitedLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	logger := stdlog.New(limitedLogger, "telemetry.Proxy: ", 0)
@@ -108,17 +111,19 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 
 		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
 		if containerID == "" {
-			metrics.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
+			_ = r.statsd.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
 		}
 		containerTags := getContainerTags(r.conf.ContainerTags, containerID)
 
 		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
+		log.Debugf("Setting headers DD-Agent-Hostname=%s, DD-Agent-Env=%s for telemetry proxy", r.conf.Hostname, r.conf.DefaultEnv)
 		if containerID != "" {
 			req.Header.Set(header.ContainerID, containerID)
 		}
 		if containerTags != "" {
 			req.Header.Set("x-datadog-container-tags", containerTags)
+			log.Debugf("Setting header x-datadog-container-tags=%s for telemetry proxy", containerTags)
 		}
 		if installSignature.Found {
 			req.Header.Set("DD-Agent-Install-Id", installSignature.InstallID)
@@ -221,7 +226,7 @@ func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.
 		fmt.Sprintf("endpoint:%s", endpoint.Host),
 	}
 	defer func(now time.Time) {
-		metrics.Timing("datadog.trace_agent.telemetry_proxy.roundtrip_ms", time.Since(now), tags, 1)
+		_ = m.statsd.Timing("datadog.trace_agent.telemetry_proxy.roundtrip_ms", time.Since(now), tags, 1)
 	}(time.Now())
 
 	req.Host = endpoint.Host
@@ -231,7 +236,7 @@ func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.
 
 	resp, err := m.Transport.RoundTrip(req)
 	if err != nil {
-		metrics.Count("datadog.trace_agent.telemetry_proxy.error", 1, tags, 1)
+		_ = m.statsd.Count("datadog.trace_agent.telemetry_proxy.error", 1, tags, 1)
 	}
 	return resp, err
 }

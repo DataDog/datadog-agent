@@ -17,6 +17,7 @@ import (
 	_ "github.com/goware/modvendor"
 	_ "github.com/stormcat24/protodep"
 	_ "github.com/vektra/mockery/v2"
+	_ "github.com/wadey/gocovmerge"
 	_ "golang.org/x/mobile/cmd/gobind"
 	_ "golang.org/x/mobile/cmd/gomobile"
 	_ "golang.org/x/perf/cmd/benchstat"

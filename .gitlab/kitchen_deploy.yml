@@ -43,6 +43,9 @@
 .deploy_deb_resource_group-a7: &deploy_deb_resource_group-a7
   resource_group: deploy_deb_a7
 
+.deploy_deb_resource_group-u7: &deploy_deb_resource_group-u7
+  resource_group: deploy_deb_u7
+
 .deploy_deb_testing-a6:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -50,6 +53,17 @@
   <<: *deploy_deb_resource_group-a6
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+  before_script:
+    - source /root/.bashrc
+    - ls $OMNIBUS_PACKAGE_DIR
+
+.deploy_deb_testing-u7:
+  stage: kitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["arch:amd64"]
+  <<: *deploy_deb_resource_group-u7
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-u7
   before_script:
     - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
@@ -99,7 +113,8 @@ deploy_deb_testing-a6_arm64:
 
 deploy_deb_testing-a7_x64:
   rules:
-    !reference [.on_default_kitchen_tests_a7]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
   extends:
     - .deploy_deb_testing-a7
   needs: ["agent_deb-x64-a7", "agent_heroku_deb-x64-a7", "iot_agent_deb-x64", "dogstatsd_deb-x64", "lint_linux-x64", "tests_deb-x64-py3"]
@@ -127,6 +142,22 @@ deploy_deb_testing-a7_arm64:
     - *setup_signing_keys_package
 
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+
+deploy_deb_testing-u7_arm64:
+  rules:
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
+  extends:
+    - .deploy_deb_testing-u7
+  needs: ["updater_deb-arm64", "lint_linux-arm64"]
+  script:
+    - *setup_apt_signing_key
+    - set +x  # make sure we don't output the creds to the build log
+
+    - *setup_signing_keys_package
+
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-updater*arm64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 .deploy_rpm_testing-a6:
@@ -173,7 +204,8 @@ deploy_rpm_testing-a6_arm64:
 
 deploy_rpm_testing-a7_x64:
   rules:
-    !reference [.on_default_kitchen_tests_a7]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
   extends:
     - .deploy_rpm_testing-a7
   needs: ["agent_rpm-x64-a7", "iot_agent_rpm-x64", "dogstatsd_rpm-x64", "lint_linux-x64", "tests_rpm-x64-py3"]
@@ -212,7 +244,8 @@ deploy_suse_rpm_testing_x64-a6:
 
 deploy_suse_rpm_testing_x64-a7:
   rules:
-    !reference [.on_default_kitchen_tests_a7]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -246,7 +279,8 @@ deploy_suse_rpm_testing_arm64-a7:
 
 deploy_windows_testing-a6:
   rules:
-    !reference [.on_kitchen_tests_a6]
+    - !reference [.on_kitchen_tests_a6]
+    - !reference [.on_windows_installer_changes_or_manual]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -259,7 +293,9 @@ deploy_windows_testing-a6:
 
 deploy_windows_testing-a7:
   rules:
-    !reference [.on_default_kitchen_tests_a7]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
+    - !reference [.on_windows_installer_changes_or_manual]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
