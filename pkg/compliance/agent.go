@@ -280,7 +280,7 @@ func (a *Agent) Stop() {
 	log.Tracef("shutting down compliance agent")
 	a.cancel()
 	select {
-	case <-time.After(10 * time.Second):
+	case <-time.After(20 * time.Second):
 	case <-a.finish:
 	}
 	a.opts.Reporter.Stop()
@@ -317,6 +317,9 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 			resolver := NewResolver(ctx, a.opts.ResolverOptions)
 			for _, rule := range benchmark.Rules {
 				inputs, err := resolver.ResolveInputs(ctx, rule)
+				if err := ctx.Err(); err != nil {
+					return
+				}
 				if err != nil {
 					a.reportCheckEvents(checkInterval, CheckEventFromError(RegoEvaluator, rule, benchmark, err))
 				} else {

@@ -1,0 +1,22 @@
+{
+  "client": {
+    "id": "e2e_tests",
+    "name": "e2e_service",
+    "products": ["TESTING1"],
+    "version": "e2e-client-version",
+    "state": {
+      "root_version": 1
+    },
+    "is_tracer": true,
+    "client_tracer": {
+      "runtime_id": "3att30cca30bd6ffx47814cfef849e3z",
+      "language": "python",
+      "tracer_version": "1.0.0",
+      "service": "e2e-service",
+      "env": "staging",
+      "app_version": "e2e",
+      "tags": []
+    }
+  },
+  "cached_target_files": []
+}

@@ -1062,9 +1062,11 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 		case "is_kworker":
 			out.IsKworker = bool(in.Bool())
 		case "is_exec_child":
-			out.IsExecChild = bool(in.Bool())
+			out.IsExecExec = bool(in.Bool())
 		case "source":
 			out.Source = string(in.String())
+		case "variables":
+			(out.Variables).UnmarshalEasyJSON(in)
 		default:
 			in.SkipRecursive()
 		}
@@ -1238,15 +1240,20 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 		out.RawString(prefix)
 		out.Bool(bool(in.IsKworker))
 	}
-	if in.IsExecChild {
+	if in.IsExecExec {
 		const prefix string = ",\"is_exec_child\":"
 		out.RawString(prefix)
-		out.Bool(bool(in.IsExecChild))
+		out.Bool(bool(in.IsExecExec))
 	}
 	if in.Source != "" {
 		const prefix string = ",\"source\":"
 		out.RawString(prefix)
 		out.String(string(in.Source))
+	}
+	if len(in.Variables) != 0 {
+		const prefix string = ",\"variables\":"
+		out.RawString(prefix)
+		(in.Variables).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

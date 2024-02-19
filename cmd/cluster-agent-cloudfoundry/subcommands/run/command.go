@@ -47,7 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -111,7 +110,7 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 	// Setup healthcheck port
 	var healthPort = pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, healthPort)
+		err := healthprobe.Serve(mainCtx, pkgconfig.Datadog, healthPort)
 		if err != nil {
 			return pkglog.Errorf("Error starting health port, exiting: %v", err)
 		}
@@ -148,14 +147,12 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 	common.LoadComponents(secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
-	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption[pkgcollector.Collector](collector), demultiplexer), true)
-	collector.Start()
-	diagnose.Init(optional.NewOption(collector))
+	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(wmeta, taggerComp, demultiplexer); err != nil {
+	if err = api.StartServer(wmeta, taggerComp, demultiplexer, optional.NewOption(collector)); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

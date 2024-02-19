@@ -16,10 +16,6 @@ import (
 
 // FieldHandlers defines a field handlers
 type FieldHandlers struct {
-	// TODO(safchain) remove this when support for multiple platform with the same build tags is available
-	// keeping it can be dangerous as it can hide non implemented handlers
-	model.DefaultFieldHandlers
-
 	config    *config.Config
 	resolvers *resolvers.Resolvers
 }
@@ -97,4 +93,34 @@ func (fh *FieldHandlers) ResolveProcessCmdLineScrubbed(_ *model.Event, e *model.
 // ResolveUser resolves the user name
 func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) string {
 	return fh.resolvers.UserGroupResolver.GetUser(process.OwnerSidString)
+}
+
+// ResolveContainerCreatedAt resolves the container creation time of the event
+func (fh *FieldHandlers) ResolveContainerCreatedAt(_ *model.Event, e *model.ContainerContext) int {
+	return int(e.CreatedAt)
+}
+
+// ResolveContainerID resolves the container ID of the event
+func (fh *FieldHandlers) ResolveContainerID(_ *model.Event, e *model.ContainerContext) string {
+	return e.ID
+}
+
+// ResolveContainerTags resolves the container tags of the event
+func (fh *FieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
+	return e.Tags
+}
+
+// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
+func (fh *FieldHandlers) ResolveEventTimestamp(_ *model.Event, e *model.BaseEvent) int {
+	return int(e.TimestampRaw)
+}
+
+// ResolveProcessCmdLine resolves the cmd line of the process of the event
+func (fh *FieldHandlers) ResolveProcessCmdLine(_ *model.Event, e *model.Process) string {
+	return e.CmdLine
+}
+
+// ResolveProcessCreatedAt resolves the process creation time of the event
+func (fh *FieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Process) int {
+	return int(e.CreatedAt)
 }

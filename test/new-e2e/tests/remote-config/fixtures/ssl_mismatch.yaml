@@ -1,0 +1,8 @@
+hostname: rc-e2e-ec2-host
+logs_enabled: true
+log_level: debug
+skip_ssl_validation: true #disable https during requests to dd backend but don't explicitly enabled remote_configuration.no_tls_validation
+
+remote_configuration:
+  enabled: true
+  refresh_interval: 5s

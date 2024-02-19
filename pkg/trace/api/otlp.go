@@ -23,10 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
@@ -59,11 +59,13 @@ type OTLPReceiver struct {
 	out         chan<- *Payload     // the outgoing payload channel
 	conf        *config.AgentConfig // receiver config
 	cidProvider IDProvider          // container ID provider
+	statsd      statsd.ClientInterface
+	timing      timing.Reporter
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
-func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
+func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -98,9 +100,9 @@ func (o *OTLPReceiver) Stop() {
 
 // Export implements ptraceotlp.Server
 func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
-	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
+	defer o.timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
-	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
+	_ = o.statsd.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
 	o.processRequest(ctx, http.Header(md), in)
 	return ptraceotlp.NewExportResponse(), nil
 }
@@ -254,8 +256,8 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		}
 	}
 	tags := tagstats.AsTags()
-	metrics.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
-	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
+	_ = o.statsd.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
+	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
 		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",

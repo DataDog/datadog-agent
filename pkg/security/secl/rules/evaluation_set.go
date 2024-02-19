@@ -118,7 +118,7 @@ func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpt
 					errs = multierror.Append(errs, err)
 				}
 
-				if err := rs.populateFieldsWithRuleActionsData(ruleList); err.ErrorOrNil() != nil {
+				if err := rs.populateFieldsWithRuleActionsData(ruleList, opts); err.ErrorOrNil() != nil {
 					errs = multierror.Append(errs, err)
 				}
 

@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 type mockAPI struct {
@@ -39,6 +40,14 @@ const (
 	httpError    = "api: simulated HTTP error"
 	agentVersion = "9.9.9"
 )
+
+// Setup overrides for tests
+func init() {
+	uuid.GetUUID = func() string {
+		// Avoid using the runner's UUID
+		return "test-uuid"
+	}
+}
 
 func (m *mockAPI) Fetch(ctx context.Context, request *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error) {
 	args := m.Called(ctx, request)
@@ -205,6 +214,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
@@ -231,6 +241,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 	// Sending the http error too
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
@@ -286,6 +297,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	api = &mockAPI{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
@@ -415,6 +427,7 @@ func TestService(t *testing.T) {
 	}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
@@ -496,6 +509,7 @@ func TestService(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     1,
 		CurrentConfigSnapshotVersion: 2,
@@ -605,6 +619,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     0,
 		CurrentConfigSnapshotVersion: 0,
@@ -650,6 +665,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
@@ -688,6 +704,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
@@ -726,6 +743,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
@@ -764,6 +782,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
@@ -805,6 +824,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
@@ -883,6 +903,7 @@ func TestConfigExpiration(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     0,
 		CurrentConfigSnapshotVersion: 0,
