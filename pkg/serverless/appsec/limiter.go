@@ -96,7 +96,7 @@ func (t *TokenTicker) updateBucket(ticksChan <-chan time.Time, startTime time.Ti
 func (t *TokenTicker) Start() {
 	timeNow := time.Now()
 	t.ticker = time.NewTicker(500 * time.Microsecond)
-	t.start(t.ticker.C, timeNow, false)
+	_ = t.start(t.ticker.C, timeNow, false)
 }
 
 // start is used for internal testing. Controlling the ticker means being able to test per-tick
