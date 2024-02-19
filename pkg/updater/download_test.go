@@ -69,8 +69,11 @@ func createTestOCIArchive(t *testing.T, dir string) {
 
 	// Calculate size & digest after writing
 	hasher := sha256.New()
-	s, err := os.ReadFile(layerPath)
-	hasher.Write(s)
+	s, err := os.Open(layerPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = io.Copy(hasher, s)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,8 +99,11 @@ func createTestOCIArchive(t *testing.T, dir string) {
 
 	// Calculate size & digest after writing
 	hasher = sha256.New()
-	s, err = os.ReadFile(manifestPath)
-	hasher.Write(s)
+	s, err = os.Open(manifestPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = io.Copy(hasher, s)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -183,9 +189,9 @@ func agentArchiveHash(t *testing.T, dir string) string {
 }
 
 func agentArchiveSize(t *testing.T, dir string) int64 {
-	f, err := os.ReadFile(path.Join(dir, testAgentArchiveFileName))
+	f, err := os.Stat(path.Join(dir, testAgentArchiveFileName))
 	assert.NoError(t, err)
-	return int64(len(f))
+	return int64(f.Size())
 }
 
 func createArchive(dir string, files []string, buf io.Writer) error {
@@ -273,7 +279,7 @@ func (suite *DownloadTestSuite) TestDownload() {
 	// ensures the full archive or full individual files are not loaded in memory
 	xzDictMemory := uint64(8428576) // 8 MiB, the default xz dictionary size
 	allocatedMemoryArchive := m.TotalAlloc - totalAllocsStart
-	expectedMemory := uint64(testLargeFileSize)*2 + 2*xzDictMemory // We expect the large file to be loaded ~ twice as there are two extracts we need to keep in memory
+	expectedMemory := uint64(testLargeFileSize) + 2*xzDictMemory
 	assert.Less(t, allocatedMemoryArchive, expectedMemory)
 }
 

@@ -8,6 +8,7 @@ package updater
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path"
 
@@ -24,11 +25,11 @@ const (
 // extractOCI extracts the OCI archive at `ociArchivePath`
 func extractOCI(ociArchivePath string, destinationPath string) error {
 	index := &ociSpec.Index{}
-	indexFile, err := os.ReadFile(path.Join(ociArchivePath, "index.json"))
+	indexFile, err := os.Open(path.Join(ociArchivePath, "index.json"))
 	if err != nil {
 		return fmt.Errorf("could not open index file: %w", err)
 	}
-	err = json.Unmarshal(indexFile, index)
+	err = json.NewDecoder(indexFile).Decode(index)
 	if err != nil {
 		return fmt.Errorf("could not parse index file: %w", err)
 	}
@@ -49,27 +50,19 @@ func extractOCIManifest(ociArchivePath string, destinationPath string, manifest 
 
 	// Read manifest file
 	blobsPath := path.Join(ociArchivePath, "blobs", string(manifest.Digest.Algorithm()))
-	manifestFile, err := os.ReadFile(path.Join(blobsPath, manifest.Digest.Encoded()))
-	if err != nil {
-		return fmt.Errorf("could not open manifest file: %w", err)
-	}
 
-	// Verify length & digest of the manifest
-	if manifest.Size != int64(len(manifestFile)) {
-		return fmt.Errorf("invalid size for manifest: expected %d, got %d", manifest.Size, len(manifestFile))
-	}
-	verifier := manifest.Digest.Verifier()
-	_, err = verifier.Write(manifestFile)
-	if err != nil {
-		return fmt.Errorf("could not write manifest to verifier: %w", err)
-	}
-	if !verifier.Verified() {
-		return fmt.Errorf("invalid hash for manifest: %w", err)
+	// Verify length & digest of the layer
+	if err := verifyOCIFile(blobsPath, manifest); err != nil {
+		return err // already wrapped
 	}
 
 	// Parse manifest
 	manifestStruct := &ociSpec.Manifest{}
-	err = json.Unmarshal(manifestFile, manifestStruct)
+	manifestFile, err := os.Open(path.Join(blobsPath, manifest.Digest.Encoded()))
+	if err != nil {
+		return fmt.Errorf("could not open manifest file: %w", err)
+	}
+	err = json.NewDecoder(manifestFile).Decode(manifestStruct)
 	if err != nil {
 		return fmt.Errorf("could not parse manifest file: %w", err)
 	}
@@ -93,26 +86,12 @@ func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Des
 		return fmt.Errorf("invalid algorithm %s for layer: only sha256 is supported", layer.Digest.Algorithm())
 	}
 
-	// Read layer file
-	layerPath := path.Join(blobsPath, layer.Digest.Encoded())
-	layerFile, err := os.ReadFile(layerPath)
-	if err != nil {
-		return fmt.Errorf("could not open layer file: %w", err)
-	}
-
 	// Verify length & digest of the layer
-	if layer.Size != int64(len(layerFile)) {
-		return fmt.Errorf("invalid size for layer: expected %d, got %d", layer.Size, len(layerFile))
-	}
-	verifier := layer.Digest.Verifier()
-	_, err = verifier.Write(layerFile)
-	if err != nil {
-		return fmt.Errorf("could not write layer to verifier: %w", err)
-	}
-	if !verifier.Verified() {
-		return fmt.Errorf("invalid hash for layer: %w", err)
+	if err := verifyOCIFile(blobsPath, layer); err != nil {
+		return err // already wrapped
 	}
 
+	layerPath := path.Join(blobsPath, layer.Digest.Encoded())
 	switch layer.MediaType {
 	case mediaTypeImageLayerXz:
 		if err := extractTarXz(layerPath, destinationPath); err != nil {
@@ -120,6 +99,39 @@ func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Des
 		}
 	default:
 		return fmt.Errorf("unsupported media type %s for layer", layer.MediaType)
+	}
+
+	return nil
+}
+
+// verifyOCIFile verifies the length & digest of a file in the OCI archive given its descriptor
+func verifyOCIFile(blobsPath string, spec ociSpec.Descriptor) error {
+	filePath := path.Join(blobsPath, spec.Digest.Encoded())
+
+	// Read file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("could not open file: %w", err)
+	}
+	defer file.Close()
+
+	// Verify length
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("could not get file info: %w", err)
+	}
+	if info.Size() != spec.Size {
+		return fmt.Errorf("invalid size for file: expected %d, got %d", spec.Size, info.Size())
+	}
+
+	// Verify digest
+	verifier := spec.Digest.Verifier()
+	_, err = io.Copy(verifier, file)
+	if err != nil {
+		return fmt.Errorf("could not write file to verifier: %w", err)
+	}
+	if !verifier.Verified() {
+		return fmt.Errorf("invalid hash for file: %w", err)
 	}
 
 	return nil
