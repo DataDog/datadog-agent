@@ -31,7 +31,7 @@ const (
 	testAgentFileName        = "agent"
 	testNestedAgentFileName  = "nested/agent2"
 	testLargeFileName        = "large"
-	testLargeFileSize        = 1024 * 1024 * 5 // 5MB
+	testLargeFileSize        = 1024 * 1024 * 2 // 2MB
 	testAgentArchiveFileName = "agent.tar.gz"
 	testDownloadDir          = "download"
 )
@@ -271,9 +271,9 @@ func (suite *DownloadTestSuite) TestDownload() {
 	assert.FileExists(t, path.Join(downloadPath, testLargeFileName))
 
 	// ensures the full archive or full individual files are not loaded in memory
-	xzDictMemory := uint64(8428576)                                            // 8 MiB
-	allocatedMemoryArchive := m.TotalAlloc - totalAllocsStart - 2*xzDictMemory // 2x xzDictMemory as we have 2 extracts
-	expectedMemory := uint64(testLargeFileSize) * 2                            // We expect the large file to be loaded ~ twice as there are two extracts
+	xzDictMemory := uint64(8428576) // 8 MiB, the default xz dictionary size
+	allocatedMemoryArchive := m.TotalAlloc - totalAllocsStart
+	expectedMemory := uint64(testLargeFileSize)*2 + 2*xzDictMemory // We expect the large file to be loaded ~ twice as there are two extracts we need to keep in memory
 	assert.Less(t, allocatedMemoryArchive, expectedMemory)
 }
 
