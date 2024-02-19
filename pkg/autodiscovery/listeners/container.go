@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -109,8 +110,10 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		return ports[i].Port < ports[j].Port
 	})
 
+	tags, _ := tagger.Tag(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality)
 	svc := &service{
 		entity: container,
+		tags:   tags,
 		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,

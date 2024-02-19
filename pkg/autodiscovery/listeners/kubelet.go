@@ -11,6 +11,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -89,8 +90,10 @@ func (l *KubeletListener) createPodService(
 	})
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
+	tags, _ := tagger.Tag(kubelet.PodUIDToTaggerEntityName(pod.ID), tagger.ChecksCardinality)
 	svc := &service{
 		entity:        pod,
+		tags:          tags,
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
@@ -150,8 +153,10 @@ func (l *KubeletListener) createContainerService(
 	})
 
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
+	tags, _ := tagger.Tag(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality)
 	svc := &service{
 		entity: container,
+		tags:   tags,
 		ready:  pod.Ready,
 		ports:  ports,
 		extraConfig: map[string]string{

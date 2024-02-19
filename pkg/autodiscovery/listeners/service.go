@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
@@ -24,6 +23,7 @@ import (
 // workloadmeta.Store.
 type service struct {
 	entity          workloadmeta.Entity
+	tags            []string
 	adIdentifiers   []string
 	hosts           map[string]string
 	ports           []ContainerPort
@@ -45,7 +45,8 @@ func (s *service) Equal(o Service) bool {
 		return false
 	}
 
-	return reflect.DeepEqual(s.entity, s2.entity) &&
+	return s.GetServiceID() == s2.GetServiceID() &&
+		reflect.DeepEqual(s.tags, s2.tags) &&
 		reflect.DeepEqual(s.hosts, s2.hosts) &&
 		reflect.DeepEqual(s.ports, s2.ports) &&
 		reflect.DeepEqual(s.adIdentifiers, s2.adIdentifiers) &&
@@ -86,15 +87,7 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 
 // GetTags returns the tags associated with the service.
 func (s *service) GetTags() ([]string, error) {
-	switch e := s.entity.(type) {
-	case *workloadmeta.Container:
-		return tagger.Tag(containers.BuildTaggerEntityName(e.ID), tagger.ChecksCardinality)
-	case *workloadmeta.KubernetesPod:
-		return tagger.Tag(kubelet.PodUIDToTaggerEntityName(e.ID), tagger.ChecksCardinality)
-	default:
-		entityID := s.entity.GetID()
-		return nil, log.Errorf("cannot build AD entity ID for kind %q, ID %q", entityID.Kind, entityID.ID)
-	}
+	return s.tags, nil
 }
 
 // GetPid returns the process ID of the service.

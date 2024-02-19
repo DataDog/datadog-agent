@@ -207,6 +207,7 @@ func (s *CloudFoundryService) Equal(o Service) bool {
 	}
 
 	return reflect.DeepEqual(s.adIdentifier, s2.adIdentifier) &&
+		reflect.DeepEqual(s.tags, s2.tags) &&
 		reflect.DeepEqual(s.containerIPs, s2.containerIPs) &&
 		reflect.DeepEqual(s.containerPorts, s2.containerPorts)
 }

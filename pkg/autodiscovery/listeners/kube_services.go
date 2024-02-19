@@ -330,6 +330,7 @@ func (s *KubeServiceService) Equal(o Service) bool {
 	}
 
 	return s.entity == s2.entity &&
+		reflect.DeepEqual(s.tags, s2.tags) &&
 		reflect.DeepEqual(s.hosts, s2.hosts) &&
 		reflect.DeepEqual(s.ports, s2.ports)
 }
