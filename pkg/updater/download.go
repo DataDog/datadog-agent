@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	agentArchiveFileName       = "agent.tar.gz"
-	maxArchiveSize             = 5 << 30  // 10GB
-	maxArchiveDecompressedSize = 10 << 30 // 1GB
-	maxArchiveFileSize         = 1 << 30  // 1GB
+	agentArchiveFileName       = "agent.tar.xz"
+	maxArchiveSize             = 5 << 30  // 5GiB
+	maxArchiveDecompressedSize = 10 << 30 // 10GiB
+	maxArchiveFileSize         = 1 << 30  // 1GiB
 	maxArchiveFileCount        = 50_000
 	maxArchiveLinkDepth        = 5
 )
@@ -47,7 +47,7 @@ func newDownloader(client *http.Client) *downloader {
 
 // Download downloads the package at the given URL in temporary directory,
 // verifies its SHA256 hash and extracts it to the given destination path.
-// It currently assumes the package is a tar.gz archive.
+// It currently assumes the package is a tar.xz archive.
 func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath string) error {
 	log.Debugf("Downloading package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
 
@@ -303,7 +303,7 @@ func processTarLinks(level int, destinationPath string, symlinks []*tar.Header) 
 		}
 
 		// Check for zip-slip attacks
-		if !strings.HasPrefix(filepath.Join(destinationPath, targetLinkName), filepath.Clean(destinationPath)+string(os.PathSeparator)) {
+		if !strings.HasPrefix(targetLinkName, filepath.Clean(destinationPath)+string(os.PathSeparator)) {
 			return fmt.Errorf("tar entry %s is trying to escape the destination directory", hdr.Name)
 		}
 
