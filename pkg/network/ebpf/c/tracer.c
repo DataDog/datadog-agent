@@ -935,7 +935,7 @@ static __always_inline conn_flush_t handle_udp_destroy_sock(void *ctx, struct so
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP);
     __u16 lport = 0;
-    conn_flush_t flush = { .needs_individual_flush = 0 };
+    conn_flush_t flush = { .needs_individual_flush = false };
     if (valid_tuple) {
         flush = cleanup_conn(ctx, &tup, skp);
         lport = tup.sport;

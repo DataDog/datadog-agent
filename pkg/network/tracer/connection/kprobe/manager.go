@@ -94,18 +94,16 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 	}
 	switch handler := connCloseEventHandler.(type) {
 	case *ebpf.RingBufferHandler:
-		options := manager.RingBufferOptions{
-			RecordGetter:     handler.RecordGetter,
-			RecordHandler:    handler.RecordHandler,
-			TelemetryEnabled: cfg.InternalTelemetryEnabled,
-			// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-			RingBufferSize: ComputeDefaultClosedConnRingBufferSize(),
-		}
 		rb := &manager.RingBuffer{
-			Map:               manager.Map{Name: probes.ConnCloseEventMap},
-			RingBufferOptions: options,
+			Map: manager.Map{Name: probes.ConnCloseEventMap},
+			RingBufferOptions: manager.RingBufferOptions{
+				RecordGetter:     handler.RecordGetter,
+				RecordHandler:    handler.RecordHandler,
+				TelemetryEnabled: cfg.InternalTelemetryEnabled,
+				// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
+				RingBufferSize: ComputeDefaultClosedConnRingBufferSize(),
+			},
 		}
-
 		mgr.RingBuffers = []*manager.RingBuffer{rb}
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
 	case *ebpf.PerfHandler:

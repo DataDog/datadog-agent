@@ -115,7 +115,7 @@ static __always_inline conn_flush_t cleanup_conn(void *ctx, conn_tuple_t *tup, s
         batch_ptr->len++;
         return conn_flush;
         // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
-        // in order to cope with the eBPF stack limitation of 512 bytes.
+        // via a tail call in order to cope with the eBPF stack limitation of 512 bytes.
     }
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
@@ -169,13 +169,8 @@ __maybe_unused static __always_inline void emit_conn_close_event_perfbuffer(conn
     if (!conn) {
         return;
     }
-    // Here we copy the conn data to a variable allocated in the eBPF stack
-    // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
-    // since you can't directly write a map entry to the perf buffer.
-    conn_t conn_copy = {};
-    bpf_memcpy(&conn_copy, conn, sizeof(conn_copy));
     u32 cpu = bpf_get_smp_processor_id();
-    bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn_copy, sizeof(conn_copy));
+    bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(conn_t));
 }
 
 // This function is used to emit a conn_close_event for a single connection that is being closed.
@@ -186,9 +181,9 @@ __maybe_unused static __always_inline void emit_conn_close_event_ringbuffer(conn
         return;
     }
     if (ringbuffers_enabled()) {
-        bpf_ringbuf_output(&conn_close_event, conn, sizeof(*conn), 0);
+        bpf_ringbuf_output(&conn_close_event, conn, sizeof(conn_t), 0);
     } else {
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(*conn));
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(conn_t));
     }
 }
 
@@ -210,7 +205,7 @@ __maybe_unused static __always_inline void flush_conn_close_if_full_perfbuffer(v
     batch_ptr->len = 0;
     batch_ptr->id++;
 
-    bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
+    bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_t));
 }
 
 
@@ -223,9 +218,9 @@ __maybe_unused static __always_inline void flush_conn_close_if_full_ringbuffer(v
         return;
     }
     if (ringbuffers_enabled()) {
-        bpf_ringbuf_output(&conn_close_event, batch_ptr, sizeof(*batch_ptr), 0);
+        bpf_ringbuf_output(&conn_close_event, batch_ptr, sizeof(batch_t), 0);
     } else {
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, batch_ptr, sizeof(*batch_ptr));
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, batch_ptr, sizeof(batch_t));
     }
     batch_ptr->len = 0;
     batch_ptr->id++;
