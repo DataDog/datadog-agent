@@ -11,12 +11,12 @@ import (
 	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
-	cebpf "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -165,7 +165,7 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 // ComputeDefaultClosedConnRingBufferSize is the default buffer size of the ring buffer for closed connection events.
 // Must be a power of 2 and a multiple of the page size
 func ComputeDefaultClosedConnRingBufferSize() int {
-	numCPUs, err := cebpf.PossibleCPU()
+	numCPUs, err := utils.NumCPU()
 	pageSize := os.Getpagesize()
 	if err != nil {
 		numCPUs = 1
