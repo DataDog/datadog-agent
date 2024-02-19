@@ -35,7 +35,8 @@ func extractOCI(ociArchivePath string, destinationPath string) error {
 	}
 
 	for _, manifest := range index.Manifests {
-		if err := extractOCIManifest(ociArchivePath, destinationPath, manifest); err != nil {
+		err := extractOCIManifest(ociArchivePath, destinationPath, manifest)
+		if err != nil {
 			return err // already wrapped
 		}
 	}
@@ -52,7 +53,8 @@ func extractOCIManifest(ociArchivePath string, destinationPath string, manifest 
 	blobsPath := path.Join(ociArchivePath, "blobs", string(manifest.Digest.Algorithm()))
 
 	// Verify length & digest of the layer
-	if err := verifyOCIFile(blobsPath, manifest); err != nil {
+	err := verifyOCIFile(blobsPath, manifest)
+	if err != nil {
 		return err // already wrapped
 	}
 
@@ -69,7 +71,8 @@ func extractOCIManifest(ociArchivePath string, destinationPath string, manifest 
 
 	// Extract layers in the destination folder
 	for _, layer := range manifestStruct.Layers {
-		if err := extractOCILayer(blobsPath, destinationPath, layer); err != nil {
+		err := extractOCILayer(blobsPath, destinationPath, layer)
+		if err != nil {
 			return err // already wrapped
 		}
 	}
@@ -87,14 +90,16 @@ func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Des
 	}
 
 	// Verify length & digest of the layer
-	if err := verifyOCIFile(blobsPath, layer); err != nil {
+	err := verifyOCIFile(blobsPath, layer)
+	if err != nil {
 		return err // already wrapped
 	}
 
 	layerPath := path.Join(blobsPath, layer.Digest.Encoded())
 	switch layer.MediaType {
 	case mediaTypeImageLayerXz:
-		if err := extractTarXz(layerPath, destinationPath); err != nil {
+		err := extractTarXz(layerPath, destinationPath)
+		if err != nil {
 			return err // already wrapped
 		}
 	default:
