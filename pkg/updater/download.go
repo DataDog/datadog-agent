@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/xi2/xz"
+	"github.com/ulikunitz/xz"
 )
 
 const (
@@ -166,7 +166,7 @@ func extractTarXz(archivePath string, destinationPath string) error {
 		return fmt.Errorf("could not open archive: %w", err)
 	}
 	defer f.Close()
-	xzr, err := xz.NewReader(f, 0)
+	xzr, err := xz.NewReader(f)
 	if err != nil {
 		return fmt.Errorf("could not create gzip reader: %w", err)
 	}

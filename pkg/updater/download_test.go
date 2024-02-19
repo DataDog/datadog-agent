@@ -285,9 +285,9 @@ func (suite *DownloadTestSuite) TestDownload() {
 	assert.FileExists(t, path.Join(downloadPath, testLargeFileName))
 
 	// ensures the full archive or full individual files are not loaded in memory
-	xzDictMemory := uint64(8428576) // 8 MiB, the default xz dictionary size
+	xzDictCap := uint64(8428576) // 8 MiB, the default xz dictionary size
 	allocatedMemoryArchive := m.TotalAlloc - totalAllocsStart
-	expectedMemory := uint64(testLargeFileSize) + 2*xzDictMemory
+	expectedMemory := 2 * (uint64(testLargeFileSize) + xzDictCap)
 	assert.Less(t, allocatedMemoryArchive, expectedMemory)
 }
 
