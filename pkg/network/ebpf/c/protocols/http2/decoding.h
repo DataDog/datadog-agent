@@ -941,6 +941,12 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
             continue;
         }
 
+        // It is not possible that path will be with length 0.
+        if ((current_stream->path.length == 0) && (!current_stream->path.finalized)) {
+            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+            continue;
+        }
+
         if (is_rst) {
             __sync_fetch_and_add(&http2_tel->end_of_stream_rst, 1);
         } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
