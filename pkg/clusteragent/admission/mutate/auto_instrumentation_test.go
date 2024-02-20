@@ -12,7 +12,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -575,8 +574,7 @@ func TestExtractLibInfo(t *testing.T) {
 			}
 
 			// reset pinned libraries between test runs
-			pinnedLibs.once = new(sync.Once)
-			pinnedLibs.libraries = []libInfo{}
+			pinnedLibs = &pinnedLibraries{}
 
 			apmInstrumentation, err := newAPMInstrumentationWebhook()
 			require.NoError(t, err)
@@ -1848,8 +1846,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			fakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
 			// reset pinned libraries between test runs
-			pinnedLibs.once = new(sync.Once)
-			pinnedLibs.libraries = []libInfo{}
+			pinnedLibs = &pinnedLibraries{}
 
 			apmInstrumentation, err := newAPMInstrumentationWebhook()
 			require.NoError(t, err)
