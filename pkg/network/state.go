@@ -363,7 +363,6 @@ func (ns *networkState) GetDelta(
 	closed = filterConnections(closed, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
-	log.Debugf("aggregated %d active and %d closed connections", len(active), len(closed))
 
 	aggr.finalize()
 
@@ -404,7 +403,6 @@ func (ns *networkState) saveTelemetry(telemetry map[ConnTelemetryType]int64) {
 }
 
 func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetryType]int64) map[ConnTelemetryType]int64 {
-	log.Debugf("Getting telemetry delta for client %s", id)
 	ns.logTelemetry()
 
 	var res = make(map[ConnTelemetryType]int64)
@@ -432,7 +430,6 @@ func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetry
 }
 
 func (ns *networkState) logTelemetry() {
-	log.Debugf("logTelemetry: closed conn dropped: %d", stateTelemetry.closedConnDropped.Load())
 	closedConnDroppedDelta := stateTelemetry.closedConnDropped.Load() - ns.lastTelemetry.closedConnDropped
 	connDroppedDelta := stateTelemetry.connDropped.Load() - ns.lastTelemetry.connDropped
 	statsUnderflowsDelta := stateTelemetry.statsUnderflows.Load() - ns.lastTelemetry.statsUnderflows
