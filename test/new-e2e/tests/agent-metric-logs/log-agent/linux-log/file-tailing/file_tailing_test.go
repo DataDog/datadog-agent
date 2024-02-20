@@ -66,7 +66,7 @@ func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
 	}, 2*time.Minute, 10*time.Second)
 
 	// Create a new log folder location
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mkdir -p %s", utils.LinuxLogsFolderPath))
+	s.Env().RemoteHost.MkdirAll(utils.LinuxLogsFolderPath)
 }
 
 func (s *LinuxFakeintakeSuite) TearDownSuite() {
@@ -102,7 +102,7 @@ func (s *LinuxFakeintakeSuite) TestLinuxLogTailing() {
 func (s *LinuxFakeintakeSuite) testLogCollection() {
 	t := s.T()
 	// Create a new log file with permissionn inaccessible to the agent
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo touch %s", logFilePath))
+	s.Env().RemoteHost.WriteFile(logFilePath, []byte{})
 
 	// Adjust permissions of new log file before log generation
 	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
