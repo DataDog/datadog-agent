@@ -21,6 +21,6 @@ type Kubernetes struct {
 var _ e2e.Initializable = &Kubernetes{}
 
 // Init initializes the environment
-func (e *Kubernetes) Init(ctx e2e.Context) error {
+func (e *Kubernetes) Init(_ e2e.Context) error {
 	return nil
 }

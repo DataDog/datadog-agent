@@ -145,7 +145,10 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	if err != nil {
 		return err
 	}
-	kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
+	err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
+	if err != nil {
+		return err
+	}
 
 	kubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
 		EnableServerSideApply: pulumi.Bool(true),
