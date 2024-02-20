@@ -11,14 +11,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/zorkian/go-datadog-api"
 )
 
 // Host is an environment that contains a Host, FakeIntake and Agent configured to talk to each other.
 type ECS struct {
 	AwsEnvironment *aws.Environment
+	ClusterName    pulumi.StringInput
+	ClusterArn     pulumi.StringInput
 
-	ClusterName string
 	// Components
 	FakeIntake    *components.FakeIntake
 	DatadogClient *datadog.Client
