@@ -9,11 +9,12 @@ package configimpl
 import (
 	"context"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 type configService struct {
@@ -38,6 +39,8 @@ func newService(conf config.Component, hnService hostname.Component) (trapsconf.
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newService),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newService),
+	)
+}

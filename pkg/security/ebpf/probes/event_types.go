@@ -440,6 +440,13 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("security_socket_bind"),
 			}},
 		},
+
+		// List of probes required to capture chdir events
+		"chdir": {
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("set_fs_pwd"),
+			}},
+			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chdir", fentry, EntryAndExit)}},
 	}
 
 	// add probes depending on loaded modules

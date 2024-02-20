@@ -79,6 +79,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, GetTCProbes()...)
 	allProbes = append(allProbes, getBindProbes(fentry)...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
+	allProbes = append(allProbes, getChdirProbes(fentry)...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{

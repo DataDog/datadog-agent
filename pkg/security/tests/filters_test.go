@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -17,6 +17,9 @@ import (
 	"testing"
 	"time"
 	"unsafe"
+
+	"github.com/cilium/ebpf"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -716,5 +719,68 @@ func TestFilterDiscarderRetention(t *testing.T) {
 
 	if diff := time.Since(start); uint64(diff) < uint64(probe.DiscardRetention)-uint64(time.Second) {
 		t.Fatalf("discarder retention (%s) not reached: %s", time.Duration(uint64(probe.DiscardRetention)-uint64(time.Second)), diff)
+	}
+}
+
+func TestFilterBpfCmd(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_bpf_map_create",
+		Expression: fmt.Sprintf(`bpf.cmd == BPF_MAP_CREATE && process.file.name == "%s"`, path.Base(executable)),
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var m *ebpf.Map
+	defer func() {
+		if m != nil {
+			m.Close()
+		}
+	}()
+
+	test.WaitSignal(t, func() error {
+		m, err = ebpf.NewMap(&ebpf.MapSpec{Name: "test_bpf_map", Type: ebpf.Array, KeySize: 4, ValueSize: 4, MaxEntries: 1})
+		if err != nil {
+			return err
+		}
+		return nil
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_bpf_map_create")
+	})
+
+	err = test.GetProbeEvent(func() error {
+		if m.Update(uint32(0), uint32(1), ebpf.UpdateAny) != nil {
+			return err
+		}
+		return nil
+	}, func(event *model.Event) bool {
+		cmdIntf, err := event.GetFieldValue("bpf.cmd")
+		if !assert.NoError(t, err) {
+			return false
+		}
+		cmdInt, ok := cmdIntf.(int)
+		if !assert.True(t, ok) {
+			return false
+		}
+		cmd := model.BPFCmd(uint64(cmdInt))
+		if assert.Equal(t, model.BpfMapCreateCmd, cmd, "should not get a bpf event with cmd other than BPF_MAP_CREATE") {
+			return false
+		}
+		return true
+	}, 1*time.Second, model.BPFEventType)
+	if err != nil {
+		if otherErr, ok := err.(ErrTimeout); !ok {
+			t.Fatal(otherErr)
+		}
 	}
 }

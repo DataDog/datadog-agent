@@ -31,12 +31,14 @@ const (
 type DebugServer struct {
 	conf   *config.AgentConfig
 	server *http.Server
+	mux    *http.ServeMux
 }
 
 // NewDebugServer returns a debug server
 func NewDebugServer(conf *config.AgentConfig) *DebugServer {
 	return &DebugServer{
 		conf: conf,
+		mux:  http.NewServeMux(),
 	}
 }
 
@@ -49,7 +51,7 @@ func (ds *DebugServer) Start() {
 	ds.server = &http.Server{
 		ReadTimeout:  defaultTimeout,
 		WriteTimeout: defaultTimeout,
-		Handler:      ds.mux(),
+		Handler:      ds.setupMux(),
 	}
 	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", ds.conf.DebugServerPort))
 	if err != nil {
@@ -75,14 +77,18 @@ func (ds *DebugServer) Stop() {
 	}
 }
 
-func (ds *DebugServer) mux() *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	mux.HandleFunc("/debug/blockrate", func(w http.ResponseWriter, r *http.Request) {
+// AddRoute adds a route to the DebugServer
+func (ds *DebugServer) AddRoute(route string, handler http.Handler) {
+	ds.mux.Handle(route, handler)
+}
+
+func (ds *DebugServer) setupMux() *http.ServeMux {
+	ds.mux.HandleFunc("/debug/pprof/", pprof.Index)
+	ds.mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	ds.mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	ds.mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	ds.mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	ds.mux.HandleFunc("/debug/blockrate", func(w http.ResponseWriter, r *http.Request) {
 		// this endpoint calls runtime.SetBlockProfileRate(v), where v is an optional
 		// query string parameter defaulting to 10000 (1 sample per 10μs blocked).
 		rate := 10000
@@ -98,15 +104,15 @@ func (ds *DebugServer) mux() *http.ServeMux {
 		runtime.SetBlockProfileRate(rate)
 		fmt.Fprintf(w, "Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)
 	})
-	mux.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
+	ds.mux.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
 		// serve the block profile and reset the rate to 0.
 		pprof.Handler("block").ServeHTTP(w, r)
 		runtime.SetBlockProfileRate(0)
 	})
-	mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	ds.mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// allow the GUI to call this endpoint so that the status can be reported
 		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+ds.conf.GUIPort)
 		expvar.Handler().ServeHTTP(w, req)
 	}))
-	return mux
+	return ds.mux
 }

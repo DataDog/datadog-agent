@@ -20,14 +20,14 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/pkg/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -39,11 +39,13 @@ const (
 	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
 )
 
-// ConfigUpdater defines the interface that an agent client uses to get config updates
-// from the core remote-config service
-type ConfigUpdater interface {
+// ConfigFetcher defines the interface that an agent client uses to get config updates
+type ConfigFetcher interface {
 	ClientGetConfigs(context.Context, *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error)
 }
+
+// fetchConfigs defines the function that an agent client uses to get config updates
+type fetchConfigs func(context.Context, *pbgo.ClientGetConfigsRequest, ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error)
 
 // Client is a remote-configuration client to obtain configurations from the local API
 type Client struct {
@@ -63,7 +65,7 @@ type Client struct {
 	backoffPolicy     backoff.Policy
 	backoffErrorCount int
 
-	updater ConfigUpdater
+	configFetcher ConfigFetcher
 
 	state *state.Repository
 
@@ -72,6 +74,8 @@ type Client struct {
 
 // Options describes the client options
 type Options struct {
+	isUpdater            bool
+	updaterTags          []string
 	agentVersion         string
 	agentName            string
 	products             []string
@@ -90,26 +94,47 @@ type TokenFetcher func() (string, error)
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
 // datadog-agent's secure GRPC client
 type agentGRPCConfigFetcher struct {
-	client           pbgo.AgentSecureClient
 	authTokenFetcher func() (string, error)
+	fetchConfigs     fetchConfigs
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
-func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigUpdater, error) {
+func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
+	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
+	if err != nil {
+		return nil, err
+	}
+
+	return &agentGRPCConfigFetcher{
+		authTokenFetcher: authTokenFetcher,
+		fetchConfigs:     c.ClientGetConfigs,
+	}, nil
+}
+
+// NewHAAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent HA client
+func NewHAAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
+	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
+	if err != nil {
+		return nil, err
+	}
+
+	return &agentGRPCConfigFetcher{
+		authTokenFetcher: authTokenFetcher,
+		fetchConfigs:     c.ClientGetConfigsHA,
+	}, nil
+}
+
+func newAgentGRPCClient(ipcAddress string, cmdPort string) (pbgo.AgentSecureClient, error) {
 	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), ipcAddress, cmdPort, grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
 	if err != nil {
 		return nil, err
 	}
-
-	return &agentGRPCConfigFetcher{
-		client:           c,
-		authTokenFetcher: authTokenFetcher,
-	}, nil
+	return c, nil
 }
 
-// ClientGetConfigs implements the ConfigUpdater interface for agentGRPCConfigFetcher
+// ClientGetConfigs implements the ConfigFetcher interface for agentGRPCConfigFetcher
 func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	// When communicating with the core service via grpc, the auth token is handled
 	// by the core-agent, which runs independently. It's not guaranteed it starts before us,
@@ -125,11 +150,11 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	return g.client.ClientGetConfigs(ctx, request)
+	return g.fetchConfigs(ctx, request)
 }
 
 // NewClient creates a new client
-func NewClient(updater ConfigUpdater, opts ...func(o *Options)) (*Client, error) {
+func NewClient(updater ConfigFetcher, opts ...func(o *Options)) (*Client, error) {
 	return newClient(updater, opts...)
 }
 
@@ -140,6 +165,17 @@ func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetc
 		return nil, err
 	}
 
+	return newClient(grpcClient, opts...)
+}
+
+// NewUnverifiedHAGRPCClient creates a new client that does not perform any TUF verification and gets failover configs via grpc
+func NewUnverifiedHAGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewHAAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts, WithoutTufVerification())
 	return newClient(grpcClient, opts...)
 }
 
@@ -155,12 +191,9 @@ func NewUnverifiedGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher
 }
 
 // WithProducts specifies the product lists
-func WithProducts(products []data.Product) func(opts *Options) {
+func WithProducts(products ...string) func(opts *Options) {
 	return func(opts *Options) {
-		opts.products = make([]string, len(products))
-		for i, product := range products {
-			opts.products[i] = string(product)
-		}
+		opts.products = products
 	}
 }
 
@@ -189,7 +222,15 @@ func WithAgent(name, version string) func(opts *Options) {
 	return func(opts *Options) { opts.agentName, opts.agentVersion = name, version }
 }
 
-func newClient(updater ConfigUpdater, opts ...func(opts *Options)) (*Client, error) {
+// WithUpdater specifies that this client is an updater
+func WithUpdater(tags ...string) func(opts *Options) {
+	return func(opts *Options) {
+		opts.isUpdater = true
+		opts.updaterTags = tags
+	}
+}
+
+func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	var options = defaultOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -229,7 +270,7 @@ func newClient(updater ConfigUpdater, opts ...func(opts *Options)) (*Client, err
 		state:         repository,
 		backoffPolicy: backoffPolicy,
 		listeners:     make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
-		updater:       updater,
+		configFetcher: cf,
 	}, nil
 }
 
@@ -281,7 +322,6 @@ func (c *Client) Subscribe(product string, fn func(update map[string]state.RawCo
 	}
 
 	c.listeners[product] = append(c.listeners[product], fn)
-	fn(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
 }
 
 // GetConfigs returns the current configs applied of a product.
@@ -308,12 +348,38 @@ func (c *Client) startFn() {
 // structure in startFn.
 func (c *Client) pollLoop() {
 	successfulFirstRun := false
+	// First run
+	err := c.update()
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			// Remote Configuration is disabled as the server isn't initialized
+			//
+			// As this is not a transient error (that would be codes.Unavailable),
+			// stop the client: it shouldn't keep contacting a server that doesn't
+			// exist.
+			log.Debugf("remote configuration isn't enabled, disabling client")
+			return
+		}
+
+		// As some clients may start before the core-agent server is up, we log the first error
+		// as an Info log as the race is expected. If the error persists, we log with error logs
+		log.Infof("retrying the first update of remote-config state (%v)", err)
+	} else {
+		successfulFirstRun = true
+	}
+
 	for {
-		interval := c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
+		interval := c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
+		if !successfulFirstRun && interval > time.Second {
+			// If we never managed to contact the RC service, we want to retry faster (max every second)
+			// to get a first state as soon as possible.
+			// Some products may not start correctly without a first state.
+			interval = time.Second
+		}
 		select {
 		case <-c.ctx.Done():
 			return
-		case <-time.After(c.pollInterval + interval):
+		case <-time.After(interval):
 			err := c.update()
 			if err != nil {
 				if status.Code(err) == codes.Unimplemented {
@@ -328,7 +394,7 @@ func (c *Client) pollLoop() {
 
 				if !successfulFirstRun {
 					// As some clients may start before the core-agent server is up, we log the first error
-					// as a debug log as the race is expected. If the error persists, we log with error logs
+					// as an Info log as the race is expected. If the error persists, we log with error logs
 					log.Infof("retrying the first update of remote-config state (%v)", err)
 				} else {
 					c.lastUpdateError = err
@@ -353,7 +419,7 @@ func (c *Client) update() error {
 		return err
 	}
 
-	response, err := c.updater.ClientGetConfigs(c.ctx, req)
+	response, err := c.configFetcher.ClientGetConfigs(c.ctx, req)
 	if err != nil {
 		return err
 	}
@@ -461,17 +527,31 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			},
 			Id:       c.ID,
 			Products: c.products,
-			IsAgent:  true,
-			IsTracer: false,
-			ClientAgent: &pbgo.ClientAgent{
-				Name:         c.agentName,
-				Version:      c.agentVersion,
-				ClusterName:  c.clusterName,
-				ClusterId:    c.clusterID,
-				CwsWorkloads: c.cwsWorkloads,
-			},
 		},
 		CachedTargetFiles: pbCachedFiles,
+	}
+
+	switch c.Options.isUpdater {
+	case true:
+		req.Client.IsUpdater = true
+		req.Client.ClientUpdater = &pbgo.ClientUpdater{
+			Tags: c.Options.updaterTags,
+			Packages: []*pbgo.PackageState{
+				{
+					Package:       "datadog-agent",
+					StableVersion: "7.50.0",
+				},
+			},
+		}
+	case false:
+		req.Client.IsAgent = true
+		req.Client.ClientAgent = &pbgo.ClientAgent{
+			Name:         c.agentName,
+			Version:      c.agentVersion,
+			ClusterName:  c.clusterName,
+			ClusterId:    c.clusterID,
+			CwsWorkloads: c.cwsWorkloads,
+		}
 	}
 
 	return req, nil

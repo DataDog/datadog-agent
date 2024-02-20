@@ -8,10 +8,11 @@ package configimpl
 import (
 	"context"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 type dependencies struct {
@@ -35,7 +36,9 @@ func newMockConfig(dep dependencies) (trapsconf.Component, error) {
 // MockModule provides the default config, and allows tests to override it by
 // providing `fx.Replace(&TrapsConfig{...})`; a value replaced this way will
 // have default values set sensibly if they aren't provided.
-var MockModule = fxutil.Component(
-	fx.Provide(newMockConfig),
-	fx.Supply(&trapsconf.TrapsConfig{Enabled: true}),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMockConfig),
+		fx.Supply(&trapsconf.TrapsConfig{Enabled: true}),
+	)
+}

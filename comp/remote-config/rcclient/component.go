@@ -6,10 +6,11 @@
 package rcclient //nolint:revive // TODO(RC) Fix revive linter
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // team: remote-config
@@ -19,9 +20,11 @@ type Component interface {
 	// TODO: (components) Subscribe to AGENT_CONFIG configurations and start the remote config client
 	// Once the remote config client is refactored and can push updates directly to the listeners,
 	// we can remove this.
-	Start(clientName string) error
+	Start(agentName string) error
 	// SubscribeAgentTask subscribe the remote-config client to AGENT_TASK
 	SubscribeAgentTask()
+	// SubscribeApmTracing subscribes the remote-config client to APM_TRACING
+	SubscribeApmTracing()
 	// Subscribe is the generic way to start listening to a specific product update
 	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))

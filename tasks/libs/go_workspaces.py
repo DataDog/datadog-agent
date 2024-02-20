@@ -28,7 +28,7 @@ def handle_go_work():
         # "The output is empty if the go command is not in workspace mode."
         # meaning it didn't find a go.work file in the ancestor directories and GOWORK is not set
         res = subprocess.run(["go", "env", "GOWORK"], capture_output=True)
-        if res.returncode != 0 or not res.stdout:
+        if res.returncode != 0 or res.stdout.decode('UTF-8').strip() == "":
             return
     except Exception:
         # go command not found, no need to care about workspaces

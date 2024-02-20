@@ -21,9 +21,21 @@ func NewOption[T any](value T) Option[T] {
 	}
 }
 
+// NewOptionPtr creates a new instance of Option[T] with a value set. A call to Get() will returns (value, true)
+func NewOptionPtr[T any](value T) *Option[T] {
+	option := NewOption[T](value)
+	return &option
+}
+
 // NewNoneOption creates a new instance of Option[T] without any value set.
 func NewNoneOption[T any]() Option[T] {
 	return Option[T]{}
+}
+
+// NewNoneOptionPtr creates a new instance of Option[T] without any value set.
+func NewNoneOptionPtr[T any]() *Option[T] {
+	option := NewNoneOption[T]()
+	return &option
 }
 
 // IsSet returns true if a value is set.

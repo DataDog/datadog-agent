@@ -16,10 +16,12 @@ import (
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(newEtw),
+	fx.Provide(NewEtw),
 )
 
-func newEtw() (etw.Component, error) {
+// NewEtw returns a new etw component. It is exported so that it can
+// be used by consumers that aren't components themselves.
+func NewEtw() (etw.Component, error) {
 	return &etwImpl{}, nil
 }
 

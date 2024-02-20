@@ -63,7 +63,7 @@ func newProcess(ps *ProcessSerializer) model.Process {
 		Envs:          ps.Envs,
 		EnvsTruncated: ps.EnvsTruncated,
 		IsThread:      ps.IsThread,
-		IsExecChild:   ps.IsExecChild,
+		IsExecExec:    ps.IsExecExec,
 		PIDContext: model.PIDContext{
 			Pid:       ps.Pid,
 			Tid:       ps.Tid,
@@ -103,7 +103,7 @@ func UnmarshalEvent(raw []byte) (*model.Event, error) {
 	event := model.Event{
 		BaseEvent: model.BaseEvent{
 			Type:             uint32(model.ExecEventType),
-			FieldHandlers:    &model.DefaultFieldHandlers{},
+			FieldHandlers:    &model.FakeFieldHandlers{},
 			ContainerContext: &model.ContainerContext{},
 			ProcessContext: &model.ProcessContext{
 				Process:  process,

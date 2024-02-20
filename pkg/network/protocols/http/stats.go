@@ -80,6 +80,11 @@ type Key struct {
 	Method Method
 }
 
+// String returns a string representation of the Key
+func (k Key) String() string {
+	return "{IP: " + k.ConnectionKey.String() + ", Method: " + k.Method.String() + ", Path: " + k.Path.Content.Get() + "}"
+}
+
 // NewKey generates a new Key
 func NewKey(saddr, daddr util.Address, sport, dport uint16, path []byte, fullPath bool, method Method) Key {
 	return NewKeyWithConnection(types.NewConnectionKey(saddr, daddr, sport, dport), path, fullPath, method)

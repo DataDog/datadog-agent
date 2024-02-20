@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -173,6 +173,10 @@ func TestProcessContext(t *testing.T) {
 		{
 			ID:         "test_rule_container",
 			Expression: `exec.file.name == "touch" && exec.argv == "{{.Root}}/test-container"`,
+		},
+		{
+			ID:         "test_event_service",
+			Expression: `open.file.path == "{{.Root}}/test-event-service" && open.flags & O_CREAT != 0 && event.service == "myservice"`,
 		},
 	}
 
@@ -843,7 +847,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "service-tag", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		testFile, _, err := test.Path("test-process-context")
+		testFile, _, err := test.Path("test-event-service")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -862,9 +866,9 @@ func TestProcessContext(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "test_rule_inode", rule.ID, "wrong rule triggered")
+			assert.Equal(t, "test_event_service", rule.ID, "wrong rule triggered")
 
-			service := event.GetProcessService()
+			service := event.GetEventService()
 			assert.Equal(t, service, "myservice")
 		})
 	})

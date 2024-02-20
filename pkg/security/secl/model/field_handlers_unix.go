@@ -29,6 +29,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 	}
 	_ = ev.FieldHandlers.ResolveAsync(ev)
+	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -207,6 +208,19 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "bind":
 	case "bpf":
 	case "capset":
+	case "chdir":
+		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chdir.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chdir.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chdir.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Chdir.File)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chdir.File)
+		}
 	case "chmod":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chmod.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chmod.File.FileFields)
@@ -1002,6 +1016,7 @@ type FieldHandlers interface {
 	ResolveProcessEnvsTruncated(ev *Event, e *Process) bool
 	ResolveRights(ev *Event, e *FileFields) int
 	ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string
+	ResolveService(ev *Event, e *BaseEvent) string
 	ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string
 	ResolveSetgidFSGroup(ev *Event, e *SetgidEvent) string
 	ResolveSetgidGroup(ev *Event, e *SetgidEvent) string
@@ -1013,124 +1028,105 @@ type FieldHandlers interface {
 	// custom handlers not tied to any fields
 	ExtraFieldHandlers
 }
-type DefaultFieldHandlers struct{}
+type FakeFieldHandlers struct{}
 
-func (dfh *DefaultFieldHandlers) ResolveAsync(ev *Event) bool                     { return ev.Async }
-func (dfh *DefaultFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string { return e.Group }
-func (dfh *DefaultFieldHandlers) ResolveChownUID(ev *Event, e *ChownEvent) string { return e.User }
-func (dfh *DefaultFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
+func (dfh *FakeFieldHandlers) ResolveAsync(ev *Event) bool                     { return ev.Async }
+func (dfh *FakeFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string { return e.Group }
+func (dfh *FakeFieldHandlers) ResolveChownUID(ev *Event, e *ChownEvent) string { return e.User }
+func (dfh *FakeFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
 	return int(e.CreatedAt)
 }
-func (dfh *DefaultFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string {
-	return e.ID
-}
-func (dfh *DefaultFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
+func (dfh *FakeFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string { return e.ID }
+func (dfh *FakeFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
 	return e.Tags
 }
-func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event, e *BaseEvent) time.Time {
-	return e.Timestamp
-}
-func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event, e *BaseEvent) int {
+func (dfh *FakeFieldHandlers) ResolveEventTime(ev *Event, e *BaseEvent) time.Time { return e.Timestamp }
+func (dfh *FakeFieldHandlers) ResolveEventTimestamp(ev *Event, e *BaseEvent) int {
 	return int(e.TimestampRaw)
 }
-func (dfh *DefaultFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) string {
+func (dfh *FakeFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) string {
 	return e.BasenameStr
 }
-func (dfh *DefaultFieldHandlers) ResolveFileFieldsGroup(ev *Event, e *FileFields) string {
-	return e.Group
-}
-func (dfh *DefaultFieldHandlers) ResolveFileFieldsInUpperLayer(ev *Event, e *FileFields) bool {
+func (dfh *FakeFieldHandlers) ResolveFileFieldsGroup(ev *Event, e *FileFields) string { return e.Group }
+func (dfh *FakeFieldHandlers) ResolveFileFieldsInUpperLayer(ev *Event, e *FileFields) bool {
 	return e.InUpperLayer
 }
-func (dfh *DefaultFieldHandlers) ResolveFileFieldsUser(ev *Event, e *FileFields) string {
-	return e.User
-}
-func (dfh *DefaultFieldHandlers) ResolveFileFilesystem(ev *Event, e *FileEvent) string {
+func (dfh *FakeFieldHandlers) ResolveFileFieldsUser(ev *Event, e *FileFields) string { return e.User }
+func (dfh *FakeFieldHandlers) ResolveFileFilesystem(ev *Event, e *FileEvent) string {
 	return e.Filesystem
 }
-func (dfh *DefaultFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
-	return e.PathnameStr
-}
-func (dfh *DefaultFieldHandlers) ResolveHashesFromEvent(ev *Event, e *FileEvent) []string {
+func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string { return e.PathnameStr }
+func (dfh *FakeFieldHandlers) ResolveHashesFromEvent(ev *Event, e *FileEvent) []string {
 	return e.Hashes
 }
-func (dfh *DefaultFieldHandlers) ResolveK8SGroups(ev *Event, e *UserSessionContext) []string {
+func (dfh *FakeFieldHandlers) ResolveK8SGroups(ev *Event, e *UserSessionContext) []string {
 	return e.K8SGroups
 }
-func (dfh *DefaultFieldHandlers) ResolveK8SUID(ev *Event, e *UserSessionContext) string {
-	return e.K8SUID
-}
-func (dfh *DefaultFieldHandlers) ResolveK8SUsername(ev *Event, e *UserSessionContext) string {
+func (dfh *FakeFieldHandlers) ResolveK8SUID(ev *Event, e *UserSessionContext) string { return e.K8SUID }
+func (dfh *FakeFieldHandlers) ResolveK8SUsername(ev *Event, e *UserSessionContext) string {
 	return e.K8SUsername
 }
-func (dfh *DefaultFieldHandlers) ResolveModuleArgs(ev *Event, e *LoadModuleEvent) string {
-	return e.Args
-}
-func (dfh *DefaultFieldHandlers) ResolveModuleArgv(ev *Event, e *LoadModuleEvent) []string {
+func (dfh *FakeFieldHandlers) ResolveModuleArgs(ev *Event, e *LoadModuleEvent) string { return e.Args }
+func (dfh *FakeFieldHandlers) ResolveModuleArgv(ev *Event, e *LoadModuleEvent) []string {
 	return e.Argv
 }
-func (dfh *DefaultFieldHandlers) ResolveMountPointPath(ev *Event, e *MountEvent) string {
+func (dfh *FakeFieldHandlers) ResolveMountPointPath(ev *Event, e *MountEvent) string {
 	return e.MountPointPath
 }
-func (dfh *DefaultFieldHandlers) ResolveMountRootPath(ev *Event, e *MountEvent) string {
+func (dfh *FakeFieldHandlers) ResolveMountRootPath(ev *Event, e *MountEvent) string {
 	return e.MountRootPath
 }
-func (dfh *DefaultFieldHandlers) ResolveMountSourcePath(ev *Event, e *MountEvent) string {
+func (dfh *FakeFieldHandlers) ResolveMountSourcePath(ev *Event, e *MountEvent) string {
 	return e.MountSourcePath
 }
-func (dfh *DefaultFieldHandlers) ResolveNetworkDeviceIfName(ev *Event, e *NetworkDeviceContext) string {
+func (dfh *FakeFieldHandlers) ResolveNetworkDeviceIfName(ev *Event, e *NetworkDeviceContext) string {
 	return e.IfName
 }
-func (dfh *DefaultFieldHandlers) ResolvePackageName(ev *Event, e *FileEvent) string { return e.PkgName }
-func (dfh *DefaultFieldHandlers) ResolvePackageSourceVersion(ev *Event, e *FileEvent) string {
+func (dfh *FakeFieldHandlers) ResolvePackageName(ev *Event, e *FileEvent) string { return e.PkgName }
+func (dfh *FakeFieldHandlers) ResolvePackageSourceVersion(ev *Event, e *FileEvent) string {
 	return e.PkgSrcVersion
 }
-func (dfh *DefaultFieldHandlers) ResolvePackageVersion(ev *Event, e *FileEvent) string {
+func (dfh *FakeFieldHandlers) ResolvePackageVersion(ev *Event, e *FileEvent) string {
 	return e.PkgVersion
 }
-func (dfh *DefaultFieldHandlers) ResolveProcessArgs(ev *Event, e *Process) string { return e.Args }
-func (dfh *DefaultFieldHandlers) ResolveProcessArgsFlags(ev *Event, e *Process) []string {
+func (dfh *FakeFieldHandlers) ResolveProcessArgs(ev *Event, e *Process) string        { return e.Args }
+func (dfh *FakeFieldHandlers) ResolveProcessArgsFlags(ev *Event, e *Process) []string { return e.Argv }
+func (dfh *FakeFieldHandlers) ResolveProcessArgsOptions(ev *Event, e *Process) []string {
 	return e.Argv
 }
-func (dfh *DefaultFieldHandlers) ResolveProcessArgsOptions(ev *Event, e *Process) []string {
-	return e.Argv
-}
-func (dfh *DefaultFieldHandlers) ResolveProcessArgsScrubbed(ev *Event, e *Process) string {
+func (dfh *FakeFieldHandlers) ResolveProcessArgsScrubbed(ev *Event, e *Process) string {
 	return e.ArgsScrubbed
 }
-func (dfh *DefaultFieldHandlers) ResolveProcessArgsTruncated(ev *Event, e *Process) bool {
+func (dfh *FakeFieldHandlers) ResolveProcessArgsTruncated(ev *Event, e *Process) bool {
 	return e.ArgsTruncated
 }
-func (dfh *DefaultFieldHandlers) ResolveProcessArgv(ev *Event, e *Process) []string { return e.Argv }
-func (dfh *DefaultFieldHandlers) ResolveProcessArgv0(ev *Event, e *Process) string  { return e.Argv0 }
-func (dfh *DefaultFieldHandlers) ResolveProcessArgvScrubbed(ev *Event, e *Process) []string {
+func (dfh *FakeFieldHandlers) ResolveProcessArgv(ev *Event, e *Process) []string { return e.Argv }
+func (dfh *FakeFieldHandlers) ResolveProcessArgv0(ev *Event, e *Process) string  { return e.Argv0 }
+func (dfh *FakeFieldHandlers) ResolveProcessArgvScrubbed(ev *Event, e *Process) []string {
 	return e.ArgvScrubbed
 }
-func (dfh *DefaultFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
+func (dfh *FakeFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
 	return int(e.CreatedAt)
 }
-func (dfh *DefaultFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string { return e.Envp }
-func (dfh *DefaultFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string { return e.Envs }
-func (dfh *DefaultFieldHandlers) ResolveProcessEnvsTruncated(ev *Event, e *Process) bool {
+func (dfh *FakeFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string { return e.Envp }
+func (dfh *FakeFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string { return e.Envs }
+func (dfh *FakeFieldHandlers) ResolveProcessEnvsTruncated(ev *Event, e *Process) bool {
 	return e.EnvsTruncated
 }
-func (dfh *DefaultFieldHandlers) ResolveRights(ev *Event, e *FileFields) int { return int(e.Mode) }
-func (dfh *DefaultFieldHandlers) ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string {
+func (dfh *FakeFieldHandlers) ResolveRights(ev *Event, e *FileFields) int { return int(e.Mode) }
+func (dfh *FakeFieldHandlers) ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string {
 	return e.BoolName
 }
-func (dfh *DefaultFieldHandlers) ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string {
-	return e.EGroup
-}
-func (dfh *DefaultFieldHandlers) ResolveSetgidFSGroup(ev *Event, e *SetgidEvent) string {
+func (dfh *FakeFieldHandlers) ResolveService(ev *Event, e *BaseEvent) string        { return e.Service }
+func (dfh *FakeFieldHandlers) ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string { return e.EGroup }
+func (dfh *FakeFieldHandlers) ResolveSetgidFSGroup(ev *Event, e *SetgidEvent) string {
 	return e.FSGroup
 }
-func (dfh *DefaultFieldHandlers) ResolveSetgidGroup(ev *Event, e *SetgidEvent) string { return e.Group }
-func (dfh *DefaultFieldHandlers) ResolveSetuidEUser(ev *Event, e *SetuidEvent) string { return e.EUser }
-func (dfh *DefaultFieldHandlers) ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string {
-	return e.FSUser
-}
-func (dfh *DefaultFieldHandlers) ResolveSetuidUser(ev *Event, e *SetuidEvent) string  { return e.User }
-func (dfh *DefaultFieldHandlers) ResolveXAttrName(ev *Event, e *SetXAttrEvent) string { return e.Name }
-func (dfh *DefaultFieldHandlers) ResolveXAttrNamespace(ev *Event, e *SetXAttrEvent) string {
+func (dfh *FakeFieldHandlers) ResolveSetgidGroup(ev *Event, e *SetgidEvent) string  { return e.Group }
+func (dfh *FakeFieldHandlers) ResolveSetuidEUser(ev *Event, e *SetuidEvent) string  { return e.EUser }
+func (dfh *FakeFieldHandlers) ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string { return e.FSUser }
+func (dfh *FakeFieldHandlers) ResolveSetuidUser(ev *Event, e *SetuidEvent) string   { return e.User }
+func (dfh *FakeFieldHandlers) ResolveXAttrName(ev *Event, e *SetXAttrEvent) string  { return e.Name }
+func (dfh *FakeFieldHandlers) ResolveXAttrNamespace(ev *Event, e *SetXAttrEvent) string {
 	return e.Namespace
 }

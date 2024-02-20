@@ -26,4 +26,15 @@ rc_kubernetes_deploy:
     - source /root/.bashrc
     - set +x
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
-    - inv pipeline.trigger-child-pipeline --project-name "DataDog/k8s-datadog-agent-ops" --git-ref "main" --variables "OPTION_AUTOMATIC_ROLLOUT,EXPLICIT_WORKFLOWS,OPTION_PRE_SCRIPT,SKIP_PLAN_CHECK" --no-follow
+    - "inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
+      --no-follow
+      --variable OPTION_AUTOMATIC_ROLLOUT
+      --variable EXPLICIT_WORKFLOWS
+      --variable OPTION_PRE_SCRIPT
+      --variable SKIP_PLAN_CHECK
+      --variable APPS
+      --variable BAZEL_TARGET
+      --variable DDR
+      --variable DDR_WORKFLOW_ID
+      --variable TARGET_ENV
+      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"

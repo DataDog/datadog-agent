@@ -16,7 +16,7 @@ import (
 )
 
 func TestMockFormatter(t *testing.T) {
-	formatter := fxutil.Test[formatter.Component](t, MockModule)
+	formatter := fxutil.Test[formatter.Component](t, MockModule())
 	packet := packet.CreateTestV1GenericPacket()
 	// we don't check the value itself because it uses "encoding/gob", which
 	// produces different values depending on the platform.

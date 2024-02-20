@@ -20,7 +20,7 @@ var ProtoEncoder Encoder = &protoEncoder{}
 type protoEncoder struct{}
 
 // Encode encodes a message into a protobuf byte array.
-func (p *protoEncoder) Encode(msg *message.Message) error {
+func (p *protoEncoder) Encode(msg *message.Message, hostname string) error {
 	if msg.State != message.StateRendered {
 		return fmt.Errorf("message passed to encoder isn't rendered")
 	}
@@ -29,7 +29,7 @@ func (p *protoEncoder) Encode(msg *message.Message) error {
 		Message:   toValidUtf8(msg.GetContent()),
 		Status:    msg.GetStatus(),
 		Timestamp: time.Now().UTC().UnixNano(),
-		Hostname:  msg.GetHostname(),
+		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
 		Tags:      msg.Origin.Tags(),

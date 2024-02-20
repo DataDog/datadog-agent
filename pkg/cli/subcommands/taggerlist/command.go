@@ -69,7 +69,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 func taggerList(_ log.Component, config config.Component, _ *cliParams) error {
 	// Set session token
-	if err := util.SetAuthToken(); err != nil {
+	if err := util.SetAuthToken(config); err != nil {
 		return err
 	}
 

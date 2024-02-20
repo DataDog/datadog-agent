@@ -11,12 +11,39 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/elastic/go-libaudit"
-	"github.com/elastic/go-libaudit/rule"
-	"github.com/elastic/go-libaudit/rule/flags"
+	"github.com/elastic/go-libaudit/v2"
+	"github.com/elastic/go-libaudit/v2/rule"
+	"github.com/elastic/go-libaudit/v2/rule/flags"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// FileWatchRule is used to audit access to particular files or directories
+// that you may be interested in.
+type FileWatchRule rule.FileWatchRule
+
+// Resolve the file watch rule
+func (r *FileWatchRule) Resolve() interface{} {
+	permissions := ""
+	for _, p := range r.Permissions {
+		switch p {
+		case rule.ReadAccessType:
+			permissions += "r"
+		case rule.WriteAccessType:
+			permissions += "w"
+		case rule.ExecuteAccessType:
+			permissions += "e"
+		case rule.AttributeChangeAccessType:
+			permissions += "a"
+		}
+	}
+
+	return map[string]interface{}{
+		"path":        r.Path,
+		"enabled":     true,
+		"permissions": permissions,
+	}
+}
 
 func newLinuxAuditClient() (LinuxAuditClient, error) {
 	if os.Geteuid() != 0 {
@@ -37,12 +64,12 @@ func (c *linuxAuditClient) Close() error {
 	return c.client.Close()
 }
 
-func (c *linuxAuditClient) GetFileWatchRules() ([]*rule.FileWatchRule, error) {
+func (c *linuxAuditClient) GetFileWatchRules() ([]*FileWatchRule, error) {
 	data, err := c.client.GetRules()
 	if err != nil {
 		return nil, fmt.Errorf("audit: failed to get rules: %w", err)
 	}
-	var rules []*rule.FileWatchRule
+	var rules []*FileWatchRule
 	// Enumerate all rules and filter out file watch ones
 	for _, d := range data {
 		cmdline, err := rule.ToCommandLine(rule.WireFormat(d), false)
@@ -60,7 +87,8 @@ func (c *linuxAuditClient) GetFileWatchRules() ([]*rule.FileWatchRule, error) {
 			continue
 		}
 		if r, ok := r.(*rule.FileWatchRule); ok {
-			rules = append(rules, r)
+			r2 := FileWatchRule(*r)
+			rules = append(rules, &r2)
 		}
 	}
 	return rules, nil

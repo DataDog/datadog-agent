@@ -36,9 +36,9 @@ func (c *Check) asmDiskgroups() error {
 	for _, r := range rows {
 		tags := append(c.tags, "asm_diskgroup_name:"+r.DiskgroupName)
 		tags = append(tags, "state:"+r.State)
-		sender.Gauge(fmt.Sprintf("%s.asm_diskgroup.free_mb", common.IntegrationName), r.Free, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.asm_diskgroup.total_mb", common.IntegrationName), r.Total, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.asm_diskgroup.offline_disks", common.IntegrationName), float64(r.OfflineDisks), "", tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.asm_diskgroup.free_mb", common.IntegrationName), r.Free, tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.asm_diskgroup.total_mb", common.IntegrationName), r.Total, tags)
+		sendMetric(c, gauge, fmt.Sprintf("%s.asm_diskgroup.offline_disks", common.IntegrationName), float64(r.OfflineDisks), tags)
 	}
 	sender.Commit()
 	return nil

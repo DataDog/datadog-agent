@@ -11,6 +11,7 @@ The payload is sent every 12h (see `inventories_max_interval` in the config). It
 The payload is a JSON dict with a list of keys, each having the following fields
 
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
+- `uuid` - **string**: a unique identifier of the agent, used in case the hostname is empty.
 - `timestamp` - **int**: the timestamp when the payload was created.
 - `signing_keys` - **list of dict of string to JSON type**
   - `fingerprint` - **string**: the 40-char long key fingerprint, as the 16-char is not supposed to be unique (https://www.rfc-editor.org/rfc/rfc4880#section-3.3)
@@ -21,7 +22,7 @@ The payload is a JSON dict with a list of keys, each having the following fields
     - `enabled` - **boolean**: true if the repo is enabled, false otherwise
     - `gpgcheck` - **boolean**: true if GPG signature check on packages is enabled, false otherwise
     - `repo_gpgcheck` - **boolean**: true if GPG signature check on repodata is enabled, false otherwise
-  
+
 
 ## Example Payload
 

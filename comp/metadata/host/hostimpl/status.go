@@ -22,7 +22,7 @@ import (
 var templatesFS embed.FS
 
 func (h *host) Name() string {
-	return "Hostanme"
+	return "Hostname"
 }
 
 func (h *host) Index() int {
