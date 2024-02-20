@@ -132,11 +132,13 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	)
 
 	for _, p := range providers {
-		err = p(fb)
-		if err != nil {
-			f.log.Errorf("error calling '%s' for flare creation: %s",
-				runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name(), // reflect p.Callback function name
-				err)
+		if p != nil {
+			err = p(fb)
+			if err != nil {
+				f.log.Errorf("error calling '%s' for flare creation: %s",
+					runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name(), // reflect p.Callback function name
+					err)
+			}
 		}
 	}
 
