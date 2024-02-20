@@ -234,7 +234,7 @@ instances:
   ## @param custom_queries - list of mappings - optional
   ## Each query must have 2 fields, and can have a third optional field:
   ##
-  ## 1. metric_prefix - Each metric starts with the chosen prefix. Default is `oracle`.
+  ## 1. metric_prefix - Each metric starts with the chosen prefix. The default is `oracle`.
   ## 2. query - The SQL to execute. It can be a simple statement or a multi-line script.
   ##            Use the pipe `|` if you require a multi-line script.
   ## 3. columns - The list representing each column, ordered sequentially from left to right.
