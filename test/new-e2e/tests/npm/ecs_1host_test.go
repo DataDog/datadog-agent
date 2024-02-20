@@ -6,68 +6,85 @@
 package npm
 
 import (
-	"context"
-	"encoding/json"
 	"testing"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
+	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
+	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
+	"github.com/DataDog/test-infra-definitions/components/docker"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
-type hostHttpbinEnvECS struct {
-	environments.Host
+type ecsHttpbinEnv struct {
+	environments.ECS
 
 	// Extra Components
 	HTTPBinHost *components.RemoteHost
 }
-type ecsVMSuite struct {
-	e2e.BaseSuite[hostHttpbinEnvECS]
 
-	ecsClusterName string
-	fakeIntake     *client.Client
+type ecsVMSuite struct {
+	e2e.BaseSuite[ecsHttpbinEnv]
+}
+
+func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
+	return func(ctx *pulumi.Context, env *ecsHttpbinEnv) error {
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+		env.ECS.AwsEnvironment = &awsEnv
+
+		vmName := "httpbinvm"
+		nginxHost, err := ec2.NewVM(awsEnv, vmName)
+		if err != nil {
+			return err
+		}
+		err = nginxHost.Export(ctx, &env.HTTPBinHost.HostOutput)
+		if err != nil {
+			return err
+		}
+
+		// install docker.io
+		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost, true)
+		if err != nil {
+			return err
+		}
+
+		composeContents := []docker.ComposeInlineManifest{dockerHTTPBinCompose()}
+		_, err = manager.ComposeStrUp("httpbin", composeContents, pulumi.StringMap{})
+		if err != nil {
+			return err
+		}
+
+		params := envecs.GetProvisionerParams(
+			envecs.WithECSLinuxECSOptimizedNodeGroup(),
+			envecs.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")),
+		)
+		envecs.Run(ctx, &env.ECS, params)
+
+		// Workload
+		testURL := "http://" + env.HTTPBinHost.Address + "/"
+		if _, err := npmtools.EcsAppDefinition(awsEnv, env.ClusterArn, testURL); err != nil {
+			return err
+		}
+
+		return nil
+	}
 }
 
 // TestECSVMSuite will validate running the agent on a single EC2 VM
 func TestECSVMSuite(t *testing.T) {
 	s := &ecsVMSuite{}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("ecsHttpbin", ecsHttpbinEnvProvisioner(), nil))}
 
-	e2e.Run(t, s)
-}
-
-func (suite *ecsVMSuite) SetupSuite() {
-	ctx := context.Background()
-
-	// Creating the stack
-	stackConfig := runner.ConfigMap{
-		"ddinfra:aws/ecs/linuxECSOptimizedNodeGroup": auto.ConfigValue{Value: "true"},
-		"ddinfra:aws/ecs/linuxBottlerocketNodeGroup": auto.ConfigValue{Value: "true"},
-		"ddinfra:aws/ecs/windowsLTSCNodeGroup":       auto.ConfigValue{Value: "true"},
-		"ddagent:deploy":                             auto.ConfigValue{Value: "true"},
-		"ddagent:fakeintake":                         auto.ConfigValue{Value: "true"},
-		"ddtestworkload:deploy":                      auto.ConfigValue{Value: "true"},
-	}
-
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "ecs-cluster", stackConfig, ecs.Run, false, nil)
-	suite.Require().NoError(err)
-
-	fakeintake := &components.FakeIntake{}
-	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-ecs"].Value)
-	suite.Require().NoError(err)
-	suite.Require().NoError(fakeintake.Import(fiSerialized, fakeintake))
-	suite.Require().NoError(fakeintake.Init(suite))
-	suite.fakeIntake = fakeintake.Client()
-
-	suite.ecsClusterName = stackOutput.Outputs["ecs-cluster-name"].Value.(string)
-
-	suite.BaseSuite.SetupSuite()
+	e2e.Run(t, s, e2eParams...)
 }
 
 // BeforeTest will be called before each test
@@ -80,12 +97,23 @@ func (v *ecsVMSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
-// TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
+// Test00FakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
 // 2 tests generate the request on the host and on docker
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-func (v *ecsVMSuite) TestFakeIntakeNPM_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+//
+// The test start by 00 to validate the agent/system-probe is up and running
+// On ECS the agent is slow to start and this avoid flaky tests
+func (v *ecsVMSuite) Test00FakeIntakeNPM() {
+	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
+}
 
-	v.T().Log("====================================" + testURL)
+// TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
+// with some basic checks, like IPs/Ports present, DNS query has been captured, ...
+func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
+	// deployed workload generate these connections every 20 seconds
+	//v.Env().RemoteHost.MustExecute("curl " + testURL)
+	//v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
+
+	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }
