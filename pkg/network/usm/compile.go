@@ -18,7 +18,7 @@ import (
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/usm.c pkg/ebpf/bytecode/runtime/usm.go runtime
 
 func getRuntimeCompiledUSM(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.Usm.Compile(&config.Config, getCFlags(config), statsd.Client)
+	return runtime.Usm.Compile(&config.Config, getCFlags(config), getLlcFlags(), statsd.Client)
 }
 
 func getCFlags(config *config.Config) []string {
@@ -34,4 +34,8 @@ func getCFlags(config *config.Config) []string {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
 	return cflags
+}
+
+func getLlcFlags() []string {
+	return []string{"-stack-size-section"}
 }

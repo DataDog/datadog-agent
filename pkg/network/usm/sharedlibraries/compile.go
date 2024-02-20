@@ -18,7 +18,7 @@ import (
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/shared-libraries.c pkg/ebpf/bytecode/runtime/shared-libraries.go runtime
 
 func getRuntimeCompiledSharedLibraries(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.SharedLibraries.Compile(&config.Config, getCFlags(config), statsd.Client)
+	return runtime.SharedLibraries.Compile(&config.Config, getCFlags(config), getLlcFlags(), statsd.Client)
 }
 
 func getCFlags(config *config.Config) []string {
@@ -28,4 +28,8 @@ func getCFlags(config *config.Config) []string {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
 	return cflags
+}
+
+func getLlcFlags() []string {
+	return []string{"-stack-size-section"}
 }

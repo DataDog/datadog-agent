@@ -17,7 +17,7 @@ import (
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/conntrack.c pkg/ebpf/bytecode/runtime/conntrack.go runtime
 
 func getRuntimeCompiledConntracker(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.Conntrack.Compile(&config.Config, getCFlags(config), statsd.Client)
+	return runtime.Conntrack.Compile(&config.Config, getCFlags(config), getLlcFlags(), statsd.Client)
 }
 
 func getCFlags(config *config.Config) []string {
@@ -33,4 +33,8 @@ func getCFlags(config *config.Config) []string {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
 	return cflags
+}
+
+func getLlcFlags() []string {
+	return []string{"-stack-size-section"}
 }
