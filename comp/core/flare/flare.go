@@ -56,10 +56,17 @@ func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, erro
 		log:                   deps.Log,
 		config:                deps.Config,
 		params:                deps.Params,
-		providers:             deps.Providers,
 		diagnosesendermanager: deps.Diagnosesendermanager,
 		invAgent:              deps.InvAgent,
 		collector:             deps.Collector,
+	}
+
+	// We filder nil elements from the providers list. FX doesn't filter nil elements from groups and some
+	// components register a provider conditionally.
+	for _, p := range deps.Providers {
+		if p != nil {
+			f.providers = append(f.providers, p)
+		}
 	}
 
 	rcListener := rcclient.TaskListenerProvider{
@@ -132,13 +139,11 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	)
 
 	for _, p := range providers {
-		if p != nil {
-			err = p(fb)
-			if err != nil {
-				f.log.Errorf("error calling '%s' for flare creation: %s",
-					runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name(), // reflect p.Callback function name
-					err)
-			}
+		err = p(fb)
+		if err != nil {
+			f.log.Errorf("error calling '%s' for flare creation: %s",
+				runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name(), // reflect p.Callback function name
+				err)
 		}
 	}
 

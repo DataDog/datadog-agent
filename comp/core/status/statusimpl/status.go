@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"path"
 	"sort"
@@ -290,7 +291,10 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 			return []byte{}, nil
 		}
 	default:
-		providers := s.sortedProvidersBySection[section]
+		providers, ok := s.sortedProvidersBySection[section]
+		if !ok {
+			return nil, fmt.Errorf("unknown status section '%s'", section)
+		}
 		switch format {
 		case "json":
 			stats := make(map[string]interface{})

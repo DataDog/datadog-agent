@@ -70,38 +70,25 @@ type collectorImpl struct {
 type provides struct {
 	fx.Out
 
-	Comp         collector.Component
-	OptionalComp optional.Option[collector.Component]
-	Provider     status.InformationProvider
+	Comp     collector.Component
+	Provider status.InformationProvider
 }
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newProvides),
-	)
-}
-
-// ModuleNoneCollector defines a module with a none collector and a status provider.
-func ModuleNoneCollector() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newNoneCollector),
+		fx.Provide(func(c collector.Component) optional.Option[collector.Component] {
+			return optional.NewOption[collector.Component](c)
+		}),
 	)
 }
 
 func newProvides(deps dependencies) provides {
 	c := newCollector(deps)
 	return provides{
-		Comp:         c,
-		OptionalComp: optional.NewOption[collector.Component](c),
-		Provider:     status.NewInformationProvider(collectorStatus.Provider{}),
-	}
-}
-
-func newNoneCollector() provides {
-	return provides{
-		OptionalComp: optional.NewNoneOption[collector.Component](),
-		Provider:     status.NewInformationProvider(collectorStatus.Provider{}),
+		Comp:     c,
+		Provider: status.NewInformationProvider(collectorStatus.Provider{}),
 	}
 }
 
