@@ -245,9 +245,12 @@ def produce_junit_tar(files, result_path):
         tgz.addfile(job_url_info, job_url_file)
 
 
-def repack_macos_junit_tar(infile, outfile):
-    workflow_conclusion = os.environ.get("GITHUB_WORKFLOW_CONCLUSION", "failure")
-    if workflow_conclusion != "success":
+def repack_macos_junit_tar(workflow_conclusion, infile, outfile):
+    """
+    Repacks JUnit tgz file from macOS Github Action run, so it would
+    contain correct job name and job URL.
+    """
+    if workflow_conclusion == "cancelled" and not os.path.exists(infile):
         print(f"Skipping repacking of JUnit tarball due to {workflow_conclusion} workflow")
         return
 
