@@ -24,6 +24,7 @@ case "$1" in
         rm -rf $INSTALL_DIR
         rm -rf $LOG_DIR
         rm -rf $CONFIG_DIR
+        rm -rf /opt/datadog-packages
     ;;
     remove)
         rm "$CONFIG_DIR/install_info" || true

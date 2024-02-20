@@ -42,6 +42,9 @@ build do
     mkdir "/etc/init"
     mkdir "/var/log/datadog"
 
+    # Packages
+    mkdir /opt/datadog-packages
+
     copy 'bin/updater', "#{install_dir}/bin/"
 
     # Systemd
