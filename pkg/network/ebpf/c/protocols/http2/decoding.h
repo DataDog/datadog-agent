@@ -960,4 +960,74 @@ delete_iteration:
 
     return 0;
 }
+
+// The program is responsible for cleaning responses only.
+SEC("socket/http2_frames_cleanup")
+int socket__http2_frames_cleanup(struct __sk_buff *skb) {
+    dispatcher_arguments_t dispatcher_args_copy;
+    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
+    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
+        return 0;
+    }
+
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
+    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &dispatcher_args_copy);
+    if (tail_call_state == NULL) {
+        // We didn't find the cached context, aborting.
+        return 0;
+    }
+
+    const __u32 zero = 0;
+
+    http2_frame_with_offset *frames_array = tail_call_state->frames_array;
+    http2_frame_with_offset current_frame;
+
+    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
+    if (http2_ctx == NULL) {
+        goto delete_iteration;
+    }
+    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
+    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
+    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+    http2_stream_t *current_stream = NULL;
+
+    #pragma unroll(HTTP2_MAX_FRAMES_FOR_CLEANUP_PER_TAIL_CALL)
+    for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_CLEANUP_PER_TAIL_CALL; index++) {
+        if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
+            break;
+        }
+
+        current_frame = frames_array[tail_call_state->iteration];
+        // Having this condition after assignment and not before is due to a verifier issue.
+        if (tail_call_state->iteration >= tail_call_state->frames_count) {
+            break;
+        }
+        tail_call_state->iteration += 1;
+
+        http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
+        current_stream = bpf_map_lookup_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+        if (current_stream == NULL) {
+            continue;
+        }
+
+        if (current_stream->status_code.finalized && !(current_stream->request_method.finalized && current_stream->path.finalized)) {
+            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+        }
+    }
+
+    if (tail_call_state->iteration < tail_call_state->frames_count &&
+        tail_call_state->iteration < HTTP2_MAX_FRAMES_FOR_CLEANUP) {
+        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_CLEANUP_PARSER);
+    }
+
+delete_iteration:
+    bpf_map_delete_elem(&http2_iterations, &dispatcher_args_copy);
+
+    return 0;
+}
+
 #endif
