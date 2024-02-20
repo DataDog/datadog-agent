@@ -246,6 +246,11 @@ def produce_junit_tar(files, result_path):
 
 
 def repack_macos_junit_tar(infile, outfile):
+    workflow_conclusion = os.environ.get("GITHUB_WORKFLOW_CONCLUSION", "failure")
+    if workflow_conclusion != "success":
+        print(f"Skipping repacking of JUnit tarball due to {workflow_conclusion} workflow")
+        return
+
     with tarfile.open(infile) as infp, tarfile.open(outfile, "w:gz") as outfp, tempfile.TemporaryDirectory() as tempd:
         infp.extractall(tempd)
 

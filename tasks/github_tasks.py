@@ -39,6 +39,8 @@ def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_i
     )
 
     workflow_conclusion, workflow_url = follow_workflow_run(run)
+    # Save conclusion to decide if we should fail the junit-macos-repack task
+    os.environ["GITHUB_WORKFLOW_CONCLUSION"] = workflow_conclusion
 
     if workflow_conclusion == "failure":
         print_failed_jobs_logs(run)
@@ -48,7 +50,7 @@ def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_i
     if destination:
         download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
 
-    if workflow_conclusion != "success":
+    if workflow_conclusion == "failure":  # we allow workflow to be in "cancelled" state
         raise Exit(code=1)
 
 
