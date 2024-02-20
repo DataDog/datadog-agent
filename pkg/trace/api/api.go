@@ -61,12 +61,13 @@ func putBuffer(buffer *bytes.Buffer) {
 type HTTPReceiver struct {
 	Stats *info.ReceiverStats
 
-	out                 chan *Payload
-	conf                *config.AgentConfig
-	dynConf             *sampler.DynamicConfig
-	server              *http.Server
-	statsProcessor      StatsProcessor
-	containerIDProvider IDProvider
+	out                  chan *Payload
+	conf                 *config.AgentConfig
+	dynConf              *sampler.DynamicConfig
+	server               *http.Server
+	statsProcessor       StatsProcessor
+	openLineageProcessor OpenLineageProcessor
+	containerIDProvider  IDProvider
 
 	telemetryCollector telemetry.TelemetryCollector
 
@@ -96,6 +97,7 @@ func NewHTTPReceiver(
 	dynConf *sampler.DynamicConfig,
 	out chan *Payload,
 	statsProcessor StatsProcessor,
+	openLineageProcessor OpenLineageProcessor,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
 	timing timing.Reporter) *HTTPReceiver {
@@ -114,11 +116,12 @@ func NewHTTPReceiver(
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(),
 
-		out:                 out,
-		statsProcessor:      statsProcessor,
-		conf:                conf,
-		dynConf:             dynConf,
-		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
+		out:                  out,
+		statsProcessor:       statsProcessor,
+		openLineageProcessor: openLineageProcessor,
+		conf:                 conf,
+		dynConf:              dynConf,
+		containerIDProvider:  NewIDProvider(conf.ContainerProcRoot),
 
 		telemetryCollector: telemetryCollector,
 
@@ -442,6 +445,10 @@ type StatsProcessor interface {
 	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion string)
 }
 
+type OpenLineageProcessor interface {
+	ProcessOpenLineageEvent(event []byte)
+}
+
 // handleStats handles incoming stats payloads.
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer r.timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
@@ -461,6 +468,18 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
 	r.statsProcessor.ProcessStats(in, req.Header.Get(header.Lang), req.Header.Get(header.TracerVersion))
+}
+
+func (r *HTTPReceiver) handleOpenLineage(w http.ResponseWriter, req *http.Request) {
+	defer r.timing.Since("datadog.trace_agent.receiver.open_lineage_process_ms", time.Now())
+	rd := apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
+	b, err := io.ReadAll(rd)
+	if err != nil {
+		log.Errorf("Error decoding pb.ClientStatsPayload: %v", err)
+		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w, r.statsd)
+		return
+	}
+	r.openLineageProcessor.ProcessOpenLineageEvent(b)
 }
 
 // handleTraces knows how to handle a bunch of traces

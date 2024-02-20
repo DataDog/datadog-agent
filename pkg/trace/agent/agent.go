@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/trace/openlineage"
 	"runtime"
 	"strconv"
 	"sync"
@@ -56,6 +57,7 @@ type Agent struct {
 	Receiver              *api.HTTPReceiver
 	OTLPReceiver          *api.OTLPReceiver
 	Concentrator          *stats.Concentrator
+	OpenLineage           *openlineage.State
 	ClientStatsAggregator *stats.ClientStatsAggregator
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
@@ -110,6 +112,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	timing := timing.New(statsd)
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now(), statsd),
+		OpenLineage:           openlineage.NewState(),
 		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
@@ -128,7 +131,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		Statsd:                statsd,
 		Timing:                timing,
 	}
-	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing)
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, agnt, telemetryCollector, statsd, timing)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing)
@@ -512,6 +515,15 @@ func mergeDuplicates(s *pb.ClientStatsBucket) {
 // ProcessStats processes incoming client stats in from the given tracer.
 func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion string) {
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
+}
+
+func (a *Agent) ProcessOpenLineageEvent(event []byte) {
+	p, err := a.OpenLineage.EventToSpan(event)
+	if err == nil {
+		a.Process(&api.Payload{Source: &info.TagStats{}, TracerPayload: p})
+	} else {
+		log.Errorf("Error processing OpenLineage event: %s", err)
+	}
 }
 
 func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.ProcessedTrace) bool {
