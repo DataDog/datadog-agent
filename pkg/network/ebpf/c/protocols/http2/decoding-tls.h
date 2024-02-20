@@ -929,6 +929,9 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_EOS_PARSER);
     }
 
+    tail_call_state->iteration = 0;
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_CLEANUP_PARSER);
+
 delete_iteration:
     bpf_map_delete_elem(&tls_http2_iterations, &dispatcher_args_copy);
 
