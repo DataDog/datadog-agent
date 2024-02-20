@@ -328,8 +328,13 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	// get type tags + container tags if already resolved, see ResolveContainerTags
 	eventTags := e.GetTags()
 
+	ruleID := rule.Definition.ID
+	if rule.Definition.GroupID != "" {
+		ruleID = rule.Definition.GroupID
+	}
+
 	msg := &pendingMsg{
-		ruleID:        rule.Definition.ID,
+		ruleID:        ruleID,
 		backendEvent:  backendEvent,
 		eventJSON:     eventJSON,
 		extTagsCb:     extTagsCb,
@@ -339,7 +344,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		actionReports: e.GetActionReports(),
 	}
 
-	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
+	msg.tags = append(msg.tags, "rule_id:"+ruleID)
 	msg.tags = append(msg.tags, rule.Tags...)
 	msg.tags = append(msg.tags, eventTags...)
 	msg.tags = append(msg.tags, common.QueryAccountIDTag())

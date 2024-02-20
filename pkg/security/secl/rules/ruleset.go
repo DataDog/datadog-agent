@@ -92,6 +92,7 @@ type RuleDefinition struct {
 	Actions                []*ActionDefinition `yaml:"actions"`
 	Every                  time.Duration       `yaml:"every"`
 	Silent                 bool                `yaml:"silent"`
+	GroupID                string              `yaml:"group_id"`
 	Policy                 *Policy
 }
 
