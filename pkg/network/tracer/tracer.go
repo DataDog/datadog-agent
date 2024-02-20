@@ -429,9 +429,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	buffer.ConnectionBuffer.Assign(delta.Conns)
 	conns := network.NewConnections(buffer)
 	conns.DNS = t.reverseDNS.Resolve(ips)
-	conns.HTTP = delta.HTTP
-	conns.HTTP2 = delta.HTTP2
-	conns.Kafka = delta.Kafka
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
 	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())

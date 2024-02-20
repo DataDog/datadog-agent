@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package marshal
+package network
 
 import (
 	"testing"

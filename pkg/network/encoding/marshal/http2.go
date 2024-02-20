@@ -14,12 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 type http2Encoder struct {
 	http2AggregationsBuilder *model.HTTP2AggregationsBuilder
-	byConnection             *USMConnectionIndex[http.Key, *http.RequestStats]
 }
 
 func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
@@ -28,9 +26,6 @@ func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encode
 	}
 
 	return &http2Encoder{
-		byConnection: GroupByConnection("http2", http2Payloads, func(key http.Key) types.ConnectionKey {
-			return key.ConnectionKey
-		}),
 		http2AggregationsBuilder: model.NewHTTP2AggregationsBuilder(nil),
 	}
 }
@@ -40,28 +35,23 @@ func (e *http2Encoder) WriteHTTP2AggregationsAndTags(c network.ConnectionStats, 
 		return 0, nil
 	}
 
-	connectionData := e.byConnection.Find(c)
-	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return 0, nil
-	}
-
 	var (
 		staticTags  uint64
 		dynamicTags map[string]struct{}
 	)
 
 	builder.SetHttp2Aggregations(func(b *bytes.Buffer) {
-		staticTags, dynamicTags = e.encodeData(connectionData, b)
+		staticTags, dynamicTags = e.encodeData(c.HTTP2Stats, b)
 	})
 	return staticTags, dynamicTags
 }
 
-func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
+func (e *http2Encoder) encodeData(connectionData []network.USMKeyValue[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
 	var staticTags uint64
 	dynamicTags := make(map[string]struct{})
 	e.http2AggregationsBuilder.Reset(w)
 
-	for _, kvPair := range connectionData.Data {
+	for _, kvPair := range connectionData {
 		e.http2AggregationsBuilder.AddEndpointAggregations(func(http2StatsBuilder *model.HTTPStatsBuilder) {
 			key := kvPair.Key
 			stats := kvPair.Value
@@ -102,6 +92,4 @@ func (e *http2Encoder) Close() {
 	if e == nil {
 		return
 	}
-
-	e.byConnection.Close()
 }

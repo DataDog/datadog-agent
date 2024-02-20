@@ -14,12 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 type httpEncoder struct {
 	httpAggregationsBuilder *model.HTTPAggregationsBuilder
-	byConnection            *USMConnectionIndex[http.Key, *http.RequestStats]
 }
 
 func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
@@ -29,19 +27,11 @@ func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
 
 	return &httpEncoder{
 		httpAggregationsBuilder: model.NewHTTPAggregationsBuilder(nil),
-		byConnection: GroupByConnection("http", httpPayloads, func(key http.Key) types.ConnectionKey {
-			return key.ConnectionKey
-		}),
 	}
 }
 
 func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
 	if e == nil {
-		return 0, nil
-	}
-
-	connectionData := e.byConnection.Find(c)
-	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
 		return 0, nil
 	}
 
@@ -51,17 +41,17 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats, buil
 	)
 
 	builder.SetHttpAggregations(func(b *bytes.Buffer) {
-		staticTags, dynamicTags = e.encodeData(connectionData, b)
+		staticTags, dynamicTags = e.encodeData(c.HTTPStats, b)
 	})
 	return staticTags, dynamicTags
 }
 
-func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
+func (e *httpEncoder) encodeData(connectionData []network.USMKeyValue[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
 	var staticTags uint64
 	dynamicTags := make(map[string]struct{})
 	e.httpAggregationsBuilder.Reset(w)
 
-	for _, kvPair := range connectionData.Data {
+	for _, kvPair := range connectionData {
 		e.httpAggregationsBuilder.AddEndpointAggregations(func(httpStatsBuilder *model.HTTPStatsBuilder) {
 			key := kvPair.Key
 			stats := kvPair.Value
@@ -103,6 +93,4 @@ func (e *httpEncoder) Close() {
 	if e == nil {
 		return
 	}
-
-	e.byConnection.Close()
 }

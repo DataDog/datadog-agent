@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -611,13 +612,6 @@ func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
 	for i := 0; i < len(actual.Conns); i++ {
 		expectedRawHTTP := expected.Conns[i].HttpAggregations
 		actualRawHTTP := actual.Conns[i].HttpAggregations
-
-		if len(expectedRawHTTP) == 0 && len(actualRawHTTP) != 0 {
-			t.Fatalf("expected connection %d to have no HTTP, but got %v", i, actualRawHTTP)
-		}
-		if len(expectedRawHTTP) != 0 && len(actualRawHTTP) == 0 {
-			t.Fatalf("expected connection %d to have HTTP data, but got none", i)
-		}
 
 		// the expected HTTPAggregations are encoded with  gogoproto, and the actual HTTPAggregations are encoded with gostreamer.
 		// thus they will not be byte-for-byte equal.

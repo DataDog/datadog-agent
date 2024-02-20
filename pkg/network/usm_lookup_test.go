@@ -5,14 +5,13 @@
 
 //go:build !windows
 
-package marshal
+package network
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -34,7 +33,7 @@ func TestUSMLookup(t *testing.T) {
 		data[key] = val
 
 		// Assert that c1 and c2 (which are symmetrical) "link" to the same aggregation
-		c1 := network.ConnectionStats{
+		c1 := ConnectionStats{
 			Source: util.AddressFromString("1.1.1.1"),
 			Dest:   util.AddressFromString("2.2.2.2"),
 			SPort:  60000,
@@ -42,7 +41,7 @@ func TestUSMLookup(t *testing.T) {
 		}
 		assert.Equal(t, val, USMLookup(c1, data))
 
-		c2 := network.ConnectionStats{
+		c2 := ConnectionStats{
 			Source: util.AddressFromString("2.2.2.2"),
 			Dest:   util.AddressFromString("1.1.1.1"),
 			SPort:  80,
@@ -64,12 +63,12 @@ func TestUSMLookup(t *testing.T) {
 		data[key] = val
 
 		// Assert that c1 and c2 (which are symmetrical) "link" to the same aggregation
-		c1 := network.ConnectionStats{
+		c1 := ConnectionStats{
 			Source: util.AddressFromString("1.1.1.1"),
 			Dest:   util.AddressFromString("2.2.2.2"),
 			SPort:  60000,
 			DPort:  80,
-			IPTranslation: &network.IPTranslation{
+			IPTranslation: &IPTranslation{
 				ReplSrcIP:   util.AddressFromString("3.3.3.3"),
 				ReplDstIP:   util.AddressFromString("4.4.4.4"),
 				ReplSrcPort: 50000,
@@ -78,12 +77,12 @@ func TestUSMLookup(t *testing.T) {
 		}
 		assert.Equal(t, val, USMLookup(c1, data))
 
-		c2 := network.ConnectionStats{
+		c2 := ConnectionStats{
 			Source: util.AddressFromString("2.2.2.2"),
 			Dest:   util.AddressFromString("1.1.1.1"),
 			SPort:  80,
 			DPort:  60000,
-			IPTranslation: &network.IPTranslation{
+			IPTranslation: &IPTranslation{
 				ReplSrcIP:   util.AddressFromString("4.4.4.4"),
 				ReplDstIP:   util.AddressFromString("3.3.3.3"),
 				ReplSrcPort: 8080,

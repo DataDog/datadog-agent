@@ -279,7 +279,10 @@ type ConnectionStats struct {
 
 	ProtocolStack protocols.Stack
 
-	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
+	DNSStats   map[dns.Hostname]map[dns.QueryType]dns.Stats
+	HTTPStats  []USMKeyValue[http.Key, *http.RequestStats]
+	KafkaStats []USMKeyValue[kafka.Key, *kafka.RequestStat]
+	HTTP2Stats []USMKeyValue[http.Key, *http.RequestStats]
 }
 
 // Via has info about the routing decision for a flow
