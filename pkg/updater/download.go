@@ -20,8 +20,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/ulikunitz/xz"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -29,7 +30,6 @@ const (
 	maxArchiveSize             = 5 << 30  // 5GiB
 	maxArchiveDecompressedSize = 10 << 30 // 10GiB
 	maxArchiveFileSize         = 1 << 30  // 1GiB
-	maxArchiveFileCount        = 50_000
 	maxArchiveLinkDepth        = 5
 )
 
@@ -174,7 +174,6 @@ func extractTarXz(archivePath string, destinationPath string) error {
 	// Extract tar archive
 	tr := tar.NewReader(io.LimitReader(xzr, maxArchiveDecompressedSize))
 	tarLinks := make([]*tar.Header, 0)
-	fileCount := 0
 
 	for {
 		header, err := tr.Next()
@@ -205,10 +204,6 @@ func extractTarXz(archivePath string, destinationPath string) error {
 				return fmt.Errorf("could not create directory: %w", err)
 			}
 		case tar.TypeReg:
-			fileCount++
-			if fileCount > maxArchiveFileCount {
-				return errors.New("archive contains too many files")
-			}
 			err = extractTarFile(target, tr)
 			if err != nil {
 				return err // already wrapped
