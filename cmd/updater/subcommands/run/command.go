@@ -8,9 +8,12 @@ package run
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/updater"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/spf13/cobra"
 )
@@ -22,18 +25,26 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		Short: "Runs the updater",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(global.Package)
+			return run(global)
 		},
 	}
 	return []*cobra.Command{runCmd}
 }
 
-func run(pkg string) error {
+func run(global *command.GlobalParams) error {
+	if global.PIDFilePath != "" {
+		err := pidfile.WritePID(global.PIDFilePath)
+		if err != nil {
+			return log.Errorf("Error while writing PID file, exiting: %v", err)
+		}
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), global.PIDFilePath)
+	}
+
 	orgConfig, err := updater.NewOrgConfig()
 	if err != nil {
 		return fmt.Errorf("could not create org config: %w", err)
 	}
-	u, err := updater.NewUpdater(orgConfig, pkg)
+	u, err := updater.NewUpdater(orgConfig, global.Package)
 	if err != nil {
 		return fmt.Errorf("could not create updater: %w", err)
 	}
