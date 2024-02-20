@@ -1610,30 +1610,6 @@ api_key:
     #
     # port: 5012
 
-  ## @param instrumentation_enabled - boolean - default: false
-  ## @env DD_APM_INSTRUMENTATION_ENABLED - boolean - default: false
-  ## Enables Single Step Instrumentation in the cluster (in beta)
-  #
-  # instrumentation_enabled: false
-
-  ## @param instrumentation_enabled_namespaces - list of strings - optional
-  ## @env DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES - space separated list of strings - optional
-  ## Enables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is off in the whole cluster (in beta)
-  ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is false. Cannot be set together with DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES.
-  #
-  # instrumentation_enabled_namespaces:
-  # - ns1
-  # - apps
-
-  ## @param instrumentation_disabled_namespaces - list of strings - optional
-  ## @env DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES - space separated list of strings - optional
-  ## Disables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is enabled in the whole cluster (in beta)
-  ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is true. Cannot be set together with DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES.
-  #
-  # instrumentation_disabled_namespaces:
-  # - ns2
-  # - system-ns
-
   ## @param trace_buffer - integer - optional - default: 0
   ## @env DD_APM_TRACE_BUFFER - integer - optional - default: 0
   ##
@@ -1649,6 +1625,61 @@ api_key:
   ##
   #
   # trace_buffer: 0
+
+  ## @param instrumentation - object - optional
+  # Specify settings for instrumenting applications with APM.
+  #
+  # instrumentation:
+    ## @param host - object - optional
+    ## Specify settings for instrumenting applications that run on the same host as the Agent.
+    # host:
+      ## @param enabled - boolean - optional - default: false
+      ## Instrument applications that run on the same host as the Agent.
+      # enabled: false
+
+      ## @param ignored_processes - list of strings - optional
+      ## List of process names to ignore when instrumenting.
+      # ignored_processes: []
+
+      ## @param ignored_arguments - list of object - optional
+      ## Specify arguments used by processes that should not be instrumented.
+      # ignored_arguments:
+        ## @param java - list of strings - optional
+        # java: []
+        ## @param dotnet - list of strings - optional
+        # dotnet: []
+        ## @param python - list of strings - optional
+        # python: []
+        ## @param nodejs - list of strings - optional
+        # nodejs: []
+        ## @param ruby - list of strings - optional
+        # ruby: []
+
+    ## @param container - object - optional
+    ## Specify settings for instrumenting applications that run in containers on the same host as the Agent.
+    # container:
+      ## @param enabled - boolean - optional - default: false
+      # enabled: false
+
+    ## @param kubernetes - object - optional
+    ## Specify settings for instrumenting applications that run in Kubernetes with the Cluster Agent.
+    # kubernetes:
+      ## @param enabled_namespaces - list of strings - optional
+      ## @env DD_APM_INSTRUMENTATION_KUBERNETES_ENABLED_NAMESPACES - space separated list of strings - optional
+      ## Enables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is off in the whole cluster (in beta)
+      ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is false. Cannot be set together with DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES.
+      #
+      # instrumentation_enabled_namespaces:
+      # - ns1
+      # - apps
+      ## @param instrumentation_disabled_namespaces - list of strings - optional
+      ## @env DD_APM_INSTRUMENTATION_KUBERNETES_DISABLED_NAMESPACES - space separated list of strings - optional
+      ## Disables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is enabled in the whole cluster (in beta)
+      ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is true. Cannot be set together with DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES.
+      #
+      # disabled_namespaces:
+      # - ns2
+      # - system-ns
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
