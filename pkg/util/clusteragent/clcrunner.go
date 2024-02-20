@@ -58,7 +58,7 @@ func GetCLCRunnerClient() (CLCRunnerClientInterface, error) {
 func (c *CLCRunnerClient) init() {
 	c.initErr = nil
 
-	authToken, err := security.GetClusterAgentAuthToken()
+	authToken, err := security.GetClusterAgentAuthToken(config.Datadog)
 	if err != nil {
 		c.initErr = err
 		return

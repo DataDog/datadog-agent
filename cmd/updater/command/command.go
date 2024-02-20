@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -30,6 +31,9 @@ type GlobalParams struct {
 	// file, to allow overrides from the command line
 	ConfFilePath string
 
+	// LogFilePath is the path to the log file.
+	LogFilePath string
+
 	// Package is the package managed by this instance of the updater.
 	Package string
 
@@ -42,7 +46,9 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
-	globalParams := GlobalParams{}
+	globalParams := GlobalParams{
+		ConfFilePath: config.DefaultUpdaterLogFile,
+	}
 
 	// AgentCmd is the root command
 	agentCmd := &cobra.Command{
@@ -54,7 +60,7 @@ Datadog Updater updates your agents based on requests received from the Datadog 
 	}
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing updater.yaml")
-	agentCmd.PersistentFlags().StringVarP(&globalParams.Package, "package", "p", "", "package to update")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.Package, "package", "P", "", "package to update")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.RepositoriesDir, "repositories", "d", "/opt/datadog-packages", "path to directory containing repositories")
 	_ = agentCmd.MarkFlagRequired("package")
 

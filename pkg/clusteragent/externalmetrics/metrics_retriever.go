@@ -72,7 +72,6 @@ func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 }
 
 func (mr *MetricsRetriever) retrieveMetricsValues() {
-
 	if mr.splitBatchBackoffOnErrors {
 		// We only update active DatadogMetrics
 		// We split metrics in two slices, those with errors and those without.
@@ -107,7 +106,6 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 }
 
 func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.DatadogMetricInternal) {
-
 	if len(datadogMetrics) == 0 {
 		log.Debugf("No active DatadogMetric, nothing to refresh")
 		return

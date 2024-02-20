@@ -318,21 +318,46 @@ func RandomSpanType() string {
 	return stringRandomChoice(types)
 }
 
+// RandomSpanLink generates a random spanlink
+func RandomSpanLink() *pb.SpanLink {
+	return &pb.SpanLink{
+		TraceID:     RandomSpanTraceID(),
+		TraceIDHigh: RandomSpanTraceID(),
+		SpanID:      RandomSpanID(),
+		Attributes:  RandomStringMap(),
+		Tracestate:  stringRandomChoice([]string{"dd=s:2;o:rum,congo=baz123", "dd=o:invalid", "dd=t:f256,ee=j128", "dd=ff:_,dt=asd"}),
+		Flags:       uint32(1<<31 | rand.Intn(2)),
+	}
+}
+
+// RandomSpanLinks generates a random number of random spanlinks
+func RandomSpanLinks() []*pb.SpanLink {
+	spanLinksCount := rand.Intn(100)
+	res := make([]*pb.SpanLink, spanLinksCount)
+
+	for i := range res {
+		res[i] = RandomSpanLink()
+	}
+
+	return res
+}
+
 // RandomSpan generates a wide-variety of spans, useful to test robustness & performance
 func RandomSpan() *pb.Span {
 	return &pb.Span{
-		Duration: RandomSpanDuration(),
-		Error:    RandomSpanError(),
-		Resource: RandomSpanResource(),
-		Service:  RandomSpanService(),
-		Name:     RandomSpanName(),
-		SpanID:   RandomSpanID(),
-		Start:    RandomSpanStart(),
-		TraceID:  RandomSpanTraceID(),
-		Meta:     RandomSpanMeta(),
-		Metrics:  RandomSpanMetrics(),
-		ParentID: RandomSpanParentID(),
-		Type:     RandomSpanType(),
+		Duration:  RandomSpanDuration(),
+		Error:     RandomSpanError(),
+		Resource:  RandomSpanResource(),
+		Service:   RandomSpanService(),
+		Name:      RandomSpanName(),
+		SpanID:    RandomSpanID(),
+		Start:     RandomSpanStart(),
+		TraceID:   RandomSpanTraceID(),
+		Meta:      RandomSpanMeta(),
+		Metrics:   RandomSpanMetrics(),
+		ParentID:  RandomSpanParentID(),
+		Type:      RandomSpanType(),
+		SpanLinks: RandomSpanLinks(),
 	}
 }
 
@@ -350,6 +375,19 @@ func GetTestSpan() *pb.Span {
 		Duration: 9223372036854775807,
 		Meta:     map[string]string{"http.host": "192.168.0.1"},
 		Metrics:  map[string]float64{"http.monitor": 41.99},
+		SpanLinks: []*pb.SpanLink{
+			{
+				TraceID:     42,
+				TraceIDHigh: 32,
+				SpanID:      52,
+				Attributes: map[string]string{
+					"a1": "v1",
+					"a2": "v2",
+				},
+				Tracestate: "dd=s:2;o:rum,congo=baz123",
+				Flags:      1 | 1<<31, // 0th bit -> sampling decision, 31st bit -> set/unset
+			},
+		},
 	}
 	trace := pb.Trace{span}
 	traceutil.ComputeTopLevel(trace)

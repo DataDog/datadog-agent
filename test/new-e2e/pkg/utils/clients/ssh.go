@@ -135,7 +135,7 @@ func GetFile(client *ssh.Client, src string, dst string) error {
 	defer fsrc.Close()
 
 	// local
-	fdst, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE, 0o640)
+	fdst, err := os.Create(dst)
 	if err != nil {
 		return err
 	}

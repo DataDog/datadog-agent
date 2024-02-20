@@ -37,7 +37,6 @@ func (s *linuxTestSuite) SetupSuite() {
 
 func (s *linuxTestSuite) TestProcessCheck() {
 	t := s.T()
-	t.Skip("PROCS-3574: consistent failures on process tests")
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process", "rtprocess"}, false, "sudo datadog-agent status --json")
@@ -58,7 +57,6 @@ func (s *linuxTestSuite) TestProcessCheck() {
 
 func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
-	t.Skip("PROCS-3574: consistent failures on process tests")
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -78,7 +76,6 @@ func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 
 func (s *linuxTestSuite) TestProcessCheckWithIO() {
 	t := s.T()
-	t.Skip("PROCS-3574: consistent failures on process tests")
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
 
 	// Flush fake intake to remove payloads that won't have IO stats

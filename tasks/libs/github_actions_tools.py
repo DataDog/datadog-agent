@@ -24,6 +24,7 @@ def trigger_macos_workflow(
     gitlab_pipeline_id=None,
     bucket_branch=None,
     version_cache_file_content=None,
+    concurrency_key=None,
 ):
     """
     Trigger a workflow to build a MacOS Agent.
@@ -50,6 +51,9 @@ def trigger_macos_workflow(
 
     if version_cache_file_content:
         inputs["version_cache"] = version_cache_file_content
+
+    if concurrency_key is not None:
+        inputs["concurrency_key"] = concurrency_key
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
@@ -101,6 +105,8 @@ def follow_workflow_run(run):
 
     minutes = 0
     failures = 0
+    # Wait time (in minutes) between two queries of the workflow status
+    interval = 5
     MAX_FAILURES = 5
     while True:
         # Do not fail outright for temporary failures
@@ -128,8 +134,8 @@ def follow_workflow_run(run):
             # able to see where's the job at in the logs. The following line forces the flush.
             sys.stdout.flush()
 
-        minutes += 1
-        sleep(60)
+        minutes += interval
+        sleep(60 * interval)
 
 
 def print_workflow_conclusion(conclusion, workflow_uri):

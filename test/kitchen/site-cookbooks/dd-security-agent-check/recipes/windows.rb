@@ -9,9 +9,18 @@ directory "#{rootdir}/tests" do
   recursive true
 end
   
+directory "#{rootdir}/tests/etw" do
+  recursive true
+end
+
 
 cookbook_file "#{rootdir}/tests/testsuite.exe" do
   source "tests/testsuite.exe"
+  mode '755'
+end
+
+cookbook_file "#{rootdir}/tests/etw/testsuite.exe" do
+  source "tests/etw/testsuite.exe"
   mode '755'
 end
 

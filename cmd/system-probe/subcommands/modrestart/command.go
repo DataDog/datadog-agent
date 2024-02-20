@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -61,7 +61,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func moduleRestart(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	cfg := sysprobeconfig.SysProbeObject()
-	client := api.GetClient(cfg.SocketAddress)
+	client := client.Get(cfg.SocketAddress)
 	url := fmt.Sprintf("http://localhost/module-restart/%s", cliParams.args[0])
 	resp, err := client.Post(url, "", nil)
 	if err != nil {

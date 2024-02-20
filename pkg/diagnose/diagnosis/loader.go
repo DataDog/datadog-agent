@@ -7,7 +7,6 @@
 package diagnosis
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,10 +34,7 @@ func RegisterMetadataAvail(name string, d MetadataAvailDiagnose) {
 // Diagnose (all subcommand)
 
 // Diagnose interface function
-type Diagnose func(Config, sender.DiagnoseSenderManager) []Diagnosis
-
-// Catalog is a global list of registered Diagnose functions
-var Catalog = make([]Suite, 0)
+type Diagnose func() []Diagnosis
 
 // Suite contains the Diagnose suite information
 type Suite struct {
@@ -105,10 +101,25 @@ type Diagnoses struct {
 	SuiteDiagnoses []Diagnosis
 }
 
+// Catalog stores the list of registered Diagnose functions
+type Catalog struct {
+	suites []Suite
+}
+
+// NewCatalog returns a new Catalog instance
+func NewCatalog() *Catalog {
+	return &Catalog{}
+}
+
 // Register registers the given Diagnose function
-func Register(suiteName string, diagnose Diagnose) {
-	Catalog = append(Catalog, Suite{
+func (c *Catalog) Register(suiteName string, diagnose Diagnose) {
+	c.suites = append(c.suites, Suite{
 		SuitName: suiteName,
 		Diagnose: diagnose,
 	})
+}
+
+// GetSuites returns the list of registered Diagnose functions
+func (c *Catalog) GetSuites() []Suite {
+	return c.suites
 }

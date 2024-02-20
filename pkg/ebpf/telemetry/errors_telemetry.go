@@ -252,9 +252,9 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 		return err
 	}
 
-	m.InstructionPatcher = func(m *manager.Manager) error {
+	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
 		return patchEBPFTelemetry(m, activateBPFTelemetry, bpfTelemetry)
-	}
+	})
 
 	if activateBPFTelemetry {
 		// add telemetry maps to list of maps, if not present

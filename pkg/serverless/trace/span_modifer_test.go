@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func TestServerlessServiceRewrite(t *testing.T) {
@@ -30,7 +32,7 @@ func TestServerlessServiceRewrite(t *testing.T) {
 	}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 	spanModifier := &spanModifier{
 		tags: cfg.GlobalTags,
 	}
@@ -61,7 +63,7 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	cfg.GlobalTags = map[string]string{"some": "tag", "function_arn": "arn:aws:foo:bar:baz"}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 	spanModifier := &spanModifier{
 		tags: cfg.GlobalTags,
 	}
@@ -99,7 +101,7 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 	defer cancel()
 
 	testOriginTags := func(withModifier bool) {
-		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		if withModifier {
 			agnt.ModifySpan = (&spanModifier{tags: cfg.GlobalTags}).ModifySpan
 		}
@@ -148,7 +150,7 @@ func TestLambdaSpanChan(t *testing.T) {
 	}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 	lambdaSpanChan := make(chan *pb.Span)
 	spanModifier := &spanModifier{
 		tags:           cfg.GlobalTags,
@@ -184,7 +186,7 @@ func TestLambdaSpanChanWithInvalidSpan(t *testing.T) {
 	}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 	lambdaSpanChan := make(chan *pb.Span)
 	spanModifier := &spanModifier{
 		tags:           cfg.GlobalTags,

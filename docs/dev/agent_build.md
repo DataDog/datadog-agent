@@ -74,7 +74,7 @@ invoke agent.build --bundle process-agent --bundle security-agent
 To disable bundling entirely:
 
 ```
-invoke agent.build --bundle
+invoke agent.build --bundle agent
 ```
 
 One binary per Agent can still be built by using its own invoke task and passing the

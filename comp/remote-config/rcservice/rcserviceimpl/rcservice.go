@@ -9,6 +9,7 @@ package rcserviceimpl
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -37,6 +38,7 @@ type dependencies struct {
 
 	Lc fx.Lifecycle
 
+	Params                *rcservice.Params `optional:"true"`
 	DdRcTelemetryReporter rctelemetryreporter.Component
 	Hostname              hostname.Component
 	Cfg                   cfgcomp.Component
@@ -61,35 +63,49 @@ func newRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservice
 
 // newRemoteConfigServiceOptional creates and configures a new remote config service
 func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
-	apiKey := config.Datadog.GetString("api_key")
-	if config.Datadog.IsSet("remote_configuration.api_key") {
-		apiKey = config.Datadog.GetString("remote_configuration.api_key")
+	apiKey := deps.Cfg.GetString("api_key")
+	if deps.Cfg.IsSet("remote_configuration.api_key") {
+		apiKey = deps.Cfg.GetString("remote_configuration.api_key")
 	}
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
-	baseRawURL := configUtils.GetMainEndpoint(config.Datadog, "https://config.", "remote_configuration.rc_dd_url")
-	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(config.Datadog)
-	configuredTags := configUtils.GetConfiguredTags(config.Datadog, false)
+	baseRawURL := configUtils.GetMainEndpoint(deps.Cfg, "https://config.", "remote_configuration.rc_dd_url")
+	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
+	configuredTags := configUtils.GetConfiguredTags(deps.Cfg, false)
+
+	options := []remoteconfig.Option{
+		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
+	}
+	if deps.Params != nil {
+		options = append(options, deps.Params.Options...)
+	}
 
 	configService, err := remoteconfig.NewService(
-		config.Datadog,
+		deps.Cfg,
 		apiKey,
 		baseRawURL,
 		deps.Hostname.GetSafe(context.Background()),
 		configuredTags,
 		deps.DdRcTelemetryReporter,
 		version.AgentVersion,
-		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
+		options...,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
+		return nil, fmt.Errorf("unable to create remote config service: %w", err)
 	}
 
-	deps.Lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
-		configService.Start(ctx)
+	deps.Lc.Append(fx.Hook{OnStart: func(_ context.Context) error {
+		configService.Start()
+		deps.Logger.Info("remote config service started")
 		return nil
 	}})
-	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
-		return configService.Stop()
+	deps.Lc.Append(fx.Hook{OnStop: func(_ context.Context) error {
+		err = configService.Stop()
+		if err != nil {
+			deps.Logger.Errorf("unable to stop remote config service: %s", err)
+			return err
+		}
+		deps.Logger.Info("remote config service stopped")
+		return nil
 	}})
 
 	return configService, nil
