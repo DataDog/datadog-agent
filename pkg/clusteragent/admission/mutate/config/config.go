@@ -16,11 +16,9 @@ import (
 	"strings"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -148,8 +146,8 @@ func (w *Webhook) MutateFunc() admission.WebhookFunc {
 }
 
 // mutate adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
-func (w *Webhook) mutate(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ kubernetes.Interface) ([]byte, error) {
-	return common.Mutate(rawPod, ns, w.inject, dc)
+func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
+	return common.Mutate(request.Raw, request.Namespace, w.inject, request.DynamicClient)
 }
 
 // inject injects DD_AGENT_HOST and DD_ENTITY_ID into a pod template if needed

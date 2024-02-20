@@ -20,12 +20,10 @@ import (
 	"sync"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
-	k8s "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -270,8 +268,8 @@ func (w *Webhook) MutateFunc() admission.WebhookFunc {
 }
 
 // injectAutoInstrumentation injects APM libraries into pods
-func (w *Webhook) injectAutoInstrumentation(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ k8s.Interface) ([]byte, error) {
-	return mutatecommon.Mutate(rawPod, ns, w.inject, dc)
+func (w *Webhook) injectAutoInstrumentation(request *admission.MutateRequest) ([]byte, error) {
+	return mutatecommon.Mutate(request.Raw, request.Namespace, w.inject, request.DynamicClient)
 }
 
 func initContainerName(lang language) string {

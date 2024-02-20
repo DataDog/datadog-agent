@@ -16,12 +16,10 @@ import (
 	"os"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
-	k8s "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -104,8 +102,8 @@ func (w *Webhook) MutateFunc() admission.WebhookFunc {
 }
 
 // mutate handles mutating pod requests for the agentsidecar webhook
-func (w *Webhook) mutate(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ k8s.Interface) ([]byte, error) {
-	return common.Mutate(rawPod, ns, injectAgentSidecar, dc)
+func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
+	return common.Mutate(request.Raw, request.Namespace, injectAgentSidecar, request.DynamicClient)
 }
 
 func injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interface) error {

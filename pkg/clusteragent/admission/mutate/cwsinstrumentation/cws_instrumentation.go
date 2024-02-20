@@ -270,8 +270,8 @@ func (ci *CWSInstrumentation) WebhookForCommands() *WebhookForCommands {
 	return ci.webhookForCommands
 }
 
-func (ci *CWSInstrumentation) injectForCommand(rawPodExecOptions []byte, name string, ns string, userInfo *authenticationv1.UserInfo, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error) {
-	return mutatePodExecOptions(rawPodExecOptions, name, ns, userInfo, ci.injectCWSCommandInstrumentation, dc, apiClient)
+func (ci *CWSInstrumentation) injectForCommand(request *admission.MutateRequest) ([]byte, error) {
+	return mutatePodExecOptions(request.Raw, request.Name, request.Namespace, request.UserInfo, ci.injectCWSCommandInstrumentation, request.DynamicClient, request.APIClient)
 }
 
 func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, ns string, userInfo *authenticationv1.UserInfo, _ dynamic.Interface, apiClient kubernetes.Interface) error {
@@ -355,8 +355,8 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	return nil
 }
 
-func (ci *CWSInstrumentation) injectForPod(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ kubernetes.Interface) ([]byte, error) {
-	return common.Mutate(rawPod, ns, ci.injectCWSPodInstrumentation, dc)
+func (ci *CWSInstrumentation) injectForPod(request *admission.MutateRequest) ([]byte, error) {
+	return common.Mutate(request.Raw, request.Namespace, ci.injectCWSPodInstrumentation, request.DynamicClient)
 }
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) error {

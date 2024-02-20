@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -158,7 +159,11 @@ func TestJSONPatchCorrectness(t *testing.T) {
 	assert.NoError(t, err)
 
 	webhook := NewWebhook()
-	jsonPatch, err := webhook.MutateFunc()(podJSON, "", "bar", nil, nil, nil)
+	request := admission.MutateRequest{
+		Raw:       podJSON,
+		Namespace: "bar",
+	}
+	jsonPatch, err := webhook.MutateFunc()(&request)
 	assert.NoError(t, err)
 
 	expected, err := os.ReadFile("./testdata/expected_jsonpatch.json")
@@ -186,7 +191,11 @@ func BenchmarkJSONPatch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		jsonPatch, err := webhook.MutateFunc()(podJSON, "", "bar", nil, nil, nil)
+		request := admission.MutateRequest{
+			Raw:       podJSON,
+			Namespace: "bar",
+		}
+		jsonPatch, err := webhook.MutateFunc()(&request)
 		if err != nil {
 			b.Fatal(err)
 		}

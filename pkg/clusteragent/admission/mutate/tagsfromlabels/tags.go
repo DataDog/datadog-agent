@@ -18,12 +18,10 @@ import (
 	"time"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-	k8s "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -124,8 +122,8 @@ func (o *ownerInfo) buildID(ns string) string {
 
 // mutate adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
 // the pod template from pod and higher-level resource labels
-func (w *Webhook) mutate(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ k8s.Interface) ([]byte, error) {
-	return common.Mutate(rawPod, ns, injectTags, dc)
+func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
+	return common.Mutate(request.Raw, request.Namespace, injectTags, request.DynamicClient)
 }
 
 // injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
