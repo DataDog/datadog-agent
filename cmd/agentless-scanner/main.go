@@ -25,9 +25,13 @@ import (
 
 	// DataDog agent: config stuffs
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -63,10 +67,12 @@ func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd 
 			func(_ complog.Component, _ compconfig.Component) error {
 				return run(cmd, args)
 			},
-			fx.Supply(compconfig.NewAgentParamsWithSecrets(globalFlags.configFilePath)),
-			fx.Supply(complog.ForDaemon(runner.LoggerName, "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
-			complog.Module,
-			compconfig.Module,
+			fx.Supply(core.BundleParams{
+				ConfigParams: compconfig.NewAgentParams(globalFlags.configFilePath),
+				SecretParams: secrets.NewEnabledParams(),
+				LogParams:    logimpl.ForDaemon(runner.LoggerName, "log_file", pkgconfigsetup.DefaultAgentlessScannerLogFile),
+			}),
+			core.Bundle(),
 		)
 	}
 }

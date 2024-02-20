@@ -38,7 +38,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/scanners"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -75,7 +77,7 @@ type Runner struct {
 
 	eventForwarder   epforwarder.EventPlatformForwarder
 	findingsReporter *LogReporter
-	rcClient         *remote.Client
+	rcClient         *client.Client
 
 	waiter awsutils.ResourceWaiter
 
@@ -110,7 +112,18 @@ func New(opts Options) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	rcClient, err := remote.NewUnverifiedGRPCClient("sidescanner", version.AgentVersion, nil, 5*time.Second)
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	rcClient, err := client.NewUnverifiedGRPCClient(
+		ipcAddress,
+		config.GetIPCPort(),
+		security.FetchAuthToken,
+		client.WithAgent("sidescanner", version.AgentVersion),
+		client.WithPollInterval(5*time.Second),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("could not init Remote Config client: %w", err)
 	}
