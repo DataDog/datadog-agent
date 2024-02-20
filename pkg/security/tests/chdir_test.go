@@ -17,8 +17,6 @@ import (
 )
 
 func TestChdir(t *testing.T) {
-	SkipIfNotAvailable(t)
-
 	rule := &rules.RuleDefinition{
 		ID:         "test_chdir_rule",
 		Expression: `chdir.file.path == "{{.Root}}/test-chdir"`,
