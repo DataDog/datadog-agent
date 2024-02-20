@@ -176,7 +176,7 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 		if initSendOnStart, initSendOnStartSet := initCfg.SendOnStart.Get(); initSendOnStartSet {
 			sendOnStart = initSendOnStart
 		} else {
-			sendOnStart = false
+			sendOnStart = true
 		}
 	}
 

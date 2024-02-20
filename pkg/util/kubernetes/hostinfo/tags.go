@@ -18,44 +18,57 @@ import (
 )
 
 // GetTags gets the tags from the kubernetes apiserver and the kubelet
-func GetTags(ctx context.Context) (tags []string, err error) {
-	tags = appendNodeInfoTags(ctx, tags)
-
-	annotationsToTags := getAnnotationsToTags()
-	if len(annotationsToTags) > 0 {
-		nodeAnnotations, e := GetNodeAnnotations(ctx)
-		if e != nil {
-			err = e
-		} else {
-			tags = append(tags, extractTags(nodeAnnotations, annotationsToTags)...)
-		}
+func GetTags(ctx context.Context) ([]string, error) {
+	tags, err := getNodeInfoTags(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	return
+	annotationsToTags := getAnnotationsToTags()
+	if len(annotationsToTags) == 0 {
+		return tags, nil
+	}
+
+	nodeAnnotations, err := GetNodeAnnotations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tags = append(tags, extractTags(nodeAnnotations, annotationsToTags)...)
+
+	return tags, nil
 }
 
-func appendNodeInfoTags(ctx context.Context, tags []string) []string {
+// getNodeInfoTags gets the tags from the kubelet and the cluster-agent
+func getNodeInfoTags(ctx context.Context) ([]string, error) {
 	nodeInfo, err := NewNodeInfo()
 	if err != nil {
 		log.Debugf("Unable to auto discover node info tags: %s", err)
-		return tags
+		return nil, err
 	}
 
 	nodeName, err := nodeInfo.GetNodeName(ctx)
-	if err == nil && nodeName != "" {
-		tags = append(tags, "kube_node:"+nodeName)
+	if err != nil || nodeName == "" {
+		log.Debugf("Unable to auto discover node name: %s", err)
+		// We can return an error here because nodeName needs to be retrieved
+		// for node labels and node annotations.
+		return nil, err
 	}
-
+	tags := []string{"kube_node:" + nodeName}
 	labelsToTags := getLabelsToTags()
-	if len(labelsToTags) > 0 {
-		var nodeLabels map[string]string
-		nodeLabels, err = nodeInfo.GetNodeLabels(ctx)
-		if err == nil && len(nodeLabels) > 0 {
-			tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
-		}
+	if len(labelsToTags) == 0 {
+		return tags, nil
 	}
 
-	return tags
+	nodeLabels, err := nodeInfo.GetNodeLabels(ctx)
+	if err != nil {
+		log.Errorf("Unable to auto discover node labels: %s", err)
+		return nil, err
+	}
+	if len(nodeLabels) > 0 {
+		tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
+	}
+
+	return tags, nil
 }
 
 func getDefaultLabelsToTags() map[string]string {

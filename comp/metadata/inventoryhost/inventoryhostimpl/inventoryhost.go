@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.uber.org/fx"
 )
@@ -103,6 +104,7 @@ type Payload struct {
 	Hostname  string        `json:"hostname"`
 	Timestamp int64         `json:"timestamp"`
 	Metadata  *hostMetadata `json:"host_metadata"`
+	UUID      string        `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -250,5 +252,6 @@ func (ih *invHost) getPayload() marshaler.JSONMarshaler {
 		Hostname:  ih.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  ih.data,
+		UUID:      uuid.GetUUID(),
 	}
 }

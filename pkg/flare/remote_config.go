@@ -36,9 +36,9 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	}
 
 	// Dump the state
-	token, err := security.FetchAuthToken()
+	token, err := security.FetchAuthToken(config.Datadog)
 	if err != nil {
-		return fmt.Errorf("Couldn't get auth token: %v", err)
+		return fmt.Errorf("couldn't get auth token: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -60,18 +60,28 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 
 	s, err := cli.GetConfigState(ctx, in)
 	if err != nil {
-		return fmt.Errorf("Couldn't get the repositories state: %v", err)
+		return fmt.Errorf("couldn't get the repositories state: %v", err)
 	}
 
-	fb.AddFileFromFunc("remote-config-state.log", func() ([]byte, error) {
+	var haState *pbgo.GetStateConfigResponse
+	if config.Datadog.GetBool("ha.enabled") {
+		if haState, err = cli.GetConfigStateHA(ctx, in); err != nil {
+			return fmt.Errorf("couldn't get the HA repositories state: %v", err)
+		}
+	}
+
+	err = fb.AddFileFromFunc("remote-config-state.log", func() ([]byte, error) {
 		fct := func(w io.Writer) error {
-			PrintRemoteConfigState(w, s)
+			PrintRemoteConfigStates(w, s, haState)
 
 			return nil
 		}
 
 		return functionOutputToBytes(fct), nil
 	})
+	if err != nil {
+		return fmt.Errorf("couldn't add the remote-config-state.log file: %v", err)
+	}
 
 	return nil
 }
@@ -161,39 +171,50 @@ func printTUFRepo(w io.Writer, repo map[string]*pbgo.FileMetaState) {
 	}
 }
 
-// PrintRemoteConfigState dump the whole remote-config state
-func PrintRemoteConfigState(w io.Writer, s *pbgo.GetStateConfigResponse) {
-	fmt.Fprintln(w, "\n=== Remote config DB state ===")
+// PrintRemoteConfigStates dump the whole remote-config state
+func PrintRemoteConfigStates(w io.Writer, state *pbgo.GetStateConfigResponse, stateHA *pbgo.GetStateConfigResponse) {
+	if state != nil {
+		fmt.Fprintln(w, "\n=== Remote config DB state ===")
+		printRemoteConfigStateContents(w, state)
+	}
 
+	if stateHA != nil {
+		fmt.Fprintln(w, "\n=== Remote config HA DB state ===")
+		printRemoteConfigStateContents(w, stateHA)
+	}
+}
+
+func printRemoteConfigStateContents(w io.Writer, state *pbgo.GetStateConfigResponse) {
 	fmt.Fprintln(w, "\nConfiguration repository")
 	fmt.Fprintln(w, strings.Repeat("-", 25))
-	printTUFRepo(w, s.ConfigState)
+	printTUFRepo(w, state.ConfigState)
 
 	fmt.Fprintln(w, "\nDirector repository")
 	fmt.Fprintln(w, strings.Repeat("-", 20))
-	printTUFRepo(w, s.DirectorState)
-	keys := make([]string, 0, len(s.TargetFilenames))
-	for k := range s.TargetFilenames {
+	printTUFRepo(w, state.DirectorState)
+	keys := make([]string, 0, len(state.TargetFilenames))
+	for k := range state.TargetFilenames {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
 	for _, name := range keys {
-		fmt.Fprintf(w, "    |- %s - Hash: %s\n", name, s.TargetFilenames[name])
+		fmt.Fprintf(w, "    |- %s - Hash: %s\n", name, state.TargetFilenames[name])
 	}
 
-	fmt.Fprintln(w, "\n=== Remote config active clients ===")
-
-	for _, client := range s.ActiveClients {
-		fmt.Fprintf(w, "\n== Client %s ==\n%+v\n\tCapabilities: ", client.Id, client)
+	fmt.Fprintln(w, "\nRemote config active clients")
+	fmt.Fprintln(w, strings.Repeat("-", 29))
+	for _, client := range state.ActiveClients {
+		fmt.Fprintf(w, "\n- Client %s\n%+v", client.Id, client)
 		// Additional print of capabilities so it's more readable
+		fmt.Fprintf(w, "\n    - Capabilities: ")
 		for _, n := range client.Capabilities {
 			fmt.Printf("% 08b", n)
 		}
 		fmt.Println("")
 	}
 
-	if len(s.ActiveClients) == 0 {
+	if len(state.ActiveClients) == 0 {
 		fmt.Fprintln(w, "No active clients")
 	}
 }

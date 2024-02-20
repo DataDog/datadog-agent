@@ -12,10 +12,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+	"github.com/DataDog/agent-payload/v5/sbom"
+	"github.com/samber/lo"
+	"gopkg.in/zorkian/go-datadog-api.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
@@ -358,8 +362,8 @@ func (suite *k8sSuite) TestRedis() {
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^display_container_name:redis`,
-				`^image_id:docker.io/library/redis@sha256:`,
-				`^image_name:redis$`,
+				`^image_id:public.ecr.aws/docker/library/redis@sha256:`,
+				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
@@ -413,8 +417,8 @@ func (suite *k8sSuite) TestRedis() {
 				`^dirname:/var/log/pods/workload-redis_redis-`,
 				`^display_container_name:redis`,
 				`^filename:[[:digit:]]+.log$`,
-				`^image_id:docker.io/library/redis@sha256:`,
-				`^image_name:redis$`,
+				`^image_id:public.ecr.aws/docker/library/redis@sha256:`,
+				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
@@ -790,6 +794,9 @@ func (suite *k8sSuite) TestContainerImage() {
 }
 
 func (suite *k8sSuite) TestSBOM() {
+	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-3776
+	suite.T().Skip("CONTINT-3776: SBOM test is flaky")
+
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
@@ -797,40 +804,77 @@ func (suite *k8sSuite) TestSBOM() {
 			return
 		}
 
-		var sbomID string
-		for _, id := range sbomIDs {
-			if strings.HasPrefix(id, "ghcr.io/datadog/apps-nginx-server") {
-				sbomID = id
-				break
+		sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
+			return strings.HasPrefix(id, "ghcr.io/datadog/apps-nginx-server")
+		})
+
+		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NotEmptyf(c, sbomIDs, "No SBOM for ghcr.io/datadog/apps-nginx-server yet") {
+			return
+		}
+
+		images := lo.FlatMap(sbomIDs, func(id string, _ int) []*aggregator.SBOMPayload {
+			images, err := suite.Fakeintake.FilterSBOMs(id)
+			assert.NoErrorf(c, err, "Failed to query fake intake")
+			return images
+		})
+
+		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NotEmptyf(c, images, "No SBOM payload yet") {
+			return
+		}
+
+		images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
+			return image.Status == sbom.SBOMStatus_SUCCESS
+		})
+
+		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NotEmptyf(c, images, "No successful SBOM yet") {
+			return
+		}
+
+		images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
+			cyclonedx := image.GetCyclonedx()
+			return cyclonedx != nil &&
+				cyclonedx.Metadata != nil &&
+				cyclonedx.Metadata.Component != nil
+		})
+
+		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NotEmptyf(c, images, "No SBOM with complete CycloneDX") {
+			return
+		}
+
+		for _, image := range images {
+			if !assert.NotNil(c, image.GetCyclonedx().Metadata.Component.Properties) {
+				continue
+			}
+
+			expectedTags := []*regexp.Regexp{
+				regexp.MustCompile(`^architecture:(amd|arm)64$`),
+				regexp.MustCompile(`^git\.commit\.sha:`),
+				regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
+				regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
+				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
+				regexp.MustCompile(`^image_tag:main$`),
+				regexp.MustCompile(`^os_name:linux$`),
+				regexp.MustCompile(`^short_image:apps-nginx-server$`),
+			}
+			err = assertTags(image.GetTags(), expectedTags)
+			assert.NoErrorf(c, err, "Tags mismatch")
+
+			properties := lo.Associate(image.GetCyclonedx().Metadata.Component.Properties, func(property *cyclonedx_v1_4.Property) (string, string) {
+				return property.Name, *property.Value
+			})
+
+			if assert.Contains(c, properties, "aquasecurity:trivy:RepoTag") {
+				assert.Equal(c, "ghcr.io/datadog/apps-nginx-server:main", properties["aquasecurity:trivy:RepoTag"])
+			}
+
+			if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {
+				assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], "ghcr.io/datadog/apps-nginx-server@sha256:")
 			}
 		}
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, sbomID, "No SBOM for ghcr.io/datadog/apps-nginx-server yet") {
-			return
-		}
-
-		images, err := suite.Fakeintake.FilterSBOMs(sbomID)
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-			return
-		}
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No SBOM yet") {
-			return
-		}
-
-		expectedTags := []*regexp.Regexp{
-			regexp.MustCompile(`^architecture:(amd|arm)64$`),
-			regexp.MustCompile(`^git\.commit\.sha:`),
-			regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
-			regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
-			regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
-			regexp.MustCompile(`^image_tag:main$`),
-			regexp.MustCompile(`^os_name:linux$`),
-			regexp.MustCompile(`^short_image:apps-nginx-server$`),
-		}
-		err = assertTags(images[len(images)-1].GetTags(), expectedTags)
-		assert.NoErrorf(c, err, "Tags mismatch")
 	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
 }
 

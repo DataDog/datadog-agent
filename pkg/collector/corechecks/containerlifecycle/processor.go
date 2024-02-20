@@ -13,9 +13,9 @@ import (
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"google.golang.org/protobuf/proto"
@@ -190,7 +190,7 @@ func (p *processor) containerLifecycleEvent(msgs []*contlcycle.EventsPayload) {
 			continue
 		}
 
-		p.sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerLifecycle)
+		p.sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerLifecycle)
 	}
 }
 

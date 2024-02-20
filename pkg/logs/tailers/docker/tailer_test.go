@@ -20,8 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -310,8 +309,7 @@ func (c *fakeDockerClient) AddEntry(testIOReader io.ReadCloser, err error) {
 	})
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (c *fakeDockerClient) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
+func (c *fakeDockerClient) ContainerLogs(context.Context, string, container.LogsOptions) (io.ReadCloser, error) {
 	if c.counter >= len(c.entries) {
 		c.counter = 0
 	}

@@ -35,14 +35,6 @@ var openCapabilities = Capabilities{
 }
 
 func openOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	intValues := func(fvs rules.FilterValues) []int {
-		var values []int
-		for _, v := range fvs {
-			values = append(values, v.Value.(int))
-		}
-		return values
-	}
-
 	openApprovers, err := onNewBasenameApprovers(model.FileOpenEventType, "file", approvers)
 	if err != nil {
 		return nil, err
@@ -52,7 +44,7 @@ func openOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
 		switch field {
 		case "open.file.name", "open.file.path": // already handled by onNewBasenameApprovers
 		case "open.flags":
-			activeApprover, err := approveFlags("open_flags_approvers", intValues(values)...)
+			activeApprover, err := approveFlags("open_flags_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}

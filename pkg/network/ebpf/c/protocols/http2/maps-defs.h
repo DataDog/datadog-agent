@@ -48,5 +48,6 @@ BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, http2_ctx_t, 1)
  * value is a http2 telemetry object
  */
 BPF_ARRAY_MAP(http2_telemetry, http2_telemetry_t, 1)
+BPF_ARRAY_MAP(tls_http2_telemetry, http2_telemetry_t, 1)
 
 #endif

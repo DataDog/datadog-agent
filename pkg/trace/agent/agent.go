@@ -15,23 +15,24 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
-	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
-
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -52,6 +53,8 @@ type Agent struct {
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
 	DebugServer           *api.DebugServer
+	Statsd                statsd.ClientInterface
+	Timing                timing.Reporter
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -79,44 +82,47 @@ type Agent struct {
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
 	statsChan := make(chan *pb.StatsPayload, 1)
 	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
-		oconf.Statsd = metrics.Client
+		oconf.Statsd = statsd
 	}
+	timing := timing.New(statsd)
 	agnt := &Agent{
-		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now()),
-		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan),
+		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now(), statsd),
+		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
-		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf),
-		ErrorsSampler:         sampler.NewErrorsSampler(conf),
-		RareSampler:           sampler.NewRareSampler(conf),
-		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
-		EventProcessor:        newEventProcessor(conf),
-		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector),
+		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf, statsd),
+		ErrorsSampler:         sampler.NewErrorsSampler(conf, statsd),
+		RareSampler:           sampler.NewRareSampler(conf, statsd),
+		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf, statsd),
+		EventProcessor:        newEventProcessor(conf, statsd),
+		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector, statsd, timing),
 		obfuscator:            obfuscate.NewObfuscator(oconf),
 		cardObfuscator:        newCreditCardsObfuscator(conf.Obfuscation.CreditCards),
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
 		DebugServer:           api.NewDebugServer(conf),
+		Statsd:                statsd,
+		Timing:                timing,
 	}
-	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector)
-	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing)
+	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
-	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector)
+	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing)
 	return agnt
 }
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
-	timing.Start(metrics.Client)
-	defer timing.Stop()
+	a.Timing.Start()
+	defer a.Timing.Stop()
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.Concentrator,
@@ -241,7 +247,7 @@ func (a *Agent) Process(p *api.Payload) {
 		return
 	}
 	now := time.Now()
-	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
+	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
 	sampledChunks := new(writer.SampledChunks)
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
@@ -316,7 +322,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		a.setPayloadAttributes(p, root, chunk)
 
-		pt := processedTrace(p, chunk, root)
+		pt := processedTrace(p, chunk, root, p.TracerPayload.ContainerID, a.conf)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -369,7 +375,7 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 		p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
 	}
 	if p.TracerPayload.AppVersion == "" {
-		p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
+		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
 	}
 }
 

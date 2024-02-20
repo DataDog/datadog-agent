@@ -10,6 +10,7 @@ package tests
 
 import (
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
@@ -35,6 +36,10 @@ type testOpts struct {
 	enableSecurityProfile                      bool
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
+	enableAutoSuppression                      bool
+	autoSuppressionEventTypes                  []string
+	enableAnomalyDetection                     bool
+	anomalyDetectionEventTypes                 []string
 	anomalyDetectionDefaultMinimumStablePeriod time.Duration
 	anomalyDetectionMinimumStablePeriodExec    time.Duration
 	anomalyDetectionMinimumStablePeriodDNS     time.Duration
@@ -48,7 +53,7 @@ type testOpts struct {
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
-	enableEBPFLess                             bool
+	enableFIM                                  bool // only valid on windows
 }
 
 type dynamicTestOpts struct {
@@ -90,6 +95,10 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enableSecurityProfile == opts.enableSecurityProfile &&
 		to.securityProfileDir == opts.securityProfileDir &&
 		to.securityProfileWatchDir == opts.securityProfileWatchDir &&
+		to.enableAutoSuppression == opts.enableAutoSuppression &&
+		slices.Equal(to.autoSuppressionEventTypes, opts.autoSuppressionEventTypes) &&
+		to.enableAnomalyDetection == opts.enableAnomalyDetection &&
+		slices.Equal(to.anomalyDetectionEventTypes, opts.anomalyDetectionEventTypes) &&
 		to.anomalyDetectionDefaultMinimumStablePeriod == opts.anomalyDetectionDefaultMinimumStablePeriod &&
 		to.anomalyDetectionMinimumStablePeriodExec == opts.anomalyDetectionMinimumStablePeriodExec &&
 		to.anomalyDetectionMinimumStablePeriodDNS == opts.anomalyDetectionMinimumStablePeriodDNS &&
@@ -102,6 +111,5 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
-		to.preStartCallback == nil && opts.preStartCallback == nil &&
-		to.enableEBPFLess == opts.enableEBPFLess
+		to.preStartCallback == nil && opts.preStartCallback == nil
 }

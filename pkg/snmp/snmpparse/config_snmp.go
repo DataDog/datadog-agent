@@ -118,7 +118,7 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config.Datadog)
 	if err != nil {
 		return nil, err
 	}

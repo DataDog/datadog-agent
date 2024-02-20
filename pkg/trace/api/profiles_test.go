@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func makeURLs(t *testing.T, ss ...string) []*url.URL {
@@ -63,7 +65,7 @@ func TestProfileProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{}
-	newProfileProxy(c, []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
+	newProfileProxy(c, []*url.URL{u}, []string{"123"}, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()

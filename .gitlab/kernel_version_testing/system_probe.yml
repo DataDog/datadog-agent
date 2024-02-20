@@ -148,7 +148,7 @@ upload_dependencies_arm64:
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$TEST_ARCHIVE_NAME system-probe-tests
+    - tar czvf ../$TEST_ARCHIVE_NAME tests
     - popd
     # upload tests
     - !reference [.wait_for_instances]
@@ -156,12 +156,6 @@ upload_dependencies_arm64:
     - !reference [.setup_ssh_config]
     - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
     - scp $DD_AGENT_TESTING_DIR/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
-    - ssh metal_instance "tar xzf /opt/kernel-version-testing/${TEST_ARCHIVE_NAME} -C /opt/kernel-version-testing"
-    # give correct permissions to assets
-    - ssh metal_instance "sudo find /opt/kernel-version-testing/system-probe-tests -name *.o -type f -exec chown root:root {} \;"
-    # Add symlink to btf directory. Since this directory is mounted read-only in the micro-vms,
-    # we cannot write btf files here. Hence we create a symlink to a writable destination
-    - ssh metal_instance "sudo mkdir -p /opt/kernel-version-testing/system-probe-tests/pkg/ebpf/bytecode/build/co-re && sudo mkdir -p /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf && sudo ln -s /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf /opt/kernel-version-testing/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf"
     # build connector
     - pushd $CI_PROJECT_DIR/test/new-e2e
     - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
@@ -177,11 +171,11 @@ upload_dependencies_arm64:
     GO_BIN: go/bin
     GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/gotestsum
     TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
-    SYSTEM_PROBE_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/system-probe-tests
+    SYSTEM_PROBE_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/tests/system-probe-tests
     KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     ARCHIVE_NAME: dependencies-$ARCH.tar.gz
-    TEST_ARCHIVE_NAME: system-probe-tests-$ARCH.tar.gz
+    TEST_ARCHIVE_NAME: tests-$ARCH.tar.gz
   artifacts:
     when: always
     paths:
@@ -237,7 +231,7 @@ upload_system_probe_tests_arm64:
     - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/btfs
-    BTF_DIR: opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
+    BTF_DIR: system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
 upload_minimized_btfs_x64:
@@ -300,18 +294,22 @@ upload_minimized_btfs_arm64:
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --sets=$TEST_SETS --host-cpus=$AVAILABLE_CPUS
+      # Each VM gets 12GB of memory. We have set 8GB as base for the system, and upto 4GB can be used
+      # by a ram backed filesystem holding the system-probe test packages
+    - inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --sets=$TEST_SETS --memory=12288
     - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID --run-agent
     - jq -r '.' $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
     - export AWS_PROFILE=agent-qa-ci
     - !reference [.shared_filters_and_queries]
-    - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml/$ARCH
+    - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml/$ARCH $CI_PROJECT_DIR/libvirt/qemu/$ARCH
     - !reference [.get_instance_ip_by_type]
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "sudo virsh list --name | grep -v -E '^$' | xargs -I '{}' sh -c \"sudo virsh dumpxml '{}' > /tmp/ddvm-xml-'{}'.txt\""
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "sudo virsh list --name | xargs -I '{}' sh -c \"sudo cp /var/log/libvirt/qemu/'{}'.log /tmp/ddvm-qemu-'{}'.log && sudo chown 1000:1000 /tmp/ddvm-qemu-*\""
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/$ARCH
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml/$ARCH
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-qemu-*" $CI_PROJECT_DIR/libvirt/qemu/$ARCH
   artifacts:
     when: always
     paths:
@@ -328,7 +326,6 @@ kernel_matrix_testing_setup_env_arm64:
     ARCH: arm64
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
-    AVAILABLE_CPUS: "64"
 
 kernel_matrix_testing_setup_env_x64:
   extends:
@@ -339,7 +336,6 @@ kernel_matrix_testing_setup_env_x64:
     ARCH: x86_64
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
-    AVAILABLE_CPUS: "96"
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing

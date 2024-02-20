@@ -28,6 +28,11 @@ func (a *Agent) Truncate(s *pb.Span) {
 	for k, v := range s.Meta {
 		modified := false
 
+		// Do not truncate structured meta tags.
+		if isStructuredMetaKey(k) {
+			continue
+		}
+
 		if len(k) > MaxMetaKeyLen {
 			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
 			delete(s.Meta, k)

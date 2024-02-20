@@ -139,6 +139,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
+			case workloadmeta.KindHost:
+				tagInfos = append(tagInfos, c.handleHostTags(ev)...)
 			case workloadmeta.KindProcess:
 				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
 			case workloadmeta.KindKubernetesDeployment:
@@ -279,6 +281,17 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*T
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+		},
+	}
+}
+
+func (c *WorkloadMetaCollector) handleHostTags(ev workloadmeta.Event) []*TagInfo {
+	hostTags := ev.Entity.(*workloadmeta.HostTags)
+	return []*TagInfo{
+		{
+			Source:      hostSource,
+			Entity:      GlobalEntityID,
+			LowCardTags: hostTags.HostTags,
 		},
 	}
 }
@@ -708,6 +721,8 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return fmt.Sprintf("process://%s", entityID.ID)
 	case workloadmeta.KindKubernetesDeployment:
 		return fmt.Sprintf("deployment://%s", entityID.ID)
+	case workloadmeta.KindHost:
+		return fmt.Sprintf("host://%s", entityID.ID)
 	default:
 		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)

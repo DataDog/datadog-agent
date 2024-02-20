@@ -150,6 +150,11 @@ func TestProcessesByPIDTestFS(t *testing.T) {
 	testProcessesByPID(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
+func TestProcessesByPIDTestIgnoringZombiesFS(t *testing.T) {
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
+	testProcessesByPID(t, WithProcFSRoot("resources/test_procfs/proc/"), WithIgnoreZombieProcesses(true))
+}
+
 func TestProcessesByPIDLocalFS(t *testing.T) {
 	maySkipLocalTest(t)
 	testProcessesByPID(t)
@@ -174,7 +179,7 @@ func testProcessesByPID(t *testing.T, probeOptions ...Option) {
 		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
 		cmd := strings.Join(probe.getCmdline(pathForPID), " ")
 		statInfo := probe.parseStat(pathForPID, pid, time.Now())
-		if cmd == "" && isKernelThread(statInfo.flags) {
+		if cmd == "" && (isKernelThread(statInfo.flags) || probe.ignoreZombieProcesses) {
 			assert.NotContains(t, procByPID, pid)
 		} else {
 			assert.Contains(t, procByPID, pid)

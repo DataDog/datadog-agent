@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -124,6 +125,7 @@ type SecurityProfileManager struct {
 	resolvers           *resolvers.EBPFResolvers
 	providers           []Provider
 	activityDumpManager ActivityDumpManager
+	eventTypes          []model.EventType
 
 	manager                    *manager.Manager
 	securityProfileMap         *ebpf.Map
@@ -159,10 +161,22 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		return nil, fmt.Errorf("secprofs_syscalls map not found")
 	}
 
+	var eventTypes []model.EventType
+	if config.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
+		eventTypes = append(eventTypes, config.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes...)
+	}
+	if config.RuntimeSecurity.AnomalyDetectionEnabled {
+		eventTypes = append(eventTypes, config.RuntimeSecurity.AnomalyDetectionEventTypes...)
+	}
+	// merge and remove duplicated event types
+	slices.Sort(eventTypes)
+	eventTypes = slices.Clip(slices.Compact(eventTypes))
+
 	m := &SecurityProfileManager{
 		config:                     config,
 		statsdClient:               statsdClient,
 		manager:                    manager,
+		eventTypes:                 eventTypes,
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
 		resolvers:                  resolvers,
@@ -302,7 +316,7 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			m.cacheMiss.Inc()
 
 			// create a new entry
-			profile = NewSecurityProfile(workload.WorkloadSelector, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
+			profile = NewSecurityProfile(workload.WorkloadSelector, m.eventTypes)
 			m.profiles[workload.WorkloadSelector] = profile
 
 			// notify the providers that we're interested in a new workload selector
@@ -394,7 +408,7 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 
 	ctx.Version = profile.Version
 	ctx.Tags = profile.Tags
-	ctx.AnomalyDetectionEventTypes = profile.anomalyDetectionEvents
+	ctx.EventTypes = profile.eventTypes
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
@@ -460,7 +474,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	profile, ok := m.profiles[selector]
 	if !ok {
 		// this was likely a short-lived workload, cache the profile in case this workload comes back
-		profile = NewSecurityProfile(selector, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
+		profile = NewSecurityProfile(selector, m.eventTypes)
 	}
 
 	if profile.Version == newProfile.Version {
@@ -635,6 +649,10 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
+func (m *SecurityProfileManager) canGenerateAnomaliesFor(e *model.Event) bool {
+	return m.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(m.config.RuntimeSecurity.AnomalyDetectionEventTypes, e.GetEventType())
+}
+
 // LookupEventInProfiles lookups event in profiles
 func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// ignore events with an error
@@ -644,7 +662,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 	// shortcut for dedicated anomaly detection events
 	if event.IsKernelSpaceAnomalyDetectionEvent() {
-		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+		event.AddToFlags(model.EventFlagsSecurityProfileInProfile | model.EventFlagsAnomalyDetectionEvent)
 		return
 	}
 
@@ -701,6 +719,9 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
 		} else {
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
+			if m.canGenerateAnomaliesFor(event) {
+				event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
+			}
 		}
 	}
 }
