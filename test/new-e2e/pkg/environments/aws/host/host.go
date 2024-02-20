@@ -216,6 +216,10 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.FakeIntake = nil
 	}
+	if !params.installUpdater {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.Updater = nil
+	}
 
 	// Create Agent if required
 	if params.agentOptions != nil && !params.installUpdater {
@@ -238,6 +242,8 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		if err != nil {
 			return err
 		}
+		// todo: add agent once updater installs agent on bootstrap
+		env.Agent = nil
 
 	} else {
 		// Suite inits all fields by default, so we need to explicitly set it to nil

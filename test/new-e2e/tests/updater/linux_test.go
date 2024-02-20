@@ -24,10 +24,10 @@ type vmUpdaterSuite struct {
 func TestUpdaterSuite(t *testing.T) {
 	e2e.Run(t, &vmUpdaterSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithUpdater(),
-		awshost.WithEC2InstanceOptions(ec2.WithOSArch(os.DebianDefault, os.ARM64Arch)),
+		awshost.WithEC2InstanceOptions(ec2.WithOSArch(os.UbuntuDefault, os.ARM64Arch)),
 	)))
 }
 
 func (v *vmUpdaterSuite) TestUpdater() {
-	require.Equal(v.T(), "arm64", v.Env().RemoteHost.MustExecute("uname -m"))
+	require.Equal(v.T(), "aarch64\n", v.Env().RemoteHost.MustExecute("uname -m"))
 }
