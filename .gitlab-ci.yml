@@ -1313,6 +1313,8 @@ workflow:
 .on_apm_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e
     when: never
+  - <<: *if_auto_e2e
+    when: on_success
   - <<: *if_main_branch
     when: on_success
   - <<: *if_release_branch
