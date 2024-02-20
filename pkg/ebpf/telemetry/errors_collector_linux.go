@@ -42,8 +42,8 @@ func NewEBPFErrorsCollector(bpfDir string) prometheus.Collector {
 	}
 	return &EBPFErrorsCollector{
 		EBPFTelemetry: &EBPFTelemetry{
-			mapKeys:   make(map[string]uint64),
-			probeKeys: make(map[string]uint64),
+			mapKeys:   make(map[string]uint32),
+			probeKeys: make(map[string]uint32),
 			bpfDir:    bpfDir,
 		},
 		ebpfMapOpsErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
@@ -63,44 +63,39 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
-	if e.helperErrMap != nil {
-		var hval HelperErrTelemetry
-		for probeName, k := range e.probeKeys {
-			err := e.helperErrMap.Lookup(&k, &hval)
-			if err != nil {
-				log.Debugf("failed to get telemetry for probe:key %s:%d\n", probeName, k)
-				continue
-			}
-			for index, helperName := range helperNames {
-				base := maxErrno * index
-				if count := getErrCount(hval.Count[base : base+maxErrno]); len(count) > 0 {
-					for errStr, errCount := range count {
-						errorsDelta := float64(errCount - e.lastValues[errStr])
-						if errorsDelta > 0 {
-							ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.CounterValue, errorsDelta, helperName, probeName, errStr)
-						}
-						e.lastValues[errStr] = errCount
-					}
+	if e.bpfTelemetryMap == nil {
+		return
+	}
+	var val InstrumentationBlob
+	var key uint32
+	err := e.bpfTelemetryMap.Lookup(&key, &val)
+	if err != nil {
+		log.Warnf("failed to get instrumentation blob: %v", err)
+	}
+
+	for mapName, mapIndx := range e.mapKeys {
+		if count := getErrCount(val.Map_err_telemetry[mapIndx].Count[:]); len(count) > 0 {
+			for errStr, errCount := range count {
+				errorsDelta := float64(errCount - e.lastValues[errStr])
+				if errorsDelta > 0 {
+					ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.CounterValue, errorsDelta, mapName, errStr)
 				}
+				e.lastValues[errStr] = errCount
 			}
 		}
 	}
 
-	if e.mapErrMap != nil {
-		var val MapErrTelemetry
-		for m, k := range e.mapKeys {
-			err := e.mapErrMap.Lookup(&k, &val)
-			if err != nil {
-				log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
-				continue
-			}
-			if count := getErrCount(val.Count[:]); len(count) > 0 {
+	for programName, programIndex := range e.probeKeys {
+		for index, helperName := range helperNames {
+			base := maxErrno * index
+			if count := getErrCount(val.Helper_err_telemetry[programIndex].Count[base : base+maxErrno]); len(count) > 0 {
 				for errStr, errCount := range count {
 					errorsDelta := float64(errCount - e.lastValues[errStr])
 					if errorsDelta > 0 {
-						ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.CounterValue, errorsDelta, m, errStr)
+						ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.CounterValue, errorsDelta, helperName, programName, errStr)
 					}
 					e.lastValues[errStr] = errCount
+
 				}
 			}
 		}

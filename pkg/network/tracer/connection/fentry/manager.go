@@ -32,8 +32,7 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, cf
 		{Name: probes.TelemetryMap},
 		{Name: probes.SockByPidFDMap},
 		{Name: probes.PidFDBySockMap},
-		{Name: probes.MapErrTelemetryMap},
-		{Name: probes.HelperErrTelemetryMap},
+		{Name: probes.EBPFTelemetryMap},
 	}
 	pm := &manager.PerfMap{
 		Map: manager.Map{Name: probes.ConnCloseEventMap},
