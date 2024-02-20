@@ -137,14 +137,6 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 		return fmt.Errorf("could not extract OCI archive: %w", err)
 	}
 
-	// As we are extracting into a temporary path and we can't Rename to an existing path,
-	// we need to remove the existing destination path. It also lets us make sure that the
-	// destination path is not in a half-extracted state and only contains the new version.
-	err = os.RemoveAll(destinationPath)
-	if err != nil {
-		return fmt.Errorf("could not remove existing destination path: %w", err)
-	}
-
 	// We only need to extract /opt/datadog-packages/<package-name>/<package-version> from the OCI archive today.
 	// We can add more logic here if we need to extract more files or directories in the future.
 	err = os.Rename(filepath.Join(extractedOCIPath, defaultRepositoryPath, pkg.Name, pkg.Version), destinationPath)
