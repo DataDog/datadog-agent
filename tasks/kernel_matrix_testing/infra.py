@@ -29,7 +29,9 @@ class LocalCommandRunner:
         raise Exit("command failed")
 
     @staticmethod
-    def move_to_shared_directory(ctx: Context, _: 'HostInstance', source: str, subdir: Optional[PathOrStr] = None):
+    def move_to_shared_directory(
+        ctx: Context, _: 'HostInstance', source: PathOrStr, subdir: Optional[PathOrStr] = None
+    ):
         recursive = ""
         if os.path.isdir(source):
             recursive = "-R"
@@ -63,7 +65,7 @@ class RemoteCommandRunner:
 
     @staticmethod
     def move_to_shared_directory(
-        ctx: Context, instance: 'HostInstance', source: str, subdir: Optional[PathOrStr] = None
+        ctx: Context, instance: 'HostInstance', source: PathOrStr, subdir: Optional[PathOrStr] = None
     ):
         full_target = get_kmt_os().shared_dir
         if subdir is not None:
@@ -129,7 +131,7 @@ class HostInstance:
     def add_microvm(self, domain: LibvirtDomain):
         self.microvms.append(domain)
 
-    def copy_to_all_vms(self, ctx: Context, path: str, subdir: Optional[PathOrStr] = None):
+    def copy_to_all_vms(self, ctx: Context, path: PathOrStr, subdir: Optional[PathOrStr] = None):
         self.runner.move_to_shared_directory(ctx, self, path, subdir)
 
     def __repr__(self):

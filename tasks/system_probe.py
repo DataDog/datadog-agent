@@ -805,6 +805,7 @@ def clean_build(ctx):
     with open(BUILD_COMMIT, 'r') as f:
         build_commit = f.read().rstrip()
         curr_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.rstrip()
+        print(f"build_commit: {build_commit}, curr_commit: {curr_commit}")
         if curr_commit != build_commit:
             return True
 
@@ -828,6 +829,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
 
     # Clean up previous build
     if os.path.exists(KITCHEN_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
+        print("Cleaning up previous build")
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
     elif packages != "":
         packages = [full_pkg_path(name) for name in packages.split(",")]
@@ -849,32 +851,40 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
         if os.path.exists(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir)):
             shutil.rmtree(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir))
 
+    built_object_files = False
+
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside a chef recipe like the following:
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/netlink/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
-    for i, pkg in enumerate(target_packages):
+    for pkg in target_packages:
         target_path = os.path.join(KITCHEN_ARTIFACT_DIR, pkg.lstrip(os.getcwd()))
         target_bin = "testsuite"
         if is_windows:
             target_bin = "testsuite.exe"
 
+        test_files = glob.glob(f"{pkg}/*_test.go")
+
+        if len(test_files) == 0:
+            continue
+
         test(
             ctx,
             packages=pkg,
-            skip_object_files=(i != 0),
+            skip_object_files=built_object_files,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
             kernel_release=kernel_release,
         )
+        built_object_files = True
 
         # copy ancillary data, if applicable
         for extra in ["testdata", "build"]:
             extra_path = os.path.join(pkg, extra)
             if os.path.isdir(extra_path):
-                shutil.copytree(extra_path, os.path.join(target_path, extra))
+                shutil.copytree(extra_path, os.path.join(target_path, extra), dirs_exist_ok=True)
 
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))

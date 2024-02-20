@@ -1,4 +1,11 @@
+import os
+import platform
+
+import invoke.exceptions as ie
+from invoke.context import Context
 from typing import Optional
+
+from tasks.kernel_matrix_testing.vars import arch_mapping, Arch
 
 try:
     from termcolor import colored
@@ -6,11 +13,6 @@ except ImportError:
 
     def colored(text: str, color: Optional[str]) -> str:  # noqa: U100
         return text
-
-
-import os
-
-import invoke.exceptions as ie
 
 
 def ask(question: str) -> str:
@@ -45,3 +47,28 @@ def NoLibvirt():
 
 def is_root():
     return os.getuid() == 0
+
+
+def full_arch(arch: str):
+    if arch == "local":
+        return arch_mapping[platform.machine()]
+    return arch_mapping[arch]
+
+
+def get_binary_target_arch(ctx: Context, file: str) -> Optional[Arch]:
+    res = ctx.run(f"file {file}")
+    if res is None or not res.ok:
+        return None
+
+    # Only do this with executable files
+    if 'executable' not in res.stdout:
+        return None
+
+    # Second field of the file output is the architecture, get a standard
+    # value if possible
+    binary_arch = res.stdout.split(",")[1].strip()
+    for word in binary_arch.split(" "):
+        if word in arch_mapping:
+            return arch_mapping[word]
+
+    return None
