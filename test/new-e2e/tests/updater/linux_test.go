@@ -5,8 +5,24 @@
 
 package updater
 
-import "testing"
+import (
+	"testing"
 
-func TestHelloWorld(t *testing.T) {
-	t.Fatal("not implemented")
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+
+	"github.com/stretchr/testify/require"
+)
+
+type vmUpdaterSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+func TestUpdaterSuite(t *testing.T) {
+	e2e.Run(t, &vmUpdaterSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithUpdater())))
+}
+
+func (v *vmUpdaterSuite) TestUpdater() {
+	require.Equal(v.T(), "aarch64", v.Env().RemoteHost.MustExecute("uname -m"))
 }
