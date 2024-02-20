@@ -6,7 +6,7 @@
   "checkSchedulerStats": {
     "LoaderErrors": {
       "apm": {
-        "Core Check Loader": "Could not configure check APM Agent: Can't access the default apm binary at /Users/ali.benabdallah/go/src/github.com/DataDog/datadog-agent/embedded/bin/trace-agent: stat /Users/ali.benabdallah/go/src/github.com/DataDog/datadog-agent/embedded/bin/trace-agent: no such file or directory",
+        "Core Check Loader": "Could not configure check APM Agent: Can't access the default apm binary at /Users/datadog/go/src/github.com/DataDog/datadog-agent/embedded/bin/trace-agent: stat /Users/datadog/go/src/github.com/DataDog/datadog-agent/embedded/bin/trace-agent: no such file or directory",
         "JMX Check Loader": "check is not a jmx check, or unable to determine if it's so",
         "Python Check Loader": "unable to import module 'apm': No module named 'apm'"
       },
@@ -16,7 +16,7 @@
         "Python Check Loader": "unable to import module 'network': No module named 'network'"
       },
       "process_agent": {
-        "Core Check Loader": "Could not configure check Process Agent: Can't access the default process-agent binary at /Users/ali.benabdallah/go/src/github.com/DataDog/datadog-agent/embedded/bin/process-agent",
+        "Core Check Loader": "Could not configure check Process Agent: Can't access the default process-agent binary at /Users/datadog/go/src/github.com/DataDog/datadog-agent/embedded/bin/process-agent",
         "JMX Check Loader": "check is not a jmx check, or unable to determine if it's so",
         "Python Check Loader": "unable to import module 'process_agent': No module named 'process_agent'"
       },
@@ -107,7 +107,7 @@
       "file_handle": {
         "file_handle": {
           "AverageExecutionTime": 0,
-          "CheckConfigSource": "file:/Users/ali.benabdallah/go/src/github.com/DataDog/datadog-agent/bin/agent/dist/conf.d/file_handle.d/conf.yaml.default",
+          "CheckConfigSource": "file:/Users/datadog/go/src/github.com/DataDog/datadog-agent/bin/agent/dist/conf.d/file_handle.d/conf.yaml.default",
           "CheckID": "file_handle",
           "CheckName": "file_handle",
           "CheckVersion": "",
