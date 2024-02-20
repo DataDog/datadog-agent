@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
 	nvidia "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
-	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm"
+	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"

@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 )
 
 const invalidLagValue = 10000000

@@ -11,11 +11,11 @@ package common
 // IntegrationName is the name of the integration.
 const IntegrationName = "oracle"
 
-/* We are temporarily using the name `oracle-dbm` to avoid scheduling clashes with the existing Oracle integration
+/* We are temporarily using the name `oracle` to avoid scheduling clashes with the existing Oracle integration
  * functionality written in Python. We will change this back to `oracle` once we migrated this functionality
  * here.
  */
-const IntegrationNameScheduler = "oracle-dbm"
+const IntegrationNameScheduler = "oracle"
 
 //nolint:revive // TODO(DBM) Fix revive linter
 const Godror = "godror"
