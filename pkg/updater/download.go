@@ -62,24 +62,21 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 		}
 	}()
 
-	// Get archive
+	// Download archive
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pkg.URL, nil)
 	if err != nil {
 		return fmt.Errorf("could not create download request: %w", err)
 	}
-
 	resp, err := d.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
 	defer resp.Body.Close()
-
-	// Verify content length
 	if resp.ContentLength != pkg.Size {
 		return fmt.Errorf("invalid size for %s: expected %d, got %d", pkg.URL, pkg.Size, resp.ContentLength)
 	}
 
-	// Copy archive & build hash
+	// Write archive on disk & check its hash while doing so
 	hashWriter := sha256.New()
 	reader := io.TeeReader(
 		io.LimitReader(resp.Body, maxArchiveSize),
@@ -95,8 +92,6 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	if err != nil {
 		return fmt.Errorf("could not write archive file: %w", err)
 	}
-
-	// Verify hash
 	sha256 := hashWriter.Sum(nil)
 	expectedHash, err := hex.DecodeString(pkg.SHA256)
 	if err != nil {
@@ -106,33 +101,30 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 		return fmt.Errorf("invalid hash for %s: expected %s, got %x", pkg.URL, pkg.SHA256, sha256)
 	}
 
-	// Extract OCI archive to a temporary directory
-	extractedArchivePath := filepath.Join(tmpDir, "oci")
+	// Extract the OCI archive
+	extractedArchivePath := filepath.Join(tmpDir, "archive")
 	if err := os.Mkdir(extractedArchivePath, 0755); err != nil {
 		return fmt.Errorf("could not create archive extraction directory: %w", err)
 	}
-
+	extractedOCIPath := filepath.Join(tmpDir, "oci")
+	if err := os.Mkdir(extractedOCIPath, 0755); err != nil {
+		return fmt.Errorf("could not create OCI extraction directory: %w", err)
+	}
 	err = extractTarXz(archivePath, extractedArchivePath)
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
-
-	// Extract package from OCI archive
-	extractedOCIPath := filepath.Join(tmpDir, "extracted")
-	if err := os.Mkdir(extractedOCIPath, 0755); err != nil {
-		return fmt.Errorf("could not create OCI extraction directory: %w", err)
-	}
-
 	err = extractOCI(extractedArchivePath, extractedOCIPath)
 	if err != nil {
 		return fmt.Errorf("could not extract OCI archive: %w", err)
 	}
 
-	// We only need to extract /opt/datadog-packages/<package-name>/<package-version> from the OCI archive today.
-	// We can add more logic here if we need to extract more files or directories in the future.
-	err = os.Rename(filepath.Join(extractedOCIPath, defaultRepositoryPath, pkg.Name, pkg.Version), destinationPath)
+	// Only keep the package directory /opt/datadog-packages/<package-name>/<package-version>
+	// Other files and directory in the archive are ignored
+	packageDir := filepath.Join(extractedOCIPath, defaultRepositoryPath, pkg.Name, pkg.Version)
+	err = os.Rename(packageDir, destinationPath)
 	if err != nil {
-		return fmt.Errorf("could not move OCI archive: %w", err)
+		return fmt.Errorf("could not move package directory: %w", err)
 	}
 
 	log.Debugf("Successfully downloaded package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
