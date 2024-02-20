@@ -151,25 +151,10 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
-func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
-	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
-
-	ringbufferEnabled := RingBufferSupported(config)
-	AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffer_enabled")
-	tcpEnabled := config.CollectTCPv4Conns || config.CollectTCPv6Conns
-
-	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
-		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
-	}
-
-	if ringbufferEnabled {
-		mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
-			Type:       ebpf.RingBuf,
-			MaxEntries: uint32(ComputeDefaultClosedConnRingBufferSize()),
-			KeySize:    0,
-			ValueSize:  0,
-			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
-		}
+func getTailCallRouteForProtocolClassification(ringbufferSupported bool) []manager.TailCallRoute {
+	funcName := probes.TCPCloseFlushReturnPerfbuffer
+	if ringbufferSupported {
+		funcName = probes.TCPCloseFlushReturnRingbuffer
 	}
 	protocolClassificationTailCalls := []manager.TailCallRoute{
 		{
@@ -200,28 +185,32 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			ProgArrayName: probes.TCPCloseProgsMap,
 			Key:           0,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPCloseFlushReturnPerfbuffer,
+				EBPFFuncName: funcName,
 				UID:          probeUID,
 			},
 		},
 	}
-	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls)+2)
-	if tcpEnabled {
-		probePair := manager.ProbeIdentificationPair{
-			EBPFFuncName: probes.TCPConnCloseEmitEventPerfbuffer,
-			UID:          probeUID,
+	return protocolClassificationTailCalls
+}
+
+func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
+
+	ringbufferEnabled := RingBufferSupported(config)
+	AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffer_enabled")
+
+	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
+		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
+	}
+
+	if ringbufferEnabled {
+		mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
+			Type:       ebpf.RingBuf,
+			MaxEntries: uint32(ComputeDefaultClosedConnRingBufferSize()),
+			KeySize:    0,
+			ValueSize:  0,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 		}
-		if ringbufferEnabled {
-			probePair.EBPFFuncName = probes.TCPConnCloseEmitEventRingbuffer
-		}
-		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, []manager.TailCallRoute{
-			{
-				ProgArrayName:           probes.ConnCloseProgsIndvMap,
-				Key:                     0,
-				ProbeIdentificationPair: probePair,
-			},
-		}...)
-		tailCallsIdentifiersSet[probePair] = struct{}{}
 	}
 
 	var undefinedProbes []manager.ProbeIdentificationPair
@@ -229,11 +218,11 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	var closeProtocolClassifierSocketFilterFn func()
 	classificationSupported := ClassificationSupported(config)
 	AddBoolConst(&mgrOpts, classificationSupported, "protocol_classification_enabled")
+	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if classificationSupported {
-		if ringbufferEnabled {
-			protocolClassificationTailCalls[3].ProbeIdentificationPair.EBPFFuncName = probes.TCPCloseFlushReturnRingbuffer
-		}
+		protocolClassificationTailCalls := getTailCallRouteForProtocolClassification(ringbufferEnabled)
+		tailCallsIdentifiersSet = make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls))
 		for _, tailCall := range protocolClassificationTailCalls {
 			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
 		}

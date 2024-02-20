@@ -33,12 +33,11 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPRecvMsgReturn,
 	probes.TCPReadSock,
 	probes.TCPReadSockReturn,
-	probes.TCPClose,
+	probes.TCPCloseRingbuffer,
+	probes.TCPClosePerfbuffer,
 	probes.TCPCloseCleanProtocolsReturn,
 	probes.TCPCloseFlushReturnRingbuffer,
-	probes.TCPConnCloseEmitEventRingbuffer,
 	probes.TCPCloseFlushReturnPerfbuffer,
-	probes.TCPConnCloseEmitEventPerfbuffer,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
@@ -53,10 +52,12 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPRetransmitRet,
 	probes.InetCskAcceptReturn,
 	probes.InetCskListenStop,
-	probes.UDPDestroySock,
+	probes.UDPDestroySockRingbuffer,
+	probes.UDPDestroySockPerfbuffer,
 	probes.UDPDestroySockReturnRingbuffer,
 	probes.UDPDestroySockReturnPerfbuffer,
-	probes.UDPv6DestroySock,
+	probes.UDPv6DestroySockRingbuffer,
+	probes.UDPv6DestroySockPerfbuffer,
 	probes.UDPv6DestroySockReturnRingbuffer,
 	probes.UDPv6DestroySockReturnPerfbuffer,
 	probes.InetBind,
@@ -89,22 +90,19 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		{Name: probes.TcpRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
-		{Name: probes.ConnCloseProgsIndvMap},
 	}
 	switch handler := connCloseEventHandler.(type) {
 	case *ebpf.RingBufferHandler:
-		options := manager.RingBufferOptions{
-			RecordGetter:     handler.RecordGetter,
-			RecordHandler:    handler.RecordHandler,
-			TelemetryEnabled: cfg.InternalTelemetryEnabled,
-			// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-			RingBufferSize: ComputeDefaultClosedConnRingBufferSize(),
-		}
 		rb := &manager.RingBuffer{
-			Map:               manager.Map{Name: probes.ConnCloseEventMap},
-			RingBufferOptions: options,
+			Map: manager.Map{Name: probes.ConnCloseEventMap},
+			RingBufferOptions: manager.RingBufferOptions{
+				RecordGetter:     handler.RecordGetter,
+				RecordHandler:    handler.RecordHandler,
+				TelemetryEnabled: cfg.InternalTelemetryEnabled,
+				// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
+				RingBufferSize: ComputeDefaultClosedConnRingBufferSize(),
+			},
 		}
-
 		mgr.RingBuffers = []*manager.RingBuffer{rb}
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
 	case *ebpf.PerfHandler:
@@ -166,17 +164,12 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 // ComputeDefaultClosedConnRingBufferSize is the default buffer size of the ring buffer for closed connection events.
 // Must be a power of 2 and a multiple of the page size
 func ComputeDefaultClosedConnRingBufferSize() int {
-	numCPU, err := utils.NumCPU()
+	numCPUs, err := utils.NumCPU()
 	pageSize := os.Getpagesize()
 	if err != nil {
-		numCPU = 1
+		numCPUs = 1
 	}
-
-	if numCPU <= 16 {
-		return 8 * 8 * pageSize
-	}
-
-	return 16 * 8 * pageSize
+	return 8 * numCPUs * pageSize
 }
 
 // ComputeDefaultClosedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.

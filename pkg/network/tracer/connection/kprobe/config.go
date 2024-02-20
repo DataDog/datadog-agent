@@ -56,12 +56,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPRecvMsgReturn)
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
-		enableProbe(enabled, probes.TCPClose)
 		if ringBufferSupported {
-			enableProbe(enabled, probes.TCPConnCloseEmitEventRingbuffer)
+			enableProbe(enabled, probes.TCPCloseRingbuffer)
 			enableProbe(enabled, probes.TCPCloseFlushReturnRingbuffer)
 		} else {
-			enableProbe(enabled, probes.TCPConnCloseEmitEventPerfbuffer)
+			enableProbe(enabled, probes.TCPClosePerfbuffer)
 			enableProbe(enabled, probes.TCPCloseFlushReturnPerfbuffer)
 		}
 		enableProbe(enabled, probes.TCPConnect)
@@ -77,10 +76,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	}
 
 	if c.CollectUDPv4Conns {
-		enableProbe(enabled, probes.UDPDestroySock)
 		if ringBufferSupported {
+			enableProbe(enabled, probes.UDPDestroySockRingbuffer)
 			enableProbe(enabled, probes.UDPDestroySockReturnRingbuffer)
 		} else {
+			enableProbe(enabled, probes.UDPDestroySockPerfbuffer)
 			enableProbe(enabled, probes.UDPDestroySockReturnPerfbuffer)
 		}
 		enableProbe(enabled, probes.IPMakeSkb)
@@ -104,10 +104,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	}
 
 	if c.CollectUDPv6Conns {
-		enableProbe(enabled, probes.UDPv6DestroySock)
 		if ringBufferSupported {
+			enableProbe(enabled, probes.UDPv6DestroySockRingbuffer)
 			enableProbe(enabled, probes.UDPv6DestroySockReturnRingbuffer)
 		} else {
+			enableProbe(enabled, probes.UDPv6DestroySockPerfbuffer)
 			enableProbe(enabled, probes.UDPv6DestroySockReturnPerfbuffer)
 		}
 		if kv >= kv5180 || runtimeTracer {

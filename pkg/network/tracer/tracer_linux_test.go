@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1867,6 +1869,9 @@ func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 		testPreexistingEmptyIncomingConnectionDirection(t, c)
 	})
 	t.Run("ringbuff_disabled", func(t *testing.T) {
+		if features.HaveMapType(ebpf.RingBuf) != nil {
+			t.Skip()
+		}
 		c := testConfig()
 		c.RingbuffersEnabled = false
 		testPreexistingEmptyIncomingConnectionDirection(t, c)
