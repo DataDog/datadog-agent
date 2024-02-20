@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    [oracle] Set default for ``metric_prefix`` in ``custom_queries`` to ``oracle``.
+    [oracle] Set the default for ``metric_prefix`` in ``custom_queries`` to ``oracle``.
