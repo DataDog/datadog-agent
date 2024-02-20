@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,7 +23,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -42,8 +40,6 @@ const (
 	kubeNamespaceTracegenCgroupV2Workload   = "workload-tracegen-cgroupv2"
 	kubeDeploymentTracegenUDPWorkload       = "tracegen-udp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
-
-	cgroupCheckerService = "cgroup-checker"
 )
 
 var GitCommit string
@@ -1050,50 +1046,32 @@ func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (
 	return stdoutSb.String(), stderrSb.String(), nil
 }
 
-// cnsJobCheck is the name of the job that returns the cgroup namespace for
-// a given deployment
-func cnsJobCheck(deployment string) string {
-	return fmt.Sprintf("%s-cgroup-check-job", deployment)
-}
-
-type deploymentWithNs struct {
-	deployment string
-	namespace  string
-}
-
-func (suite *k8sSuite) TestHostCgroupNsTraceOriginDetection() {
+func (suite *k8sSuite) TestCgroupV1TraceOriginDetection() {
 	if !suite.cgroupTests {
 		return
 	}
-	suite.runTraceTestWithCgroupTests(kubeNamespaceTracegenCgroupV1Workload, true)
+	// We use a nodeselector to schedule the pods on bottlerocket nodes that currently
+	// run with cgroupv1 now and use host cgroup namespace.
+	// We currently simply assume that they use cgroupv1.
+	suite.testTraceInNamespace(kubeNamespaceTracegenCgroupV1Workload)
 }
 
-func (suite *k8sSuite) TestPrivateCgroupNsTraceOriginDetection() {
+func (suite *k8sSuite) TestCgroupV2TraceOriginDetection() {
 	if !suite.cgroupTests {
 		return
 	}
-	suite.runTraceTestWithCgroupTests(kubeNamespaceTracegenCgroupV2Workload, false)
+	suite.testTraceInNamespace(kubeNamespaceTracegenCgroupV2Workload)
 }
 
-func (suite *k8sSuite) runTraceTestWithCgroupTests(namespace string, hostCgroupNamespace bool) {
-	apps := []deploymentWithNs{
-		{
-			namespace:  namespace,
-			deployment: kubeDeploymentTracegenUDSWorkload,
-		},
-		{
-			namespace:  namespace,
-			deployment: kubeDeploymentTracegenUDSWorkload,
-		},
-	}
-	suite.checkCgroupNamespace(apps, hostCgroupNamespace)
-	for _, app := range apps {
-		suite.testTrace(namespace, app.deployment, app.deployment)
+func (suite *k8sSuite) testTraceInNamespace(namespace string) {
+	deployments := []string{kubeDeploymentTracegenUDSWorkload, kubeDeploymentTracegenUDPWorkload}
+	for _, app := range deployments {
+		suite.testTrace(namespace, app)
 	}
 }
 
 // testTrace verifies that traces are tagged with container and pod tags.
-func (suite *k8sSuite) testTrace(kubeNamespace, kubeDeployment, containerName string) {
+func (suite *k8sSuite) testTrace(kubeNamespace, kubeDeployment string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
 		require.NoErrorf(c, cerr, "Failed to query fake intake")
@@ -1105,14 +1083,14 @@ func (suite *k8sSuite) testTrace(kubeNamespace, kubeDeployment, containerName st
 			})
 			err = assertTags(tags, []*regexp.Regexp{
 				regexp.MustCompile(`^container_id:`),
-				regexp.MustCompile(`^container_name:` + containerName + `$`),
-				regexp.MustCompile(`^display_container_name:` + kubeDeployment + `_` + containerName + `-[[:alnum:]]+-[[:alnum:]]+$`),
+				regexp.MustCompile(`^container_name:` + kubeDeployment + `$`),
+				regexp.MustCompile(`^display_container_name:` + kubeDeployment + `_` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
 				regexp.MustCompile(`^git.commit.sha:`),
 				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`),
 				regexp.MustCompile(`^image_id:`), // field is inconsistent. it can be a hash or an image + hash
 				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen$`),
 				regexp.MustCompile(`^image_tag:main$`),
-				regexp.MustCompile(`^kube_container_name:` + containerName + `$`),
+				regexp.MustCompile(`^kube_container_name:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^kube_deployment:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^kube_namespace:` + kubeNamespace + `$`),
 				regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
@@ -1129,99 +1107,4 @@ func (suite *k8sSuite) testTrace(kubeNamespace, kubeDeployment, containerName st
 		}
 		require.NoErrorf(c, err, "Failed finding trace with proper tags and message")
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags and message")
-}
-
-func (suite *k8sSuite) checkCgroupNamespace(apps []deploymentWithNs, hostCgroupNamespace bool) {
-	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-		for _, app := range apps {
-			if !suite.startCgroupVersionJob(c, app.namespace, app.deployment) {
-				return
-			}
-		}
-	}, 2*time.Minute, 10*time.Second, "Unable to start cgroup getter jobs")
-
-	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-		for _, app := range apps {
-			jobName := cnsJobCheck(app.deployment)
-			logs, err := suite.Fakeintake.FilterLogs(
-				cgroupCheckerService,
-				fakeintake.WithTags[*aggregator.Log]([]string{
-					"kube_namespace:" + app.namespace,
-					"kube_job:" + jobName,
-				}),
-			)
-			if !assert.NoErrorf(c, err, "Failed to retrieve job %s result", jobName) {
-				return
-			}
-			if !assert.NotEmptyf(c, logs, "Could not find log for job %s", jobName) {
-				return
-			}
-			cgroupInode, err := strconv.ParseUint(logs[len(logs)-1].Message, 0, 64)
-			if !assert.NoErrorf(c, err, "Failed to parse log to cgroup inode from msg: `%s`", logs[0].Message) {
-				return
-			}
-			if hostCgroupNamespace {
-				assert.Equal(c,
-					hostCgroupNamespaceInode,
-					cgroupInode,
-					"The workload is not running in host cgroup namespace",
-				)
-			} else {
-				assert.NotEqual(c,
-					hostCgroupNamespaceInode,
-					cgroupInode,
-					"The workload is running in host cgroup namespace",
-				)
-			}
-		}
-	}, 2*time.Minute, 10*time.Second, "Unable to check cgroup version")
-}
-
-// startCgroupVersionJob retrieves the pods for a given deployment in a given namespace and starts
-// a job running `stat -fc %T /sys/fs/cgroup` on one of them to retrieve the cgroup version
-func (suite *k8sSuite) startCgroupVersionJob(c *assert.CollectT, namespace, deployment string) bool {
-	pods, err := suite.K8sClient.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", deployment).String(),
-	})
-	if !assert.NoErrorf(c, err, "Failed to list %s/%s pods", namespace, deployment) {
-		return false
-	}
-	if !assert.NotEmptyf(c, pods, "Failed to find a %s/%s pod", namespace, deployment) {
-		return false
-	}
-
-	jobName := cnsJobCheck(deployment)
-
-	// Define job to run `stat` on the node directly
-	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      jobName,
-			Namespace: namespace,
-		},
-		Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyNever,
-					Containers: []corev1.Container{
-						{
-							Name:    deployment + "-" + cgroupCheckerService,
-							Image:   "busybox",
-							Command: []string{"stat", "-L", "-c", "%i", "/proc/self/ns/cgroup"},
-							Env:     []corev1.EnvVar{{Name: "DD_SERVICE", Value: cgroupCheckerService}},
-						},
-					},
-					NodeSelector: map[string]string{
-						"kubernetes.io/hostname": pods.Items[0].Spec.NodeName,
-					},
-				},
-			},
-		},
-	}
-
-	_, err = suite.K8sClient.BatchV1().Jobs(namespace).Create(context.Background(), job, metav1.CreateOptions{})
-	if !assert.NoErrorf(c, err, "Failed to create %s job", jobName) {
-		return false
-	}
-
-	return true
 }

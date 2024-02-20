@@ -167,3 +167,7 @@ func (suite *kindSuite) TestControlPlane() {
 		},
 	})
 }
+
+func (suite *kindSuite) TestTraceOriginDetection() {
+	suite.testTraceInNamespace("workload-tracegen")
+}

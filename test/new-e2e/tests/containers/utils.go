@@ -14,8 +14,6 @@ import (
 	"github.com/samber/lo"
 )
 
-const hostCgroupNamespaceInode uint64 = 0xEFFFFFFB
-
 func assertTags(actualTags []string, expectedTags []*regexp.Regexp) error {
 	missingTags := make([]*regexp.Regexp, len(expectedTags))
 	copy(missingTags, expectedTags)
