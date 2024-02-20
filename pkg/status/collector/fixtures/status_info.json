@@ -218,7 +218,7 @@
           "LastExecutionTime": 579,
           "LastSuccessDate": 1708424853,
           "LastWarnings": [],
-          "LongRunning": false,
+          "LongRunning": true,
           "MetricSamples": 1,
           "ServiceChecks": 1,
           "TotalErrors": 0,
