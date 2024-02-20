@@ -37,17 +37,41 @@ exclude_members = [
   "cmourot",
 ]
 
-[teams."Agent Platform"]
-jira_project = "APL"
+[teams."Agent Developer Tools]
+jira_project = "ADT"
 jira_issue_type = "QA"
 jira_statuses = [
   "To Do",
   "In Progress",
   "Done",
 ]
-github_team = "agent-platform"
-github_labels = ["team/agent-platform"]
-exclude_members = ["olivielpeau"]
+github_team = "agent-developer-tools"
+github_labels = ["team/agent-developer-tools"]
+exclude_members = []
+
+[teams."Agent CI Experience]
+jira_project = "ACIX"
+jira_issue_type = "QA"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
+github_team = "agent-ci-experience"
+github_labels = ["team/agent-ci-experience"]
+exclude_members = []
+
+[teams."Agent Build and Release]
+jira_project = "BARX"
+jira_issue_type = "QA"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
+github_team = "agent-build-and-releases"
+github_labels = ["team/agent-build-and-releases"]
+exclude_members = []
 
 [teams."Universal Service Monitoring"]
 jira_project = "USMON"
