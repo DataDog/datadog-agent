@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [oracle] Adding `oracle.can_query` service check.
+    [oracle] Adds `oracle.can_query` service check.
