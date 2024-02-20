@@ -33,6 +33,8 @@ const (
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
 	FileRemoveXAttrEventType
+	// FileChdirEventType chdir event
+	FileChdirEventType
 	// FileMountEventType Mount event
 	FileMountEventType
 	// FileUmountEventType Umount event
@@ -102,7 +104,7 @@ const (
 	FirstDiscarderEventType = FileOpenEventType
 
 	// LastDiscarderEventType last event that accepts discarders
-	LastDiscarderEventType = FileRemoveXAttrEventType
+	LastDiscarderEventType = FileChdirEventType
 
 	// LastApproverEventType is the last event that accepts approvers
 	LastApproverEventType = SpliceEventType
@@ -153,6 +155,8 @@ func (t EventType) String() string {
 		return "setxattr"
 	case FileRemoveXAttrEventType:
 		return "removexattr"
+	case FileChdirEventType:
+		return "chdir"
 	case ForkEventType:
 		return "fork"
 	case ExecEventType:

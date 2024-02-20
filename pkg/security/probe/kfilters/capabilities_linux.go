@@ -79,4 +79,5 @@ func init() {
 	allCapabilities["mmap"] = mmapCapabilities
 	allCapabilities["mprotect"] = mprotectCapabilities
 	allCapabilities["splice"] = spliceCapabilities
+	allCapabilities["chdir"] = oneBasenameCapabilities("chdir")
 }
