@@ -14,12 +14,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	"go.uber.org/goleak"
 )
+
+var goleakOptions = []goleak.Option{
+	goleak.IgnoreAnyFunction("github.com/patrickmn/go-cache.(*janitor).Run"),
+	goleak.IgnoreAnyFunction("github.com/cihub/seelog.(*asyncLoopLogger).processQueue"),
+}
 
 func TestLimiterUnit(t *testing.T) {
 	startTime := time.Now()
 
 	t.Run("no-ticks-1", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(1, 100)
 		l.start(startTime)
 		defer l.stop()
@@ -29,6 +37,8 @@ func TestLimiterUnit(t *testing.T) {
 	})
 
 	t.Run("no-ticks-2", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(100, 100)
 		l.start(startTime)
 		defer l.stop()
@@ -40,6 +50,8 @@ func TestLimiterUnit(t *testing.T) {
 	})
 
 	t.Run("10ms-ticks", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(1, 100)
 		l.start(startTime)
 		defer l.stop()
@@ -50,6 +62,8 @@ func TestLimiterUnit(t *testing.T) {
 	})
 
 	t.Run("9ms-ticks", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(1, 100)
 		l.start(startTime)
 		defer l.stop()
@@ -61,6 +75,8 @@ func TestLimiterUnit(t *testing.T) {
 	})
 
 	t.Run("1s-rate", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(1, 1)
 		l.start(startTime)
 		defer l.stop()
@@ -72,6 +88,8 @@ func TestLimiterUnit(t *testing.T) {
 	})
 
 	t.Run("100-requests-burst", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(100, 100)
 		l.start(startTime)
 		defer l.stop()
@@ -84,6 +102,8 @@ func TestLimiterUnit(t *testing.T) {
 	})
 
 	t.Run("101-requests-burst", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(100, 100)
 		l.start(startTime)
 		defer l.stop()
@@ -98,6 +118,8 @@ func TestLimiterUnit(t *testing.T) {
 	})
 
 	t.Run("bucket-refill-short", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(100, 100)
 		l.start(startTime)
 		defer l.stop()
@@ -110,6 +132,8 @@ func TestLimiterUnit(t *testing.T) {
 	})
 
 	t.Run("bucket-refill-long", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(100, 100)
 		l.start(startTime)
 		defer l.stop()
@@ -122,6 +146,8 @@ func TestLimiterUnit(t *testing.T) {
 	})
 
 	t.Run("allow-after-stop", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(3, 3)
 		l.start(startTime)
 		require.True(t, l.Allow())
@@ -133,6 +159,8 @@ func TestLimiterUnit(t *testing.T) {
 	})
 
 	t.Run("allow-before-start", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleakOptions...)
+
 		l := NewTestTicker(2, 100)
 		// The limiter keeps allowing until there's no more tokens
 		require.True(t, l.Allow())
@@ -154,6 +182,7 @@ func TestLimiter(t *testing.T) {
 		// Each goroutine will continuously call the rate limiter for 1 second
 		for nbUsers := 1; nbUsers <= 10; nbUsers *= 10 {
 			t.Run(fmt.Sprintf("continuous-requests-%d-users", nbUsers), func(t *testing.T) {
+				defer goleak.VerifyNone(t, goleakOptions...)
 
 				var startBarrier, stopBarrier sync.WaitGroup
 				// Create a start barrier to synchronize every goroutine's launch and
@@ -198,6 +227,7 @@ func TestLimiter(t *testing.T) {
 		// Simulate sporadic bursts during up to 1 minute
 		for burstAmount := 1; burstAmount <= 10; burstAmount++ {
 			t.Run(fmt.Sprintf("requests-bursts-%d-iterations", burstAmount), func(t *testing.T) {
+				defer goleak.VerifyNone(t, goleakOptions...)
 
 				skipped := 0
 				kept := 0
