@@ -47,10 +47,6 @@ def is_allowed_repo_nightly_branch(branch):
     return branch in ALLOWED_REPO_NIGHTLY_BRANCHES
 
 
-def running_in_ci():
-    return running_in_github_actions() or running_in_gitlab_ci() or running_in_circleci()
-
-
 def running_in_github_actions():
     return os.environ.get("GITHUB_ACTIONS") == "true"
 
