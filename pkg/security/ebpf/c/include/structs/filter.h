@@ -34,7 +34,7 @@ struct discarder_stats_t {
 
 struct discarder_params_t {
     u64 event_mask;
-    u64 timestamps[EVENT_LAST_DISCARDER-EVENT_FIRST_DISCARDER];
+    u64 timestamps[EVENT_LAST_DISCARDER+1-EVENT_FIRST_DISCARDER];
     u64 expire_at;
     u32 is_retained;
     u32 revision;

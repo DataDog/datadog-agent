@@ -126,6 +126,25 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 	return BuildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite)
 }
 
+// GetHAEndpoint returns the HA DD URL defined in the config, based on `ha.site` and the prefix, or ddHaURLKey
+func GetHAEndpoint(c pkgconfigmodel.Reader, prefix, ddHaURLKey string) string {
+	// value under ddURLKey takes precedence over 'ha.site'
+	if c.IsSet(ddHaURLKey) && c.GetString(ddHaURLKey) != "" {
+		return getResolvedHaDdURL(c, ddHaURLKey)
+	} else if c.GetString("ha.site") != "" {
+		return prefix + strings.TrimSpace(c.GetString("ha.site"))
+	}
+	return prefix + pkgconfigsetup.DefaultSite
+}
+
+func getResolvedHaDdURL(c pkgconfigmodel.Reader, haURLKey string) string {
+	resolvedHaDdURL := c.GetString(haURLKey)
+	if c.IsSet("ha.site") {
+		log.Infof("'ha.site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", haURLKey, haURLKey, resolvedHaDdURL)
+	}
+	return resolvedHaDdURL
+}
+
 // GetInfraEndpoint returns the main DD Infra URL defined in config, based on the value of `site` and `dd_url`
 func GetInfraEndpoint(c pkgconfigmodel.Reader) string {
 	return GetMainEndpoint(c, InfraURLPrefix, "dd_url")

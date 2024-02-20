@@ -273,6 +273,10 @@ build do
         mode: 0644,
         vars: { install_dir: install_dir }
 
+    erb source: "gui.launchd.plist.erb",
+        dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
+        mode: 0644
+
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
     mkdir "#{app_temp_dir}/MacOS"

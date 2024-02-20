@@ -55,6 +55,7 @@ message LatestConfigsRequest {
   string trace_agent_env = 13;
   string org_uuid = 14;
   repeated string tags = 15;
+  string agent_uuid = 16;
 }
 
 message LatestConfigsResponse {

@@ -51,7 +51,7 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   #  - 20.0 = sets explicit patch version x.20.0
   # Note: Specifying an invalid minor version will terminate the script.
   agent_minor_version=${DD_AGENT_MINOR_VERSION}
-  # Handle pre-release versions like "35.0~rc.5" -> "35.0" or "27.1~viper~conflict~fix" -> "27.1"   
+  # Handle pre-release versions like "35.0~rc.5" -> "35.0" or "27.1~viper~conflict~fix" -> "27.1"
   clean_agent_minor_version=$(echo "${DD_AGENT_MINOR_VERSION}" | sed -E 's/-.*//g')
   # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
   agent_minor_version_without_patch="${clean_agent_minor_version%.*}"
@@ -59,6 +59,9 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
       agent_patch_version="${clean_agent_minor_version#*.}"
   fi
 fi
+
+# Cleanup tmp files used for installation
+rm -f /tmp/install-ddagent/system-wide
 
 function find_latest_patch_version_for() {
     major_minor="$1"
@@ -130,6 +133,11 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
         printf "\033[31mGroup $systemdaemon_group not found, can't proceed with installation\033[0m\n"
         exit 1;
     fi
+fi
+
+if [ "$systemdaemon_install" != false ]; then
+  mkdir -p /tmp/install-ddagent
+  touch /tmp/install-ddagent/system-wide
 fi
 
 macos_full_version=$(sw_vers -productVersion)
@@ -275,7 +283,7 @@ export TMPDIR
 # shellcheck disable=SC2016
 install_user_home=$($cmd_real_user bash -c 'echo "$HOME"')
 # shellcheck disable=SC2016
-user_uid=$($cmd_real_user bash -c 'echo "$UID"')
+user_uid=$($cmd_real_user bash -c 'id -u')
 user_plist_file=${install_user_home}/Library/LaunchAgents/${service_name}.plist
 
 # In order to install with the right user
@@ -422,6 +430,7 @@ else
     # if it is running - it's not running if the script was launched when
     # the GUI was not running for the user (e.g. a run of this script via
     # ssh for user not logged in via GUI).
+    # This condition is true only when installing an agent < 7.52.0
     if $cmd_launchctl print "gui/$user_uid/$service_name" 1>/dev/null 2>/dev/null; then
         $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
         $cmd_launchctl stop "$service_name"

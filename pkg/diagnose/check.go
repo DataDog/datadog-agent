@@ -24,19 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func Init(collector optional.Option[collector.Component]) {
-	diagnosis.Register("check-datadog", getDiagnose(collector))
-}
-
-func getDiagnose(collector optional.Option[collector.Component]) func(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
-	return func(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
-
-		if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
-			return diagnoseChecksInAgentProcess(coll)
-		}
-
-		return diagnoseChecksInCLIProcess(diagCfg, senderManager)
+func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component]) []diagnosis.Diagnosis {
+	if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
+		return diagnoseChecksInAgentProcess(coll)
 	}
+
+	return diagnoseChecksInCLIProcess(diagCfg, senderManager)
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
@@ -121,7 +114,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(optional.NewNoneOption[pkgcollector.Collector](), senderManagerInstance)
+	pkgcollector.InitCheckScheduler(optional.NewNoneOption[collector.Component](), senderManagerInstance)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))
