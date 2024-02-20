@@ -17,14 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRenderHTML(t *testing.T) {
+func TestRender(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		fixtureFile string
 		resultFile  string
 	}{
 		{
-			name:        "CollectorHTML",
+			name:        "collectorHTML.tmpl",
 			fixtureFile: "fixtures/status_info.json",
 			resultFile:  "fixtures/status_info.html",
 		},
