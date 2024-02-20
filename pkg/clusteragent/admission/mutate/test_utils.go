@@ -8,10 +8,23 @@
 package mutate
 
 import (
+	"context"
+	"fmt"
+	"testing"
+
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func fakeEnvWithValue(name, value string) corev1.EnvVar {
@@ -190,4 +203,45 @@ func fakePod(name string) *corev1.Pod {
 func withContainer(pod *corev1.Pod, nameSuffix string) *corev1.Pod {
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: pod.Name + nameSuffix})
 	return pod
+}
+
+type mockDeployment struct {
+	containerName   string
+	deploymentName  string
+	namespace       string
+	isInitContainer bool
+	languages       util.LanguageSet
+}
+
+func fakeStoreWithDeployment(t *testing.T, deployments []mockDeployment) {
+	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		coreconfig.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		fx.Supply(context.Background()),
+		workloadmeta.MockModule(),
+	))
+
+	for _, d := range deployments {
+		langSet := util.LanguageSet{}
+		for lang := range d.languages {
+			langSet.Add(lang)
+		}
+		container := util.Container{
+			Name: d.containerName,
+			Init: d.isInitContainer,
+		}
+
+		mockStore.Set(&workloadmeta.KubernetesDeployment{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   fmt.Sprintf("%s/%s", d.namespace, d.deploymentName),
+			},
+			InjectableLanguages: util.ContainersLanguages{
+				container: langSet,
+			},
+		})
+	}
+
+	workloadmeta.SetGlobalStore(mockStore)
 }

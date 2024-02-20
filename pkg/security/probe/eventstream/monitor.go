@@ -9,6 +9,7 @@
 package eventstream
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -73,9 +74,9 @@ func (s *MapStats) UnmarshalBinary(data []byte) error {
 	if len(data) < 24 {
 		return model.ErrNotEnoughData
 	}
-	s.Bytes = atomic.NewUint64(model.ByteOrder.Uint64(data[0:8]))
-	s.Count = atomic.NewUint64(model.ByteOrder.Uint64(data[8:16]))
-	s.Lost = atomic.NewUint64(model.ByteOrder.Uint64(data[16:24]))
+	s.Bytes = atomic.NewUint64(binary.NativeEndian.Uint64(data[0:8]))
+	s.Count = atomic.NewUint64(binary.NativeEndian.Uint64(data[8:16]))
+	s.Lost = atomic.NewUint64(binary.NativeEndian.Uint64(data[16:24]))
 	return nil
 }
 

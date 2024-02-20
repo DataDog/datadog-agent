@@ -85,6 +85,7 @@ import (
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha/rcservicehaimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
@@ -100,7 +101,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -335,6 +335,7 @@ func getSharedFxOption() fx.Option {
 		otelcol.Bundle(),
 		rctelemetryreporterimpl.Module(),
 		rcserviceimpl.Module(),
+		rcservicehaimpl.Module(),
 		rcclient.Module(),
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		tagger.Module(),
@@ -510,6 +511,9 @@ func startAgent(
 			// Subscribe to `AGENT_TASK` product
 			rcclient.SubscribeAgentTask()
 
+			// Subscribe to `APM_TRACING` product
+			rcclient.SubscribeApmTracing()
+
 			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
 				// Spin up the config provider to schedule integrations through remote-config
 				rcProvider := providers.NewRemoteConfigProvider()
@@ -541,6 +545,7 @@ func startAgent(
 		taggerComp,
 		logsAgent,
 		demultiplexer,
+		optional.NewOption(collector),
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
@@ -586,7 +591,6 @@ func startAgent(
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)
 	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
-	diagnose.Init(optional.NewOption(collector))
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 

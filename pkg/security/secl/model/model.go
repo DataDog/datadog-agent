@@ -14,8 +14,6 @@ import (
 	"time"
 	"unsafe"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
@@ -87,15 +85,10 @@ type ContainerContext struct {
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
-	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
-	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
-	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
-}
-
-// CanGenerateAnomaliesFor returns true if the current profile can generate anomalies for the provided event type
-func (spc SecurityProfileContext) CanGenerateAnomaliesFor(evtType EventType) bool {
-	return slices.Contains(spc.AnomalyDetectionEventTypes, evtType)
+	Name       string      `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
+	Version    string      `field:"version"`     // SECLDoc[version] Definition:`Version of the security profile`
+	Tags       []string    `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
+	EventTypes []EventType `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
 }
 
 // IPPortContext is used to hold an IP and Port
@@ -123,16 +116,15 @@ type SpanContext struct {
 
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
-	ID           string             `field:"-" event:"*"`
-	Type         uint32             `field:"-"`
-	Flags        uint32             `field:"-"`
-	TimestampRaw uint64             `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp    time.Time          `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
-	Rules        []*MatchedRule     `field:"-"`
-	Actions      []*ActionTriggered `field:"-"`
-	Origin       string             `field:"-"`
-	Suppressed   bool               `field:"-"`
-	Service      string             `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
+	ID            string         `field:"-" event:"*"`
+	Type          uint32         `field:"-"`
+	Flags         uint32         `field:"-"`
+	TimestampRaw  uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
+	Rules         []*MatchedRule `field:"-"`
+	ActionReports []ActionReport `field:"-"`
+	Origin        string         `field:"-"`
+	Service       string         `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -216,23 +208,14 @@ func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
 }
 
+// IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
+func (e *Event) IsAnomalyDetectionEvent() bool {
+	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
+}
+
 // IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
 func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
 	return AnomalyDetectionSyscallEventType == e.GetEventType()
-}
-
-// IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
-func (e *Event) IsAnomalyDetectionEvent() bool {
-	// first, check if the current event is a kernel generated anomaly detection event
-	if e.IsKernelSpaceAnomalyDetectionEvent() {
-		return true
-	} else if !e.SecurityProfileContext.CanGenerateAnomaliesFor(e.GetEventType()) {
-		// the profile can't generate anomalies for the current event type
-		return false
-	} else if e.IsInProfile() {
-		return false
-	}
-	return true
 }
 
 // AddToFlags adds a flag to the event
@@ -266,9 +249,9 @@ func (e *Event) GetTags() []string {
 	return tags
 }
 
-// GetActions returns the triggred actions
-func (e *Event) GetActions() []*ActionTriggered {
-	return e.Actions
+// GetActionReports returns the triggred action reports
+func (e *Event) GetActionReports() []ActionReport {
+	return e.ActionReports
 }
 
 // GetWorkloadID returns an ID that represents the workload
@@ -328,10 +311,10 @@ type MatchedRule struct {
 	PolicyVersion string
 }
 
-// ActionTriggered defines a triggered action
-type ActionTriggered struct {
-	Name  string
-	Value string
+// ActionReport defines an action report
+type ActionReport interface {
+	Type() string
+	ToJSON() ([]byte, error)
 }
 
 // NewMatchedRule return a new MatchedRule instance
