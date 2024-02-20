@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/ulikunitz/xz"
@@ -50,14 +49,6 @@ func newDownloader(client *http.Client) *downloader {
 // It currently assumes the package is a tar.xz archive.
 func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath string) error {
 	log.Debugf("Downloading package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
-
-	// Check platform and architecture compatibility
-	if pkg.Platform != "" && pkg.Platform != runtime.GOOS {
-		return fmt.Errorf("unsupported platform %s for package %s", pkg.Platform, pkg.Name)
-	}
-	if pkg.Arch != "" && pkg.Arch != runtime.GOARCH {
-		return fmt.Errorf("unsupported architecture %s for package %s", pkg.Arch, pkg.Name)
-	}
 
 	// Create temporary directory to download the archive
 	tmpDir, err := os.MkdirTemp("", "")
