@@ -36,6 +36,7 @@ notify:
         else
           invoke -e notify.send-message --notification-type "merge"
         fi
+        invoke notify.check-consistent-failures
       else
         echo "This pipeline was triggered by another repository, skipping notification."
       fi

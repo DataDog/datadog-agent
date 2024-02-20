@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import traceback
 from collections import defaultdict
@@ -6,7 +7,7 @@ from datetime import datetime
 from typing import Dict
 
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.pipeline_data import get_failed_jobs
@@ -24,6 +25,11 @@ from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
 """
+PROJECT_NAME = "DataDog/datadog-agent"
+AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
+S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
+JOB_FAILURES_FILE = "job_executions.json"
+FAILURES_THRESHOLD = 3
 
 
 @task
@@ -45,11 +51,9 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
-    project_name = "DataDog/datadog-agent"
-
     try:
-        failed_jobs = get_failed_jobs(project_name, os.getenv("CI_PIPELINE_ID"))
-        messages_to_send = generate_failure_messages(project_name, failed_jobs)
+        failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
+        messages_to_send = generate_failure_messages(PROJECT_NAME, failed_jobs)
     except Exception as e:
         buffer = io.StringIO()
         print(base_message("datadog-agent", "is in an unknown state"), file=buffer)
@@ -104,10 +108,8 @@ def send_stats(_, print_to_stdout=False):
     Use the --print-to-stdout option to test this locally, without sending
     data points to Datadog.
     """
-    project_name = "DataDog/datadog-agent"
-
     try:
-        global_failure_reason, job_failure_stats = get_failed_jobs_stats(project_name, os.getenv("CI_PIPELINE_ID"))
+        global_failure_reason, job_failure_stats = get_failed_jobs_stats(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
     except Exception as e:
         print("Found exception when generating statistics:")
         print(e)
@@ -198,3 +200,72 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dic
             messages_to_send[owner].failed_jobs = jobs
 
     return messages_to_send
+
+
+@task
+def check_consistent_failures(ctx):
+    # Retrieve the stored document in aws s3
+    job_executions = retrieve_job_executions()
+
+    # By-pass if the pipeline chronological order is not respected
+    if job_executions.get("pipeline_id", 0) > int(os.getenv("CI_PIPELINE_ID")):
+        return
+    job_executions["pipeline_id"] = int(os.getenv("CI_PIPELINE_ID"))
+
+    alert_jobs, job_executions = update_statistics(job_executions)
+
+    # Send notification if we have consecutive failures
+    if len(alert_jobs) > 0:
+        message = f"Job(s) {alert_jobs} failed {FAILURES_THRESHOLD} times in a row"
+        send_slack_message("#agent-platform-ops", message)
+
+    # Upload document
+    with open("job_executions.json", "w") as f:
+        json.dump(job_executions, f)
+    ctx.run(f"{AWS_S3_CP_CMD} {JOB_FAILURES_FILE} {S3_CI_BUCKET_URL}/{JOB_FAILURES_FILE} ", hide="stdout")
+
+
+def retrieve_job_executions(ctx):
+    """
+    Retrieve the stored document in aws s3, or create it
+    """
+    try:
+        ctx.run(f"{AWS_S3_CP_CMD}  {S3_CI_BUCKET_URL}/{JOB_FAILURES_FILE} {JOB_FAILURES_FILE}", hide=True)
+        with open(JOB_FAILURES_FILE) as f:
+            job_executions = json.load(f)
+    except UnexpectedExit as e:
+        if "404" in e.result.stderr:
+            job_executions = create_initial_job_executions()
+        else:
+            raise e
+    return job_executions
+
+
+def create_initial_job_executions():
+    job_executions = {"pipeline_id": 0, "jobs": {}}
+    with open(JOB_FAILURES_FILE, "w") as f:
+        json.dump(job_executions, f)
+    return job_executions
+
+
+def update_statistics(job_executions):
+    # Update statistics and collect consecutive failed jobs
+    alert_jobs = []
+    failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
+    failed_set = {job["name"] for job in failed_jobs.all_failures()}
+    current_set = set(job_executions["jobs"].keys())
+    # Insert data for newly failing jobs
+    new_failed_jobs = failed_set - current_set
+    for job in new_failed_jobs:
+        job_executions["jobs"][job] = {"cumulative_failures": 1}
+    # Reset information for no-more failing jobs
+    solved_jobs = current_set - failed_set
+    for job in solved_jobs:
+        job_executions["jobs"][job] = {"cumulative_failures": 0}
+    # Update information for still failing jobs and save them if they hit the threshold
+    consecutive_failed_jobs = failed_set & current_set
+    for job in consecutive_failed_jobs:
+        job_executions["jobs"][job]["cumulative_failures"] += 1
+        if job_executions["jobs"][job]["cumulative_failures"] == FAILURES_THRESHOLD:
+            alert_jobs.append(job)
+    return alert_jobs, job_executions
