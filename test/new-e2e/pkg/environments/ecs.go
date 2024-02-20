@@ -15,7 +15,7 @@ import (
 	"github.com/zorkian/go-datadog-api"
 )
 
-// Host is an environment that contains a Host, FakeIntake and Agent configured to talk to each other.
+// ECS is an environment that contains a ECS deployed in a cluster, FakeIntake and Agent configured to talk to each other.
 type ECS struct {
 	AwsEnvironment *aws.Environment
 	ClusterName    pulumi.StringInput

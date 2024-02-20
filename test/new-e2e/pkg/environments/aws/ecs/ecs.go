@@ -3,6 +3,9 @@ package ecs
 import (
 	"fmt"
 
+	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ssm"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
@@ -14,9 +17,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/resources/aws/ecs"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
-
-	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ssm"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 const (
@@ -157,7 +157,7 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
-// Run deploys a docker environment given a pulumi.Context
+// Run deploys a ECS environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
 	var err error
