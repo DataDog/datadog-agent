@@ -221,10 +221,8 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 	}
 	var connCloseEventHandler ddebpf.EventHandler
 	if kprobe.RingBufferSupported(config) {
-		log.Debugf("using ring buffer for closed connection events")
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
 	} else {
-		log.Debugf("using perf buffer for closed connection events")
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
 	}
 	var m *manager.Manager

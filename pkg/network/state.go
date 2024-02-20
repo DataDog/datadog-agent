@@ -459,8 +459,6 @@ func (ns *networkState) logTelemetry() {
 			http2StatsDroppedDelta,
 			kafkaStatsDroppedDelta,
 		)
-	} else {
-		log.Debugf("State telemetry: no telemetry to report")
 	}
 
 	// debug metrics that aren't useful for customers to see
