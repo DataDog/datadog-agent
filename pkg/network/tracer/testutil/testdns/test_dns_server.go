@@ -24,7 +24,7 @@ var globalTCPError error
 var globalUDPError error
 var serverOnce sync.Once
 
-const localhostAddr = "127.0.0.1"
+const localhostAddr = "127.0.0.153"
 
 // GetServerIP returns the IP address of the test DNS server. The test DNS server returns canned responses for several
 // known domains that are used in integration tests.

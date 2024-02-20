@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests && linux_bpf
+//go:build linux && functionaltests && linux_bpf
 
 // Package tests holds tests related files
 package tests

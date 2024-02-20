@@ -12,11 +12,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 //nolint:revive // TODO(APM) Fix revive linter
 func TestSamplerAccessRace(t *testing.T) {
-	s := newSampler(1, 2, nil)
+	s := newSampler(1, 2, nil, &statsd.NoOpClient{})
 	var wg sync.WaitGroup
 	wg.Add(5)
 	for j := 0; j < 5; j++ {
@@ -113,7 +115,7 @@ func TestZeroAndGetMaxBuckets(t *testing.T) {
 func TestRateIncrease(t *testing.T) {
 	targetTPS := 7.0
 	initialTPS := 21.0
-	s := newSampler(1, targetTPS, nil)
+	s := newSampler(1, targetTPS, nil, &statsd.NoOpClient{})
 
 	testSig := Signature(25)
 	testTime := time.Now()
@@ -144,7 +146,7 @@ func TestRateIncrease(t *testing.T) {
 func TestOldSigEviction(t *testing.T) {
 	targetTPS := 7.0
 	initialTPS := 21.0
-	s := newSampler(1, targetTPS, nil)
+	s := newSampler(1, targetTPS, nil, &statsd.NoOpClient{})
 
 	testSig := Signature(25)
 	testTime := time.Now()
@@ -174,7 +176,7 @@ func TestOldSigEviction(t *testing.T) {
 
 func TestMovingMax(t *testing.T) {
 	targetTPS := 1.0
-	s := newSampler(1, targetTPS, nil)
+	s := newSampler(1, targetTPS, nil, &statsd.NoOpClient{})
 
 	testTime := time.Now()
 
@@ -262,7 +264,7 @@ func TestComputeTPSPerSig(t *testing.T) {
 
 func TestDefaultRate(t *testing.T) {
 	targetTPS := 10.0
-	s := newSampler(1, targetTPS, nil)
+	s := newSampler(1, targetTPS, nil, &statsd.NoOpClient{})
 	s.countWeightedSig(time.Now(), Signature(0), 1000)
 
 	_, defaultRate := s.getAllSignatureSampleRates()
@@ -272,7 +274,7 @@ func TestDefaultRate(t *testing.T) {
 
 func TestTargetTPSPerSigUpdate(t *testing.T) {
 	targetTPS := 10.0
-	s := newSampler(1, targetTPS, nil)
+	s := newSampler(1, targetTPS, nil, &statsd.NoOpClient{})
 
 	testTime := time.Now()
 

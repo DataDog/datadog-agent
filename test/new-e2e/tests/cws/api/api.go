@@ -66,7 +66,10 @@ func (c *Client) GetAppLog(query string) (*datadog.LogsListResponse, error) {
 		Body: &body,
 	}
 
-	result, _, err := c.api.LogsApi.ListLogs(c.ctx, request)
+	result, r, err := c.api.LogsApi.ListLogs(c.ctx, request)
+	if r != nil {
+		_ = r.Body.Close()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +99,10 @@ func (c *Client) GetAppSignal(query string) (*datadog.SecurityMonitoringSignalsL
 		Body: &body,
 	}
 
-	result, _, err := c.api.SecurityMonitoringApi.SearchSecurityMonitoringSignals(c.ctx, request)
+	result, r, err := c.api.SecurityMonitoringApi.SearchSecurityMonitoringSignals(c.ctx, request)
+	if r != nil {
+		_ = r.Body.Close()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +154,10 @@ func (c *Client) CreateCwsSignalRule(name string, msg string, agentRuleID string
 		Type: &monitoringRuleType,
 	}
 
-	response, _, err := c.api.SecurityMonitoringApi.CreateSecurityMonitoringRule(c.ctx, body)
+	response, r, err := c.api.SecurityMonitoringApi.CreateSecurityMonitoringRule(c.ctx, body)
+	if r != nil {
+		_ = r.Body.Close()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +179,10 @@ func (c *Client) CreateCWSAgentRule(name string, msg string, secl string) (*data
 		},
 	}
 
-	response, _, err := c.api.CloudWorkloadSecurityApi.CreateCloudWorkloadSecurityAgentRule(c.ctx, body)
+	response, r, err := c.api.CloudWorkloadSecurityApi.CreateCloudWorkloadSecurityAgentRule(c.ctx, body)
+	if r != nil {
+		_ = r.Body.Close()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -180,12 +192,18 @@ func (c *Client) CreateCWSAgentRule(name string, msg string, secl string) (*data
 
 // DeleteSignalRule deletes a signal rule
 func (c *Client) DeleteSignalRule(ruleID string) error {
-	_, err := c.api.SecurityMonitoringApi.DeleteSecurityMonitoringRule(c.ctx, ruleID)
+	r, err := c.api.SecurityMonitoringApi.DeleteSecurityMonitoringRule(c.ctx, ruleID)
+	if r != nil {
+		_ = r.Body.Close()
+	}
 	return err
 }
 
 // DeleteAgentRule deletes an agent rule
 func (c *Client) DeleteAgentRule(ruleID string) error {
-	_, err := c.api.CloudWorkloadSecurityApi.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleID)
+	r, err := c.api.CloudWorkloadSecurityApi.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleID)
+	if r != nil {
+		_ = r.Body.Close()
+	}
 	return err
 }

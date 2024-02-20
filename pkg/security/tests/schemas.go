@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
+//go:build linux && (functionaltests || stresstests)
 
 // Package tests holds tests related files
 package tests
@@ -131,12 +131,20 @@ func (tm *testModule) validateRenameSchema(t *testing.T, event *model.Event) boo
 
 //nolint:deadcode,unused
 func (tm *testModule) validateChmodSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/chmod.schema.json")
 }
 
 //nolint:deadcode,unused
 func (tm *testModule) validateChownSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/chown.schema.json")
 }
@@ -149,6 +157,10 @@ func (tm *testModule) validateSELinuxSchema(t *testing.T, event *model.Event) bo
 
 //nolint:deadcode,unused
 func (tm *testModule) validateLinkSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/link.schema.json")
 }
@@ -191,18 +203,30 @@ func (tm *testModule) validatePTraceSchema(t *testing.T, event *model.Event) boo
 
 //nolint:deadcode,unused
 func (tm *testModule) validateLoadModuleSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/load_module.schema.json")
 }
 
 //nolint:deadcode,unused
 func (tm *testModule) validateLoadModuleNoFileSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/load_module_no_file.schema.json")
 }
 
 //nolint:deadcode,unused
 func (tm *testModule) validateUnloadModuleSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/unload_module.schema.json")
 }

@@ -39,7 +39,7 @@ func TestRawEncoder(t *testing.T) {
 	msg.Origin.SetTags([]string{"a", "b:c"})
 	msg.SetContent([]byte("redacted"))
 
-	err := RawEncoder.Encode(msg)
+	err := RawEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
@@ -67,7 +67,7 @@ func TestRawEncoderDefaults(t *testing.T) {
 	rawMessage := "a"
 	msg := newMessage([]byte(rawMessage), source, "")
 	msg.State = message.StateRendered
-	err := RawEncoder.Encode(msg)
+	err := RawEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
@@ -95,7 +95,7 @@ func TestRawEncoderEmpty(t *testing.T) {
 	rawMessage := ""
 	msg := newMessage([]byte(rawMessage), source, "")
 	msg.State = message.StateRendered // we can only encode rendered message
-	err := RawEncoder.Encode(msg)
+	err := RawEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 	assert.Equal(t, rawMessage, string(msg.GetContent()))
 
@@ -125,7 +125,7 @@ func TestProtoEncoder(t *testing.T) {
 	msg.Origin.LogSource = source
 	msg.Origin.SetTags([]string{"a", "b:c"})
 
-	err := ProtoEncoder.Encode(msg)
+	err := ProtoEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -156,7 +156,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	msg := newMessage([]byte(rawMessage), source, "")
 	msg.State = message.StateRendered // we can only encode rendered message
 
-	err := ProtoEncoder.Encode(msg)
+	err := ProtoEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -180,7 +180,7 @@ func TestProtoEncoderHandleInvalidUTF8(t *testing.T) {
 	src := sources.NewLogSource("", cfg)
 	msg := newMessage([]byte("a\xfez"), src, "")
 	msg.State = message.StateRendered
-	err := ProtoEncoder.Encode(msg)
+	err := ProtoEncoder.Encode(msg, "unknown")
 	assert.NotNil(t, msg.GetContent())
 	assert.Nil(t, err)
 }
@@ -202,7 +202,7 @@ func TestJsonEncoder(t *testing.T) {
 	msg.Origin.SetTags([]string{"a", "b:c"})
 	assert.Equal(t, msg.GetContent(), content) // before encoding, content should be the raw message
 
-	err := JSONEncoder.Encode(msg)
+	err := JSONEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
 	log := &jsonPayload{}

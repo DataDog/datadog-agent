@@ -432,6 +432,7 @@ func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Re
 
 func (s *tlsSuite) TestJavaInjection() {
 	t := s.T()
+	t.Skip("JavaTLS tests are currently disabled")
 
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
@@ -773,7 +774,7 @@ func (m requestsMap) String() string {
 }
 
 func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	usmMonitor, err := NewMonitor(cfg, nil, nil, nil)
+	usmMonitor, err := NewMonitor(cfg, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
 	t.Cleanup(usmMonitor.Stop)

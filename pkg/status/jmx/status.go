@@ -25,7 +25,7 @@ func (Provider) Name() string {
 
 // Section return the section
 func (Provider) Section() string {
-	return "jmx fetch"
+	return "JMX Fetch"
 }
 
 func (p Provider) getStatusInfo(verbose bool) map[string]interface{} {

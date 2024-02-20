@@ -9,18 +9,30 @@ package telemetry
 
 import (
 	"fmt"
+	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	maxErrno    = 64
+	maxErrnoStr = "other"
+
+	ebpfMapTelemetryNS    = "ebpf_maps"
+	ebpfHelperTelemetryNS = "ebpf_helpers"
 )
 
 // EBPFErrorsCollector implements the prometheus Collector interface
 // for collecting statistics about errors of ebpf helpers and ebpf maps operations.
 type EBPFErrorsCollector struct {
 	*EBPFTelemetry
-	ebpfMapOpsErrorsGauge *prometheus.Desc
-	ebpfHelperErrorsGauge *prometheus.Desc
+	ebpfMapOpsErrors *prometheus.Desc
+	ebpfHelperErrors *prometheus.Desc
+	//we can use one map for both map errors and ebpf helpers errors, as the keys are different
+	lastValues map[string]uint64
 }
 
 // NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
@@ -33,15 +45,16 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 			mapKeys:   make(map[string]uint64),
 			probeKeys: make(map[string]uint64),
 		},
-		ebpfMapOpsErrorsGauge: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
-		ebpfHelperErrorsGauge: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
+		ebpfMapOpsErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
+		ebpfHelperErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
+		lastValues:       make(map[string]uint64),
 	}
 }
 
 // Describe returns all descriptions of the collector
 func (e *EBPFErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- e.ebpfHelperErrorsGauge
-	ch <- e.ebpfHelperErrorsGauge
+	ch <- e.ebpfMapOpsErrors
+	ch <- e.ebpfHelperErrors
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -57,11 +70,15 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 				log.Debugf("failed to get telemetry for probe:key %s:%d\n", probeName, k)
 				continue
 			}
-			for indx, helperName := range helperNames {
-				base := maxErrno * indx
+			for index, helperName := range helperNames {
+				base := maxErrno * index
 				if count := getErrCount(hval.Count[base : base+maxErrno]); len(count) > 0 {
 					for errStr, errCount := range count {
-						ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrorsGauge, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
+						errorsDelta := float64(errCount - e.lastValues[errStr])
+						if errorsDelta > 0 {
+							ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.CounterValue, errorsDelta, helperName, probeName, errStr)
+						}
+						e.lastValues[errStr] = errCount
 					}
 				}
 			}
@@ -78,9 +95,31 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 			if count := getErrCount(val.Count[:]); len(count) > 0 {
 				for errStr, errCount := range count {
-					ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr)
+					errorsDelta := float64(errCount - e.lastValues[errStr])
+					if errorsDelta > 0 {
+						ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.CounterValue, errorsDelta, m, errStr)
+					}
+					e.lastValues[errStr] = errCount
 				}
 			}
 		}
 	}
+}
+
+func getErrCount(v []uint64) map[string]uint64 {
+	errCount := make(map[string]uint64)
+	for i, count := range v {
+		if count == 0 {
+			continue
+		}
+
+		if (i + 1) == maxErrno {
+			errCount[maxErrnoStr] = count
+		} else if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
+			errCount[name] = count
+		} else {
+			errCount[syscall.Errno(i).Error()] = count
+		}
+	}
+	return errCount
 }

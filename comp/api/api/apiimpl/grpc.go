@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"time"
 
@@ -38,6 +39,7 @@ type serverSecure struct {
 	taggerServer       *taggerserver.Server
 	workloadmetaServer *workloadmetaServer.Server
 	configService      optional.Option[rcservice.Component]
+	configServiceHA    optional.Option[rcserviceha.Component]
 	dogstatsdServer    dogstatsdServer.Component
 	capture            dsdReplay.Component
 }
@@ -113,6 +115,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 }
 
 var rcNotInitializedErr = status.Error(codes.Unimplemented, "remote configuration service not initialized")
+var haRcNotInitializedErr = status.Error(codes.Unimplemented, "HA remote configuration service not initialized")
 
 func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
 	rcService, isSet := s.configService.Get()
@@ -130,6 +133,24 @@ func (s *serverSecure) GetConfigState(_ context.Context, _ *emptypb.Empty) (*pb.
 		return nil, rcNotInitializedErr
 	}
 	return rcService.ConfigGetState()
+}
+
+func (s *serverSecure) ClientGetConfigsHA(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
+	rcServiceHA, isSet := s.configServiceHA.Get()
+	if !isSet || rcServiceHA == nil {
+		log.Debug(haRcNotInitializedErr.Error())
+		return nil, haRcNotInitializedErr
+	}
+	return rcServiceHA.ClientGetConfigs(ctx, in)
+}
+
+func (s *serverSecure) GetConfigStateHA(_ context.Context, _ *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
+	rcServiceHA, isSet := s.configServiceHA.Get()
+	if !isSet || rcServiceHA == nil {
+		log.Debug(haRcNotInitializedErr.Error())
+		return nil, haRcNotInitializedErr
+	}
+	return rcServiceHA.ConfigGetState()
 }
 
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter

@@ -7,6 +7,7 @@ from invoke import Exit, task
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
+from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.utils import DEFAULT_BRANCH, color_message
 from tasks.libs.copyright import CopyrightLinter
 from tasks.modules import GoModule
@@ -114,6 +115,9 @@ def lint_go(
         inv lint-go --targets=./pkg/collector/check,./pkg/aggregator
         inv lint-go --module=.
     """
+
+    if not check_tools_version(ctx, ['go', 'golangci-lint']):
+        print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
     # Format:
     # {

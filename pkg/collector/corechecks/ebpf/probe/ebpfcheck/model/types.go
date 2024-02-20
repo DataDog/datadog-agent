@@ -27,6 +27,7 @@ type EBPFMapStats struct {
 	RSS        uint64
 	MaxSize    uint64
 	Type       ebpf.MapType
+	Entries    int64 // Allow negative values to indicate that the number of entries could not be calculated
 
 	// used only for tests
 	NumCPUs uint32

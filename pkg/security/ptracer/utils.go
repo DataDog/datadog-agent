@@ -11,6 +11,7 @@ package ptracer
 import (
 	"bufio"
 	"bytes"
+	"debug/elf"
 	"errors"
 	"fmt"
 	"io"
@@ -24,10 +25,12 @@ import (
 	"strings"
 	"syscall"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
+	usergrouputils "github.com/DataDog/datadog-agent/pkg/security/common/usergrouputils"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"golang.org/x/sys/unix"
 )
 
 // Funcs mainly copied from github.com/DataDog/datadog-agent/pkg/security/utils/cgroup.go
@@ -181,7 +184,7 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 }
 
 func getFullPathFromFilename(process *Process, filename string) (string, error) {
-	if filename[0] != '/' {
+	if len(filename) > 0 && filename[0] != '/' {
 		if process.Res.Cwd != "" || fillProcessCwd(process) == nil {
 			filename = filepath.Join(process.Res.Cwd, filename)
 		} else {
@@ -191,7 +194,96 @@ func getFullPathFromFilename(process *Process, filename string) (string, error) 
 	return filename, nil
 }
 
-func fillFileMetadata(filepath string, openMsg *ebpfless.OpenSyscallMsg, disableStats bool) error {
+func refreshUserCache(tracer *Tracer) error {
+	file, err := os.Open(passwdPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	cache, err := usergrouputils.ParsePasswdFile(file)
+	if err != nil {
+		return err
+	}
+	tracer.userCache = cache
+	return nil
+}
+
+func refreshGroupCache(tracer *Tracer) error {
+	file, err := os.Open(groupPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	cache, err := usergrouputils.ParseGroupFile(file)
+	if err != nil {
+		return err
+	}
+	tracer.groupCache = cache
+	return nil
+}
+
+func getFileMTime(filepath string) uint64 {
+	fileInfo, err := os.Lstat(filepath)
+	if err != nil {
+		return 0
+	}
+	stat := fileInfo.Sys().(*syscall.Stat_t)
+	return uint64(stat.Mtim.Nano())
+}
+
+func getUserFromUID(tracer *Tracer, uid int32) string {
+	if uid < 0 {
+		return ""
+	}
+	// if it's the first time, or if passwd was updated, load/refresh the user cache
+	if tracer.userCache == nil {
+		tracer.lastPasswdMTime = getFileMTime(passwdPath)
+		if err := refreshUserCache(tracer); err != nil {
+			return ""
+		}
+	} else if tracer.userCacheRefreshLimiter.Allow() {
+		// refresh the cache only if the file has changed
+		mtime := getFileMTime(passwdPath)
+		if mtime != tracer.lastPasswdMTime {
+			if err := refreshUserCache(tracer); err != nil {
+				return ""
+			}
+			tracer.lastPasswdMTime = mtime
+		}
+	}
+	if user, found := tracer.userCache[int(uid)]; found {
+		return user
+	}
+	return ""
+}
+
+func getGroupFromGID(tracer *Tracer, gid int32) string {
+	if gid < 0 {
+		return ""
+	}
+	// if it's the first time, or if group was updated, load/refresh the group cache
+	if tracer.groupCache == nil {
+		tracer.lastGroupMTime = getFileMTime("/etc/group")
+		if err := refreshGroupCache(tracer); err != nil {
+			return ""
+		}
+	} else if tracer.groupCacheRefreshLimiter.Allow() {
+		// refresh the cache only if the file has changed
+		mtime := getFileMTime("/etc/group")
+		if mtime != tracer.lastGroupMTime {
+			if err := refreshGroupCache(tracer); err != nil {
+				return ""
+			}
+			tracer.lastGroupMTime = mtime
+		}
+	}
+	if group, found := tracer.groupCache[int(gid)]; found {
+		return group
+	}
+	return ""
+}
+
+func fillFileMetadata(tracer *Tracer, filepath string, openMsg *ebpfless.OpenSyscallMsg, disableStats bool) error {
 	if disableStats || strings.HasPrefix(filepath, "memfd:") {
 		return nil
 	}
@@ -206,8 +298,10 @@ func fillFileMetadata(filepath string, openMsg *ebpfless.OpenSyscallMsg, disable
 	openMsg.MTime = uint64(stat.Mtim.Nano())
 	openMsg.CTime = uint64(stat.Ctim.Nano())
 	openMsg.Credentials = &ebpfless.Credentials{
-		UID: stat.Uid,
-		GID: stat.Gid,
+		UID:   stat.Uid,
+		User:  getUserFromUID(tracer, int32(stat.Uid)),
+		GID:   stat.Gid,
+		Group: getGroupFromGID(tracer, int32(stat.Gid)),
 	}
 	if openMsg.Mode == 0 { // here, mode can be already set by handler of open syscalls
 		openMsg.Mode = stat.Mode // useful for exec handlers
@@ -282,4 +376,35 @@ func secsToNanosecs(secs uint64) uint64 {
 
 func microsecsToNanosecs(secs uint64) uint64 {
 	return secs * 1000
+}
+
+func getModuleName(reader io.ReaderAt) (string, error) {
+	elf, err := elf.NewFile(reader)
+	if err != nil {
+		return "", err
+	}
+	defer elf.Close()
+	section := elf.Section(".gnu.linkonce.this_module")
+	if section == nil {
+		return "", errors.New("found no '.gnu.linkonce.this_module' section")
+	}
+	data, err := section.Data()
+	if err != nil {
+		return "", err
+	} else if len(data) < 25 {
+		return "", errors.New("section data too short")
+	}
+	index := bytes.IndexByte(data[24:], 0) // 24 is the offset on 64bits
+	if index == -1 {
+		return "", errors.New("no string found")
+	}
+	return string(data[24 : 24+index]), nil
+}
+
+func getModuleNameFromFile(filename string) (string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	return getModuleName(file)
 }

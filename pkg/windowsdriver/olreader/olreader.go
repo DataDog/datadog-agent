@@ -131,11 +131,15 @@ func (olr *OverlappedReader) Read() error {
 					return
 				}
 				if err != syscall.Errno(syscall.ERROR_INSUFFICIENT_BUFFER) {
+					if ol == nil {
+						// the completion port was closed.  time to go home
+						return
+					}
+
 					// if we get this error, there will still be at least
 					// the structure header.  In any other case, fail out
 					olr.cb.OnError(err)
 					return
-
 				}
 			}
 			if ol == nil {
