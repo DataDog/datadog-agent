@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    [oracle] Add the ``oracle.process.pga_maximum_memory`` metric for backward compatibility.
+    [oracle] Adds the ``oracle.process.pga_maximum_memory`` metric for backward compatibility.
