@@ -5,15 +5,18 @@ Agent namespaced tasks
 
 import ast
 import glob
+import json
 import os
 import platform
 import re
 import shutil
 import sys
 import tempfile
+from datetime import datetime
+from io import StringIO
 
 from invoke import task
-from invoke.exceptions import Exit, ParseError
+from invoke.exceptions import Exit, ParseError, UnexpectedExit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
@@ -754,6 +757,71 @@ def should_retry_bundle_install(res):
     return False
 
 
+def _compute_build_metrics(ctx, overall_duration):
+    # We only want to generate those metrics from the CI
+    src_dir = os.environ.get('CI_PROJECT_DIR')
+    if not src_dir:
+        return
+    series = []
+    timestamp = int(datetime.now().timestamp())
+    with open(f'{src_dir}/omnibus/pkg/build-summary.json') as summary_json:
+        j = json.load(summary_json)
+        for software, metrics in j['build'].items():
+            series.append(
+                {
+                    'metric': f'datadog.agent.build.{software}',
+                    'points': [{'timestamp': timestamp, 'value': metrics['build_duration']}],
+                    'tags': [
+                        f'software:{software}',
+                        f'cached:{metrics["cached"]}',
+                        f'job:{os.environ.get("CI_JOB_NAME_SLUG")}',
+                    ],
+                    'unit': 'seconds',
+                    'type': 0,
+                }
+            )
+        series.append(
+            {
+                'metric': 'datadog.agent.build.total',
+                'points': [{'timestamp': timestamp, 'value': overall_duration}],
+                'tags': [f'job:{os.environ.get("CI_JOB_NAME_SLUG")}'],
+                'unit': 'seconds',
+                'type': 0,
+            }
+        )
+
+        for packager, duration in j['packaging'].items():
+            series.append(
+                {
+                    'metric': f'datadog.agent.package.{packager}',
+                    'points': [{'timestamp': timestamp, 'value': duration}],
+                    'tags': [f'job:{os.environ.get("CI_JOB_NAME_SLUG")}'],
+                    'unit': 'seconds',
+                    'type': 0,
+                }
+            )
+    dd_api_key = ctx.run(
+        'aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text',
+        hide=True,
+    ).stdout.strip()
+    cmd = ' '.join(
+        (
+            'curl -X POST "https://api.datadoghq.com/api/v2/series"',
+            '-H "Accept: application/json"',
+            '-H "Content-Type: application/json"',
+            f'-H "DD-API-KEY: {dd_api_key}"',
+            '-d @-',
+        )
+    )
+    try:
+        series_json = json.dumps({'series': series})
+        ctx.run(cmd, hide='stderr', echo=False, in_stream=StringIO(series_json))
+    except UnexpectedExit:
+        # don't let the exception propagate in order to hide the API key from the output
+        sys.exit(1)
+    print('Successfully sent build metrics to DataDog')
+
+
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
 @task(
     help={
@@ -850,6 +918,7 @@ def omnibus_build(
         print(f"Deps:    {deps_elapsed.duration}")
     print(f"Bundle:  {bundle_elapsed.duration}")
     print(f"Omnibus: {omnibus_elapsed.duration}")
+    _compute_build_metrics(ctx, omnibus_elapsed.duration)
 
 
 @task
