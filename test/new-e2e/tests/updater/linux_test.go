@@ -28,6 +28,13 @@ func TestUpdaterSuite(t *testing.T) {
 	)))
 }
 
-func (v *vmUpdaterSuite) TestUpdater() {
-	require.Equal(v.T(), "aarch64\n", v.Env().RemoteHost.MustExecute("uname -m"))
+func (v *vmUpdaterSuite) TestUpdaterOwnership() {
+	// updater user exists and is a system user
+	require.Equal(v.T(), "/usr/sbin/nologin\n", v.Env().RemoteHost.MustExecute(`getent passwd dd-updater | cut -d: -f7`))
+	// owner
+	require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" /opt/datadog/updater`))
+	// group
+	require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" /opt/datadog/updater`))
+	// permissions
+	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" /opt/datadog/updater`))
 }
