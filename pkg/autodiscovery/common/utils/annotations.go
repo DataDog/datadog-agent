@@ -9,18 +9,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	instancePath   = "instances"
-	checkNamePath  = "check_names"
-	initConfigPath = "init_configs"
-	logsConfigPath = "logs"
-	checksPath     = "checks"
-	checkIDPath    = "check.id"
+	instancePath            = "instances"
+	checkNamePath           = "check_names"
+	initConfigPath          = "init_configs"
+	ignoreAutodiscoveryTags = "ignore_autodiscovery_tags"
+	logsConfigPath          = "logs"
+	checksPath              = "checks"
+	checkIDPath             = "check.id"
 )
 
 // ExtractTemplatesFromMap looks for autodiscovery configurations in a given
@@ -72,8 +74,9 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 	if err != nil {
 		return []integration.Config{}, fmt.Errorf("in %s: %s", instancePath, err)
 	}
-
-	return BuildTemplates(key, checkNames, initConfigs, instances), nil
+	// ParseBool returns `true` only on success cases
+	ignoreAdTags, _ := strconv.ParseBool(input[prefix+ignoreAutodiscoveryTags])
+	return BuildTemplates(key, checkNames, initConfigs, instances, ignoreAdTags), nil
 }
 
 // extractLogsTemplatesFromMap returns the logs configuration from a given map,
@@ -153,8 +156,9 @@ func ParseJSONValue(value string) ([][]integration.Data, error) {
 }
 
 // BuildTemplates returns check configurations configured according to the
-// passed in AD identifier, check names, init and instance configs
-func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][]integration.Data) []integration.Config {
+// passed in AD identifier, check names, init, instance configs and their
+// `ignoreAutoDiscoveryTags` field.
+func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][]integration.Data, ignoreAutodiscoveryTags bool) []integration.Config {
 	templates := make([]integration.Config, 0)
 
 	// sanity checks
@@ -174,10 +178,11 @@ func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][
 	for idx := range checkNames {
 		for _, instance := range instances[idx] {
 			templates = append(templates, integration.Config{
-				Name:          checkNames[idx],
-				InitConfig:    initConfigs[idx][0],
-				Instances:     []integration.Data{instance},
-				ADIdentifiers: []string{adID},
+				Name:                    checkNames[idx],
+				InitConfig:              initConfigs[idx][0],
+				Instances:               []integration.Data{instance},
+				ADIdentifiers:           []string{adID},
+				IgnoreAutodiscoveryTags: ignoreAutodiscoveryTags,
 			})
 		}
 	}
