@@ -1281,7 +1281,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		conf:              cfg,
 		Timing:            &timing.NoopReporter{},
 	}
-	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, agnt, telemetry.NewNoopCollector(), statsd, &timing.NoopReporter{})
+	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, agnt, agnt, telemetry.NewNoopCollector(), statsd, &timing.NoopReporter{})
 	now := time.Now()
 	smallKeptSpan := &pb.Span{
 		TraceID:  1,
