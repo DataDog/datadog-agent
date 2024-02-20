@@ -310,7 +310,6 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         if (current_header->type == kStaticHeader) {
             if (is_method_index(current_header->index)) {
                 // TODO: mark request
-               current_stream->request_started = bpf_ktime_get_ns();
                current_stream->request_method.static_table_entry = current_header->index;
                current_stream->request_method.finalized = true;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
@@ -341,7 +340,6 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
             }  else if (is_method_index(dynamic_value->original_index)) {
-                current_stream->request_started = bpf_ktime_get_ns();
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->request_method.length = current_header->new_dynamic_value_size;
@@ -367,7 +365,6 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
             } else if (is_method_index(current_header->original_index)) {
-                current_stream->request_started = bpf_ktime_get_ns();
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->request_method.length = current_header->new_dynamic_value_size;
@@ -836,7 +833,8 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
         }
 
         http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        // A new stream must start with a request, so if it does not exist, we should not process it.
+        current_stream = bpf_map_lookup_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
         if (current_stream == NULL) {
             continue;
         }
@@ -936,7 +934,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         // When we accept an RST, it means that the current stream is terminated.
         // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
         // If rst, and stream is empty (no status code, or no response) then delete from inflight
-        if (is_rst && (!current_stream->status_code.finalized || current_stream->request_started == 0)) {
+        if (is_rst && (!current_stream->status_code.finalized || !current_stream->request_method.finalized || !current_stream->path.finalized)) {
             bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
             continue;
         }
