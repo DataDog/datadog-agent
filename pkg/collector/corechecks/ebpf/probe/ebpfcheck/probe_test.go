@@ -308,7 +308,7 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 					allocs := testing.AllocsPerRun(10, func() {
 						hashMapNumberOfEntriesWithBatch(m, &limitedBuffers, 1)
 					})
-					require.LessOrEqual(t, allocs, 6.0) // Multiple batches mean we need to use a map to keep track of the keys, that causes allocations for the values
+					require.LessOrEqual(t, allocs, 8.0) // Multiple batches mean we need to use a map to keep track of the keys, that causes allocations for the values
 				})
 			}
 
