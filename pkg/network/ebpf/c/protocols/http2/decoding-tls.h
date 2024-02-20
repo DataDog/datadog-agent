@@ -915,18 +915,18 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
             continue;
         }
 
-        // It is not possible that path will be with length 0.
-        if ((current_stream->path.length == 0) && (!current_stream->path.finalized)) {
-            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
-            continue;
-        }
-
         if (is_rst) {
             __sync_fetch_and_add(&http2_tel->end_of_stream_rst, 1);
         } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
             __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
         }
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
+
+        // It is not possible that path will be with length 0.
+        if ((current_stream->path.length == 0) && (!current_stream->path.finalized)) {
+            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+            continue;
+        }
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
