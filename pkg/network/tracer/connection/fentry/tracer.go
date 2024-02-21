@@ -69,7 +69,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 			Name:  "systemprobe_ino",
 			Value: inode,
 		})
-		kprobe.AddBoolConst(&o, ringbufferEnabled, "ringbuffer_enabled")
+		kprobe.AddBoolConst(&o, ringbufferEnabled, "ringbuffers_enabled")
 
 		if ringbufferEnabled {
 			mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{

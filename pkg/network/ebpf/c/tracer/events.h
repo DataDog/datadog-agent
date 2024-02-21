@@ -18,13 +18,6 @@
 #define MSG_PEEK 2
 #endif
 
-
-static __always_inline bool ringbuffers_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("ringbuffer_enabled", val);
-    return val > 0;
-}
-
 static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t conn_tuple = *tup;
     conn_tuple.pid = 0;
@@ -162,6 +155,15 @@ static __always_inline conn_flush_t handle_tcp_close(struct pt_regs *ctx) {
     return conn;
 }
 
+__maybe_unused static __always_inline void submit_event(void *ctx, int cpu, void *event_data, size_t data_size) {
+    __u64 ringbuffers_enabled = 0;
+    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
+    if (ringbuffers_enabled > 0) {
+        bpf_ringbuf_output(&conn_close_event, event_data, data_size, 0);
+    } else {
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, event_data, data_size);
+    }
+}
 
 // This function is used to emit a conn_close_event for a single connection that is being closed.
 // It is only called on older kernel versions that do not support ring buffers.
@@ -180,11 +182,7 @@ __maybe_unused static __always_inline void emit_conn_close_event_ringbuffer(conn
     if (!conn) {
         return;
     }
-    if (ringbuffers_enabled()) {
-        bpf_ringbuf_output(&conn_close_event, conn, sizeof(conn_t), 0);
-    } else {
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, conn, sizeof(conn_t));
-    }
+    submit_event(ctx, cpu, conn, sizeof(conn_t));
 }
 
 
@@ -217,11 +215,7 @@ __maybe_unused static __always_inline void flush_conn_close_if_full_ringbuffer(v
     if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
         return;
     }
-    if (ringbuffers_enabled()) {
-        bpf_ringbuf_output(&conn_close_event, batch_ptr, sizeof(batch_t), 0);
-    } else {
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, batch_ptr, sizeof(batch_t));
-    }
+    submit_event(ctx, cpu, batch_ptr, sizeof(batch_t));
     batch_ptr->len = 0;
     batch_ptr->id++;
 }

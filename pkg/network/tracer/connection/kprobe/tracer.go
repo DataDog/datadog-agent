@@ -152,9 +152,9 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 }
 
 func getTailCallRouteForProtocolClassification(ringbufferSupported bool) []manager.TailCallRoute {
-	funcName := probes.TCPCloseFlushReturnPerfbuffer
+	tcpCloseFuncName := probes.TCPCloseFlushReturnPerfbuffer
 	if ringbufferSupported {
-		funcName = probes.TCPCloseFlushReturnRingbuffer
+		tcpCloseFuncName = probes.TCPCloseFlushReturnRingbuffer
 	}
 	protocolClassificationTailCalls := []manager.TailCallRoute{
 		{
@@ -185,7 +185,7 @@ func getTailCallRouteForProtocolClassification(ringbufferSupported bool) []manag
 			ProgArrayName: probes.TCPCloseProgsMap,
 			Key:           0,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: funcName,
+				EBPFFuncName: tcpCloseFuncName,
 				UID:          probeUID,
 			},
 		},
@@ -197,7 +197,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
 
 	ringbufferEnabled := RingBufferSupported(config)
-	AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffer_enabled")
+	AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffers_enabled")
 
 	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)

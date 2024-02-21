@@ -467,7 +467,6 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 
 	stats, err := t.getStats(stateStats)
 	if err != nil {
-		log.Debugf("error getting state stats: %s", err)
 		return nil
 	}
 
