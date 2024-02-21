@@ -72,8 +72,6 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
     - scp $DD_AGENT_TESTING_DIR/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
     - ssh metal_instance "tar xzf /opt/kernel-version-testing/${TEST_ARCHIVE_NAME} -C /opt/kernel-version-testing"
-    # give correct permissions to assets
-    - ssh metal_instance "sudo find /opt/kernel-version-testing/system-probe-tests -name *.o -type f -exec chown root:root {} \;"
     # build connector
     - pushd $CI_PROJECT_DIR/test/new-e2e
     - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
