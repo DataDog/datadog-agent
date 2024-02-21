@@ -809,6 +809,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
         }
 
         http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
+        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
         if (current_stream == NULL) {
             continue;
         }

@@ -833,6 +833,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
         }
 
         http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
+        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
         if (current_stream == NULL) {
             continue;
         }
