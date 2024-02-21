@@ -2164,7 +2164,6 @@ core,honnef.co/go/tools/staticcheck/fakereflect,MIT,Copyright (c) 2016 Dominik H
 core,honnef.co/go/tools/staticcheck/fakexml,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/stylecheck,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/unused,MIT,Copyright (c) 2016 Dominik Honnef
-core,inet.af/netaddr,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
 core,k8s.io/api/admission/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admission/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
