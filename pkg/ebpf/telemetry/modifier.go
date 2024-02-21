@@ -14,12 +14,15 @@ import (
 )
 
 // Manager wraps ebpf-manager.Manager to transparently handle eBPF telemetry
+
+// Deprecated: The telemetry manager wrapper should no longer be used. Instead, use ebpf/manager.Manager instead with the ErrorsTelemetryModifier
 type Manager struct {
 	*manager.Manager
 	bpfTelemetry *EBPFTelemetry
 }
 
 // NewManager creates a Manager
+// Deprecated: The telemetry manager wrapper should no longer be used. Instead, use ebpf/manager.Manager instead with the ErrorsTelemetryModifier
 func NewManager(mgr *manager.Manager, bt *EBPFTelemetry) *Manager {
 	return &Manager{
 		Manager:      mgr,
@@ -28,6 +31,7 @@ func NewManager(mgr *manager.Manager, bt *EBPFTelemetry) *Manager {
 }
 
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
+// Deprecated: The telemetry manager wrapper should no longer be used. Instead, use ebpf/manager.Manager instead with the ErrorsTelemetryModifier
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error {
 	if err := setupForTelemetry(m.Manager, &opts, m.bpfTelemetry); err != nil {
 		return err
