@@ -42,6 +42,59 @@ def add_flavor_to_junitxml(xml_path: str, flavor: AgentFlavor):
     tree.write(xml_path)
 
 
+def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
+    """
+    Upload all JUnit XML files contained in given tgz archive.
+    """
+    from codeowners import CodeOwners
+
+    with open(codeowners_path) as f:
+        codeowners = CodeOwners(f.read())
+
+    # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+    if os.path.isdir(junit_tgz):
+        tmp_tgz = os.path.join(junit_tgz, os.path.basename(junit_tgz))
+        if not os.path.isfile(tmp_tgz):
+            tmp_tgz = os.path.join(junit_tgz, "junit.tar.gz")
+        junit_tgz = tmp_tgz
+
+    xmlcounts = {}
+    with tempfile.TemporaryDirectory() as unpack_dir:
+        # unpack all files from archive
+        with tarfile.open(junit_tgz) as tgz:
+            tgz.extractall(path=unpack_dir)
+        # read additional tags
+        tags = None
+        tagsfile = os.path.join(unpack_dir, TAGS_FILE_NAME)
+        if os.path.exists(tagsfile):
+            with open(tagsfile) as tf:
+                tags = tf.read().split()
+        process_env = _update_environ(unpack_dir)
+        # for each unpacked xml file, split it and submit all parts
+        # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
+        xmls = 0
+        for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
+            if not os.path.isfile(xmlfile):
+                print(f"[WARN] Matched folder named {xmlfile}")
+                continue
+            xmls += 1
+            with tempfile.TemporaryDirectory() as output_dir:
+                written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
+                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
+        xmlcounts[junit_tgz] = xmls
+
+    empty_tgzs = []
+    for tgz, count in xmlcounts.items():
+        print(f"Submitted results for {count} JUnit XML files from {tgz}")
+        if count == 0 and not tgz.endswith(
+            "-fast.tgz"
+        ):  # *-fast.tgz contains only tests related to the modified code, they can be empty
+            empty_tgzs.append(tgz)
+
+    if empty_tgzs:
+        raise Exit(f"No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
+
+
 def split_junitxml(xml_path, codeowners, output_dir):
     """
     Split a junit XML into several according to the suite name and the codeowners.
@@ -123,58 +176,6 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
         if exit_code != 0:
             raise subprocess.CalledProcessError(exit_code, DATADOG_CI_COMMAND)
 
-
-def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
-    """
-    Upload all JUnit XML files contained in given tgz archive.
-    """
-    from codeowners import CodeOwners
-
-    with open(codeowners_path) as f:
-        codeowners = CodeOwners(f.read())
-
-    # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
-    if os.path.isdir(junit_tgz):
-        tmp_tgz = os.path.join(junit_tgz, os.path.basename(junit_tgz))
-        if not os.path.isfile(tmp_tgz):
-            tmp_tgz = os.path.join(junit_tgz, "junit.tar.gz")
-        junit_tgz = tmp_tgz
-
-    xmlcounts = {}
-    with tempfile.TemporaryDirectory() as unpack_dir:
-        # unpack all files from archive
-        with tarfile.open(junit_tgz) as tgz:
-            tgz.extractall(path=unpack_dir)
-        # read additional tags
-        tags = None
-        tagsfile = os.path.join(unpack_dir, TAGS_FILE_NAME)
-        if os.path.exists(tagsfile):
-            with open(tagsfile) as tf:
-                tags = tf.read().split()
-        process_env = _update_environ(unpack_dir)
-        # for each unpacked xml file, split it and submit all parts
-        # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
-        xmls = 0
-        for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
-            if not os.path.isfile(xmlfile):
-                print(f"[WARN] Matched folder named {xmlfile}")
-                continue
-            xmls += 1
-            with tempfile.TemporaryDirectory() as output_dir:
-                written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
-                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
-        xmlcounts[junit_tgz] = xmls
-
-    empty_tgzs = []
-    for tgz, count in xmlcounts.items():
-        print(f"Submitted results for {count} JUnit XML files from {tgz}")
-        if count == 0 and not tgz.endswith(
-            "-fast.tgz"
-        ):  # *-fast.tgz contains only tests related to the modified code, they can be empty
-            empty_tgzs.append(tgz)
-
-    if empty_tgzs:
-        raise Exit(f"No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
 
 
 def _update_environ(unpack_dir):
