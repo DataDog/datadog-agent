@@ -259,8 +259,6 @@ func (suite *DownloadTestSuite) TestDownload() {
 	t := suite.T()
 	downloader := newDownloader(suite.server.Client())
 	downloadPath := path.Join(suite.dir, testDownloadDir)
-	err := os.MkdirAll(downloadPath, 0755)
-	assert.NoError(t, err)
 
 	pkg := Package{
 		Name:    "datadog-agent",
@@ -275,7 +273,7 @@ func (suite *DownloadTestSuite) TestDownload() {
 	runtime.ReadMemStats(&m)
 	totalAllocsStart := m.TotalAlloc
 
-	err = downloader.Download(context.Background(), pkg, downloadPath)
+	err := downloader.Download(context.Background(), pkg, downloadPath)
 	runtime.ReadMemStats(&m)
 
 	// Read contents of downloadPath

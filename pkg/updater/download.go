@@ -132,6 +132,11 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 }
 
 // extractTarXz extracts a tar.xz archive to the given destination path
+//
+// Note on security: This function does not currently attempt to fully mitigate zip-slip attacks.
+// This is purposeful as the archive is extracted only after its SHA256 hash has been validated
+// against its reference in the package catalog. This catalog is itself sent over Remote Config
+// which guarantees its integrity.
 func extractTarXz(archivePath string, destinationPath string) error {
 	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
 
@@ -163,7 +168,7 @@ func extractTarXz(archivePath string, destinationPath string) error {
 
 		target := filepath.Join(destinationPath, header.Name)
 
-		// Check for zip-slip attacks
+		// Check for directory traversal. Note that this is more of a sanity check than a security measure.
 		if !strings.HasPrefix(target, filepath.Clean(destinationPath)+string(os.PathSeparator)) {
 			return fmt.Errorf("tar entry %s is trying to escape the destination directory", header.Name)
 		}
@@ -197,7 +202,7 @@ func extractTarXz(archivePath string, destinationPath string) error {
 // extractTarFile extracts a file from a tar archive.
 // It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
 func extractTarFile(targetPath string, reader io.Reader) error {
-	err := os.MkdirAll(filepath.Dir(targetPath), 0o755)
+	err := os.MkdirAll(filepath.Dir(targetPath), 0755)
 	if err != nil {
 		return fmt.Errorf("could not create directory: %w", err)
 	}
