@@ -21,54 +21,68 @@ const (
 	defaultVMName     = "dcvm"
 )
 
-// Provisioner creates an Active Directory environment on a given VM.
-func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[Env] {
+// GetProvisionerParams return ProvisionerParams from options opts setup
+func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := newProvisionerParams()
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
 	}
+	return params
+}
 
-	return e2e.NewTypedPulumiProvisioner[Env](provisionerBaseID+params.name, func(ctx *pulumi.Context, env *Env) error {
-		params := newProvisionerParams()
-		_ = optional.ApplyOptions(params, opts)
+// Run deploys a environment given a pulumi.Context
+func Run(ctx *pulumi.Context, env *Env, params *ProvisionerParams) error {
+	awsEnv, err := aws.NewEnvironment(ctx)
+	if err != nil {
+		return err
+	}
 
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
+	env.Environment = awsEnv.CommonEnvironment
 
-		env.Environment = awsEnv.CommonEnvironment
+	// JL: should the ec2 VM be customizable by the user?
+	vm, err := ec2.NewVM(awsEnv, params.name, ec2.WithOS(os.WindowsDefault))
+	if err != nil {
+		return err
+	}
+	err = vm.Export(ctx, &env.DomainControllerHost.HostOutput)
+	if err != nil {
+		return err
+	}
 
-		// JL: should the ec2 VM be customizable by the user?
-		vm, err := ec2.NewVM(awsEnv, params.name, ec2.WithOS(os.WindowsDefault))
-		if err != nil {
-			return err
-		}
-		err = vm.Export(ctx, &env.DomainControllerHost.HostOutput)
-		if err != nil {
-			return err
-		}
+	domainController, err := NewActiveDirectory(ctx, awsEnv.CommonEnvironment, vm, params.activeDirectoryOptions...)
+	if err != nil {
+		return err
+	}
+	err = domainController.Export(ctx, &env.DomainController.Output)
+	if err != nil {
+		return err
+	}
 
-		domainController, err := NewActiveDirectory(ctx, awsEnv.CommonEnvironment, vm, params.activeDirectoryOptions...)
-		if err != nil {
-			return err
-		}
-		err = domainController.Export(ctx, &env.DomainController.Output)
-		if err != nil {
-			return err
-		}
+	// JL: can params.fakeintakeOptions be nil, and how should we handle it?
+	fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+	if err != nil {
+		return err
+	}
+	err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+	if err != nil {
+		return err
+	}
 
-		// JL: can params.fakeintakeOptions be nil, and how should we handle it?
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
-		if err != nil {
-			return err
-		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-		if err != nil {
-			return err
-		}
+	return nil
+}
 
-		return nil
+// Provisioner creates an Active Directory environment on a given VM.
+func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[Env] {
+	// We need to build params here to be able to use params.name in the provisioner name
+	params := GetProvisionerParams(opts...)
+
+	provisioner := e2e.NewTypedPulumiProvisioner[Env](provisionerBaseID+params.name, func(ctx *pulumi.Context, env *Env) error {
+		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
+		// and it's easy to forget about it, leading to hard to debug issues.
+		params := GetProvisionerParams(opts...)
+		return Run(ctx, env, params)
 	}, nil)
+
+	return provisioner
 }
