@@ -10,16 +10,18 @@ package telemetry
 import (
 	"errors"
 	"fmt"
+	"io"
+	"sync"
+	"unsafe"
+
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"golang.org/x/exp/slices"
-	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	netbpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -38,29 +40,33 @@ var helperNames = map[int]string{
 	perfEventOutput: "bpf_perf_event_output",
 }
 
+const instrumentationMap string = "bpf_instrumentation_map"
+
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
 type EBPFTelemetry struct {
-	mtx             sync.Mutex
-	bpfTelemetryMap *maps.GenericMap[uint32, InstrumentationBlob]
-	mapKeys         map[string]uint32
-	mapIndex        uint32
-	probeKeys       map[string]uint32
-	programIndex    uint32
-	bpfDir          string
+	EBPFInstrumentationMap *ebpf.Map `ebpf:"bpf_instrumentation_map"`
+	mtx                    sync.Mutex
+	mapKeys                map[string]uint32
+	mapIndex               uint32
+	probeKeys              map[string]uint32
+	programIndex           uint32
+	bpfDir                 string
 }
 
 type eBPFInstrumentation struct {
-	filename  string
-	functions []string
+	filename       string
+	functions      []string
+	patchConstants map[string][]string
 }
 
-var instrumentation = []eBPFInstrumentation{
-	{
-		"ebpf_instrumentation",
-		[]string{
-			"ebpf_instrumentation__trampoline_handler",
-		},
+var instrumentation = eBPFInstrumentation{
+	"ebpf_instrumentation",
+	[]string{
+		"ebpf_instrumentation__trampoline_handler",
+	},
+	map[string][]string{
+		"ebpf_instrumentation__trampoline_handler": []string{"telemetry_program_id_key"},
 	},
 }
 
@@ -73,33 +79,6 @@ func NewEBPFTelemetry() *EBPFTelemetry {
 		mapKeys:   make(map[string]uint32),
 		probeKeys: make(map[string]uint32),
 	}
-}
-
-// populateMapsWithKeys initializes the maps for holding telemetry info.
-// It must be called after the manager is initialized
-func (b *EBPFTelemetry) populateMapsWithKeys(m *manager.Manager) error {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-
-	// first manager to call will populate the maps
-	if b.bpfTelemetryMap != nil {
-		return nil
-	}
-
-	var err error
-	b.bpfTelemetryMap, err = maps.GetMap[uint32, InstrumentationBlob](m, probes.EBPFTelemetryMap)
-	if err != nil {
-		return fmt.Errorf("failed to get bpf telemetry map: %w", err)
-	}
-
-	var key uint32
-	z := new(InstrumentationBlob)
-	err = b.bpfTelemetryMap.Update(&key, z, ebpf.UpdateNoExist)
-	if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-		return fmt.Errorf("failed to initialize telemetry struct: %w", err)
-	}
-
-	return nil
 }
 
 func countRawBPFIns(ins *asm.Instruction) int {
@@ -126,7 +105,23 @@ func initializeProbeKeys(m *manager.Manager, bpfTelemetry *EBPFTelemetry) error 
 	return nil
 }
 
-func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelemetry) error {
+func patchConstant(ins asm.Instructions, symbol string, constant int64) error {
+	indices := ins.ReferenceOffsets()[symbol]
+
+	// patch telemetry program id key if required for this instrumentation
+	ldDWImm := asm.LoadImmOp(asm.DWord)
+	for _, index := range indices {
+		load := &ins[index]
+		if load.OpCode != ldDWImm {
+			return fmt.Errorf("symbol %v: load: found %v instead of %v", symbol, load.OpCode, ldDWImm)
+		}
+		load.Constant = constant
+	}
+
+	return nil
+}
+
+func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt) error {
 	if err := initializeProbeKeys(m, bpfTelemetry); err != nil {
 		return err
 	}
@@ -136,7 +131,18 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelem
 		return err
 	}
 
-	for _, p := range progs {
+	sizes, err := parseStackSizesSections(bytecode, progs)
+	if err != nil {
+		return fmt.Errorf("failed to parse '.stack_sizes' section in file: %w", err)
+	}
+
+	for fn, p := range progs {
+		space := sizes.stackHas8BytesFree(fn)
+		if !space {
+			log.Warnf("Function %s does not have enough free stack space for instrumentation", fn)
+			continue
+		}
+
 		const ebpfEntryTrampolinePatchCall = -1
 		// max trampoline offset is maximum number of instruction from program entry before the
 		// trampoline call.
@@ -175,51 +181,61 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelem
 
 		var instrumentationBlock []*asm.Instruction
 		var instrumentationBlockCount int
-		for _, eBPFInst := range instrumentation {
-			bpfAsset, err := netbpf.ReadEBPFTelemetryModule(bpfTelemetry.bpfDir, eBPFInst.filename)
-			if err != nil {
-				return fmt.Errorf("failed to read %s bytecode file: %w", eBPFInst.filename, err)
+
+		bpfAsset, err := netbpf.ReadEBPFTelemetryModule(bpfTelemetry.bpfDir, instrumentation.filename)
+		if err != nil {
+			return fmt.Errorf("failed to read %s bytecode file: %w", instrumentation.filename, err)
+		}
+
+		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bpfAsset)
+		if err != nil {
+			return fmt.Errorf("failed to load collection spec from reader: %w", err)
+		}
+
+		for _, program := range instrumentation.functions {
+			if _, ok := collectionSpec.Programs[program]; !ok {
+				return fmt.Errorf("no program %s present in instrumentation file %s.o", program, instrumentation.filename)
+			}
+			ins := collectionSpec.Programs[program].Instructions
+
+			constants := instrumentation.patchConstants[program]
+			if len(constants) > 0 {
+				for _, c := range constants {
+					if err := patchConstant(ins, c, int64(bpfTelemetry.probeKeys[program])); err != nil {
+						return fmt.Errorf("failed to patch constant %s in program %s: %w", c, program, err)
+					}
+				}
 			}
 
-			collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bpfAsset)
-			if err != nil {
-				return fmt.Errorf("failed to load collection spec from reader: %w", err)
-			}
-
-			for _, program := range eBPFInst.functions {
-				if _, ok := collectionSpec.Programs[program]; !ok {
-					return fmt.Errorf("no program %s present in instrumentation file %s.o", program, eBPFInst.filename)
+			iter := ins.Iterate()
+			for iter.Next() {
+				ins := iter.Ins
+				// The final instruction in the instrumentation block is `exit`, which we
+				// do not want.
+				if ins.OpCode.JumpOp() == asm.Exit {
+					break
 				}
-				iter := collectionSpec.Programs[program].Instructions.Iterate()
-				for iter.Next() {
-					ins := iter.Ins
-					// The final instruction in the instrumentation block is `exit`, which we
-					// do not want.
-					if ins.OpCode.JumpOp() == asm.Exit {
-						break
-					}
-					instrumentationBlockCount += countRawBPFIns(ins)
+				instrumentationBlockCount += countRawBPFIns(ins)
 
-					// The first instruction has associated func_info btf information. Since
-					// the instrumentation is not a function, the verifier will complain that the number of
-					// `func_info` objects in the BTF do not match the number of loaded programs:
-					// https://elixir.bootlin.com/linux/latest/source/kernel/bpf/verifier.c#L15035
-					// To workaround this we create a new instruction object and give it empty metadata.
-					if iter.Index == 0 {
-						newIns := asm.Instruction{
-							OpCode:   ins.OpCode,
-							Dst:      ins.Dst,
-							Src:      ins.Src,
-							Offset:   ins.Offset,
-							Constant: ins.Constant,
-						}.WithMetadata(asm.Metadata{})
+				// The first instruction has associated func_info btf information. Since
+				// the instrumentation is not a function, the verifier will complain that the number of
+				// `func_info` objects in the BTF do not match the number of loaded programs:
+				// https://elixir.bootlin.com/linux/latest/source/kernel/bpf/verifier.c#L15035
+				// To workaround this we create a new instruction object and give it empty metadata.
+				if iter.Index == 0 {
+					newIns := asm.Instruction{
+						OpCode:   ins.OpCode,
+						Dst:      ins.Dst,
+						Src:      ins.Src,
+						Offset:   ins.Offset,
+						Constant: ins.Constant,
+					}.WithMetadata(asm.Metadata{})
 
-						instrumentationBlock = append(instrumentationBlock, &newIns)
-						continue
-					}
-
-					instrumentationBlock = append(instrumentationBlock, ins)
+					instrumentationBlock = append(instrumentationBlock, &newIns)
+					continue
 				}
+
+				instrumentationBlock = append(instrumentationBlock, ins)
 			}
 		}
 
@@ -243,7 +259,7 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelem
 // It will patch the instructions of all the manager probes and `undefinedProbes` provided.
 // Constants are replaced for map error and helper error keys with their respective values.
 // This must be called before ebpf-manager.Manager.Init/InitWithOptions
-func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetry *EBPFTelemetry) error {
+func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt) error {
 	bpfTelemetry.mtx.Lock()
 	defer bpfTelemetry.mtx.Unlock()
 
@@ -252,23 +268,54 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 		return err
 	}
 
+	// TODO: This check will be removed when ebpf telemetry is converted to a singleton
+	if bpfTelemetry.EBPFInstrumentationMap == nil {
+		bpfAsset, err := netbpf.ReadEBPFTelemetryModule(bpfTelemetry.bpfDir, instrumentation.filename)
+		if err != nil {
+			return fmt.Errorf("failed to read %s bytecode file: %w", instrumentation.filename, err)
+		}
+
+		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bpfAsset)
+		if err != nil {
+			return fmt.Errorf("failed to load collection spec from reader: %w", err)
+		}
+
+		if err := collectionSpec.LoadAndAssign(bpfTelemetry, nil); err != nil {
+			return fmt.Errorf("failed to load instrumentation maps: %w", err)
+		}
+
+		if err := initializeInstrumentationMap(bpfTelemetry); err != nil {
+			return fmt.Errorf("failed to initialize ebpf instrumentation map: %w", err)
+		}
+	}
+
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
-		return patchEBPFTelemetry(m, activateBPFTelemetry, bpfTelemetry)
+		return patchEBPFTelemetry(m, activateBPFTelemetry, bpfTelemetry, bytecode)
 	})
 
 	if activateBPFTelemetry {
 		// add telemetry maps to list of maps, if not present
-		if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == probes.EBPFTelemetryMap }) {
-			m.Maps = append(m.Maps, &manager.Map{Name: probes.EBPFTelemetryMap})
+		if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == instrumentationMap }) {
+			m.Maps = append(m.Maps, &manager.Map{Name: instrumentationMap})
 		}
 
-		if bpfTelemetry != nil {
-			bpfTelemetry.setupMapEditors(options)
-			for _, m := range m.Maps {
-				bpfTelemetry.mapKeys[m.Name] = bpfTelemetry.mapIndex
-				bpfTelemetry.mapIndex++
-			}
+		if options.MapEditors == nil {
+			options.MapEditors = make(map[string]*ebpf.Map)
 		}
+		options.MapEditors[instrumentationMap] = bpfTelemetry.EBPFInstrumentationMap
+
+		var keys []manager.ConstantEditor
+		for _, m := range m.Maps {
+			bpfTelemetry.mapKeys[m.Name] = bpfTelemetry.mapIndex
+			bpfTelemetry.mapIndex++
+
+			keys = append(keys, manager.ConstantEditor{
+				Name:  m.Name + "_telemetry_key",
+				Value: uint64(bpfTelemetry.mapKeys[m.Name]),
+			})
+		}
+
+		options.ConstantEditors = append(options.ConstantEditors, keys...)
 	}
 	// we cannot exclude the telemetry maps because on some kernels, deadcode elimination hasn't removed references
 	// if telemetry not enabled: leave key constants as zero, and deadcode elimination should reduce number of instructions
@@ -276,11 +323,15 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	return nil
 }
 
-func (b *EBPFTelemetry) setupMapEditors(opts *manager.Options) {
-	if b.bpfTelemetryMap != nil && opts.MapEditors == nil {
-		opts.MapEditors = make(map[string]*ebpf.Map)
-		opts.MapEditors[probes.EBPFTelemetryMap] = b.bpfTelemetryMap.Map()
+func initializeInstrumentationMap(b *EBPFTelemetry) error {
+	key := 0
+	z := new(InstrumentationBlob)
+	err := b.EBPFInstrumentationMap.Update(unsafe.Pointer(&key), z, ebpf.UpdateNoExist)
+	if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+		return fmt.Errorf("failed to initialize telemetry struct: %w", err)
 	}
+
+	return nil
 }
 
 // ebpfTelemetrySupported returns whether eBPF telemetry is supported, which depends on the verifier in 4.14+

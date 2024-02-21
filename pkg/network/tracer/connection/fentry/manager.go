@@ -30,9 +30,6 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, cf
 		{Name: probes.UDPPortBindingsMap},
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
-		{Name: probes.SockByPidFDMap},
-		{Name: probes.PidFDBySockMap},
-		{Name: probes.EBPFTelemetryMap},
 	}
 	pm := &manager.PerfMap{
 		Map: manager.Map{Name: probes.ConnCloseEventMap},

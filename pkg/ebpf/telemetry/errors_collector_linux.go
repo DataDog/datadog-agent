@@ -63,12 +63,13 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
-	if e.bpfTelemetryMap == nil {
+	if e.EBPFInstrumentationMap == nil {
 		return
 	}
+
 	var val InstrumentationBlob
 	var key uint32
-	err := e.bpfTelemetryMap.Lookup(&key, &val)
+	err := e.EBPFInstrumentationMap.Lookup(&key, &val)
 	if err != nil {
 		log.Warnf("failed to get instrumentation blob: %v", err)
 	}
@@ -88,7 +89,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 	for programName, programIndex := range e.probeKeys {
 		for index, helperName := range helperNames {
 			base := maxErrno * index
-			if count := getErrCount(val.Helper_err_telemetry[programIndex].Count[base : base+maxErrno]); len(count) > 0 {
+			if count := getErrCount(val.Helper_err_telemetry[programIndex].Err_count[base : base+maxErrno]); len(count) > 0 {
 				for errStr, errCount := range count {
 					errorsDelta := float64(errCount - e.lastValues[errStr])
 					if errorsDelta > 0 {

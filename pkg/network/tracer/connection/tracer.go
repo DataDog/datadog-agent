@@ -346,7 +346,6 @@ func (t *tracer) Stop() {
 func (t *tracer) GetMap(name string) *ebpf.Map {
 	switch name {
 	case probes.ConnectionProtocolMap:
-	case probes.EBPFTelemetryMap:
 	default:
 		return nil
 	}
