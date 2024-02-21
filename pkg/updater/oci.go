@@ -44,16 +44,15 @@ func extractOCI(ociArchivePath string, destinationPath string) error {
 
 // extractOCIManifest extracts the layers of a single manifest from the OCI archive
 func extractOCIManifest(ociArchivePath string, destinationPath string, manifest ociSpec.Descriptor) error {
-	blobsPath := path.Join(ociArchivePath, "blobs", string(manifest.Digest.Algorithm()))
 	if manifest.Digest.Algorithm() != digest.SHA256 {
 		return fmt.Errorf("invalid algorithm %s for manifest: only sha256 is supported", manifest.Digest.Algorithm())
 	}
+	blobsPath := path.Join(ociArchivePath, "blobs", string(manifest.Digest.Algorithm()))
 	err := verifyOCIFile(blobsPath, manifest)
 	if err != nil {
 		return err // already wrapped
 	}
 
-	// Parse manifest
 	manifestStruct := &ociSpec.Manifest{}
 	manifestFile, err := os.Open(path.Join(blobsPath, manifest.Digest.Encoded()))
 	if err != nil {
@@ -64,7 +63,6 @@ func extractOCIManifest(ociArchivePath string, destinationPath string, manifest 
 		return fmt.Errorf("could not parse manifest file: %w", err)
 	}
 
-	// Extract layers in the destination folder
 	for _, layer := range manifestStruct.Layers {
 		err := extractOCILayer(blobsPath, destinationPath, layer)
 		if err != nil {
@@ -103,15 +101,12 @@ func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Des
 // verifyOCIFile verifies the length & digest of a file in the OCI archive given its descriptor
 func verifyOCIFile(blobsPath string, spec ociSpec.Descriptor) error {
 	filePath := path.Join(blobsPath, spec.Digest.Encoded())
-
-	// Read file
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("could not open file: %w", err)
 	}
 	defer file.Close()
 
-	// Verify digest
 	verifier := spec.Digest.Verifier()
 	n, err := io.Copy(verifier, file)
 	if err != nil {
