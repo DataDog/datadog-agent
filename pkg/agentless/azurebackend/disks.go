@@ -62,7 +62,7 @@ func createSnapshot(ctx context.Context, cfg Config, scan *types.ScanTask, waite
 	if err != nil {
 		return nil, err
 	}
-	snapshotCloudID := types.FromAzureResourceID(snapshotID)
+	snapshotCloudID := types.AzureCloudID(snapshotID)
 
 	disksClient := cfg.ComputeClientFactory.NewDisksClient()
 	disk, err := disksClient.Get(ctx, diskID.ResourceGroupName, diskID.Name, nil)
