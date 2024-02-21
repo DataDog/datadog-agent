@@ -221,17 +221,17 @@ func (c *collector) notifyInitialEvents(ctx context.Context) error {
 	}
 
 	for _, namespace := range namespaces {
-		nsContainerEvents, err := c.generateInitialContainerEvents(namespace)
-		if err != nil {
-			return err
-		}
-		containerEvents = append(containerEvents, nsContainerEvents...)
-
 		if imageMetadataCollectionIsEnabled() {
 			if err := c.notifyInitialImageEvents(ctx, namespace); err != nil {
 				return err
 			}
 		}
+
+		nsContainerEvents, err := c.generateInitialContainerEvents(namespace)
+		if err != nil {
+			return err
+		}
+		containerEvents = append(containerEvents, nsContainerEvents...)
 	}
 
 	if len(containerEvents) > 0 {
@@ -261,7 +261,7 @@ func (c *collector) generateInitialContainerEvents(namespace string) ([]workload
 			continue
 		}
 
-		ev, err := createSetEvent(container, namespace, c.containerdClient)
+		ev, err := createSetEvent(container, namespace, c.containerdClient, c.store)
 		if err != nil {
 			log.Warnf(err.Error())
 			continue
@@ -279,13 +279,28 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 		return err
 	}
 
+	mergedImages := make(map[workloadmeta.EntityID]*workloadmeta.ContainerImageMetadata)
 	for _, image := range existingImages {
-		if err := c.notifyEventForImage(ctx, namespace, image, nil); err != nil {
+		wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, image, nil)
+		if err != nil {
 			log.Warnf("error getting information for image with name %q: %s", image.Name(), err.Error())
 			continue
 		}
+		//Image is referenced by several different names but has only one entity id (= manifest.Config.Digest).
+		//mergedImages will be refreshed by updated workloadmeta.ContainerImageMetadata
+		if wlmImage != nil {
+			mergedImages[wlmImage.EntityID] = wlmImage
+		}
 	}
-
+	for _, wlmImage := range mergedImages {
+		c.store.Notify([]workloadmeta.CollectorEvent{
+			{
+				Type:   workloadmeta.EventTypeSet,
+				Source: workloadmeta.SourceRuntime,
+				Entity: wlmImage,
+			},
+		})
+	}
 	return nil
 }
 
@@ -312,7 +327,7 @@ func (c *collector) handleContainerEvent(ctx context.Context, containerdEvent *c
 		}
 	}
 
-	workloadmetaEvent, err := c.buildCollectorEvent(containerdEvent, containerID, container)
+	workloadmetaEvent, err := c.buildCollectorEvent(containerdEvent, containerID, container, c.store)
 	if err != nil {
 		if errors.Is(err, errNoContainer) {
 			log.Debugf("No event could be built as container is nil, skipping event. CID: %s, event: %+v", containerID, containerdEvent)
