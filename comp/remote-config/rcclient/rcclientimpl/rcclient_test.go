@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package rcclient
+package rcclientimpl
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -64,7 +65,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	err := settings.RegisterRuntimeSetting(mockSettings)
 	assert.NoError(t, err)
 
-	rc := fxutil.Test[Component](t, fx.Options(Module(), logimpl.MockModule()))
+	rc := fxutil.Test[rcclient.Component](t, fx.Options(Module(), logimpl.MockModule()))
 
 	layerStartFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": "debug"}}`)}
 	layerEndFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": ""}}`)}
