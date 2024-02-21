@@ -216,6 +216,41 @@ func (c *Concentrator) Add(t Input) {
 	c.mu.Unlock()
 }
 
+type StatSpan struct {
+	s              *pb.Span
+	origin         string
+	enablePeerTags bool
+}
+
+func (s *StatSpan) Duration() int64 {
+	return s.s.Duration
+}
+
+func (s *StatSpan) Error() int32 {
+	return s.s.Error
+}
+
+func (s *StatSpan) BucketAggregationKey() BucketAggregator {
+	return &BucketsAggregationKey{
+		resource:   s.s.Resource,
+		service:    s.s.Service,
+		name:       s.s.Name,
+		spanKind:   s.s.Meta[tagSpanKind],
+		typ:        s.s.Type,
+		statusCode: getStatusCode(s.s),
+		synthetics: strings.HasPrefix(s.origin, tagSynthetics),
+	}
+}
+
+func (s *StatSpan) PeerTags(peerTagKeys []string) []string {
+	var peerTags []string
+	if clientOrProducer(s.s.Meta[tagSpanKind]) /*&& enablePeerTagsAgg*/ {
+		peerTags = matchingPeerTags(s.s, peerTagKeys)
+		//agg.PeerTagsHash = peerTagsHash(peerTags)
+	}
+	return peerTags
+}
+
 // addNow adds the given input into the concentrator.
 // Callers must guard!
 func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) {
@@ -258,7 +293,11 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
+		statSpan := &StatSpan{
+			s:      s,
+			origin: pt.TraceChunk.Origin,
+		}
+		b.HandleSpan(statSpan, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
 	}
 }
 

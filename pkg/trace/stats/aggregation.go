@@ -25,20 +25,48 @@ const (
 
 // Aggregation contains all the dimension on which we aggregate statistics.
 type Aggregation struct {
-	BucketsAggregationKey
 	PayloadAggregationKey
+	BucketsAggregationKey BucketAggregator
 }
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service      string
-	Name         string
-	Resource     string
-	Type         string
-	SpanKind     string
-	StatusCode   uint32
-	Synthetics   bool
-	PeerTagsHash uint64
+	service      string
+	name         string
+	resource     string
+	typ          string
+	spanKind     string
+	statusCode   uint32
+	synthetics   bool
+	peerTagsHash uint64
+}
+
+func (b *BucketsAggregationKey) Service() string {
+	return b.service
+}
+
+func (b *BucketsAggregationKey) Name() string {
+	return b.name
+}
+
+func (b *BucketsAggregationKey) Resource() string {
+	return b.resource
+}
+
+func (b *BucketsAggregationKey) HttpStatusCode() uint32 {
+	return b.statusCode
+}
+
+func (b *BucketsAggregationKey) Type() string {
+	return b.typ
+}
+
+func (b *BucketsAggregationKey) Synthetics() bool {
+	return b.synthetics
+}
+
+func (b *BucketsAggregationKey) SpanKind() string {
+	return b.spanKind
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -75,26 +103,19 @@ func clientOrProducer(spanKind string) bool {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) (Aggregation, []string) {
-	synthetics := strings.HasPrefix(origin, tagSynthetics)
+func NewAggregationFromSpan(s StattableSpan, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) Aggregation {
+	//synthetics := strings.HasPrefix(origin, tagSynthetics) //todo: this is in the bucket agg key
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
-		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:   s.Resource,
-			Service:    s.Service,
-			Name:       s.Name,
-			SpanKind:   s.Meta[tagSpanKind],
-			Type:       s.Type,
-			StatusCode: getStatusCode(s),
-			Synthetics: synthetics,
-		},
+		BucketsAggregationKey: s.BucketAggregationKey(),
 	}
-	var peerTags []string
-	if clientOrProducer(agg.SpanKind) && enablePeerTagsAgg {
-		peerTags = matchingPeerTags(s, peerTagKeys)
-		agg.PeerTagsHash = peerTagsHash(peerTags)
-	}
-	return agg, peerTags
+	// todo: calc these
+	//var peerTags []string
+	//if clientOrProducer(agg.SpanKind) && enablePeerTagsAgg {
+	//	peerTags = matchingPeerTags(s, peerTagKeys)
+	//	agg.PeerTagsHash = peerTagsHash(peerTags) //TODO: what do
+	//}
+	return agg
 }
 
 func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
@@ -130,14 +151,14 @@ func peerTagsHash(tags []string) uint64 {
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
-		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:     g.Resource,
-			Service:      g.Service,
-			Name:         g.Name,
-			SpanKind:     g.SpanKind,
-			StatusCode:   g.HTTPStatusCode,
-			Synthetics:   g.Synthetics,
-			PeerTagsHash: peerTagsHash(g.PeerTags),
+		BucketsAggregationKey: &BucketsAggregationKey{
+			resource:     g.Resource,
+			service:      g.Service,
+			name:         g.Name,
+			spanKind:     g.SpanKind,
+			statusCode:   g.HTTPStatusCode,
+			synthetics:   g.Synthetics,
+			peerTagsHash: peerTagsHash(g.PeerTags),
 		},
 	}
 }

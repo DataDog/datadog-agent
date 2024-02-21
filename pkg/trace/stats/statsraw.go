@@ -62,19 +62,19 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		return &pb.ClientGroupedStats{}, err
 	}
 	return &pb.ClientGroupedStats{
-		Service:        a.Service,
-		Name:           a.Name,
-		Resource:       a.Resource,
-		HTTPStatusCode: a.StatusCode,
-		Type:           a.Type,
+		Service:        a.BucketsAggregationKey.Service(),
+		Name:           a.BucketsAggregationKey.Name(),
+		Resource:       a.BucketsAggregationKey.Resource(),
+		HTTPStatusCode: a.BucketsAggregationKey.HttpStatusCode(),
+		Type:           a.BucketsAggregationKey.Type(),
 		Hits:           round(s.hits),
 		Errors:         round(s.errors),
 		Duration:       round(s.duration),
 		TopLevelHits:   round(s.topLevelHits),
 		OkSummary:      okSummary,
 		ErrorSummary:   errSummary,
-		Synthetics:     a.Synthetics,
-		SpanKind:       a.SpanKind,
+		Synthetics:     a.BucketsAggregationKey.Synthetics(),
+		SpanKind:       a.BucketsAggregationKey.SpanKind(),
 		PeerTags:       s.peerTags,
 	}, nil
 }
@@ -149,16 +149,33 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 	return m
 }
 
+type BucketAggregator interface {
+	Service() string
+	Name() string
+	Resource() string
+	HttpStatusCode() uint32
+	Type() string
+	Synthetics() bool
+	SpanKind() string
+}
+
+type StattableSpan interface {
+	Duration() int64
+	Error() int32
+	BucketAggregationKey() BucketAggregator
+	PeerTags(peerTagKeys []string) []string
+}
+
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) {
+func (sb *RawBucket) HandleSpan(s StattableSpan, weight float64, isTop bool, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
-	aggr, peerTags := NewAggregationFromSpan(s, origin, aggKey, enablePeerTagsAgg, peerTagKeys)
-	sb.add(s, weight, isTop, aggr, peerTags)
+	aggr := NewAggregationFromSpan(s, aggKey, enablePeerTagsAgg, peerTagKeys)
+	sb.add(s, weight, isTop, aggr, s.PeerTags(peerTagKeys))
 }
 
-func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation, peerTags []string) {
+func (sb *RawBucket) add(s StattableSpan, weight float64, isTop bool, aggr Aggregation, peerTags []string) {
 	var gs *groupedStats
 	var ok bool
 
@@ -171,13 +188,13 @@ func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregatio
 		gs.topLevelHits += weight
 	}
 	gs.hits += weight
-	if s.Error != 0 {
+	if s.Error() != 0 {
 		gs.errors += weight
 	}
-	gs.duration += float64(s.Duration) * weight
+	gs.duration += float64(s.Duration()) * weight
 	// alter resolution of duration distro
-	trundur := nsTimestampToFloat(s.Duration)
-	if s.Error != 0 {
+	trundur := nsTimestampToFloat(s.Duration())
+	if s.Error() != 0 {
 		if err := gs.errDistribution.Add(trundur); err != nil {
 			log.Debugf("Error adding error distribution stats: %v", err)
 		}
