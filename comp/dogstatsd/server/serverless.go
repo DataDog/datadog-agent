@@ -24,8 +24,6 @@ type ServerlessDogstatsd interface {
 	Stop()
 }
 
-// TODO: (components) - remove once serverless is an FX app
-//
 //nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessServer(demux aggregator.Demultiplexer) (ServerlessDogstatsd, error) {
 	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true, demux)

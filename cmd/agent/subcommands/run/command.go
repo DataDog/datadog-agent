@@ -598,10 +598,11 @@ func startAgent(
 
 	// start dogstatsd
 	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
-		if err != nil {
-			log.Errorf("Could not start dogstatsd: %s", err)
-		} else {
+		serverStarted := server.IsRunning()
+		if serverStarted {
 			log.Debugf("dogstatsd started")
+		} else {
+			log.Errorf("Could not start dogstatsd: %s", err)
 		}
 	}
 
