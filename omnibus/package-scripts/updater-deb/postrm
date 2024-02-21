@@ -5,6 +5,7 @@
 # .deb: STEP 3 of 5
 
 INSTALL_DIR=/opt/datadog
+PACKAGES_DIR=/opt/datadog-packages
 LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/datadog-agent
 
@@ -24,7 +25,7 @@ case "$1" in
         rm -rf $INSTALL_DIR
         rm -rf $LOG_DIR
         rm -rf $CONFIG_DIR
-        rm -rf /opt/datadog-packages
+        rm -rf $PACKAGES_DIR
     ;;
     remove)
         rm "$CONFIG_DIR/install_info" || true
