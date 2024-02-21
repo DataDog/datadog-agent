@@ -710,14 +710,6 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
 
     char *rawQuery = rawQueryBuffer.buf;
     char *optionsObj = optionsObjBuffer.buf;
-    // release the buffers once we're done with them
-    if (rawQueryBuffer.buf) {
-        PyBuffer_Release(&rawQueryBuffer);
-    }
-    if (optionsObjBuffer.buf) {
-        PyBuffer_Release(&optionsObjBuffer);
-    }
-
     char *obfQuery = NULL;
     char *error_message = NULL;
     obfQuery = cb_obfuscate_sql(rawQuery, optionsObj, &error_message);
@@ -732,6 +724,13 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
         retval = PyStringFromCString(obfQuery);
     }
 
+    // release the buffers once we're done with them
+    if (rawQueryBuffer.buf) {
+        PyBuffer_Release(&rawQueryBuffer);
+    }
+    if (optionsObjBuffer.buf) {
+        PyBuffer_Release(&optionsObjBuffer);
+    }
     cgo_free(error_message);
     cgo_free(obfQuery);
     PyGILState_Release(gstate);
@@ -758,11 +757,6 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
     bool normalize = (normalizeObj != NULL && PyBool_Check(normalizeObj) && normalizeObj == Py_True);
 
     char *rawPlan = rawPlanBuffer.buf;
-    // release the buffers once we're done with them
-    if (rawPlanBuffer.buf) {
-        PyBuffer_Release(&rawPlanBuffer);
-    }
-
     char *error_message = NULL;
     char *obfPlan = cb_obfuscate_sql_exec_plan(rawPlan, normalize, &error_message);
 
@@ -776,6 +770,10 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
         retval = PyStringFromCString(obfPlan);
     }
 
+    // release the buffers once we're done with them
+    if (rawPlanBuffer.buf) {
+        PyBuffer_Release(&rawPlanBuffer);
+    }
     cgo_free(error_message);
     cgo_free(obfPlan);
     PyGILState_Release(gstate);
