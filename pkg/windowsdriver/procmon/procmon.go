@@ -51,7 +51,7 @@ const (
 	driverName = "ddprocmon"
 
 	// default size of the receive buffer
-	procmonReceiveSize = 4096
+	procmonReceiveSize = (140 * 1024)
 
 	// number of buffers
 	procmonNumBufs = 50
