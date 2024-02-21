@@ -30,21 +30,17 @@ type orgConfig struct {
 	catalogReceived     chan struct{}
 	catalogReceivedSync sync.Once
 
-	rcClient *client.Client
-	catalog  catalog
+	rc      *client.Client
+	catalog catalog
 }
 
 // NewOrgConfig returns a new OrgConfig.
-func newOrgConfig(rc client.ConfigFetcher) (*orgConfig, error) {
-	rcClient, err := newRemoteConfigClient(rc)
-	if err != nil {
-		return nil, fmt.Errorf("could not create remote config client: %w", err)
-	}
+func newOrgConfig(rc *client.Client) (*orgConfig, error) {
 	c := &orgConfig{
 		catalogReceived: make(chan struct{}),
-		rcClient:        rcClient,
+		rc:              rc,
 	}
-	rcClient.Subscribe(state.ProductUpdaterCatalogDD, c.onCatalogUpdate)
+	rc.Subscribe(state.ProductUpdaterCatalogDD, c.onCatalogUpdate)
 	return c, nil
 }
 
@@ -126,17 +122,4 @@ func (c *orgConfig) onCatalogUpdate(catalogConfigs map[string]state.RawConfig, a
 	c.catalogReceivedSync.Do(func() {
 		close(c.catalogReceived)
 	})
-}
-
-func newRemoteConfigClient(rc client.ConfigFetcher) (*client.Client, error) {
-	client, err := client.NewClient(
-		rc,
-		client.WithUpdater("injector_tag:test"),
-		client.WithProducts(state.ProductUpdaterCatalogDD, state.ProductUpdaterAgent, state.ProductUpdaterTask), client.WithoutTufVerification(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create rc client: %w", err)
-	}
-	client.Start()
-	return client, nil
 }
