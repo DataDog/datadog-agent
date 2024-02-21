@@ -6,13 +6,14 @@
 package environments
 
 import (
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/zorkian/go-datadog-api"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/zorkian/go-datadog-api"
 )
 
 // ECS is an environment that contains a ECS deployed in a cluster, FakeIntake and Agent configured to talk to each other.
@@ -29,7 +30,7 @@ type ECS struct {
 var _ e2e.Initializable = &ECS{}
 
 // Init initializes the environment
-func (e *ECS) Init(ctx e2e.Context) error {
+func (e *ECS) Init(_ e2e.Context) error {
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	if err != nil {
 		return err
