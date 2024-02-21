@@ -169,7 +169,10 @@ func ComputeDefaultClosedConnRingBufferSize() int {
 	if err != nil {
 		numCPUs = 1
 	}
-	return 8 * numCPUs * pageSize
+	if numCPUs <= 16 {
+		return 8 * 8 * pageSize
+	}
+	return 8 * 16 * pageSize
 }
 
 // ComputeDefaultClosedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.
