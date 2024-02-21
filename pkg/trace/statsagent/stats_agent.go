@@ -106,7 +106,7 @@ func New(ctx context.Context, cfg *StatsAgentConfig, out chan *pb.StatsPayload, 
 		return nil, err
 	}
 	acfg.OTLPReceiver.AttributesTranslator = attributesTranslator
-	pchan := make(chan *api.Payload, 1)
+	pchan := make(chan *api.Payload, 1000)
 	a := agent.NewAgent(ctx, acfg, telemetry.NewNoopCollector(), statsd)
 	// replace the Concentrator (the component which computes and flushes APM Stats from incoming
 	// traces) with our own, which uses the 'out' channel.
