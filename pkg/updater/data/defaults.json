@@ -1,3 +1,4 @@
 {
-  "go": "1.20.12"
+  "go": "1.20.12",
+  "datadog-agent": "7.52.0-devel.git.584.84cb7ff.pipeline.28279794"
 }

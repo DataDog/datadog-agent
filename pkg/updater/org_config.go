@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -49,10 +50,13 @@ func newOrgConfig(rc client.ConfigFetcher) (*orgConfig, error) {
 
 // Package represents a downloadable package.
 type Package struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	SHA256  string `json:"sha256"`
-	URL     string `json:"url"`
+	Name     string `json:"package"`
+	Version  string `json:"version"`
+	SHA256   string `json:"sha256"`
+	URL      string `json:"url"`
+	Size     int64  `json:"size"`
+	Platform string `json:"platform"`
+	Arch     string `json:"arch"`
 }
 
 type catalog struct {
@@ -69,7 +73,10 @@ func (c *orgConfig) GetPackage(ctx context.Context, pkg string, version string) 
 	c.m.Lock()
 	defer c.m.Unlock()
 	for _, p := range c.catalog.Packages {
-		if p.Name == pkg && p.Version == version {
+		if p.Name == pkg &&
+			p.Version == version &&
+			(p.Arch == "" || p.Arch == runtime.GOARCH) &&
+			(p.Platform == "" || p.Platform == runtime.GOOS) {
 			return p, nil
 		}
 	}

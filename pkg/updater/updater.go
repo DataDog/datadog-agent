@@ -51,11 +51,12 @@ func Install(ctx context.Context, rc client.ConfigFetcher, pkg string) error {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	err = downloader.Download(ctx, firstPackage, tmpDir)
+	pkgDir := path.Join(tmpDir, "pkg")
+	err = downloader.Download(ctx, firstPackage, pkgDir)
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
-	err = repository.Create(firstPackage.Version, tmpDir)
+	err = repository.Create(firstPackage.Version, pkgDir)
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
