@@ -58,7 +58,7 @@ type dependencies struct {
 	// TODO: the tagger is used by the ContainerProvider, which is currently not a component so there is no direct
 	// dependency on it. The ContainerProvider needs to be componentized so it can be injected and have fx manage its
 	// lifecycle.
-	Tagger       tagger.Component
+	// Tagger       tagger.Component
 	WorkloadMeta workloadmeta.Component
 	Checks       []types.CheckComponent `group:"check"`
 }
