@@ -24,6 +24,8 @@ exporters:
     tls:
       insecure: true
     compression: none
+    sending_queue:
+      enabled: false
 
 service:
   telemetry:
