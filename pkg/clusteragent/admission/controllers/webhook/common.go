@@ -8,12 +8,69 @@
 package webhook
 
 import (
+	"encoding/json"
+	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// Selector specifies an object label selector and a namespace label selector
+type Selector struct {
+	ObjectSelector    metav1.LabelSelector `json:"objectSelector,omitempty"`
+	NamespaceSelector metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+}
+
+// buildAgentSidecarObjectSelectors returns the mutating webhooks object selectors based on the configuration
+func buildAgentSidecarObjectSelectors() (namespaceSelector, objectSelector *metav1.LabelSelector) {
+	// Read and parse selectors
+	selectorsJSON := config.Datadog.GetString("admission_controller.agent_sidecar.selectors")
+
+	// Get sidecar profiles
+	_, err := agentsidecar.LoadSidecarProfiles()
+	if err != nil {
+		log.Errorf("encountered issue when loading sidecar profiles: %s", err)
+		return nil, nil
+	}
+
+	var selectors []Selector
+
+	err = json.Unmarshal([]byte(selectorsJSON), &selectors)
+	if err != nil {
+		log.Errorf("failed to parse selectors for admission controller agent sidecar injection webhook: %s", err)
+		return nil, nil
+	}
+
+	if len(selectors) > 1 {
+		log.Errorf("configuring more than 1 selector is not supported")
+		return nil, nil
+	}
+
+	provider := config.Datadog.GetString("admission_controller.agent_sidecar.provider")
+	if !agentsidecar.ProviderIsSupported(provider) {
+		log.Errorf("agent sidecar provider is not supported: %v", provider)
+		return nil, nil
+	}
+
+	if len(selectors) == 1 {
+		namespaceSelector = &selectors[0].NamespaceSelector
+		objectSelector = &selectors[0].ObjectSelector
+	} else if provider != "" {
+		log.Infof("using default selector \"agent.datadoghq.com/sidecar\": \"%v\" for provider %v", provider, provider)
+		namespaceSelector = nil
+		objectSelector = &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"agent.datadoghq.com/sidecar": provider,
+			},
+		}
+	}
+
+	return namespaceSelector, objectSelector
+}
 
 // buildCWSInstrumentationLabelSelectors returns the mutating webhook object selector based on the configuration
 func buildCWSInstrumentationLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {

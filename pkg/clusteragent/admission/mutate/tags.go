@@ -59,7 +59,7 @@ func (o *ownerInfo) buildID(ns string) string {
 // InjectTags adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
 // the pod template from pod and higher-level resource labels
 func InjectTags(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ k8s.Interface) ([]byte, error) {
-	return mutate(rawPod, ns, injectTags, dc)
+	return Mutate(rawPod, ns, injectTags, dc)
 }
 
 // injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
