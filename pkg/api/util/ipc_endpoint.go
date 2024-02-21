@@ -1,26 +1,29 @@
 package util
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
+// IPCEndpoint is an endpoint that IPC requests will be sent to
 type IPCEndpoint struct {
 	client    *http.Client
 	target    url.URL
 	closeConn bool
 }
 
-func (end *IPCEndpoint) SetCloseConnection(state bool) {
-	end.closeConn = state
-}
+// Option allows configuration of the IPCEndpoint during construction
+type Option func(*IPCEndpoint)
 
 // send GET method to the endpoint
 func (end *IPCEndpoint) DoGet() ([]byte, error) {
@@ -38,17 +41,40 @@ func (end *IPCEndpoint) DoGet() ([]byte, error) {
 			return nil, errors.New(errStr)
 		}
 
-		return nil, fmt.Errorf("Could not reach agent: %v\nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
+		return nil, fmt.Errorf("could not reach agent: %v\nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
 	}
 	return res, err
 }
 
-func (end *IPCEndpoint) WithValues(values url.Values) *IPCEndpoint {
-	end.target.RawQuery = values.Encode()
-	return end
+// WithCloseConnection is an option to close the connection
+func WithCloseConnection(state bool) func(*IPCEndpoint) {
+	return func(end *IPCEndpoint) {
+		end.closeConn = state
+	}
 }
 
-func NewIPCEndpoint(config config.Component, endpointPath string) (*IPCEndpoint, error) {
+// WithValues is an option to add url.Values to the GET request
+func WithValues(values url.Values) func(*IPCEndpoint) {
+	return func(end *IPCEndpoint) {
+		end.target.RawQuery = values.Encode()
+	}
+}
+
+// WithHTTPClient is an option to assign a different http.Client
+func WithHTTPClient(client *http.Client) func(*IPCEndpoint) {
+	return func(end *IPCEndpoint) {
+		end.client = client
+	}
+}
+
+// WithHostAndPort is an option to use a host address for sending IPC requests
+func WithHostAndPort(cmdHost string, cmdPort int) func(*IPCEndpoint) {
+	return func(end *IPCEndpoint) {
+		end.target.Host = net.JoinHostPort(cmdHost, strconv.Itoa(cmdPort))
+	}
+}
+
+func NewIPCEndpoint(config config.Component, endpointPath string, options ...Option) (*IPCEndpoint, error) {
 	// sets a global `token` in `doget.go`
 	// TODO: add `token` to Endpoint struct, instead of storing it in a global var
 	if err := SetAuthToken(config); err != nil {
@@ -70,19 +96,26 @@ func NewIPCEndpoint(config config.Component, endpointPath string) (*IPCEndpoint,
 	if err != nil {
 		return nil, fmt.Errorf("%s: %s", cmdHostKey, err)
 	}
-	client := &http.Client{}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
 
 	ipcPort := config.GetInt("cmd_port")
 	targetURL := url.URL{
 		Scheme: "https",
-		Host:   fmt.Sprintf("%s:%d", ipcHost, ipcPort),
+		Host:   net.JoinHostPort(ipcHost, strconv.Itoa(ipcPort)),
 		Path:   endpointPath,
 	}
 
-	// return the encapsulated endpoint
-	return &IPCEndpoint{
+	// construct the endpoint and apply any options
+	endpoint := IPCEndpoint{
 		client:    client,
 		target:    targetURL,
 		closeConn: false,
-	}, nil
+	}
+	for _, opt := range options {
+		opt(&endpoint)
+	}
+	return &endpoint, nil
 }

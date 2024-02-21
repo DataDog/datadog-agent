@@ -150,11 +150,10 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 		v.Set("format", "text")
 	}
 
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status")
+	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status", apiutil.WithValues(v))
 	if err != nil {
 		return err
 	}
-	endpoint = endpoint.WithValues(v)
 
 	res, err := endpoint.DoGet()
 	if err != nil {

@@ -30,6 +30,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/status/health v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/system v0.0.0-00010101000000-000000000000
 	github.com/gorilla/mux v1.8.1
@@ -42,7 +43,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.50.2 // indirect

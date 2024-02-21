@@ -58,22 +58,27 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func showSecretInfo(config config.Component) error {
-	return getAndPrintIPCEndpoint(config, "agent/secrets")
-}
-
-func secretRefresh(config config.Component) error {
-	return getAndPrintIPCEndpoint(config, "agent/secret/refresh")
-}
-
-func getAndPrintIPCEndpoint(config config.Component, endpointURL string) error {
-	endpoint, err := apiutil.NewIPCEndpoint(config, endpointURL)
-	if err != nil {
-		return err
-	}
-	res, err := endpoint.DoGet()
+	res, err := callIPCEndpoint(config, "agent/secrets")
 	if err != nil {
 		return err
 	}
 	fmt.Println(string(res))
 	return nil
+}
+
+func secretRefresh(config config.Component) error {
+	res, err := callIPCEndpoint(config, "agent/secret/refresh")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(res))
+	return nil
+}
+
+func callIPCEndpoint(config config.Component, endpointURL string) ([]byte, error) {
+	endpoint, err := apiutil.NewIPCEndpoint(config, endpointURL)
+	if err != nil {
+		return nil, err
+	}
+	return endpoint.DoGet()
 }
