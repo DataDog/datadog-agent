@@ -644,8 +644,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	result := false
 
 	for _, rule := range bucket.rules {
-		labels := map[string]string{"rule_id": rule.ID}
-		utils.PprofDoWithoutContext(labels, func() {
+		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
 			if rule.GetEvaluator().Eval(ctx) {
 
 				if rs.logger.IsTracing() {
