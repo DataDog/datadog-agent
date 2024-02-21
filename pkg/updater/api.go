@@ -78,6 +78,7 @@ func (r *remoteAPI) handleRequests(u Updater, requestConfigs map[string]state.Ra
 		}
 		if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
 			log.Debugf("request %s not executed: state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
+			continue
 		}
 		r.executedRequests[request.ID] = struct{}{}
 		err = handleRequest(context.Background(), u, request.Method, request.Params)
