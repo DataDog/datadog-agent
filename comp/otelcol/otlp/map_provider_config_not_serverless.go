@@ -13,11 +13,11 @@ package otlp
 // It is written in YAML because it is easier to read and write than a map.
 const defaultTracesConfig string = `
 receivers:
-  otlp:
 
 processors:
-  batch:
-    timeout: 10s
+  memory_limiter:
+    limit_mib: 1000
+    spike_limit_mib: 200
 
 exporters:
   otlp:
@@ -34,7 +34,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter]
       exporters: [otlp]
 `
 
