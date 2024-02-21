@@ -789,6 +789,16 @@ def _compute_build_metrics(ctx, overall_duration):
                 'type': 0,
             }
         )
+        if "strip" in j:
+            series.append(
+                {
+                    'metric': 'datadog.agent.build.strip',
+                    'points': [{'timestamp': timestamp, 'value': j['strip']}],
+                    'tags': [f'job:{os.environ.get("CI_JOB_NAME_SLUG")}'],
+                    'unit': 'seconds',
+                    'type': 0,
+                }
+            )
 
         for packager, duration in j['packaging'].items():
             series.append(
