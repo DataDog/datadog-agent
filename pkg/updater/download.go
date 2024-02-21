@@ -213,7 +213,7 @@ func extractTarFile(targetPath string, reader io.Reader) error {
 		// No need to delete faulty file as targetPath is in a temporary directory
 		// that will be wiped at the end of the function
 		if errors.Is(err, io.EOF) && n == maxArchiveFileSize {
-			return fmt.Errorf("content truncated: file %q is too large: %w", targetPath, err)
+			return fmt.Errorf("file %q is too large: %w", targetPath, err)
 		}
 		return fmt.Errorf("could not write file: %w", err)
 	}
