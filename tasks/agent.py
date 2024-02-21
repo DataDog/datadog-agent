@@ -769,7 +769,7 @@ def _compute_build_metrics(ctx, overall_duration):
         for software, metrics in j['build'].items():
             series.append(
                 {
-                    'metric': f'datadog.agent.build.{software}',
+                    'metric': 'datadog.agent.build.duration',
                     'points': [{'timestamp': timestamp, 'value': metrics['build_duration']}],
                     'tags': [
                         f'software:{software}',
@@ -793,9 +793,12 @@ def _compute_build_metrics(ctx, overall_duration):
         for packager, duration in j['packaging'].items():
             series.append(
                 {
-                    'metric': f'datadog.agent.package.{packager}',
+                    'metric': 'datadog.agent.package.duration',
                     'points': [{'timestamp': timestamp, 'value': duration}],
-                    'tags': [f'job:{os.environ.get("CI_JOB_NAME_SLUG")}'],
+                    'tags': [
+                        f'job:{os.environ.get("CI_JOB_NAME_SLUG")}',
+                        f'packager:{packager}',
+                    ],
                     'unit': 'seconds',
                     'type': 0,
                 }
