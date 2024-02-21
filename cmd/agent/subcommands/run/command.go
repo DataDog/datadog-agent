@@ -592,16 +592,6 @@ func startAgent(
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	// start dogstatsd
-	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
-		serverStarted := server.IsRunning()
-		if serverStarted {
-			log.Debugf("dogstatsd started")
-		} else {
-			log.Errorf("Could not start dogstatsd: %s", err)
-		}
-	}
-
 	// load and run all configs in AD
 	common.AC.LoadAndRun(ctx)
 
