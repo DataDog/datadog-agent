@@ -10,7 +10,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: remote-config
@@ -30,8 +29,43 @@ type Component interface {
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRemoteConfigClient))
+type TaskType string
+
+// AgentTaskConfig is a deserialized agent task configuration file
+// along with the associated metadata
+type AgentTaskConfig struct {
+	Config   AgentTaskData
+	Metadata state.Metadata
+}
+
+// agentTaskData is the content of a agent task configuration file
+type AgentTaskData struct {
+	TaskType string            `json:"task_type"`
+	UUID     string            `json:"uuid"`
+	TaskArgs map[string]string `json:"args"`
+}
+
+const (
+	// TaskFlare is the task sent to request a flare from the agent
+	TaskFlare TaskType = "flare"
+)
+
+// RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
+type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, error)
+
+// RCListener is the generic type for components to register a callback for any product
+type RCListener map[data.Product]func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
+
+// TaskListenerProvider defines component that can receive RC updates
+type TaskListenerProvider struct {
+	fx.Out
+
+	Listener RCAgentTaskListener `group:"rCAgentTaskListener"`
+}
+
+// ListenerProvider defines component that can receive RC updates for any product
+type ListenerProvider struct {
+	fx.Out
+
+	ListenerProvider RCListener `group:"rCListener"`
 }
