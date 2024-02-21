@@ -206,7 +206,19 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dic
 
 @task
 def check_consistent_failures(ctx):
-    # Retrieve the stored document in aws s3
+    # Retrieve the stored document in aws s3. It has the following format:
+    # {
+    #     "pipeline_id": 123,
+    #     "jobs": {
+    #         "job1": {"consecutive_failures": 2, "cumulative_failures": [0, 0, 0, 1, 0, 1, 1, 0, 1, 1]},
+    #         "job2": {"consecutive_failures": 0, "cumulative_failures": [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]},
+    #         "job1": {"consecutive_failures": 1, "cumulative_failures": [1]},
+    #     }
+    # }
+    # The pipeline_id is used to by-pass the check if the pipeline chronological order is not respected
+    # The jobs dictionary contains the consecutive and cumulative failures for each job
+    # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
+    # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
     job_executions = retrieve_job_executions()
 
     # By-pass if the pipeline chronological order is not respected
@@ -264,7 +276,7 @@ def update_statistics(job_executions):
         job_executions["jobs"][job]["cumulative_failures"].append(0)
         # Truncate the cumulative failures list
         if len(job_executions["jobs"][job]["cumulative_failures"]) > CUMULATIVE_LENGTH:
-            job_executions["jobs"][job]["cumulative_failures"] = job_executions["jobs"][job]["cumulative_failures"][1:]
+            job_executions["jobs"][job]["cumulative_failures"].pop(0)
     # Update information for still failing jobs and save them if they hit the threshold
     consecutive_failed_jobs = failed_set & current_set
     for job in consecutive_failed_jobs:
@@ -272,7 +284,7 @@ def update_statistics(job_executions):
         job_executions["jobs"][job]["cumulative_failures"].append(1)
         # Truncate the cumulative failures list
         if len(job_executions["jobs"][job]["cumulative_failures"]) > CUMULATIVE_LENGTH:
-            job_executions["jobs"][job]["cumulative_failures"] = job_executions["jobs"][job]["cumulative_failures"][1:]
+            job_executions["jobs"][job]["cumulative_failures"].pop(0)
         # Save the failed job if it hits the threshold
         if job_executions["jobs"][job]["consecutive_failures"] == CONSECUTIVE_THRESHOLD:
             alert_jobs["consecutive"].append(job)
