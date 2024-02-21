@@ -23,7 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
+	"go.uber.org/zap"
 )
 
 type StatsAgent interface {
@@ -56,7 +62,7 @@ type statsAgent struct {
 	exit chan struct{}
 }
 
-func NewAgent(ctx context.Context, cfg *StatsAgentConfig, out chan *pb.StatsPayload, statsd statsd.ClientInterface, translator *attributes.Translator) (StatsAgent, error) {
+func New(ctx context.Context, cfg *StatsAgentConfig, out chan *pb.StatsPayload, statsd statsd.ClientInterface) (StatsAgent, error) {
 	acfg := traceconfig.New()
 	acfg.OTLPReceiver.SpanNameRemappings = cfg.SpanNameRemappings
 	acfg.OTLPReceiver.SpanNameAsResourceName = cfg.SpanNameAsResourceName
@@ -75,7 +81,22 @@ func NewAgent(ctx context.Context, cfg *StatsAgentConfig, out chan *pb.StatsPayl
 	// exporter, we use a placeholder and fill it in later (in the Datadog Exporter or Agent OTLP
 	// Ingest). This gives a better user experience.
 	acfg.Hostname = metrics.UnsetHostnamePlaceholder
-	acfg.OTLPReceiver.AttributesTranslator = translator
+	comonentSettings := component.TelemetrySettings{
+		// TODO  : Need to update the below settings
+		Logger:         zap.NewNop(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+		MeterProvider:  noopmetric.NewMeterProvider(),
+		MetricsLevel:   configtelemetry.LevelNone,
+		Resource:       pcommon.NewResource(),
+		ReportStatus: func(*component.StatusEvent) {
+		},
+	}
+
+	attributesTranslator, err := attributes.NewTranslator(comonentSettings)
+	if err != nil {
+		return nil, err
+	}
+	acfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	pchan := make(chan *api.Payload, 1000)
 	a := agent.NewAgent(ctx, acfg, telemetry.NewNoopCollector(), statsd)
 	// replace the Concentrator (the component which computes and flushes APM Stats from incoming
