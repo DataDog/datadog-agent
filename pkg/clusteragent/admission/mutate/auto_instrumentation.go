@@ -80,7 +80,7 @@ type language string
 
 type pinnedLibraries struct {
 	libraries []libInfo
-	once      *sync.Once
+	once      sync.Once
 }
 
 const (
