@@ -53,11 +53,8 @@ type EBPFTelemetry struct {
 // A singleton instance of the ebpf telemetry struct. Used by the collector and the ebpf managers (via ErrorsTelemetryModifier).
 var errorsTelemetry *EBPFTelemetry
 
-// getEBPFTelemetry initializes a new EBPFTelemetry object
-func getEBPFTelemetry() *EBPFTelemetry {
-	if errorsTelemetry != nil {
-		return errorsTelemetry
-	}
+// newEBPFTelemetry initializes a new EBPFTelemetry object
+func newEBPFTelemetry() *EBPFTelemetry {
 	errorsTelemetry = &EBPFTelemetry{
 		mapKeys:   make(map[string]uint64),
 		probeKeys: make(map[string]uint64),
