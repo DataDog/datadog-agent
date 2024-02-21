@@ -29,7 +29,9 @@ PROJECT_NAME = "DataDog/datadog-agent"
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
 S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 JOB_FAILURES_FILE = "job_executions.json"
-FAILURES_THRESHOLD = 3
+CONSECUTIVE_THRESHOLD = 3
+CUMULATIVE_THRESHOLD = 5
+CUMULATIVE_LENGTH = 10
 
 
 @task
@@ -214,10 +216,7 @@ def check_consistent_failures(ctx):
 
     alert_jobs, job_executions = update_statistics(job_executions)
 
-    # Send notification if we have consecutive failures
-    if len(alert_jobs) > 0:
-        message = f"Job(s) {alert_jobs} failed {FAILURES_THRESHOLD} times in a row"
-        send_slack_message("#agent-platform-ops", message)
+    send_notification(alert_jobs)
 
     # Upload document
     with open("job_executions.json", "w") as f:
@@ -250,22 +249,45 @@ def create_initial_job_executions():
 
 def update_statistics(job_executions):
     # Update statistics and collect consecutive failed jobs
-    alert_jobs = []
+    alert_jobs = {"consecutive": [], "cumulative": []}
     failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
     failed_set = {job["name"] for job in failed_jobs.all_failures()}
     current_set = set(job_executions["jobs"].keys())
     # Insert data for newly failing jobs
     new_failed_jobs = failed_set - current_set
     for job in new_failed_jobs:
-        job_executions["jobs"][job] = {"cumulative_failures": 1}
+        job_executions["jobs"][job] = {"consecutive_failures": 1, "cumulative_failures": [1]}
     # Reset information for no-more failing jobs
     solved_jobs = current_set - failed_set
     for job in solved_jobs:
-        job_executions["jobs"][job] = {"cumulative_failures": 0}
+        job_executions["jobs"][job]["consecutive_failures"] = 0
+        job_executions["jobs"][job]["cumulative_failures"].append(0)
+        # Truncate the cumulative failures list
+        if len(job_executions["jobs"][job]["cumulative_failures"]) > CUMULATIVE_LENGTH:
+            job_executions["jobs"][job]["cumulative_failures"] = job_executions["jobs"][job]["cumulative_failures"][1:]
     # Update information for still failing jobs and save them if they hit the threshold
     consecutive_failed_jobs = failed_set & current_set
     for job in consecutive_failed_jobs:
-        job_executions["jobs"][job]["cumulative_failures"] += 1
-        if job_executions["jobs"][job]["cumulative_failures"] == FAILURES_THRESHOLD:
-            alert_jobs.append(job)
+        job_executions["jobs"][job]["consecutive_failures"] += 1
+        job_executions["jobs"][job]["cumulative_failures"].append(1)
+        # Truncate the cumulative failures list
+        if len(job_executions["jobs"][job]["cumulative_failures"]) > CUMULATIVE_LENGTH:
+            job_executions["jobs"][job]["cumulative_failures"] = job_executions["jobs"][job]["cumulative_failures"][1:]
+        # Save the failed job if it hits the threshold
+        if job_executions["jobs"][job]["consecutive_failures"] == CONSECUTIVE_THRESHOLD:
+            alert_jobs["consecutive"].append(job)
+        if sum(job_executions["jobs"][job]["cumulative_failures"]) == CUMULATIVE_THRESHOLD:
+            alert_jobs["cumulative"].append(job)
     return alert_jobs, job_executions
+
+
+def send_notification(alert_jobs):
+    message = ""
+    if len(alert_jobs["consecutive"]) > 0:
+        jobs = ", ".join(f"`{j}`" for j in alert_jobs["consecutive"])
+        message += f"Job(s) {jobs} failed {CONSECUTIVE_THRESHOLD} times in a row.\n"
+    if len(alert_jobs["cumulative"]) > 0:
+        jobs = ", ".join(f"`{j}`" for j in alert_jobs["cumulative"])
+        message += f"Job(s) {jobs} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.\n"
+    if message:
+        send_slack_message("#agent-platform-ops", message)

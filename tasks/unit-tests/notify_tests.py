@@ -42,13 +42,22 @@ class TestUpdateStatistics(unittest.TestCase):
     def test_nominal(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
         failed_jobs.all_failures.return_value = [{"name": "nifnif"}, {"name": "nafnaf"}]
-        j = {"jobs": {"nafnaf": {"cumulative_failures": 2}, "noufnouf": {"cumulative_failures": 2}}}
+        j = {
+            "jobs": {
+                "nafnaf": {"consecutive_failures": 2, "cumulative_failures": [0, 0, 0, 0, 0, 0, 0, 0, 1, 1]},
+                "noufnouf": {"consecutive_failures": 2, "cumulative_failures": [1, 0, 1, 1]},
+            }
+        }
         a, j = notify.update_statistics(j)
-        self.assertEqual(j["jobs"]["nifnif"]["cumulative_failures"], 1)
-        self.assertEqual(j["jobs"]["nafnaf"]["cumulative_failures"], 3)
-        self.assertEqual(j["jobs"]["noufnouf"]["cumulative_failures"], 0)
-        self.assertEqual(len(a), 1)
-        self.assertIn("nafnaf", a)
+        self.assertEqual(j["jobs"]["nifnif"]["consecutive_failures"], 1)
+        self.assertEqual(j["jobs"]["nifnif"]["cumulative_failures"], [1])
+        self.assertEqual(j["jobs"]["nafnaf"]["consecutive_failures"], 3)
+        self.assertEqual(j["jobs"]["nafnaf"]["cumulative_failures"], [0, 0, 0, 0, 0, 0, 0, 1, 1, 1])
+        self.assertEqual(j["jobs"]["noufnouf"]["consecutive_failures"], 0)
+        self.assertEqual(j["jobs"]["noufnouf"]["cumulative_failures"], [1, 0, 1, 1, 0])
+        self.assertEqual(len(a["consecutive"]), 1)
+        self.assertEqual(len(a["cumulative"]), 0)
+        self.assertIn("nafnaf", a["consecutive"])
         mock_get_failed.assert_called()
 
     @patch('tasks.notify.get_failed_jobs')
@@ -57,16 +66,52 @@ class TestUpdateStatistics(unittest.TestCase):
         failed_jobs.all_failures.return_value = [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
         j = {
             "jobs": {
-                "poulidor": {"cumulative_failures": 8},
-                "virenque": {"cumulative_failures": 2},
-                "bardet": {"cumulative_failures": 2},
+                "poulidor": {"consecutive_failures": 8, "cumulative_failures": [0, 0, 1, 1, 1, 1, 1, 1, 1, 1]},
+                "virenque": {"consecutive_failures": 2, "cumulative_failures": [0, 0, 0, 0, 1, 0, 1, 0, 1, 1]},
+                "bardet": {"consecutive_failures": 2, "cumulative_failures": [1, 1]},
             }
         }
         a, j = notify.update_statistics(j)
-        self.assertEqual(j["jobs"]["poulidor"]["cumulative_failures"], 9)
-        self.assertEqual(j["jobs"]["virenque"]["cumulative_failures"], 3)
-        self.assertEqual(j["jobs"]["bardet"]["cumulative_failures"], 3)
-        self.assertEqual(len(a), 2)
-        self.assertIn("virenque", a)
-        self.assertIn("bardet", a)
+        self.assertEqual(j["jobs"]["poulidor"]["consecutive_failures"], 9)
+        self.assertEqual(j["jobs"]["virenque"]["consecutive_failures"], 3)
+        self.assertEqual(j["jobs"]["bardet"]["consecutive_failures"], 3)
+        self.assertEqual(len(a["consecutive"]), 2)
+        self.assertEqual(len(a["cumulative"]), 1)
+        self.assertIn("virenque", a["consecutive"])
+        self.assertIn("bardet", a["consecutive"])
+        self.assertIn("virenque", a["cumulative"])
         mock_get_failed.assert_called()
+
+
+class TestSendNotification(unittest.TestCase):
+    @patch('tasks.notify.send_slack_message')
+    def test_consecutive(self, mock_slack):
+        alert_jobs = {"consecutive": ["foo"], "cumulative": []}
+        notify.send_notification(alert_jobs)
+        mock_slack.assert_called_with(
+            "#agent-platform-ops", f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\n"
+        )
+
+    @patch('tasks.notify.send_slack_message')
+    def test_cumulative(self, mock_slack):
+        alert_jobs = {"consecutive": [], "cumulative": ["bar", "baz"]}
+        notify.send_notification(alert_jobs)
+        mock_slack.assert_called_with(
+            "#agent-platform-ops",
+            f"Job(s) `bar`, `baz` failed {notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions.\n",
+        )
+
+    @patch('tasks.notify.send_slack_message')
+    def test_both(self, mock_slack):
+        alert_jobs = {"consecutive": ["foo"], "cumulative": ["bar", "baz"]}
+        notify.send_notification(alert_jobs)
+        mock_slack.assert_called_with(
+            "#agent-platform-ops",
+            f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\nJob(s) `bar`, `baz` failed {notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions.\n",
+        )
+
+    @patch('tasks.notify.send_slack_message')
+    def test_none(self, mock_slack):
+        alert_jobs = {"consecutive": [], "cumulative": []}
+        notify.send_notification(alert_jobs)
+        mock_slack.assert_not_called()
