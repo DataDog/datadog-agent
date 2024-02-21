@@ -394,7 +394,8 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 			return (now - started) > ttl
 		}
 
-		// If we've seen only responses, then remove from the map the half-stream.
+		// In a case where the status code is finalized, that means that we managed to capture the response.
+		// However, if we did not manage to capture the corresponding request, we should clean the entry.
 		return val.Stream.Status_code.Finalized
 	})
 
