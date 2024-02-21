@@ -47,6 +47,18 @@ def is_allowed_repo_nightly_branch(branch):
     return branch in ALLOWED_REPO_NIGHTLY_BRANCHES
 
 
+def running_in_github_actions():
+    return os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+def running_in_gitlab_ci():
+    return os.environ.get("GITLAB_CI") == "true"
+
+
+def running_in_circleci():
+    return os.environ.get("CIRCLECI") == "true"
+
+
 def bin_name(name):
     """
     Generate platform dependent names for binaries
@@ -318,6 +330,18 @@ def get_git_pretty_ref():
     """
     Return the name of the current Git branch or the tag if in a detached state
     """
+    # https://docs.gitlab.com/ee/ci/variables/predefined_variables.html
+    if running_in_gitlab_ci():
+        return os.environ["CI_COMMIT_REF_NAME"]
+
+    # https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
+    if running_in_github_actions():
+        return os.environ.get("GITHUB_HEAD_REF") or os.environ["GITHUB_REF"].split("/")[-1]
+
+    # https://circleci.com/docs/variables/#built-in-environment-variables
+    if running_in_circleci():
+        return os.environ.get("CIRCLE_TAG") or os.environ["CIRCLE_BRANCH"]
+
     current_branch = get_git_branch_name()
     if current_branch != "HEAD":
         return current_branch
