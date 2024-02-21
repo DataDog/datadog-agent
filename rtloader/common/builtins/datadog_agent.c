@@ -699,12 +699,23 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-    char *rawQuery = NULL;
-    char *optionsObj = NULL;
+    // use Py_buffer to handle embedded nulls
+    Py_buffer rawQueryBuffer = {NULL, 0};
+    Py_buffer optionsObjBuffer = {NULL, 0};
     static char *kwlist[] = {"query", "options", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &rawQuery, &optionsObj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s*|s*", kwlist, &rawQuery, &optionsObj)) {
         PyGILState_Release(gstate);
         return NULL;
+    }
+
+    char *rawQuery = rawQueryBuffer.buf;
+    char *optionsObj = optionsObjBuffer.buf;
+    // release the buffers once we're done with them
+    if (rawQueryBuffer.buf) {
+        PyBuffer_Release(&rawQueryBuffer);
+    }
+    if (optionsObjBuffer.buf) {
+        PyBuffer_Release(&optionsObjBuffer);
     }
 
     char *obfQuery = NULL;
@@ -736,14 +747,21 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-    char *rawPlan = NULL;
+    // use Py_buffer to handle embedded nulls
+    Py_buffer rawPlanBuffer = {NULL, 0};
     PyObject *normalizeObj = NULL;
     static char *kwlist[] = {"", "normalize", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|O", kwlist, &rawPlan, &normalizeObj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s*|O", kwlist, &rawPlan, &normalizeObj)) {
         PyGILState_Release(gstate);
         return NULL;
     }
     bool normalize = (normalizeObj != NULL && PyBool_Check(normalizeObj) && normalizeObj == Py_True);
+
+    char *rawPlan = rawPlanBuffer.buf;
+    // release the buffers once we're done with them
+    if (rawPlanBuffer.buf) {
+        PyBuffer_Release(&rawPlanBuffer);
+    }
 
     char *error_message = NULL;
     char *obfPlan = cb_obfuscate_sql_exec_plan(rawPlan, normalize, &error_message);
