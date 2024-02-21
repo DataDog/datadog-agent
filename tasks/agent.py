@@ -818,7 +818,7 @@ def _compute_build_metrics(ctx, overall_duration):
     )
     try:
         series_json = json.dumps({'series': series})
-        ctx.run(cmd, hide='stderr', echo=False, in_stream=StringIO(series_json))
+        ctx.run(cmd, hide='both', echo=False, in_stream=StringIO(series_json))
     except UnexpectedExit:
         # don't let the exception propagate in order to hide the API key from the output
         sys.exit(1)
