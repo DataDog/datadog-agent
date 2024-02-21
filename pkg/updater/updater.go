@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,12 +31,16 @@ const (
 
 // Install installs the default version for the given package.
 // It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, orgConfig *OrgConfig, pkg string) error {
+func Install(ctx context.Context, rc client.ConfigFetcher, pkg string) error {
 	log.Infof("Updater: Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
 	repository := &repository.Repository{
 		RootPath:  path.Join(defaultRepositoryPath, pkg),
 		LocksPath: path.Join(defaultLocksPath, pkg),
+	}
+	orgConfig, err := newOrgConfig(rc)
+	if err != nil {
+		return fmt.Errorf("could not create org config: %w", err)
 	}
 	firstPackage, err := orgConfig.GetDefaultPackage(ctx, pkg)
 	if err != nil {
@@ -60,18 +65,30 @@ func Install(ctx context.Context, orgConfig *OrgConfig, pkg string) error {
 }
 
 // Updater is the updater used to update packages.
-type Updater struct {
+type Updater interface {
+	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
+
+	StartExperiment(ctx context.Context, version string) error
+	StopExperiment() error
+	PromoteExperiment() error
+
+	GetRepositoryPath() string
+	GetPackage() string
+}
+
+type updaterImpl struct {
 	m              sync.Mutex
 	pkg            string
 	repositoryPath string
-	orgConfig      *OrgConfig
+	orgConfig      *orgConfig
 	repository     *repository.Repository
 	downloader     *downloader
 	stopChan       chan struct{}
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
+func NewUpdater(rc client.ConfigFetcher, pkg string) (Updater, error) {
 	repository := &repository.Repository{
 		RootPath:  path.Join(defaultRepositoryPath, pkg),
 		LocksPath: path.Join(defaultLocksPath, pkg),
@@ -83,7 +100,11 @@ func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
 	if !state.HasStable() {
 		return nil, fmt.Errorf("attempt to create an updater for a package that has not been bootstrapped with a stable version")
 	}
-	return &Updater{
+	orgConfig, err := newOrgConfig(rc)
+	if err != nil {
+		return nil, fmt.Errorf("could not create org config: %w", err)
+	}
+	return &updaterImpl{
 		pkg:            pkg,
 		repositoryPath: defaultRepositoryPath,
 		orgConfig:      orgConfig,
@@ -93,8 +114,18 @@ func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
 	}, nil
 }
 
+// GetRepositoryPath returns the path to the repository.
+func (u *updaterImpl) GetRepositoryPath() string {
+	return u.repositoryPath
+}
+
+// GetPackage returns the package.
+func (u *updaterImpl) GetPackage() string {
+	return u.pkg
+}
+
 // Start starts the garbage collector.
-func (u *Updater) Start() {
+func (u *updaterImpl) Start(_ context.Context) error {
 	go func() {
 		for {
 			select {
@@ -108,22 +139,24 @@ func (u *Updater) Start() {
 			}
 		}
 	}()
+	return nil
 }
 
 // Stop stops the garbage collector.
-func (u *Updater) Stop() {
+func (u *updaterImpl) Stop(_ context.Context) error {
 	close(u.stopChan)
+	return nil
 }
 
 // Cleanup cleans up the repository.
-func (u *Updater) cleanup() error {
+func (u *updaterImpl) cleanup() error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	return u.repository.Cleanup()
 }
 
 // StartExperiment starts an experiment with the given package.
-func (u *Updater) StartExperiment(ctx context.Context, version string) error {
+func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Starting experiment for package %s version %s", u.pkg, version)
@@ -149,7 +182,7 @@ func (u *Updater) StartExperiment(ctx context.Context, version string) error {
 }
 
 // PromoteExperiment promotes the experiment to stable.
-func (u *Updater) PromoteExperiment() error {
+func (u *updaterImpl) PromoteExperiment() error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Promoting experiment for package %s", u.pkg)
@@ -162,7 +195,7 @@ func (u *Updater) PromoteExperiment() error {
 }
 
 // StopExperiment stops the experiment.
-func (u *Updater) StopExperiment() error {
+func (u *updaterImpl) StopExperiment() error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Stopping experiment for package %s", u.pkg)
