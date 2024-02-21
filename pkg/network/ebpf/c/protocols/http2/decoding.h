@@ -927,7 +927,8 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         }
 
         http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        // A new stream must start with a request, so if it does not exist, we should not process it.
+        current_stream = bpf_map_lookup_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
         if (current_stream == NULL) {
             continue;
         }
