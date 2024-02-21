@@ -38,7 +38,7 @@ var (
 	javaAllowedFlags = []string{javaJarFlag, javaModuleFlag, javaModuleFlagShort}
 )
 
-// List of binaries that usually have additional process context of whats running
+// List of binaries that usually have additional process context of what's running
 var binsWithContext = map[string]serviceExtractorFn{
 	"python":     parseCommandContextPython,
 	"python2.7":  parseCommandContextPython,
@@ -159,12 +159,14 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 		}
 	}
 	cmdOrig := cmd
-	// evaluate and skip the envs
-	svc, ok := stripAndScanEnvs(&cmd)
-	if ok {
-		return &serviceMetadata{
-			cmdline:        cmdOrig,
-			serviceContext: "process_context:" + svc,
+	envs, cmd := extractEnvsFromCommand(cmd)
+	if len(envs) > 0 { // evaluate and skip the envs
+		svc, ok := chooseServiceNameFromEnvs(envs)
+		if ok {
+			return &serviceMetadata{
+				cmdline:        cmdOrig,
+				serviceContext: "process_context:" + svc,
+			}
 		}
 	}
 
@@ -241,29 +243,33 @@ func isRuneLetterAt(s string, position int) bool {
 	return len(s) > position && unicode.IsLetter(rune(s[position]))
 }
 
-// stripAndScanEnvs scans the cmd args and removes the env variable definition at the beginning.
-// If the service name has been defined through a standard env variable (DD_SERVICE or DD_TAGS) it returns it.
-// Otherwise, it modifies the cmd arg by skipping all the envs
-func stripAndScanEnvs(cmd *[]string) (string, bool) {
+// extractEnvsFromCommand separates the env var declaration from the command + args part
+func extractEnvsFromCommand(cmd []string) ([]string, []string) {
 	pos := 0
-	for i, arg := range *cmd {
-		if strings.ContainsRune(arg, '=') {
-			pos = i + 1
-			if strings.HasPrefix(arg, "DD_SERVICE=") {
-				return strings.TrimPrefix(arg, "DD_SERVICE="), true
-			} else if strings.HasPrefix(arg, "DD_TAGS=") && strings.Contains(arg, "service:") {
-				parts := strings.Split(strings.TrimPrefix(arg, "DD_TAGS="), ",")
-				for _, p := range parts {
-					if strings.HasPrefix(p, "service:") {
-						return strings.TrimPrefix(p, "service:"), true
-					}
-				}
-			}
-		} else {
+	for _, arg := range cmd {
+		if !strings.ContainsRune(arg, '=') {
 			break
 		}
+		pos++
 	}
-	*cmd = (*cmd)[pos:]
+	return cmd[:pos], cmd[pos:]
+}
+
+// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
+// returns the service name, true if found, otherwise "", false
+func chooseServiceNameFromEnvs(envs []string) (string, bool) {
+	for _, env := range envs {
+		if strings.HasPrefix(env, "DD_SERVICE=") {
+			return strings.TrimPrefix(env, "DD_SERVICE="), true
+		} else if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
+			parts := strings.Split(strings.TrimPrefix(env, "DD_TAGS="), ",")
+			for _, p := range parts {
+				if strings.HasPrefix(p, "service:") {
+					return strings.TrimPrefix(p, "service:"), true
+				}
+			}
+		}
+	}
 	return "", false
 }
 
