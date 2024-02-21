@@ -19,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/google/uuid"
-	"github.com/insomniacslk/dublin-traceroute/go/dublintraceroute"
-	"github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/probes/probev4"
-	"github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/results"
+	"github.com/ken-schneider/dublin-traceroute/go/dublintraceroute"
+	"github.com/ken-schneider/dublin-traceroute/go/dublintraceroute/probes/probev4"
+	"github.com/ken-schneider/dublin-traceroute/go/dublintraceroute/results"
 )
 
 const CheckName = "networkpath"
