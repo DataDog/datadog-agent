@@ -14,7 +14,6 @@ import (
 )
 
 // Manager wraps ebpf-manager.Manager to transparently handle eBPF telemetry
-
 // Deprecated: The telemetry manager wrapper should no longer be used. Instead, use ebpf/manager.Manager instead with the ErrorsTelemetryModifier
 type Manager struct {
 	*manager.Manager
@@ -49,8 +48,10 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) er
 	return nil
 }
 
+// ErrorsTelemetryModifier is a modifier that sets up the manager to handle eBPF telemetry.
 type ErrorsTelemetryModifier struct{}
 
+// String returns the name of the modifier.
 func (t *ErrorsTelemetryModifier) String() string {
 	return "ErrorsTelemetryModifier"
 }
