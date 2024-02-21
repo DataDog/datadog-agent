@@ -202,7 +202,7 @@ func extractTarFile(targetPath string, reader io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("could not create directory: %w", err)
 	}
-	f, err := os.Create(filepath.FromSlash(targetPath))
+	f, err := os.Create(targetPath)
 	if err != nil {
 		return fmt.Errorf("could not create file: %w", err)
 	}
