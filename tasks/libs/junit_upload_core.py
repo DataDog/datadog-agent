@@ -1,5 +1,6 @@
 import glob
 import io
+import json
 import os
 import platform
 import re
@@ -24,6 +25,8 @@ DATADOG_CI_COMMAND = ["datadog-ci", "junit", "upload"]
 JOB_URL_FILE_NAME = "job_url.txt"
 JOB_ENV_FILE_NAME = "job_env.txt"
 TAGS_FILE_NAME = "tags.txt"
+TEST_OUTPUT_FILES = ["test_output.json", "test_output_fast.json"]
+FLAKE_MESSAGES = ["flakytest: this is a known flaky test", "flaky test in CI"]
 
 
 def add_flavor_to_junitxml(xml_path: str, flavor: AgentFlavor):
@@ -50,6 +53,18 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
 
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
+
+    for test_file in TEST_OUTPUT_FILES:
+        if os.path.isfile(test_file):
+            with open(test_file) as f:
+                test_output = json.load(f)
+    else:
+        test_output = []
+    flaky_tests = [
+        "/".join([test["Package"], test["Test"]])
+        for test in test_output
+        if any(flake in test["Output"] for flake in FLAKE_MESSAGES)
+    ]
 
     # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
     if os.path.isdir(junit_tgz):
@@ -79,7 +94,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
                 continue
             xmls += 1
             with tempfile.TemporaryDirectory() as output_dir:
-                written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
+                written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir, flaky_tests)
                 upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
         xmlcounts[junit_tgz] = xmls
 
@@ -95,7 +110,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         raise Exit(f"No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
 
 
-def split_junitxml(xml_path, codeowners, output_dir):
+def split_junitxml(xml_path, codeowners, output_dir, flaky_tests):
     """
     Split a junit XML into several according to the suite name and the codeowners.
     Returns a list with the owners of the written files.
@@ -127,6 +142,11 @@ def split_junitxml(xml_path, codeowners, output_dir):
         except KeyError:
             xml = ET.ElementTree(ET.Element("testsuites"))
             output_xmls[main_owner] = xml
+        # Flag the test as known flaky if gotestsum already knew it
+        for test_case in suite.iter("testcase"):
+            test_name = "/".join([test_case.attrib["classname"], test_case.attrib["name"]])
+            test_case.attrib["agent_is_known_flaky"] = "true" if test_name in flaky_tests else "false"
+
         xml.getroot().append(suite)
 
     for owner, xml in output_xmls.items():
@@ -175,7 +195,6 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
         exit_code = process.wait()
         if exit_code != 0:
             raise subprocess.CalledProcessError(exit_code, DATADOG_CI_COMMAND)
-
 
 
 def _update_environ(unpack_dir):
