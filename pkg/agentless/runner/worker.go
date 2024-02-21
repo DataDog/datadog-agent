@@ -28,6 +28,7 @@ import (
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
 
 	"github.com/DataDog/datadog-agent/pkg/agentless/awsbackend"
+	"github.com/DataDog/datadog-agent/pkg/agentless/azurebackend"
 	"github.com/DataDog/datadog-agent/pkg/agentless/devices"
 	"github.com/DataDog/datadog-agent/pkg/agentless/nbd"
 	"github.com/DataDog/datadog-agent/pkg/agentless/scanners"
@@ -49,8 +50,9 @@ type WorkerOptions struct {
 type Worker struct {
 	WorkerOptions
 
-	id     int
-	waiter awsbackend.ResourceWaiter
+	id       int
+	waiter   awsbackend.ResourceWaiter
+	azWaiter azurebackend.ResourceWaiter
 }
 
 // NewWorker creates a new worker.
@@ -255,6 +257,31 @@ func (w *Worker) triggerScan(ctx context.Context, statsd ddogstatsd.ClientInterf
 			w.scanRootFilesystems(ctx, statsd, sc, scan, mountpoints, pool, resultsCh)
 		}
 
+	case types.TaskTypeAzureDisk:
+		if scan.TargetID.Provider() != types.CloudProviderAzure {
+			return fmt.Errorf("unsupported task type %q for cloud provider %q", scan.Type, scan.TargetID.Provider())
+		}
+		if scan.DiskMode != types.DiskModeNBDAttach {
+			return fmt.Errorf("unsupported attach mode %q for cloud provider %q", scan.DiskMode, scan.TargetID.Provider())
+		}
+		cfg, err := azurebackend.GetConfigFromCloudID(ctx, scan.TargetID)
+		if err != nil {
+			return err
+		}
+		if err := azurebackend.SetupDisk(ctx, cfg, scan, &w.azWaiter); err != nil {
+			return err
+		}
+		assert(scan.AttachedDeviceName != nil)
+		partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
+		if err != nil {
+			return err
+		}
+		mountpoints, err := devices.Mount(ctx, scan, partitions)
+		if err != nil {
+			return err
+		}
+		w.scanRootFilesystems(ctx, statsd, sc, scan, mountpoints, pool, resultsCh)
+
 	case types.TaskTypeLambda:
 		mountpoint, err := awsbackend.SetupLambda(ctx, statsd, sc, scan)
 		if err != nil {
@@ -366,6 +393,20 @@ func (w *Worker) cleanupScan(statsd ddogstatsd.ClientInterface, sc *types.Scanne
 				w.statsResourceTTL(resourceID.ResourceType(), scan, createdAt)
 			}
 		}
+	case types.TaskTypeAzureDisk:
+		for resourceID, createdAt := range scan.CreatedResources {
+			cfg, err := azurebackend.GetConfigFromCloudID(ctx, resourceID)
+			if err != nil {
+				log.Warnf("%s: failed to get config for resource %q: %v", scan, resourceID, err)
+				continue
+			}
+			if err := azurebackend.CleanupScan(ctx, cfg, scan, resourceID); err != nil {
+				log.Warnf("%s: failed to cleanup resource %q: %v", scan, resourceID, err)
+			} else {
+				w.statsResourceTTL(resourceID.ResourceType(), scan, createdAt)
+			}
+		}
+
 	case types.TaskTypeLambda, types.TaskTypeHost:
 		if len(scan.CreatedResources) > 0 {
 			panic(fmt.Errorf("unexpected resources created in %s scan", scan.Type))
@@ -418,7 +459,7 @@ func (w *Worker) scanSnaphotNoAttach(ctx context.Context, statsd ddogstatsd.Clie
 }
 
 func (w *Worker) scanRootFilesystems(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, roots []string, pool *scannersPool, resultsCh chan<- types.ScanResult) {
-	assert(scan.Type == types.TaskTypeHost || scan.Type == types.TaskTypeEBS)
+	assert(scan.Type == types.TaskTypeHost || scan.Type == types.TaskTypeEBS || scan.Type == types.TaskTypeAzureDisk)
 
 	var wg sync.WaitGroup
 
