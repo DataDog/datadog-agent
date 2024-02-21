@@ -18,8 +18,9 @@ import (
 )
 
 var goleakOptions = []goleak.Option{
-	goleak.IgnoreAnyFunction("github.com/patrickmn/go-cache.(*janitor).Run"),
 	goleak.IgnoreAnyFunction("github.com/cihub/seelog.(*asyncLoopLogger).processQueue"),
+	goleak.IgnoreAnyFunction("github.com/patrickmn/go-cache.(*janitor).Run"),
+	goleak.IgnoreAnyFunction("go.opencensus.io/stats/view.(*worker).start"),
 }
 
 func TestLimiterUnit(t *testing.T) {
