@@ -7,9 +7,11 @@
 package rules
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -641,20 +643,25 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	result := false
+	pprofCtx := context.TODO()
+
 	for _, rule := range bucket.rules {
-		if rule.GetEvaluator().Eval(ctx) {
+		labels := pprof.Labels("rule_id", rule.ID)
+		pprof.Do(pprofCtx, labels, func(pprofCtx context.Context) {
+			if rule.GetEvaluator().Eval(ctx) {
 
-			if rs.logger.IsTracing() {
-				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+				if rs.logger.IsTracing() {
+					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+				}
+
+				if err := rs.runRuleActions(event, ctx, rule); err != nil {
+					rs.logger.Errorf("Error while executing rule actions: %s", err)
+				}
+
+				rs.NotifyRuleMatch(rule, event)
+				result = true
 			}
-
-			if err := rs.runRuleActions(event, ctx, rule); err != nil {
-				rs.logger.Errorf("Error while executing rule actions: %s", err)
-			}
-
-			rs.NotifyRuleMatch(rule, event)
-			result = true
-		}
+		})
 	}
 
 	// no-op in the general case, only used to collect events in functional tests
