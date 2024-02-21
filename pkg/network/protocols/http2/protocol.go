@@ -390,13 +390,8 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 			return (now - updated) > ttl
 		}
 
-		if started := int64(val.Stream.Request_started); started > 0 {
-			return (now - started) > ttl
-		}
-
-		// In a case where the status code is finalized, that means that we managed to capture the response.
-		// However, if we did not manage to capture the corresponding request, we should clean the entry.
-		return val.Stream.Status_code.Finalized
+		started := int64(val.Stream.Request_started)
+		return started > 0 && (now-started) > ttl
 	})
 
 	p.http2InFlightMapCleaner = mapCleaner
