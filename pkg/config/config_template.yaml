@@ -1929,6 +1929,19 @@ api_key:
   ## Default is 0 (disabled). Set a valid port number (example: 5558) to enable.
   #
   # health_port: 0
+{{- if (eq .OS "windows")}}
+
+  # windows:
+    
+    ## @param process_buffer_size - integer - optional - default: 16348
+    ## Sets the buffer size for collecting process information.
+    # process_buffer_size: 16348
+    
+    ## @param process_buffer_count - integer - optional - default: 50
+    ## Sets the the number of process buffers for collecting process information.
+    # process_buffer_count: 50
+
+{{ end }}
 
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional

@@ -134,6 +134,13 @@ type Config struct {
 
 	// SyscallsMonitorEnabled defines if syscalls monitoring metrics should be collected
 	SyscallsMonitorEnabled bool
+
+	// windows-prefixed values only valid on windows
+	// WindowsProcessBufferCount is the number of buffers to use for the process monitor
+	WindowsProcessBufferCount int
+
+	// WindowsProcessBufferSize is the size of the buffers to use for the process monitor
+	WindowsProcessBufferSize int
 }
 
 // NewConfig returns a new Config object
@@ -176,6 +183,10 @@ func NewConfig() (*Config, error) {
 		RuntimeCompilationEnabled:       getBool("runtime_compilation.enabled"),
 		RuntimeCompiledConstantsEnabled: getBool("runtime_compilation.compiled_constants_enabled"),
 		RuntimeCompiledConstantsIsSet:   isSet("runtime_compilation.compiled_constants_enabled"),
+	}
+	if runtime.GOOS == "windows" {
+		c.WindowsProcessBufferCount = coreconfig.SystemProbe.GetInt(join(rsNS, "windows.process_buffer_count"))
+		c.WindowsProcessBufferSize = coreconfig.SystemProbe.GetInt(join(rsNS, "windows.process_buffer_size"))
 	}
 
 	if err := c.sanitize(); err != nil {

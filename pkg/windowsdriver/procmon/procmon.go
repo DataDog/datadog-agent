@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/driver"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/olreader"
@@ -56,6 +57,12 @@ const (
 
 	// ProcmonDefaultNumBufs is the default number of overlapped receive buffers
 	ProcmonDefaultNumBufs = 50
+
+	// procmonMaxReceiveSize is the size over which the buffer will not be allowed to go
+	// this is 148k
+	procmonMaxReceiveSize = 0x25000
+
+	procmonMaxNumberOfBufs = 100
 )
 
 var (
@@ -78,6 +85,15 @@ func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessS
 	if numbufs == 0 {
 		return nil, fmt.Errorf("invalid number of buffers")
 	}
+	if bufsize > procmonMaxReceiveSize {
+		log.Warnf("buffer size %d exceeds maximum allowed size, resetting to %d", bufsize, procmonMaxReceiveSize)
+		bufsize = procmonMaxReceiveSize
+	}
+	if numbufs > procmonMaxNumberOfBufs {
+		log.Warnf("number of buffers %d exceeds maximum allowed number, resetting to %d", numbufs, procmonMaxNumberOfBufs)
+		numbufs = procmonMaxNumberOfBufs
+	}
+	log.Debugf("creating new WinProcmon with bufsize %d and numbufs %d", bufsize, numbufs)
 	wp := &WinProcmon{
 		onStart: onStart,
 		onStop:  onStop,
