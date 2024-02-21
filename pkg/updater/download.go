@@ -12,7 +12,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,8 +26,6 @@ const (
 	agentArchiveFileName       = "agent.tar.gz"
 	maxArchiveSize             = 5 << 30  // 5GiB
 	maxArchiveDecompressedSize = 10 << 30 // 10GiB
-	maxArchiveFileSize         = 1 << 30  // 1GiB
-	maxArchiveLinkDepth        = 5
 )
 
 // downloader is the downloader used by the updater to download packages.
@@ -148,6 +145,7 @@ func extractTarGz(archivePath string, destinationPath string) error {
 	if err != nil {
 		return fmt.Errorf("could not create gzip reader: %w", err)
 	}
+	defer gzr.Close()
 
 	tr := tar.NewReader(io.LimitReader(gzr, maxArchiveDecompressedSize))
 	for {
@@ -208,13 +206,8 @@ func extractTarFile(targetPath string, reader io.Reader) error {
 	}
 	defer f.Close()
 
-	n, err := io.Copy(f, io.LimitReader(reader, maxArchiveFileSize))
+	_, err = io.Copy(f, reader)
 	if err != nil {
-		// No need to delete faulty file as targetPath is in a temporary directory
-		// that will be wiped at the end of the function
-		if errors.Is(err, io.EOF) && n == maxArchiveFileSize {
-			return fmt.Errorf("file %q is too large: %w", targetPath, err)
-		}
 		return fmt.Errorf("could not write file: %w", err)
 	}
 	return nil

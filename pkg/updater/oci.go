@@ -73,9 +73,6 @@ func extractOCIManifest(ociArchivePath string, destinationPath string, manifest 
 }
 
 // extractOCILayer extracts & verifies a layer from the OCI archive to `destinationPath“
-//
-// Note: we could add the manifest configuration to this method, but today it is not necessary
-// as there is no additional information required for the extraction in it.
 func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Descriptor) error {
 	if layer.Digest.Algorithm() != digest.SHA256 {
 		return fmt.Errorf("invalid algorithm %s for layer: only sha256 is supported", layer.Digest.Algorithm())
