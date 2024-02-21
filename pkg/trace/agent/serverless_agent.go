@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !serverless
+//go:build serverless
 
+//
 //nolint:revive // TODO(APM) Fix revive linter
 package agent
 
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -36,7 +36,7 @@ import (
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
-type Agent struct {
+type ServerlessAgent struct {
 	Receiver              *api.HTTPReceiver
 	OTLPReceiver          *api.OTLPReceiver
 	Concentrator          *stats.Concentrator
@@ -50,7 +50,6 @@ type Agent struct {
 	EventProcessor        *event.Processor
 	TraceWriter           *writer.TraceWriter
 	StatsWriter           *writer.StatsWriter
-	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
 	DebugServer           *api.DebugServer
 	Statsd                statsd.ClientInterface
@@ -82,7 +81,7 @@ type Agent struct {
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) *Agent {
+func NewServerlessAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, , statsd statsd.ClientInterface) *ServerlessAgent {
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
@@ -114,15 +113,14 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
-	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing)
 	return agnt
 }
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received.
-func (a *Agent) Run() {
-	a.Timing.Start()
-	defer a.Timing.Stop()
+func (a *ServerlessAgent) Run() {
+	timing.Start(metrics.Client)
+	defer timing.Stop()
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.Concentrator,
@@ -132,7 +130,6 @@ func (a *Agent) Run() {
 		a.NoPrioritySampler,
 		a.EventProcessor,
 		a.OTLPReceiver,
-		a.RemoteConfigHandler,
 		a.DebugServer,
 	} {
 		starter.Start()
@@ -159,7 +156,7 @@ func (a *Agent) Run() {
 
 // FlushSync flushes traces sychronously. This method only works when the agent is configured in synchronous flushing
 // mode via the apm_config.sync_flush option.
-func (a *Agent) FlushSync() {
+func (a *ServerlessAgent) FlushSync() {
 	if !a.conf.SynchronousFlushing {
 		log.Critical("(*Agent).FlushSync called without apm_conf.sync_flushing enabled. No data was sent to Datadog.")
 		return
@@ -175,7 +172,7 @@ func (a *Agent) FlushSync() {
 	}
 }
 
-func (a *Agent) work() {
+func (a *ServerlessAgent) work() {
 	for {
 		p, ok := <-a.In
 		if !ok {
@@ -186,7 +183,7 @@ func (a *Agent) work() {
 
 }
 
-func (a *Agent) loop() {
+func (a *ServerlessAgent) loop() {
 	<-a.ctx.Done()
 	log.Info("Exiting...")
 
@@ -213,14 +210,14 @@ func (a *Agent) loop() {
 }
 
 // setRootSpanTags sets up any necessary tags on the root span.
-func (a *Agent) setRootSpanTags(root *pb.Span) {
+func (a *ServerlessAgent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
 }
 
 // setFirstTraceTags sets additional tags on the first trace for each service processed by the agent,
 // so that we can see that the service has successfully onboarded onto APM.
-func (a *Agent) setFirstTraceTags(root *pb.Span) {
+func (a *ServerlessAgent) setFirstTraceTags(root *pb.Span) {
 	if a.conf == nil || a.conf.InstallSignature.InstallID == "" || root == nil {
 		return
 	}
@@ -241,13 +238,13 @@ func (a *Agent) setFirstTraceTags(root *pb.Span) {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
-func (a *Agent) Process(p *api.Payload) {
+func (a *ServerlessAgent) Process(p *api.Payload) {
 	if len(p.Chunks()) == 0 {
 		log.Debugf("Skipping received empty payload")
 		return
 	}
 	now := time.Now()
-	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
+	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
 	sampledChunks := new(writer.SampledChunks)
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
@@ -322,7 +319,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		a.setPayloadAttributes(p, root, chunk)
 
-		pt := processedTrace(p, chunk, root, p.TracerPayload.ContainerID, a.conf)
+		pt := processedTrace(p, chunk, root)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -366,7 +363,7 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 }
 
-func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk) {
+func (a *ServerlessAgent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk) {
 	if p.TracerPayload.Hostname == "" {
 		// Older tracers set tracer hostname in the root span.
 		p.TracerPayload.Hostname = root.Meta[tagHostname]
@@ -375,14 +372,12 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 		p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
 	}
 	if p.TracerPayload.AppVersion == "" {
-		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
+		p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
 	}
 }
 
-var _ api.StatsProcessor = (*Agent)(nil)
-
 // discardSpans removes all spans for which the provided DiscardFunction function returns true
-func (a *Agent) discardSpans(p *api.Payload) {
+func (a *ServerlessAgent) discardSpans(p *api.Payload) {
 	if a.DiscardSpan == nil {
 		return
 	}
@@ -403,7 +398,7 @@ func (a *Agent) discardSpans(p *api.Payload) {
 	}
 }
 
-func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion string) *pb.ClientStatsPayload {
+func (a *ServerlessAgent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion string) *pb.ClientStatsPayload {
 	enableContainers := a.conf.HasFeature("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
 	if !enableContainers || a.conf.HasFeature("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
@@ -440,12 +435,12 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion stri
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
-func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion string) {
+func (a *ServerlessAgent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion string) {
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace
-func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
+func (a *ServerlessAgent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
 	// We have a `keep` that is different from pt's `DroppedTrace` field as `DroppedTrace` will be sent to intake.
 	// For example: We want to maintain the overall trace level sampling decision for a trace with Analytics Events
 	// where a trace might be marked as DroppedTrace true, but we still sent analytics events in that ProcessedTrace.
@@ -471,7 +466,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 }
 
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
-func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
+func (a *ServerlessAgent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
 	if hasPriority {
@@ -498,7 +493,7 @@ func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.Pr
 }
 
 // getAnalyzedEvents returns any sampled analytics events in the ProcessedTrace
-func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStats) []*pb.Span {
+func (a *ServerlessAgent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStats) []*pb.Span {
 	numEvents, numExtracted, events := a.EventProcessor.Process(pt)
 	ts.EventsExtracted.Add(numExtracted)
 	ts.EventsSampled.Add(numEvents)
@@ -507,7 +502,7 @@ func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStat
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
-func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPriority bool) bool {
+func (a *ServerlessAgent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPriority bool) bool {
 	if hasPriority {
 		return a.samplePriorityTrace(now, pt)
 	}
@@ -517,7 +512,7 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 // samplePriorityTrace samples traces with priority set on them. PrioritySampler and
 // ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
-func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
+func (a *ServerlessAgent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
 	// run this early to make sure the signature gets counted by the RareSampler.
 	rare := a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
 	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
@@ -531,7 +526,7 @@ func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) 
 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces
 // get sampled by either the score sampler or the error sampler if they have an error.
-func (a *Agent) sampleNoPriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
+func (a *ServerlessAgent) sampleNoPriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
 	if traceContainsError(pt.TraceChunk.Spans) {
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
@@ -539,6 +534,309 @@ func (a *Agent) sampleNoPriorityTrace(now time.Time, pt traceutil.ProcessedTrace
 }
 
 // SetGlobalTagsUnsafe sets global tags to the agent configuration. Unsafe for concurrent use.
-func (a *Agent) SetGlobalTagsUnsafe(tags map[string]string) {
+func (a *ServerlessAgent) SetGlobalTagsUnsafe(tags map[string]string) {
 	a.conf.GlobalTags = tags
+}
+
+// normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
+// is invalid beyond repair
+func (a *ServerlessAgent) normalize(ts *info.TagStats, s *pb.Span) error {
+	if s.TraceID == 0 {
+		ts.TracesDropped.TraceIDZero.Inc()
+		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %s", s)
+	}
+	if s.SpanID == 0 {
+		ts.TracesDropped.SpanIDZero.Inc()
+		return fmt.Errorf("SpanID is zero (reason:span_id_zero): %s", s)
+	}
+	svc, err := traceutil.NormalizeService(s.Service, ts.Lang)
+	switch err {
+	case traceutil.ErrEmpty:
+		ts.SpansMalformed.ServiceEmpty.Inc()
+		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", s.Service, s)
+	case traceutil.ErrTooLong:
+		ts.SpansMalformed.ServiceTruncate.Inc()
+		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", traceutil.MaxServiceLen, s)
+	case traceutil.ErrInvalid:
+		ts.SpansMalformed.ServiceInvalid.Inc()
+		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, svc, s)
+	}
+	s.Service = svc
+
+	pSvc, ok := s.Meta[peerServiceKey]
+	if ok {
+		ps, err := traceutil.NormalizePeerService(pSvc)
+		switch err {
+		case traceutil.ErrTooLong:
+			ts.SpansMalformed.PeerServiceTruncate.Inc()
+			log.Debugf("Fixing malformed trace. peer.service is too long (reason:peer_service_truncate), truncating peer.service to length=%d: %s", traceutil.MaxServiceLen, ps)
+		case traceutil.ErrInvalid:
+			ts.SpansMalformed.PeerServiceInvalid.Inc()
+			log.Debugf("Fixing malformed trace. peer.service is invalid (reason:peer_service_invalid), replacing invalid peer.service=%s with empty string", pSvc)
+		default:
+			if err != nil {
+				log.Debugf("Unexpected error in peer.service normalization from original value (%s) to new value (%s): %s", pSvc, ps, err)
+			}
+		}
+		s.Meta[peerServiceKey] = ps
+	}
+
+	if a.conf.HasFeature("component2name") {
+		// This feature flag determines the component tag to become the span name.
+		//
+		// It works around the incompatibility between Opentracing and Datadog where the
+		// Opentracing operation name is many times invalid as a Datadog operation name (e.g. "/")
+		// and in Datadog terms it's the resource. Here, we aim to make the component the
+		// operation name to provide a better product experience.
+		if v, ok := s.Meta["component"]; ok {
+			s.Name = v
+		}
+	}
+	s.Name, err = traceutil.NormalizeName(s.Name)
+	switch err {
+	case traceutil.ErrEmpty:
+		ts.SpansMalformed.SpanNameEmpty.Inc()
+		log.Debugf("Fixing malformed trace. Name is empty (reason:span_name_empty), setting span.name=%s: %s", s.Name, s)
+	case traceutil.ErrTooLong:
+		ts.SpansMalformed.SpanNameTruncate.Inc()
+		log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d: %s", traceutil.MaxServiceLen, s)
+	case traceutil.ErrInvalid:
+		ts.SpansMalformed.SpanNameInvalid.Inc()
+		log.Debugf("Fixing malformed trace. Name is invalid (reason:span_name_invalid), setting span.name=%s: %s", s.Name, s)
+	}
+
+	if s.Resource == "" {
+		ts.SpansMalformed.ResourceEmpty.Inc()
+		log.Debugf("Fixing malformed trace. Resource is empty (reason:resource_empty), setting span.resource=%s: %s", s.Name, s)
+		s.Resource = s.Name
+	}
+
+	// ParentID, TraceID and SpanID set in the client could be the same
+	// Supporting the ParentID == TraceID == SpanID for the root span, is compliant
+	// with the Zipkin implementation. Furthermore, as described in the PR
+	// https://github.com/openzipkin/zipkin/pull/851 the constraint that the
+	// root span's ``trace id = span id`` has been removed
+	if s.ParentID == s.TraceID && s.ParentID == s.SpanID {
+		s.ParentID = 0
+		log.Debugf("span.normalize: `ParentID`, `TraceID` and `SpanID` are the same; `ParentID` set to 0: %d", s.TraceID)
+	}
+
+	// Start & Duration as nanoseconds timestamps
+	// if s.Start is very little, less than year 2000 probably a unit issue so discard
+	// (or it is "le bug de l'an 2000")
+	if s.Duration < 0 {
+		ts.SpansMalformed.InvalidDuration.Inc()
+		log.Debugf("Fixing malformed trace. Duration is invalid (reason:invalid_duration), setting span.duration=0: %s", s)
+		s.Duration = 0
+	}
+	if s.Duration > math.MaxInt64-s.Start {
+		ts.SpansMalformed.InvalidDuration.Inc()
+		log.Debugf("Fixing malformed trace. Duration is too large and causes overflow (reason:invalid_duration), setting span.duration=0: %s", s)
+		s.Duration = 0
+	}
+	if s.Start < Year2000NanosecTS {
+		ts.SpansMalformed.InvalidStartDate.Inc()
+		log.Debugf("Fixing malformed trace. Start date is invalid (reason:invalid_start_date), setting span.start=time.now(): %s", s)
+		now := time.Now().UnixNano()
+		s.Start = now - s.Duration
+		if s.Start < 0 {
+			s.Start = now
+		}
+	}
+
+	if len(s.Type) > MaxTypeLen {
+		ts.SpansMalformed.TypeTruncate.Inc()
+		log.Debugf("Fixing malformed trace. Type is too long (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
+		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
+	}
+	if env, ok := s.Meta["env"]; ok {
+		s.Meta["env"] = traceutil.NormalizeTag(env)
+	}
+	if sc, ok := s.Meta["http.status_code"]; ok {
+		if !isValidStatusCode(sc) {
+			ts.SpansMalformed.InvalidHTTPStatusCode.Inc()
+			log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s: %s", sc, s)
+			delete(s.Meta, "http.status_code")
+		}
+	}
+	return nil
+}
+
+// normalizeTrace takes a trace and
+// * rejects the trace if there is a trace ID discrepancy between 2 spans
+// * rejects the trace if two spans have the same span_id
+// * rejects empty traces
+// * rejects traces where at least one span cannot be normalized
+// * return the normalized trace and an error:
+//   - nil if the trace can be accepted
+//   - a reason tag explaining the reason the traces failed normalization
+func (a *ServerlessAgent) normalizeTrace(ts *info.TagStats, t pb.Trace) error {
+	if len(t) == 0 {
+		ts.TracesDropped.EmptyTrace.Inc()
+		return errors.New("trace is empty (reason:empty_trace)")
+	}
+
+	spanIDs := make(map[uint64]struct{})
+	firstSpan := t[0]
+
+	for _, span := range t {
+		if span == nil {
+			continue
+		}
+		if firstSpan == nil {
+			firstSpan = span
+		}
+		if span.TraceID != firstSpan.TraceID {
+			ts.TracesDropped.ForeignSpan.Inc()
+			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)
+		}
+		if err := a.normalize(ts, span); err != nil {
+			return err
+		}
+		if _, ok := spanIDs[span.SpanID]; ok {
+			ts.SpansMalformed.DuplicateSpanID.Inc()
+			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
+		}
+		spanIDs[span.SpanID] = struct{}{}
+	}
+
+	return nil
+}
+
+func (a *ServerlessAgent) normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
+	b.Name, _ = traceutil.NormalizeName(b.Name)
+	b.Service, _ = traceutil.NormalizeService(b.Service, lang)
+	if b.Resource == "" {
+		b.Resource = b.Name
+	}
+	b.Resource, _ = a.TruncateResource(b.Resource)
+}
+
+func (a *ServerlessAgent) obfuscateSpan(span *pb.Span) {
+	o := a.obfuscator
+	switch span.Type {
+	case "sql", "cassandra":
+		if span.Resource == "" {
+			return
+		}
+		oq, err := o.ObfuscateSQLString(span.Resource)
+		if err != nil {
+			// we have an error, discard the SQL to avoid polluting user resources.
+			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
+			span.Resource = textNonParsable
+			traceutil.SetMeta(span, tagSQLQuery, textNonParsable)
+			return
+		}
+
+		span.Resource = oq.Query
+		if len(oq.Metadata.TablesCSV) > 0 {
+			traceutil.SetMeta(span, "sql.tables", oq.Metadata.TablesCSV)
+		}
+		traceutil.SetMeta(span, tagSQLQuery, oq.Query)
+	case "redis":
+		span.Resource = o.QuantizeRedisString(span.Resource)
+		if a.conf.Obfuscation.Redis.Enabled {
+			if span.Meta == nil || span.Meta[tagRedisRawCommand] == "" {
+				return
+			}
+			if a.conf.Obfuscation.Redis.RemoveAllArgs {
+				span.Meta[tagRedisRawCommand] = o.RemoveAllRedisArgs(span.Meta[tagRedisRawCommand])
+				return
+			}
+			span.Meta[tagRedisRawCommand] = o.ObfuscateRedisString(span.Meta[tagRedisRawCommand])
+		}
+	case "memcached":
+		if !a.conf.Obfuscation.Memcached.Enabled {
+			return
+		}
+		if span.Meta == nil || span.Meta[tagMemcachedCommand] == "" {
+			return
+		}
+		span.Meta[tagMemcachedCommand] = o.ObfuscateMemcachedString(span.Meta[tagMemcachedCommand])
+	case "web", "http":
+		if span.Meta == nil || span.Meta[tagHTTPURL] == "" {
+			return
+		}
+		span.Meta[tagHTTPURL] = o.ObfuscateURLString(span.Meta[tagHTTPURL])
+	case "mongodb":
+		if !a.conf.Obfuscation.Mongo.Enabled {
+			return
+		}
+		if span.Meta == nil || span.Meta[tagMongoDBQuery] == "" {
+			return
+		}
+		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(span.Meta[tagMongoDBQuery])
+	case "elasticsearch":
+		if !a.conf.Obfuscation.ES.Enabled {
+			return
+		}
+		if span.Meta == nil || span.Meta[tagElasticBody] == "" {
+			return
+		}
+		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
+	}
+}
+
+func (a *ServerlessAgent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
+	o := a.obfuscator
+	switch b.Type {
+	case "sql", "cassandra":
+		oq, err := o.ObfuscateSQLString(b.Resource)
+		if err != nil {
+			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
+			b.Resource = textNonParsable
+		} else {
+			b.Resource = oq.Query
+		}
+	case "redis":
+		b.Resource = o.QuantizeRedisString(b.Resource)
+	}
+}
+
+// Truncate checks that the span resource, meta and metrics are within the max length
+// and modifies them if they are not
+func (a *ServerlessAgent) Truncate(s *pb.Span) {
+	r, ok := a.TruncateResource(s.Resource)
+	if !ok {
+		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", a.conf.MaxResourceLen, s.Resource)
+	}
+	s.Resource = r
+
+	// Error - Nothing to do
+	// Optional data, Meta & Metrics can be nil
+	// Soft fail on those
+	for k, v := range s.Meta {
+		modified := false
+
+		if len(k) > MaxMetaKeyLen {
+			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
+			delete(s.Meta, k)
+			k = traceutil.TruncateUTF8(k, MaxMetaKeyLen) + "..."
+			modified = true
+		}
+
+		if len(v) > MaxMetaValLen {
+			v = traceutil.TruncateUTF8(v, MaxMetaValLen) + "..."
+			modified = true
+		}
+
+		if modified {
+			s.Meta[k] = v
+		}
+	}
+	for k, v := range s.Metrics {
+		if len(k) > MaxMetricsKeyLen {
+			log.Debugf("span.truncate: truncating `Metrics` key (max %d chars): %s", MaxMetricsKeyLen, k)
+			delete(s.Metrics, k)
+			k = traceutil.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
+
+			s.Metrics[k] = v
+		}
+	}
+}
+
+// TruncateResource truncates a span's resource to the maximum allowed length.
+// It returns true if the input was below the max size.
+func (a *ServerlessAgent) TruncateResource(r string) (string, bool) {
+	return traceutil.TruncateUTF8(r, a.conf.MaxResourceLen), len(r) <= a.conf.MaxResourceLen
 }

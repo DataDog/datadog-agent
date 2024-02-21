@@ -94,20 +94,20 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.2
-	github.com/DataDog/appsec-internal-go v1.3.0
-	github.com/DataDog/datadog-agent/pkg/gohai v0.52.0-rc.1
+	github.com/DataDog/appsec-internal-go v1.4.0
+	github.com/DataDog/datadog-agent/pkg/gohai v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/trace v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.1
-	github.com/DataDog/datadog-go/v5 v5.5.0
+	github.com/DataDog/datadog-go/v5 v5.4.0
 	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
-	github.com/DataDog/datadog-operator v1.1.0
-	github.com/DataDog/ebpf-manager v0.5.0
+	github.com/DataDog/datadog-operator v1.0.3
+	github.com/DataDog/ebpf-manager v0.4.0
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.3
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.13.3
@@ -268,7 +268,7 @@ require (
 	google.golang.org/grpc v1.60.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.32.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.58.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.39.0-alpha.1.0.20240201091214-d44984a84b1f
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -599,32 +599,32 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/DataDog/agent-payload/v5 v5.0.104
+	github.com/DataDog/agent-payload/v5 v5.0.103
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/log v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/status v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/api v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/api v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/env v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/logs v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/model v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/remote v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/remote v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/errors v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/errors v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/metrics v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.52.0-rc.1
@@ -646,14 +646,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/system v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.1
-	github.com/DataDog/go-libddwaf/v2 v2.2.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.13.3
+	github.com/DataDog/go-libddwaf/v2 v2.2.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.11.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go-v2/service/kms v1.27.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.25.1
@@ -701,7 +701,7 @@ require (
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
-	github.com/ebitengine/purego v0.6.0-alpha.5 // indirect
+	github.com/ebitengine/purego v0.5.2 // indirect
 	github.com/elastic/go-licenser v0.4.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
