@@ -8,6 +8,7 @@ package updater
 import (
 	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -19,13 +20,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ulikunitz/xz"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	agentArchiveFileName       = "agent.tar.xz"
+	agentArchiveFileName       = "agent.tar.gz"
 	maxArchiveSize             = 5 << 30  // 5GiB
 	maxArchiveDecompressedSize = 10 << 30 // 10GiB
 	maxArchiveFileSize         = 1 << 30  // 1GiB
@@ -46,7 +45,7 @@ func newDownloader(client *http.Client) *downloader {
 
 // Download downloads the package at the given URL in temporary directory,
 // verifies its SHA256 hash and extracts it to the given destination path.
-// It currently assumes the package is a tar.xz archive.
+// It currently assumes the package is a tar.gz archive.
 func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath string) error {
 	log.Debugf("Downloading package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
 
@@ -110,7 +109,7 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	if err := os.Mkdir(extractedOCIPath, 0755); err != nil {
 		return fmt.Errorf("could not create OCI extraction directory: %w", err)
 	}
-	err = extractTarXz(archivePath, extractedArchivePath)
+	err = extractTarGz(archivePath, extractedArchivePath)
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
@@ -131,29 +130,26 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	return nil
 }
 
-// extractTarXz extracts a tar.xz archive to the given destination path
+// extractTarGz extracts a tar.gz archive to the given destination path
 //
 // Note on security: This function does not currently attempt to fully mitigate zip-slip attacks.
 // This is purposeful as the archive is extracted only after its SHA256 hash has been validated
 // against its reference in the package catalog. This catalog is itself sent over Remote Config
 // which guarantees its integrity.
-func extractTarXz(archivePath string, destinationPath string) error {
+func extractTarGz(archivePath string, destinationPath string) error {
 	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
 
-	// Read XZ archive
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("could not open archive: %w", err)
 	}
 	defer f.Close()
-	xzr, err := xz.NewReader(f)
+	gzr, err := gzip.NewReader(f)
 	if err != nil {
 		return fmt.Errorf("could not create gzip reader: %w", err)
 	}
 
-	// Extract tar archive
-	tr := tar.NewReader(io.LimitReader(xzr, maxArchiveDecompressedSize))
-
+	tr := tar.NewReader(io.LimitReader(gzr, maxArchiveDecompressedSize))
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {

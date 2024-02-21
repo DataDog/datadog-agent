@@ -7,6 +7,7 @@ package updater
 
 import (
 	"archive/tar"
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -23,7 +24,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"github.com/ulikunitz/xz"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 	testAgentFileName        = "agent"
 	testNestedAgentFileName  = "nested/agent2"
 	testLargeFileName        = "large"
-	testLargeFileSize        = 1024 * 1024 * 2 // 2MB
+	testLargeFileSize        = 1024 * 1024 * 20 // 20MB
 	testAgentArchiveFileName = "agent.tar.gz"
 	testDownloadDir          = "download"
 )
@@ -63,7 +63,7 @@ func createTestOCIArchive(t *testing.T, dir string) {
 	err := os.MkdirAll(blobPath, 0755)
 	assert.NoError(t, err)
 
-	// Layer: tar.xz archive containing the actual files
+	// Layer: tar.gz archive containing the actual files
 	createTestArchive(t, blobPath, agentPrefix, "layer")
 	layerPath := path.Join(blobPath, "layer")
 
@@ -89,7 +89,7 @@ func createTestOCIArchive(t *testing.T, dir string) {
 	err = os.WriteFile(
 		manifestPath,
 		[]byte(fmt.Sprintf(
-			`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","artifactType":"application/vnd.datadoghq.pkg","config":{"mediaType":"application/vnd.datadoghq.pkgmetadata.v1+json","digest":"sha256:%[1]s","size":%[2]d},"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+xz","digest":"sha256:%[1]s","size":%[2]d}]}`,
+			`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","artifactType":"application/vnd.datadoghq.pkg","config":{"mediaType":"application/vnd.datadoghq.pkgmetadata.v1+json","digest":"sha256:%[1]s","size":%[2]d},"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+gz","digest":"sha256:%[1]s","size":%[2]d}]}`,
 			layerDigest, layerStat.Size(),
 		),
 		),
@@ -204,12 +204,9 @@ func createArchive(dir string, files []string, buf io.Writer) error {
 	// These writers are chained. Writing to the tar writer will
 	// write to the gzip writer which in turn will write to
 	// the "buf" writer
-	xw, err := xz.NewWriter(buf)
-	if err != nil {
-		return err
-	}
-	defer xw.Close()
-	tw := tar.NewWriter(xw)
+	gzw := gzip.NewWriter(buf)
+	defer gzw.Close()
+	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
 	// Iterate over files and add them to the tar archive
@@ -267,14 +264,7 @@ func (suite *DownloadTestSuite) TestDownload() {
 		SHA256:  agentArchiveHash(t, suite.dir),
 		Size:    agentArchiveSize(t, suite.dir),
 	}
-
-	// Register how much memory we used setting up the test
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	totalAllocsStart := m.TotalAlloc
-
 	err := downloader.Download(context.Background(), pkg, downloadPath)
-	runtime.ReadMemStats(&m)
 
 	// Read contents of downloadPath
 	assert.NoError(t, err)
@@ -283,10 +273,9 @@ func (suite *DownloadTestSuite) TestDownload() {
 	assert.FileExists(t, path.Join(downloadPath, testLargeFileName))
 
 	// ensures the full archive or full individual files are not loaded in memory
-	xzDictCap := uint64(8428576) // 8 MiB, the default xz dictionary size
-	allocatedMemoryArchive := m.TotalAlloc - totalAllocsStart
-	expectedMemory := 2 * (uint64(testLargeFileSize) + xzDictCap)
-	assert.Less(t, allocatedMemoryArchive, expectedMemory)
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	assert.Less(t, m.TotalAlloc, uint64(testLargeFileSize))
 }
 
 func (suite *DownloadTestSuite) TestDownloadCheckHash() {

@@ -17,9 +17,8 @@ import (
 )
 
 const (
-	// mediaTypeImageLayerXz is the media type for an OCI image layer in xz format
-	// It's not officially declared by the spec so we do it here
-	mediaTypeImageLayerXz = "application/vnd.oci.image.layer.v1.tar+xz"
+	// mediaTypeImageLayerGz is the media type for an OCI image layer in gz format
+	mediaTypeImageLayerGz = "application/vnd.oci.image.layer.v1.tar+gz"
 )
 
 // extractOCI extracts the OCI archive at `ociArchivePath`
@@ -45,14 +44,10 @@ func extractOCI(ociArchivePath string, destinationPath string) error {
 
 // extractOCIManifest extracts the layers of a single manifest from the OCI archive
 func extractOCIManifest(ociArchivePath string, destinationPath string, manifest ociSpec.Descriptor) error {
+	blobsPath := path.Join(ociArchivePath, "blobs", string(manifest.Digest.Algorithm()))
 	if manifest.Digest.Algorithm() != digest.SHA256 {
 		return fmt.Errorf("invalid algorithm %s for manifest: only sha256 is supported", manifest.Digest.Algorithm())
 	}
-
-	// Read manifest file
-	blobsPath := path.Join(ociArchivePath, "blobs", string(manifest.Digest.Algorithm()))
-
-	// Verify length & digest of the layer
 	err := verifyOCIFile(blobsPath, manifest)
 	if err != nil {
 		return err // already wrapped
@@ -76,7 +71,6 @@ func extractOCIManifest(ociArchivePath string, destinationPath string, manifest 
 			return err // already wrapped
 		}
 	}
-
 	return nil
 }
 
@@ -88,8 +82,6 @@ func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Des
 	if layer.Digest.Algorithm() != digest.SHA256 {
 		return fmt.Errorf("invalid algorithm %s for layer: only sha256 is supported", layer.Digest.Algorithm())
 	}
-
-	// Verify length & digest of the layer
 	err := verifyOCIFile(blobsPath, layer)
 	if err != nil {
 		return err // already wrapped
@@ -97,15 +89,14 @@ func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Des
 
 	layerPath := path.Join(blobsPath, layer.Digest.Encoded())
 	switch layer.MediaType {
-	case mediaTypeImageLayerXz:
-		err := extractTarXz(layerPath, destinationPath)
+	case mediaTypeImageLayerGz:
+		err := extractTarGz(layerPath, destinationPath)
 		if err != nil {
 			return err // already wrapped
 		}
 	default:
 		return fmt.Errorf("unsupported media type %s for layer", layer.MediaType)
 	}
-
 	return nil
 }
 
@@ -120,24 +111,17 @@ func verifyOCIFile(blobsPath string, spec ociSpec.Descriptor) error {
 	}
 	defer file.Close()
 
-	// Verify length
-	info, err := file.Stat()
-	if err != nil {
-		return fmt.Errorf("could not get file info: %w", err)
-	}
-	if info.Size() != spec.Size {
-		return fmt.Errorf("invalid size for file: expected %d, got %d", spec.Size, info.Size())
-	}
-
 	// Verify digest
 	verifier := spec.Digest.Verifier()
-	_, err = io.Copy(verifier, file)
+	n, err := io.Copy(verifier, file)
 	if err != nil {
 		return fmt.Errorf("could not write file to verifier: %w", err)
+	}
+	if n != spec.Size {
+		return fmt.Errorf("invalid size for file: expected %d, got %d", spec.Size, n)
 	}
 	if !verifier.Verified() {
 		return fmt.Errorf("invalid hash for file: %w", err)
 	}
-
 	return nil
 }
