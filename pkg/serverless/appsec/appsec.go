@@ -17,6 +17,7 @@ import (
 	waf "github.com/DataDog/go-libddwaf/v2"
 	json "github.com/json-iterator/go"
 
+	"github.com/DataDog/appsec-internal-go/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
@@ -70,7 +71,7 @@ type AppSec struct {
 	handle *waf.Handle
 	// Events rate limiter to limit the max amount of appsec events we can send
 	// per second.
-	eventsRateLimiter *TokenTicker
+	eventsRateLimiter *limiter.TokenTicker
 }
 
 // New returns a new AppSec instance if it is enabled with the DD_APPSEC_ENABLED
@@ -111,7 +112,7 @@ func newAppSec() (*AppSec, error) {
 		return nil, err
 	}
 
-	eventsRateLimiter := NewTokenTicker(int64(cfg.TraceRateLimit), int64(cfg.TraceRateLimit))
+	eventsRateLimiter := limiter.NewTokenTicker(int64(cfg.TraceRateLimit), int64(cfg.TraceRateLimit))
 	eventsRateLimiter.Start()
 
 	return &AppSec{
