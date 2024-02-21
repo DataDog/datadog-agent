@@ -8,9 +8,9 @@ package domain
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/activedirectory"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/activedirectory"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/stretchr/testify/assert"
 	"reflect"
