@@ -7,8 +7,7 @@ type MapErrTelemetry struct {
 	Count [64]uint64
 }
 type HelperErrTelemetry struct {
-	Telemetry_active uint64
-	Err_count        [320]uint64
+	Count [320]uint64
 }
 type InstrumentationBlob struct {
 	Map_err_telemetry    [128]MapErrTelemetry

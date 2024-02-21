@@ -89,7 +89,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 	for programName, programIndex := range e.probeKeys {
 		for index, helperName := range helperNames {
 			base := maxErrno * index
-			if count := getErrCount(val.Helper_err_telemetry[programIndex].Err_count[base : base+maxErrno]); len(count) > 0 {
+			if count := getErrCount(val.Helper_err_telemetry[programIndex].Count[base : base+maxErrno]); len(count) > 0 {
 				for errStr, errCount := range count {
 					errorsDelta := float64(errCount - e.lastValues[errStr])
 					if errorsDelta > 0 {

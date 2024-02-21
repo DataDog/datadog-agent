@@ -55,18 +55,14 @@ type EBPFTelemetry struct {
 }
 
 type eBPFInstrumentation struct {
-	filename       string
-	functions      []string
-	patchConstants map[string][]string
+	filename  string
+	functions []string
 }
 
 var instrumentation = eBPFInstrumentation{
 	"ebpf_instrumentation",
 	[]string{
 		"ebpf_instrumentation__trampoline_handler",
-	},
-	map[string][]string{
-		"ebpf_instrumentation__trampoline_handler": []string{"telemetry_program_id_key"},
 	},
 }
 
@@ -143,6 +139,11 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelem
 			continue
 		}
 
+		// patch 'telemetry_program_id_key'
+		if err := patchConstant(p.Instructions, "telemetry_program_id_key", int64(bpfTelemetry.probeKeys[p.Name])); err != nil {
+			return fmt.Errorf("failed to patch constant 'telemetry_program_id_key' for program %s: %w", p.Name, err)
+		}
+
 		const ebpfEntryTrampolinePatchCall = -1
 		// max trampoline offset is maximum number of instruction from program entry before the
 		// trampoline call.
@@ -198,15 +199,6 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelem
 			}
 			ins := collectionSpec.Programs[program].Instructions
 
-			constants := instrumentation.patchConstants[program]
-			if len(constants) > 0 {
-				for _, c := range constants {
-					if err := patchConstant(ins, c, int64(bpfTelemetry.probeKeys[program])); err != nil {
-						return fmt.Errorf("failed to patch constant %s in program %s: %w", c, program, err)
-					}
-				}
-			}
-
 			iter := ins.Iterate()
 			for iter.Next() {
 				ins := iter.Ins
@@ -252,6 +244,7 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelem
 			p.Instructions = append(p.Instructions, *ins)
 		}
 	}
+
 	return nil
 }
 

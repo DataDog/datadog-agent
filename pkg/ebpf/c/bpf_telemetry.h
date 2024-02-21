@@ -24,7 +24,7 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
         LOAD_CONSTANT(MK_MAP_INDX(map), map_index);                    \
         if (errno_ret < 0) {                                           \
             instrumentation_blob_t *tb = FETCH_TELEMETRY_BLOB();       \
-            if (tb != NULL) {                                            \
+            if (tb) {                                            \
                 long error = errno_ret * -1;  \
                 if (error >= T_MAX_ERRNO) { \
                     error = T_MAX_ERRNO - 1; \
@@ -46,10 +46,29 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
 #define FN_INDX_bpf_skb_load_bytes skb_load_bytes
 #define FN_INDX_bpf_perf_event_output perf_event_output
 
-#define helper_with_telemetry(fn, ...)                                                                              \
-    ({                                                                                                              \
-        long errno_ret = fn(__VA_ARGS__);                                                                  \
-        errno_ret;                                                                                          \
+#define helper_with_telemetry(fn, ...)                                                          \
+    ({                                                                                          \
+        long errno_ret = fn(__VA_ARGS__);                                                       \
+        unsigned long telemetry_program_id;                                                     \
+        LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                        \
+        if (errno_ret < 0 && telemetry_program_id > 0) {                                        \
+            instrumentation_blob_t *tb = FETCH_TELEMETRY_BLOB();       \
+            if (tb) {                                                                        \
+                int helper_indx = MK_FN_INDX(fn);                                                   \
+                long errno_slot = errno_ret * -1;                                                    \
+                if (errno_slot >= T_MAX_ERRNO) {                                                \
+                    errno_slot = T_MAX_ERRNO - 1;                                               \
+                    /* This is duplicated below because on clang 14.0.6 the compiler
+                     * concludes that this if-check will always force errno_slot in range
+                     * (0, T_MAX_ERRNO-1], and removes the bounds check, causing the verifier
+                     * to trip. Duplicating this check forces clang not to omit the check */    \
+                    errno_slot &= (T_MAX_ERRNO - 1);                                            \
+                }                                                                               \
+                errno_slot &= (T_MAX_ERRNO - 1);                                                \
+                __sync_fetch_and_add(&tb->helper_err_telemetry[telemetry_program_id].err_count[(helper_indx * T_MAX_ERRNO) + errno_slot], 1); \
+            }                                                                                   \
+        }                                                                                       \
+        errno_ret;                                                                              \
     })
 
 #define bpf_map_update_with_telemetry(map, key, val, flags) \

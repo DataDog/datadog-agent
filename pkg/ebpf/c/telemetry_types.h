@@ -18,7 +18,6 @@ typedef struct {
 #define perf_event_output 4
 #define MAX_TELEMETRY_INDX 5
 typedef struct {
-    unsigned long telemetry_active;
     unsigned long err_count[MAX_TELEMETRY_INDX * T_MAX_ERRNO];
 } helper_err_telemetry_t;
 

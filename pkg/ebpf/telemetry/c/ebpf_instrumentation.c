@@ -14,9 +14,6 @@ int ebpf_instrumentation__trampoline_handler() {
         return 0;
     }
 
-    u64 program_index = 0;
-    LOAD_CONSTANT("telemetry_program_id_key", program_index);
-
     // Cache telemetry blob on stack
     asm ("*(u64 *)(r10 - 512) = r0");
     return 0;

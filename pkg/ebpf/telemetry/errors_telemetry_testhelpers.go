@@ -8,8 +8,6 @@
 package telemetry
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,10 +18,11 @@ func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
 		return helperTelemMap
 	}
 
-	var val InstrumentationBlob
 	var key uint32
-	err := b.EBPFInstrumentationMap.Lookup(&key, &val)
+	val := new(InstrumentationBlob)
+	err := b.EBPFInstrumentationMap.Lookup(&key, val)
 	if err != nil {
+		log.Warnf("error looking up instrumentation blob: %v", err)
 		return helperTelemMap
 	}
 
@@ -31,7 +30,7 @@ func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
 		t := make(map[string]interface{})
 		for index, helperName := range helperNames {
 			base := maxErrno * index
-			if count := getErrCount(val.Helper_err_telemetry[programIndex].Err_count[base : base+maxErrno]); len(count) > 0 {
+			if count := getErrCount(val.Helper_err_telemetry[programIndex].Count[base : base+maxErrno]); len(count) > 0 {
 				t[helperName] = count
 			}
 		}
@@ -48,7 +47,7 @@ func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
 func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 	t := make(map[string]interface{})
 	if b.EBPFInstrumentationMap == nil {
-		fmt.Println("map is nil")
+		log.Warn("Instrumentation map is nil")
 		return t
 	}
 
