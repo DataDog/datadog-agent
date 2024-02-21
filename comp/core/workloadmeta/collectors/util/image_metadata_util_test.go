@@ -9,7 +9,7 @@ package util
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseRepoDigest(t *testing.T) {
