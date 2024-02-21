@@ -160,22 +160,34 @@ type BucketAggregator interface {
 }
 
 type StattableSpan interface {
+	Start() int64
 	Duration() int64
 	Error() int32
+	IsTop() bool
 	BucketAggregationKey() BucketAggregator
 	PeerTags(peerTagKeys []string) []string
 }
 
+// HandleDDSpan adds this DD span to this bucket stats, aggregated with the finest grain matching given aggregators
+// this only exists for testing purposes - most clients shouldn't be using RawBucket directly and should be using the Concentrator
+func (sb *RawBucket) HandleDDSpan(s *pb.Span, weight float64, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) {
+	statSpan := &statSpan{
+		s:              s,
+		enablePeerTags: enablePeerTagsAgg,
+	}
+	sb.HandleSpan(statSpan, weight, aggKey, enablePeerTagsAgg, peerTagKeys)
+}
+
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s StattableSpan, weight float64, isTop bool, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) {
+func (sb *RawBucket) HandleSpan(s StattableSpan, weight float64, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
 	aggr := NewAggregationFromSpan(s, aggKey, enablePeerTagsAgg, peerTagKeys)
-	sb.add(s, weight, isTop, aggr, s.PeerTags(peerTagKeys))
+	sb.add(s, weight, aggr, s.PeerTags(peerTagKeys))
 }
 
-func (sb *RawBucket) add(s StattableSpan, weight float64, isTop bool, aggr Aggregation, peerTags []string) {
+func (sb *RawBucket) add(s StattableSpan, weight float64, aggr Aggregation, peerTags []string) {
 	var gs *groupedStats
 	var ok bool
 
@@ -184,7 +196,7 @@ func (sb *RawBucket) add(s StattableSpan, weight float64, isTop bool, aggr Aggre
 		gs.peerTags = peerTags
 		sb.data[aggr] = gs
 	}
-	if isTop {
+	if s.IsTop() {
 		gs.topLevelHits += weight
 	}
 	gs.hits += weight

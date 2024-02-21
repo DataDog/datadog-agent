@@ -104,7 +104,6 @@ func clientOrProducer(spanKind string) bool {
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
 func NewAggregationFromSpan(s StattableSpan, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) Aggregation {
-	//synthetics := strings.HasPrefix(origin, tagSynthetics) //todo: this is in the bucket agg key
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: s.BucketAggregationKey(),

@@ -29,8 +29,9 @@ const defaultBufferLen = 2
 // Gets an imperial shitton of traces, and outputs pre-computed data structures
 // allowing to find the gold (stats) amongst the traces.
 type Concentrator struct {
-	In  chan Input
-	Out chan *pb.StatsPayload
+	In        chan Input
+	GenericIn chan GenericInput
+	Out       chan *pb.StatsPayload
 
 	// bucket duration in nanoseconds
 	bsize int64
@@ -115,6 +116,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		// TODO: Move to configuration.
 		bufferLen:              defaultBufferLen,
 		In:                     make(chan Input, 1),
+		GenericIn:              make(chan GenericInput, 1),
 		Out:                    out,
 		exit:                   make(chan struct{}),
 		agentEnv:               conf.DefaultEnv,
@@ -151,8 +153,14 @@ func (c *Concentrator) Run() {
 	log.Debug("Starting concentrator")
 
 	go func() {
-		for inputs := range c.In {
-			c.Add(inputs)
+		//todo: shouldn't this exit when stop is called?
+		for {
+			select {
+			case inputs := <-c.In:
+				c.Add(inputs)
+			case genInput := <-c.GenericIn:
+				c.AddGen(genInput)
+			}
 		}
 	}()
 	for {
@@ -190,6 +198,13 @@ type Input struct {
 	ContainerID string
 }
 
+// GenericInput specifies a set of generic traces originating from a certain payload.
+type GenericInput struct {
+	Spans  []StattableSpan
+	Weight float64
+	AggKey PayloadAggregationKey
+}
+
 // NewStatsInput allocates a stats input for an incoming trace payload
 func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, conf *config.AgentConfig) Input {
 	if clientComputedStats {
@@ -211,26 +226,44 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 func (c *Concentrator) Add(t Input) {
 	c.mu.Lock()
 	for _, trace := range t.Traces {
-		c.addNow(&trace, t.ContainerID)
+		c.addPTNow(&trace, t.ContainerID)
 	}
 	c.mu.Unlock()
 }
 
-type StatSpan struct {
+// AddGen applies the given generic input to the concentrator.
+func (c *Concentrator) AddGen(t GenericInput) {
+	c.mu.Lock()
+	for _, s := range t.Spans {
+		c.addNow(s, t.Weight, t.AggKey)
+	}
+	c.mu.Unlock()
+}
+
+// statSpan holds all fields necessary for Stats computation implementing StattableSpan
+type statSpan struct {
 	s              *pb.Span
 	origin         string
 	enablePeerTags bool
 }
 
-func (s *StatSpan) Duration() int64 {
+func (s *statSpan) IsTop() bool {
+	return traceutil.HasTopLevel(s.s)
+}
+
+func (s *statSpan) Start() int64 {
+	return s.s.Start
+}
+
+func (s *statSpan) Duration() int64 {
 	return s.s.Duration
 }
 
-func (s *StatSpan) Error() int32 {
+func (s *statSpan) Error() int32 {
 	return s.s.Error
 }
 
-func (s *StatSpan) BucketAggregationKey() BucketAggregator {
+func (s *statSpan) BucketAggregationKey() BucketAggregator {
 	return &BucketsAggregationKey{
 		resource:   s.s.Resource,
 		service:    s.s.Service,
@@ -242,18 +275,18 @@ func (s *StatSpan) BucketAggregationKey() BucketAggregator {
 	}
 }
 
-func (s *StatSpan) PeerTags(peerTagKeys []string) []string {
+func (s *statSpan) PeerTags(peerTagKeys []string) []string {
 	var peerTags []string
-	if clientOrProducer(s.s.Meta[tagSpanKind]) /*&& enablePeerTagsAgg*/ {
+	if clientOrProducer(s.s.Meta[tagSpanKind]) && s.enablePeerTags {
 		peerTags = matchingPeerTags(s.s, peerTagKeys)
 		//agg.PeerTagsHash = peerTagsHash(peerTags)
 	}
 	return peerTags
 }
 
-// addNow adds the given input into the concentrator.
+// addPTNow adds the given input into the concentrator.
 // Callers must guard!
-func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) {
+func (c *Concentrator) addPTNow(pt *traceutil.ProcessedTrace, containerID string) {
 	hostname := pt.TracerHostname
 	if hostname == "" {
 		hostname = c.agentHostname
@@ -280,25 +313,29 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 		if traceutil.IsPartialSnapshot(s) {
 			continue
 		}
-		end := s.Start + s.Duration
-		btime := end - end%c.bsize
-
-		// If too far in the past, count in the oldest-allowed time bucket instead.
-		if btime < c.oldestTs {
-			btime = c.oldestTs
-		}
-
-		b, ok := c.buckets[btime]
-		if !ok {
-			b = NewRawBucket(uint64(btime), uint64(c.bsize))
-			c.buckets[btime] = b
-		}
-		statSpan := &StatSpan{
+		statSpan := &statSpan{
 			s:      s,
 			origin: pt.TraceChunk.Origin,
 		}
-		b.HandleSpan(statSpan, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
+		c.addNow(statSpan, weight, aggKey)
 	}
+}
+
+func (c *Concentrator) addNow(s StattableSpan, weight float64, aggKey PayloadAggregationKey) {
+	end := s.Start() + s.Duration()
+	btime := end - end%c.bsize
+
+	// If too far in the past, count in the oldest-allowed time bucket instead.
+	if btime < c.oldestTs {
+		btime = c.oldestTs
+	}
+
+	b, ok := c.buckets[btime]
+	if !ok {
+		b = NewRawBucket(uint64(btime), uint64(c.bsize))
+		c.buckets[btime] = b
+	}
+	b.HandleSpan(s, weight, aggKey, c.peerTagsAggregation, c.peerTagKeys)
 }
 
 // Flush deletes and returns complete statistic buckets.
