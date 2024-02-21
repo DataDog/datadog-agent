@@ -38,6 +38,13 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "process_context:my-server",
 		},
 		{
+			name: "single arg executable with envs",
+			cmdline: []string{
+				"SOME=THING", "./my-server.sh",
+			},
+			expectedServiceTag: "process_context:my-server",
+		},
+		{
 			name: "sudo",
 			cmdline: []string{
 				"sudo", "-E", "-u", "dog", "/usr/local/bin/myApp", "-items=0,1,2,3", "-foo=bar",
@@ -66,6 +73,20 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "process_context:flask",
 		},
 		{
+			name: "python flask in single argument with envs",
+			cmdline: []string{
+				"ENV=VALUE /opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
+			},
+			expectedServiceTag: "process_context:flask",
+		},
+		{
+			name: "python flask in single argument with DD_SERVICE",
+			cmdline: []string{
+				"DD_SERVICE=svc /opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
+			},
+			expectedServiceTag: "process_context:svc",
+		},
+		{
 			name: "python - module hello",
 			cmdline: []string{
 				"python3", "-m", "hello",
@@ -73,11 +94,46 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "process_context:hello",
 		},
 		{
+			name: "python - module hello with unrelated env",
+			cmdline: []string{
+				"SOME=THING", "python3", "-m", "hello",
+			},
+			expectedServiceTag: "process_context:hello",
+		},
+		{
+			name: "python - module hello with DD_SERVICE",
+			cmdline: []string{
+				"SOME=THING", "DD_SERVICE=myservice", "python3", "-m", "hello",
+			},
+			expectedServiceTag: "process_context:myservice",
+		},
+		{
+			name: "python - module zip file",
+			cmdline: []string{
+				"python3", "-m", "hello.zip",
+			},
+			expectedServiceTag: "process_context:hello",
+		},
+		{
+			name: "python .py",
+			cmdline: []string{
+				"python3", "hello.py",
+			},
+			expectedServiceTag: "process_context:hello.py",
+		},
+		{
 			name: "ruby - td-agent",
 			cmdline: []string{
 				"ruby", "/usr/sbin/td-agent", "--log", "/var/log/td-agent/td-agent.log", "--daemon", "/var/run/td-agent/td-agent.pid",
 			},
 			expectedServiceTag: "process_context:td-agent",
+		},
+		{
+			name: "java with envs",
+			cmdline: []string{
+				"DD_TAGS=a:b,c:d,service:mytag,e:f", "java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
+			},
+			expectedServiceTag: "process_context:mytag",
 		},
 		{
 			name: "java using the -jar flag to define the service",
@@ -278,6 +334,13 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/dotnet", "./myservice.dll",
 			},
 			expectedServiceTag: "process_context:dotnet",
+		},
+		{
+			name: "envs but no command",
+			cmdline: []string{
+				"ENV=VALUE",
+			},
+			expectedServiceTag: "",
 		},
 	}
 

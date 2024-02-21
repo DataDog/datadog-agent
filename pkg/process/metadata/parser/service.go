@@ -152,14 +152,28 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 		}
 	}
 
-	exe := cmd[0]
 	// check if all args are packed into the first argument
 	if len(cmd) == 1 {
-		if idx := strings.IndexRune(exe, ' '); idx != -1 {
-			exe = exe[0:idx]
+		if idx := strings.IndexRune(cmd[0], ' '); idx != -1 {
 			cmd = strings.Split(cmd[0], " ")
 		}
 	}
+	cmdOrig := cmd
+	// evaluate and skip the envs
+	svc, ok := stripAndScanEnvs(&cmd)
+	if ok {
+		return &serviceMetadata{
+			cmdline:        cmdOrig,
+			serviceContext: "process_context:" + svc,
+		}
+	}
+
+	if len(cmd) == 0 || len(cmd[0]) == 0 {
+		return &serviceMetadata{
+			cmdline: cmdOrig,
+		}
+	}
+	exe := cmd[0]
 
 	// trim any quotes from the executable
 	exe = strings.Trim(exe, "\"")
@@ -173,7 +187,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	if contextFn, ok := binsWithContext[exe]; ok {
 		tag := contextFn(d, process, cmd[1:])
 		return &serviceMetadata{
-			cmdline:        cmd,
+			cmdline:        cmdOrig,
 			serviceContext: "process_context:" + tag,
 		}
 	}
@@ -184,7 +198,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	}
 
 	return &serviceMetadata{
-		cmdline:        cmd,
+		cmdline:        cmdOrig,
 		serviceContext: "process_context:" + exe,
 	}
 }
@@ -225,6 +239,32 @@ func trimColonRight(s string) string {
 
 func isRuneLetterAt(s string, position int) bool {
 	return len(s) > position && unicode.IsLetter(rune(s[position]))
+}
+
+// stripAndScanEnvs scans the cmd args and remove the env variable definition at the beginning.
+// If the service name has been defined through a standard env variable (DD_SERVICE or DD_TAGS) it returns it.
+// Otherwise, it modifies the cmd arg by skipping all the envs
+func stripAndScanEnvs(cmd *[]string) (string, bool) {
+	pos := 0
+	for i, arg := range *cmd {
+		if strings.ContainsRune(arg, '=') {
+			pos = i + 1
+			if strings.HasPrefix(arg, "DD_SERVICE=") {
+				return strings.TrimPrefix(arg, "DD_SERVICE="), true
+			} else if strings.HasPrefix(arg, "DD_TAGS=") {
+				parts := strings.Split(strings.TrimPrefix(arg, "DD_TAGS="), ",")
+				for _, p := range parts {
+					if strings.HasPrefix(p, "service:") {
+						return strings.TrimPrefix(p, "service:"), true
+					}
+				}
+			}
+		} else {
+			break
+		}
+	}
+	*cmd = (*cmd)[pos:]
+	return "", false
 }
 
 // parseExeStartWithSymbol deals with exe that starts with special chars like "(", "-" or "["
@@ -274,6 +314,9 @@ func parseCommandContextPython(_ *ServiceExtractor, _ *procutil.Process, args []
 
 		if !shouldSkipArg || moduleFlag {
 			if c := trimColonRight(removeFilePath(a)); isRuneLetterAt(c, 0) {
+				if moduleFlag {
+					return strings.TrimSuffix(c, filepath.Ext(c))
+				}
 				return c
 			}
 		}
