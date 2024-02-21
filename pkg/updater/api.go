@@ -43,7 +43,7 @@ type expectedState struct {
 	Experiment string `json:"experiment"`
 }
 
-type remoteApiRequest struct {
+type remoteAPIRequest struct {
 	ID            string          `json:"id"`
 	ExpectedState expectedState   `json:"expected_state"`
 	Method        string          `json:"method"`
@@ -62,7 +62,7 @@ func newRemoteAPI() *remoteAPI {
 
 func (r *remoteAPI) handleRequests(u Updater, requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) error {
 	for id, requestConfig := range requestConfigs {
-		var request remoteApiRequest
+		var request remoteAPIRequest
 		err := json.Unmarshal(requestConfig.Config, &request)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal request: %w", err)
@@ -148,7 +148,7 @@ func NewLocalAPI(updater Updater) (LocalAPI, error) {
 }
 
 // Start starts the LocalAPI.
-func (l *localAPIImpl) Start(ctx context.Context) error {
+func (l *localAPIImpl) Start(_ context.Context) error {
 	l.server.Handler = l.handler()
 	go func() {
 		err := l.server.Serve(l.listener)
@@ -196,7 +196,7 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 }
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/go-updater.sock -H 'Content-Type: application/json' http://agent/experiment/stop -d '{}'
-func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
+func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var response apiResponse
 	defer func() {
@@ -212,7 +212,7 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 }
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/go-updater.sock -H 'Content-Type: application/json' http://agent/experiment/promote -d '{}'
-func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request) {
+func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var response apiResponse
 	defer func() {
