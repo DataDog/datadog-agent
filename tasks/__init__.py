@@ -49,6 +49,7 @@ from tasks.go import (
     generate_protobuf,
     go_fix,
     golangci_lint,
+    internal_deps_checker,
     lint_licenses,
     reset,
     tidy_all,
@@ -105,6 +106,7 @@ ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
+ns.add_task(internal_deps_checker)
 ns.add_task(check_go_version)
 ns.add_task(junit_upload)
 ns.add_task(junit_macos_repack)

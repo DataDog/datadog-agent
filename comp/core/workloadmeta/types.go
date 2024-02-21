@@ -7,10 +7,11 @@ package workloadmeta
 
 import (
 	"fmt"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"io"
 	"strings"
 	"time"
+
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
@@ -45,6 +46,7 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
+	KindHost                   Kind = "host"
 )
 
 // Source is the source name of an entity.
@@ -82,6 +84,9 @@ const (
 	// SourceLanguageDetectionServer represents container languages
 	// detected by node agents
 	SourceLanguageDetectionServer Source = "language_detection_server"
+
+	// SourceHost represents entities detected by the host such as host tags.
+	SourceHost Source = "host"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -243,13 +248,20 @@ func (e EntityMeta) String(verbose bool) string {
 }
 
 // ContainerImage is the an image used by a container.
+// For historical reason, The imageId from containerd runtime and kubernetes refer to different fields.
+// For containerd, it is the digest of the image config.
+// For kubernetes, it referres to repo digest of the image (at least before CRI-O v1.28)
+// See https://github.com/kubernetes/kubernetes/issues/46255
+// To avoid confusion, an extra field of repo digest is added to the struct, if it is available, it
+// will also be added to the container tags in tagger.
 type ContainerImage struct {
-	ID        string
-	RawName   string
-	Name      string
-	Registry  string
-	ShortName string
-	Tag       string
+	ID         string
+	RawName    string
+	Name       string
+	Registry   string
+	ShortName  string
+	Tag        string
+	RepoDigest string
 }
 
 // NewContainerImage builds a ContainerImage from an image name and its id
@@ -287,6 +299,7 @@ func (c ContainerImage) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "ID:", c.ID)
 		_, _ = fmt.Fprintln(&sb, "Raw Name:", c.RawName)
 		_, _ = fmt.Fprintln(&sb, "Short Name:", c.ShortName)
+		_, _ = fmt.Fprintln(&sb, "Repo Digest:", c.RepoDigest)
 	}
 
 	return sb.String()
@@ -1003,6 +1016,47 @@ func (p Process) String(verbose bool) string { //nolint:revive // TODO fix reviv
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
 	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+
+	return sb.String()
+}
+
+// HostTags is an Entity that represents host tags
+type HostTags struct {
+	EntityID
+
+	HostTags []string
+}
+
+var _ Entity = &HostTags{}
+
+// GetID implements Entity#GetID.
+func (p HostTags) GetID() EntityID {
+	return p.EntityID
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (p HostTags) DeepCopy() Entity {
+	cp := deepcopy.Copy(p).(HostTags)
+	return &cp
+}
+
+// Merge implements Entity#Merge.
+func (p *HostTags) Merge(e Entity) error {
+	otherHost, ok := e.(*HostTags)
+	if !ok {
+		return fmt.Errorf("cannot merge Host metadata with different kind %T", e)
+	}
+
+	return merge(p, otherHost)
+}
+
+// String implements Entity#String.
+func (p HostTags) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, p.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "Host Tags:", sliceToString(p.HostTags))
 
 	return sb.String()
 }

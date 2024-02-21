@@ -9,7 +9,7 @@ import re
 import sys
 import time
 from contextlib import contextmanager
-from subprocess import check_output
+from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
 from invoke.exceptions import Exit
@@ -312,6 +312,20 @@ def get_git_branch_name():
     Return the name of the current git branch
     """
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('utf-8').strip()
+
+
+def get_git_pretty_ref():
+    """
+    Return the name of the current Git branch or the tag if in a detached state
+    """
+    current_branch = get_git_branch_name()
+    if current_branch != "HEAD":
+        return current_branch
+
+    try:
+        return check_output(["git", "describe", "--tags", "--exact-match"]).decode('utf-8').strip()
+    except CalledProcessError:
+        return current_branch
 
 
 def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
