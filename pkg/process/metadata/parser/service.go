@@ -241,7 +241,7 @@ func isRuneLetterAt(s string, position int) bool {
 	return len(s) > position && unicode.IsLetter(rune(s[position]))
 }
 
-// stripAndScanEnvs scans the cmd args and remove the env variable definition at the beginning.
+// stripAndScanEnvs scans the cmd args and removes the env variable definition at the beginning.
 // If the service name has been defined through a standard env variable (DD_SERVICE or DD_TAGS) it returns it.
 // Otherwise, it modifies the cmd arg by skipping all the envs
 func stripAndScanEnvs(cmd *[]string) (string, bool) {
@@ -251,7 +251,7 @@ func stripAndScanEnvs(cmd *[]string) (string, bool) {
 			pos = i + 1
 			if strings.HasPrefix(arg, "DD_SERVICE=") {
 				return strings.TrimPrefix(arg, "DD_SERVICE="), true
-			} else if strings.HasPrefix(arg, "DD_TAGS=") {
+			} else if strings.HasPrefix(arg, "DD_TAGS=") && strings.Contains(arg, "service:") {
 				parts := strings.Split(strings.TrimPrefix(arg, "DD_TAGS="), ",")
 				for _, p := range parts {
 					if strings.HasPrefix(p, "service:") {
