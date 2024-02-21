@@ -26,8 +26,6 @@ func MockModule() fxutil.Module {
 
 func newMock(t testing.TB) submitterComp.Component {
 	s := mocks.NewSubmitter(t)
-	s.On("Start").Maybe().Return(nil)
-	s.On("Stop").Maybe()
 	s.On("Submit", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	return s
 }
