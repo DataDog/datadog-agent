@@ -12,15 +12,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/component"
@@ -30,12 +27,18 @@ import (
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
+
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 )
 
 type StatsAgent interface {
 	Start()
 	Stop()
 	ComputeStats(ctx context.Context, traces ptrace.Traces)
+	ComputeDDStats(ctx context.Context, payload *api.Payload)
 }
 
 type StatsAgentConfig struct {
@@ -58,8 +61,14 @@ type statsAgent struct {
 	// wg waits for all goroutines to exit.
 	wg sync.WaitGroup
 
+	// senderWG waits for all sender goroutines to exit.
+	senderWG sync.WaitGroup
+
 	// exit signals the agent to shut down.
 	exit chan struct{}
+
+	// stopWriting signals to stop sending payloads to the agent
+	stopWriting chan struct{}
 }
 
 func New(ctx context.Context, cfg *StatsAgentConfig, out chan *pb.StatsPayload, statsd statsd.ClientInterface) (StatsAgent, error) {
@@ -97,14 +106,14 @@ func New(ctx context.Context, cfg *StatsAgentConfig, out chan *pb.StatsPayload, 
 		return nil, err
 	}
 	acfg.OTLPReceiver.AttributesTranslator = attributesTranslator
-	pchan := make(chan *api.Payload, 1000)
+	pchan := make(chan *api.Payload, 1)
 	a := agent.NewAgent(ctx, acfg, telemetry.NewNoopCollector(), statsd)
 	// replace the Concentrator (the component which computes and flushes APM Stats from incoming
 	// traces) with our own, which uses the 'out' channel.
 	a.Concentrator = stats.NewConcentrator(acfg, out, time.Now(), statsd)
 	// ...and the same for the ClientStatsAggregator; we don't use it here, but it is also a source
 	// of stats which should be available to us.
-	a.ClientStatsAggregator = stats.NewClientStatsAggregator(acfg, out, statsd)
+	// a.ClientStatsAggregator = stats.NewClientStatsAggregator(acfg, out, statsd)
 	// lastly, start the OTLP receiver, which will be used to introduce ResourceSpans into the traceagent,
 	// so that we can transform them to Datadog spans and receive stats.
 	timing := timing.New(statsd)
@@ -124,7 +133,7 @@ func (p *statsAgent) Start() {
 	// components needed to compute stats:
 	for _, starter := range []interface{ Start() }{
 		p.Concentrator,
-		p.ClientStatsAggregator,
+		// p.ClientStatsAggregator,
 		// we don't need the samplers' nor the processor's functionalities;
 		// but they are used by the agent nevertheless, so they need to be
 		// active and functioning.
@@ -144,7 +153,7 @@ func (p *statsAgent) Start() {
 func (p *statsAgent) Stop() {
 	for _, stopper := range []interface{ Stop() }{
 		p.Concentrator,
-		p.ClientStatsAggregator,
+		// p.ClientStatsAggregator,
 		p.PrioritySampler,
 		p.ErrorsSampler,
 		p.NoPrioritySampler,
@@ -153,6 +162,8 @@ func (p *statsAgent) Stop() {
 		stopper.Stop()
 	}
 	close(p.exit)
+	p.senderWG.Wait() //We need to stop sending payloads before we can close the traceWriter.In channel
+	close(p.TraceWriter.In)
 	p.wg.Wait()
 }
 
@@ -164,10 +175,10 @@ func (p *statsAgent) goDrain() {
 		defer p.wg.Done()
 		for {
 			select {
-			case <-p.TraceWriter.In:
-				// we don't write these traces anywhere; drain the channel
-			case <-p.exit:
-				return
+			case _, isOpen := <-p.TraceWriter.In:
+				if !isOpen {
+					return
+				}
 			}
 		}
 	}()
@@ -186,13 +197,22 @@ func (p *statsAgent) ComputeStats(ctx context.Context, traces ptrace.Traces) {
 	}
 }
 
+func (p *statsAgent) ComputeDDStats(ctx context.Context, payload *api.Payload) {
+	select {
+	case p.pchan <- payload:
+		return
+	case <-ctx.Done():
+		return
+	}
+}
+
 // goProcesses runs the main loop which takes incoming payloads, processes them and generates stats.
 // It then picks up those stats and converts them to metrics.
 func (p *statsAgent) goProcess() {
 	for i := 0; i < runtime.NumCPU(); i++ {
-		p.wg.Add(1)
+		p.senderWG.Add(1)
 		go func() {
-			defer p.wg.Done()
+			defer p.senderWG.Done()
 			for {
 				select {
 				case payload := <-p.pchan:
