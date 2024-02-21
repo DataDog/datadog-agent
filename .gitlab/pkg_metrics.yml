@@ -305,6 +305,7 @@ check_pkg_size-amd64-a7:
     - iot_agent_suse-x64
     - agentless_scanner_deb-x64
     - agentless_scanner_rpm-x64
+    - agentless_scanner_suse-x64
   variables:
     MAJOR_VERSION: 7
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
