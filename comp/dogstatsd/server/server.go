@@ -194,7 +194,7 @@ func newServer(deps dependencies) Component {
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer)
 
 	deps.Lc.Append(fx.Hook{
-		OnStart: s.start,
+		OnStart: s.startHook,
 		OnStop:  s.stop,
 	})
 
@@ -308,140 +308,153 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 	return s
 }
 
+func (s *server) startHook(context context.Context) error {
+	if !config.Datadog.GetBool("use_dogstatsd") {
+		s.log.Info("Dogstatsd is not enabled")
+		return nil
+	}
+
+	err := s.start(context)
+	if err != nil {
+		s.log.Errorf("Could not start dogstatsd: %s", err)
+	} else {
+		s.log.Debug("dogstatsd started")
+	}
+	return nil
+}
+
 func (s *server) start(context.Context) error {
-	if config.Datadog.GetBool("use_dogstatsd") {
-		packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
-		tmpListeners := make([]listeners.StatsdListener, 0, 2)
-		err := s.tCapture.Configure()
 
+	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
+	tmpListeners := make([]listeners.StatsdListener, 0, 2)
+	err := s.tCapture.Configure()
+
+	if err != nil {
+		return err
+	}
+
+	// sharedPacketPool is used by the packet assembler to retrieve already allocated
+	// buffer in order to avoid allocation. The packets are pushed back by the server.
+	sharedPacketPool := packets.NewPool(s.config.GetInt("dogstatsd_buffer_size"))
+	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
+
+	udsListenerRunning := false
+
+	socketPath := s.config.GetString("dogstatsd_socket")
+	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
+	originDetection := s.config.GetBool("dogstatsd_origin_detection")
+	var sharedUDSOobPoolManager *packets.PoolManager
+	if originDetection {
+		sharedUDSOobPoolManager = listeners.NewUDSOobPoolManager()
+	}
+
+	if s.tCapture != nil {
+		err := s.tCapture.RegisterSharedPoolManager(sharedPacketPoolManager)
 		if err != nil {
-			s.log.Debugf("Could not start dogstatsd: %s", err)
+			s.log.Errorf("Can't register shared pool manager: %s", err.Error())
 		}
-
-		// sharedPacketPool is used by the packet assembler to retrieve already allocated
-		// buffer in order to avoid allocation. The packets are pushed back by the server.
-		sharedPacketPool := packets.NewPool(s.config.GetInt("dogstatsd_buffer_size"))
-		sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
-
-		udsListenerRunning := false
-
-		socketPath := s.config.GetString("dogstatsd_socket")
-		socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
-		originDetection := s.config.GetBool("dogstatsd_origin_detection")
-		var sharedUDSOobPoolManager *packets.PoolManager
-		if originDetection {
-			sharedUDSOobPoolManager = listeners.NewUDSOobPoolManager()
-		}
-
-		if s.tCapture != nil {
-			err := s.tCapture.RegisterSharedPoolManager(sharedPacketPoolManager)
-			if err != nil {
-				s.log.Errorf("Can't register shared pool manager: %s", err.Error())
-			}
-			err = s.tCapture.RegisterOOBPoolManager(sharedUDSOobPoolManager)
-			if err != nil {
-				s.log.Errorf("Can't register OOB pool manager: %s", err.Error())
-			}
-		}
-
-		if len(socketPath) > 0 {
-			unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
-			if err != nil {
-				s.log.Errorf("Can't init listener: %s", err.Error())
-			} else {
-				tmpListeners = append(tmpListeners, unixListener)
-				udsListenerRunning = true
-			}
-		}
-
-		if len(socketStreamPath) > 0 {
-			s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
-			unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
-			if err != nil {
-				s.log.Errorf("Can't init listener: %s", err.Error())
-			} else {
-				tmpListeners = append(tmpListeners, unixListener)
-			}
-		}
-
-		if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
-			udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
-			if err != nil {
-				s.log.Errorf(err.Error())
-			} else {
-				tmpListeners = append(tmpListeners, udpListener)
-				s.udpLocalAddr = udpListener.LocalAddr()
-			}
-		}
-
-		pipeName := s.config.GetString("dogstatsd_pipe_name")
-		if len(pipeName) > 0 {
-			namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
-			if err != nil {
-				s.log.Errorf("named pipe error: %v", err.Error())
-			} else {
-				tmpListeners = append(tmpListeners, namedPipeListener)
-			}
-		}
-
-		if len(tmpListeners) == 0 {
-			return fmt.Errorf("listening on neither udp nor socket, please check your configuration")
-		}
-
-		s.udsListenerRunning = udsListenerRunning
-		s.packetsIn = packetsChannel
-		s.captureChan = packetsChannel
-		s.sharedPacketPool = sharedPacketPool
-		s.sharedPacketPoolManager = sharedPacketPoolManager
-		s.listeners = tmpListeners
-
-		// packets forwarding
-		// ----------------------
-
-		forwardHost := s.config.GetString("statsd_forward_host")
-		forwardPort := s.config.GetInt("statsd_forward_port")
-		if forwardHost != "" && forwardPort != 0 {
-			forwardAddress := fmt.Sprintf("%s:%d", forwardHost, forwardPort)
-			con, err := net.Dial("udp", forwardAddress)
-			if err != nil {
-				s.log.Warnf("Could not connect to statsd forward host : %s", err)
-			} else {
-				s.packetsIn = make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
-				go s.forwarder(con)
-			}
-		}
-
-		// start the workers processing the packets read on the socket
-		// ----------------------
-
-		s.health = health.RegisterLiveness("dogstatsd-main")
-		s.handleMessages()
-		s.Started = true
-		s.log.Debug("Dogstatsd started")
-
-		// start the debug loop
-		// ----------------------
-
-		if s.config.GetBool("dogstatsd_metrics_stats_enable") {
-			s.log.Info("Dogstatsd: metrics statistics will be stored.")
-			s.Debug.SetMetricStatsEnabled(true)
-		}
-
-		// map some metric name
-		// ----------------------
-
-		cacheSize := s.config.GetInt("dogstatsd_mapper_cache_size")
-
-		mappings, err := config.GetDogstatsdMappingProfiles()
+		err = s.tCapture.RegisterOOBPoolManager(sharedUDSOobPoolManager)
 		if err != nil {
-			s.log.Warnf("Could not parse mapping profiles: %v", err)
-		} else if len(mappings) != 0 {
-			mapperInstance, err := mapper.NewMetricMapper(mappings, cacheSize)
-			if err != nil {
-				s.log.Warnf("Could not create metric mapper: %v", err)
-			} else {
-				s.mapper = mapperInstance
-			}
+			s.log.Errorf("Can't register OOB pool manager: %s", err.Error())
+		}
+	}
+
+	if len(socketPath) > 0 {
+		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
+		if err != nil {
+			s.log.Errorf("Can't init listener: %s", err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, unixListener)
+			udsListenerRunning = true
+		}
+	}
+
+	if len(socketStreamPath) > 0 {
+		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
+		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
+		if err != nil {
+			s.log.Errorf("Can't init listener: %s", err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, unixListener)
+		}
+	}
+
+	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
+		if err != nil {
+			s.log.Errorf(err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, udpListener)
+			s.udpLocalAddr = udpListener.LocalAddr()
+		}
+	}
+
+	pipeName := s.config.GetString("dogstatsd_pipe_name")
+	if len(pipeName) > 0 {
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
+		if err != nil {
+			s.log.Errorf("named pipe error: %v", err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, namedPipeListener)
+		}
+	}
+
+	if len(tmpListeners) == 0 {
+		return fmt.Errorf("listening on neither udp nor socket, please check your configuration")
+	}
+
+	s.udsListenerRunning = udsListenerRunning
+	s.packetsIn = packetsChannel
+	s.captureChan = packetsChannel
+	s.sharedPacketPool = sharedPacketPool
+	s.sharedPacketPoolManager = sharedPacketPoolManager
+	s.listeners = tmpListeners
+
+	// packets forwarding
+	// ----------------------
+
+	forwardHost := s.config.GetString("statsd_forward_host")
+	forwardPort := s.config.GetInt("statsd_forward_port")
+	if forwardHost != "" && forwardPort != 0 {
+		forwardAddress := fmt.Sprintf("%s:%d", forwardHost, forwardPort)
+		con, err := net.Dial("udp", forwardAddress)
+		if err != nil {
+			s.log.Warnf("Could not connect to statsd forward host : %s", err)
+		} else {
+			s.packetsIn = make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
+			go s.forwarder(con)
+		}
+	}
+
+	// start the workers processing the packets read on the socket
+	// ----------------------
+
+	s.health = health.RegisterLiveness("dogstatsd-main")
+	s.handleMessages()
+	s.Started = true
+
+	// start the debug loop
+	// ----------------------
+
+	if s.config.GetBool("dogstatsd_metrics_stats_enable") {
+		s.log.Info("Dogstatsd: metrics statistics will be stored.")
+		s.Debug.SetMetricStatsEnabled(true)
+	}
+
+	// map some metric name
+	// ----------------------
+
+	cacheSize := s.config.GetInt("dogstatsd_mapper_cache_size")
+
+	mappings, err := config.GetDogstatsdMappingProfiles()
+	if err != nil {
+		s.log.Warnf("Could not parse mapping profiles: %v", err)
+	} else if len(mappings) != 0 {
+		mapperInstance, err := mapper.NewMetricMapper(mappings, cacheSize)
+		if err != nil {
+			s.log.Warnf("Could not create metric mapper: %v", err)
+		} else {
+			s.mapper = mapperInstance
 		}
 	}
 	return nil

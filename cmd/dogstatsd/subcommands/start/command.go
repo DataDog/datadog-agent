@@ -274,10 +274,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	if err != nil {
-		log.Criticalf("Unable to start dogstatsd: %s", err)
-		return
-	}
 	return
 }
 
