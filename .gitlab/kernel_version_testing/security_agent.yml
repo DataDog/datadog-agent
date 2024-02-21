@@ -63,7 +63,7 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     - mkdir -p $SECURITY_AGENT_EBPF_BYTECODE
     - cp -rv $EBPF_OBJECT_FILES/* $SECURITY_AGENT_EBPF_BYTECODE
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$TEST_ARCHIVE_NAME system-probe-tests
+    - tar czvf ../$TEST_ARCHIVE_NAME tests
     - popd
     # upload tests
     - !reference [.wait_for_instance]
@@ -89,14 +89,14 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     GO_BIN: go/bin
     GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/gotestsum
     TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/test2json
-    SECURITY_AGENT_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/system-probe-tests/pkg/security
+    SECURITY_AGENT_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/tests/system-probe-tests/pkg/security
     KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/tests
     EBPF_OBJECT_FILES: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode
     SECURITY_AGENT_EBPF_BYTECODE: $DD_AGENT_TESTING_DIR/$ARCH/system-probe-tests/pkg/ebpf/bytecode/build
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     TEST_COMPONENT: security-agent
     ARCHIVE_NAME: dependencies-$ARCH.tar.gz
-    TEST_ARCHIVE_NAME: security-agent-tests-$ARCH.tar.gz
+    TEST_ARCHIVE_NAME: tests-$ARCH.tar.gz
   artifacts:
     when: always
     paths:
