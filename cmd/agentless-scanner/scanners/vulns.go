@@ -26,6 +26,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	trivyhandler "github.com/aquasecurity/trivy/pkg/fanal/handler"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/javadb"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	trivyscanner "github.com/aquasecurity/trivy/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
@@ -33,6 +34,11 @@ import (
 	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
+)
+
+const (
+	cacheDir                = "/tmp/trivy"
+	defaultJavaDBRepository = "ghcr.io/aquasecurity/trivy-java-db"
 )
 
 func init() {
@@ -92,6 +98,7 @@ func LaunchTrivyApp(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, e
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLockfiles...)
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeIndividualPkgs...)
 	trivyCache := newMemoryCache()
+	javadb.Init(cacheDir, defaultJavaDBRepository, false, false, ftypes.RegistryOptions{})
 	trivyArtifact, err := trivyartifactlocal.NewArtifact(opts.Root, trivyCache, artifact.Option{
 		Offline:           true,
 		NoProgress:        true,
