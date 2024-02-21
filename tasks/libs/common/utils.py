@@ -234,18 +234,6 @@ def get_common_test_args(build_tags, failfast):
     }
 
 
-def set_runtime_comp_env(env):
-    env["DD_ENABLE_RUNTIME_COMPILER"] = "true"
-    env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
-    env["DD_ENABLE_CO_RE"] = "false"
-
-
-def set_co_re_env(env):
-    env["DD_ENABLE_CO_RE"] = "true"
-    env["DD_ALLOW_RUNTIME_COMPILED_FALLBACK"] = "false"
-    env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
-
-
 def get_payload_version():
     """
     Return the Agent payload version (`x.y.z`) found in the go.mod file.

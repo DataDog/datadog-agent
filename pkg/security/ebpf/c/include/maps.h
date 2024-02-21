@@ -22,6 +22,7 @@ BPF_ARRAY_MAP(open_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(selinux_enforce_status, u16, 2)
 BPF_ARRAY_MAP(splice_entry_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(splice_exit_flags_approvers, u32, 1)
+BPF_ARRAY_MAP(bpf_cmd_approvers, u64, 1)
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
 
 BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime

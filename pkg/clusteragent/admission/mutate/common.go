@@ -31,9 +31,9 @@ const (
 type mutateFunc func(*corev1.Pod, string, dynamic.Interface) error
 type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticationv1.UserInfo, dynamic.Interface, kubernetes.Interface) error
 
-// mutate handles mutating pods and encoding and decoding admission
+// Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
-func mutate(rawPod []byte, ns string, m mutateFunc, dc dynamic.Interface) ([]byte, error) {
+func Mutate(rawPod []byte, ns string, m mutateFunc, dc dynamic.Interface) ([]byte, error) {
 	var pod corev1.Pod
 	if err := json.Unmarshal(rawPod, &pod); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)

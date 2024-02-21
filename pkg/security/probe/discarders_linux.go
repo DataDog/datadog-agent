@@ -60,7 +60,7 @@ type onDiscarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFP
 var (
 	allDiscarderHandlers   = make(map[eval.EventType][]onDiscarderHandler)
 	dentryInvalidDiscarder = []string{""}
-	eventZeroDiscarder     = model.NewDefaultEvent()
+	eventZeroDiscarder     = model.NewFakeEvent()
 )
 
 // InvalidDiscarders exposes list of values that are not discarders

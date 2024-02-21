@@ -42,7 +42,7 @@ func (MockEventHandler) Copy(incomingEvent *model.Event) any {
 // benchstat old.txt new.txt
 func BenchmarkSendSpecificEvent(b *testing.B) {
 	eventHandler := MockEventHandler{}
-	execEvent := model.NewDefaultEvent()
+	execEvent := model.NewFakeEvent()
 	execEvent.Type = uint32(model.ExecEventType)
 
 	type fields struct {

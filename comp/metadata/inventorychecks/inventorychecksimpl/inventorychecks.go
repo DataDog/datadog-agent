@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -121,7 +120,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 	// component we can migrate it there and remove the entire logic to emit event from the collector.
 
 	if coll, isSet := ic.coll.Get(); isSet {
-		coll.AddEventReceiver(func(_ checkid.ID, _ pkgcollector.EventType) { ic.Refresh() })
+		coll.AddEventReceiver(func(_ checkid.ID, _ collector.EventType) { ic.Refresh() })
 	}
 
 	if logAgent, isSet := deps.LogAgent.Get(); isSet {

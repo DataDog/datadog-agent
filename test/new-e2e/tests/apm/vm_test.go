@@ -40,7 +40,26 @@ func NewVMFakeintakeSuite(tr transport) *VMFakeintakeSuite {
 }
 
 func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
-	opts = append(opts, awshost.WithDocker())
+	setupScript := `#!/bin/bash
+# /var/run/datadog directory is necessary for UDS socket creation
+sudo mkdir -p /var/run/datadog
+sudo groupadd -r dd-agent
+sudo useradd -r -M -g dd-agent dd-agent
+sudo chown dd-agent:dd-agent /var/run/datadog
+
+# Agent must be in the docker group to be able to open and read
+# container info from the docker socket.
+sudo groupadd -f -r docker
+sudo usermod -a -G docker dd-agent
+`
+	opts = append(opts,
+		awshost.WithDocker(),
+		// Create the /var/run/datadog directory and ensure
+		// permissions are correct so the agent can create
+		// unix sockets for the UDS transport and communicate with the docker socket.
+		awshost.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
+	)
+
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
 		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
@@ -54,25 +73,8 @@ func TestVMFakeintakeSuiteUDS(t *testing.T) {
 apm_config.enabled: true
 apm_config.receiver_socket: /var/run/datadog/apm.socket
 `
-	setupScript := `#!/bin/bash
-# /var/run/datadog directory is necessary for UDS socket creation
-sudo mkdir -p /var/run/datadog
-sudo groupadd -r dd-agent
-sudo useradd -r -M -g dd-agent dd-agent
-sudo chown dd-agent:dd-agent /var/run/datadog
-
-# Agent must be in the docker group to be able to open and read
-# container info from the docker socket.
-sudo groupadd -f -r docker
-sudo usermod -a -G docker dd-agent
-`
 
 	options := vmSuiteOpts(uds,
-		// Create the /var/run/datadog directory and ensure
-		// permissions are correct so the agent can create
-		// unix sockets for the UDS transport
-		awshost.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
-
 		// Enable the UDS receiver in the trace-agent
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(cfg)))
 	e2e.Run(t, NewVMFakeintakeSuite(uds), options...)
@@ -109,12 +111,6 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 }
 
 func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
-	if s.transport != uds {
-		// TODO: Container tagging with cgroup v2 currently only works over UDS
-		// We should update this to run over TCP as well once that is implemented.
-		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")
-	}
-
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
