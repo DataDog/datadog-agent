@@ -639,7 +639,7 @@ service_monitoring_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 5*time.Second)
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 30*time.Second)
 	})
 }
 
