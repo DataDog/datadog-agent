@@ -38,24 +38,6 @@ const (
 	methodPromoteExperiment = "promote_experiment"
 )
 
-func handleRequest(ctx context.Context, u Updater, method string, rawParams []byte) error {
-	switch method {
-	case methodStartExperiment:
-		var params startExperimentParams
-		err := json.Unmarshal(rawParams, &params)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
-		}
-		return u.StartExperiment(ctx, params.Version)
-	case methodStopExperiment:
-		return u.StopExperiment()
-	case methodPromoteExperiment:
-		return u.PromoteExperiment()
-	default:
-		return fmt.Errorf("unknown method: %s", method)
-	}
-}
-
 type expectedState struct {
 	Stable     string `json:"stable"`
 	Experiment string `json:"experiment"`
@@ -111,6 +93,24 @@ func (r *remoteAPI) handleRequests(u Updater, requestConfigs map[string]state.Ra
 		applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 	return nil
+}
+
+func handleRequest(ctx context.Context, u Updater, method string, rawParams []byte) error {
+	switch method {
+	case methodStartExperiment:
+		var params startExperimentParams
+		err := json.Unmarshal(rawParams, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+		}
+		return u.StartExperiment(ctx, params.Version)
+	case methodStopExperiment:
+		return u.StopExperiment()
+	case methodPromoteExperiment:
+		return u.PromoteExperiment()
+	default:
+		return fmt.Errorf("unknown method: %s", method)
+	}
 }
 
 // LocalAPI is the interface for the locally exposed API to interact with the updater.
