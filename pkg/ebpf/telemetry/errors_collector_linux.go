@@ -41,7 +41,7 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 		return nil
 	}
 	return &EBPFErrorsCollector{
-		T:                NewEBPFTelemetry(),
+		T:                newEBPFTelemetry(),
 		ebpfMapOpsErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
 		ebpfHelperErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
 		lastValues:       make(map[string]uint64),
@@ -56,13 +56,13 @@ func (e *EBPFErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector
 func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
-	e.T.mtx.Lock()
-	defer e.T.mtx.Unlock()
-
 	//if internal telemetry struct failed to initialize
 	if e.T == nil {
 		return
 	}
+
+	e.T.mtx.Lock()
+	defer e.T.mtx.Unlock()
 
 	if e.T.helperErrMap != nil {
 		var hval HelperErrTelemetry
