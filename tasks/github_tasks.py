@@ -105,8 +105,8 @@ def trigger_macos(
             python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
         )
-    if conclusion == "failure":
-        raise Exit(message=f"macos {workflow_type} workflow failed", code=1)
+    if conclusion != "success":
+        raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
 
 @task

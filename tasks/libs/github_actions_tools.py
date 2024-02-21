@@ -145,8 +145,7 @@ def print_workflow_conclusion(conclusion, workflow_uri):
     if conclusion == "success":
         print(color_message("Workflow run succeeded", "green"))
     else:
-        color = "orange" if conclusion == "cancelled" else "red"
-        print(color_message(f"Workflow run ended with state: {conclusion}", color))
+        print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
         print(f"Failed workflow URI {workflow_uri}")
 
 
