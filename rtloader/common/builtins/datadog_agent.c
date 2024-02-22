@@ -703,7 +703,7 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
     Py_buffer rawQueryBuffer = {NULL, 0};
     Py_buffer optionsObjBuffer = {NULL, 0};
     static char *kwlist[] = {"query", "options", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s*|s*", kwlist, &rawQuery, &optionsObj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s*|s*", kwlist, &rawQueryBuffer, &optionsObjBuffer)) {
         PyGILState_Release(gstate);
         return NULL;
     }
@@ -750,7 +750,7 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
     Py_buffer rawPlanBuffer = {NULL, 0};
     PyObject *normalizeObj = NULL;
     static char *kwlist[] = {"", "normalize", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s*|O", kwlist, &rawPlan, &normalizeObj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s*|O", kwlist, &rawPlanBuffer, &normalizeObj)) {
         PyGILState_Release(gstate);
         return NULL;
     }
