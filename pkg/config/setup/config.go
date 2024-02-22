@@ -202,6 +202,7 @@ func init() {
 func initCommonWithServerless(config pkgconfigmodel.Config) {
 	agent(config)
 	fips(config)
+	dogstatsd(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -424,96 +425,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
 	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 100)
 	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
-
-	// Dogstatsd
-	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125)    // Notice: 0 means UDP port closed
-	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "") // experimental and not officially supported for now.
-	// Experimental and not officially supported for now.
-	// Options are: udp, uds, named_pipe
-	config.BindEnvAndSetDefault("dogstatsd_eol_required", []string{})
-
-	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
-	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
-	// we reach `dogstatsd_packet_buffer_size` datagrams or after `dogstatsd_packet_buffer_flush_timeout` ms.
-	// After this happens we flush this buffer of datagrams to a queue for processing. The size of this queue
-	// is `dogstatsd_queue_size`.
-	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8)
-	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 32)
-	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond)
-	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
-
-	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", "")        // Notice: empty means feature disabled
-	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
-	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
-	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust_strategy", "max_throughput")
-	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
-	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
-	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
-	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
-	config.BindEnvAndSetDefault("dogstatsd_telemetry_enabled_listener_id", false)
-	// Control how dogstatsd-stats logs can be generated
-	config.BindEnvAndSetDefault("dogstatsd_log_file", "")
-	config.BindEnvAndSetDefault("dogstatsd_logging_enabled", true)
-	config.BindEnvAndSetDefault("dogstatsd_log_file_max_rolls", 3)
-	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
-	// Control for how long counter would be sampled to 0 if not received
-	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
-	// Control how long we keep dogstatsd contexts in memory.
-	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
-	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
-	config.BindEnvAndSetDefault("dogstatsd_origin_detection_client", false)
-	config.BindEnvAndSetDefault("dogstatsd_origin_optout_enabled", true)
-	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
-	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
-	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
-	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
-	config.BindEnvAndSetDefault("dogstatsd_string_interner_size", 4096)
-	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
-	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
-	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
-	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
-	// Location to store dogstatsd captures by default
-	config.BindEnvAndSetDefault("dogstatsd_capture_path", "")
-	// Depth of the channel the capture writer reads before persisting to disk.
-	// Default is 0 - blocking channel
-	config.BindEnvAndSetDefault("dogstatsd_capture_depth", 0)
-	// Enable the no-aggregation pipeline.
-	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
-	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
-	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
-	// Force the amount of dogstatsd workers (mainly used for benchmarks or some very specific use-case)
-	config.BindEnvAndSetDefault("dogstatsd_workers_count", 0)
-
-	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.low_soft_limit", 0.7)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.high_soft_limit", 0.8)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.go_gc", 1) // 0 means don't call SetGCPercent
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.memory_ballast", int64(1024*1024*1024*8))
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.min", 0.01)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.max", 1)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.factor", 2)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.min", 0.01)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", 0.1)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
-
-	config.BindEnv("dogstatsd_mapper_profiles")
-	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
-		var mappings []MappingProfile
-		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Errorf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
-		}
-		return mappings
-	})
-
-	config.BindEnvAndSetDefault("statsd_forward_host", "")
-	config.BindEnvAndSetDefault("statsd_forward_port", 0)
-	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
-	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
-	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
-	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 
 	// Autoconfig
 	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
@@ -1394,6 +1305,98 @@ func fips(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
 	config.BindEnvAndSetDefault("fips.https", true)
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
+}
+
+func dogstatsd(config pkgconfigmodel.Config) {
+	// Dogstatsd
+	config.BindEnvAndSetDefault("use_dogstatsd", true)
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125)    // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "") // experimental and not officially supported for now.
+	// Experimental and not officially supported for now.
+	// Options are: udp, uds, named_pipe
+	config.BindEnvAndSetDefault("dogstatsd_eol_required", []string{})
+
+	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
+	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
+	// we reach `dogstatsd_packet_buffer_size` datagrams or after `dogstatsd_packet_buffer_flush_timeout` ms.
+	// After this happens we flush this buffer of datagrams to a queue for processing. The size of this queue
+	// is `dogstatsd_queue_size`.
+	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8)
+	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 32)
+	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond)
+	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
+
+	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
+	config.BindEnvAndSetDefault("dogstatsd_socket", "")        // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
+	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust_strategy", "max_throughput")
+	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
+	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
+	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
+	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
+	config.BindEnvAndSetDefault("dogstatsd_telemetry_enabled_listener_id", false)
+	// Control how dogstatsd-stats logs can be generated
+	config.BindEnvAndSetDefault("dogstatsd_log_file", "")
+	config.BindEnvAndSetDefault("dogstatsd_logging_enabled", true)
+	config.BindEnvAndSetDefault("dogstatsd_log_file_max_rolls", 3)
+	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
+	// Control for how long counter would be sampled to 0 if not received
+	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
+	// Control how long we keep dogstatsd contexts in memory.
+	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
+	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
+	config.BindEnvAndSetDefault("dogstatsd_origin_detection_client", false)
+	config.BindEnvAndSetDefault("dogstatsd_origin_optout_enabled", true)
+	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
+	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
+	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
+	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
+	config.BindEnvAndSetDefault("dogstatsd_string_interner_size", 4096)
+	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
+	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
+	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
+	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
+	// Location to store dogstatsd captures by default
+	config.BindEnvAndSetDefault("dogstatsd_capture_path", "")
+	// Depth of the channel the capture writer reads before persisting to disk.
+	// Default is 0 - blocking channel
+	config.BindEnvAndSetDefault("dogstatsd_capture_depth", 0)
+	// Enable the no-aggregation pipeline.
+	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
+	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
+	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
+	// Force the amount of dogstatsd workers (mainly used for benchmarks or some very specific use-case)
+	config.BindEnvAndSetDefault("dogstatsd_workers_count", 0)
+
+	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.low_soft_limit", 0.7)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.high_soft_limit", 0.8)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.go_gc", 1) // 0 means don't call SetGCPercent
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.memory_ballast", int64(1024*1024*1024*8))
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.min", 0.01)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.max", 1)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.factor", 2)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.min", 0.01)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", 0.1)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
+
+	config.BindEnv("dogstatsd_mapper_profiles")
+	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
+		var mappings []MappingProfile
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
+
+	config.BindEnvAndSetDefault("statsd_forward_host", "")
+	config.BindEnvAndSetDefault("statsd_forward_port", 0)
+	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
+	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
+	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
+	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
