@@ -204,7 +204,7 @@ func createArchive(dir string, files []string, buf io.Writer, compression compre
 	// These writers are chained. Writing to the tar writer will
 	// write to the gzip writer which in turn will write to
 	// the "buf" writer
-	var w io.Writer = buf
+	var w = buf
 	switch compression {
 	case compressionGzip:
 		gzw := gzip.NewWriter(buf)
