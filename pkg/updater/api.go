@@ -83,6 +83,7 @@ func (r *remoteAPI) handleRequests(u Updater, requestConfigs map[string]state.Ra
 		r.executedRequests[request.ID] = struct{}{}
 		err = handleRequest(context.Background(), u, request.Method, request.Params)
 		if err != nil {
+			log.Errorf("could not handle request %s %s: %v", request.Method, request.ID, err)
 			apiErr := apiError{Message: err.Error()}
 			rawAPIErr, err := json.Marshal(apiErr)
 			if err != nil {
