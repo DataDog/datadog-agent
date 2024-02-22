@@ -9,7 +9,7 @@ PIDFile=<%= agent_dir %>/run/trace-agent.pid
 User=dd-agent
 Restart=on-failure
 EnvironmentFile=-<%= etc_dir %>/environment
-ExecStart=<%= agent_dir %>/embedded/bin/trace-agent run -p <%= agent_dir %>/run/trace-agent.pid
+ExecStart=<%= agent_dir %>/embedded/bin/trace-agent --config <%= etc_dir %>/datadog.yaml --pid <%= agent_dir %>/run/trace-agent.pid
 # Since systemd 229, should be in [Unit] but in order to support systemd <229,
 # it is also supported to have it here.
 StartLimitInterval=10
