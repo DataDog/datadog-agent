@@ -203,6 +203,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	agent(config)
 	fips(config)
 	dogstatsd(config)
+	forwarder(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -396,35 +397,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("enable_payloads.service_checks", true)
 	config.BindEnvAndSetDefault("enable_payloads.sketches", true)
 	config.BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)
-
-	// Forwarder
-	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
-	config.BindEnvAndSetDefault("forwarder_timeout", 20)
-	config.BindEnv("forwarder_retry_queue_max_size")                                                     // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
-	config.BindEnv("forwarder_retry_queue_payloads_max_size")                                            // Default value is defined inside `NewOptions` in pkg/forwarder/forwarder.go
-	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
-	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
-	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
-	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
-	// Forwarder retry settings
-	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
-	config.BindEnvAndSetDefault("forwarder_backoff_base", 2)
-	config.BindEnvAndSetDefault("forwarder_backoff_max", 64)
-	config.BindEnvAndSetDefault("forwarder_recovery_interval", DefaultForwarderRecoveryInterval)
-	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
-
-	// Forwarder storage on disk
-	config.BindEnvAndSetDefault("forwarder_storage_path", "")
-	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
-	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
-	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0)                // 0 means disabled. This is a BETA feature.
-	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.80)                // Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
-	config.BindEnvAndSetDefault("forwarder_retry_queue_capacity_time_interval_sec", 900) // 15 mins
-
-	// Forwarder channels buffer size
-	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
-	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 100)
-	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
 
 	// Autoconfig
 	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
@@ -1305,6 +1277,37 @@ func fips(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
 	config.BindEnvAndSetDefault("fips.https", true)
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
+}
+
+func forwarder(config pkgconfigmodel.Config) {
+	// Forwarder
+	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
+	config.BindEnvAndSetDefault("forwarder_timeout", 20)
+	config.BindEnv("forwarder_retry_queue_max_size")                                                     // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
+	config.BindEnv("forwarder_retry_queue_payloads_max_size")                                            // Default value is defined inside `NewOptions` in pkg/forwarder/forwarder.go
+	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
+	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
+	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
+	// Forwarder retry settings
+	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
+	config.BindEnvAndSetDefault("forwarder_backoff_base", 2)
+	config.BindEnvAndSetDefault("forwarder_backoff_max", 64)
+	config.BindEnvAndSetDefault("forwarder_recovery_interval", DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
+
+	// Forwarder storage on disk
+	config.BindEnvAndSetDefault("forwarder_storage_path", "")
+	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
+	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
+	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0)                // 0 means disabled. This is a BETA feature.
+	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.80)                // Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
+	config.BindEnvAndSetDefault("forwarder_retry_queue_capacity_time_interval_sec", 900) // 15 mins
+
+	// Forwarder channels buffer size
+	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
 }
 
 func dogstatsd(config pkgconfigmodel.Config) {
