@@ -925,7 +925,6 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         // be after seeing a request, thus it should have a path as well.
         if ((!current_stream->path.finalized) || (!current_stream->request_method.finalized)) {
             bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
-            continue;
         }
     }
 

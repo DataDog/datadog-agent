@@ -953,7 +953,6 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         // be after seeing a request, thus it should have a path and method as well.
         if ((!current_stream->path.finalized) || (!current_stream->request_method.finalized)) {
             bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
-            continue;
         }
     }
 
