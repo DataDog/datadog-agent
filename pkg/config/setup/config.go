@@ -201,18 +201,12 @@ func init() {
 
 func initCommonWithServerless(config pkgconfigmodel.Config) {
 	agent(config)
+	fips(config)
 }
 
 // InitConfig initializes the config defaults on a config
 func InitConfig(config pkgconfigmodel.Config) {
 	initCommonWithServerless(config)
-
-	// Fips
-	config.BindEnvAndSetDefault("fips.enabled", false)
-	config.BindEnvAndSetDefault("fips.port_range_start", 9803)
-	config.BindEnvAndSetDefault("fips.local_address", "localhost")
-	config.BindEnvAndSetDefault("fips.https", true)
-	config.BindEnvAndSetDefault("fips.tls_verify", true)
 
 	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", true)
@@ -1391,6 +1385,15 @@ func agent(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 	config.BindEnvAndSetDefault("remote_tagger_timeout_seconds", 30)
+}
+
+func fips(config pkgconfigmodel.Config) {
+	// Fips
+	config.BindEnvAndSetDefault("fips.enabled", false)
+	config.BindEnvAndSetDefault("fips.port_range_start", 9803)
+	config.BindEnvAndSetDefault("fips.local_address", "localhost")
+	config.BindEnvAndSetDefault("fips.https", true)
+	config.BindEnvAndSetDefault("fips.tls_verify", true)
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
