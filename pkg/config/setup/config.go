@@ -292,14 +292,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
 	config.SetDefault("secret_audit_file_max_size", 0)
 
-	// Use to output logs in JSON format
-	config.BindEnvAndSetDefault("log_format_json", false)
-
 	// IPC API server timeout
 	config.BindEnvAndSetDefault("server_timeout", 30)
-
-	// Configuration for TLS for outgoing connections
-	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
 
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
@@ -307,9 +301,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Yaml keys which values are stripped from flare
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
 	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
-
-	// Agent GUI access port
-	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
@@ -697,9 +688,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("config_providers")
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
-	config.SetKnown("proxy.http")
-	config.SetKnown("proxy.https")
-	config.SetKnown("proxy.no_proxy")
 
 	// Orchestrator Explorer DCA and process-agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
@@ -952,6 +940,19 @@ func agent(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 	config.BindEnvAndSetDefault("remote_tagger_timeout_seconds", 30)
+
+	// Configuration for TLS for outgoing connections
+	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
+
+	// Use to output logs in JSON format
+	config.BindEnvAndSetDefault("log_format_json", false)
+
+	// Agent GUI access port
+	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+
+	config.SetKnown("proxy.http")
+	config.SetKnown("proxy.https")
+	config.SetKnown("proxy.no_proxy")
 }
 
 func fips(config pkgconfigmodel.Config) {
