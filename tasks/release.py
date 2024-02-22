@@ -543,11 +543,13 @@ def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_
     return jmxfetch_version, jmxfetch_shasum
 
 
-def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_windows_release_json_info(release_json, agent_major_version, is_first_rc=False):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
     release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
+
+    # Step 1: DDNPM
 
     win_ddnpm_driver = release_json_version_data['WINDOWS_DDNPM_DRIVER']
     win_ddnpm_version = release_json_version_data['WINDOWS_DDNPM_VERSION']
@@ -558,7 +560,25 @@ def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_f
 
     print(f"The windows ddnpm version is {win_ddnpm_version}")
 
-    return win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum
+    # Step 2: DDPROCMON
+
+    win_ddprocmon_driver = release_json_version_data['WINDOWS_DDPROCMON_DRIVER']
+    win_ddprocmon_version = release_json_version_data['WINDOWS_DDPROCMON_VERSION']
+    win_ddprocmon_shasum = release_json_version_data['WINDOWS_DDPROCMON_SHASUM']
+
+    if win_ddnpm_driver not in ['release-signed', 'attestation-signed']:
+        print(f"WARN: WINDOWS_DDPROCMON_DRIVER value '{win_ddprocmon_driver}' is not valid")
+
+    print(f"The windows ddprocmon version is {win_ddnpm_version}")
+
+    return (
+        win_ddnpm_driver,
+        win_ddnpm_version,
+        win_ddnpm_shasum,
+        win_ddprocmon_driver,
+        win_ddprocmon_version,
+        win_ddprocmon_shasum,
+    )
 
 
 def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc=False):
@@ -595,6 +615,9 @@ def _update_release_json_entry(
     windows_ddnpm_driver,
     windows_ddnpm_version,
     windows_ddnpm_shasum,
+    windows_ddprocmon_driver,
+    windows_ddprocmon_version,
+    windows_ddprocmon_shasum,
 ):
     """
     Adds a new entry to provided release_json object with the provided parameters, and returns the new release_json object.
@@ -602,6 +625,7 @@ def _update_release_json_entry(
 
     print(f"Jmxfetch's SHA256 is {jmxfetch_shasum}")
     print(f"Windows DDNPM's SHA256 is {windows_ddnpm_shasum}")
+    print(f"Windows DDPROCMON's SHA256 is {windows_ddprocmon_shasum}")
 
     new_version_config = OrderedDict()
     new_version_config["INTEGRATIONS_CORE_VERSION"] = integrations_version
@@ -614,6 +638,9 @@ def _update_release_json_entry(
     new_version_config["WINDOWS_DDNPM_DRIVER"] = windows_ddnpm_driver
     new_version_config["WINDOWS_DDNPM_VERSION"] = windows_ddnpm_version
     new_version_config["WINDOWS_DDNPM_SHASUM"] = windows_ddnpm_shasum
+    new_version_config["WINDOWS_DDPROCMON_DRIVER"] = windows_ddprocmon_driver
+    new_version_config["WINDOWS_DDPROCMON_VERSION"] = windows_ddprocmon_version
+    new_version_config["WINDOWS_DDPROCMON_SHASUM"] = windows_ddprocmon_shasum
 
     # Necessary if we want to maintain the JSON order, so that humans don't get confused
     new_release_json = OrderedDict()
@@ -702,9 +729,14 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
     )
     print(TAG_FOUND_TEMPLATE.format("security-agent-policies", security_agent_policies_version))
 
-    windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
-        release_json, new_version.major, is_first_rc=(new_version.rc == 1)
-    )
+    (
+        windows_ddnpm_driver,
+        windows_ddnpm_version,
+        windows_ddnpm_shasum,
+        windows_ddprocmon_driver,
+        windows_ddprocmon_version,
+        windows_ddprocmon_shasum,
+    ) = _get_windows_release_json_info(release_json, new_version.major, is_first_rc=(new_version.rc == 1))
 
     # Add new entry to the release.json object and return it
     return _update_release_json_entry(
@@ -720,6 +752,9 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         windows_ddnpm_driver,
         windows_ddnpm_version,
         windows_ddnpm_shasum,
+        windows_ddprocmon_driver,
+        windows_ddprocmon_version,
+        windows_ddprocmon_shasum,
     )
 
 
