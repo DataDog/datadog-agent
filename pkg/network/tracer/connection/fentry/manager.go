@@ -18,7 +18,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, cfg *config.Config) {
+func initManager(mgr *ebpf.Manager, closedHandler *ebpf.PerfHandler, cfg *config.Config) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},

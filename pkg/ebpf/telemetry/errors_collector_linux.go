@@ -28,7 +28,7 @@ const (
 // EBPFErrorsCollector implements the prometheus Collector interface
 // for collecting statistics about errors of ebpf helpers and ebpf maps operations.
 type EBPFErrorsCollector struct {
-	T                *EBPFTelemetry
+	T                *eBPFTelemetry
 	ebpfMapOpsErrors *prometheus.Desc
 	ebpfHelperErrors *prometheus.Desc
 	//we can use one map for both map errors and ebpf helpers errors, as the keys are different

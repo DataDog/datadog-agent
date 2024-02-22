@@ -12,7 +12,7 @@ import (
 )
 
 // GetHelpersTelemetry returns a map of error telemetry for each ebpf program
-func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
+func (b *eBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
 	helperTelemMap := make(map[string]interface{})
 	if b.helperErrMap == nil {
 		return helperTelemMap
@@ -41,7 +41,7 @@ func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
 }
 
 // GetMapsTelemetry returns a map of error telemetry for each ebpf map
-func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
+func (b *eBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 	t := make(map[string]interface{})
 	if b.mapErrMap == nil {
 		return t

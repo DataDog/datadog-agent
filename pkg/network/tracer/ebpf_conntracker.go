@@ -25,10 +25,10 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -86,7 +86,7 @@ var ebpfConntrackerRCCreator func(cfg *config.Config) (runtime.CompiledOutput, e
 var ebpfConntrackerPrebuiltCreator func(*config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) = getPrebuiltConntracker
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	if !cfg.EnableEbpfConntracker {
 		return nil, fmt.Errorf("ebpf conntracker is disabled")
 	}
@@ -117,7 +117,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTele
 
 	defer buf.Close()
 
-	m, err := getManager(cfg, buf, bpfTelemetry, constants)
+	m, err := getManager(cfg, buf, constants)
 	if err != nil {
 		return nil, err
 	}
@@ -390,8 +390,8 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *ebpftelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (*manager.Manager, error) {
-	mgr := ebpftelemetry.NewManager(&manager.Manager{
+func getManager(cfg *config.Config, buf io.ReaderAt, constants []manager.ConstantEditor) (*manager.Manager, error) {
+	mgr := ddebpf.NewManager(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
 			{Name: probes.ConntrackTelemetryMap},
@@ -412,7 +412,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *ebpftelemetry
 				MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
 			},
 		},
-	}, bpfTelemetry)
+	})
 
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
@@ -459,7 +459,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *ebpftelemetry
 		me.EditorFlag |= manager.EditType
 	}
 
-	err = mgr.InitWithOptions(buf, opts)
+	err = mgr.InitWithOptions(buf, &opts)
 	if err != nil {
 		return nil, err
 	}
