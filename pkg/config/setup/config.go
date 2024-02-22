@@ -565,9 +565,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
 
-	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
-	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
-
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
@@ -1264,6 +1261,9 @@ func dogstatsd(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
+
+	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
+	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
 }
 
 func logsagent(config pkgconfigmodel.Config) {
