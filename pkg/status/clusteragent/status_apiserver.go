@@ -59,13 +59,13 @@ func GetDCAStatus(stats map[string]interface{}) {
 // Provider provides the functionality to populate the status output
 type Provider struct{}
 
-// GetProvider if cluster agent is enabled returns status.Provider otherwise returns NoopProvider
+// GetProvider if cluster agent is enabled returns status.Provider otherwise returns nil
 func GetProvider(conf config.Component) status.Provider {
 	if conf.GetBool("cluster_agent.enabled") || conf.GetBool("cluster_checks.enabled") {
 		return Provider{}
 	}
 
-	return status.NoopProvider{}
+	return nil
 }
 
 //go:embed status_templates
