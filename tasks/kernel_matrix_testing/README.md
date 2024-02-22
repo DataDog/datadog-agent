@@ -37,6 +37,8 @@ pulumi --non-interactive plugin install
 pulumi --non-interactive plugin ls
 ```
 
+> For macOS users: Internet Sharing needs to be enabled for the networking to work properly. Enable it in System Settings -> General -> Sharing. It does not matter which interface you enable it on, as long as it is enabled and the connection being shared is the one you use for Internet connection.
+
 ## Getting started
 
 A straightforward flow to setup a collections of VMs is as follows:
