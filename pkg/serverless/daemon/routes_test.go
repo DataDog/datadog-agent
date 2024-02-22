@@ -354,6 +354,7 @@ func BenchmarkStartEndInvocation(b *testing.B) {
 			rr := httptest.NewRecorder()
 
 			d := startAgents()
+			defer d.Stop()
 			start := &StartInvocation{d}
 			end := &EndInvocation{d}
 
@@ -370,7 +371,6 @@ func BenchmarkStartEndInvocation(b *testing.B) {
 				end.ServeHTTP(rr, endReq)
 			}
 			b.StopTimer()
-			d.Stop()
 		})
 	}
 }
