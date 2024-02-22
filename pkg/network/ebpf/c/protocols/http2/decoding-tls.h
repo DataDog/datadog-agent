@@ -824,12 +824,54 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     }
     // Zeroing the iteration index to call EOS parser
     tail_call_state->iteration = 0;
-    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_EOS_PARSER);
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_DYNAMIC_TABLE_CLEANER);
 
 delete_iteration:
     // restoring the original value.
     dispatcher_args_copy.data_off = args->data_off;
     bpf_map_delete_elem(&tls_http2_iterations, &dispatcher_args_copy);
+
+    return 0;
+}
+
+SEC("uprobe/http2_dynamic_table_cleaner")
+int uprobe__http2_dynamic_table_cleaner(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t dispatcher_args_copy;
+    // We're not calling fetch_dispatching_arguments as, we need to modify the `off` field of skb_info, so
+    // the next prog will start to read from the next valid frame.
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return false;
+    }
+    dispatcher_args_copy = *args;
+
+    dynamic_counter_t *dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+    if (dynamic_counter == NULL) {
+        goto next;
+    }
+
+    if (dynamic_counter->value - dynamic_counter->previous <= HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD) {
+        goto next;
+    }
+
+    dynamic_table_index_t dynamic_index = {
+        .tup = dispatcher_args_copy.tup,
+    };
+
+    #pragma unroll(HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS)
+    for (__u16 index = 0; index < HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS; index++) {
+        if (dynamic_counter->previous + HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD >= dynamic_counter->value) {
+            break;
+        }
+        dynamic_index.index = dynamic_counter->previous;
+        bpf_map_delete_elem(&http2_dynamic_table, &dynamic_index);
+        dynamic_counter->previous++;
+    }
+
+next:
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_EOS_PARSER);
 
     return 0;
 }

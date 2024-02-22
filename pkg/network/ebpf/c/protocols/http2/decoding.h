@@ -850,12 +850,49 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
     }
     // Zeroing the iteration index to call EOS parser
     tail_call_state->iteration = 0;
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_EOS_PARSER);
+    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_DYNAMIC_TABLE_CLEANER);
 
 delete_iteration:
     // restoring the original value.
     dispatcher_args_copy.skb_info.data_off = original_off;
     bpf_map_delete_elem(&http2_iterations, &dispatcher_args_copy);
+
+    return 0;
+}
+
+SEC("socket/http2_dynamic_table_cleaner")
+int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
+    dispatcher_arguments_t dispatcher_args_copy;
+    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
+    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
+        return 0;
+    }
+
+    dynamic_counter_t *dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+    if (dynamic_counter == NULL) {
+        goto next;
+    }
+
+    if (dynamic_counter->value - dynamic_counter->previous <= HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD) {
+        goto next;
+    }
+
+    dynamic_table_index_t dynamic_index = {
+        .tup = dispatcher_args_copy.tup,
+    };
+
+    #pragma unroll(HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS)
+    for (__u16 index = 0; index < HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS; index++) {
+        if (dynamic_counter->previous + HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD >= dynamic_counter->value) {
+            break;
+        }
+        dynamic_index.index = dynamic_counter->previous;
+        bpf_map_delete_elem(&http2_dynamic_table, &dynamic_index);
+        dynamic_counter->previous++;
+    }
+
+next:
+    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_EOS_PARSER);
 
     return 0;
 }
