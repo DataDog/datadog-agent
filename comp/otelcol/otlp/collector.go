@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
+	"go.opentelemetry.io/collector/processor/memorylimiterprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/atomic"
@@ -115,6 +116,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	processors, err := processor.MakeFactoryMap(
 		batchprocessor.NewFactory(),
+		memorylimiterprocessor.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)

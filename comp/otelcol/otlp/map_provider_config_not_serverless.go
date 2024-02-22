@@ -14,12 +14,17 @@ package otlp
 const defaultTracesConfig string = `
 receivers:
   otlp:
+    protocols:
+      grpc:
+        max_concurrent_streams: 1
 
 exporters:
   otlp:
     tls:
       insecure: true
     compression: none
+    sending_queue:
+      enabled: false
 
 service:
   telemetry:
