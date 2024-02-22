@@ -12,7 +12,7 @@ from invoke.exceptions import Exit
 from tasks.libs.copyright import COPYRIGHT_HEADER
 
 Component = namedtuple('Component', ['path', 'doc', 'team'])
-Bundle = namedtuple('Component', ['path', 'doc', 'team', 'components'])
+Bundle = namedtuple('Bundle', ['path', 'doc', 'team', 'components'])
 
 
 def find_team(content):
@@ -41,34 +41,43 @@ def has_type_component(content):
     return any(l.startswith('type Component interface') for l in content)
 
 
-def check_component(file, content):
+# // TODO: (components)
+# The migration of these components is in progresss.
+# Please do not add a new component to this list.
+components_to_migrate = [
+    "comp/aggregator/demultiplexer/component.go",
+    "comp/core/config/component.go",
+    "comp/core/flare/component.go",
+    "comp/core/telemetry/component.go",
+    "comp/dogstatsd/replay/component.go",
+    "comp/dogstatsd/server/component.go",
+    "comp/forwarder/defaultforwarder/component.go",
+    "comp/logs/agent/component.go",
+    "comp/metadata/inventoryagent/component.go",
+    "comp/netflow/config/component.go",
+    "comp/netflow/server/component.go",
+    "comp/otelcol/collector/component.go",
+    "comp/remote-config/rcclient/component.go",
+    "comp/trace/agent/component.go",
+    "comp/trace/config/component.go",
+    "comp/process/apiserver/component.go",
+    "comp/core/workloadmeta/component.go",
+]
+
+# // TODO: (components)
+# The migration of these components is in progresss.
+# Please do not add a new component to this list.
+components_missing_implementation_folder = [
+    "comp/dogstatsd/statsd",
+    "comp/core/tagger",
+]
+
+
+def check_component(file, content, directory):
     if not any(l.startswith('type Component interface') or l.startswith('type Component = ') for l in content):
         return f"** {file} does not define a Component interface; skipping"
 
-    # // TODO: (components)
-    # The migration of these components is in progresss.
-    # Please do not add a new component to this list.
-    components_to_migrate = [
-        "comp/aggregator/demultiplexer/component.go",
-        "comp/core/config/component.go",
-        "comp/core/flare/component.go",
-        "comp/core/telemetry/component.go",
-        "comp/dogstatsd/replay/component.go",
-        "comp/dogstatsd/server/component.go",
-        "comp/forwarder/defaultforwarder/component.go",
-        "comp/logs/agent/component.go",
-        "comp/metadata/inventoryagent/component.go",
-        "comp/netflow/config/component.go",
-        "comp/netflow/server/component.go",
-        "comp/otelcol/collector/component.go",
-        "comp/remote-config/rcclient/component.go",
-        "comp/trace/agent/component.go",
-        "comp/trace/config/component.go",
-        "comp/process/apiserver/component.go",
-        "comp/core/workloadmeta/component.go",  # // TODO: (components) fix it in later PR
-    ]
-
-    if file in components_to_migrate:
+    if str(file) in components_to_migrate:
         return ""
 
     for not_allow_definition in [
@@ -78,50 +87,75 @@ def check_component(file, content):
     ]:
         if any(l.startswith(not_allow_definition) for l in content):
             return f"** {file} define '{not_allow_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
+
+    component_name = directory.stem
+    missing_implementation_folder = True
+
+    if str(directory) in components_missing_implementation_folder:
+        return ""
+
+    for folder in directory.iterdir():
+        if folder.match('*impl'):
+            missing_implementation_folder = False
+            break
+
+    if missing_implementation_folder:
+        return f"** {component_name} is missing the implemenation folder in {directory}. See docs/components/defining-components.md; skipping"
+
     return ""  # no error
 
 
-def get_components_and_bundles(ctx):
+def get_components_and_bundles():
     ok = True
     components = []
     bundles = []
-    res = ctx.run('git ls-files comp/', hide=True)
-    for file in res.stdout.splitlines():
-        if file.endswith("/component.go"):
-            content = list(open(file, "r"))
-            error = check_component(file, content)
-            if error != "":
-                print(error)
-                ok = False
-                pass
+    component_directory = pathlib.Path('comp')
+    for x in component_directory.iterdir():
+        if x.is_dir():
+            directory = pathlib.Path(x)
+            for component_file_or_dir in directory.iterdir():
+                # If we encounter a file at the first level it could be a bundle
+                if component_file_or_dir.is_file():
+                    if component_file_or_dir.name == "bundle.go":
+                        content = list(component_file_or_dir.open())
+                        if has_type_component(content):
+                            print(
+                                f"** {component_file_or_dir} defines a Component interface (bundles should not do so)"
+                            )
+                            ok = False
+                            pass
 
-            path = file[: -len('/component.go')]
-            team = find_team(content)
-            doc = find_doc(content)
+                        path = str(component_file_or_dir)[: -len('/bundle.go')]
+                        team = find_team(content)
+                        doc = find_doc(content)
 
-            if team is None:
-                print(f"** {file} does not name a responsible team")
-                ok = False
+                        if team is None:
+                            print(f"** {component_file_or_dir} does not specify a team owner")
+                            ok = False
+                        bundles.append(Bundle(path, doc, team, []))
+                else:
+                    # If we are a directory we might be a component of not
+                    for component_file in component_file_or_dir.iterdir():
+                        # print(component_file)
+                        if component_file.name == "component.go":
+                            # We are a component
+                            # Let's check the file hierarchy
+                            content = list(component_file.open())
+                            error = check_component(component_file, content, component_file_or_dir)
+                            if error != "":
+                                print(error)
+                                ok = False
+                                pass
 
-            components.append(Component(path, doc, team))
+                            path = str(component_file)[: -len('/component.go')]
+                            team = find_team(content)
+                            doc = find_doc(content)
 
-        elif file.endswith("/bundle.go"):
-            content = list(open(file, "r"))
-            if has_type_component(content):
-                print(f"** {file} defines a Component interface (bundles should not do so)")
-                ok = False
-                pass
+                            if team is None:
+                                print(f"** {path} does not specify a team owner")
+                                ok = False
 
-            path = file[: -len('/bundle.go')]
-            team = find_team(content)
-            doc = find_doc(content)
-
-            if team is None:
-                print(f"** {file} does not name a responsible team")
-                ok = False
-
-            bundles.append(Bundle(path, doc, team, []))
-
+                            components.append(Component(path, doc, team))
     # assign components to bundles
     bundles = [Bundle(b.path, b.doc, b.team, [c for c in components if c.path.startswith(b.path)]) for b in bundles]
 
@@ -196,11 +230,11 @@ def make_codeowners(codeowners_lines, bundles):
 
 
 @task
-def lint_components(ctx, fix=False):
+def lint_components(_, fix=False):
     """
     Verify (or with --fix, ensure) component-related things are correct.
     """
-    bundles, ok = get_components_and_bundles(ctx)
+    bundles, ok = get_components_and_bundles()
     fixable = False
 
     # Check comp/README.md
