@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	agentArchiveFileName       = "agent.tar.gz"
+	archiveName                = "package.tar.gz"
 	maxArchiveSize             = 5 << 30  // 5GiB
 	maxArchiveDecompressedSize = 10 << 30 // 10GiB
 )
@@ -78,7 +78,7 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 		io.LimitReader(resp.Body, maxArchiveSize),
 		hashWriter,
 	)
-	archivePath := filepath.Join(tmpDir, agentArchiveFileName)
+	archivePath := filepath.Join(tmpDir, archiveName)
 	archiveFile, err := os.Create(archivePath)
 	if err != nil {
 		return fmt.Errorf("could not create archive file: %w", err)
