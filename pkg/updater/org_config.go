@@ -38,7 +38,7 @@ type orgConfig struct {
 	m                      sync.Mutex
 	catalogReceived        chan struct{}
 	catalogReceivedSync    sync.Once
-	catalogReceivedTimeout context.Context
+	catalogReceivedTimeout <-chan time.Time
 
 	rcClient *client.Client
 	catalog  catalog
@@ -55,7 +55,7 @@ func newOrgConfig(rc client.ConfigFetcher) (*orgConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal default catalog: %w", err)
 	}
-	catalogReceivedTimeout, _ := context.WithTimeout(context.Background(), defaultCatalogTimeout)
+	catalogReceivedTimeout := time.After(defaultCatalogTimeout)
 	c := &orgConfig{
 		catalogReceived:        make(chan struct{}),
 		catalogReceivedTimeout: catalogReceivedTimeout,
@@ -117,7 +117,11 @@ func (c *orgConfig) waitForCatalog(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-c.catalogReceivedTimeout.Done():
+	case <-c.catalogReceivedTimeout:
+		c.catalogReceivedSync.Do(func() {
+			close(c.catalogReceived)
+			log.Warnf("timeout waiting for datadog packages catalog, using default catalog instead")
+		})
 		return nil
 	case <-c.catalogReceived:
 		return nil
