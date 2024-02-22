@@ -108,7 +108,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 				}
 				l.awsRdsClients[cluster.Region] = c
 			}
-			auroraCluster, err := l.awsRdsClients[cluster.Region].GetAuroraClusterEndpoints(ids)
+			auroraCluster, err := l.awsRdsClients[cluster.Region].GetAuroraClusterEndpoints(context.Background(), ids)
 			if err != nil {
 				_ = log.Error(err)
 				continue
@@ -129,11 +129,11 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 			deletedServices := findDeletedServices(l.previousServices, discoveredServices)
 			l.deleteServices(deletedServices)
 			l.previousServices = discoveredServices
-			select {
-			case <-l.stop:
-				return
-			case <-l.ticks:
-			}
+		}
+		select {
+		case <-l.stop:
+			return
+		case <-l.ticks:
 		}
 	}
 }

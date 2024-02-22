@@ -5,9 +5,10 @@
 package aws
 
 import (
+	context "context"
 	reflect "reflect"
 
-	rds "github.com/aws/aws-sdk-go/service/rds"
+	rds "github.com/aws/aws-sdk-go-v2/service/rds"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -35,18 +36,18 @@ func (m *MockRDSClient) EXPECT() *MockRDSClientMockRecorder {
 }
 
 // GetAuroraClusterEndpoints mocks base method.
-func (m *MockRDSClient) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[string]*AuroraCluster, error) {
+func (m *MockRDSClient) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string) (map[string]*AuroraCluster, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAuroraClusterEndpoints", dbClusterIdentifiers)
+	ret := m.ctrl.Call(m, "GetAuroraClusterEndpoints", ctx, dbClusterIdentifiers)
 	ret0, _ := ret[0].(map[string]*AuroraCluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAuroraClusterEndpoints indicates an expected call of GetAuroraClusterEndpoints.
-func (mr *MockRDSClientMockRecorder) GetAuroraClusterEndpoints(dbClusterIdentifiers interface{}) *gomock.Call {
+func (mr *MockRDSClientMockRecorder) GetAuroraClusterEndpoints(ctx, dbClusterIdentifiers interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuroraClusterEndpoints", reflect.TypeOf((*MockRDSClient)(nil).GetAuroraClusterEndpoints), dbClusterIdentifiers)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuroraClusterEndpoints", reflect.TypeOf((*MockRDSClient)(nil).GetAuroraClusterEndpoints), ctx, dbClusterIdentifiers)
 }
 
 // MockrdsService is a mock of rdsService interface.
@@ -73,16 +74,21 @@ func (m *MockrdsService) EXPECT() *MockrdsServiceMockRecorder {
 }
 
 // DescribeDBInstances mocks base method.
-func (m *MockrdsService) DescribeDBInstances(input *rds.DescribeDBInstancesInput) (*rds.DescribeDBInstancesOutput, error) {
+func (m *MockrdsService) DescribeDBInstances(ctx context.Context, params *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DescribeDBInstances", input)
+	varargs := []interface{}{ctx, params}
+	for _, a := range optFns {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeDBInstances", varargs...)
 	ret0, _ := ret[0].(*rds.DescribeDBInstancesOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DescribeDBInstances indicates an expected call of DescribeDBInstances.
-func (mr *MockrdsServiceMockRecorder) DescribeDBInstances(input interface{}) *gomock.Call {
+func (mr *MockrdsServiceMockRecorder) DescribeDBInstances(ctx, params interface{}, optFns ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBInstances", reflect.TypeOf((*MockrdsService)(nil).DescribeDBInstances), input)
+	varargs := append([]interface{}{ctx, params}, optFns...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBInstances", reflect.TypeOf((*MockrdsService)(nil).DescribeDBInstances), varargs...)
 }

@@ -24,6 +24,11 @@ type IntegrationType string
 const (
 	// Postgres represents the Postgres database-monitoring integration type
 	Postgres IntegrationType = "postgres"
+
+	// MySQL represents the MySQL database-monitoring integration type
+	MySQL IntegrationType = "mysql"
+	// SQLServer represents the SQLServer database-monitoring integration type
+	SQLServer IntegrationType = "sqlserver"
 )
 
 // AutodiscoverClustersConfig represents the configuration for auto-discovering database clusters
@@ -85,6 +90,10 @@ func NewAutodiscoverClustersConfig() (AutodiscoverClustersConfig, error) {
 func IsValidIntegrationType(dbType IntegrationType) bool {
 	switch dbType {
 	case Postgres:
+		return true
+	case MySQL:
+		return true
+	case SQLServer:
 		return true
 	default:
 		return false
