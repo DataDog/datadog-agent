@@ -129,11 +129,23 @@ type StringMatcher interface {
 
 // RegexpStringMatcher defines a regular expression pattern matcher
 type RegexpStringMatcher struct {
+	stringOptionsOpt []string
+
 	re *regexp.Regexp
 }
 
+var stringBigOrRe = regexp.MustCompile(`^\.\*\(([a-zA-Z_|]+)\)\.\*$`)
+
 // Compile a regular expression based pattern
 func (r *RegexpStringMatcher) Compile(pattern string, caseInsensitive bool) error {
+	if !caseInsensitive {
+		if groups := stringBigOrRe.FindStringSubmatch(pattern); groups != nil {
+			r.stringOptionsOpt = strings.Split(groups[1], "|")
+			r.re = nil
+			return nil
+		}
+	}
+
 	if caseInsensitive {
 		pattern = "(?i)" + pattern
 	}
@@ -142,6 +154,7 @@ func (r *RegexpStringMatcher) Compile(pattern string, caseInsensitive bool) erro
 	if err != nil {
 		return err
 	}
+	r.stringOptionsOpt = nil
 	r.re = re
 
 	return nil
@@ -149,6 +162,15 @@ func (r *RegexpStringMatcher) Compile(pattern string, caseInsensitive bool) erro
 
 // Matches returns whether the value matches
 func (r *RegexpStringMatcher) Matches(value string) bool {
+	if r.stringOptionsOpt != nil {
+		for _, search := range r.stringOptionsOpt {
+			if strings.Contains(value, search) {
+				return true
+			}
+		}
+		return false
+	}
+
 	return r.re.MatchString(value)
 }
 
