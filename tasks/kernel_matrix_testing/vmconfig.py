@@ -6,7 +6,7 @@ import os
 import platform
 from urllib.parse import urlparse
 
-from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
 from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_mapping, platforms_file
@@ -117,12 +117,6 @@ def get_vmconfig_template():
 
     with open(vmconfig_file) as f:
         data = json.load(f)
-
-    kmt_os = get_kmt_os()
-
-    for vmset in data.get("vmsets", []):
-        for disk in vmset.get("disks", []):
-            disk["target"] = disk["target"].replace("%KMTDIR%", os.fspath(kmt_os.kmt_dir))
 
     return data
 
@@ -377,6 +371,14 @@ def add_disks(vmconfig_template, vmset):
     for template in vmconfig_template["vmsets"]:
         if tname in template["tags"]:
             vmset["disks"] = copy.deepcopy(template["disks"])
+
+            if vmset["arch"] == local_arch:
+                kmt_os = get_kmt_os()
+            else:
+                kmt_os = Linux
+
+            for disk in vmset.get("disks", []):
+                disk["target"] = disk["target"].replace("%KMTDIR%", os.fspath(kmt_os.kmt_dir))
 
 
 def add_console(vmset):
