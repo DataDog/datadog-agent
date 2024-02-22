@@ -218,6 +218,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	containerd(config)
 	cri(config)
 	kubernetes(config)
+	cloudfoundry(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -499,12 +500,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	})
 	config.BindEnvAndSetDefault("gce_send_project_id_tag", false)
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
-
-	// Cloud Foundry
-	config.BindEnvAndSetDefault("cloud_foundry", false)
-	config.BindEnvAndSetDefault("bosh_id", "")
-	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
-	config.BindEnvAndSetDefault("cloud_foundry_buildpack", false)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -1389,6 +1384,14 @@ func logsagent(config pkgconfigmodel.Config) {
 	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
+}
+
+func cloudfoundry(config pkgconfigmodel.Config) {
+	// Cloud Foundry
+	config.BindEnvAndSetDefault("cloud_foundry", false)
+	config.BindEnvAndSetDefault("bosh_id", "")
+	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
+	config.BindEnvAndSetDefault("cloud_foundry_buildpack", false)
 }
 
 func containerd(config pkgconfigmodel.Config) {
