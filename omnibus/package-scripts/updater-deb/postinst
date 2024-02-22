@@ -107,6 +107,9 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
     chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
 fi
 
+echo "api_key: deadbeef" > $CONFIG_DIR/datadog.yaml
+$INSTALL_DIR/updater/bin/updater/updater bootstrap -P datadog-agent
+
 # start udpater
 SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
 SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
