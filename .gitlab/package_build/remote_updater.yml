@@ -2,7 +2,7 @@
 .agent_build_common_remote_updater:
   script:
     - echo "About to build for $RELEASE_VERSION"
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
