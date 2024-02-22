@@ -206,6 +206,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	forwarder(config)
 	aggregator(config)
 	serializer(config)
+	serverless(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -1101,16 +1102,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
-	// Serverless Agent
-	config.SetDefault("serverless.enabled", false)
-	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
-	config.BindEnvAndSetDefault("enhanced_metrics", true)
-	config.BindEnvAndSetDefault("capture_lambda_payload", false)
-	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
-	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
-	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
-	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
-
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")
 	config.BindEnv("evp_proxy_config.dd_url")
@@ -1284,6 +1275,18 @@ func aggregator(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
+}
+
+func serverless(config pkgconfigmodel.Config) {
+	// Serverless Agent
+	config.SetDefault("serverless.enabled", false)
+	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
+	config.BindEnvAndSetDefault("enhanced_metrics", true)
+	config.BindEnvAndSetDefault("capture_lambda_payload", false)
+	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
+	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
+	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
+	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
 }
 
 func forwarder(config pkgconfigmodel.Config) {
