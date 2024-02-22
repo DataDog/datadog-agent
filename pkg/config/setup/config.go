@@ -194,13 +194,18 @@ func init() {
 	// Configure Datadog global configuration
 	Datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	SystemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+
 	// Configuration defaults
-	InitConfig(Datadog)
-	InitSystemProbeConfig(SystemProbe)
+	initConfig()
+}
+
+func initCommonWithServerless(config pkgconfigmodel.Config) {
 }
 
 // InitConfig initializes the config defaults on a config
 func InitConfig(config pkgconfigmodel.Config) {
+	initCommonWithServerless(config)
+
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
 	config.BindEnv("site")
