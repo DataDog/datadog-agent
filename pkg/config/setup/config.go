@@ -215,6 +215,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	remoteconfig(config)
 	logsagent(config)
 	containerSyspath(config)
+	containerd(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -338,13 +339,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
 	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
-
-	// Containerd
-	config.BindEnvAndSetDefault("containerd_namespace", []string{})
-	config.BindEnvAndSetDefault("containerd_namespaces", []string{}) // alias for containerd_namespace
-	config.BindEnvAndSetDefault("containerd_exclude_namespaces", []string{"moby"})
-	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
-	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
 	// Podman
 	config.BindEnvAndSetDefault("podman_db_path", "")
@@ -1426,6 +1420,15 @@ func logsagent(config pkgconfigmodel.Config) {
 	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
+}
+
+func containerd(config pkgconfigmodel.Config) {
+	// Containerd
+	config.BindEnvAndSetDefault("containerd_namespace", []string{})
+	config.BindEnvAndSetDefault("containerd_namespaces", []string{}) // alias for containerd_namespace
+	config.BindEnvAndSetDefault("containerd_exclude_namespaces", []string{"moby"})
+	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
