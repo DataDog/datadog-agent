@@ -18,6 +18,11 @@ receivers:
       grpc:
         max_concurrent_streams: 1
 
+processors:
+  memory_limiter:
+    limit_mib: 1000
+    spike_limit_mib: 200
+
 exporters:
   otlp:
     tls:
@@ -33,6 +38,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
+      processors: [memory_limiter]
       exporters: [otlp]
 `
 
