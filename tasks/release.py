@@ -549,27 +549,10 @@ def _get_windows_release_json_info(release_json, agent_major_version, is_first_r
     """
     release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
 
-    # Step 1: DDNPM
-
-    win_ddnpm_driver = release_json_version_data['WINDOWS_DDNPM_DRIVER']
-    win_ddnpm_version = release_json_version_data['WINDOWS_DDNPM_VERSION']
-    win_ddnpm_shasum = release_json_version_data['WINDOWS_DDNPM_SHASUM']
-
-    if win_ddnpm_driver not in ['release-signed', 'attestation-signed']:
-        print(f"WARN: WINDOWS_DDNPM_DRIVER value '{win_ddnpm_driver}' is not valid")
-
-    print(f"The windows ddnpm version is {win_ddnpm_version}")
-
-    # Step 2: DDPROCMON
-
-    win_ddprocmon_driver = release_json_version_data['WINDOWS_DDPROCMON_DRIVER']
-    win_ddprocmon_version = release_json_version_data['WINDOWS_DDPROCMON_VERSION']
-    win_ddprocmon_shasum = release_json_version_data['WINDOWS_DDPROCMON_SHASUM']
-
-    if win_ddnpm_driver not in ['release-signed', 'attestation-signed']:
-        print(f"WARN: WINDOWS_DDPROCMON_DRIVER value '{win_ddprocmon_driver}' is not valid")
-
-    print(f"The windows ddprocmon version is {win_ddnpm_version}")
+    win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum = _get_windows_driver_info(release_json_version_data, 'DDNPM')
+    win_ddprocmon_driver, win_ddprocmon_version, win_ddprocmon_shasum = _get_windows_driver_info(
+        release_json_version_data, 'DDPROCMON'
+    )
 
     return (
         win_ddnpm_driver,
@@ -579,6 +562,26 @@ def _get_windows_release_json_info(release_json, agent_major_version, is_first_r
         win_ddprocmon_version,
         win_ddprocmon_shasum,
     )
+
+
+def _get_windows_driver_info(release_json_version_data, driver_name):
+    """
+    Gets the Windows driver info from the release.json version data.
+    """
+    driver_key = f'WINDOWS_{driver_name}_DRIVER'
+    version_key = f'WINDOWS_{driver_name}_VERSION'
+    shasum_key = f'WINDOWS_{driver_name}_SHASUM'
+
+    driver_value = release_json_version_data[driver_key]
+    version_value = release_json_version_data[version_key]
+    shasum_value = release_json_version_data[shasum_key]
+
+    if driver_value not in ['release-signed', 'attestation-signed']:
+        print(f"WARN: {driver_key} value '{driver_value}' is not valid")
+
+    print(f"The windows {driver_name.lower()} version is {version_value}")
+
+    return driver_value, version_value, shasum_value
 
 
 def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc=False):
