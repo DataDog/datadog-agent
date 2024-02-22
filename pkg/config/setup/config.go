@@ -207,6 +207,9 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	aggregator(config)
 	serializer(config)
 	serverless(config)
+	setupAPM(config)
+	OTLP(config)
+	setupMultiRegionFailover(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -1153,10 +1156,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// TTL refresh period represents how frequently actively detected languages are refreshed by reporting them again to the language detection handler in the cluster agent
 	config.BindEnvAndSetDefault("language_detection.reporting.refresh_period", "20m")
 
-	setupAPM(config)
-	OTLP(config)
 	setupProcesses(config)
-	setupMultiRegionFailover(config)
 
 	// Updater configuration
 	config.BindEnvAndSetDefault("updater.remote_updates", false)
