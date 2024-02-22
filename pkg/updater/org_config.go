@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -21,14 +22,23 @@ import (
 //go:embed data/defaults.json
 var rawDefaults []byte
 
+//go:embed data/catalog.json
+var rawCatalog []byte
+
+const (
+	// defaultCatalogTimeout is the timeout to wait for the catalog to be received from RC.
+	defaultCatalogTimeout = 30 * time.Second
+)
+
 // orgConfig represents the (remote) configuration of an organization.
 // More precisely it hides away the RC details to obtain:
 // - the catalog of packages
 // - the default version of a package and its corresponding catalog entry
 type orgConfig struct {
-	m                   sync.Mutex
-	catalogReceived     chan struct{}
-	catalogReceivedSync sync.Once
+	m                      sync.Mutex
+	catalogReceived        chan struct{}
+	catalogReceivedSync    sync.Once
+	catalogReceivedTimeout <-chan time.Time
 
 	rcClient *client.Client
 	catalog  catalog
@@ -40,9 +50,17 @@ func newOrgConfig(rc client.ConfigFetcher) (*orgConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
+	var defaultCatalog catalog
+	err = json.Unmarshal(rawCatalog, &defaultCatalog)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal default catalog: %w", err)
+	}
+	catalogReceivedTimeout := time.After(defaultCatalogTimeout)
 	c := &orgConfig{
-		catalogReceived: make(chan struct{}),
-		rcClient:        rcClient,
+		catalogReceived:        make(chan struct{}),
+		catalogReceivedTimeout: catalogReceivedTimeout,
+		rcClient:               rcClient,
+		catalog:                defaultCatalog,
 	}
 	rcClient.Subscribe(state.ProductUpdaterCatalogDD, c.onCatalogUpdate)
 	return c, nil
@@ -99,6 +117,12 @@ func (c *orgConfig) waitForCatalog(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-c.catalogReceivedTimeout:
+		c.catalogReceivedSync.Do(func() {
+			close(c.catalogReceived)
+			log.Warnf("timeout waiting for datadog packages catalog, using default catalog instead")
+		})
+		return nil
 	case <-c.catalogReceived:
 		return nil
 	}
