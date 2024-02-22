@@ -514,7 +514,7 @@ func TestObfuscateSQLErrors(t *testing.T) {
 		{"\"\"", "{'quantize_sql_tables': True}", "result is empty"},
 		{"\"\"", "None", "result is empty"},
 		{"{1: 2}", "{'quantize_sql_tables': False}", "a bytes-like object is required, not 'dict'"},
-		{"None", "{}", "argument 1 must be string or buffer, not None"},
+		{"None", "{}", "a bytes-like object is required, not 'NoneType'"},
 	}
 
 	for _, c := range testCases {
