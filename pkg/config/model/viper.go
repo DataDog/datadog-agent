@@ -144,12 +144,14 @@ func (c *safeConfig) SetKnown(key string) {
 // IsKnown returns whether a key is known
 func (c *safeConfig) IsKnown(key string) bool {
 	keys := c.GetKnownKeys()
+	key = strings.ToLower(key)
 	_, ok := keys[key]
 	return ok
 }
 
 // GetKnownKeys returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
+// Note that it returns the keys lowercased.
 func (c *safeConfig) GetKnownKeys() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
