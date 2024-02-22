@@ -920,8 +920,8 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         }
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
 
-        // It is not possible that path will be with length 0.
-        if ((current_stream->path.length == 0) && (!current_stream->path.finalized)) {
+        // It is not possible that path or method would be not finalized in that part of the code.
+        if ((!current_stream->path.finalized) || (!current_stream->request_method.finalized)) {
             bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
             continue;
         }
