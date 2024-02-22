@@ -21,7 +21,9 @@ if linux_target?
   # add nfsiostat script
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
-  dependency 'msodbcsql18' # needed for SQL Server integration
+  unless heroku_target?
+    dependency 'msodbcsql18' # needed for SQL Server integration
+  end
   dependency 'nfsiostat'
   # add libkrb5 for all integrations supporting kerberos auth with `requests-kerberos`
   dependency 'libkrb5'
