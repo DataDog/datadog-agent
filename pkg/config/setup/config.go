@@ -214,6 +214,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	autoconfig(config)
 	remoteconfig(config)
 	logsagent(config)
+	containerSyspath(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -317,45 +318,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 
-	if pkgconfigenv.IsContainerized() {
-		// In serverless-containerized environments (e.g Fargate)
-		// it's impossible to mount host volumes.
-		// Make sure the host paths exist before setting-up the default values.
-		// Fallback to the container paths if host paths aren't mounted.
-		if pathExists("/host/proc") {
-			config.SetDefault("procfs_path", "/host/proc")
-			config.SetDefault("container_proc_root", "/host/proc")
-
-			// Used by some librairies (like gopsutil)
-			if v := os.Getenv("HOST_PROC"); v == "" {
-				os.Setenv("HOST_PROC", "/host/proc")
-			}
-		} else {
-			config.SetDefault("procfs_path", "/proc")
-			config.SetDefault("container_proc_root", "/proc")
-		}
-		if pathExists("/host/sys/fs/cgroup/") {
-			config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
-		} else {
-			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
-		}
-	} else {
-		config.SetDefault("container_proc_root", "/proc")
-		// for amazon linux the cgroup directory on host is /cgroup/
-		// we pick memory.stat to make sure it exists and not empty
-		if _, err := os.Stat("/cgroup/memory/memory.stat"); !os.IsNotExist(err) {
-			config.SetDefault("container_cgroup_root", "/cgroup/")
-		} else {
-			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
-		}
-	}
-
-	config.BindEnv("procfs_path")
-	config.BindEnv("container_proc_root")
-	config.BindEnv("container_cgroup_root")
-	config.BindEnvAndSetDefault("ignore_host_etc", false)
-
-	config.BindEnvAndSetDefault("proc_root", "/proc")
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 
@@ -1110,6 +1072,48 @@ func autoconfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("autoconfig_from_environment", true)
 	config.BindEnvAndSetDefault("autoconfig_exclude_features", []string{})
 	config.BindEnvAndSetDefault("autoconfig_include_features", []string{})
+}
+
+func containerSyspath(config pkgconfigmodel.Config) {
+	if pkgconfigenv.IsContainerized() {
+		// In serverless-containerized environments (e.g Fargate)
+		// it's impossible to mount host volumes.
+		// Make sure the host paths exist before setting-up the default values.
+		// Fallback to the container paths if host paths aren't mounted.
+		if pathExists("/host/proc") {
+			config.SetDefault("procfs_path", "/host/proc")
+			config.SetDefault("container_proc_root", "/host/proc")
+
+			// Used by some librairies (like gopsutil)
+			if v := os.Getenv("HOST_PROC"); v == "" {
+				os.Setenv("HOST_PROC", "/host/proc")
+			}
+		} else {
+			config.SetDefault("procfs_path", "/proc")
+			config.SetDefault("container_proc_root", "/proc")
+		}
+		if pathExists("/host/sys/fs/cgroup/") {
+			config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+		} else {
+			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+		}
+	} else {
+		config.SetDefault("container_proc_root", "/proc")
+		// for amazon linux the cgroup directory on host is /cgroup/
+		// we pick memory.stat to make sure it exists and not empty
+		if _, err := os.Stat("/cgroup/memory/memory.stat"); !os.IsNotExist(err) {
+			config.SetDefault("container_cgroup_root", "/cgroup/")
+		} else {
+			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+		}
+	}
+
+	config.BindEnv("procfs_path")
+	config.BindEnv("container_proc_root")
+	config.BindEnv("container_cgroup_root")
+	config.BindEnvAndSetDefault("ignore_host_etc", false)
+
+	config.BindEnvAndSetDefault("proc_root", "/proc")
 }
 
 func telemetry(config pkgconfigmodel.Config) {
