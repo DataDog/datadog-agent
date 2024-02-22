@@ -396,7 +396,10 @@
           "LongRunning": false,
           "CheckName": "ntp",
           "CheckVersion": "",
-          "EventPlatformEvents": {},
+          "EventPlatformEvents": {
+            "dbm-samples":  12,
+            "unknown-type": 34
+          },
           "Events": 0,
           "ExecutionTimes": [
             143,
@@ -440,7 +443,10 @@
           "MetricSamples": 1,
           "ServiceChecks": 1,
           "TotalErrors": 0,
-          "TotalEventPlatformEvents": {},
+          "TotalEventPlatformEvents": {
+            "dbm-samples":  132,
+            "unknown-type": 342
+          },
           "TotalEvents": 0,
           "TotalHistogramBuckets": 0,
           "TotalMetricSamples": 3,
