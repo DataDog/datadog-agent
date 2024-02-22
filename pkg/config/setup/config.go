@@ -217,6 +217,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	containerSyspath(config)
 	containerd(config)
 	cri(config)
+	kubernetes(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -338,34 +339,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Podman
 	config.BindEnvAndSetDefault("podman_db_path", "")
-
-	// Kubernetes
-	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
-	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
-	config.BindEnvAndSetDefault("eks_fargate", false)
-	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
-	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
-
-	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
-	config.BindEnvAndSetDefault("kubelet_core_check_enabled", true)
-	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
-	config.BindEnvAndSetDefault("kubelet_client_ca", "")
-
-	config.BindEnvAndSetDefault("kubelet_auth_token_path", "")
-	config.BindEnvAndSetDefault("kubelet_client_crt", "")
-	config.BindEnvAndSetDefault("kubelet_client_key", "")
-
-	config.BindEnvAndSetDefault("kubernetes_pod_expiration_duration", 15*60) // in seconds, default 15 minutes
-	config.BindEnvAndSetDefault("kubelet_wait_on_missing_container", 0)
-	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)       // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
-	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5) // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
-	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
-	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
-	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
-	config.BindEnvAndSetDefault("kubernetes_apiserver_informer_client_timeout", 0)
-	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
-	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
-	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
@@ -1432,6 +1405,36 @@ func cri(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
 	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
+}
+
+func kubernetes(config pkgconfigmodel.Config) {
+	// Kubernetes
+	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
+	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
+	config.BindEnvAndSetDefault("eks_fargate", false)
+	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
+	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
+
+	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
+	config.BindEnvAndSetDefault("kubelet_core_check_enabled", true)
+	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
+	config.BindEnvAndSetDefault("kubelet_client_ca", "")
+
+	config.BindEnvAndSetDefault("kubelet_auth_token_path", "")
+	config.BindEnvAndSetDefault("kubelet_client_crt", "")
+	config.BindEnvAndSetDefault("kubelet_client_key", "")
+
+	config.BindEnvAndSetDefault("kubernetes_pod_expiration_duration", 15*60) // in seconds, default 15 minutes
+	config.BindEnvAndSetDefault("kubelet_wait_on_missing_container", 0)
+	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)       // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
+	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5) // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
+	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
+	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
+	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
+	config.BindEnvAndSetDefault("kubernetes_apiserver_informer_client_timeout", 0)
+	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
+	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
+	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
