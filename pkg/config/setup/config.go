@@ -219,6 +219,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	cri(config)
 	kubernetes(config)
 	cloudfoundry(config)
+	debugging(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -245,19 +246,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("iot_host", false)
 	// overridden in Heroku buildpack
 	config.BindEnvAndSetDefault("heroku_dyno", false)
-
-	// Debugging + C-land crash feature flags
-	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
-	config.BindEnvAndSetDefault("c_core_dump", false)
-	config.BindEnvAndSetDefault("go_core_dump", false)
-	config.BindEnvAndSetDefault("memtrack_enabled", true)
-	config.BindEnvAndSetDefault("tracemalloc_debug", false)
-	config.BindEnvAndSetDefault("tracemalloc_include", "")
-	config.BindEnvAndSetDefault("tracemalloc_exclude", "")
-	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
-	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
-	config.BindEnvAndSetDefault("run_path", defaultRunPath)
-	config.BindEnv("no_proxy_nonexact_match")
 
 	// Python 3 linter timeout, in seconds
 	// NOTE: linter is notoriously slow, in the absence of a better solution we
@@ -1072,6 +1060,21 @@ func containerSyspath(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("ignore_host_etc", false)
 
 	config.BindEnvAndSetDefault("proc_root", "/proc")
+}
+
+func debugging(config pkgconfigmodel.Config) {
+	// Debugging + C-land crash feature flags
+	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
+	config.BindEnvAndSetDefault("c_core_dump", false)
+	config.BindEnvAndSetDefault("go_core_dump", false)
+	config.BindEnvAndSetDefault("memtrack_enabled", true)
+	config.BindEnvAndSetDefault("tracemalloc_debug", false)
+	config.BindEnvAndSetDefault("tracemalloc_include", "")
+	config.BindEnvAndSetDefault("tracemalloc_exclude", "")
+	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
+	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
+	config.BindEnvAndSetDefault("run_path", defaultRunPath)
+	config.BindEnv("no_proxy_nonexact_match")
 }
 
 func telemetry(config pkgconfigmodel.Config) {
