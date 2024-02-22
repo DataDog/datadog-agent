@@ -200,77 +200,12 @@ func init() {
 }
 
 func initCommonWithServerless(config pkgconfigmodel.Config) {
+	agent(config)
 }
 
 // InitConfig initializes the config defaults on a config
 func InitConfig(config pkgconfigmodel.Config) {
 	initCommonWithServerless(config)
-
-	// Agent
-	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
-	config.BindEnv("site")
-	config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
-	config.BindEnvAndSetDefault("app_key", "")
-	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"})
-	config.SetDefault("proxy", nil)
-	config.BindEnvAndSetDefault("skip_ssl_validation", false)
-	config.BindEnvAndSetDefault("sslkeylogfile", "")
-	config.BindEnv("tls_handshake_timeout")
-	config.BindEnvAndSetDefault("hostname", "")
-	config.BindEnvAndSetDefault("hostname_file", "")
-	config.BindEnvAndSetDefault("tags", []string{})
-	config.BindEnvAndSetDefault("extra_tags", []string{})
-	// If enabled, all origin detection mechanisms will be unified to use the same logic.
-	// Will override all other origin detection settings in favor of the unified one.
-	config.BindEnvAndSetDefault("origin_detection_unified", false)
-	config.BindEnv("env")
-	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
-	config.BindEnvAndSetDefault("conf_path", ".")
-	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
-	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
-	config.BindEnvAndSetDefault("jmx_log_file", "")
-	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
-	config.BindEnvAndSetDefault("log_payloads", false)
-	config.BindEnvAndSetDefault("log_file", "")
-	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
-	config.BindEnvAndSetDefault("log_file_max_rolls", 1)
-	config.BindEnvAndSetDefault("log_level", "info")
-	config.BindEnvAndSetDefault("log_to_syslog", false)
-	config.BindEnvAndSetDefault("log_to_console", true)
-	config.BindEnvAndSetDefault("log_format_rfc3339", false)
-	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
-	config.BindEnvAndSetDefault("logging_frequency", int64(500))
-	config.BindEnvAndSetDefault("disable_file_logging", false)
-	config.BindEnvAndSetDefault("syslog_uri", "")
-	config.BindEnvAndSetDefault("syslog_rfc", false)
-	config.BindEnvAndSetDefault("syslog_pem", "")
-	config.BindEnvAndSetDefault("syslog_key", "")
-	config.BindEnvAndSetDefault("syslog_tls_verify", true)
-	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
-	config.BindEnvAndSetDefault("cmd_host", "localhost")
-	config.BindEnvAndSetDefault("cmd_port", 5001)
-	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
-	config.BindEnvAndSetDefault("agent_ipc.port", 0)
-	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
-	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
-	config.BindEnvAndSetDefault("integration_tracing", false)
-	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
-	config.BindEnvAndSetDefault("integration_profiling", false)
-	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
-	config.BindEnvAndSetDefault("enable_metadata_collection", true)
-	config.BindEnvAndSetDefault("enable_gohai", true)
-	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
-	config.BindEnvAndSetDefault("check_runners", int64(4))
-	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
-	config.BindEnvAndSetDefault("auth_token_file_path", "")
-	config.BindEnv("bind_host")
-	config.BindEnvAndSetDefault("health_port", int64(0))
-	config.BindEnvAndSetDefault("disable_py3_validation", false)
-	config.BindEnvAndSetDefault("python_version", DefaultPython)
-	config.BindEnvAndSetDefault("win_skip_com_init", false)
-	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
-	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
-	config.BindEnvAndSetDefault("remote_tagger_timeout_seconds", 30)
 
 	// Fips
 	config.BindEnvAndSetDefault("fips.enabled", false)
@@ -1044,8 +979,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
 
-	config.BindEnv("api_key")
-
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
@@ -1388,6 +1321,76 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("updater.remote_updates", false)
 	config.BindEnv("updater.registry")
 	config.BindEnvAndSetDefault("updater.registry_auth", "")
+}
+
+func agent(config pkgconfigmodel.Config) {
+	config.BindEnv("api_key")
+
+	// Agent
+	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
+	config.BindEnv("site")
+	config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+	config.BindEnvAndSetDefault("app_key", "")
+	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"})
+	config.SetDefault("proxy", nil)
+	config.BindEnvAndSetDefault("skip_ssl_validation", false)
+	config.BindEnvAndSetDefault("sslkeylogfile", "")
+	config.BindEnv("tls_handshake_timeout")
+	config.BindEnvAndSetDefault("hostname", "")
+	config.BindEnvAndSetDefault("hostname_file", "")
+	config.BindEnvAndSetDefault("tags", []string{})
+	config.BindEnvAndSetDefault("extra_tags", []string{})
+	// If enabled, all origin detection mechanisms will be unified to use the same logic.
+	// Will override all other origin detection settings in favor of the unified one.
+	config.BindEnvAndSetDefault("origin_detection_unified", false)
+	config.BindEnv("env")
+	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
+	config.BindEnvAndSetDefault("conf_path", ".")
+	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
+	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
+	config.BindEnvAndSetDefault("jmx_log_file", "")
+	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
+	config.BindEnvAndSetDefault("log_payloads", false)
+	config.BindEnvAndSetDefault("log_file", "")
+	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
+	config.BindEnvAndSetDefault("log_file_max_rolls", 1)
+	config.BindEnvAndSetDefault("log_level", "info")
+	config.BindEnvAndSetDefault("log_to_syslog", false)
+	config.BindEnvAndSetDefault("log_to_console", true)
+	config.BindEnvAndSetDefault("log_format_rfc3339", false)
+	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
+	config.BindEnvAndSetDefault("logging_frequency", int64(500))
+	config.BindEnvAndSetDefault("disable_file_logging", false)
+	config.BindEnvAndSetDefault("syslog_uri", "")
+	config.BindEnvAndSetDefault("syslog_rfc", false)
+	config.BindEnvAndSetDefault("syslog_pem", "")
+	config.BindEnvAndSetDefault("syslog_key", "")
+	config.BindEnvAndSetDefault("syslog_tls_verify", true)
+	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
+	config.BindEnvAndSetDefault("cmd_host", "localhost")
+	config.BindEnvAndSetDefault("cmd_port", 5001)
+	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
+	config.BindEnvAndSetDefault("agent_ipc.port", 0)
+	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
+	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
+	config.BindEnvAndSetDefault("integration_tracing", false)
+	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
+	config.BindEnvAndSetDefault("integration_profiling", false)
+	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
+	config.BindEnvAndSetDefault("enable_metadata_collection", true)
+	config.BindEnvAndSetDefault("enable_gohai", true)
+	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
+	config.BindEnvAndSetDefault("check_runners", int64(4))
+	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
+	config.BindEnvAndSetDefault("auth_token_file_path", "")
+	config.BindEnv("bind_host")
+	config.BindEnvAndSetDefault("health_port", int64(0))
+	config.BindEnvAndSetDefault("disable_py3_validation", false)
+	config.BindEnvAndSetDefault("python_version", DefaultPython)
+	config.BindEnvAndSetDefault("win_skip_com_init", false)
+	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
+	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
+	config.BindEnvAndSetDefault("remote_tagger_timeout_seconds", 30)
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
