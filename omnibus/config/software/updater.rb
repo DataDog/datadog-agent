@@ -54,26 +54,39 @@ build do
       mkdir "/usr/lib/systemd/system/"
       systemdPath = "/usr/lib/systemd/system/"
     end
+
+    # Add systemd units
     templateToFile = {
       "datadog-agent.service.erb" => "datadog-agent.service",
-      "datadog-agent-exp.service.erb" => "datadog-agent-exp.service",
       "datadog-agent-trace.service.erb" => "datadog-agent-trace.service",
-      "datadog-agent-trace-exp.service.erb" => "datadog-agent-trace-exp.service",
       "datadog-agent-process.service.erb" => "datadog-agent-process.service",
-      "datadog-agent-process-exp.service.erb" => "datadog-agent-process-exp.service",
       "datadog-agent-security.service.erb" => "datadog-agent-security.service",
-      "datadog-agent-security-exp.service.erb" => "datadog-agent-security-exp.service",
       "datadog-agent-sysprobe.service.erb" => "datadog-agent-sysprobe.service",
-      "datadog-agent-sysprobe-exp.service.erb" => "datadog-agent-sysprobe-exp.service",
       "start-experiment.path.erb" => "start-experiment.path",
       "stop-experiment.path.erb" => "stop-experiment.path",
       "datadog-updater.service.erb" => "datadog-updater.service",
     }
     templateToFile.each do |template, file|
+      agent_dir = "/opt/datadog-packages/datadog-agent/stable"
       erb source: template,
          dest: systemdPath + file,
          mode: 0644,
-         vars: { install_dir: install_dir, etc_dir: etc_dir }
+         vars: { install_dir: install_dir, etc_dir: etc_dir, agent_dir: agent_dir }
+    end
+    # Add experiment systemd units
+    expTemplateToFile = {
+      "datadog-agent-exp.service.erb" => "datadog-agent-exp.service",
+      "datadog-agent-trace-exp.service.erb" => "datadog-agent-trace-exp.service",
+      "datadog-agent-process-exp.service.erb" => "datadog-agent-process-exp.service",
+      "datadog-agent-security-exp.service.erb" => "datadog-agent-security-exp.service",
+      "datadog-agent-sysprobe-exp.service.erb" => "datadog-agent-sysprobe-exp.service",
+    }
+    expTemplateToFile.each do |template, file|
+      agent_dir = "/opt/datadog-packages/datadog-agent/experiment"
+      erb source: template,
+         dest: systemdPath + file,
+         mode: 0644,
+         vars: { etc_dir: etc_dir, agent_dir: agent_dir }
     end
 
   end
