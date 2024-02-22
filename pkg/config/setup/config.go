@@ -210,6 +210,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	setupAPM(config)
 	OTLP(config)
 	setupMultiRegionFailover(config)
+	telemetry(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -947,26 +948,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
 
-	// Telemetry
-	// Enable telemetry metrics on the internals of the Agent.
-	// This create a lot of billable custom metrics.
-	config.BindEnvAndSetDefault("telemetry.enabled", false)
-	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
-	config.BindEnvAndSetDefault("telemetry.python_memory", true)
-	config.BindEnv("telemetry.checks")
-	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
-	//
-	// The histogram buckets use to track the time in nanoseconds DogStatsD listeners are not reading/waiting new data
-	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_latency_buckets", []string{})
-	// The histogram buckets use to track the time in nanoseconds it takes for the DogStatsD server to push data to the aggregator
-	config.BindEnvAndSetDefault("telemetry.dogstatsd.aggregator_channel_latency_buckets", []string{})
-	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
-	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
-
-	// Agent Telemetry. It is experimental feature and is subject to change.
-	// It should not be enabled unless prompted by Datadog Support
-	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
-
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetKnown("metadata_providers")
@@ -1241,6 +1222,28 @@ func fips(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
 	config.BindEnvAndSetDefault("fips.https", true)
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
+}
+
+func telemetry(config pkgconfigmodel.Config) {
+	// Telemetry
+	// Enable telemetry metrics on the internals of the Agent.
+	// This create a lot of billable custom metrics.
+	config.BindEnvAndSetDefault("telemetry.enabled", false)
+	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
+	config.BindEnvAndSetDefault("telemetry.python_memory", true)
+	config.BindEnv("telemetry.checks")
+	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
+	//
+	// The histogram buckets use to track the time in nanoseconds DogStatsD listeners are not reading/waiting new data
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_latency_buckets", []string{})
+	// The histogram buckets use to track the time in nanoseconds it takes for the DogStatsD server to push data to the aggregator
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.aggregator_channel_latency_buckets", []string{})
+	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
+
+	// Agent Telemetry. It is experimental feature and is subject to change.
+	// It should not be enabled unless prompted by Datadog Support
+	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
 }
 
 func serializer(config pkgconfigmodel.Config) {
