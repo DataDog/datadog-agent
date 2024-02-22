@@ -407,6 +407,14 @@ def add_disks(vmconfig_template: VMConfig, vmset: VMSetDict):
             for disk in vmset.get("disks", []):
                 disk["target"] = disk["target"].replace("%KMTDIR%", os.fspath(kmt_os.kmt_dir))
 
+            if vmset["arch"] == local_arch:
+                kmt_os = get_kmt_os()
+            else:
+                kmt_os = Linux
+
+            for disk in vmset.get("disks", []):
+                disk["target"] = disk["target"].replace("%KMTDIR%", os.fspath(kmt_os.kmt_dir))
+
 
 def add_console(vmset: VMSetDict):
     vmset["console_type"] = "file"
