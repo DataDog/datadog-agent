@@ -8,13 +8,13 @@
 package config
 
 import (
-	xtagger "github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 func containerTagsFunc(cid string) ([]string, error) {
-	return xtagger.Tag("container_id://"+cid, collectors.HighCardinality)
+	return tagger.Tag("container_id://"+cid, collectors.HighCardinality)
 }
 
 func containerSetup(cfg *config.AgentConfig, procRoot string) {

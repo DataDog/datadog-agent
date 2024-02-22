@@ -10,8 +10,8 @@ package replay
 import (
 	"encoding/binary"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 	proto "github.com/golang/protobuf/proto"
