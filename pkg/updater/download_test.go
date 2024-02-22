@@ -89,7 +89,7 @@ func createTestOCIArchive(t *testing.T, dir string) {
 	err = os.WriteFile(
 		manifestPath,
 		[]byte(fmt.Sprintf(
-			`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","artifactType":"application/vnd.datadoghq.pkg","config":{"mediaType":"application/vnd.datadoghq.pkgmetadata.v1+json","digest":"sha256:%[1]s","size":%[2]d},"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+gz","digest":"sha256:%[1]s","size":%[2]d}]}`,
+			`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","artifactType":"application/vnd.datadoghq.pkg","config":{"mediaType":"application/vnd.datadoghq.pkgmetadata.v1+json","digest":"sha256:%[1]s","size":%[2]d},"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+gzip","digest":"sha256:%[1]s","size":%[2]d}]}`,
 			layerDigest, layerStat.Size(),
 		),
 		),
@@ -139,7 +139,7 @@ func createTestOCIArchive(t *testing.T, dir string) {
 		path.Join("blobs/sha256", manifestDigest),
 		path.Join("blobs/sha256", layerDigest),
 	}
-	err = createArchive(dir, files, out)
+	err = createArchive(dir, files, out, compressionNone)
 	assert.NoError(t, err)
 
 	// Remove temporary files used for archive creation
@@ -175,7 +175,7 @@ func createTestArchive(t *testing.T, dir string, filesPrefix string, archiveFile
 	out, err := os.Create(archivePath)
 	assert.NoError(t, err)
 	defer out.Close()
-	err = createArchive(dir, files, out)
+	err = createArchive(dir, files, out, compressionGzip)
 	assert.NoError(t, err)
 
 	os.Remove(agentFilePath)
@@ -199,14 +199,19 @@ func agentArchiveSize(t *testing.T, dir string) int64 {
 	return int64(f.Size())
 }
 
-func createArchive(dir string, files []string, buf io.Writer) error {
+func createArchive(dir string, files []string, buf io.Writer, compression compression) error {
 	// Create new Writers for gzip and tar
 	// These writers are chained. Writing to the tar writer will
 	// write to the gzip writer which in turn will write to
 	// the "buf" writer
-	gzw := gzip.NewWriter(buf)
-	defer gzw.Close()
-	tw := tar.NewWriter(gzw)
+	var w io.Writer = buf
+	switch compression {
+	case compressionGzip:
+		gzw := gzip.NewWriter(buf)
+		defer gzw.Close()
+		w = gzw
+	}
+	tw := tar.NewWriter(w)
 	defer tw.Close()
 
 	// Iterate over files and add them to the tar archive

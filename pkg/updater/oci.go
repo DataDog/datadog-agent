@@ -18,7 +18,7 @@ import (
 
 const (
 	// mediaTypeImageLayerGz is the media type for an OCI image layer in gz format
-	mediaTypeImageLayerGz = "application/vnd.oci.image.layer.v1.tar+gz"
+	mediaTypeImageLayerGz = "application/vnd.oci.image.layer.v1.tar+gzip"
 )
 
 // extractOCI extracts the OCI archive at `ociArchivePath`
@@ -85,7 +85,7 @@ func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Des
 	layerPath := path.Join(blobsPath, layer.Digest.Encoded())
 	switch layer.MediaType {
 	case mediaTypeImageLayerGz:
-		err := extractTarGz(layerPath, destinationPath)
+		err := extractTarArchive(layerPath, destinationPath, compressionGzip)
 		if err != nil {
 			return err // already wrapped
 		}
