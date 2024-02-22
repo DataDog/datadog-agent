@@ -220,6 +220,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	kubernetes(config)
 	cloudfoundry(config)
 	debugging(config)
+	vector(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -864,10 +865,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// The default value of 20 means the Agent will retry counter intialization for roughly 5 minutes.
 	config.BindEnvAndSetDefault("windows_counter_init_failure_limit", 20)
 
-	// Vector integration
-	bindVectorOptions(config, Metrics)
-	bindVectorOptions(config, Logs)
-
 	// Datadog Agent Manager System Tray
 	config.BindEnvAndSetDefault("system_tray.log_file", "")
 
@@ -1387,6 +1384,12 @@ func logsagent(config pkgconfigmodel.Config) {
 	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
+}
+
+func vector(config pkgconfigmodel.Config) {
+	// Vector integration
+	bindVectorOptions(config, Metrics)
+	bindVectorOptions(config, Logs)
 }
 
 func cloudfoundry(config pkgconfigmodel.Config) {
