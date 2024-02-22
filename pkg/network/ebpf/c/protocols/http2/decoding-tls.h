@@ -920,7 +920,9 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
         }
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
 
-        // It is not possible that path or method would be not finalized in that part of the code.
+        // If we reached here, it means that we saw End Of Stream. If the End of Stream came from a request,
+        // thus we except it to have a valid path. If the End of Stream came from a response, we except it to
+        // be after seeing a request, thus it should have a path as well.
         if ((!current_stream->path.finalized) || (!current_stream->request_method.finalized)) {
             bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
             continue;
