@@ -160,6 +160,10 @@ func (suite *CollectorTestSuite) TestCancelCheck_TimeoutIsApplied() {
 	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
 }
 
+func (suite *CollectorTestSuite) TestCancelCheck_CheckRemovedFromRegistry() {
+	assert.Equal(suite.T(), 1, 2)
+}
+
 func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)

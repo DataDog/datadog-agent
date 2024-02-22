@@ -237,6 +237,7 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	}
 
 	if err := c.cancelCheck(ch, c.cancelCheckTimeout); err != nil {
+		c.delete(id)
 		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
 	}
 
