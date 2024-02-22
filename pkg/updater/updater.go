@@ -204,11 +204,12 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	err = u.downloader.Download(ctx, experimentPackage, tmpDir)
+	pkgDir := path.Join(tmpDir, "pkg")
+	err = u.downloader.Download(ctx, experimentPackage, pkgDir)
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
-	err = u.repository.SetExperiment(experimentPackage.Version, tmpDir)
+	err = u.repository.SetExperiment(experimentPackage.Version, pkgDir)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
