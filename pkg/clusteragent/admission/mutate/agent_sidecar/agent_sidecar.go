@@ -9,18 +9,21 @@
 package agentsidecar
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
+
 	dca_ac "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/dynamic"
 	k8s "k8s.io/client-go/kubernetes"
-	"os"
 )
 
 // InjectAgentSidecar handles mutating pod requests for the agentsidecat webhook
@@ -86,7 +89,7 @@ func getDefaultSidecarTemplate() *corev1.Container {
 			},
 			{
 				Name:  "DD_CLUSTER_NAME",
-				Value: config.Datadog.GetString("cluster_name"),
+				Value: clustername.GetClusterName(context.TODO(), ""),
 			},
 			{
 				Name: "DD_KUBERNETES_KUBELET_NODENAME",
