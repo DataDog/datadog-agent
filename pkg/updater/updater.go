@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -127,6 +128,10 @@ func NewUpdater(rcFetcher client.ConfigFetcher, pkg string) (Updater, error) {
 		downloader:     newDownloader(http.DefaultClient),
 		stopChan:       make(chan struct{}),
 	}
+	err = u.updatePackagesState()
+	if err != nil {
+		return nil, fmt.Errorf("could not update packages state: %w", err)
+	}
 	rc.Subscribe(state.ProductUpdaterTask, u.handleUpdaterTask)
 	return u, nil
 }
@@ -208,6 +213,10 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully started experiment for package %s version %s", u.pkg, version)
+	err = u.updatePackagesState()
+	if err != nil {
+		log.Warnf("could not update packages state: %s", err)
+	}
 	return nil
 }
 
@@ -221,6 +230,10 @@ func (u *updaterImpl) PromoteExperiment() error {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully promoted experiment for package %s", u.pkg)
+	err = u.updatePackagesState()
+	if err != nil {
+		log.Warnf("could not update packages state: %s", err)
+	}
 	return nil
 }
 
@@ -234,6 +247,25 @@ func (u *updaterImpl) StopExperiment() error {
 		return fmt.Errorf("could not set stable: %w", err)
 	}
 	log.Infof("Updater: Successfully stopped experiment for package %s", u.pkg)
+	err = u.updatePackagesState()
+	if err != nil {
+		log.Warnf("could not update packages state: %s", err)
+	}
+	return nil
+}
+
+func (u *updaterImpl) updatePackagesState() error {
+	state, err := u.repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get state: %w", err)
+	}
+	u.rc.SetUpdaterPackagesState([]*pbgo.PackageState{
+		{
+			Package:           u.pkg,
+			StableVersion:     state.Stable,
+			ExperimentVersion: state.Experiment,
+		},
+	})
 	return nil
 }
 
