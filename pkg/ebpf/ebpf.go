@@ -14,6 +14,7 @@ import (
 
 	"github.com/cilium/ebpf/rlimit"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -64,6 +65,7 @@ func registerDefaultModifiers() {
 	// more details in the Modifier documentation.
 	defaultModifiers = []Modifier{
 		&PrintkPatcherModifier{},
+		&ebpftelemetry.ErrorsTelemetryModifier{},
 	}
 }
 
