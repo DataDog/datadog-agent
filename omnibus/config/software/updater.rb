@@ -41,6 +41,7 @@ build do
     mkdir '/etc/datadog-agent'
     mkdir "/etc/init"
     mkdir "/var/log/datadog"
+    mkdir "/var/run/datadog-packages"
 
     # Packages
     mkdir "/opt/datadog-packages"

@@ -7,6 +7,7 @@
 INSTALL_DIR=/opt/datadog
 PACKAGES_DIR=/opt/datadog-packages
 LOG_DIR=/var/log/datadog
+PACKAGES_LOCK_DIR=/var/run/datadog-packages
 CONFIG_DIR=/etc/datadog-agent
 
 add_user_and_group() {
@@ -83,9 +84,12 @@ chown -R dd-agent:dd-agent ${CONFIG_DIR}
 chown -R dd-agent:dd-agent ${LOG_DIR}
 chown -R dd-updater:dd-updater ${INSTALL_DIR}
 chown -R dd-updater:dd-updater ${PACKAGES_DIR}
+chown -R dd-updater:dd-updater ${PACKAGES_DIR}
+chown -R dd-updater:dd-updater ${PACKAGES_LOCK_DIR}
 
 chmod -R 755 ${INSTALL_DIR}
 chmod -R 755 ${PACKAGES_DIR}
+chown -R 666 ${PACKAGES_LOCK_DIR}
 
 # Make system-probe configs read-only
 chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
