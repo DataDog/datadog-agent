@@ -212,31 +212,12 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	setupMultiRegionFailover(config)
 	telemetry(config)
 	autoconfig(config)
+	remoteconfig(config)
 }
 
 // InitConfig initializes the config defaults on a config
 func InitConfig(config pkgconfigmodel.Config) {
 	initCommonWithServerless(config)
-
-	// Remote config
-	config.BindEnvAndSetDefault("remote_configuration.enabled", true)
-	config.BindEnvAndSetDefault("remote_configuration.key", "")
-	config.BindEnv("remote_configuration.api_key")
-	config.BindEnv("remote_configuration.rc_dd_url")
-	config.BindEnvAndSetDefault("remote_configuration.no_tls", false)
-	config.BindEnvAndSetDefault("remote_configuration.no_tls_validation", false)
-	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
-	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
-	config.BindEnv("remote_configuration.refresh_interval")
-	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
-	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
-	config.BindEnvAndSetDefault("remote_configuration.clients.cache_bypass_limit", 5)
-	// Remote config products
-	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
-	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
-	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
-	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
-	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -1193,6 +1174,28 @@ func fips(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
 	config.BindEnvAndSetDefault("fips.https", true)
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
+}
+
+func remoteconfig(config pkgconfigmodel.Config) {
+	// Remote config
+	config.BindEnvAndSetDefault("remote_configuration.enabled", true)
+	config.BindEnvAndSetDefault("remote_configuration.key", "")
+	config.BindEnv("remote_configuration.api_key")
+	config.BindEnv("remote_configuration.rc_dd_url")
+	config.BindEnvAndSetDefault("remote_configuration.no_tls", false)
+	config.BindEnvAndSetDefault("remote_configuration.no_tls_validation", false)
+	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
+	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
+	config.BindEnv("remote_configuration.refresh_interval")
+	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
+	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
+	config.BindEnvAndSetDefault("remote_configuration.clients.cache_bypass_limit", 5)
+	// Remote config products
+	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
 }
 
 func autoconfig(config pkgconfigmodel.Config) {
