@@ -211,6 +211,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	OTLP(config)
 	setupMultiRegionFailover(config)
 	telemetry(config)
+	autoconfig(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -375,36 +376,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
-
-	// Autoconfig
-	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
-	config.BindEnvAndSetDefault("autoconf_template_url_timeout", 5)
-	// Where to look for check templates if no custom path is defined
-	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
-	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
-	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
-	config.BindEnvAndSetDefault("exclude_pause_container", true)
-	config.BindEnvAndSetDefault("ac_include", []string{})
-	config.BindEnvAndSetDefault("ac_exclude", []string{})
-	// ac_load_timeout is used to delay the introduction of sources other than
-	// the ones automatically loaded by the AC, into the logs agent.
-	// It is mainly here to delay the introduction of the container_collect_all
-	// in the logs agent, to avoid it to tail all the available containers.
-	config.BindEnvAndSetDefault("ac_load_timeout", 30000) // in milliseconds
-	config.BindEnvAndSetDefault("container_include", []string{})
-	config.BindEnvAndSetDefault("container_exclude", []string{})
-	config.BindEnvAndSetDefault("container_include_metrics", []string{})
-	config.BindEnvAndSetDefault("container_exclude_metrics", []string{})
-	config.BindEnvAndSetDefault("container_include_logs", []string{})
-	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
-	config.BindEnvAndSetDefault("container_exclude_stopped_age", DefaultAuditorTTL-1) // in hours
-	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))                 // in seconds
-	config.BindEnvAndSetDefault("extra_listeners", []string{})
-	config.BindEnvAndSetDefault("extra_config_providers", []string{})
-	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
-	config.BindEnvAndSetDefault("autoconfig_from_environment", true)
-	config.BindEnvAndSetDefault("autoconfig_exclude_features", []string{})
-	config.BindEnvAndSetDefault("autoconfig_include_features", []string{})
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -1222,6 +1193,38 @@ func fips(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
 	config.BindEnvAndSetDefault("fips.https", true)
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
+}
+
+func autoconfig(config pkgconfigmodel.Config) {
+	// Autoconfig
+	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
+	config.BindEnvAndSetDefault("autoconf_template_url_timeout", 5)
+	// Where to look for check templates if no custom path is defined
+	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
+	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
+	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
+	config.BindEnvAndSetDefault("exclude_pause_container", true)
+	config.BindEnvAndSetDefault("ac_include", []string{})
+	config.BindEnvAndSetDefault("ac_exclude", []string{})
+	// ac_load_timeout is used to delay the introduction of sources other than
+	// the ones automatically loaded by the AC, into the logs agent.
+	// It is mainly here to delay the introduction of the container_collect_all
+	// in the logs agent, to avoid it to tail all the available containers.
+	config.BindEnvAndSetDefault("ac_load_timeout", 30000) // in milliseconds
+	config.BindEnvAndSetDefault("container_include", []string{})
+	config.BindEnvAndSetDefault("container_exclude", []string{})
+	config.BindEnvAndSetDefault("container_include_metrics", []string{})
+	config.BindEnvAndSetDefault("container_exclude_metrics", []string{})
+	config.BindEnvAndSetDefault("container_include_logs", []string{})
+	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
+	config.BindEnvAndSetDefault("container_exclude_stopped_age", DefaultAuditorTTL-1) // in hours
+	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))                 // in seconds
+	config.BindEnvAndSetDefault("extra_listeners", []string{})
+	config.BindEnvAndSetDefault("extra_config_providers", []string{})
+	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
+	config.BindEnvAndSetDefault("autoconfig_from_environment", true)
+	config.BindEnvAndSetDefault("autoconfig_exclude_features", []string{})
+	config.BindEnvAndSetDefault("autoconfig_include_features", []string{})
 }
 
 func telemetry(config pkgconfigmodel.Config) {
