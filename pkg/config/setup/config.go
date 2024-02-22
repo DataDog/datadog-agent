@@ -216,6 +216,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	logsagent(config)
 	containerSyspath(config)
 	containerd(config)
+	cri(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -334,11 +335,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
-
-	// CRI
-	config.BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
-	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
-	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 
 	// Podman
 	config.BindEnvAndSetDefault("podman_db_path", "")
@@ -1429,6 +1425,13 @@ func containerd(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("containerd_exclude_namespaces", []string{"moby"})
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
+}
+
+func cri(config pkgconfigmodel.Config) {
+	// CRI
+	config.BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
+	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
+	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
