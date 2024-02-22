@@ -241,10 +241,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-require (
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.23.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.23.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.23.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.23.0 // indirect
-)
