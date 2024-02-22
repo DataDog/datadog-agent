@@ -7,7 +7,6 @@ package workloadmeta
 
 import (
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -865,13 +863,11 @@ type ContainerImageMetadata struct {
 	SBOM         *SBOM
 }
 
-// ContainerImageLayer represents a layer of a container image
-type ContainerImageLayer struct {
-	MediaType string
-	Digest    string
-	SizeBytes int64
-	URLs      []string
-	History   *v1.History
+type v1History interface {
+	Created() string
+	CreatedBy() string
+	Comment() string
+	EmptyLayer() string
 }
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
@@ -956,19 +952,6 @@ func (layer ContainerImageLayer) String() string {
 	printHistory(&sb, layer.History)
 
 	return sb.String()
-}
-
-func printHistory(out io.Writer, history *v1.History) {
-	if history == nil {
-		_, _ = fmt.Fprintln(out, "History is nil")
-		return
-	}
-
-	_, _ = fmt.Fprintln(out, "History:")
-	_, _ = fmt.Fprintln(out, "- createdAt:", history.Created)
-	_, _ = fmt.Fprintln(out, "- createdBy:", history.CreatedBy)
-	_, _ = fmt.Fprintln(out, "- comment:", history.Comment)
-	_, _ = fmt.Fprintln(out, "- emptyLayer:", history.EmptyLayer)
 }
 
 var _ Entity = &ContainerImageMetadata{}
