@@ -205,6 +205,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	dogstatsd(config)
 	forwarder(config)
 	aggregator(config)
+	serializer(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -369,29 +370,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
-
-	// Serializer
-	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
-
-	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
-	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
-	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
-	config.BindEnvAndSetDefault("serializer_max_series_points_per_payload", 10000)
-	config.BindEnvAndSetDefault("serializer_max_series_payload_size", 512000)
-	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
-	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
-
-	config.BindEnvAndSetDefault("use_v2_api.series", true)
-	// Serializer: allow user to blacklist any kind of payload to be sent
-	config.BindEnvAndSetDefault("enable_payloads.events", true)
-	config.BindEnvAndSetDefault("enable_payloads.series", true)
-	config.BindEnvAndSetDefault("enable_payloads.service_checks", true)
-	config.BindEnvAndSetDefault("enable_payloads.sketches", true)
-	config.BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)
 
 	// Autoconfig
 	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
@@ -1272,6 +1250,31 @@ func fips(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
 	config.BindEnvAndSetDefault("fips.https", true)
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
+}
+
+func serializer(config pkgconfigmodel.Config) {
+	// Serializer
+	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
+
+	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
+	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
+	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
+	config.BindEnvAndSetDefault("serializer_max_series_points_per_payload", 10000)
+	config.BindEnvAndSetDefault("serializer_max_series_payload_size", 512000)
+	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
+	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
+
+	config.BindEnvAndSetDefault("use_v2_api.series", true)
+	// Serializer: allow user to blacklist any kind of payload to be sent
+	config.BindEnvAndSetDefault("enable_payloads.events", true)
+	config.BindEnvAndSetDefault("enable_payloads.series", true)
+	config.BindEnvAndSetDefault("enable_payloads.service_checks", true)
+	config.BindEnvAndSetDefault("enable_payloads.sketches", true)
+	config.BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)
 }
 
 func aggregator(config pkgconfigmodel.Config) {
