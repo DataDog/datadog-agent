@@ -57,6 +57,8 @@ New Features
 
 - Re-enable Aerospike in SUSE packages.
 
+- The Windows Registry integration can now send the registry values as logs.
+
 
 .. _Release Notes_7.51.0_Enhancement Notes:
 
