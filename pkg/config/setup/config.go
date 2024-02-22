@@ -204,6 +204,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	fips(config)
 	dogstatsd(config)
 	forwarder(config)
+	aggregator(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -368,12 +369,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
-	config.BindEnvAndSetDefault("aggregator_stop_timeout", 2)
-	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
-	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
-	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
-	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
-	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
 
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
@@ -1277,6 +1272,15 @@ func fips(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
 	config.BindEnvAndSetDefault("fips.https", true)
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
+}
+
+func aggregator(config pkgconfigmodel.Config) {
+	config.BindEnvAndSetDefault("aggregator_stop_timeout", 2)
+	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
+	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
+	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
+	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
+	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
 }
 
 func forwarder(config pkgconfigmodel.Config) {
