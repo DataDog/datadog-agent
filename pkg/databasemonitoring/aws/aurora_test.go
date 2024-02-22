@@ -6,9 +6,11 @@
 package aws
 
 import (
+	"context"
 	"errors"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -33,7 +35,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "single cluster id returns no results from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any()).Return(&rds.DescribeDBInstancesOutput{}, nil).Times(1)
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{}, nil).Times(1)
 			},
 			clusterIds:                     []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: nil,
@@ -42,7 +44,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "single cluster id returns error response from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any()).Return(nil, errors.New("big time error")).Times(1)
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(nil, errors.New("big time error")).Times(1)
 			},
 			clusterIds:                     []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: nil,
@@ -51,12 +53,12 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "single cluster id returns single endpoint from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
-					DBInstances: []*rds.DBInstance{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
-								Port:    aws.Int64(5432),
+								Port:    aws.Int32(5432),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
@@ -82,12 +84,12 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "single cluster id returns many endpoints from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
-					DBInstances: []*rds.DBInstance{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
-								Port:    aws.Int64(5432),
+								Port:    aws.Int32(5432),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
@@ -95,9 +97,9 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBInstanceStatus:                 aws.String("available"),
 						},
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-2"),
-								Port:    aws.Int64(5432),
+								Port:    aws.Int32(5432),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(false),
@@ -105,9 +107,9 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBInstanceStatus:                 aws.String("available"),
 						},
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-3"),
-								Port:    aws.Int64(5444),
+								Port:    aws.Int32(5444),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(false),
@@ -143,12 +145,12 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "single cluster id returns some unavailable endpoints from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
-					DBInstances: []*rds.DBInstance{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
-								Port:    aws.Int64(5432),
+								Port:    aws.Int32(5432),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
@@ -156,9 +158,9 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBInstanceStatus:                 aws.String("available"),
 						},
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-2"),
-								Port:    aws.Int64(5432),
+								Port:    aws.Int32(5432),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(false),
@@ -166,9 +168,9 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBInstanceStatus:                 aws.String("terminating"),
 						},
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-3"),
-								Port:    aws.Int64(5444),
+								Port:    aws.Int32(5444),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(false),
@@ -194,12 +196,12 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "multiple cluster ids returns single endpoint from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
-					DBInstances: []*rds.DBInstance{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
-								Port:    aws.Int64(5432),
+								Port:    aws.Int32(5432),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
@@ -225,12 +227,12 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "multiple cluster ids returns many endpoints from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
-					DBInstances: []*rds.DBInstance{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
-								Port:    aws.Int64(5432),
+								Port:    aws.Int32(5432),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
@@ -238,9 +240,9 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBInstanceStatus:                 aws.String("available"),
 						},
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-2"),
-								Port:    aws.Int64(5432),
+								Port:    aws.Int32(5432),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(false),
@@ -248,9 +250,9 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBInstanceStatus:                 aws.String("available"),
 						},
 						{
-							Endpoint: &rds.Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-3"),
-								Port:    aws.Int64(5444),
+								Port:    aws.Int32(5444),
 							},
 							DBClusterIdentifier:              aws.String("test-cluster-2"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
@@ -295,7 +297,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClusterEndpoints(tt.clusterIds)
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIds)
 			if tt.expectedErr != nil {
 				require.EqualError(t, err, tt.expectedErr.Error())
 				return
@@ -307,15 +309,11 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 }
 
 func createDescribeDBInstancesRequest(clusterIds []string) *rds.DescribeDBInstancesInput {
-	idVals := make([]*string, 0)
-	for _, id := range clusterIds {
-		idVals = append(idVals, aws.String(id))
-	}
 	return &rds.DescribeDBInstancesInput{
-		Filters: []*rds.Filter{
+		Filters: []types.Filter{
 			{
 				Name:   aws.String("db-cluster-id"),
-				Values: idVals,
+				Values: clusterIds,
 			},
 		},
 	}

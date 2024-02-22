@@ -6,23 +6,26 @@
 package aws
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/rds"
+	"context"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"time"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=rdsclient_mockgen.go
 
 // RDSClient is the interface for describing aurora cluster endpoints
 type RDSClient interface {
-	GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[string]*AuroraCluster, error)
+	GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string) (map[string]*AuroraCluster, error)
 }
 
 // rdsService defines the interface for describing cluster instances. It exists here to facilitate testing
-// but the *rds.RDS client will be the implementation for production code.
+// but the *rds.Client will be the implementation for production code.
 type rdsService interface {
-	DescribeDBInstances(input *rds.DescribeDBInstancesInput) (*rds.DescribeDBInstancesOutput, error)
+	DescribeDBInstances(ctx context.Context, params *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error)
 }
 
 // Client is a wrapper around the AWS RDS client
@@ -32,12 +35,19 @@ type Client struct {
 
 // NewRDSClient creates a new AWS client for querying RDS
 func NewRDSClient(region, roleArn string) (*Client, error) {
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		Config: aws.Config{
-			Region: aws.String(region),
-		},
-	}))
-	creds := stscreds.NewCredentials(sess, roleArn)
-	rdsSvc := rds.New(sess, &aws.Config{Credentials: creds})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(region),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	stsClient := sts.NewFromConfig(cfg)
+	provider := stscreds.NewAssumeRoleProvider(stsClient, roleArn)
+	cfg.Credentials = aws.NewCredentialsCache(provider)
+
+	rdsSvc := rds.NewFromConfig(cfg)
 	return &Client{client: rdsSvc}, nil
 }

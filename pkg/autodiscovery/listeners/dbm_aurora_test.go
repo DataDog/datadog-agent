@@ -43,7 +43,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRDSClient) {
-				k.EXPECT().GetAuroraClusterEndpoints([]string{"my-cluster-1"}).Return(
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}).Return(
 					map[string]*aws.AuroraCluster{
 						"my-cluster-1": {
 							Instances: []*aws.Instance{
@@ -87,7 +87,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRDSClient) {
-				k.EXPECT().GetAuroraClusterEndpoints([]string{"my-cluster-1"}).Return(
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}).Return(
 					map[string]*aws.AuroraCluster{
 						"my-cluster-1": {
 							Instances: []*aws.Instance{
@@ -166,7 +166,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			numDiscoveryIntervals: 2, // 3 ticks to ensure the service is deleted
 			rdsClientConfigurer: func(k *aws.MockRDSClient) {
 				gomock.InOrder(
-					k.EXPECT().GetAuroraClusterEndpoints([]string{"my-cluster-1"}).Return(
+					k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}).Return(
 						map[string]*aws.AuroraCluster{
 							"my-cluster-1": {
 								Instances: []*aws.Instance{
@@ -188,7 +188,7 @@ func TestDBMAuroraListener(t *testing.T) {
 								},
 							},
 						}, nil).Times(2),
-					k.EXPECT().GetAuroraClusterEndpoints([]string{"my-cluster-1"}).Return(
+					k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}).Return(
 						map[string]*aws.AuroraCluster{
 							"my-cluster-1": {
 								Instances: []*aws.Instance{

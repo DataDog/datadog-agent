@@ -7,9 +7,11 @@
 package aws
 
 import (
+	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"hash/fnv"
 	"strconv"
 
@@ -24,26 +26,22 @@ type AuroraCluster struct {
 // Instance represents an Aurora instance
 type Instance struct {
 	Endpoint   string
-	Port       int64
+	Port       int32
 	IamEnabled bool
 }
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
 // requires the dbClusterIdentifier for the cluster
-func (c *Client) GetAuroraClusterEndpoints(dbClusterIdentifiers []string) (map[string]*AuroraCluster, error) {
+func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string) (map[string]*AuroraCluster, error) {
 	if len(dbClusterIdentifiers) == 0 {
 		return nil, fmt.Errorf("at least one database cluster identifier is required")
 	}
-	idVals := make([]*string, len(dbClusterIdentifiers))
-	for i, id := range dbClusterIdentifiers {
-		idVals[i] = aws.String(id)
-	}
-	clusterInstances, err := c.client.DescribeDBInstances(
+	clusterInstances, err := c.client.DescribeDBInstances(ctx,
 		&rds.DescribeDBInstancesInput{
-			Filters: []*rds.Filter{
+			Filters: []types.Filter{
 				{
 					Name:   aws.String("db-cluster-id"),
-					Values: idVals,
+					Values: dbClusterIdentifiers,
 				},
 			},
 		})
