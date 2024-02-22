@@ -513,8 +513,8 @@ func TestObfuscateSQLErrors(t *testing.T) {
 	}{
 		{"\"\"", "{'quantize_sql_tables': True}", "result is empty"},
 		{"\"\"", "None", "result is empty"},
-		{"{1: 2}", "{'quantize_sql_tables': False}", "argument 1 must be str(ing)?, not dict"},
-		{"None", "{}", "argument 1 must be str(ing)?, not None"},
+		{"{1: 2}", "{'quantize_sql_tables': False}", "argument 1 must be string or buffer, not dict"},
+		{"None", "{}", "argument 1 must be string or buffer, not None"},
 	}
 
 	for _, c := range testCases {
@@ -594,7 +594,7 @@ func TestObfuscateSqlExecPlanErrors(t *testing.T) {
 		},
 		{
 			"{}",
-			"argument 1 must be str(ing)?, not dict",
+			"argument 1 must be string or buffer, not dict",
 		},
 	}
 
