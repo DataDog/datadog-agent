@@ -13,6 +13,10 @@ package otlp
 // It is written in YAML because it is easier to read and write than a map.
 const defaultTracesConfig string = `
 receivers:
+  otlp:
+    protocols:
+      grpc:
+        max_concurrent_streams: 1
 
 processors:
   memory_limiter:
