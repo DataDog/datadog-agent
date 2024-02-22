@@ -94,6 +94,10 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 	if err != nil {
 		return fmt.Errorf("could not create packages root directory: %w", err)
 	}
+	err = os.MkdirAll(r.LocksPath, 0666)
+	if err != nil {
+		return fmt.Errorf("could not create packages lock directory: %w", err)
+	}
 
 	repository, err := readRepository(r.RootPath, r.LocksPath)
 	if err != nil {
