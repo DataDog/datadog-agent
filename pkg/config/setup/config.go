@@ -223,7 +223,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	vector(config)
 }
 
-// InitConfig initializes the config defaults on a config
+// InitConfig initializes the config defaults on a config for non-serverless agents
 func InitConfig(config pkgconfigmodel.Config) {
 	initCommonWithServerless(config)
 
