@@ -106,7 +106,7 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	if err := os.Mkdir(extractedOCIPath, 0755); err != nil {
 		return fmt.Errorf("could not create OCI extraction directory: %w", err)
 	}
-	err = extractTarGz(archivePath, extractedArchivePath)
+	err = extractTarArchive(archivePath, extractedArchivePath, compressionNone)
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
@@ -127,13 +127,20 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	return nil
 }
 
-// extractTarGz extracts a tar.gz archive to the given destination path
+type compression int
+
+const (
+	compressionNone compression = iota
+	compressionGzip
+)
+
+// extractTarArchive extracts a tar archive to the given destination path
 //
 // Note on security: This function does not currently attempt to fully mitigate zip-slip attacks.
 // This is purposeful as the archive is extracted only after its SHA256 hash has been validated
 // against its reference in the package catalog. This catalog is itself sent over Remote Config
 // which guarantees its integrity.
-func extractTarGz(archivePath string, destinationPath string) error {
+func extractTarArchive(archivePath string, destinationPath string, compression compression) error {
 	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
 
 	f, err := os.Open(archivePath)
@@ -141,13 +148,19 @@ func extractTarGz(archivePath string, destinationPath string) error {
 		return fmt.Errorf("could not open archive: %w", err)
 	}
 	defer f.Close()
-	gzr, err := gzip.NewReader(f)
-	if err != nil {
-		return fmt.Errorf("could not create gzip reader: %w", err)
-	}
-	defer gzr.Close()
 
-	tr := tar.NewReader(io.LimitReader(gzr, maxArchiveDecompressedSize))
+	var r io.Reader = f
+	switch compression {
+	case compressionGzip:
+		gzr, err := gzip.NewReader(f)
+		if err != nil {
+			return fmt.Errorf("could not create gzip reader: %w", err)
+		}
+		defer gzr.Close()
+		r = gzr
+	}
+
+	tr := tar.NewReader(io.LimitReader(r, maxArchiveDecompressedSize))
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
