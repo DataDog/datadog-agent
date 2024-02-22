@@ -213,6 +213,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 	telemetry(config)
 	autoconfig(config)
 	remoteconfig(config)
+	logsagent(config)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -655,125 +656,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("internal_profiling.custom_attributes", []string{"check_id"})
 
 	config.BindEnvAndSetDefault("internal_profiling.capture_all_allocations", false)
-
-	// Logs Agent
-
-	// External Use: modify those parameters to configure the logs-agent.
-	// enable the logs-agent:
-	config.BindEnvAndSetDefault("logs_enabled", false)
-	config.BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
-	// collect all logs from all containers:
-	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
-	// add a socks5 proxy:
-	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
-	// specific logs-agent api-key
-	config.BindEnv("logs_config.api_key")
-
-	// Duration during which the host tags will be submitted with log events.
-	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", time.Duration(0)) // duration-formatted string (parsed by `time.ParseDuration`)
-	// send the logs to the port 443 of the logs-backend via TCP:
-	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
-	// increase the read buffer size of the UDP sockets:
-	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
-	// maximum log message size in bytes
-	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
-
-	// increase the number of files that can be tailed in parallel:
-	if runtime.GOOS == "darwin" {
-		// The default limit on darwin is 256.
-		// This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
-		config.BindEnvAndSetDefault("logs_config.open_files_limit", 200)
-	} else {
-		// There is no effective limit for windows due to use of CreateFile win32 API
-		// The OS default for most linux distributions is 1024
-		config.BindEnvAndSetDefault("logs_config.open_files_limit", 500)
-	}
-	// add global processing rules that are applied on all logs
-	config.BindEnv("logs_config.processing_rules")
-	// enforce the agent to use files to collect container logs on kubernetes environment
-	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
-	// Enable the agent to use files to collect container logs on standalone docker environment, containers
-	// with an existing registry offset will continue to be tailed from the docker socket unless
-	// logs_config.docker_container_force_use_file is set to true.
-	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", true)
-	// Force tailing from file for all docker container, even the ones with an existing registry entry
-	config.BindEnvAndSetDefault("logs_config.docker_container_force_use_file", false)
-	// While parsing Kubernetes pod logs, use /var/log/containers to validate that
-	// the pod container ID is matching.
-	config.BindEnvAndSetDefault("logs_config.validate_pod_container_id", true)
-	// additional config to ensure initial logs are tagged with kubelet tags
-	// wait (seconds) for tagger before start fetching tags of new AD services
-	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
-	// Configurable docker client timeout while communicating with the docker daemon.
-	// It could happen that the docker daemon takes a lot of time gathering timestamps
-	// before starting to send any data when it has stored several large log files.
-	// This field lets you increase the read timeout to prevent the client from
-	// timing out too early in such a situation. Value in seconds.
-	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
-	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
-	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
-	// DEPRECATED in favor of `logs_config.force_use_http`.
-	config.BindEnvAndSetDefault("logs_config.use_http", false)
-	config.BindEnvAndSetDefault("logs_config.force_use_http", false)
-	// DEPRECATED in favor of `logs_config.force_use_tcp`.
-	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
-	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
-
-	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
-	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
-	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
-	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
-	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.enabled", false)
-	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.discovery_interval", 300)
-	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.region", "")
-	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
-	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
-
-	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
-	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
-	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
-	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
-	// maximum time that the unix tailer will hold a log file open after it has been rotated
-	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
-	// maximum time that the windows tailer will hold a log file open, while waiting for
-	// the downstream logs pipeline to be ready to accept more data
-	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
-	// The following auto_multi_line settings are experimental and may change
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
-
-	// If true, the agent looks for container logs in the location used by podman, rather
-	// than docker.  This is a temporary configuration parameter to support podman logs until
-	// a more substantial refactor of autodiscovery is made to determine this automatically.
-	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
-
-	// If set, the agent will look in this path for docker container log files.  Use this option if
-	// docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In
-	// order to check your docker data-root directory, run the command `docker info -f '{{.DockerRootDir}}'`
-	// See more documentation here:
-	// https://docs.docker.com/engine/reference/commandline/dockerd/.
-	config.BindEnvAndSetDefault("logs_config.docker_path_override", "")
-
-	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
-	// Timeout in milliseonds used when performing agreggation operations,
-	// including multi-line log processing rules and chunked line reaggregation.
-	// It may be useful to increase it when logs writing is slowed down, that
-	// could happen while serializing large objects on log lines.
-	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
-	// Time in seconds
-	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
-
-	// Controls how wildcard file log source are prioritized when there are more files
-	// that match wildcard log configurations than the `logs_config.open_files_limit`
-	//
-	// Choices are 'by_name' and 'by_modification_time'. See config_template.yaml for full details.
-	//
-	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
-	// more disk I/O at the wildcard log paths
-	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -1419,6 +1301,127 @@ func dogstatsd(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
+}
+
+func logsagent(config pkgconfigmodel.Config) {
+	// Logs Agent
+
+	// External Use: modify those parameters to configure the logs-agent.
+	// enable the logs-agent:
+	config.BindEnvAndSetDefault("logs_enabled", false)
+	config.BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
+	// collect all logs from all containers:
+	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
+	// add a socks5 proxy:
+	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
+	// specific logs-agent api-key
+	config.BindEnv("logs_config.api_key")
+
+	// Duration during which the host tags will be submitted with log events.
+	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", time.Duration(0)) // duration-formatted string (parsed by `time.ParseDuration`)
+	// send the logs to the port 443 of the logs-backend via TCP:
+	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
+	// increase the read buffer size of the UDP sockets:
+	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
+	// maximum log message size in bytes
+	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
+
+	// increase the number of files that can be tailed in parallel:
+	if runtime.GOOS == "darwin" {
+		// The default limit on darwin is 256.
+		// This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
+		config.BindEnvAndSetDefault("logs_config.open_files_limit", 200)
+	} else {
+		// There is no effective limit for windows due to use of CreateFile win32 API
+		// The OS default for most linux distributions is 1024
+		config.BindEnvAndSetDefault("logs_config.open_files_limit", 500)
+	}
+	// add global processing rules that are applied on all logs
+	config.BindEnv("logs_config.processing_rules")
+	// enforce the agent to use files to collect container logs on kubernetes environment
+	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
+	// Enable the agent to use files to collect container logs on standalone docker environment, containers
+	// with an existing registry offset will continue to be tailed from the docker socket unless
+	// logs_config.docker_container_force_use_file is set to true.
+	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", true)
+	// Force tailing from file for all docker container, even the ones with an existing registry entry
+	config.BindEnvAndSetDefault("logs_config.docker_container_force_use_file", false)
+	// While parsing Kubernetes pod logs, use /var/log/containers to validate that
+	// the pod container ID is matching.
+	config.BindEnvAndSetDefault("logs_config.validate_pod_container_id", true)
+	// additional config to ensure initial logs are tagged with kubelet tags
+	// wait (seconds) for tagger before start fetching tags of new AD services
+	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
+	// Configurable docker client timeout while communicating with the docker daemon.
+	// It could happen that the docker daemon takes a lot of time gathering timestamps
+	// before starting to send any data when it has stored several large log files.
+	// This field lets you increase the read timeout to prevent the client from
+	// timing out too early in such a situation. Value in seconds.
+	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
+	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
+	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
+	// DEPRECATED in favor of `logs_config.force_use_http`.
+	config.BindEnvAndSetDefault("logs_config.use_http", false)
+	config.BindEnvAndSetDefault("logs_config.force_use_http", false)
+	// DEPRECATED in favor of `logs_config.force_use_tcp`.
+	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
+	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
+
+	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.enabled", false)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.discovery_interval", 300)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.region", "")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
+
+	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
+	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
+	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
+	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	// maximum time that the unix tailer will hold a log file open after it has been rotated
+	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
+	// maximum time that the windows tailer will hold a log file open, while waiting for
+	// the downstream logs pipeline to be ready to accept more data
+	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
+	// The following auto_multi_line settings are experimental and may change
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
+
+	// If true, the agent looks for container logs in the location used by podman, rather
+	// than docker.  This is a temporary configuration parameter to support podman logs until
+	// a more substantial refactor of autodiscovery is made to determine this automatically.
+	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
+
+	// If set, the agent will look in this path for docker container log files.  Use this option if
+	// docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In
+	// order to check your docker data-root directory, run the command `docker info -f '{{.DockerRootDir}}'`
+	// See more documentation here:
+	// https://docs.docker.com/engine/reference/commandline/dockerd/.
+	config.BindEnvAndSetDefault("logs_config.docker_path_override", "")
+
+	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
+	// Timeout in milliseonds used when performing agreggation operations,
+	// including multi-line log processing rules and chunked line reaggregation.
+	// It may be useful to increase it when logs writing is slowed down, that
+	// could happen while serializing large objects on log lines.
+	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
+	// Time in seconds
+	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
+
+	// Controls how wildcard file log source are prioritized when there are more files
+	// that match wildcard log configurations than the `logs_config.open_files_limit`
+	//
+	// Choices are 'by_name' and 'by_modification_time'. See config_template.yaml for full details.
+	//
+	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
+	// more disk I/O at the wildcard log paths
+	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
