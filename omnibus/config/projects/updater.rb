@@ -114,6 +114,7 @@ if linux_target?
   extra_package_file "#{systemd_directory}/stop-experiment.path"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/var/log/datadog/'
+  extra_package_file '/var/run/datadog-packages'
   extra_package_file '/opt/datadog-packages/'
 end
 
