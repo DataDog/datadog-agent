@@ -13,10 +13,10 @@ import shutil
 import sys
 import tempfile
 from datetime import datetime
-from io import StringIO
 
+import requests
 from invoke import task
-from invoke.exceptions import Exit, ParseError, UnexpectedExit
+from invoke.exceptions import Exit, ParseError
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
@@ -761,11 +761,14 @@ def _compute_build_metrics(ctx, overall_duration):
     # We only want to generate those metrics from the CI
     src_dir = os.environ.get('CI_PROJECT_DIR')
     if not src_dir:
+        print('Not a CI job, skipping sending build metrics')
         return
     series = []
     timestamp = int(datetime.now().timestamp())
     with open(f'{src_dir}/omnibus/pkg/build-summary.json') as summary_json:
         j = json.load(summary_json)
+        # Various software build durations are all sent as the `datadog.agent.build.duration` metric
+        # with a specific tag for each software.
         for software, metrics in j['build'].items():
             series.append(
                 {
@@ -780,6 +783,7 @@ def _compute_build_metrics(ctx, overall_duration):
                     'type': 0,
                 }
             )
+        # We also provide the total duration for the omnibus build as a separate metric
         series.append(
             {
                 'metric': 'datadog.agent.build.total',
@@ -789,6 +793,7 @@ def _compute_build_metrics(ctx, overall_duration):
                 'type': 0,
             }
         )
+        # Stripping might not always be enabled so we conditionally read the metric
         if "strip" in j:
             series.append(
                 {
@@ -799,7 +804,7 @@ def _compute_build_metrics(ctx, overall_duration):
                     'type': 0,
                 }
             )
-
+        # And all packagers duration as another separated metric
         for packager, duration in j['packaging'].items():
             series.append(
                 {
@@ -817,22 +822,13 @@ def _compute_build_metrics(ctx, overall_duration):
         'aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text',
         hide=True,
     ).stdout.strip()
-    cmd = ' '.join(
-        (
-            'curl -X POST "https://api.datadoghq.com/api/v2/series"',
-            '-H "Accept: application/json"',
-            '-H "Content-Type: application/json"',
-            f'-H "DD-API-KEY: {dd_api_key}"',
-            '-d @-',
-        )
-    )
-    try:
-        series_json = json.dumps({'series': series})
-        ctx.run(cmd, hide='both', echo=False, in_stream=StringIO(series_json))
-    except UnexpectedExit:
-        # don't let the exception propagate in order to hide the API key from the output
-        sys.exit(1)
-    print('Successfully sent build metrics to DataDog')
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
+    r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers)
+    if r.ok:
+        print('Successfully sent build metrics to DataDog')
+    else:
+        print(f'Failed to send build metrics to DataDog: {r.status_code}')
+        print(r.text)
 
 
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
