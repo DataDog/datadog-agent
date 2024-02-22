@@ -34,9 +34,11 @@ type Rule struct {
 
 // RuleEvaluator - Evaluation part of a Rule
 type RuleEvaluator struct {
-	Eval        BoolEvalFnc
-	EventTypes  []EventType
-	FieldValues map[Field][]FieldValue
+	Eval       BoolEvalFnc
+	EventTypes []EventType
+
+	fieldValues map[Field][]FieldValue
+	fields      []Field
 
 	partialEvals map[Field]BoolEvalFnc
 }
@@ -77,13 +79,7 @@ func (r *RuleEvaluator) setPartial(field string, partialEval BoolEvalFnc) {
 
 // GetFields - Returns all the Field that the RuleEvaluator handles
 func (r *RuleEvaluator) GetFields() []Field {
-	fields := make([]Field, len(r.FieldValues))
-	i := 0
-	for key := range r.FieldValues {
-		fields[i] = key
-		i++
-	}
-	return fields
+	return r.fields
 }
 
 // Eval - Evaluates
@@ -93,7 +89,7 @@ func (r *Rule) Eval(ctx *Context) bool {
 
 // GetFieldValues returns the values of the given field
 func (r *Rule) GetFieldValues(field Field) []FieldValue {
-	return r.evaluator.FieldValues[field]
+	return r.evaluator.fieldValues[field]
 }
 
 // PartialEval - Partial evaluation with the given Field
@@ -205,7 +201,8 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
 		EventTypes:  events,
-		FieldValues: state.fieldValues,
+		fieldValues: state.fieldValues,
+		fields:      KeysOfMap(state.fieldValues),
 	}, nil
 }
 

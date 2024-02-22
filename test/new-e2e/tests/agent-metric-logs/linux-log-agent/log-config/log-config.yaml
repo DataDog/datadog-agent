@@ -1,5 +1,0 @@
-logs:
-  - type: file
-    path: '/var/log/hello-world.log'
-    service: hello
-    source: custom_log

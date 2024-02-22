@@ -6,14 +6,17 @@
 package utils
 
 import (
+	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetConfiguredaTags(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.InitConfig(mockConfig)
 
 	set1 := []string{"1", "2", "3"}
 
@@ -22,7 +25,8 @@ func TestGetConfiguredaTags(t *testing.T) {
 }
 
 func TestGetConfiguredaTagsExtraTags(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.InitConfig(mockConfig)
 
 	set1 := []string{"1", "2", "3"}
 
@@ -31,7 +35,8 @@ func TestGetConfiguredaTagsExtraTags(t *testing.T) {
 }
 
 func TestGetConfiguredaTagsDSD(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.InitConfig(mockConfig)
 
 	set1 := []string{"1", "2", "3"}
 
@@ -41,7 +46,8 @@ func TestGetConfiguredaTagsDSD(t *testing.T) {
 }
 
 func TestGetConfiguredaTagsCombined(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.InitConfig(mockConfig)
 
 	set1 := []string{"1", "2", "3"}
 	set2 := []string{"4", "5", "6"}

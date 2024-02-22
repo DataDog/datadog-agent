@@ -24,10 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
@@ -126,14 +130,21 @@ var otlpTestTracesRequest = testutil.NewOTLPTracesRequest([]testutil.OTLPResourc
 	},
 })
 
+func NewTestConfig(t *testing.T) *config.AgentConfig {
+	cfg := config.New()
+	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	require.NoError(t, err)
+	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
+	return cfg
+}
+
 func TestOTLPMetrics(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.New()
+	cfg := NewTestConfig(t)
 	stats := &teststatsd.Client{}
-	defer testutil.WithStatsClient(stats)()
 
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewOTLPReceiver(out, cfg, stats, &timing.NoopReporter{})
 	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -168,10 +179,10 @@ func TestOTLPMetrics(t *testing.T) {
 }
 
 func TestOTLPNameRemapping(t *testing.T) {
-	cfg := config.New()
+	cfg := NewTestConfig(t)
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -192,9 +203,9 @@ func TestOTLPNameRemapping(t *testing.T) {
 }
 
 func TestCreateChunks(t *testing.T) {
-	cfg := config.New()
+	cfg := NewTestConfig(t)
 	cfg.OTLPReceiver.ProbabilisticSampling = 50
-	o := NewOTLPReceiver(nil, cfg)
+	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	const (
 		traceID1 = 123           // sampled by 50% rate
 		traceID2 = 1237892138897 // not sampled by 50% rate
@@ -234,9 +245,9 @@ func TestCreateChunks(t *testing.T) {
 }
 
 func TestOTLPReceiveResourceSpans(t *testing.T) {
-	cfg := config.New()
+	cfg := NewTestConfig(t)
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	require := require.New(t)
 	for _, tt := range []struct {
 		in []testutil.OTLPResourceSpan
@@ -625,10 +636,10 @@ func TestOTLPHostname(t *testing.T) {
 			out:    "span-hostname",
 		},
 	} {
-		cfg := config.New()
+		cfg := NewTestConfig(t)
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
-		rcv := NewOTLPReceiver(out, cfg)
+		rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		rattr := map[string]interface{}{}
 		if tt.resource != "" {
 			rattr["datadog.host.name"] = tt.resource
@@ -659,12 +670,12 @@ func TestOTLPHostname(t *testing.T) {
 
 func TestOTLPReceiver(t *testing.T) {
 	t.Run("New", func(t *testing.T) {
-		cfg := config.New()
-		assert.NotNil(t, NewOTLPReceiver(nil, cfg).conf)
+		cfg := NewTestConfig(t)
+		assert.NotNil(t, NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
-		o := NewOTLPReceiver(nil, config.New())
+		o := NewOTLPReceiver(nil, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -672,12 +683,12 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("Start/grpc", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
-		cfg := config.New()
+		cfg := NewTestConfig(t)
 		cfg.OTLPReceiver = &config.OTLP{
 			BindHost: "localhost",
 			GRPCPort: port,
 		}
-		o := NewOTLPReceiver(nil, cfg)
+		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
@@ -690,7 +701,7 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
-		o := NewOTLPReceiver(out, config.New())
+		o := NewOTLPReceiver(out, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.processRequest(context.Background(), http.Header(map[string][]string{
 			header.Lang:        {"go"},
 			header.ContainerID: {"containerdID"},
@@ -943,8 +954,8 @@ func TestOTLPHelpers(t *testing.T) {
 
 func TestOTLPConvertSpan(t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
-	cfg := config.New()
-	o := NewOTLPReceiver(nil, cfg)
+	cfg := NewTestConfig(t)
+	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr   map[string]string
 		libname string
@@ -1374,8 +1385,8 @@ func TestAppendTags(t *testing.T) {
 
 func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
-	cfg := config.New()
-	o := NewOTLPReceiver(nil, cfg)
+	cfg := NewTestConfig(t)
+	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr   map[string]string
 		libname string
@@ -1714,7 +1725,7 @@ func TestResourceAttributesMap(t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	NewOTLPReceiver(nil, config.New()).convertSpan(rattr, lib, span)
+	NewOTLPReceiver(nil, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{}).convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }
@@ -2044,7 +2055,7 @@ func BenchmarkProcessRequest(b *testing.B) {
 		}
 	}()
 
-	r := NewOTLPReceiver(out, nil)
+	r := NewOTLPReceiver(out, nil, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

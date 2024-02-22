@@ -5,8 +5,8 @@ Invoke tasks to fix the linter
 from invoke import task
 from invoke.exceptions import Exit
 
-from ..libs.pipeline_notifications import GITHUB_SLACK_MAP
-from .golangci_lint_parser import (
+from tasks.libs.pipeline_notifications import GITHUB_SLACK_MAP
+from tasks.show_linters_issues.golangci_lint_parser import (
     count_lints_per_team,
     display_nb_lints_per_team,
     display_result,

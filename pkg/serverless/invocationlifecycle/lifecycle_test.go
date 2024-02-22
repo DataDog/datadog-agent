@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -31,8 +32,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	}
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 
 	endInvocationTime := time.Now()
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
@@ -62,8 +62,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return false }
 
@@ -97,8 +96,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
 
@@ -127,8 +125,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -176,8 +173,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	var tracePayload *api.Payload
@@ -215,8 +211,7 @@ func TestEndExecutionSpanWithTraceMetadata(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -272,8 +267,7 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -334,8 +328,7 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -421,9 +414,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -516,9 +507,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -606,9 +595,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -693,9 +680,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
-	defer demux.Stop(false)
+	demux := createDemultiplexer(t)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -1068,4 +1053,8 @@ func getEventFromFile(filename string) []byte {
 	buf.Write(event)
 	buf.WriteString("0")
 	return buf.Bytes()
+}
+
+func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

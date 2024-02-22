@@ -15,7 +15,7 @@ var _ Profile = &mockProfile{}
 
 func newMockProfile(storeMap map[parameters.StoreKey]string) Profile {
 	store := parameters.NewMockStore(storeMap)
-	mp := mockProfile{baseProfile: newProfile("totoro", []string{}, store, nil)}
+	mp := mockProfile{baseProfile: newProfile("totoro", []string{}, store, nil, "")}
 	mp.baseProfile.workspaceRootFolder = "mock"
 	return mp
 }

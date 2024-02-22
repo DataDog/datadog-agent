@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
@@ -34,6 +35,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 		{
 			key:          "process_config.grpc_connection_timeout_secs",
 			defaultValue: DefaultGRPCConnectionTimeoutSecs,
+		},
+		{
+			key:          "process_config.ignore_zombie_processes",
+			defaultValue: false,
 		},
 		{
 			key:          "process_config.remote_tagger",
@@ -58,6 +63,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 		{
 			key:          "process_config.container_collection.enabled",
 			defaultValue: true,
+		},
+		{
+			key:          "process_config.run_in_core_agent.enabled",
+			defaultValue: false,
 		},
 		{
 			key:          "process_config.queue_size",
@@ -263,6 +272,12 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: true,
 		},
 		{
+			key:      "process_config.run_in_core_agent.enabled",
+			env:      "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
 			key:      "process_config.enabled",
 			env:      "DD_PROCESS_CONFIG_ENABLED",
 			value:    "false",
@@ -303,6 +318,12 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_EVENTS_DD_URL",
 			value:    "datacat.com",
 			expected: "datacat.com",
+		},
+		{
+			key:      "process_config.ignore_zombie_processes",
+			env:      "DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES",
+			value:    "true",
+			expected: true,
 		},
 		{
 			key:      "process_config.internal_profiling.enabled",

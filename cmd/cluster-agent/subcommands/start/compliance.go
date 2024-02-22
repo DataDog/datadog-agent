@@ -48,7 +48,7 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*c
 	if err != nil {
 		endpoints, err = config.BuildHTTPEndpoints(coreconfig.Datadog, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog)
 			endpoints, err = config.BuildEndpoints(coreconfig.Datadog, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		}
 	}
@@ -88,14 +88,10 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 		return err
 	}
 
-	reporter, err := compliance.NewLogReporter(hname, stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
-	if err != nil {
-		return err
-	}
-
 	runner := runner.NewRunner(senderManager)
 	stopper.Add(runner)
 
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,

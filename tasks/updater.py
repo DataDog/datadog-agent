@@ -8,9 +8,10 @@ import sys
 
 from invoke import task
 
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .go import deps
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions, timed
+from tasks.agent import bundle_install_omnibus
+from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.go import deps
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions, timed
 
 BIN_PATH = os.path.join(".", "bin", "updater")
 MAJOR_VERSION = '7'
@@ -118,20 +119,6 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, omnibus_s3_cache=
         }
 
         ctx.run(cmd.format(**args), env=env)
-
-
-def bundle_install_omnibus(ctx, gem_path=None, env=None):
-    with ctx.cd("omnibus"):
-        # make sure bundle install starts from a clean state
-        try:
-            os.remove("Gemfile.lock")
-        except Exception:
-            pass
-
-        cmd = "bundle install"
-        if gem_path:
-            cmd += f" --path {gem_path}"
-        ctx.run(cmd, env=env)
 
 
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.

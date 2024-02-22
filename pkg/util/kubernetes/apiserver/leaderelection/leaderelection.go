@@ -20,6 +20,7 @@ import (
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -243,11 +244,16 @@ func (le *LeaderEngine) GetLeader() string {
 
 // GetLeaderIP returns the IP the leader can be reached at, assuming its
 // identity is its pod name. Returns empty if we are the leader.
-// The result is not cached.
+// The result is cached and will not return an error if the leader does not exist anymore.
 func (le *LeaderEngine) GetLeaderIP() (string, error) {
 	leaderName := le.GetLeader()
 	if leaderName == "" || leaderName == le.HolderIdentity {
 		return "", nil
+	}
+
+	cacheKey := "ip://" + leaderName
+	if ip, found := cache.Cache.Get(cacheKey); found {
+		return ip.(string), nil
 	}
 
 	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
@@ -258,6 +264,8 @@ func (le *LeaderEngine) GetLeaderIP() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	cache.Cache.Set(cacheKey, target.IP, 5*time.Minute)
+
 	return target.IP, nil
 }
 

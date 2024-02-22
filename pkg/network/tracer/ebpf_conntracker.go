@@ -15,7 +15,6 @@ import (
 	"math"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
@@ -28,12 +27,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var zero uint64
+var zero uint32
 
 var tuplePool = sync.Pool{
 	New: func() interface{} {
@@ -71,8 +71,8 @@ var conntrackerTelemetry = struct {
 
 type ebpfConntracker struct {
 	m            *manager.Manager
-	ctMap        *ebpf.Map
-	telemetryMap *ebpf.Map
+	ctMap        *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
+	telemetryMap *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
 	rootNS       uint32
 	// only kept around for stats purposes from initial dump
 	consumer *netlink.Consumer
@@ -86,7 +86,7 @@ var ebpfConntrackerRCCreator func(cfg *config.Config) (runtime.CompiledOutput, e
 var ebpfConntrackerPrebuiltCreator func(*config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) = getPrebuiltConntracker
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableEbpfConntracker {
 		return nil, fmt.Errorf("ebpf conntracker is disabled")
 	}
@@ -128,13 +128,13 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelem
 		return nil, fmt.Errorf("failed to start ebpf conntracker: %w", err)
 	}
 
-	ctMap, _, err := m.GetMap(probes.ConntrackMap)
+	ctMap, err := maps.GetMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple](m, probes.ConntrackMap)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
 	}
 
-	telemetryMap, _, err := m.GetMap(probes.ConntrackTelemetryMap)
+	telemetryMap, err := maps.GetMap[uint32, netebpf.ConntrackTelemetry](m, probes.ConntrackTelemetryMap)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("unable to get telemetry map: %w", err)
@@ -270,7 +270,7 @@ func (*ebpfConntracker) IsSampling() bool {
 
 func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTuple {
 	dst := tuplePool.Get().(*netebpf.ConntrackTuple)
-	if err := e.ctMap.Lookup(unsafe.Pointer(src), unsafe.Pointer(dst)); err != nil {
+	if err := e.ctMap.Lookup(src, dst); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			log.Warnf("error looking up connection in ebpf conntrack map: %s", err)
 		}
@@ -282,7 +282,7 @@ func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTup
 
 func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 	start := time.Now()
-	if err := e.ctMap.Delete(unsafe.Pointer(key)); err != nil {
+	if err := e.ctMap.Delete(key); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
 			if log.ShouldLog(seelog.TraceLvl) {
 				log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
@@ -311,7 +311,7 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 }
 
 func (e *ebpfConntracker) GetTelemetryMap() *ebpf.Map {
-	return e.telemetryMap
+	return e.telemetryMap.Map()
 }
 
 func (e *ebpfConntracker) Close() {
@@ -333,7 +333,7 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 	entries := make(map[uint32][]netlink.DebugConntrackEntry)
 
 	it := e.ctMap.Iterate()
-	for it.Next(unsafe.Pointer(src), unsafe.Pointer(dst)) {
+	for it.Next(src, dst) {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -381,7 +381,7 @@ func (e *ebpfConntracker) Describe(ch chan<- *prometheus.Desc) {
 // Collect returns the current state of all metrics of the collector
 func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	ebpfTelemetry := &netebpf.ConntrackTelemetry{}
-	if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(ebpfTelemetry)); err != nil {
+	if err := e.telemetryMap.Lookup(&zero, ebpfTelemetry); err != nil {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
 		delta := ebpfTelemetry.Registers - conntrackerTelemetry.lastRegisters
@@ -390,8 +390,8 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *nettelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (*manager.Manager, error) {
-	mgr := nettelemetry.NewManager(&manager.Manager{
+func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *ebpftelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (*manager.Manager, error) {
+	mgr := ebpftelemetry.NewManager(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
 			{Name: probes.ConntrackTelemetryMap},

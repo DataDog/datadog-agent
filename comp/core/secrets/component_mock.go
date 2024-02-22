@@ -35,4 +35,7 @@ type Mock interface {
 	//     "c": "resolved_value_for_c",
 	//   }
 	SetFetchHookFunc(func([]string) (map[string]string, error))
+
+	// SetBackendCommand sets the backend command for resolving secrets
+	SetBackendCommand(command string)
 }

@@ -11,10 +11,10 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
-from .licenses import get_licenses_list
-from .modules import DEFAULT_MODULES, generate_dummy_package
-from .utils import get_build_flags, timed
+from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.libs.common.utils import get_build_flags, timed
+from tasks.licenses import get_licenses_list
+from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -88,6 +88,16 @@ def golangci_lint(
     """
     print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
     raise Exit(code=1)
+
+
+@task
+def internal_deps_checker(ctx, formatFile=False):
+    """
+    Check that every required internal dependencies are correctly replaced
+    """
+    extra_params = "--formatFile true" if formatFile else ""
+    for mod in DEFAULT_MODULES.values():
+        ctx.run(f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} {extra_params}")
 
 
 @task
@@ -371,7 +381,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
-                res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
+                res = ctx.run("git diff --exit-code go.mod go.sum", warn=True)
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
@@ -404,7 +414,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.5 linux/amd64"
+    # result is like "go version go1.21.7 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

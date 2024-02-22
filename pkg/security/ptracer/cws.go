@@ -9,9 +9,9 @@
 package ptracer
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
-	golog "log"
 	"net"
 	"os"
 	"os/exec"
@@ -25,247 +25,44 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
-func fillProcessCwd(process *Process) error {
-	cwd, err := os.Readlink(fmt.Sprintf("/proc/%d/cwd", process.Pid))
-	if err != nil {
-		return err
-	}
-	process.Res.Cwd = cwd
-	return nil
+const (
+	defaultPasswdPath = "/etc/passwd"
+	defaultGroupPath  = "/etc/group"
+	// EnvPasswdPathOverride define the env to set to override the default passwd file path
+	EnvPasswdPathOverride = "TEST_DD_PASSWD_PATH"
+	// EnvGroupPathOverride define the env to set to override the default group file path
+	EnvGroupPathOverride = "TEST_DD_GROUP_PATH"
+)
+
+var (
+	passwdPath = defaultPasswdPath
+	groupPath  = defaultGroupPath
+)
+
+type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
+
+type shouldSendFunc func(ret int64) bool
+
+type syscallID struct {
+	ID   int
+	Name string
 }
 
-func getFullPathFromFd(process *Process, filename string, fd int32) (string, error) {
-	if filename[0] != '/' {
-		if fd == unix.AT_FDCWD { // if use current dir, try to prefix it
-			if process.Res.Cwd != "" || fillProcessCwd(process) == nil {
-				filename = filepath.Join(process.Res.Cwd, filename)
-			} else {
-				return "", errors.New("fillProcessCwd failed")
-			}
-		} else { // if using another dir, prefix it, we should have it in cache
-			if path, exists := process.Res.Fd[fd]; exists {
-				filename = filepath.Join(path, filename)
-			} else {
-				return "", errors.New("process FD cache incomplete during path resolution")
-			}
-		}
-	}
-	return filename, nil
+type syscallHandler struct {
+	IDs        []syscallID        // IDs defines the list of syscall IDs related to this handler
+	Func       syscallHandlerFunc // Func defines the entrance handler for those syscalls, can be nil
+	ShouldSend shouldSendFunc     // ShouldSend checks if we should send the event regarding the syscall return value. If nil, acts as false
+	RetFunc    syscallHandlerFunc // RetFunc defines the return handler for those syscalls, can be nil
 }
 
-func getFullPathFromFilename(process *Process, filename string) (string, error) {
-	if filename[0] != '/' {
-		if process.Res.Cwd != "" || fillProcessCwd(process) == nil {
-			filename = filepath.Join(process.Res.Cwd, filename)
-		} else {
-			return "", errors.New("fillProcessCwd failed")
-		}
-	}
-	return filename, nil
-}
-
-func handleOpenAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	fd := tracer.ReadArgInt32(regs, 0)
-
-	filename, err := tracer.ReadArgString(process.Pid, regs, 1)
-	if err != nil {
-		return err
-	}
-
-	filename, err = getFullPathFromFd(process, filename, fd)
-	if err != nil {
-		return err
-	}
-
-	msg.Type = ebpfless.SyscallTypeOpen
-	msg.Open = &ebpfless.OpenSyscallMsg{
-		Filename: filename,
-		Flags:    uint32(tracer.ReadArgUint64(regs, 2)),
-		Mode:     uint32(tracer.ReadArgUint64(regs, 3)),
-	}
-
-	return nil
-}
-
-func handleOpen(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	filename, err := tracer.ReadArgString(process.Pid, regs, 0)
-	if err != nil {
-		return err
-	}
-
-	filename, err = getFullPathFromFilename(process, filename)
-	if err != nil {
-		return err
-	}
-
-	msg.Type = ebpfless.SyscallTypeOpen
-	msg.Open = &ebpfless.OpenSyscallMsg{
-		Filename: filename,
-		Flags:    uint32(tracer.ReadArgUint64(regs, 1)),
-		Mode:     uint32(tracer.ReadArgUint64(regs, 2)),
-	}
-
-	return nil
-}
-
-func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	fd := tracer.ReadArgInt32(regs, 0)
-
-	filename, err := tracer.ReadArgString(process.Pid, regs, 1)
-	if err != nil {
-		return err
-	}
-
-	if filename == "" { // in this case, dirfd defines directly the file's FD
-		var exists bool
-		if filename, exists = process.Res.Fd[fd]; !exists || filename == "" {
-			return errors.New("can't find related file path")
-		}
-	} else {
-		filename, err = getFullPathFromFd(process, filename, fd)
-		if err != nil {
-			return err
-		}
-	}
-
-	args, err := tracer.ReadArgStringArray(process.Pid, regs, 2)
-	if err != nil {
-		return err
-	}
-
-	envs, err := tracer.ReadArgStringArray(process.Pid, regs, 3)
-	if err != nil {
-		return err
-	}
-
-	msg.Type = ebpfless.SyscallTypeExec
-	msg.Exec = &ebpfless.ExecSyscallMsg{
-		Filename: filename,
-		Args:     args,
-		Envs:     envs,
-	}
-
-	return nil
-}
-
-func handleFcntl(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	msg.Type = ebpfless.SyscallTypeFcntl
-	msg.Fcntl = &ebpfless.FcntlSyscallMsg{
-		Fd:  tracer.ReadArgUint32(regs, 0),
-		Cmd: tracer.ReadArgUint32(regs, 1),
-	}
-	return nil
-}
-
-func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	filename, err := tracer.ReadArgString(process.Pid, regs, 0)
-	if err != nil {
-		return err
-	}
-
-	filename, err = getFullPathFromFilename(process, filename)
-	if err != nil {
-		return err
-	}
-
-	args, err := tracer.ReadArgStringArray(process.Pid, regs, 1)
-	if err != nil {
-		return err
-	}
-
-	envs, err := tracer.ReadArgStringArray(process.Pid, regs, 2)
-	if err != nil {
-		return err
-	}
-
-	msg.Type = ebpfless.SyscallTypeExec
-	msg.Exec = &ebpfless.ExecSyscallMsg{
-		Filename: filename,
-		Args:     args,
-		Envs:     envs,
-	}
-
-	return nil
-}
-
-func handleDup(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	// using msg to temporary store arg0, as it will be erased by the return value on ARM64
-	msg.Dup = &ebpfless.DupSyscallFakeMsg{
-		OldFd: tracer.ReadArgInt32(regs, 0),
-	}
-	return nil
-}
-
-func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	// using msg to temporary store arg0, as it will be erased by the return value on ARM64
-	dirname, err := tracer.ReadArgString(process.Pid, regs, 0)
-	if err != nil {
-		return err
-	}
-
-	dirname, err = getFullPathFromFilename(process, dirname)
-	if err != nil {
-		process.Res.Cwd = ""
-		return err
-	}
-
-	msg.Chdir = &ebpfless.ChdirSyscallFakeMsg{
-		Path: dirname,
-	}
-	return nil
-}
-
-func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	fd := tracer.ReadArgInt32(regs, 0)
-	dirname, ok := process.Res.Fd[fd]
-	if !ok {
-		process.Res.Cwd = ""
-		return nil
-	}
-
-	// using msg to temporary store arg0, as it will be erased by the return value on ARM64
-	msg.Chdir = &ebpfless.ChdirSyscallFakeMsg{
-		Path: dirname,
-	}
-	return nil
-}
-
-func handleSetuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	msg.Type = ebpfless.SyscallTypeSetUID
-	msg.SetUID = &ebpfless.SetUIDSyscallMsg{
-		UID:  tracer.ReadArgInt32(regs, 0),
-		EUID: -1,
-	}
-	return nil
-}
-
-func handleSetgid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	msg.Type = ebpfless.SyscallTypeSetGID
-	msg.SetGID = &ebpfless.SetGIDSyscallMsg{
-		GID: tracer.ReadArgInt32(regs, 0),
-	}
-	return nil
-}
-
-func handleSetreuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	msg.Type = ebpfless.SyscallTypeSetUID
-	msg.SetUID = &ebpfless.SetUIDSyscallMsg{
-		UID:  tracer.ReadArgInt32(regs, 0),
-		EUID: tracer.ReadArgInt32(regs, 1),
-	}
-	return nil
-}
-
-func handleSetregid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	msg.Type = ebpfless.SyscallTypeSetGID
-	msg.SetGID = &ebpfless.SetGIDSyscallMsg{
-		GID:  tracer.ReadArgInt32(regs, 0),
-		EGID: tracer.ReadArgInt32(regs, 1),
-	}
-	return nil
+// defaults funcs for ShouldSend:
+func shouldSendAlways(_ int64) bool { return true }
+func isAcceptedRetval(retval int64) bool {
+	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM)
 }
 
 func checkEntryPoint(path string) (string, error) {
@@ -293,10 +90,6 @@ func checkEntryPoint(path string) (string, error) {
 	}
 
 	return name, nil
-}
-
-func isAcceptedRetval(retval int64) bool {
-	return retval < 0 && retval != -int64(syscall.EACCES) && retval != -int64(syscall.EPERM)
 }
 
 func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
@@ -339,7 +132,7 @@ func sendMsg(client net.Conn, msg *ebpfless.Message) error {
 }
 
 // StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool, async bool) error {
+func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds, verbose bool, async bool, disableStats bool) error {
 	if len(args) == 0 {
 		return fmt.Errorf("an executable is required")
 	}
@@ -348,15 +141,16 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 		return err
 	}
 
-	logErrorf := golog.Printf
-	logDebugf := func(fmt string, args ...any) {}
-	if verbose {
-		logDebugf = func(fmt string, args ...any) {
-			golog.Printf(fmt, args...)
-		}
-	}
+	logger := Logger{verbose}
 
-	logDebugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
+	logger.Debugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
+
+	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
+		passwdPath = path
+	}
+	if path := os.Getenv(EnvGroupPathOverride); path != "" {
+		groupPath = path
+	}
 
 	var (
 		client      net.Conn
@@ -365,15 +159,17 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 	)
 
 	if probeAddr != "" {
-		logDebugf("connection to system-probe...")
+		logger.Debugf("connection to system-probe...")
 		if async {
 			go func() {
+				// use a local err variable to avoid race condition
+				var err error
 				client, err = initConn(probeAddr, 600)
 				if err != nil {
 					return
 				}
 				clientReady <- true
-				logDebugf("connection to system-probe initiated!")
+				logger.Debugf("connection to system-probe initiated!")
 			}()
 		} else {
 			client, err = initConn(probeAddr, 120)
@@ -381,25 +177,30 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 				return err
 			}
 			clientReady <- true
-			logDebugf("connection to system-probe initiated!")
+			logger.Debugf("connection to system-probe initiated!")
 		}
 	}
 
 	containerID, err := getCurrentProcContainerID()
 	if err != nil {
-		logErrorf("Retrieve container ID from proc failed: %v\n", err)
+		logger.Errorf("Retrieve container ID from proc failed: %v\n", err)
 	}
 	containerCtx, err := newContainerContext(containerID)
 	if err != nil {
 		return err
 	}
 
+	syscallHandlers := make(map[int]syscallHandler)
+	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
+	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
+
 	opts := Opts{
 		Syscalls: PtracedSyscalls,
 		Creds:    creds,
+		Logger:   logger,
 	}
 
-	tracer, err := NewTracer(entry, args, opts)
+	tracer, err := NewTracer(entry, args, envs, opts)
 	if err != nil {
 		return err
 	}
@@ -443,12 +244,12 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 			msg.SeqNum = seq
 
 			if probeAddr != "" {
-				logDebugf("sending message: %s", msg)
+				logger.Debugf("sending message: %s", msg)
 				if err := sendMsg(client, msg); err != nil {
-					logErrorf("%v", err)
+					logger.Debugf("%v", err)
 				}
 			} else {
-				logDebugf("sending message: %s", msg)
+				logger.Debugf("sending message: %s", msg)
 			}
 			seq++
 		}
@@ -458,7 +259,7 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 		select {
 		case msgChan <- msg:
 		default:
-			logErrorf("unable to send message")
+			logger.Errorf("unable to send message")
 		}
 	}
 
@@ -471,7 +272,7 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 		},
 	})
 
-	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs) {
+	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus) {
 		process := pc.Get(pid)
 		if process == nil {
 			process = NewProcess(pid)
@@ -483,6 +284,7 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 				return
 			}
 			msg.PID = uint32(process.Tgid)
+			msg.Timestamp = uint64(time.Now().UnixNano())
 			send(&ebpfless.Message{
 				Type:    ebpfless.MessageTypeSyscall,
 				Syscall: msg,
@@ -492,25 +294,25 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 		switch cbType {
 		case CallbackPreType:
 			syscallMsg := &ebpfless.SyscallMsg{}
-			process.Nr[nr] = syscallMsg
+			if nr == ExecveatNr {
+				// special case: sometimes, execveat returns as execve, to handle that, we force
+				// the msg to be put in ExecveNr
+				process.Nr[ExecveNr] = syscallMsg
+			} else {
+				process.Nr[nr] = syscallMsg
+			}
 
+			handler, found := syscallHandlers[nr]
+			if found && handler.Func != nil {
+				err := handler.Func(tracer, process, syscallMsg, regs, disableStats)
+				if err != nil {
+					return
+				}
+			}
+
+			/* internal special cases */
 			switch nr {
-			case OpenNr:
-				if err := handleOpen(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle open: %v", err)
-					return
-				}
-			case OpenatNr, Openat2Nr:
-				if err := handleOpenAt(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle openat: %v", err)
-					return
-				}
 			case ExecveNr:
-				if err = handleExecve(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle execve: %v", err)
-					return
-				}
-
 				// Top level pid, add creds. For the other PIDs the creds will be propagated at the probe side
 				if process.Pid == tracer.PID {
 					var uid, gid uint32
@@ -533,6 +335,12 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 						GID:  gid,
 						EGID: gid,
 					}
+					if !disableStats {
+						syscallMsg.Exec.Credentials.User = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.UID))
+						syscallMsg.Exec.Credentials.EUser = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.EUID))
+						syscallMsg.Exec.Credentials.Group = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.GID))
+						syscallMsg.Exec.Credentials.EGroup = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.EGID))
+					}
 				}
 
 				// special case for exec since the pre reports the pid while the post reports the tgid
@@ -540,135 +348,90 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 					pc.Add(process.Tgid, process)
 				}
 			case ExecveatNr:
-				if err = handleExecveAt(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle execveat: %v", err)
-					return
-				}
-
 				// special case for exec since the pre reports the pid while the post reports the tgid
 				if process.Pid != process.Tgid {
 					pc.Add(process.Tgid, process)
 				}
-			case FcntlNr:
-				_ = handleFcntl(tracer, process, syscallMsg, regs)
-			case DupNr, Dup2Nr, Dup3Nr:
-				if err = handleDup(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle dup: %v", err)
-					return
-				}
-			case ChdirNr:
-				if err = handleChdir(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle chdir: %v", err)
-					return
-				}
-			case FchdirNr:
-				if err = handleFchdir(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
-					return
-				}
-			case SetuidNr:
-				if err = handleSetuid(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
-					return
-				}
-			case SetgidNr:
-				if err = handleSetgid(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
-					return
-				}
-			case SetreuidNr:
-				if err = handleSetreuid(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
-					return
-				}
-			case SetregidNr:
-				if err = handleSetregid(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
-					return
-				}
+
 			}
 		case CallbackPostType:
+			syscallMsg, msgExists := process.Nr[nr]
+			handler, handlerFound := syscallHandlers[nr]
+			if handlerFound && msgExists && (handler.ShouldSend != nil || handler.RetFunc != nil) {
+				if handler.RetFunc != nil {
+					err := handler.RetFunc(tracer, process, syscallMsg, regs, disableStats)
+					if err != nil {
+						return
+					}
+				}
+				if handler.ShouldSend != nil {
+					ret := tracer.ReadRet(regs)
+					if handler.ShouldSend(ret) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
+						syscallMsg.Retval = ret
+						sendSyscallMsg(syscallMsg)
+					}
+				}
+			}
+
+			/* internal special cases */
 			switch nr {
 			case ExecveNr, ExecveatNr:
-				sendSyscallMsg(process.Nr[nr])
-
 				// now the pid is the tgid
 				process.Pid = process.Tgid
-			case OpenNr, OpenatNr:
-				if ret := tracer.ReadRet(regs); !isAcceptedRetval(ret) {
-					syscallMsg, exists := process.Nr[nr]
-					if !exists {
-						return
-					}
-					syscallMsg.Retval = ret
-
-					sendSyscallMsg(syscallMsg)
-
-					// maintain fd/path mapping
-					process.Res.Fd[int32(ret)] = syscallMsg.Open.Filename
-				}
-			case SetuidNr, SetgidNr, SetreuidNr, SetregidNr:
-				if ret := tracer.ReadRet(regs); ret >= 0 {
-					syscallMsg, exists := process.Nr[nr]
-					if !exists {
-						return
-					}
-
-					sendSyscallMsg(syscallMsg)
-				}
 			case CloneNr:
 				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
 					pc.SetAsThreadOf(process, ppid)
+				} else if parent := pc.Get(ppid); parent != nil {
+					sendSyscallMsg(&ebpfless.SyscallMsg{
+						Type: ebpfless.SyscallTypeFork,
+						Fork: &ebpfless.ForkSyscallMsg{
+							PPID: uint32(parent.Tgid),
+						},
+					})
+				}
+			case Clone3Nr:
+				data, err := tracer.ReadArgData(process.Pid, regs, 0, 8 /*sizeof flags only*/)
+				if err != nil {
 					return
 				}
-				fallthrough
+				if flags := binary.NativeEndian.Uint64(data); flags&uint64(unix.SIGCHLD) == 0 {
+					pc.SetAsThreadOf(process, ppid)
+				} else if parent := pc.Get(ppid); parent != nil {
+					sendSyscallMsg(&ebpfless.SyscallMsg{
+						Type: ebpfless.SyscallTypeFork,
+						Fork: &ebpfless.ForkSyscallMsg{
+							PPID: uint32(parent.Tgid),
+						},
+					})
+				}
 			case ForkNr, VforkNr:
-				sendSyscallMsg(&ebpfless.SyscallMsg{
-					Type: ebpfless.SyscallTypeFork,
-					Fork: &ebpfless.ForkSyscallMsg{
-						PPID: uint32(ppid),
-					},
-				})
-			case FcntlNr:
-				if ret := tracer.ReadRet(regs); ret >= 0 {
-					syscallMsg, exists := process.Nr[nr]
-					if !exists {
-						return
-					}
-
-					// maintain fd/path mapping
-					if syscallMsg.Fcntl.Cmd == unix.F_DUPFD || syscallMsg.Fcntl.Cmd == unix.F_DUPFD_CLOEXEC {
-						if path, exists := process.Res.Fd[int32(syscallMsg.Fcntl.Fd)]; exists {
-							process.Res.Fd[int32(ret)] = path
-						}
-					}
-				}
-			case DupNr, Dup2Nr, Dup3Nr:
-				if ret := tracer.ReadRet(regs); ret >= 0 {
-					syscallMsg, exists := process.Nr[nr]
-					if !exists {
-						return
-					}
-					path, ok := process.Res.Fd[syscallMsg.Dup.OldFd]
-					if ok {
-						// maintain fd/path in case of dups
-						process.Res.Fd[int32(ret)] = path
-					}
-				}
-			case ChdirNr, FchdirNr:
-				if ret := tracer.ReadRet(regs); ret >= 0 {
-					syscallMsg, exists := process.Nr[nr]
-					if !exists || syscallMsg.Chdir == nil {
-						return
-					}
-					process.Res.Cwd = syscallMsg.Chdir.Path
+				if parent := pc.Get(ppid); parent != nil {
+					sendSyscallMsg(&ebpfless.SyscallMsg{
+						Type: ebpfless.SyscallTypeFork,
+						Fork: &ebpfless.ForkSyscallMsg{
+							PPID: uint32(parent.Tgid),
+						},
+					})
 				}
 			}
+
 		case CallbackExitType:
 			// send exit only for process not threads
-			if process.Pid == process.Tgid {
+			if process.Pid == process.Tgid && waitStatus != nil {
+				exitCtx := &ebpfless.ExitSyscallMsg{}
+				if waitStatus.Exited() {
+					exitCtx.Cause = model.ExitExited
+					exitCtx.Code = uint32(waitStatus.ExitStatus())
+				} else if waitStatus.CoreDump() {
+					exitCtx.Cause = model.ExitCoreDumped
+					exitCtx.Code = uint32(waitStatus.Signal())
+				} else if waitStatus.Signaled() {
+					exitCtx.Cause = model.ExitSignaled
+					exitCtx.Code = uint32(waitStatus.Signal())
+				}
 				sendSyscallMsg(&ebpfless.SyscallMsg{
 					Type: ebpfless.SyscallTypeExit,
+					Exit: exitCtx,
 				})
 			}
 

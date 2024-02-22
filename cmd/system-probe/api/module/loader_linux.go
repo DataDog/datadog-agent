@@ -8,7 +8,7 @@
 package module
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
@@ -21,14 +21,14 @@ func isEBPFRequired(factories []Factory) bool {
 	return false
 }
 
-func preRegister(_ *config.Config, moduleFactories []Factory) error {
+func preRegister(_ *sysconfigtypes.Config, moduleFactories []Factory) error {
 	if isEBPFRequired(moduleFactories) {
 		return ebpf.Setup(ebpf.NewConfig())
 	}
 	return nil
 }
 
-func postRegister(_ *config.Config, moduleFactories []Factory) error {
+func postRegister(_ *sysconfigtypes.Config, moduleFactories []Factory) error {
 	if isEBPFRequired(moduleFactories) {
 		ebpf.FlushBTF()
 	}

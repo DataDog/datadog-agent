@@ -9,6 +9,14 @@ import "github.com/DataDog/datadog-agent/pkg/aggregator"
 
 // Params contains the parameters for the demultiplexer
 type Params struct {
-	Options                   aggregator.AgentDemultiplexerOptions
+	aggregator.AgentDemultiplexerOptions
 	ContinueOnMissingHostname bool
+}
+
+// NewDefaultParams returns the default parameters for the demultiplexer
+func NewDefaultParams() Params {
+	return Params{
+		AgentDemultiplexerOptions: aggregator.DefaultAgentDemultiplexerOptions(),
+		ContinueOnMissingHostname: false,
+	}
 }

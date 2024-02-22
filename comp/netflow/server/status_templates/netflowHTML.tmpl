@@ -1,0 +1,38 @@
+{{- with .netflowStats -}}
+  <div class="stat">
+    <span class="stat_title">NetFlow</span>
+    <span class="stat_data">
+        Total Listeners: {{.TotalListeners}}
+        <br>Open Listeners: {{.OpenListeners}}
+        <br>Closed Listeners: {{.ClosedListeners}}
+        {{ if .OpenListeners }}
+        <span class="stat_subtitle">Open Listener Details</span>
+        {{- range $index, $NetflowListenerStatus := .WorkingListenerDetails }}
+        BindHost: {{$NetflowListenerStatus.Config.BindHost}}
+        <br>FlowType: {{$NetflowListenerStatus.Config.FlowType}}
+        <br>Port: {{$NetflowListenerStatus.Config.Port}}
+        <br>Workers: {{$NetflowListenerStatus.Config.Workers}}
+        <br>Namespace: {{$NetflowListenerStatus.Config.Namespace}}
+        <br>Flows Received: {{$NetflowListenerStatus.FlowCount}}
+        <br>
+        <br>
+        {{- end }}
+        {{ end }}
+        <br>
+        {{ if .ClosedListeners }}
+        <br>
+        <span class="stat_subtitle">Closed Listener Details</span>
+        {{- range $index, $NetflowListenerStatus := .ClosedListenerDetails }}
+        BindHost: {{$NetflowListenerStatus.Config.BindHost}}
+        <br>FlowType: {{$NetflowListenerStatus.Config.FlowType}}
+        <br>Port: {{$NetflowListenerStatus.Config.Port}}
+        <br>Workers: {{$NetflowListenerStatus.Config.Workers}}
+        <br>Namespace: {{$NetflowListenerStatus.Config.Namespace}}
+        <br>Error: {{$NetflowListenerStatus.Error}}
+        <br>
+        <br>
+        {{- end }}
+        {{ end }}
+    </span>
+  </div>
+{{- end -}}

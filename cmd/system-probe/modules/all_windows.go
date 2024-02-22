@@ -20,6 +20,8 @@ import (
 // All System Probe modules should register their factories here
 var All = []module.Factory{
 	NetworkTracer,
+	// there is a dependency from EventMonitor -> NetworkTracer
+	// so EventMonitor has to follow NetworkTracer
 	EventMonitor,
 	WinCrashProbe,
 }

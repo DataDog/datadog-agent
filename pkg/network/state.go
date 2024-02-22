@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,29 +30,29 @@ var (
 
 // Telemetry
 var stateTelemetry = struct {
-	closedConnDropped      *nettelemetry.StatCounterWrapper
-	connDropped            *nettelemetry.StatCounterWrapper
-	statsUnderflows        *nettelemetry.StatCounterWrapper
-	statsCookieCollisions  *nettelemetry.StatCounterWrapper
-	timeSyncCollisions     *nettelemetry.StatCounterWrapper
-	dnsStatsDropped        *nettelemetry.StatCounterWrapper
-	httpStatsDropped       *nettelemetry.StatCounterWrapper
-	http2StatsDropped      *nettelemetry.StatCounterWrapper
-	kafkaStatsDropped      *nettelemetry.StatCounterWrapper
-	dnsPidCollisions       *nettelemetry.StatCounterWrapper
+	closedConnDropped      *telemetry.StatCounterWrapper
+	connDropped            *telemetry.StatCounterWrapper
+	statsUnderflows        *telemetry.StatCounterWrapper
+	statsCookieCollisions  *telemetry.StatCounterWrapper
+	timeSyncCollisions     *telemetry.StatCounterWrapper
+	dnsStatsDropped        *telemetry.StatCounterWrapper
+	httpStatsDropped       *telemetry.StatCounterWrapper
+	http2StatsDropped      *telemetry.StatCounterWrapper
+	kafkaStatsDropped      *telemetry.StatCounterWrapper
+	dnsPidCollisions       *telemetry.StatCounterWrapper
 	incomingDirectionFixes telemetry.Counter
 	outgoingDirectionFixes telemetry.Counter
 }{
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
 	telemetry.NewCounter(stateModuleName, "incoming_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes for incoming connections"),
 	telemetry.NewCounter(stateModuleName, "outgoing_direction_fixes", []string{}, "Counter measuring the number of udp/tcp direction fixes for outgoing connections"),
 }
@@ -117,11 +116,10 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Conns    []ConnectionStats
-	HTTP     map[http.Key]*http.RequestStats
-	HTTP2    map[http.Key]*http.RequestStats
-	Kafka    map[kafka.Key]*kafka.RequestStat
-	DNSStats dns.StatsByKeyByNameByType
+	Conns []ConnectionStats
+	HTTP  map[http.Key]*http.RequestStats
+	HTTP2 map[http.Key]*http.RequestStats
+	Kafka map[kafka.Key]*kafka.RequestStat
 }
 
 type lastStateTelemetry struct {
@@ -353,7 +351,11 @@ func (ns *networkState) GetDelta(
 	// Update all connections with relevant up-to-date stats for client
 	active, closed := ns.mergeConnections(id, active)
 
-	aggr := newConnectionAggregator((len(closed) + len(active)) / 2)
+	if len(dnsStats) > 0 {
+		ns.storeDNSStats(dnsStats)
+	}
+
+	aggr := newConnectionAggregator((len(closed)+len(active))/2, client.dnsStats)
 	active = filterConnections(active, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
@@ -365,10 +367,6 @@ func (ns *networkState) GetDelta(
 	aggr.finalize()
 
 	ns.determineConnectionIntraHost(slice.NewChain(active, closed))
-
-	if len(dnsStats) > 0 {
-		ns.storeDNSStats(dnsStats)
-	}
 
 	for protocolType, protocolStats := range usmStats {
 		switch protocolType {
@@ -385,11 +383,10 @@ func (ns *networkState) GetDelta(
 	}
 
 	return Delta{
-		Conns:    append(active, closed...),
-		HTTP:     client.httpStatsDelta,
-		HTTP2:    client.http2StatsDelta,
-		DNSStats: client.dnsStats,
-		Kafka:    client.kafkaStatsDelta,
+		Conns: append(active, closed...),
+		HTTP:  client.httpStatsDelta,
+		HTTP2: client.http2StatsDelta,
+		Kafka: client.kafkaStatsDelta,
 	}
 }
 
@@ -1104,14 +1101,16 @@ type aggregateConnection struct {
 }
 
 type connectionAggregator struct {
-	conns map[string][]*aggregateConnection
-	buf   []byte
+	conns    map[string][]*aggregateConnection
+	buf      []byte
+	dnsStats dns.StatsByKeyByNameByType
 }
 
-func newConnectionAggregator(size int) *connectionAggregator {
+func newConnectionAggregator(size int, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
 	return &connectionAggregator{
-		conns: make(map[string][]*aggregateConnection, size),
-		buf:   make([]byte, ConnectionByteKeyMaxLen),
+		conns:    make(map[string][]*aggregateConnection, size),
+		buf:      make([]byte, ConnectionByteKeyMaxLen),
+		dnsStats: dnsStats,
 	}
 }
 
@@ -1121,6 +1120,20 @@ func (a *connectionAggregator) canAggregateIPTranslation(t1, t2 *IPTranslation) 
 
 func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack) bool {
 	return p1.IsUnknown() || p2.IsUnknown() || p1 == p2
+}
+
+func (a *connectionAggregator) dns(c *ConnectionStats) map[dns.Hostname]map[dns.QueryType]dns.Stats {
+	key, isDNS := DNSKey(c)
+	if !isDNS {
+		return nil
+	}
+
+	if stats, ok := a.dnsStats[key]; ok {
+		delete(a.dnsStats, key)
+		return stats
+	}
+
+	return nil
 }
 
 // Aggregate aggregates a connection. The connection is only
@@ -1135,6 +1148,10 @@ func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack)
 //   - the other connection's protocol stack is not unknown AND equal
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	key := string(c.ByteKey(a.buf))
+
+	// get dns stats for connection
+	c.DNSStats = a.dns(c)
+
 	aggrConns, ok := a.conns[key]
 	if !ok {
 		a.conns[key] = []*aggregateConnection{
@@ -1154,19 +1171,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 			continue
 		}
 
-		aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
-		aggrConn.Last = aggrConn.Last.Add(c.Last)
-		aggrConn.rttSum += uint64(c.RTT)
-		aggrConn.rttVarSum += uint64(c.RTTVar)
-		aggrConn.count++
-		if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
-			aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
-		}
-		if aggrConn.IPTranslation == nil {
-			aggrConn.IPTranslation = c.IPTranslation
-		}
-		aggrConn.ProtocolStack.MergeWith(c.ProtocolStack)
-
+		aggrConn.merge(c)
 		return true
 	}
 
@@ -1178,6 +1183,52 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	})
 
 	return false
+}
+
+func (ac *aggregateConnection) merge(c *ConnectionStats) {
+	ac.Monotonic = ac.Monotonic.Add(c.Monotonic)
+	ac.Last = ac.Last.Add(c.Last)
+	ac.rttSum += uint64(c.RTT)
+	ac.rttVarSum += uint64(c.RTTVar)
+	ac.count++
+	if ac.LastUpdateEpoch < c.LastUpdateEpoch {
+		ac.LastUpdateEpoch = c.LastUpdateEpoch
+	}
+	if ac.IPTranslation == nil {
+		ac.IPTranslation = c.IPTranslation
+	}
+
+	ac.ProtocolStack.MergeWith(c.ProtocolStack)
+
+	if ac.DNSStats == nil {
+		ac.DNSStats = c.DNSStats
+	} else {
+		for hostname, statsByQuery := range c.DNSStats {
+			hostStats := ac.DNSStats[hostname]
+			if hostStats == nil {
+				hostStats = make(map[dns.QueryType]dns.Stats)
+				ac.DNSStats[hostname] = hostStats
+			}
+			for q, stats := range statsByQuery {
+				queryStats, ok := hostStats[q]
+				if !ok {
+					hostStats[q] = stats
+					continue
+				}
+
+				queryStats.FailureLatencySum += stats.FailureLatencySum
+				queryStats.SuccessLatencySum += stats.SuccessLatencySum
+				queryStats.Timeouts += stats.Timeouts
+				for rcode, count := range stats.CountByRcode {
+					queryStats.CountByRcode[rcode] += count
+				}
+				hostStats[q] = queryStats
+			}
+		}
+	}
+
+	// no need to hold on to dns stats on the aggregated connection
+	c.DNSStats = nil
 }
 
 func (a *connectionAggregator) finalize() {

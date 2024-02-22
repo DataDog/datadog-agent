@@ -64,17 +64,3 @@ func TestBackoff(t *testing.T) {
 	assert.Equal(t, 8*time.Second, b.GetBackoffDuration(3))
 	assert.Equal(t, 9*time.Second, b.GetBackoffDuration(4))
 }
-
-func TestNewConstantBackoffPolicy(t *testing.T) {
-	testDuration := 10 * time.Second
-	b := NewConstantBackoffPolicy(testDuration)
-
-	assert.Equal(t, 2, b.IncError(1))
-	assert.Equal(t, 101, b.IncError(100))
-
-	assert.Equal(t, 0, b.DecError(1))
-	assert.Equal(t, 99, b.DecError(100))
-
-	assert.Equal(t, testDuration, b.GetBackoffDuration(1))
-	assert.Equal(t, testDuration, b.GetBackoffDuration(100))
-}

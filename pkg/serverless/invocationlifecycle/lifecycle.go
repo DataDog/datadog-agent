@@ -7,10 +7,11 @@ package invocationlifecycle
 
 import (
 	"bytes"
-	"encoding/json"
 	"os"
 	"strings"
 	"time"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"

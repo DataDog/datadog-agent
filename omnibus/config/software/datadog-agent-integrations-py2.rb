@@ -325,7 +325,7 @@ build do
     tasks_dir_in = windows_safe_path(Dir.pwd)
     cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows_target? then '"c:\Program files\python39\scripts\aws"' else 'aws' end
+    awscli = if windows_target? then '"c:\Program files\python311\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       shellout! "inv -e agent.get-integrations-from-cache " \

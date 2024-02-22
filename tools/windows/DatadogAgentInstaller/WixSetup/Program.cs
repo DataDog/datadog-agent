@@ -16,19 +16,21 @@ namespace WixSetup
             var project = new AgentInstaller(version)
                 .ConfigureProject();
 
-#if DEBUG
-            // Save a copy of the WXS for analysis since WixSharp deletes it after it's done generating the MSI.
-            project.WixSourceSaved += path =>
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("BUILD_MSI_CMD")))
             {
-                System.IO.File.Copy(path, "wix/WixSetup.g.wxs", overwrite: true);
-            };
-            // In debug mode, build the MSI directly
-            project.BuildMsi();
-#else
-            // In the CI, use the BuildMsiCmd to be able to sign the binaries before building the MSI
-            project
-                .BuildMsiCmd();
-#endif
+                // In the CI, tasks/msi.py uses the BuildMsiCmd to be able to sign the binaries before building the MSI
+                project.BuildMsiCmd();
+            }
+            else
+            {
+                // When building in vstudio, build the MSI directly
+                // Save a copy of the WXS for analysis since WixSharp deletes it after it's done generating the MSI.
+                project.WixSourceSaved += path =>
+                {
+                    System.IO.File.Copy(path, "wix/WixSetup.g.wxs", overwrite: true);
+                };
+                project.BuildMsi();
+            }
         }
 
         private static void Main()

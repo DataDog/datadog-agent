@@ -1,0 +1,22 @@
+name: Handle External Contributor PRs
+
+on:
+  # run in the context of the base branch, so that it still works in PR from forks
+  pull_request_target:
+    types: [opened, reopened]
+
+jobs:
+  external-contributor-prs:
+    name: Handle Fork PRs
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    steps:
+      - name: Set label on external contributor PRs
+        run: gh issue edit "$NUMBER" --add-label "$LABELS" --milestone "$MILESTONE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.number }}
+          # labels is a comma-separated list of tags
+          LABELS: community,team/triage
+          MILESTONE: Triage

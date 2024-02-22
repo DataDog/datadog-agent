@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package events handles process events
 package events
 
 import (

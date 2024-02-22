@@ -27,7 +27,7 @@ deploy_containers-a6-on-failure:
   trigger:
     include: .gitlab/deploy_containers/deploy_containers_a6.yml
 
-  
+
 deploy_containers-a7:
   stage: deploy_containers
   rules:

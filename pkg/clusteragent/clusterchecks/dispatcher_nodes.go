@@ -228,14 +228,6 @@ func (d *dispatcher) updateRunnersStats() {
 				checkStats.IsClusterCheck = true
 				stats[idStr] = checkStats
 			}
-
-			checkName := checkid.IDToCheckName(id)
-			if _, found := d.excludedChecksFromDispatching[checkName]; found {
-				// TODO: We are abusing the IsClusterCheck field to mark checks that should be excluded from rebalancing decisions.
-				// It behaves the same way as we want to count them in rebalance decisions but we don't want to move them.
-				checkStats.IsClusterCheck = false
-				stats[idStr] = checkStats
-			}
 		}
 		node.clcRunnerStats = stats
 		log.Tracef("Updated CLC Runner stats on node: %s, node IP: %s, stats: %v", name, node.clientIP, stats)

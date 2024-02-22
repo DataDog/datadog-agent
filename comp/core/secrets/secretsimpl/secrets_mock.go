@@ -20,7 +20,12 @@ type MockSecretResolver struct {
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
 
-// SetFetchHookFunc set the fetchHookFunc for the mock
+// SetBackendCommand sets the backend command for the mock
+func (m *MockSecretResolver) SetBackendCommand(command string) {
+	m.backendCommand = command
+}
+
+// SetFetchHookFunc sets the fetchHookFunc for the mock
 func (m *MockSecretResolver) SetFetchHookFunc(f func([]string) (map[string]string, error)) {
 	m.fetchHookFunc = f
 }

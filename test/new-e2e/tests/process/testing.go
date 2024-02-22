@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 //go:embed config/process_check.yaml
@@ -29,8 +29,8 @@ var processDiscoveryCheckConfigStr string
 var systemProbeConfigStr string
 
 // assertRunningChecks asserts that the given process agent checks are running on the given VM
-func assertRunningChecks(t *assert.CollectT, vm client.VM, checks []string, withSystemProbe bool) {
-	status := vm.Execute("sudo datadog-agent status --json")
+func assertRunningChecks(t *assert.CollectT, vm *components.RemoteHost, checks []string, withSystemProbe bool, command string) {
+	status := vm.MustExecute(command)
 	var statusMap struct {
 		ProcessAgentStatus struct {
 			Expvars struct {
@@ -50,10 +50,10 @@ func assertRunningChecks(t *assert.CollectT, vm client.VM, checks []string, with
 	}
 }
 
-// assertStressProcessCollected asserts that the stress process is collected by the process check
+// assertProcessCollected asserts that the given process is collected by the process check
 // and that it has the expected data populated
-func assertStressProcessCollected(
-	t *testing.T, payloads []*aggregator.ProcessPayload, withIOStats bool,
+func assertProcessCollected(
+	t *testing.T, payloads []*aggregator.ProcessPayload, withIOStats bool, process string,
 ) {
 	defer func() {
 		if t.Failed() {
@@ -63,14 +63,14 @@ func assertStressProcessCollected(
 
 	var found, populated bool
 	for _, payload := range payloads {
-		found, populated = findProcess("stress", payload.Processes, withIOStats)
+		found, populated = findProcess(process, payload.Processes, withIOStats)
 		if found && populated {
 			break
 		}
 	}
 
-	require.True(t, found, "stress process not found")
-	assert.True(t, populated, "no stress process had all data populated")
+	require.True(t, found, "%s process not found", process)
+	assert.True(t, populated, "no %s process had all data populated", process)
 }
 
 // findProcess returns whether the process with the given name exists in the given list of
@@ -98,21 +98,21 @@ func findProcess(
 
 // processHasData asserts that the given process has the expected data populated
 func processHasData(process *agentmodel.Process) bool {
-	return process.Pid != 0 && process.NsPid != 0 && len(process.User.Name) > 0 &&
-		process.Cpu.TotalPct > 0 && process.Cpu.SystemPct > 0 &&
-		process.Memory.Rss > 0 && process.Memory.Vms > 0
+	return process.Pid != 0 && process.Command.Ppid != 0 && len(process.User.Name) > 0 &&
+		(process.Cpu.UserPct > 0 || process.Cpu.SystemPct > 0) &&
+		(process.Memory.Rss > 0 || process.Memory.Vms > 0 || process.Memory.Swap > 0)
 }
 
 // processHasIOStats asserts that the given process has the expected IO stats populated
 func processHasIOStats(process *agentmodel.Process) bool {
-	// the stress process only writes to disk, does not read from it
-	return process.IoStat.WriteRate > 0 && process.IoStat.WriteBytesRate > 0
+	// The processes we currently use to test can only read or write, not both
+	return process.IoStat.WriteRate > 0 && process.IoStat.WriteBytesRate > 0 || process.IoStat.ReadRate > 0 && process.IoStat.ReadBytesRate > 0
 }
 
-// assertStressProcessDiscoveryCollected asserts that the stress process is collected by the process
+// assertProcessDiscoveryCollected asserts that the given process is collected by the process
 // discovery check and that it has the expected data populated
-func assertStressProcessDiscoveryCollected(
-	t *testing.T, payloads []*aggregator.ProcessDiscoveryPayload,
+func assertProcessDiscoveryCollected(
+	t *testing.T, payloads []*aggregator.ProcessDiscoveryPayload, process string,
 ) {
 	defer func() {
 		if t.Failed() {
@@ -122,14 +122,14 @@ func assertStressProcessDiscoveryCollected(
 
 	var found, populated bool
 	for _, payload := range payloads {
-		found, populated = findProcessDiscovery("stress", payload.ProcessDiscoveries)
+		found, populated = findProcessDiscovery(process, payload.ProcessDiscoveries)
 		if found && populated {
 			break
 		}
 	}
 
-	require.True(t, found, "stress process not found")
-	assert.True(t, populated, "no stress process had all data populated")
+	require.True(t, found, "%s process not found", process)
+	assert.True(t, populated, "no %s process had all data populated", process)
 }
 
 // findProcessDiscovery returns whether the process with the given name exists in the given list of
@@ -152,12 +152,12 @@ func findProcessDiscovery(
 
 // processDiscoveryHasData asserts that the given process discovery has the expected data populated
 func processDiscoveryHasData(disc *agentmodel.ProcessDiscovery) bool {
-	return disc.Pid != 0 && disc.NsPid != 0 && len(disc.User.Name) > 0
+	return disc.Pid != 0 && disc.Command.Ppid != 0 && len(disc.User.Name) > 0
 }
 
-// assertManualProcessCheck asserts that the stress process is collected and reported in the output
+// assertManualProcessCheck asserts that the given process is collected and reported in the output
 // of the manual process check
-func assertManualProcessCheck(t *testing.T, check string, withIOStats bool) {
+func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, process string) {
 	defer func() {
 		if t.Failed() {
 			t.Logf("Check output:\n%s\n", check)
@@ -170,15 +170,15 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool) {
 	err := json.Unmarshal([]byte(check), &checkOutput)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
-	found, populated := findProcess("stress", checkOutput.Processes, withIOStats)
+	found, populated := findProcess(process, checkOutput.Processes, withIOStats)
 
-	require.True(t, found, "stress process not found")
-	assert.True(t, populated, "no stress process had all data populated")
+	require.True(t, found, "%s process not found", process)
+	assert.True(t, populated, "no %s process had all data populated", process)
 }
 
-// assertManualProcessDiscoveryCheck asserts that the stress process is collected and reported in
+// assertManualProcessDiscoveryCheck asserts that the given process is collected and reported in
 // the output of the manual process_discovery check
-func assertManualProcessDiscoveryCheck(t *testing.T, check string) {
+func assertManualProcessDiscoveryCheck(t *testing.T, check string, process string) {
 	defer func() {
 		if t.Failed() {
 			t.Logf("Check output:\n%s\n", check)
@@ -191,8 +191,8 @@ func assertManualProcessDiscoveryCheck(t *testing.T, check string) {
 	err := json.Unmarshal([]byte(check), &checkOutput)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
-	found, populated := findProcessDiscovery("stress", checkOutput.ProcessDiscoveries)
+	found, populated := findProcessDiscovery(process, checkOutput.ProcessDiscoveries)
 
-	require.True(t, found, "stress process not found")
-	assert.True(t, populated, "no stress process had all data populated")
+	require.True(t, found, "%s process not found", process)
+	assert.True(t, populated, "no %s process had all data populated", process)
 }

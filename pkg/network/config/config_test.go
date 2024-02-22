@@ -183,28 +183,6 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
-func TestEnableDataStreams(t *testing.T) {
-	t.Run("via YAML", func(t *testing.T) {
-		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDataStreams.yaml")
-		require.NoError(t, err)
-		cfg := New()
-
-		assert.True(t, cfg.DataStreamsEnabled)
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED", "true")
-
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
-		cfg := New()
-
-		assert.True(t, cfg.DataStreamsEnabled)
-	})
-}
-
 func TestEnableJavaTLSSupport(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
@@ -246,6 +224,28 @@ func TestEnableHTTP2Monitoring(t *testing.T) {
 		cfg := New()
 
 		assert.True(t, cfg.EnableHTTP2Monitoring)
+	})
+}
+
+func TestEnableKafkaMonitoring(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_kafka_monitoring: true
+`)
+
+		assert.True(t, cfg.EnableKafkaMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_KAFKA_MONITORING", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableKafkaMonitoring)
 	})
 }
 
@@ -1192,8 +1192,8 @@ func TestNetworkConfigEnabled(t *testing.T) {
 	ys := true
 
 	for i, tc := range []struct {
-		sysIn, npmIn, usmIn, dsmIn         *bool
-		npmEnabled, usmEnabled, dsmEnabled bool
+		sysIn, npmIn, usmIn    *bool
+		npmEnabled, usmEnabled bool
 	}{
 		{sysIn: nil, npmIn: nil, usmIn: nil, npmEnabled: false, usmEnabled: false},
 		{sysIn: nil, npmIn: nil, usmIn: &ys, npmEnabled: false, usmEnabled: true},
@@ -1204,9 +1204,6 @@ func TestNetworkConfigEnabled(t *testing.T) {
 		{sysIn: &ys, npmIn: nil, usmIn: &ys, npmEnabled: false, usmEnabled: true},
 		{sysIn: &ys, npmIn: &ys, usmIn: nil, npmEnabled: true, usmEnabled: false},
 		{sysIn: &ys, npmIn: &ys, usmIn: &ys, npmEnabled: true, usmEnabled: true},
-		{sysIn: nil, npmIn: nil, usmIn: nil, dsmIn: &ys, npmEnabled: false, usmEnabled: true, dsmEnabled: true},
-		{sysIn: nil, npmIn: nil, usmIn: &ys, dsmIn: &ys, npmEnabled: false, usmEnabled: true, dsmEnabled: true},
-		{sysIn: nil, npmIn: &ys, usmIn: &ys, dsmIn: &ys, npmEnabled: true, usmEnabled: true, dsmEnabled: true},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			f, err := os.CreateTemp(t.TempDir(), "emptyconfig*.yaml")
@@ -1222,9 +1219,6 @@ func TestNetworkConfigEnabled(t *testing.T) {
 			if tc.usmIn != nil {
 				t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(*tc.usmIn))
 			}
-			if tc.dsmIn != nil {
-				t.Setenv("DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED", strconv.FormatBool(*tc.dsmIn))
-			}
 
 			aconfig.ResetSystemProbeConfig(t)
 			_, err = sysconfig.New(f.Name())
@@ -1232,7 +1226,6 @@ func TestNetworkConfigEnabled(t *testing.T) {
 			cfg := New()
 			assert.Equal(t, tc.npmEnabled, cfg.NPMEnabled, "npm state")
 			assert.Equal(t, tc.usmEnabled, cfg.ServiceMonitoringEnabled, "usm state")
-			assert.Equal(t, tc.dsmEnabled, cfg.DataStreamsEnabled, "dsm state")
 		})
 	}
 }
@@ -1444,6 +1437,35 @@ service_monitoring_config:
 		cfg := New()
 		// Default value.
 		require.False(t, cfg.EnableGoTLSSupport)
+	})
+}
+
+func TestUSMTLSGoExcludeSelf(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    go:
+      exclude_self: false
+`)
+		require.False(t, cfg.GoTLSExcludeSelf)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_EXCLUDE_SELF", "false")
+
+		cfg := New()
+
+		require.False(t, cfg.GoTLSExcludeSelf)
+	})
+
+	t.Run("Not disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.True(t, cfg.GoTLSExcludeSelf)
 	})
 }
 

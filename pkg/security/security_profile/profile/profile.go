@@ -39,19 +39,16 @@ type EventTypeState struct {
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
 	sync.Mutex
-	loadedInKernel         bool
-	loadedNano             uint64
-	selector               cgroupModel.WorkloadSelector
-	profileCookie          uint64
-	anomalyDetectionEvents []model.EventType
-	eventTypeState         map[model.EventType]*EventTypeState
-	eventTypeStateLock     sync.Mutex
+	loadedInKernel     bool
+	loadedNano         uint64
+	selector           cgroupModel.WorkloadSelector
+	profileCookie      uint64
+	eventTypes         []model.EventType
+	eventTypeState     map[model.EventType]*EventTypeState
+	eventTypeStateLock sync.Mutex
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
-
-	// Status is the status of the profile
-	Status model.Status
 
 	// Version is the version of a Security Profile
 	Version string
@@ -70,16 +67,16 @@ type SecurityProfile struct {
 }
 
 // NewSecurityProfile creates a new instance of Security Profile
-func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionEvents []model.EventType) *SecurityProfile {
+func NewSecurityProfile(selector cgroupModel.WorkloadSelector, eventTypes []model.EventType) *SecurityProfile {
 	// TODO: we need to keep track of which event types / fields can be used in profiles (for anomaly detection, hardening
 	// or suppression). This is missing for now, and it will be necessary to smoothly handle the transition between
 	// profiles that allow for evaluating new event types, and profiles that don't. As such, the event types allowed to
 	// generate anomaly detections in the input of this function will need to be merged with the event types defined in
 	// the configuration.
 	return &SecurityProfile{
-		selector:               selector,
-		anomalyDetectionEvents: anomalyDetectionEvents,
-		eventTypeState:         make(map[model.EventType]*EventTypeState),
+		selector:       selector,
+		eventTypes:     eventTypes,
+		eventTypeState: make(map[model.EventType]*EventTypeState),
 	}
 }
 
@@ -109,13 +106,6 @@ func (p *SecurityProfile) generateSyscallsFilters() [64]byte {
 	return output
 }
 
-func (p *SecurityProfile) generateKernelSecurityProfileDefinition() [16]byte {
-	var output [16]byte
-	model.ByteOrder.PutUint64(output[0:8], p.profileCookie)
-	model.ByteOrder.PutUint32(output[8:12], uint32(p.Status))
-	return output
-}
-
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	for _, workload := range p.Instances {
@@ -128,7 +118,7 @@ func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 
 // IsEventTypeValid is used to control which event types should trigger anomaly detection alerts
 func (p *SecurityProfile) IsEventTypeValid(evtType model.EventType) bool {
-	return slices.Contains(p.anomalyDetectionEvents, evtType)
+	return slices.Contains(p.eventTypes, evtType)
 }
 
 // NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the activity tree
@@ -177,7 +167,6 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 			Tag:  p.selector.Tag,
 		},
 		ProfileCookie: p.profileCookie,
-		Status:        p.Status.String(),
 		Version:       p.Version,
 		Metadata: &api.MetadataMessage{
 			Name: p.Metadata.Name,
@@ -194,8 +183,8 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 		}
 	}
 
-	for _, evt := range p.anomalyDetectionEvents {
-		msg.AnomalyDetectionEvents = append(msg.AnomalyDetectionEvents, evt.String())
+	for _, evt := range p.eventTypes {
+		msg.EventTypes = append(msg.EventTypes, evt.String())
 	}
 
 	for evt, state := range p.eventTypeState {

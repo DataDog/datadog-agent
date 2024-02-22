@@ -15,19 +15,23 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	agentCheck "github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
+	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 
 	"golang.org/x/sys/windows"
 )
 
-const checkName = "win32_event_log"
+const (
+	// CheckName is the name of the check
+	CheckName = "win32_event_log"
+)
 
 // The lower cased version of the `API SOURCE ATTRIBUTE` column from the table located here:
 // https://docs.datadoghq.com/integrations/faq/list-of-api-source-attribute-value/
@@ -224,11 +228,11 @@ func (c *Check) validateConfig() error {
 	}
 	if isaffirmative(c.config.instance.LegacyMode) {
 		// wrap ErrSkipCheckInstance for graceful skipping
-		return fmt.Errorf("%w: unsupported configuration: legacy_mode: true", agentCheck.ErrSkipCheckInstance)
+		return fmt.Errorf("%w: unsupported configuration: legacy_mode: true", check.ErrSkipCheckInstance)
 	}
 	if isaffirmative(c.config.instance.LegacyModeV2) {
 		// wrap ErrSkipCheckInstance for graceful skipping
-		return fmt.Errorf("%w: unsupported configuration: legacy_mode_v2: true", agentCheck.ErrSkipCheckInstance)
+		return fmt.Errorf("%w: unsupported configuration: legacy_mode_v2: true", check.ErrSkipCheckInstance)
 	}
 	if c.config.instance.Timeout.IsSet() {
 		// timeout option is deprecated. Now that the subscription runs in the background in a select
@@ -286,13 +290,12 @@ func (c *Check) Cancel() {
 	}
 }
 
-func checkFactory() agentCheck.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
-		evtapi:    winevtapi.New(),
-	}
-}
-
-func init() {
-	core.RegisterCheck(checkName, checkFactory)
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &Check{
+			CheckBase: core.NewCheckBase(CheckName),
+			evtapi:    winevtapi.New(),
+		}
+	})
 }

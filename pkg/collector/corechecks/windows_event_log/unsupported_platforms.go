@@ -7,3 +7,18 @@
 
 // Package evtlog is not implemented on non-Windows platforms
 package evtlog
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+)
+
+const (
+	// CheckName is the name of the check
+	CheckName = "win32_event_log"
+)
+
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewNoneOption[func() check.Check]()
+}

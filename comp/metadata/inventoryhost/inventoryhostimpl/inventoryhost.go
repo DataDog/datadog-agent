@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.uber.org/fx"
 )
@@ -41,11 +43,12 @@ func Module() fxutil.Module {
 
 // for testing purpose
 var (
-	cpuGet       = cpu.CollectInfo
-	memoryGet    = memory.CollectInfo
-	networkGet   = network.CollectInfo
-	platformGet  = platform.CollectInfo
-	osVersionGet = utils.GetOSVersion
+	cpuGet        = cpu.CollectInfo
+	memoryGet     = memory.CollectInfo
+	networkGet    = network.CollectInfo
+	platformGet   = platform.CollectInfo
+	osVersionGet  = utils.GetOSVersion
+	pkgSigningGet = pkgUtils.GetLinuxGlobalSigningPolicies
 )
 
 // hostMetadata contains metadata about the host
@@ -85,11 +88,15 @@ type hostMetadata struct {
 	CloudProviderHostID    string `json:"cloud_provider_host_id"`
 	OsVersion              string `json:"os_version"`
 
-	// From file system
+	// from file system
 	HypervisorGuestUUID string `json:"hypervisor_guest_uuid"`
 	DmiProductUUID      string `json:"dmi_product_uuid"`
 	DmiBoardAssetTag    string `json:"dmi_board_asset_tag"`
 	DmiBoardVendor      string `json:"dmi_board_vendor"`
+
+	// from package repositories
+	LinuxPackageSigningEnabled   bool `json:"linux_package_signing_enabled"`
+	RPMGlobalRepoGPGCheckEnabled bool `json:"rpm_global_repo_gpg_check_enabled"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -97,6 +104,7 @@ type Payload struct {
 	Hostname  string        `json:"hostname"`
 	Timestamp int64         `json:"timestamp"`
 	Metadata  *hostMetadata `json:"host_metadata"`
+	UUID      string        `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -231,6 +239,10 @@ func (ih *invHost) fillData() {
 	ih.data.CloudProviderSource = cloudproviders.GetSource(cloudProvider)
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
 	ih.data.OsVersion = osVersionGet()
+
+	gpgcheck, repoGPGCheck := pkgSigningGet(ih.log)
+	ih.data.LinuxPackageSigningEnabled = gpgcheck
+	ih.data.RPMGlobalRepoGPGCheckEnabled = repoGPGCheck
 }
 
 func (ih *invHost) getPayload() marshaler.JSONMarshaler {
@@ -240,5 +252,6 @@ func (ih *invHost) getPayload() marshaler.JSONMarshaler {
 		Hostname:  ih.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  ih.data,
+		UUID:      uuid.GetUUID(),
 	}
 }

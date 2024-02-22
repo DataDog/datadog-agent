@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -34,7 +34,6 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
-	"golang.org/x/sys/unix"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
@@ -48,6 +47,8 @@ import (
 )
 
 func TestProcess(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +57,8 @@ func TestProcess(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
 		ID: "test_rule",
 	}
-	if os.Getenv("EBPFLESS") != "" {
+
+	if ebpfLessEnabled {
 		ruleDef.Expression = fmt.Sprintf(`process.file.name == "%s" && open.file.path == "{{.Root}}/test-process"`, path.Base(executable))
 	} else {
 		ruleDef.Expression = fmt.Sprintf(`process.user != "" && process.file.name == "%s" && open.file.path == "{{.Root}}/test-process"`, path.Base(executable))
@@ -80,6 +82,8 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -170,6 +174,10 @@ func TestProcessContext(t *testing.T) {
 			ID:         "test_rule_container",
 			Expression: `exec.file.name == "touch" && exec.argv == "{{.Root}}/test-container"`,
 		},
+		{
+			ID:         "test_event_service",
+			Expression: `open.file.path == "{{.Root}}/test-event-service" && open.flags & O_CREAT != 0 && event.service == "myservice"`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -184,10 +192,6 @@ func TestProcessContext(t *testing.T) {
 	}
 
 	t.Run("exec-time", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("create_at not supported yet")
-		}
-
 		testFile, _, err := test.Path("test-exec-time-1")
 		if err != nil {
 			t.Fatal(err)
@@ -229,9 +233,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("inode", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("inode not supported yet")
-		}
+		SkipIfNotAvailable(t)
 
 		testFile, _, err := test.Path("test-process-context")
 		if err != nil {
@@ -258,10 +260,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
-
 		args := []string{"-al", "--password", "secret", "--custom", "secret"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib", "DD_API_KEY=dd-api-key"}
 		test.WaitSignal(t, func() error {
@@ -331,10 +329,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
-
 		args := []string{"-al", "http://example.com"}
 		envs := []string{"ENVP=test"}
 
@@ -381,13 +375,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("args not yet truncated")
-		}
-
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -411,7 +398,7 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(args.(string), " ")
 			assert.Equal(t, 2, len(argv), "incorrect number of args: %s", argv)
-			assert.Equal(t, 255, len(argv[1]), "wrong arg length")
+			assert.Equal(t, model.MaxArgEnvSize-1, len(argv[1]), "wrong arg length")
 			assert.Equal(t, true, strings.HasSuffix(argv[1], "..."), "args not truncated")
 
 			// truncated is reported if a single argument is truncated or if the list is truncated
@@ -432,12 +419,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("args not yet truncated")
-		}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// force seed to have something we can reproduce
@@ -461,10 +442,16 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(execArgs.(string), " ")
-			assert.Equal(t, 459, len(argv), "incorrect number of args: %s", argv)
-
-			for i := 0; i != 459; i++ {
-				assert.Equal(t, args[i], argv[i], "expected arg not found")
+			if ebpfLessEnabled {
+				assert.Equal(t, model.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != model.MaxArgsEnvsSize-1; i++ {
+					assert.Equal(t, args[i], argv[i], "expected arg not found")
+				}
+			} else {
+				assert.Equal(t, 459, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 459; i++ {
+					assert.Equal(t, args[i], argv[i], "expected arg not found")
+				}
 			}
 
 			// truncated is reported if a single argument is truncated or if the list is truncated
@@ -482,13 +469,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("args not yet truncated")
-		}
-
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// force seed to have something we can reproduce
@@ -512,14 +492,24 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(execArgs.(string), " ")
-			assert.Equal(t, 474, len(argv), "incorrect number of args: %s", argv)
-
-			for i := 0; i != 474; i++ {
-				expected := args[i]
-				if len(expected) > model.MaxArgEnvSize {
-					expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+			if ebpfLessEnabled {
+				assert.Equal(t, model.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != model.MaxArgsEnvsSize-1; i++ {
+					expected := args[i]
+					if len(expected) > model.MaxArgEnvSize {
+						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					}
+					assert.Equal(t, expected, argv[i], "expected arg not found")
 				}
-				assert.Equal(t, expected, argv[i], "expected arg not found")
+			} else {
+				assert.Equal(t, 474, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 474; i++ {
+					expected := args[i]
+					if len(expected) > model.MaxArgEnvSize {
+						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					}
+					assert.Equal(t, expected, argv[i], "expected arg not found")
+				}
 			}
 
 			// truncated is reported if a single argument is truncated or if the list is truncated
@@ -537,10 +527,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("envs truncate not supported yet")
-		}
-
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -571,7 +557,7 @@ func TestProcessContext(t *testing.T) {
 
 			envp := (execEnvp.([]string))
 			assert.Equal(t, 2, len(envp), "incorrect number of envs: %s", envp)
-			assert.Equal(t, 255, len(envp[1]), "wrong env length")
+			assert.Equal(t, model.MaxArgEnvSize-1, len(envp[1]), "wrong env length")
 			assert.Equal(t, true, strings.HasSuffix(envp[1], "..."), "envs not truncated")
 
 			// truncated is reported if a single environment variable is truncated or if the list is truncated
@@ -588,10 +574,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("envs truncate not supported yet")
-		}
-
 		args := []string{"-al"}
 
 		// force seed to have something we can reproduce
@@ -625,10 +607,16 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			envp := (execEnvp.([]string))
-			assert.Equal(t, 736, len(envp), "incorrect number of envs: %s", envp)
-
-			for i := 0; i != 736; i++ {
-				assert.Equal(t, envs[i], envp[i], "expected env not found")
+			if ebpfLessEnabled {
+				assert.Equal(t, model.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != model.MaxArgsEnvsSize; i++ {
+					assert.Equal(t, envs[i], envp[i], "expected env not found")
+				}
+			} else {
+				assert.Equal(t, 736, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 736; i++ {
+					assert.Equal(t, envs[i], envp[i], "expected env not found")
+				}
 			}
 
 			// truncated is reported if a single environment variable is truncated or if the list is truncated
@@ -646,10 +634,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("envs truncate not supported yet")
-		}
-
 		args := []string{"-al"}
 
 		// force seed to have something we can reproduce
@@ -685,14 +669,24 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			envp := (execEnvp.([]string))
-			assert.Equal(t, 895, len(envp), "incorrect number of envs: %s", envp)
-
-			for i := 0; i != 895; i++ {
-				expected := envs[i]
-				if len(expected) > model.MaxArgEnvSize {
-					expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+			if ebpfLessEnabled {
+				assert.Equal(t, model.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != model.MaxArgsEnvsSize; i++ {
+					expected := envs[i]
+					if len(expected) > model.MaxArgEnvSize {
+						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					}
+					assert.Equal(t, expected, envp[i], "expected env not found")
 				}
-				assert.Equal(t, expected, envp[i], "expected env not found")
+			} else {
+				assert.Equal(t, 895, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 895; i++ {
+					expected := envs[i]
+					if len(expected) > model.MaxArgEnvSize {
+						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					}
+					assert.Equal(t, expected, envp[i], "expected env not found")
+				}
 			}
 
 			// truncated is reported if a single environment variable is truncated or if the list is truncated
@@ -710,10 +704,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("tty", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		testFile, _, err := test.Path("test-process-tty")
 		if err != nil {
 			t.Fatal(err)
@@ -769,9 +759,7 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ProcessContext.FileEvent.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", event.ProcessContext.FileEvent.Inode, inode, event)
-			}
+			assertInode(t, event.ProcessContext.FileEvent.Inode, getInode(t, executable))
 
 			str, err := test.marshalEvent(event)
 			if err != nil {
@@ -785,9 +773,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "ancestors", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
 		testFile, _, err := test.Path("test-process-ancestors")
 		if err != nil {
 			t.Fatal(err)
@@ -812,10 +797,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "parent", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
-
 		testFile, _, err := test.Path("test-process-parent")
 		if err != nil {
 			t.Fatal(err)
@@ -841,9 +822,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("in ebpfless we don't have complete lineage context")
-		}
+		SkipIfNotAvailable(t)
 
 		testFile, _, err := test.Path("test-process-pid1")
 		if err != nil {
@@ -868,10 +847,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "service-tag", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
-		testFile, _, err := test.Path("test-process-context")
+		testFile, _, err := test.Path("test-event-service")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -890,17 +866,14 @@ func TestProcessContext(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "test_rule_inode", rule.ID, "wrong rule triggered")
+			assert.Equal(t, "test_event_service", rule.ID, "wrong rule triggered")
 
-			service := event.GetProcessService()
+			service := event.GetEventService()
 			assert.Equal(t, service, "myservice")
 		})
 	})
 
 	test.Run(t, "ancestors-args", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
 		testFile, _, err := test.Path("test-ancestors-args")
 		if err != nil {
 			t.Fatal(err)
@@ -921,10 +894,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
-
 		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456; echo"}, []string{"DEDUP=dedup123"}
 
 		test.WaitSignal(t, func() error {
@@ -976,10 +945,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "self-exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
-
 		args := []string{"self-exec", "selfexec123", "abc"}
 		envs := []string{}
 
@@ -994,9 +959,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "container-id", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("docker tests not supported")
-		}
 		testFile, _, err := test.Path("test-container")
 		if err != nil {
 			t.Fatal(err)
@@ -1050,6 +1012,8 @@ func TestProcessContext(t *testing.T) {
 }
 
 func TestProcessEnvsWithValue(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	lsExec := which(t, "ls")
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -1086,6 +1050,8 @@ func TestProcessEnvsWithValue(t *testing.T) {
 }
 
 func TestProcessExecCTime(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
@@ -1098,9 +1064,6 @@ func TestProcessExecCTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("ctime not supported yet")
-	}
 
 	test.WaitSignal(t, func() error {
 		testFile, _, err := test.Path("touch")
@@ -1117,6 +1080,8 @@ func TestProcessExecCTime(t *testing.T) {
 }
 
 func TestProcessPIDVariable(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
@@ -1138,7 +1103,9 @@ func TestProcessPIDVariable(t *testing.T) {
 	})
 }
 
-func TestProcessScopedVariable(t *testing.T) { // TODO: should work on ebpfless, but it doesnt
+func TestProcessScopedVariable(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule_set_mutable_vars",
 		Expression: `open.file.path == "{{.Root}}/test-open"`,
@@ -1247,7 +1214,9 @@ func TestProcessScopedVariable(t *testing.T) { // TODO: should work on ebpfless,
 	defer os.Remove(filename3)
 }
 
-func TestTimestampVariable(t *testing.T) { // TODO: should work on ebpfless, but it doesnt
+func TestTimestampVariable(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule_set_timestamp_var",
 		Expression: `open.file.path == "{{.Root}}/test-open"`,
@@ -1295,6 +1264,8 @@ func TestTimestampVariable(t *testing.T) { // TODO: should work on ebpfless, but
 }
 
 func TestProcessExec(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable := which(t, "touch")
 
 	ruleDef := &rules.RuleDefinition{
@@ -1337,6 +1308,8 @@ func TestProcessExec(t *testing.T) {
 }
 
 func TestProcessMetadata(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_executable",
@@ -1353,9 +1326,6 @@ func TestProcessMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("not supported yet")
-	}
 
 	fileMode := uint16(0o777)
 	testFile, _, err := test.CreateWithOptions("test-exec", 98, 99, int(fileMode))
@@ -1381,7 +1351,7 @@ func TestProcessMetadata(t *testing.T) {
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assertRights(t, event.Exec.FileEvent.Mode, fileMode)
-			if test.opts.staticOpts.enableEBPFLess != true {
+			if !ebpfLessEnabled {
 				assertNearTime(t, event.Exec.FileEvent.MTime)
 				assertNearTime(t, event.Exec.FileEvent.CTime)
 			}
@@ -1403,16 +1373,20 @@ func TestProcessMetadata(t *testing.T) {
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assert.Equal(t, 1001, int(event.Exec.Credentials.UID), "wrong uid")
-			assert.Equal(t, 1001, int(event.Exec.Credentials.EUID), "wrong euid")
 			assert.Equal(t, 2001, int(event.Exec.Credentials.GID), "wrong gid")
-			assert.Equal(t, 2001, int(event.Exec.Credentials.EGID), "wrong egid")
-			assert.Equal(t, 1001, int(event.Exec.Credentials.FSUID), "wrong fsuid")
-			assert.Equal(t, 2001, int(event.Exec.Credentials.FSGID), "wrong fsgid")
+			if !ebpfLessEnabled {
+				assert.Equal(t, 1001, int(event.Exec.Credentials.EUID), "wrong euid")
+				assert.Equal(t, 1001, int(event.Exec.Credentials.FSUID), "wrong fsuid")
+				assert.Equal(t, 2001, int(event.Exec.Credentials.EGID), "wrong egid")
+				assert.Equal(t, 2001, int(event.Exec.Credentials.FSGID), "wrong fsgid")
+			}
 		}))
 	})
 }
 
 func TestProcessExecExit(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable := which(t, "touch")
 
 	rule := &rules.RuleDefinition{
@@ -1427,7 +1401,7 @@ func TestProcessExecExit(t *testing.T) {
 	defer test.Close()
 
 	var execPid uint32
-	var nsId uint64
+	var nsID uint64
 
 	err = test.GetProbeEvent(func() error {
 		cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
@@ -1443,8 +1417,8 @@ func TestProcessExecExit(t *testing.T) {
 			}
 
 			validate := test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
-				validateProcessContextLineage(t, event, test.probe)
-				validateProcessContextSECL(t, event, test.probe)
+				validateProcessContextLineage(t, event)
+				validateProcessContextSECL(t, event)
 
 				assertFieldEqual(t, event, "exec.file.name", "touch")
 				assertFieldContains(t, event, "exec.args", "01010101")
@@ -1452,8 +1426,8 @@ func TestProcessExecExit(t *testing.T) {
 			validate(event, nil)
 
 			execPid = event.ProcessContext.Pid
-			if test.opts.staticOpts.enableEBPFLess == true {
-				nsId = event.NSID
+			if ebpfLessEnabled {
+				nsID = event.NSID
 			}
 
 		case model.ExitEventType:
@@ -1473,7 +1447,7 @@ func TestProcessExecExit(t *testing.T) {
 
 	// make sure that the process cache entry of the process was properly deleted from the cache
 	err = retry.Do(func() error {
-		if test.opts.staticOpts.enableEBPFLess != true {
+		if !ebpfLessEnabled {
 			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 			if !ok {
 				t.Skip("not supported")
@@ -1487,7 +1461,7 @@ func TestProcessExecExit(t *testing.T) {
 			if !ok {
 				t.Skip("not supported")
 			}
-			entry := p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: execPid, NSID: nsId})
+			entry := p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: execPid, NSID: nsID})
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
@@ -1500,6 +1474,8 @@ func TestProcessExecExit(t *testing.T) {
 }
 
 func TestProcessCredentialsUpdate(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_setuid",
@@ -1536,9 +1512,6 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("not supported")
-	}
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1650,8 +1623,8 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 				t.Error(err)
 			}
 			newSet.Clear(capability.PERMITTED | capability.EFFECTIVE)
-			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet, t)
-			parseCapIntoSet(event.Capset.CapPermitted, capability.PERMITTED, newSet, t)
+			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet)
+			parseCapIntoSet(event.Capset.CapPermitted, capability.PERMITTED, newSet)
 
 			for _, c := range capability.List() {
 				if expectedValue := threadCapabilities.Get(capability.EFFECTIVE, c); expectedValue != newSet.Get(capability.EFFECTIVE, c) {
@@ -1665,7 +1638,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 }
 
-func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.Capabilities, t *testing.T) {
+func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.Capabilities) {
 	for _, v := range model.KernelCapabilityConstants {
 		if v == 0 {
 			continue
@@ -1678,14 +1651,16 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 }
 
 func TestProcessIsThread(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_process_fork_is_thread",
-			Expression: fmt.Sprintf(`(mmap.protection & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && process.is_thread`),
+			Expression: `open.file.path == "/dev/null" && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && process.is_thread`,
 		},
 		{
 			ID:         "test_process_exec_is_not_thread",
-			Expression: fmt.Sprintf(`(mmap.protection & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && !process.is_thread`),
+			Expression: `open.file.path == "/dev/null" && process.file.name in ["syscall_tester", "exe"] && process.ancestors.file.name == "syscall_tester" && !process.is_thread`,
 		},
 	}
 
@@ -1694,9 +1669,6 @@ func TestProcessIsThread(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("not immplemented")
-	}
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1711,7 +1683,6 @@ func TestProcessIsThread(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_process_fork_is_thread")
-			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE), "wrong mmap protection flags")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Parent.FileEvent.BasenameStr, "wrong parent process file basename")
@@ -1727,8 +1698,6 @@ func TestProcessIsThread(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_process_exec_is_not_thread")
-			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE), "wrong mmap protection flags")
-			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Parent.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")
@@ -1737,6 +1706,8 @@ func TestProcessIsThread(t *testing.T) {
 }
 
 func TestProcessExit(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	sleepExec := which(t, "sleep")
 	timeoutExec := which(t, "timeout")
 
@@ -1785,9 +1756,7 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
-			if test.opts.staticOpts.enableEBPFLess != true {
-				test.validateExitSchema(t, event)
-			}
+			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_ok")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
@@ -1797,10 +1766,6 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-error", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		test.WaitSignal(t, func() error {
 			args := []string{} // sleep with no argument should exit with return code 1
 			envp := []string{envpExitSleep}
@@ -1820,10 +1785,6 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-coredumped", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGQUIT", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
@@ -1843,10 +1804,6 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-signaled", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGKILL", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
@@ -1874,9 +1831,7 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
-			if test.opts.staticOpts.enableEBPFLess != true {
-				test.validateExitSchema(t, event)
-			}
+			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_time_1")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
@@ -1894,9 +1849,7 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
-			if test.opts.staticOpts.enableEBPFLess != true {
-				test.validateExitSchema(t, event)
-			}
+			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_time_2")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
@@ -1907,6 +1860,8 @@ func TestProcessExit(t *testing.T) {
 }
 
 func TestProcessBusybox(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_busybox_1",
@@ -1931,9 +1886,6 @@ func TestProcessBusybox(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("not supported")
-	}
 
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine")
 	if err != nil {
@@ -1991,6 +1943,8 @@ func TestProcessBusybox(t *testing.T) {
 }
 
 func TestProcessInterpreter(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	python, whichPythonErr := whichNonFatal("python")
 	if whichPythonErr != nil {
 		python = which(t, "python3")
@@ -2013,10 +1967,10 @@ func TestProcessInterpreter(t *testing.T) {
 			scriptName: "regularExec.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
 
-echo "Executing echo inside a bash script"
+echo "Executing echo insIDe a bash script"
 
 %s - << EOF
-print('Executing print inside a python (%s) script inside a bash script')
+print('Executing print insIDe a python (%s) script insIDe a bash script')
 
 EOF
 
@@ -2038,12 +1992,12 @@ echo "Back to bash"`, python, python),
 			scriptName: "regularExecWithInterpreterRule.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
 
-echo "Executing echo inside a bash script"
+echo "Executing echo insIDe a bash script"
 
 %s <<__HERE__
 #!%s
 
-print('Executing print inside a python (%s) script inside a bash script')
+print('Executing print insIDe a python (%s) script insIDe a bash script')
 __HERE__
 
 echo "Back to bash"`, python, python, python),
@@ -2065,12 +2019,12 @@ echo "Back to bash"`, python, python, python),
 			innerScriptName: "pyscript.py",
 			executedScript: fmt.Sprintf(`#!/bin/bash
 
-echo "Executing echo inside a bash script"
+echo "Executing echo insIDe a bash script"
 
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print inside a python (%s) script inside a bash script')
+print('Executing print insIDe a python (%s) script insIDe a bash script')
 
 EOF
 
@@ -2095,7 +2049,7 @@ chmod 755 pyscript.py
 		//			scriptName: "nestedInterpretedExec.sh",
 		//			executedScript: `#!/bin/bash
 		//
-		//echo "Executing echo inside a bash script"
+		//echo "Executing echo insIDe a bash script"
 		//
 		//cat << '__HERE__' > hello.pl
 		//#!/usr/bin/perl
@@ -2112,7 +2066,7 @@ chmod 755 pyscript.py
 		//
 		//import subprocess
 		//
-		//print('Executing print inside a python script')
+		//print('Executing print insIDe a python script')
 		//
 		//subprocess.run(["perl", "./hello.pl"])
 		//
@@ -2172,6 +2126,8 @@ chmod 755 pyscript.py
 }
 
 func TestProcessResolution(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_resolution",
@@ -2255,7 +2211,7 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
 			assert.Equal(t, entry1.Cookie, entry2.Cookie)
 
-			// may not be exaclty equal because of clock drift between two boot time resolution, see time resolver
+			// may not be exactly equal because of clock drift between two boot time resolution, see time resolver
 			assert.Greater(t, time.Second, entry1.ExecTime.Sub(entry2.ExecTime).Abs())
 			assert.Greater(t, time.Second, entry1.ForkTime.Sub(entry2.ForkTime).Abs())
 		}
@@ -2286,6 +2242,7 @@ func TestProcessResolution(t *testing.T) {
 }
 
 func TestProcessFilelessExecution(t *testing.T) {
+	SkipIfNotAvailable(t)
 
 	filelessDetectionRule := &rules.RuleDefinition{
 		ID:         "test_fileless",
@@ -2382,8 +2339,8 @@ func TestProcessFilelessExecution(t *testing.T) {
 					t.Fatal("shouldn't get an event")
 				}
 			} else {
-				if testModule.opts.staticOpts.enableEBPFLess == true {
-					t.Skip("memfd unsupported yet")
+				if ebpfLessEnabled && test.rule.ID == "test_fileless_with_interpreter" {
+					t.Skip("interpreter detection unsupported")
 				}
 
 				testModule.WaitSignal(t, func() error {
@@ -2398,6 +2355,8 @@ func TestProcessFilelessExecution(t *testing.T) {
 }
 
 func TestKillAction(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
 		return !kv.SupportBPFSendSignal() && config.IsContainerized()
 	})
@@ -2420,9 +2379,6 @@ func TestKillAction(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("kill action not supported")
-	}
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

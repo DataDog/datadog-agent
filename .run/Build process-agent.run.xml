@@ -12,7 +12,7 @@
     <option name="EXECUTE_IN_TERMINAL" value="true" />
     <option name="EXECUTE_SCRIPT_FILE" value="true" />
     <envs>
-      <env name="BUILD_COMMAND" value="inv process-agent.build --build-exclude=systemd" />
+      <env name="BUILD_COMMAND" value="inv process-agent.build --no-bundle --build-exclude=systemd" />
       <env name="SCRIPT_TO_RUN" value=".run/build.sh" />
     </envs>
     <method v="2" />

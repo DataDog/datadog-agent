@@ -10,42 +10,39 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
-var (
-	devMode = flag.Bool("devmode", false, "enable dev mode")
-)
+var devMode = flag.Bool("devmode", false, "enable dev mode")
 
 type vmSuite struct {
-	e2e.Suite[e2e.VMEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 // TestVMSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestVMSuite(t *testing.T) {
-	suiteParams := make([]func(*params.Params), 0)
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
 	if *devMode {
-		suiteParams = append(suiteParams, params.WithDevMode())
+		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
-	e2e.Run(t, &vmSuite{},
-		e2e.EC2VMStackDef(ec2params.WithOS(ec2os.WindowsOS)),
-		suiteParams...,
-	)
+
+	e2e.Run(t, &vmSuite{}, suiteParams...)
 }
 
 func (v *vmSuite) TestExecute() {
-	vm := v.Env().VM
+	vm := v.Env().RemoteHost
 
-	out, err := vm.ExecuteWithError("whoami")
+	out, err := vm.Execute("whoami")
 	v.Require().NoError(err)
 	v.Require().NotEmpty(out)
 }
 
 func (v *vmSuite) TestFileOperations() {
-	vm := v.Env().VM
+	vm := v.Env().RemoteHost
 	testFilePath := "test"
 
 	v.T().Cleanup(func() {
@@ -98,7 +95,7 @@ func (v *vmSuite) TestFileOperations() {
 }
 
 func (v *vmSuite) TestDirectoryOperations() {
-	vm := v.Env().VM
+	vm := v.Env().RemoteHost
 	testDirPath := "testDirectory"
 	testSubDirPath := "testDirectory/testSubDirectory"
 

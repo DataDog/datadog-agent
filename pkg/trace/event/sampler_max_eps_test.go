@@ -12,6 +12,8 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func TestMaxEPSSampler(t *testing.T) {
@@ -33,7 +35,7 @@ func TestMaxEPSSampler(t *testing.T) {
 			counter := &MockRateCounter{
 				GetRateResult: testCase.pastEPS,
 			}
-			testSampler := newMaxEPSSampler(testCase.maxEPS)
+			testSampler := newMaxEPSSampler(testCase.maxEPS, &statsd.NoOpClient{})
 			testSampler.rateCounter = counter
 			testSampler.Start()
 
@@ -67,8 +69,8 @@ type MockRateCounter struct {
 	GetRateResult float64
 }
 
-func (mc *MockRateCounter) Start() {}
-func (mc *MockRateCounter) Stop()  {}
+func (mc *MockRateCounter) Start(_ statsd.ClientInterface) {}
+func (mc *MockRateCounter) Stop()                          {}
 
 func (mc *MockRateCounter) Count() {
 	mc.CountCalls++

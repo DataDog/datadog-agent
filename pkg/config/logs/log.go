@@ -259,6 +259,35 @@ func (s *logWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+const tlsHandshakeErrorKeyword = "http: TLS handshake error"
+
+// tlsHandshakeErrorWriter writes TLS handshake errors to log with
+// debug level, to avoid flooding of tls handshake errors.
+type tlsHandshakeErrorWriter struct {
+	writer io.Writer
+}
+
+// NewTLSHandshakeErrorWriter is a wrapper function which creates a new logWriter.
+func NewTLSHandshakeErrorWriter(additionalDepth int, logLevel seelog.LogLevel) (io.Writer, error) {
+	logWriter, err := NewLogWriter(additionalDepth, logLevel)
+	if err != nil {
+		return nil, err
+	}
+	tlsWriter := &tlsHandshakeErrorWriter{
+		writer: logWriter,
+	}
+	return tlsWriter, nil
+}
+
+// Write writes TLS handshake errors to log with debug level.
+func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
+	if strings.Contains(string(p), tlsHandshakeErrorKeyword) {
+		log.DebugStackDepth(2, strings.TrimSpace(string(p)))
+		return len(p), nil
+	}
+	return t.writer.Write(p)
+}
+
 var levelToSyslogSeverity = map[seelog.LogLevel]int{
 	// Mapping to RFC 5424 where possible
 	seelog.TraceLvl:    7,

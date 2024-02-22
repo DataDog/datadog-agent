@@ -65,7 +65,7 @@ func TestStatus(t *testing.T) {
 
 	// Build the actual status
 	var statusBuilder strings.Builder
-	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder, status.OverrideTime(testTime))
+	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder)
 
 	assert.Equal(t, expectedOutput, statusBuilder.String())
 }

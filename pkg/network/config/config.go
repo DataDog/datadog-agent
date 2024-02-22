@@ -20,7 +20,6 @@ const (
 	spNS   = "system_probe_config"
 	netNS  = "network_config"
 	smNS   = "service_monitoring_config"
-	dsNS   = "data_streams_config"
 	evNS   = "event_monitoring_config"
 	smjtNS = smNS + ".tls.java"
 
@@ -37,9 +36,6 @@ type Config struct {
 
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
-
-	// DataStreamsEnabled is whether the data streams feature is enabled or not
-	DataStreamsEnabled bool
 
 	// CollectTCPv4Conns specifies whether the tracer should collect traffic statistics for TCPv4 connections
 	CollectTCPv4Conns bool
@@ -94,6 +90,10 @@ type Config struct {
 	// EnableGoTLSSupport specifies whether the tracer should monitor HTTPS
 	// traffic done through Go's standard library's TLS implementation
 	EnableGoTLSSupport bool
+
+	// GoTLSExcludeSelf specifies whether USM's GoTLS module should avoid
+	// hooking the system-probe test binary. Defaults to true.
+	GoTLSExcludeSelf bool
 
 	// EnableJavaTLSSupport specifies whether the tracer should monitor HTTPS
 	// traffic done through Java's TLS implementation
@@ -261,6 +261,9 @@ type Config struct {
 
 	// EnableUSMQuantization enables endpoint quantization for USM programs
 	EnableUSMQuantization bool
+
+	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
+	EnableUSMConnectionRollup bool
 }
 
 func join(pieces ...string) string {
@@ -277,7 +280,6 @@ func New() *Config {
 
 		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
-		DataStreamsEnabled:       cfg.GetBool(join(dsNS, "enabled")),
 
 		CollectTCPv4Conns: cfg.GetBool(join(netNS, "collect_tcp_v4")),
 		CollectTCPv6Conns: cfg.GetBool(join(netNS, "collect_tcp_v6")),
@@ -312,6 +314,7 @@ func New() *Config {
 
 		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
+		EnableKafkaMonitoring:     cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
 		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
@@ -355,8 +358,10 @@ func New() *Config {
 		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
 		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
+		GoTLSExcludeSelf:            cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")
@@ -382,8 +387,6 @@ func New() *Config {
 	if !c.DNSInspection {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
-
-	c.EnableKafkaMonitoring = c.DataStreamsEnabled
 
 	if c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring enabled")

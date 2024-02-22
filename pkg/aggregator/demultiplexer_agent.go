@@ -14,6 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -21,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -36,7 +37,7 @@ type DemultiplexerWithAggregator interface {
 	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
-	GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error)
+	GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error)
 	GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck)
 	DumpDogstatsdContexts(io.Writer) error
 }
@@ -68,9 +69,7 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	UseNoopEventPlatformForwarder bool
-	UseEventPlatformForwarder     bool
-	FlushInterval                 time.Duration
+	FlushInterval time.Duration
 
 	EnableNoAggregationPipeline bool
 
@@ -83,9 +82,7 @@ type AgentDemultiplexerOptions struct {
 // DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
 func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 	return AgentDemultiplexerOptions{
-		FlushInterval:                 DefaultFlushInterval,
-		UseEventPlatformForwarder:     true,
-		UseNoopEventPlatformForwarder: false,
+		FlushInterval: DefaultFlushInterval,
 		// the different agents/binaries enable it on a per-need basis
 		EnableNoAggregationPipeline: false,
 	}
@@ -109,7 +106,7 @@ type statsd struct {
 type forwarders struct {
 	shared             forwarder.Forwarder
 	orchestrator       orchestratorforwarder.Component
-	eventPlatform      epforwarder.EventPlatformForwarder
+	eventPlatform      eventplatform.Component
 	containerLifecycle *forwarder.DefaultForwarder
 }
 
@@ -122,27 +119,27 @@ type dataOutputs struct {
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, orchestratorForwarder orchestratorforwarder.Component, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, hostname)
-	go demux.Run()
+func InitAndStartAgentDemultiplexer(
+	log log.Component,
+	sharedForwarder forwarder.Forwarder,
+	orchestratorForwarder orchestratorforwarder.Component,
+	options AgentDemultiplexerOptions,
+	eventPlatformForwarder eventplatform.Component,
+	hostname string) *AgentDemultiplexer {
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, hostname)
+	go demux.run()
 	return demux
 }
 
-func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, orchestratorForwarder orchestratorforwarder.Component, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func initAgentDemultiplexer(
+	log log.Component,
+	sharedForwarder forwarder.Forwarder,
+	orchestratorForwarder orchestratorforwarder.Component,
+	options AgentDemultiplexerOptions,
+	eventPlatformForwarder eventplatform.Component,
+	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
-
-	log.Debugf("Creating forwarders")
-	// orchestrator forwarder
-
-	// event platform forwarder
-	var eventPlatformForwarder epforwarder.EventPlatformForwarder
-	if options.UseNoopEventPlatformForwarder {
-		eventPlatformForwarder = epforwarder.NewNoopEventPlatformForwarder()
-	} else if options.UseEventPlatformForwarder {
-		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
-	}
-
 	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
 		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
 		config.Datadog.Set("telemetry.dogstatsd_origin", false, model.SourceAgentRuntime)
@@ -151,7 +148,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, config.Datadog, hostname)
 
 	// prepare the embedded aggregator
 	// --
@@ -162,7 +159,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	// ---------------
 
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
-	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled())
+	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog))
 
 	_, statsdPipelinesCount := GetDogStatsDWorkerAndPipelineCount()
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
@@ -184,7 +181,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, config.Datadog, hostname)
 		noAggWorker = newNoAggregationStreamWorker(
 			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			metricSamplePool,
@@ -261,8 +258,8 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 	}
 }
 
-// Run runs all demultiplexer parts
-func (d *AgentDemultiplexer) Run() {
+// run runs all demultiplexer parts
+func (d *AgentDemultiplexer) run() {
 	if !d.options.DontStartForwarders {
 		d.log.Debugf("Starting forwarders")
 
@@ -276,8 +273,9 @@ func (d *AgentDemultiplexer) Run() {
 		}
 
 		// event platform forwarder
-		if d.forwarders.eventPlatform != nil {
-			d.forwarders.eventPlatform.Start()
+		eventPlatform, found := d.forwarders.eventPlatform.Get()
+		if found {
+			eventPlatform.Start()
 		} else {
 			d.log.Debug("not starting the event platform forwarder")
 		}
@@ -388,9 +386,11 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 			orchestratorforwarder.Stop()
 			d.dataOutputs.forwarders.orchestrator.Reset()
 		}
-		if d.dataOutputs.forwarders.eventPlatform != nil {
-			d.dataOutputs.forwarders.eventPlatform.Stop()
-			d.dataOutputs.forwarders.eventPlatform = nil
+		eventPlatform, found := d.dataOutputs.forwarders.eventPlatform.Get()
+
+		if found {
+			eventPlatform.Stop()
+			d.dataOutputs.forwarders.eventPlatform.Reset()
 		}
 		if d.dataOutputs.forwarders.containerLifecycle != nil {
 			d.dataOutputs.forwarders.containerLifecycle.Stop()
@@ -508,7 +508,7 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.
 }
 
 // GetEventPlatformForwarder returns underlying events and service checks channels.
-func (d *AgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error) {
 	return d.aggregator.GetEventPlatformForwarder()
 }
 

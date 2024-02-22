@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -27,9 +26,6 @@ import (
 var (
 	// AC is the global object orchestrating checks' loading and running
 	AC *autodiscovery.AutoConfig
-
-	// Coll is the global collector instance
-	Coll collector.Collector
 
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server
@@ -51,9 +47,7 @@ func GetPythonPaths() []string {
 }
 
 // GetVersion returns the version of the agent in a http response json
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func GetVersion(w http.ResponseWriter, r *http.Request) {
+func GetVersion(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.Agent()
 	j, _ := json.Marshal(av)

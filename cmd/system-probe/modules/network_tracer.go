@@ -21,7 +21,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -41,9 +41,9 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 
-var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config", "data_streams_config"}
+var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-func createNetworkTracerModule(cfg *config.Config) (module.Module, error) {
+func createNetworkTracerModule(cfg *sysconfigtypes.Config) (module.Module, error) {
 	ncfg := networkconfig.New()
 
 	// Checking whether the current OS + kernel version is supported by the tracer
@@ -56,9 +56,6 @@ func createNetworkTracerModule(cfg *config.Config) (module.Module, error) {
 	}
 	if ncfg.ServiceMonitoringEnabled {
 		log.Info("enabling universal service monitoring (USM)")
-	}
-	if ncfg.DataStreamsEnabled {
-		log.Info("enabling data streams monitoring (DSM)")
 	}
 
 	t, err := tracer.NewTracer(ncfg)
@@ -306,7 +303,7 @@ func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *ne
 	log.Tracef("/connections: %d connections", len(cs.Conns))
 }
 
-func startTelemetryReporter(_ *config.Config, done <-chan struct{}) {
+func startTelemetryReporter(_ *sysconfigtypes.Config, done <-chan struct{}) {
 	telemetry.SetStatsdClient(statsd.Client)
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {

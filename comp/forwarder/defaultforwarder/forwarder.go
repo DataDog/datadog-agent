@@ -6,9 +6,11 @@
 package defaultforwarder
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
 type dependencies struct {
@@ -18,18 +20,36 @@ type dependencies struct {
 	Params Params
 }
 
-func newForwarder(dep dependencies) Component {
+type provides struct {
+	fx.Out
+
+	Comp           Component
+	StatusProvider status.InformationProvider
+}
+
+func newForwarder(dep dependencies) provides {
 	return NewForwarder(dep.Config, dep.Log, dep.Params)
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func NewForwarder(config config.Component, log log.Component, params Params) Component {
+// NewForwarder returns a new forwarder component.
+//
+//nolint:revive
+func NewForwarder(config config.Component, log log.Component, params Params) provides {
 	if params.UseNoopForwarder {
-		return NoopForwarder{}
+		return provides{
+			Comp:           NoopForwarder{},
+			StatusProvider: status.NoopInformationProvider(),
+		}
 	}
-	return NewDefaultForwarder(config, log, params.Options)
+	return provides{
+		Comp:           NewDefaultForwarder(config, log, params.Options),
+		StatusProvider: status.NewInformationProvider(statusProvider{config: config}),
+	}
 }
 
-func newMockForwarder(config config.Component, log log.Component) Component {
-	return NewDefaultForwarder(config, log, NewOptions(config, log, nil))
+func newMockForwarder(config config.Component, log log.Component) provides {
+	return provides{
+		Comp:           NewDefaultForwarder(config, log, NewOptions(config, log, nil)),
+		StatusProvider: status.NoopInformationProvider(),
+	}
 }

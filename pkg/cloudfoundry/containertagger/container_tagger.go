@@ -14,10 +14,10 @@ import (
 
 	"code.cloudfoundry.org/garden"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -76,9 +76,13 @@ func (c *ContainerTagger) Start(ctx context.Context) {
 		defer c.store.Unsubscribe(ch)
 		for {
 			select {
-			case bundle := <-ch:
-				// close Ch to indicate that the Store can proceed to the next subscriber
-				close(bundle.Ch)
+			case bundle, ok := <-ch:
+				if !ok {
+					return
+				}
+
+				// Acknowledge the evBundle to indicate that the Store can proceed to the next subscriber
+				bundle.Acknowledge()
 
 				for _, evt := range bundle.Events {
 					err := c.processEvent(ctx, evt)
@@ -104,7 +108,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		log.Debugf("Processing Event (id %s): %+v", eventID, storeContainer)
 
 		// extract tags
-		hostTags := hostMetadataUtils.GetHostTags(ctx, true, config.Datadog)
+		hostTags := hostMetadataUtils.Get(ctx, true, config.Datadog)
 		tags := storeContainer.CollectorTags
 		tags = append(tags, hostTags.System...)
 		tags = append(tags, hostTags.GoogleCloudPlatform...)

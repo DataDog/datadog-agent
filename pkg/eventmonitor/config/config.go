@@ -9,7 +9,6 @@ package config
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,13 +28,10 @@ type Config struct {
 
 	// ProcessConsumerEnabled defines if the process-agent wants to receive kernel events
 	ProcessConsumerEnabled bool
-
-	// NetworkConsumerEnabled defines if the network tracer system-probe module wants to receive kernel events
-	NetworkConsumerEnabled bool
 }
 
 // NewConfig creates a config for the event monitoring module
-func NewConfig(spConfig *config.Config) *Config {
+func NewConfig() *Config {
 	return &Config{
 		// event server
 		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),
@@ -43,7 +39,6 @@ func NewConfig(spConfig *config.Config) *Config {
 
 		// consumers
 		ProcessConsumerEnabled: getBool("process.enabled"),
-		NetworkConsumerEnabled: getBool("network_process.enabled") && spConfig.ModuleIsEnabled(config.NetworkTracerModule),
 	}
 }
 

@@ -11,23 +11,22 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const sysMetricsQuery11 = `SELECT 
+const sysMetricsQuery11 = `SELECT
 	metric_name,
-	value, 
+	value,
 	metric_unit
   FROM %s s`
 
-const sysMetricsQuery12 = `SELECT 
+const sysMetricsQuery12 = `SELECT
 	metric_name,
-	value, 
-	metric_unit, 
-	name pdb_name 
-  FROM %s s, v$containers c 
+	value,
+	metric_unit,
+	name pdb_name
+  FROM %s s, v$containers c
   WHERE s.con_id = c.con_id(+)`
 
 const (
@@ -118,7 +117,7 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"User Rollbacks Per Sec":                        {DDmetric: "user_rollbacks"},
 }
 
-func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]bool, n *int64) {
+func (c *Check) sendMetric(r SysmetricsRowDB, seen map[string]bool, n *int64) {
 	if metric, ok := SYSMETRICS_COLS[r.MetricName]; ok {
 		value := r.Value
 		if r.MetricUnit == "CentiSeconds Per Second" {
@@ -126,7 +125,7 @@ func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]b
 		}
 		if !SYSMETRICS_COLS[r.MetricName].DBM || SYSMETRICS_COLS[r.MetricName].DBM && c.dbmEnabled {
 			log.Debugf("%s %s: %f", c.logPrompt, metric.DDmetric, value)
-			s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, "", appendPDBTag(c.tags, r.PdbName))
+			sendMetric(c, gauge, fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, appendPDBTag(c.tags, r.PdbName))
 			seen[r.MetricName] = true
 			*n++
 		}
@@ -160,7 +159,7 @@ func (c *Check) sysMetrics() (int64, error) {
 
 	seenInContainerMetrics := make(map[string]bool)
 	for _, r := range metricRows {
-		c.sendMetric(sender, r, seenInContainerMetrics, &n)
+		c.sendMetric(r, seenInContainerMetrics, &n)
 	}
 
 	seenInGlobalMetrics := make(map[string]bool)
@@ -171,7 +170,7 @@ func (c *Check) sysMetrics() (int64, error) {
 	for _, r := range metricRows {
 		if _, ok := seenInContainerMetrics[r.MetricName]; !ok {
 			if _, ok := seenInGlobalMetrics[r.MetricName]; !ok {
-				c.sendMetric(sender, r, seenInGlobalMetrics, &n)
+				c.sendMetric(r, seenInGlobalMetrics, &n)
 			}
 		}
 	}
@@ -183,7 +182,7 @@ func (c *Check) sysMetrics() (int64, error) {
 	}
 	if c.previousPGAOverAllocationCount.valid {
 		v := overAllocationCount - c.previousPGAOverAllocationCount.value
-		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v, "", c.tags)
+		sendMetricWithDefaultTags(c, gauge, fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v)
 		c.previousPGAOverAllocationCount.value = overAllocationCount
 	} else {
 		c.previousPGAOverAllocationCount = pgaOverAllocationCount{value: overAllocationCount, valid: true}

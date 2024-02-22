@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
 func TestCheck(t *testing.T) {
@@ -31,7 +32,7 @@ func TestCheck(t *testing.T) {
 
 	sm := mocksender.CreateDefaultDemultiplexer()
 
-	c := newCheck()
+	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
 	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test")
 
 	s := mocksender.NewMockSenderWithSenderManager(c.ID(), sm)

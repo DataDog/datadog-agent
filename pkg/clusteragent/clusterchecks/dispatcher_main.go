@@ -22,12 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	firstRunnerStatsMinutes  = 2  // collect runner stats after the first 2 minutes
-	secondRunnerStatsMinutes = 5  // collect runner stats after the first 7 minutes
-	finalRunnerStatsMinutes  = 10 // collect runner stats endlessly every 10 minutes
-)
-
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
 	store                         *clusterStore
@@ -37,6 +31,7 @@ type dispatcher struct {
 	advancedDispatching           bool
 	excludedChecks                map[string]struct{}
 	excludedChecksFromDispatching map[string]struct{}
+	rebalancingPeriod             time.Duration
 }
 
 func newDispatcher() *dispatcher {
@@ -63,6 +58,8 @@ func newDispatcher() *dispatcher {
 			d.excludedChecksFromDispatching[checkName] = struct{}{}
 		}
 	}
+
+	d.rebalancingPeriod = config.Datadog.GetDuration("cluster_checks.rebalance_period")
 
 	hname, _ := hostname.Get(context.TODO())
 	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
@@ -201,9 +198,8 @@ func (d *dispatcher) run(ctx context.Context) {
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
-	runnerStatsMinutes := firstRunnerStatsMinutes
-	runnerStatsTicker := time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
-	defer runnerStatsTicker.Stop()
+	rebalanceTicker := time.NewTicker(d.rebalancingPeriod)
+	defer rebalanceTicker.Stop()
 
 	for {
 		select {
@@ -220,19 +216,8 @@ func (d *dispatcher) run(ctx context.Context) {
 				danglingConfs := d.retrieveAndClearDangling()
 				d.reschedule(danglingConfs)
 			}
-		case <-runnerStatsTicker.C:
-			// Collect stats with an exponential backoff 2 - 5 - 10 minutes
-			if runnerStatsMinutes == firstRunnerStatsMinutes {
-				runnerStatsMinutes = secondRunnerStatsMinutes
-				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
-			} else if runnerStatsMinutes == secondRunnerStatsMinutes {
-				runnerStatsMinutes = finalRunnerStatsMinutes
-				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
-			}
-
-			// Rebalance if needed
+		case <-rebalanceTicker.C:
 			if d.advancedDispatching {
-				// Rebalance checks distribution
 				d.rebalance(false)
 			}
 		}

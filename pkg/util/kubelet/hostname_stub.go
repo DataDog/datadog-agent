@@ -5,7 +5,6 @@
 
 //go:build !kubelet
 
-//nolint:revive // TODO(ASC) Fix revive linter
 package kubelet
 
 import (
@@ -14,8 +13,6 @@ import (
 )
 
 // GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func GetHostname(ctx context.Context) (string, error) {
+func GetHostname(_ context.Context) (string, error) {
 	return "", fmt.Errorf("kubelet hostname provider is not enabled")
 }

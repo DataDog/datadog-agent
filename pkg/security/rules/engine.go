@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -39,6 +40,8 @@ const (
 	ProbeEvaluationRuleSetTagValue = "probe_evaluation"
 	// ThreatScoreRuleSetTagValue defines the threat-score rule-set tag value
 	ThreatScoreRuleSetTagValue = "threat_score"
+	// TagMaxResolutionDelay maximum tag resolution delay
+	TagMaxResolutionDelay = 5 * time.Second
 )
 
 // RuleEngine defines a rule engine
@@ -60,6 +63,7 @@ type RuleEngine struct {
 	statsdClient              statsd.ClientInterface
 	eventSender               events.EventSender
 	rulesetListeners          []rules.RuleSetListener
+	AutoSuppression           autosuppression.AutoSuppression
 }
 
 // APIServer defines the API server
@@ -70,6 +74,13 @@ type APIServer interface {
 
 // NewRuleEngine returns a new rule engine
 func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
+	var as autosuppression.AutoSuppression
+	if config.SecurityProfileEnabled && config.SecurityProfileAutoSuppressionEnabled {
+		as = autosuppression.Enable(config.SecurityProfileAutoSuppressionEventTypes)
+	} else {
+		as = autosuppression.Disable()
+	}
+
 	engine := &RuleEngine{
 		probe:                     probe,
 		config:                    config,
@@ -83,6 +94,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		policyLoader:              rules.NewPolicyLoader(),
 		statsdClient:              statsdClient,
 		rulesetListeners:          rulesetListeners,
+		AutoSuppression:           as,
 	}
 
 	// register as event handler
@@ -138,8 +150,9 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 	ruleFilters = append(ruleFilters, seclRuleFilter)
 
 	e.policyOpts = rules.PolicyLoaderOpts{
-		MacroFilters: macroFilters,
-		RuleFilters:  ruleFilters,
+		MacroFilters:       macroFilters,
+		RuleFilters:        ruleFilters,
+		DisableEnforcement: !e.config.EnforcementEnabled,
 	}
 
 	if err := e.LoadPolicies(e.policyProviders, true); err != nil {
@@ -325,6 +338,8 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 		// set the rate limiters on sending events to the backend
 		e.rateLimiter.Apply(probeEvaluationRuleSet, events.AllCustomRuleIDs())
 
+		// update the stats of auto-suppression rules
+		e.AutoSuppression.Apply(probeEvaluationRuleSet)
 	}
 
 	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
@@ -386,6 +401,11 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
+	if e.AutoSuppression.CanSuppress(ev) && ev.IsInProfile() && autosuppression.IsAllowAutosuppressionRule(rule) {
+		e.AutoSuppression.Inc(rule.ID)
+		return false
+	}
+
 	e.probe.HandleActions(rule, event)
 
 	if rule.Definition.Silent {
@@ -413,9 +433,19 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
-	containerID := ev.ContainerContext.ID
-	extTagsCb := func() []string {
-		return e.probe.GetEventTags(containerID)
+
+	var extTagsCb func() []string
+
+	if ev.ContainerContext.ID != "" {
+		// copy the container ID here to avoid later data race
+		containerID := ev.ContainerContext.ID
+
+		// the container tags might not be resolved yet
+		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
+			extTagsCb = func() []string {
+				return e.probe.GetEventTags(containerID)
+			}
+		}
 	}
 
 	e.eventSender.SendEvent(rule, ev, extTagsCb, service)
@@ -512,7 +542,7 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
-		if (event.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) && event.IsInProfile()) || !ruleSet.Evaluate(event) {
+		if !ruleSet.Evaluate(event) {
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}

@@ -203,75 +203,6 @@ func Test_shouldInject(t *testing.T) {
 			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
 			want:        false,
 		},
-		{
-			name:        "instrumentation on, no label",
-			pod:         fakePodWithNamespaceAndLabel("ns", "", ""),
-			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
-			want:        true,
-		},
-		{
-			name:        "instrumentation on, label disabled",
-			pod:         fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
-			want:        false,
-		},
-		{
-			name: "instrumentation on with disabled namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
-			},
-			want: false,
-		},
-		{
-			name: "instrumentation on with disabled namespace, label enabled",
-			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
-			},
-			want: true,
-		},
-		{
-			name:        "instrumentation off, label enabled",
-			pod:         fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
-			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
-			want:        true,
-		},
-		{
-			name:        "instrumentation off, no label",
-			pod:         fakePodWithNamespaceAndLabel("ns", "", ""),
-			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
-			want:        false,
-		},
-		{
-			name: "instrumentation off with enabled namespace, label enabled",
-			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
-			},
-			want: true,
-		},
-		{
-			name: "instrumentation off with enabled namespace, label disabled",
-			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
-			},
-			want: false,
-		},
-		{
-			name: "instrumentation off with enabled namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
-			},
-			want: true,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -363,7 +294,7 @@ func TestJSONPatchCorrectness(t *testing.T) {
 	podJSON, err := json.Marshal(pod)
 	assert.NoError(t, err)
 
-	jsonPatch, err := mutate(podJSON, "bar", injectConfig, nil)
+	jsonPatch, err := Mutate(podJSON, "bar", injectConfig, nil)
 	assert.NoError(t, err)
 
 	expected, err := os.ReadFile("./testdata/expected_jsonpatch.json")
@@ -390,7 +321,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		jsonPatch, err := mutate(podJSON, "foobar-bax", injectConfig, nil)
+		jsonPatch, err := Mutate(podJSON, "foobar-bax", injectConfig, nil)
 		if err != nil {
 			b.Fatal(err)
 		}

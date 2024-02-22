@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -44,6 +46,7 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
+	KindHost                   Kind = "host"
 )
 
 // Source is the source name of an entity.
@@ -77,6 +80,13 @@ const (
 	// SourceRemoteProcessCollector reprents processes entities detected
 	// by the RemoteProcessCollector.
 	SourceRemoteProcessCollector Source = "remote_process_collector"
+
+	// SourceLanguageDetectionServer represents container languages
+	// detected by node agents
+	SourceLanguageDetectionServer Source = "language_detection_server"
+
+	// SourceHost represents entities detected by the host such as host tags.
+	SourceHost Source = "host"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -92,6 +102,15 @@ const (
 	// ECS Fargate can be considered as a runtime in the sense that we don't
 	// know the actual runtime but we need to identify it's Fargate
 	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
+)
+
+// ContainerRuntimeFlavor is the container runtime with respect to the OCI spect
+type ContainerRuntimeFlavor string
+
+// Defined ContainerRuntimeFlavors
+const (
+	ContainerRuntimeFlavorDefault ContainerRuntimeFlavor = ""
+	ContainerRuntimeFlavorKata    ContainerRuntimeFlavor = "kata"
 )
 
 // ContainerStatus is the status of the container
@@ -229,13 +248,20 @@ func (e EntityMeta) String(verbose bool) string {
 }
 
 // ContainerImage is the an image used by a container.
+// For historical reason, The imageId from containerd runtime and kubernetes refer to different fields.
+// For containerd, it is the digest of the image config.
+// For kubernetes, it referres to repo digest of the image (at least before CRI-O v1.28)
+// See https://github.com/kubernetes/kubernetes/issues/46255
+// To avoid confusion, an extra field of repo digest is added to the struct, if it is available, it
+// will also be added to the container tags in tagger.
 type ContainerImage struct {
-	ID        string
-	RawName   string
-	Name      string
-	Registry  string
-	ShortName string
-	Tag       string
+	ID         string
+	RawName    string
+	Name       string
+	Registry   string
+	ShortName  string
+	Tag        string
+	RepoDigest string
 }
 
 // NewContainerImage builds a ContainerImage from an image name and its id
@@ -273,6 +299,7 @@ func (c ContainerImage) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "ID:", c.ID)
 		_, _ = fmt.Fprintln(&sb, "Raw Name:", c.RawName)
 		_, _ = fmt.Fprintln(&sb, "Short Name:", c.ShortName)
+		_, _ = fmt.Fprintln(&sb, "Repo Digest:", c.RepoDigest)
 	}
 
 	return sb.String()
@@ -364,14 +391,15 @@ type Container struct {
 	EntityID
 	EntityMeta
 	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
-	EnvVars    map[string]string
-	Hostname   string
-	Image      ContainerImage
-	NetworkIPs map[string]string
-	PID        int
-	Ports      []ContainerPort
-	Runtime    ContainerRuntime
-	State      ContainerState
+	EnvVars       map[string]string
+	Hostname      string
+	Image         ContainerImage
+	NetworkIPs    map[string]string
+	PID           int
+	Ports         []ContainerPort
+	Runtime       ContainerRuntime
+	RuntimeFlavor ContainerRuntimeFlavor
+	State         ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
@@ -416,6 +444,7 @@ func (c Container) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Container Info -----------")
 	_, _ = fmt.Fprintln(&sb, "Runtime:", c.Runtime)
+	_, _ = fmt.Fprintln(&sb, "RuntimeFlavor:", c.RuntimeFlavor)
 	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
@@ -669,11 +698,17 @@ var _ Entity = &KubernetesNode{}
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
-	Env                    string
-	Service                string
-	Version                string
-	ContainerLanguages     map[string][]languagemodels.Language
-	InitContainerLanguages map[string][]languagemodels.Language
+	Env     string
+	Service string
+	Version string
+
+	// InjectableLanguages indicate containers languages that can be injected by the admission controller
+	// These languages are determined by parsing the deployment annotations
+	InjectableLanguages langUtil.ContainersLanguages
+
+	// DetectedLanguages languages indicate containers languages detected and reported by the language
+	// detection server.
+	DetectedLanguages langUtil.ContainersLanguages
 }
 
 // GetID implements Entity#GetID.
@@ -706,22 +741,42 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
 	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
-	_, _ = fmt.Fprintln(&sb, "----------- Languages -----------")
 
-	langPrinter := func(m map[string][]languagemodels.Language, ctype string) {
-		for container, languages := range m {
+	langPrinter := func(containersLanguages langUtil.ContainersLanguages) {
+		initContainersInfo := make([]string, 0, len(containersLanguages))
+		containersInfo := make([]string, 0, len(containersLanguages))
+
+		for container, languages := range containersLanguages {
 			var langSb strings.Builder
-			for i, lang := range languages {
-				if i != 0 {
+
+			for lang := range languages {
+
+				if langSb.Len() != 0 {
 					_, _ = langSb.WriteString(",")
 				}
-				_, _ = langSb.WriteString(string(lang.Name))
+				_, _ = langSb.WriteString(string(lang))
 			}
-			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
+
+			if container.Init {
+				initContainersInfo = append(initContainersInfo, fmt.Sprintf("InitContainer %s=>[%s]\n", container.Name, langSb.String()))
+			} else {
+				containersInfo = append(initContainersInfo, fmt.Sprintf("Container %s=>[%s]\n", container.Name, langSb.String()))
+			}
+
+			for _, info := range initContainersInfo {
+				_, _ = fmt.Fprint(&sb, info)
+			}
+
+			for _, info := range containersInfo {
+				_, _ = fmt.Fprint(&sb, info)
+			}
 		}
 	}
-	langPrinter(d.InitContainerLanguages, "InitContainer")
-	langPrinter(d.ContainerLanguages, "Container")
+	_, _ = fmt.Fprintln(&sb, "----------- Injectable Languages -----------")
+	langPrinter(d.InjectableLanguages)
+
+	_, _ = fmt.Fprintln(&sb, "----------- Detected Languages -----------")
+	langPrinter(d.DetectedLanguages)
 	return sb.String()
 }
 
@@ -965,6 +1020,47 @@ func (p Process) String(verbose bool) string { //nolint:revive // TODO fix reviv
 	return sb.String()
 }
 
+// HostTags is an Entity that represents host tags
+type HostTags struct {
+	EntityID
+
+	HostTags []string
+}
+
+var _ Entity = &HostTags{}
+
+// GetID implements Entity#GetID.
+func (p HostTags) GetID() EntityID {
+	return p.EntityID
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (p HostTags) DeepCopy() Entity {
+	cp := deepcopy.Copy(p).(HostTags)
+	return &cp
+}
+
+// Merge implements Entity#Merge.
+func (p *HostTags) Merge(e Entity) error {
+	otherHost, ok := e.(*HostTags)
+	if !ok {
+		return fmt.Errorf("cannot merge Host metadata with different kind %T", e)
+	}
+
+	return merge(p, otherHost)
+}
+
+// String implements Entity#String.
+func (p HostTags) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, p.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "Host Tags:", sliceToString(p.HostTags))
+
+	return sb.String()
+}
+
 // CollectorEvent is an event generated by a metadata collector, to be handled
 // by the metadata store.
 type CollectorEvent struct {
@@ -1029,4 +1125,11 @@ type EventBundle struct {
 
 	// Ch should be closed once the subscriber has handled the event.
 	Ch chan struct{}
+}
+
+// Acknowledge acknowledges that the subscriber has handled the event.
+func (e EventBundle) Acknowledge() {
+	if e.Ch != nil {
+		close(e.Ch)
+	}
 }

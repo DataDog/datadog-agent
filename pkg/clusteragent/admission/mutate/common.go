@@ -22,16 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	namespaceWithAlwaysDisabledInjections = "kube-system"
-)
-
 type mutateFunc func(*corev1.Pod, string, dynamic.Interface) error
 type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticationv1.UserInfo, dynamic.Interface, kubernetes.Interface) error
 
-// mutate handles mutating pods and encoding and decoding admission
+// Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
-func mutate(rawPod []byte, ns string, m mutateFunc, dc dynamic.Interface) ([]byte, error) {
+func Mutate(rawPod []byte, ns string, m mutateFunc, dc dynamic.Interface) ([]byte, error) {
 	var pod corev1.Pod
 	if err := json.Unmarshal(rawPod, &pod); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
@@ -220,53 +216,10 @@ func shouldInject(pod *corev1.Pod) bool {
 		}
 	}
 
-	return isApmInstrumentationEnabled(pod.GetNamespace()) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
-}
-
-// isApmInstrumentationEnabled indicates if Single Step Instrumentation is enabled for the namespace in the cluster
-// Single Step Instrumentation is enabled if:
-//   - cluster-wide configuration `apm_config.instrumentation.enabled` is true and the namespace is not excluded via `apm_config.instrumentation.disabled_namespaces`
-//   - cluster-wide configuration `apm_config.instrumentation.enabled` is false and the namespace is included via `apm_config.instrumentation.enabled_namespaces`
-func isApmInstrumentationEnabled(namespace string) bool {
-	apmInstrumentationEnabled := config.Datadog.GetBool("apm_config.instrumentation.enabled")
-	isNsEnabled := apmInstrumentationEnabled
-
-	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
-
-	// If Single Step Instrumentation is enabled in the cluster, enabling it in the specific namespaces is redundant
-	if apmInstrumentationEnabled && len(apmEnabledNamespaces) > 0 {
-		log.Warnf("Redundant configuration option `apm_config.instrumentation.enabled_namespaces:%v`", apmEnabledNamespaces)
+	apmWebhook, err := GetAPMInstrumentationWebhook()
+	if err != nil {
+		return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 	}
 
-	// If Single Step Instrumentation is disabled in the cluster, disabling it in the specific namespaces is redundant
-	if !apmInstrumentationEnabled && len(apmDisabledNamespaces) > 0 {
-		log.Warnf("Redundant configuration option `apm_config.instrumentation.disabled_namespaces:%v`", apmDisabledNamespaces)
-	}
-
-	// apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set at the same time
-	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
-		log.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set together")
-		return false
-	}
-
-	// Single Step Instrumentation for the namespace can override cluster-wide configuration
-	for _, ns := range apmEnabledNamespaces {
-		if ns == namespace {
-			return true
-		}
-	}
-
-	// Unless kube-system ns is explicitly enabled, always disable Single Step Instrumentation
-	if namespace == namespaceWithAlwaysDisabledInjections {
-		return false
-	}
-
-	for _, ns := range apmDisabledNamespaces {
-		if ns == namespace {
-			return false
-		}
-	}
-
-	return isNsEnabled
+	return apmWebhook.isEnabled(pod.Namespace) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }

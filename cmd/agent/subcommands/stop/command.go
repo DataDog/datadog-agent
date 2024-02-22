@@ -49,13 +49,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{stopCmd}
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func stop(config config.Component, cliParams *cliParams) error {
+func stop(config config.Component, _ *cliParams) error {
 	// Global Agent configuration
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	e := util.SetAuthToken()
+	e := util.SetAuthToken(config)
 	if e != nil {
 		return e
 	}

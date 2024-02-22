@@ -36,7 +36,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		oracleDriver = "godror"
 	} else {
 		//godror ezconnect string
-		if c.config.InstanceConfig.InstantClient {
+		if c.config.InstanceConfig.OracleClient {
 			oracleDriver = "godror"
 			protocolString := ""
 			walletString := ""

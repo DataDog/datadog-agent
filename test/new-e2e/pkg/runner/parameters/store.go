@@ -45,6 +45,16 @@ func (s Store) GetBoolWithDefault(key StoreKey, def bool) (bool, error) {
 	return getWithDefault(key, s.GetBool, def)
 }
 
+// GetInt returns an integer value from the store
+func (s Store) GetInt(key StoreKey) (int, error) {
+	return getAndConvert(s.vs, key, strconv.Atoi)
+}
+
+// GetIntWithDefault returns an integer value from the store with default on missing key
+func (s Store) GetIntWithDefault(key StoreKey, def int) (int, error) {
+	return getWithDefault(key, s.GetInt, def)
+}
+
 func getWithDefault[T any](key StoreKey, getFunc func(StoreKey) (T, error), defaultValue T) (T, error) {
 	val, err := getFunc(key)
 	if err != nil {

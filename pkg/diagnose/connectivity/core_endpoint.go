@@ -19,19 +19,14 @@ import (
 	"strings"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
-
-func init() {
-	diagnosis.Register("connectivity-datadog-core-endpoints", diagnose)
-}
 
 func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
 	datadogConfig := config.Datadog
@@ -39,7 +34,8 @@ func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
 	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
 }
 
-func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+// Diagnose performs connectivity diagnosis
+func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	// Create domain resolvers
 	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)
@@ -72,7 +68,7 @@ func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagno
 				RawError:    err.Error(),
 			})
 		} else {
-			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main)
+			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, config.Datadog)
 
 			name := fmt.Sprintf("Connectivity to %s", url)
 			diag := createDiagnosis(name, url, "", err)
@@ -186,10 +182,8 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) (str
 			scrubber.ScrubLine(err.Error()), noResponseHints(err)), err
 	}
 
-	//nolint:revive // TODO(ASC) Fix revive linter
-	var verifyReport string = ""
-	//nolint:revive // TODO(ASC) Fix revive linter
-	var newErr error = nil
+	var verifyReport string
+	var newErr error
 	if statusCode >= 400 {
 		newErr = fmt.Errorf("bad request")
 		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))

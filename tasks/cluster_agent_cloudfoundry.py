@@ -6,8 +6,8 @@ import os
 
 from invoke import task
 
-from .build_tags import get_default_build_tags
-from .cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
+from tasks.build_tags import get_default_build_tags
+from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent-cloudfoundry")

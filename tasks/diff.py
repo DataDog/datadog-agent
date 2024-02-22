@@ -8,12 +8,12 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_default_build_tags
-from .flavor import AgentFlavor
-from .go import GOARCH_MAPPING, GOOS_MAPPING
-from .libs.common.color import color_message
-from .release import _get_release_json_value
-from .utils import check_uncommitted_changes
+from tasks.build_tags import get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
+from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import check_uncommitted_changes
+from tasks.release import _get_release_json_value
 
 
 @task

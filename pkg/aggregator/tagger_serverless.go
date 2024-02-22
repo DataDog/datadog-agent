@@ -8,7 +8,7 @@
 package aggregator
 
 import "github.com/DataDog/datadog-agent/pkg/tagset"
-import "github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+import "github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 
 func enrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
 	// nothing to do here

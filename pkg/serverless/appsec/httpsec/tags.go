@@ -8,11 +8,12 @@
 package httpsec
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/appsec-internal-go/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

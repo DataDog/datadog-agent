@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -107,4 +108,22 @@ func TestUnsafeParseInt(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, integer, unsafeInteger)
+}
+
+func TestExtractContainerID(t *testing.T) {
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	p := newParser(cfg, newFloat64ListPool(), 1)
+	// Testing with a container ID
+	containerID := p.extractContainerID([]byte("c:1234567890abcdef"))
+	assert.Equal(t, []byte("1234567890abcdef"), containerID)
+	// Testing with an Inode
+	mockProvider := mock.NewMetricsProvider()
+	mockProvider.RegisterMetaCollector(&mock.MetaCollector{
+		CIDFromInode: map[uint64]string{
+			1234567890: "1234567890abcdef",
+		},
+	})
+	p.provider = mockProvider
+	containerIDFromInode := p.extractContainerID([]byte("c:in-1234567890"))
+	assert.Equal(t, []byte("1234567890abcdef"), containerIDFromInode)
 }

@@ -10,16 +10,19 @@ package ptracer
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 )
 
-// ECSMetadata defines ECS metadatas
+// ECSMetadata defines ECS metadata
+// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint-v4.html
 type ECSMetadata struct {
 	DockerID   string `json:"DockerId"`
 	DockerName string `json:"DockerName"`
 	Name       string `json:"Name"`
+	Image      string `json:"Image"`
 }
 
 func retrieveECSMetadata(url string) (*ECSMetadata, error) {
@@ -63,6 +66,23 @@ func newContainerContext(containerID string) (*ebpfless.ContainerContext, error)
 			}
 			if data.DockerName != "" {
 				ctx.Name = data.DockerName
+			}
+			if data.Image != "" {
+				image := data.Image
+				lastSlash := strings.LastIndex(image, "/")
+				lastColon := strings.LastIndex(image, ":")
+				if lastColon > -1 && lastColon > lastSlash {
+					ctx.ImageTag = image[lastColon+1:]
+					image = image[:lastColon]
+				}
+				if lastSlash > -1 {
+					ctx.ImageShortName = image[lastSlash+1:]
+				} else {
+					ctx.ImageShortName = image
+				}
+				if ctx.ImageShortName != "" && ctx.ImageTag == "" {
+					ctx.ImageTag = "latest"
+				}
 			}
 		}
 	}

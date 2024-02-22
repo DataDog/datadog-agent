@@ -1,0 +1,97 @@
+name: Update buildimages
+
+on:
+  workflow_dispatch:
+    inputs:
+      images_id:
+        description: 'Images ID'
+        required: true
+        type: string
+      go_version:
+        description: 'Go version'
+        required: true
+        type: string
+      branch:
+        description: 'Git branch to use'
+        required: true
+        type: string
+      test_version:
+        description: 'Whether the images are test images'
+        required: true
+        type: boolean
+
+jobs:
+  open-go-update-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push commit and branch
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Fetch branch
+        # this step needs the github repository to be already cloned locally
+        id: branch_fetch
+        run: |
+          if git fetch origin "refs/heads/${{ inputs.branch }}"; then
+            echo "RESULT=true" >> $GITHUB_OUTPUT
+          else
+            echo "RESULT=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        if: ${{ steps.branch_fetch.outputs.RESULT == 'true' }}
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Setup Python and pip
+        uses: actions/setup-python@v5
+        with:
+          # use Python < 3.12 so that distutil is still available by default
+          python-version: 3.11
+          cache: "pip"
+
+      - uses: actions/setup-go@v5
+        with:
+          # use the go version from the input, not from the .go-version file
+          # in case it's a Go update PR
+          go-version: ${{ inputs.go_version }}
+
+      - name: Install python dependencies
+        run: |
+          python3 -m pip install -r requirements.txt
+
+      - name: Get current Go version
+        id: current_go_version
+        run: |
+          echo "GO_VERSION=$(inv go-version)" >> $GITHUB_OUTPUT
+
+      - name: Update buildimages IDs and Go version
+        id: update_build_images
+        env:
+          TEST_VERSION_FLAG: ${{ inputs.test_version && '--test-version' || '--no-test-version' }}
+        run: |
+          if [ "${{ steps.current_go_version.outputs.GO_VERSION }}" = "${{ inputs.go_version }}" ]; then
+            inv -e buildimages.update --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG
+            echo 'MESSAGE=Update buildimages ID to ${{ inputs.images_id }}' >> $GITHUB_OUTPUT
+          else
+            inv -e update-go --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG -v "${{ inputs.go_version }}"
+            echo 'MESSAGE=Update Go version to ${{ inputs.go_version }}' >> $GITHUB_OUTPUT
+          fi
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        id: autocommit
+        with:
+          commit_message: ${{ steps.update_build_images.outputs.MESSAGE }}
+          branch: ${{ inputs.branch }}
+          create_branch: true
+          # allow empty commits, so that the branch always exists if the workflow succeeds
+          commit_options: '--allow-empty'
+          skip_dirty_check: true # prevents pushing an empty commit if false
+          # the action fetches all branches and tags, in our case the branches we care about are already fetched
+          # if they exist, so we can skip the fetch
+          skip_fetch: true

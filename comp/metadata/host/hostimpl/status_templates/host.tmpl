@@ -1,0 +1,36 @@
+{{- range $name, $value := .meta -}}
+  {{- if and (ne $name "timezones") ($value) }}
+  {{$name}}: {{$value}}
+  {{- end }}
+{{- end }}
+{{- if .hostTags }}
+{{- if gt (len .hostTags) 0 }}
+  host tags:
+  {{- range $tag := .hostTags}}
+    {{$tag}}
+  {{- end }}
+{{- end }}
+{{- end }}
+  hostname provider: {{.hostnameStats.provider}}
+{{- if gt (len .hostnameStats.errors) 0 }}
+  unused hostname providers:
+{{- end }}
+{{- range $name, $value := .hostnameStats.errors -}}
+    {{- if ne $name "all" }}
+    {{$name}}: {{$value}}
+    {{- end}}
+{{- end }}
+{{- if .hostnameStats.errors.all }}
+  error: {{.hostnameStats.errors.all}}
+{{- end }}
+
+{{ if .hostinfo }}
+Host Info
+=========
+
+{{- range $name, $value := .hostinfo -}}
+  {{- if and (ne $name "hostname") (ne $name "hostid") ($value) }}
+  {{$name}}: {{if eq $name "bootTime" }}{{ formatUnixTime $value }}{{ else }}{{if eq $name "uptime" }}{{ humanizeDuration $value "s"}}{{ else }}{{ $value }}{{ end }}{{ end }}
+  {{- end }}
+{{- end }}
+{{ end }}

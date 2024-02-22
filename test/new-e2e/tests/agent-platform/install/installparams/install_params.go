@@ -20,6 +20,8 @@ type Params struct {
 	MajorVersion string
 	Arch         string
 	Flavor       string
+	Upgrade      bool
+	APIKey       string
 }
 
 // Option alias to a functional option changing a given Params instance
@@ -28,7 +30,7 @@ type Option func(*Params)
 // NewParams creates a new instance of Install params
 func NewParams(options ...Option) *Params {
 	p := &Params{
-		PipelineID:   os.Getenv("CI_PIPELINE_ID"),
+		PipelineID:   os.Getenv("E2E_PIPELINE_ID"),
 		MajorVersion: "7",
 		Arch:         "x86_64",
 	}
@@ -60,5 +62,26 @@ func WithArch(arch string) Option {
 func WithFlavor(flavor string) Option {
 	return func(p *Params) {
 		p.Flavor = flavor
+	}
+}
+
+// WithUpgrade specify if the upgrade environment variable is used when installing the agent
+func WithUpgrade(upgrade bool) Option {
+	return func(p *Params) {
+		p.Upgrade = upgrade
+	}
+}
+
+// WithAPIKey specify a custom api key to use when installing the agent
+func WithAPIKey(apiKey string) Option {
+	return func(p *Params) {
+		p.APIKey = apiKey
+	}
+}
+
+// WithPipelineID specify a custom pipeline ID to use when installing the agent
+func WithPipelineID(id string) Option {
+	return func(p *Params) {
+		p.PipelineID = id
 	}
 }

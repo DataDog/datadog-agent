@@ -1,0 +1,16 @@
+{
+  "packages": [
+    {
+      "name": "go",
+      "version": "1.21.5",
+      "url": "https://dl.google.com/go/go1.21.5.linux-amd64.tar.gz",
+      "sha256": "e2bc0b3e4b64111ec117295c088bde5f00eeed1567999ff77bc859d7df70078e"
+    },
+    {
+      "name": "go",
+      "version": "1.20.12",
+      "url": "https://dl.google.com/go/go1.20.12.linux-amd64.tar.gz",
+      "sha256": "9c5d48c54dd8b0a3b2ef91b0f92a1190aa01f11d26e98033efa64c46a30bba7b"
+    }
+  ]
+}

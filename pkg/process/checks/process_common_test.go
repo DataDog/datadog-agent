@@ -12,11 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/cpu"
+	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -55,7 +56,7 @@ func makeProcessWithCreateTime(pid int32, cmdline string, createTime int64) *pro
 	return p
 }
 
-func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
+func makeProcessModel(t *testing.T, process *procutil.Process, processContext []string) *model.Process {
 	t.Helper()
 
 	stats := process.Stats
@@ -72,8 +73,9 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 			SystemPct: float32(cpu.SystemPct),
 			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
 		},
-		CreateTime: process.Stats.CreateTime,
-		IoStat:     &model.IOStat{},
+		CreateTime:     process.Stats.CreateTime,
+		IoStat:         &model.IOStat{},
+		ProcessContext: processContext,
 	}
 }
 

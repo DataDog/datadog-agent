@@ -3,26 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package pkgmanager contains pkgmanager implementations
 package pkgmanager
 
 import (
 	"fmt"
 
-	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
-// AptPackageManager struct for Apt package manager
-type AptPackageManager struct {
-	vmClient e2eClient.VM
+// Apt struct for Apt package manager
+type Apt struct {
+	host *components.RemoteHost
 }
 
-// NewAptPackageManager return apt package manager
-func NewAptPackageManager(vmClient e2eClient.VM) *AptPackageManager {
-	return &AptPackageManager{vmClient: vmClient}
+var _ PackageManager = &Apt{}
+
+// NewApt return apt package manager
+func NewApt(host *components.RemoteHost) *Apt {
+	return &Apt{host: host}
 }
 
 // Remove call remove from apt
-func (s *AptPackageManager) Remove(pkg string) (string, error) {
-	return s.vmClient.ExecuteWithError(fmt.Sprintf("sudo apt remove -q -y %s", pkg))
+func (s *Apt) Remove(pkg string) (string, error) {
+	return s.host.Execute(fmt.Sprintf("sudo apt remove -q -y %s", pkg))
 }

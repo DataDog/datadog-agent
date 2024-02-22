@@ -100,9 +100,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func showRuntimeConfiguration(log log.Component, config config.Component, cliParams *cliParams) error {
-	err := util.SetAuthToken()
+func showRuntimeConfiguration(_ log.Component, config config.Component, cliParams *cliParams) error {
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -122,9 +121,8 @@ func showRuntimeConfiguration(log log.Component, config config.Component, cliPar
 	return nil
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func listRuntimeConfigurableValue(log log.Component, config config.Component, cliParams *cliParams) error {
-	err := util.SetAuthToken()
+func listRuntimeConfigurableValue(_ log.Component, config config.Component, cliParams *cliParams) error {
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -149,13 +147,12 @@ func listRuntimeConfigurableValue(log log.Component, config config.Component, cl
 	return nil
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func setConfigValue(log log.Component, config config.Component, cliParams *cliParams) error {
+func setConfigValue(_ log.Component, config config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 2 {
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
 
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -179,13 +176,12 @@ func setConfigValue(log log.Component, config config.Component, cliParams *cliPa
 	return nil
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func getConfigValue(log log.Component, config config.Component, cliParams *cliParams) error {
+func getConfigValue(_ log.Component, config config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 1 {
 		return fmt.Errorf("a single setting name must be specified")
 	}
 
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}

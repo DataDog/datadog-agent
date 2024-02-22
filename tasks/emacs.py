@@ -5,8 +5,8 @@ Helpers for getting Emacs set up nicely
 """
 from invoke import task
 
-from .build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .flavor import AgentFlavor
+from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.flavor import AgentFlavor
 
 
 @task

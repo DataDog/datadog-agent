@@ -53,7 +53,7 @@ static __always_inline u16 sk_buff_network_header(struct sk_buff *skb) {
 #ifdef COMPILE_PREBUILT
     int ret = bpf_probe_read_kernel_with_telemetry(&net_head, sizeof(net_head), ((char*)skb) + offset_sk_buff_transport_header() + 2);
     if (ret < 0) {
-        log_debug("ERR reading network_header\n");
+        log_debug("ERR reading network_header");
         return 0;
     }
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
@@ -68,7 +68,7 @@ static __always_inline u16 sk_buff_transport_header(struct sk_buff *skb) {
 #ifdef COMPILE_PREBUILT
     int ret = bpf_probe_read_kernel_with_telemetry(&trans_head, sizeof(trans_head), ((char*)skb) + offset_sk_buff_transport_header());
     if (ret) {
-        log_debug("ERR reading trans_head\n");
+        log_debug("ERR reading trans_head");
         return 0;
     }
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
@@ -82,13 +82,13 @@ static __always_inline u16 sk_buff_transport_header(struct sk_buff *skb) {
 static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
     unsigned char *head = sk_buff_head(skb);
     if (!head) {
-        log_debug("ERR reading head\n");
+        log_debug("ERR reading head");
         return -1;
     }
 
     u16 net_head = sk_buff_network_header(skb);
     if (!net_head) {
-        log_debug("ERR reading network_header\n");
+        log_debug("ERR reading network_header");
         return -1;
     }
 
@@ -96,7 +96,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
     bpf_memset(&iph, 0, sizeof(struct iphdr));
     int ret = bpf_probe_read_kernel_with_telemetry(&iph, sizeof(iph), (struct iphdr *)(head + net_head));
     if (ret) {
-        log_debug("ERR reading iphdr\n");
+        log_debug("ERR reading iphdr");
         return ret;
     }
 
@@ -111,7 +111,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
                 tup->metadata |= CONN_TYPE_TCP;
                 break;
             default:
-                log_debug("unknown protocol: %d\n", iph.protocol);
+                log_debug("unknown protocol: %d", iph.protocol);
                 return 0;
         }
         trans_len = iph.tot_len - (iph.ihl * 4);
@@ -124,7 +124,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         bpf_memset(&ip6h, 0, sizeof(struct ipv6hdr));
         ret = bpf_probe_read_kernel_with_telemetry(&ip6h, sizeof(ip6h), (struct ipv6hdr *)(head + net_head));
         if (ret) {
-            log_debug("ERR reading ipv6 hdr\n");
+            log_debug("ERR reading ipv6 hdr");
             return ret;
         }
         tup->metadata |= CONN_V6;
@@ -136,7 +136,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
                 tup->metadata |= CONN_TYPE_TCP;
                 break;
             default:
-                log_debug("unknown protocol: %d\n", ip6h.nexthdr);
+                log_debug("unknown protocol: %d", ip6h.nexthdr);
                 return 0;
         }
 
@@ -146,13 +146,13 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
     }
 #endif // !COMPILE_RUNTIME || FEATURE_TCPV6_ENABLED || FEATURE_UDPV6_ENABLED
     else {
-        log_debug("unknown IP version: %d\n", iph.version);
+        log_debug("unknown IP version: %d", iph.version);
         return 0;
     }
 
     u16 trans_head = sk_buff_transport_header(skb);
     if (!trans_head) {
-        log_debug("ERR reading trans_head\n");
+        log_debug("ERR reading trans_head");
         return -1;
     }
 
@@ -162,30 +162,30 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         bpf_memset(&udph, 0, sizeof(struct udphdr));
         ret = bpf_probe_read_kernel_with_telemetry(&udph, sizeof(udph), (struct udphdr *)(head + trans_head));
         if (ret) {
-            log_debug("ERR reading udphdr\n");
+            log_debug("ERR reading udphdr");
             return ret;
         }
         tup->sport = bpf_ntohs(udph.source);
         tup->dport = bpf_ntohs(udph.dest);
 
-        log_debug("udp recv: udphdr.len=%d\n", bpf_ntohs(udph.len));
+        log_debug("udp recv: udphdr.len=%d", bpf_ntohs(udph.len));
         return (int)(bpf_ntohs(udph.len) - sizeof(struct udphdr));
     } else if (proto == CONN_TYPE_TCP) {
         struct tcphdr tcph;
         bpf_memset(&tcph, 0, sizeof(struct tcphdr));
         ret = bpf_probe_read_kernel_with_telemetry(&tcph, sizeof(tcph), (struct tcphdr *)(head + trans_head));
         if (ret) {
-            log_debug("ERR reading tcphdr\n");
+            log_debug("ERR reading tcphdr");
             return ret;
         }
         tup->sport = bpf_ntohs(tcph.source);
         tup->dport = bpf_ntohs(tcph.dest);
 
-        //log_debug("tcp recv: trans_len=%u tcphdr.doff=%u\n", trans_len, tcph.doff*4);
+        //log_debug("tcp recv: trans_len=%u tcphdr.doff=%u", trans_len, tcph.doff*4);
         return trans_len - (tcph.doff * 4);
     }
 
-    log_debug("ERR unknown connection type\n");
+    log_debug("ERR unknown connection type");
     return 0;
 }
 

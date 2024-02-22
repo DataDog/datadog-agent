@@ -24,9 +24,6 @@ func (f *processFixture) run(t *testing.T) {
 	t.Helper()
 
 	processFetcher = func() (processes, error) {
-		for pid, p := range f.processes {
-			p.Pid = pid
-		}
 		return f.processes, nil
 	}
 
@@ -39,18 +36,10 @@ func TestExitDetection(t *testing.T) {
 		{
 			name: "existing process",
 			processes: processes{
-				42: {
-					Name: "agent",
-				},
-				100: {
-					Name: "foo",
-				},
-				101: {
-					Name: "pause",
-				},
-				102: {
-					Name: "security-agent",
-				},
+				42:  "agent",
+				100: "foo",
+				101: "pause",
+				102: "security-agent",
 			},
 			regexps:    defaultRegexps,
 			shouldExit: false,
@@ -58,15 +47,9 @@ func TestExitDetection(t *testing.T) {
 		{
 			name: "no other case",
 			processes: processes{
-				42: {
-					Name: "agent",
-				},
-				101: {
-					Name: "pause",
-				},
-				102: {
-					Name: "security-agent",
-				},
+				42:  "agent",
+				101: "pause",
+				102: "security-agent",
 			},
 			regexps:    defaultRegexps,
 			shouldExit: true,

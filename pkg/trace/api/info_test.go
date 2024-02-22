@@ -298,13 +298,14 @@ func TestInfoHandler(t *testing.T) {
 	}
 
 	expectedKeys := map[string]interface{}{
-		"version":            nil,
-		"git_commit":         nil,
-		"endpoints":          nil,
-		"feature_flags":      nil,
-		"client_drop_p0s":    nil,
-		"span_meta_structs":  nil,
-		"long_running_spans": nil,
+		"version":                   nil,
+		"git_commit":                nil,
+		"endpoints":                 nil,
+		"feature_flags":             nil,
+		"client_drop_p0s":           nil,
+		"span_meta_structs":         nil,
+		"long_running_spans":        nil,
+		"evp_proxy_allowed_headers": nil,
 		"config": map[string]interface{}{
 			"default_env":               nil,
 			"target_tps":                nil,

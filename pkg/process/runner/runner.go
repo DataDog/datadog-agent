@@ -17,6 +17,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -49,8 +50,7 @@ type checkPayload struct {
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
-type Runner interface {
-}
+type Runner interface{}
 
 // CheckRunner will collect metrics from the local system and ship to the backend.
 type CheckRunner struct {
@@ -93,7 +93,7 @@ func (l *CheckRunner) RunRealTime() bool {
 }
 
 // NewRunner creates a new CheckRunner
-func NewRunner(config ddconfig.Reader, sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
+func NewRunner(config ddconfig.Reader, sysCfg *sysconfigtypes.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
 	runRealTime := !config.GetBool("process_config.disable_realtime_checks")
 
 	cfg := &checks.SysProbeConfig{}
@@ -516,7 +516,7 @@ func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Re
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.PodCheckName, checks.PodCheckManifestName, checks.ProcessEventsCheckName:
+	case checks.ProcessEventsCheckName:
 		return true
 	default:
 		return false

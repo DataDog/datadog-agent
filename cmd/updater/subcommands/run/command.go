@@ -10,20 +10,40 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/pkg/updater"
 
 	"github.com/spf13/cobra"
 )
 
-// Commands returns the global params commands
-func Commands(_ *command.GlobalParams) []*cobra.Command {
+// Commands returns the run command
+func Commands(global *command.GlobalParams) []*cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Runs the updater",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("hey")
-			return nil
+			return run(global.Package)
 		},
 	}
 	return []*cobra.Command{runCmd}
+}
+
+func run(pkg string) error {
+	orgConfig, err := updater.NewOrgConfig()
+	if err != nil {
+		return fmt.Errorf("could not create org config: %w", err)
+	}
+	u, err := updater.NewUpdater(orgConfig, pkg)
+	if err != nil {
+		return fmt.Errorf("could not create updater: %w", err)
+	}
+
+	u.Start()
+	defer u.Stop()
+
+	api, err := updater.NewLocalAPI(u)
+	if err != nil {
+		return fmt.Errorf("could not create local API: %w", err)
+	}
+	return api.Serve()
 }

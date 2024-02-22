@@ -49,14 +49,12 @@ func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymen
 		return libList
 	}
 
-	for containerName, languages := range deployment.ContainerLanguages {
-		for _, lang := range languages {
-			imageToInject := libImageName(registry, language(lang.Name), "latest")
-			libList = append(libList, libInfo{ctrName: containerName, lang: language(lang.Name), image: imageToInject})
+	for container, languages := range deployment.InjectableLanguages {
+		for lang := range languages {
+			imageToInject := libImageName(registry, language(lang), "latest")
+			libList = append(libList, libInfo{ctrName: container.Name, lang: language(lang), image: imageToInject})
 		}
 	}
-
-	// Languages detected for init containers are not processed by the admission controller.
 
 	return libList
 }

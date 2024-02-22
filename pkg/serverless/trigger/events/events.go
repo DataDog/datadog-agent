@@ -14,10 +14,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
-	"encoding/json"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
+	json "github.com/json-iterator/go"
 )
 
 // APIGatewayProxyRequest mirrors events.APIGatewayProxyRequest type, removing

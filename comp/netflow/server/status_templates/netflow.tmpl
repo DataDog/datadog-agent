@@ -1,0 +1,32 @@
+{{- with .netflowStats }}
+  Total Listeners: {{.TotalListeners}}
+  Open Listeners: {{.OpenListeners}}
+  Closed Listeners: {{.ClosedListeners}}
+  {{ if .OpenListeners }}
+  === Open Listener Details ===
+  {{- range $index, $NetflowListenerStatus := .WorkingListenerDetails }}
+  ---------
+  BindHost: {{$NetflowListenerStatus.Config.BindHost}}
+  FlowType: {{$NetflowListenerStatus.Config.FlowType}}
+  Port: {{$NetflowListenerStatus.Config.Port}}
+  Workers: {{$NetflowListenerStatus.Config.Workers}}
+  Namespace: {{$NetflowListenerStatus.Config.Namespace}}
+  Flows Received: {{$NetflowListenerStatus.FlowCount}}
+  ---------
+  {{- end }}
+  {{ end }}
+
+  {{ if .ClosedListeners }}
+  === Closed Listener Details ===
+  {{- range $index, $NetflowListenerStatus := .ClosedListenerDetails }}
+  ---------
+  BindHost: {{$NetflowListenerStatus.Config.BindHost}}
+  FlowType: {{$NetflowListenerStatus.Config.FlowType}}
+  Port: {{$NetflowListenerStatus.Config.Port}}
+  Workers: {{$NetflowListenerStatus.Config.Workers}}
+  Namespace: {{$NetflowListenerStatus.Config.Namespace}}
+  Error: {{$NetflowListenerStatus.Error}}
+  ---------
+  {{- end }}
+  {{ end }}
+{{- end }}

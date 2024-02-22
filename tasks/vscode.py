@@ -9,8 +9,8 @@ from collections import OrderedDict
 
 from invoke import task
 
-from .build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .flavor import AgentFlavor
+from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.flavor import AgentFlavor
 
 VSCODE_DIR = ".vscode"
 VSCODE_FILE = "settings.json"
@@ -122,10 +122,25 @@ def setup_devcontainer(
                 "go.goroot": "/usr/local/go",
                 "go.buildTags": local_build_tags,
                 "go.testTags": local_build_tags,
+                "go.lintTool": "golangci-lint",
+                "go.lintOnSave": "file",
+                "go.lintFlags": [
+                    "--build-tags",
+                    local_build_tags,
+                    "--config",
+                    "/workspaces/datadog-agent/.golangci.yml",
+                ],
+                "[go]": {
+                    "editor.formatOnSave": True,
+                },
+                "gopls": {"formatting.local": "github.com/DataDog/datadog-agent"},
             },
             "extensions": ["golang.Go"],
         }
     }
+    devcontainer[
+        "postStartCommand"
+    ] = "git config --global --add safe.directory /workspaces/datadog-agent && invoke install-tools && invoke deps"
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))

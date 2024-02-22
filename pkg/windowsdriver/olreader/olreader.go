@@ -25,6 +25,11 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+const (
+	// ERROR_INVALID_PARAMETER this error isn't in the windows package for some reason
+	ERROR_INVALID_PARAMETER windows.Errno = 87 //nolint:revive // use windows error naming convention
+)
+
 // This is the type that an overlapped read returns -- the overlapped object, which must be passed back to the kernel after reading
 // followed by a predictably sized chunk of bytes
 type readbuffer struct {
@@ -119,16 +124,30 @@ func (olr *OverlappedReader) Read() error {
 					// this indicates that there was no queued completion status, this is fine
 					continue
 				}
-				// error on completion port.
-				return
+				if err == syscall.Errno(ERROR_INVALID_PARAMETER) {
+					// this should never occur. It means that we supplied a buffer
+					// too short for even the structure header.
+					olr.cb.OnError(err)
+					return
+				}
+				if err != syscall.Errno(syscall.ERROR_INSUFFICIENT_BUFFER) {
+					if ol == nil {
+						// the completion port was closed.  time to go home
+						return
+					}
+
+					// if we get this error, there will still be at least
+					// the structure header.  In any other case, fail out
+					olr.cb.OnError(err)
+					return
+				}
 			}
 			if ol == nil {
 				// the completion port was closed.  time to go home
 				return
 			}
-			//nolint:gosimple // TODO(WKIT) Fix gosimple linter
-			var buf *readbuffer
-			buf = (*readbuffer)(unsafe.Pointer(ol))
+
+			buf := (*readbuffer)(unsafe.Pointer(ol))
 			data := buf.data[:bytesRead]
 
 			olr.cb.OnData(data)
@@ -162,7 +181,13 @@ func (olr *OverlappedReader) initiateReads() error {
 			// cleanbuffers was called.  But ensure pointer is valid
 			return fmt.Errorf("Invalid buffer for read")
 		}
-		err := windows.ReadFile(olr.h, buf.data[:], nil, &(buf.ol))
+		/*
+		 * because this is an overlapped read, this will return ERROR_IO_PENDING
+		 * even if we provide a buffer that's too small.  The initial
+		 * GetQueuedCompletionStatus() will return with the error if it's
+		 * too small
+		 */
+		err := windows.ReadFile(olr.h, buf.data[:], nil, &buf.ol)
 		if err != nil && err != windows.ERROR_IO_PENDING {
 			return fmt.Errorf("Failed to initiate read %v", err)
 		}

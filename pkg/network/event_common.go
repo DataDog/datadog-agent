@@ -136,7 +136,6 @@ type Connections struct {
 	HTTP                        map[http.Key]*http.RequestStats
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStat
-	DNSStats                    dns.StatsByKeyByNameByType
 }
 
 // NewConnections create a new Connections object
@@ -279,6 +278,8 @@ type ConnectionStats struct {
 	ContainerID *string
 
 	ProtocolStack protocols.Stack
+
+	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
 }
 
 // Via has info about the routing decision for a flow

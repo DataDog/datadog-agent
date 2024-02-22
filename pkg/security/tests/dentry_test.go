@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"syscall"
@@ -26,6 +25,8 @@ import (
 )
 
 func TestDentryPathERPC(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
@@ -33,7 +34,7 @@ func TestDentryPathERPC(t *testing.T) {
 	}
 	rule := &rules.RuleDefinition{
 		ID:         "test_erpc_path_rule",
-		Expression: fmt.Sprintf(`open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`),
+		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
@@ -91,6 +92,8 @@ func TestDentryPathERPC(t *testing.T) {
 }
 
 func TestDentryPathMap(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
@@ -98,7 +101,7 @@ func TestDentryPathMap(t *testing.T) {
 	}
 	rule := &rules.RuleDefinition{
 		ID:         "test_map_path_rule",
-		Expression: fmt.Sprintf(`open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`),
+		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
@@ -156,6 +159,8 @@ func TestDentryPathMap(t *testing.T) {
 }
 
 func TestDentryName(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
@@ -163,7 +168,7 @@ func TestDentryName(t *testing.T) {
 	}
 	rule := &rules.RuleDefinition{
 		ID:         "test_dentry_name_rule",
-		Expression: fmt.Sprintf(`open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`),
+		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})

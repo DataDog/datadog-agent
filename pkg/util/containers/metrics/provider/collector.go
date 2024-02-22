@@ -27,12 +27,12 @@ func MakeRef[T comparable](collector T, priority uint8) CollectorRef[T] {
 	}
 }
 
-func (pc CollectorRef[T]) bestCollector(runtime Runtime, otherID string, oth CollectorRef[T]) CollectorRef[T] {
+func (pc CollectorRef[T]) bestCollector(runtime RuntimeMetadata, otherID string, oth CollectorRef[T]) CollectorRef[T] {
 	// T is always an interface, so zero is nil, but currently we cannot express nillable in a constraint
 	var zero T
 
 	if oth.Collector != zero && (pc.Collector == zero || oth.Priority < pc.Priority) {
-		log.Debugf("Using collector id: %s for type: %T and runtime: %s", otherID, pc, runtime)
+		log.Debugf("Using collector id: %s for type: %T and runtime: %s", otherID, pc, runtime.String())
 		return oth
 	}
 
@@ -49,16 +49,18 @@ type Collectors struct {
 	PIDs           CollectorRef[ContainerPIDsGetter]
 
 	// These collectors are used in the meta collector
-	ContainerIDForPID CollectorRef[ContainerIDForPIDRetriever]
-	SelfContainerID   CollectorRef[SelfContainerIDRetriever]
+	ContainerIDForPID   CollectorRef[ContainerIDForPIDRetriever]
+	ContainerIDForInode CollectorRef[ContainerIDForInodeRetriever]
+	SelfContainerID     CollectorRef[SelfContainerIDRetriever]
 }
 
-func (c *Collectors) merge(runtime Runtime, otherID string, oth *Collectors) {
+func (c *Collectors) merge(runtime RuntimeMetadata, otherID string, oth *Collectors) {
 	c.Stats = c.Stats.bestCollector(runtime, otherID, oth.Stats)
 	c.Network = c.Network.bestCollector(runtime, otherID, oth.Network)
 	c.OpenFilesCount = c.OpenFilesCount.bestCollector(runtime, otherID, oth.OpenFilesCount)
 	c.PIDs = c.PIDs.bestCollector(runtime, otherID, oth.PIDs)
 	c.ContainerIDForPID = c.ContainerIDForPID.bestCollector(runtime, otherID, oth.ContainerIDForPID)
+	c.ContainerIDForInode = c.ContainerIDForInode.bestCollector(runtime, otherID, oth.ContainerIDForInode)
 	c.SelfContainerID = c.SelfContainerID.bestCollector(runtime, otherID, oth.SelfContainerID)
 }
 

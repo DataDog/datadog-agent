@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package ec2 provides information when running in ec2
 package ec2
 
 import (
@@ -98,9 +99,21 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 	},
 }
 
+var imdsv2InstanceIDFetcher = cachedfetch.Fetcher{
+	Name: "EC2 IMDSv2 InstanceID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, true)
+	},
+}
+
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
 func GetInstanceID(ctx context.Context) (string, error) {
 	return instanceIDFetcher.FetchString(ctx)
+}
+
+// GetIDMSv2InstanceID fetches the instance id for current host from the IMDSv2 EC2 metadata API
+func GetIDMSv2InstanceID(ctx context.Context) (string, error) {
+	return imdsv2InstanceIDFetcher.FetchString(ctx)
 }
 
 // GetHostID returns the instanceID for the current EC2 host using IMDSv2 only.
@@ -140,6 +153,16 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 		return []string{instanceID}, nil
 	}
 	log.Debugf("failed to get instance ID from DMI for Host Alias: %s", err)
+
+	// Try to use IMSDv2 if GetInstanceID didn't try it already
+	if !UseIMDSv2(false) {
+		imsdv2InstanceID, err := GetIDMSv2InstanceID(ctx)
+		if err == nil {
+			return []string{imsdv2InstanceID}, nil
+		}
+
+		log.Debugf("failed to get instance ID from IMDSV2 for Host Alias: %s", err)
+	}
 
 	return []string{}, nil
 }

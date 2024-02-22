@@ -20,14 +20,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
+
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 
 	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -117,9 +120,9 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		client, err := rc.NewGRPCClient(
 			ipcAddress,
 			coreconfig.GetIPCPort(),
-			security.FetchAuthToken,
+			func() (string, error) { return security.FetchAuthToken(c) },
 			rc.WithAgent(rcClientName, version.AgentVersion),
-			rc.WithProducts([]data.Product{data.ProductAPMSampling, data.ProductAgentConfig}),
+			rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
 			rc.WithPollInterval(rcClientPollInterval),
 			rc.WithDirectorRootOverride(c.GetString("remote_configuration.director_root")),
 		)
@@ -338,6 +341,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if otlp.IsEnabled(coreconfig.Datadog) {
 		grpcPort = core.GetInt(coreconfig.OTLPTracePort)
 	}
+
+	// We use a noop set of telemetry settings. This silences all warnings and metrics from the attributes translator.
+	// The Datadog exporter overrides this with its own attributes translator using its own telemetry settings.
+	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	if err != nil {
+		return err
+	}
+
 	c.OTLPReceiver = &config.OTLP{
 		BindHost:               c.ReceiverHost,
 		GRPCPort:               grpcPort,
@@ -345,6 +356,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
 		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
 		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		AttributesTranslator:   attributesTranslator,
 	}
 
 	if core.IsSet("apm_config.install_id") {
@@ -585,6 +597,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "apm_config.debugger_additional_endpoints"; core.IsSet(k) {
 		c.DebuggerProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
+	if k := "apm_config.debugger_diagnostics_dd_url"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.DDURL = core.GetString(k)
+	}
+	if k := "apm_config.debugger_diagnostics_api_key"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.APIKey = core.GetString(k)
+	}
+	if k := "apm_config.debugger_diagnostics_additional_endpoints"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	if k := "apm_config.symdb_dd_url"; core.IsSet(k) {
 		c.SymDBProxy.DDURL = core.GetString(k)

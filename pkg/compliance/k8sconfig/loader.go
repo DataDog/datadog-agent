@@ -17,6 +17,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -90,7 +91,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 			node.Components.KubeScheduler = l.newK8sKubeSchedulerConfig(proc.flags)
 		case "kubelet":
 			node.Components.Kubelet = l.newK8sKubeletConfig(proc.flags)
-			node.ManagedEnvironment = l.detectManagedEnvironment(proc.flags)
+			node.ManagedEnvironment = l.detectManagedEnvironment(proc.flags, node.Components.Kubelet)
 		case "kube-proxy":
 			node.Components.KubeProxy = l.newK8sKubeProxyConfig(proc.flags)
 		}
@@ -120,7 +121,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	return resourceType, &node
 }
 
-func (l *loader) detectManagedEnvironment(flags map[string]string) *K8sManagedEnvConfig {
+func (l *loader) detectManagedEnvironment(flags map[string]string, kubelet *K8sKubeletConfig) *K8sManagedEnvConfig {
 	nodeLabels, ok := flags["--node-labels"]
 	if ok {
 		for _, label := range strings.Split(nodeLabels, ",") {
@@ -142,6 +143,36 @@ func (l *loader) detectManagedEnvironment(flags map[string]string) *K8sManagedEn
 			case strings.HasPrefix(label, "kubernetes.azure.com/"):
 				return &K8sManagedEnvConfig{
 					Name: "aks",
+				}
+			}
+		}
+	}
+	if kubelet != nil && kubelet.Kubeconfig != nil && kubelet.Kubeconfig.Kubeconfig != nil {
+		// If we did not find any node-label with clear indication, we check
+		// for the kubelet's kubeconfig server to see if it uses a managed
+		// control-plane. This may be useful for custom images like
+		// Bottlerocket running in EKS for instance.
+		for _, cluster := range kubelet.Kubeconfig.Kubeconfig.Clusters {
+			if clusterURL, err := url.Parse(cluster.Server); err == nil {
+				switch {
+				case strings.HasSuffix(clusterURL.Hostname(), ".eks.amazonaws.com"):
+					return &K8sManagedEnvConfig{
+						Name: "eks",
+					}
+				case strings.HasSuffix(clusterURL.Hostname(), ".azmk8s.io"):
+					return &K8sManagedEnvConfig{
+						Name: "aks",
+					}
+				}
+			}
+		}
+		// For GKE, if we did not find any node-label, we check for the exec
+		// command of the kubeconfig, relying on the gke-exec-auth-plugin
+		// binary.
+		for _, user := range kubelet.Kubeconfig.Kubeconfig.Users {
+			if strings.HasSuffix(user.Exec.Command, "gke-exec-auth-plugin") {
+				return &K8sManagedEnvConfig{
+					Name: "gke",
 				}
 			}
 		}
@@ -484,13 +515,18 @@ func (l *loader) loadKubeconfigMeta(name string) *K8sKubeconfigMeta {
 		if clientKeyFile := user.User.ClientKey; clientKeyFile != "" {
 			clientKey = l.loadKeyFileMeta(clientKeyFile)
 		}
-		content.Users[user.Name] = &K8sKubeconfigUser{
+		userTgt := &K8sKubeconfigUser{
 			UseToken:          user.User.TokenFile != "" || user.User.Token != "",
 			UsePassword:       user.User.Password != "",
-			Exec:              user.User.Exec,
 			ClientCertificate: clientCert,
 			ClientKey:         clientKey,
 		}
+		if exec := user.User.Exec; exec != nil {
+			userTgt.Exec.APIVersion = exec.APIVersion
+			userTgt.Exec.Command = exec.Command
+			userTgt.Exec.Args = exec.Args
+		}
+		content.Users[user.Name] = userTgt
 	}
 	for _, context := range source.Contexts {
 		content.Contexts[context.Name] = &K8sKubeconfigContext{
