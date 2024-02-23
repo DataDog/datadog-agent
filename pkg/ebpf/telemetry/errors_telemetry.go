@@ -8,10 +8,13 @@
 package telemetry
 
 import (
+	"bytes"
+	"debug/elf"
 	"errors"
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"io"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -255,4 +258,32 @@ func ebpfTelemetrySupported() (bool, error) {
 		return false, err
 	}
 	return kversion >= kernel.VersionCode(4, 14, 0), nil
+}
+
+func ELFBuildWithInstrumentation(bytecode io.ReaderAt) (bool, error) {
+	objFile, err := elf.NewFile(bytecode)
+	if err != nil {
+		return false, fmt.Errorf("failed to open elf file: %w", err)
+	}
+	defer objFile.Close()
+
+	const instrumentationSectionName = ".build.instrumentation"
+	sec := objFile.Section(instrumentationSectionName)
+	if sec == nil {
+		return false, nil
+	}
+
+	data, err := sec.Data()
+	if err != nil {
+		return false, fmt.Errorf("failed to get data for section %q: %w", instrumentationSectionName, err)
+	}
+
+	if i := bytes.IndexByte(data, 0); i != -1 {
+		data = data[:i]
+	}
+	if string(data[:]) != "enabled" {
+		return false, nil
+	}
+
+	return true, nil
 }
