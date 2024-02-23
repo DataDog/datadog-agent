@@ -52,11 +52,8 @@ func TestVMSuite(t *testing.T) {
 	e2e.Run(t, &vmSuite{}, suiteParams...)
 }
 
-func (v *vmSuite) TestTestSuite() {
-	v.T().Run("Works", v.testExample)
-}
-func (v *vmSuite) testExample(t *testing.T) {
-
+func (v *vmSuite) TestSystemProbeSuite() {
+	t := v.T()
 	// get the remote host
 	vm := v.Env().RemoteHost
 
@@ -91,7 +88,7 @@ func (v *vmSuite) testExample(t *testing.T) {
 	require.NoError(t, err)
 	t.Log("Sites created, continuing")
 
-	rs := windows.NewRemoteSuite(vm, t, "testsuite.exe", testspath)
+	rs := windows.NewRemoteExecutable(vm, t, "testsuite.exe", testspath)
 	err = rs.FindTestPrograms()
 	require.NoError(t, err)
 
