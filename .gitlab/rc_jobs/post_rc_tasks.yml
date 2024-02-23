@@ -18,4 +18,4 @@ update_rc_build_links:
     - export ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com
     - set -x
     - python3 -m pip install -r tasks/requirements_release_tasks.txt
-    - inv -e release.update-build-links ${CI_COMMIT_REF_SLUG}
+    - inv -e release.update-build-links ${CI_COMMIT_REF_NAME}

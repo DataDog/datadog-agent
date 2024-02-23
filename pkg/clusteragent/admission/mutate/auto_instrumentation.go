@@ -80,7 +80,7 @@ type language string
 
 type pinnedLibraries struct {
 	libraries []libInfo
-	once      *sync.Once
+	once      sync.Once
 }
 
 const (
@@ -192,15 +192,15 @@ func apmSSINamespaceFilter() (*containers.Filter, error) {
 	apmDisabledNamespacesWithPrefix := make([]string, len(apmDisabledNamespaces))
 
 	for i := range apmEnabledNamespaces {
-		apmEnabledNamespacesWithPrefix[i] = prefix + apmEnabledNamespaces[i]
+		apmEnabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", apmEnabledNamespaces[i])
 	}
 	for i := range apmDisabledNamespaces {
-		apmDisabledNamespacesWithPrefix[i] = prefix + apmDisabledNamespaces[i]
+		apmDisabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", apmDisabledNamespaces[i])
 	}
 
 	disabledByDefault := []string{
-		prefix + "kube-system",
-		prefix + apiServerCommon.GetResourcesNamespace(),
+		prefix + "^kube-system$",
+		prefix + fmt.Sprintf("^%s$", apiServerCommon.GetResourcesNamespace()),
 	}
 
 	var filterExcludeList []string
@@ -346,7 +346,7 @@ func getPinnedLibraries(registry string) []libInfo {
 // getLibrariesLanguageDetection runs process language auto-detection and returns languages to inject for APM Instrumentation.
 // The langages information is available in workloadmeta-store and attached on the pod's owner.
 func getLibrariesLanguageDetection(pod *corev1.Pod, registry string) []libInfo {
-	if config.Datadog.GetBool("admission_controller.inject_auto_detected_libraries") {
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries") {
 		// Use libraries returned by language detection for APM Instrumentation
 		return getAutoDetectedLibraries(pod, registry)
 	}
