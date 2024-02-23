@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/google/uuid"
 	"github.com/shirou/gopsutil/v3/cpu"
+	"math/rand"
 	"net"
 	"sort"
 	"strconv"
@@ -117,11 +118,13 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 		numpaths = DefaultNumPaths
 	}
 
+	destinationPort := rand.Intn(10) + 33000
+
 	var dt dublintraceroute.DublinTraceroute
 	dt = &probev4.UDPv4{
 		Target:     target,
 		SrcPort:    uint16(DefaultSourcePort),
-		DstPort:    uint16(DefaultDestPort),
+		DstPort:    uint16(destinationPort),
 		UseSrcPort: false,
 		NumPaths:   uint16(numpaths),
 		MinTTL:     uint8(DefaultMinTTL),
