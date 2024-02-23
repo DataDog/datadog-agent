@@ -30,7 +30,6 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	kv5180 := kernel.VersionCode(5, 18, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv650 := kernel.VersionCode(6, 5, 0)
-	ringBufferSupported := RingBufferSupported(c)
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, err
@@ -56,8 +55,8 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPRecvMsgReturn)
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
-		enableProbe(enabled, selectFeatureBasedProbe(ringBufferSupported, probes.TCPClosePerfbuffer, probes.TCPCloseRingbuffer))
-		enableProbe(enabled, selectFeatureBasedProbe(ringBufferSupported, probes.TCPCloseFlushReturnPerfbuffer, probes.TCPCloseFlushReturnRingbuffer))
+		enableProbe(enabled, probes.TCPClose)
+		enableProbe(enabled, probes.TCPCloseFlushReturn)
 		enableProbe(enabled, probes.TCPConnect)
 		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
@@ -71,8 +70,8 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	}
 
 	if c.CollectUDPv4Conns {
-		enableProbe(enabled, selectFeatureBasedProbe(ringBufferSupported, probes.UDPDestroySockPerfbuffer, probes.UDPDestroySockRingbuffer))
-		enableProbe(enabled, selectFeatureBasedProbe(ringBufferSupported, probes.UDPDestroySockReturnPerfbuffer, probes.UDPDestroySockReturnRingbuffer))
+		enableProbe(enabled, probes.UDPDestroySock)
+		enableProbe(enabled, probes.UDPDestroySockReturn)
 		enableProbe(enabled, probes.IPMakeSkb)
 		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
@@ -94,8 +93,8 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	}
 
 	if c.CollectUDPv6Conns {
-		enableProbe(enabled, selectFeatureBasedProbe(ringBufferSupported, probes.UDPv6DestroySockPerfbuffer, probes.UDPv6DestroySockRingbuffer))
-		enableProbe(enabled, selectFeatureBasedProbe(ringBufferSupported, probes.UDPv6DestroySockReturnPerfbuffer, probes.UDPv6DestroySockReturnRingbuffer))
+		enableProbe(enabled, probes.UDPv6DestroySock)
+		enableProbe(enabled, probes.UDPv6DestroySockReturn)
 		if kv >= kv5180 || runtimeTracer {
 			// prebuilt shouldn't arrive here with 5.18+ and UDPv6 enabled
 			if !coreTracer && !runtimeTracer {
@@ -151,13 +150,6 @@ func enableAdvancedUDP(enabled map[probes.ProbeFuncName]struct{}) error {
 		return fmt.Errorf("missing desired UDP receive kernel functions")
 	}
 	return nil
-}
-
-func selectFeatureBasedProbe(ringbufferSupported bool, perfbufferProbe probes.ProbeFuncName, ringbufferProbe probes.ProbeFuncName) probes.ProbeFuncName {
-	if ringbufferSupported {
-		return ringbufferProbe
-	}
-	return perfbufferProbe
 }
 
 func selectVersionBasedProbe(runtimeTracer bool, kv kernel.Version, dfault probes.ProbeFuncName, versioned probes.ProbeFuncName, reqVer kernel.Version) probes.ProbeFuncName {

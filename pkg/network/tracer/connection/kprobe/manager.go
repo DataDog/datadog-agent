@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+
+	"github.com/cilium/ebpf/asm"
 )
 
 var mainProbes = []probes.ProbeFuncName{
@@ -33,11 +35,9 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPRecvMsgReturn,
 	probes.TCPReadSock,
 	probes.TCPReadSockReturn,
-	probes.TCPCloseRingbuffer,
-	probes.TCPClosePerfbuffer,
+	probes.TCPClose,
 	probes.TCPCloseCleanProtocolsReturn,
-	probes.TCPCloseFlushReturnRingbuffer,
-	probes.TCPCloseFlushReturnPerfbuffer,
+	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
@@ -52,14 +52,10 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPRetransmitRet,
 	probes.InetCskAcceptReturn,
 	probes.InetCskListenStop,
-	probes.UDPDestroySockRingbuffer,
-	probes.UDPDestroySockPerfbuffer,
-	probes.UDPDestroySockReturnRingbuffer,
-	probes.UDPDestroySockReturnPerfbuffer,
-	probes.UDPv6DestroySockRingbuffer,
-	probes.UDPv6DestroySockPerfbuffer,
-	probes.UDPv6DestroySockReturnRingbuffer,
-	probes.UDPv6DestroySockReturnPerfbuffer,
+	probes.UDPDestroySock,
+	probes.UDPDestroySockReturn,
+	probes.UDPv6DestroySock,
+	probes.UDPv6DestroySockReturn,
 	probes.InetBind,
 	probes.Inet6Bind,
 	probes.InetBindRet,
@@ -119,6 +115,11 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		}
 		mgr.PerfMaps = []*manager.PerfMap{pm}
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
+		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
+		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
+		if err != nil {
+			return err
+		}
 	}
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{

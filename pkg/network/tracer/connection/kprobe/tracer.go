@@ -151,11 +151,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
-func getTailCallRouteForProtocolClassification(ringbufferSupported bool) []manager.TailCallRoute {
-	tcpCloseFuncName := probes.TCPCloseFlushReturnPerfbuffer
-	if ringbufferSupported {
-		tcpCloseFuncName = probes.TCPCloseFlushReturnRingbuffer
-	}
+func getTailCallRouteForProtocolClassification() []manager.TailCallRoute {
 	protocolClassificationTailCalls := []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ClassificationProgsMap,
@@ -185,7 +181,7 @@ func getTailCallRouteForProtocolClassification(ringbufferSupported bool) []manag
 			ProgArrayName: probes.TCPCloseProgsMap,
 			Key:           0,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tcpCloseFuncName,
+				EBPFFuncName: probes.TCPCloseFlushReturn,
 				UID:          probeUID,
 			},
 		},
@@ -221,7 +217,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if classificationSupported {
-		protocolClassificationTailCalls := getTailCallRouteForProtocolClassification(ringbufferEnabled)
+		protocolClassificationTailCalls := getTailCallRouteForProtocolClassification()
 		tailCallsIdentifiersSet = make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls))
 		for _, tailCall := range protocolClassificationTailCalls {
 			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}

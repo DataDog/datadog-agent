@@ -10,12 +10,14 @@ package fentry
 
 import (
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf/asm"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHandler, cfg *config.Config) {
@@ -63,6 +65,11 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		}
 		mgr.PerfMaps = []*manager.PerfMap{pm}
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
+		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
+		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
+		if err != nil {
+			log.Error("Failed to remove helper calls from eBPF programs: ", err)
+		}
 	}
 
 	for funcName := range programs {
