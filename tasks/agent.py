@@ -757,7 +757,7 @@ def should_retry_bundle_install(res):
     return False
 
 
-def _compute_build_metrics(ctx, overall_duration):
+def _send_build_metrics(ctx, overall_duration):
     # We only want to generate those metrics from the CI
     src_dir = os.environ.get('CI_PROJECT_DIR')
     if not src_dir:
@@ -927,7 +927,7 @@ def omnibus_build(
         print(f"Deps:    {deps_elapsed.duration}")
     print(f"Bundle:  {bundle_elapsed.duration}")
     print(f"Omnibus: {omnibus_elapsed.duration}")
-    _compute_build_metrics(ctx, omnibus_elapsed.duration)
+    _send_build_metrics(ctx, omnibus_elapsed.duration)
 
 
 @task
