@@ -88,6 +88,20 @@ func TestCatalogUpdate(t *testing.T) {
 	callback.AssertExpectations(t)
 }
 
+func TestCatalogUpdateBadConfig(t *testing.T) {
+	callback := &callbackMock{}
+	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate)
+	callback.On("applyStateCallback", "test", mock.MatchedBy(func(s state.ApplyStatus) bool {
+		return s.State == state.ApplyStateError
+	})).Return()
+
+	handler(map[string]state.RawConfig{
+		"test": {Config: []byte("bad json")},
+	}, callback.applyStateCallback)
+
+	callback.AssertExpectations(t)
+}
+
 func TestCatalogUpdateError(t *testing.T) {
 	callback := &callbackMock{}
 	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate)
@@ -114,6 +128,20 @@ func TestRemoteAPIRequest(t *testing.T) {
 
 	handler(map[string]state.RawConfig{
 		"test": {Config: testRemoteAPIRequestJSON},
+	}, callback.applyStateCallback)
+
+	callback.AssertExpectations(t)
+}
+
+func TestRemoteAPIRequestBadConfig(t *testing.T) {
+	callback := &callbackMock{}
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest)
+	callback.On("applyStateCallback", "test", mock.MatchedBy(func(s state.ApplyStatus) bool {
+		return s.State == state.ApplyStateError
+	})).Return()
+
+	handler(map[string]state.RawConfig{
+		"test": {Config: []byte("bad json")},
 	}, callback.applyStateCallback)
 
 	callback.AssertExpectations(t)

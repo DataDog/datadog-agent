@@ -239,7 +239,7 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 		return fmt.Errorf("could not get updater state: %w", err)
 	}
 	if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
-		log.Infof("remote request %s not executed: state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
+		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
 		return nil
 	}
 	switch request.Method {
