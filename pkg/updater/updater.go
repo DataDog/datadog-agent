@@ -8,16 +8,17 @@ package updater
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path"
+	"runtime"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,50 +32,12 @@ const (
 	gcInterval = 1 * time.Hour
 )
 
-// Install installs the default version for the given package.
-// It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, rcFetcher client.ConfigFetcher, pkg string) error {
-	log.Infof("Updater: Installing default version of package %s", pkg)
-	downloader := newDownloader(http.DefaultClient)
-	repository := &repository.Repository{
-		RootPath:  path.Join(defaultRepositoryPath, pkg),
-		LocksPath: path.Join(defaultLocksPath, pkg),
-	}
-	rc, err := newRemoteConfigClient(rcFetcher)
-	if err != nil {
-		return fmt.Errorf("could not create remote config client: %w", err)
-	}
-	orgConfig, err := newOrgConfig(rc)
-	if err != nil {
-		return fmt.Errorf("could not create org config: %w", err)
-	}
-	firstPackage, err := orgConfig.GetDefaultPackage(ctx, pkg)
-	if err != nil {
-		return fmt.Errorf("could not get default package: %w", err)
-	}
-	tmpDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	pkgDir := path.Join(tmpDir, "pkg")
-	err = downloader.Download(ctx, firstPackage, pkgDir)
-	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
-	}
-	err = repository.Create(firstPackage.Version, pkgDir)
-	if err != nil {
-		return fmt.Errorf("could not create repository: %w", err)
-	}
-	log.Infof("Updater: Successfully installed default version of package %s", pkg)
-	return nil
-}
-
 // Updater is the updater used to update packages.
 type Updater interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
+	BootstrapStable(ctx context.Context) error
 	StartExperiment(ctx context.Context, version string) error
 	StopExperiment() error
 	PromoteExperiment() error
@@ -85,15 +48,17 @@ type Updater interface {
 }
 
 type updaterImpl struct {
-	m              sync.Mutex
+	m        sync.Mutex
+	stopChan chan struct{}
+
 	pkg            string
 	repositoryPath string
-	rc             *client.Client
-	orgConfig      *orgConfig
-	remoteAPI      *remoteAPI
 	repository     *repository.Repository
 	downloader     *downloader
-	stopChan       chan struct{}
+
+	rc                *remoteConfig
+	catalog           catalog
+	bootstrapVersions bootstrapVersions
 }
 
 // NewUpdater returns a new Updater.
@@ -102,45 +67,22 @@ func NewUpdater(rcFetcher client.ConfigFetcher, pkg string) (Updater, error) {
 		RootPath:  path.Join(defaultRepositoryPath, pkg),
 		LocksPath: path.Join(defaultLocksPath, pkg),
 	}
-	s, err := repository.GetState()
-	if err != nil {
-		return nil, fmt.Errorf("could not get repository state: %w", err)
-	}
-	if !s.HasStable() {
-		return nil, fmt.Errorf("attempt to create an updater for a package that has not been bootstrapped with a stable version")
-	}
-	rc, err := newRemoteConfigClient(rcFetcher)
+	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	orgConfig, err := newOrgConfig(rc)
-	if err != nil {
-		return nil, fmt.Errorf("could not create org config: %w", err)
-	}
-	remoteAPI := newRemoteAPI()
 	u := &updaterImpl{
-		pkg:            pkg,
-		repositoryPath: defaultRepositoryPath,
-		rc:             rc,
-		orgConfig:      orgConfig,
-		remoteAPI:      remoteAPI,
-		repository:     repository,
-		downloader:     newDownloader(http.DefaultClient),
-		stopChan:       make(chan struct{}),
+		pkg:               pkg,
+		repositoryPath:    defaultRepositoryPath,
+		rc:                rc,
+		repository:        repository,
+		downloader:        newDownloader(http.DefaultClient),
+		catalog:           defaultCatalog,
+		bootstrapVersions: defaultBootstrapVersions,
+		stopChan:          make(chan struct{}),
 	}
-	err = u.updatePackagesState()
-	if err != nil {
-		return nil, fmt.Errorf("could not update packages state: %w", err)
-	}
-	rc.Subscribe(state.ProductUpdaterTask, u.handleUpdaterTask)
+	u.updatePackagesState()
 	return u, nil
-}
-
-func (u *updaterImpl) handleUpdaterTask(requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	err := u.remoteAPI.handleRequests(u, requestConfigs, applyStateCallback)
-	if err != nil {
-		log.Errorf("could not handle updater tasks: %s", err)
-	}
 }
 
 // GetRepositoryPath returns the path to the repository.
@@ -158,13 +100,16 @@ func (u *updaterImpl) GetState() (*repository.State, error) {
 	return u.repository.GetState()
 }
 
-// Start starts the garbage collector.
+// Start starts remote config and the garbage collector.
 func (u *updaterImpl) Start(_ context.Context) error {
+	u.rc.Start(u.handleCatalogUpdate, u.handleRemoteAPIRequest)
 	go func() {
 		for {
 			select {
 			case <-time.After(gcInterval):
-				err := u.cleanup()
+				u.m.Lock()
+				err := u.repository.Cleanup()
+				u.m.Unlock()
 				if err != nil {
 					log.Errorf("updater: could not run GC: %v", err)
 				}
@@ -183,11 +128,32 @@ func (u *updaterImpl) Stop(_ context.Context) error {
 	return nil
 }
 
-// Cleanup cleans up the repository.
-func (u *updaterImpl) cleanup() error {
+// BootstrapStable installs the stable version of the package.
+func (u *updaterImpl) BootstrapStable(ctx context.Context) error {
 	u.m.Lock()
 	defer u.m.Unlock()
-	return u.repository.Cleanup()
+	log.Infof("Updater: Installing default version of package %s", u.pkg)
+	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, u.pkg, runtime.GOARCH, runtime.GOOS)
+	if !ok {
+		return fmt.Errorf("could not get default package %s for %s, %s", u.pkg, runtime.GOARCH, runtime.GOOS)
+	}
+	tmpDir, err := os.MkdirTemp("", "")
+	if err != nil {
+		return fmt.Errorf("could not create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	pkgDir := path.Join(tmpDir, "pkg")
+	err = u.downloader.Download(ctx, stablePackage, pkgDir)
+	if err != nil {
+		return fmt.Errorf("could not download package: %w", err)
+	}
+	err = u.repository.Create(stablePackage.Version, pkgDir)
+	if err != nil {
+		return fmt.Errorf("could not create package: %w", err)
+	}
+	log.Infof("Updater: Successfully installed default version of package %s", u.pkg)
+	u.updatePackagesState()
+	return nil
 }
 
 // StartExperiment starts an experiment with the given package.
@@ -195,9 +161,9 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Starting experiment for package %s version %s", u.pkg, version)
-	experimentPackage, err := u.orgConfig.GetPackage(ctx, u.pkg, version)
-	if err != nil {
-		return fmt.Errorf("could not get package: %w", err)
+	experimentPackage, ok := u.catalog.getPackage(u.pkg, version, runtime.GOARCH, runtime.GOOS)
+	if !ok {
+		return fmt.Errorf("could not get package %s, %s for %s, %s", u.pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
@@ -214,10 +180,7 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully started experiment for package %s version %s", u.pkg, version)
-	err = u.updatePackagesState()
-	if err != nil {
-		log.Warnf("could not update packages state: %s", err)
-	}
+	u.updatePackagesState()
 	return nil
 }
 
@@ -231,10 +194,7 @@ func (u *updaterImpl) PromoteExperiment() error {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully promoted experiment for package %s", u.pkg)
-	err = u.updatePackagesState()
-	if err != nil {
-		log.Warnf("could not update packages state: %s", err)
-	}
+	u.updatePackagesState()
 	return nil
 }
 
@@ -248,37 +208,52 @@ func (u *updaterImpl) StopExperiment() error {
 		return fmt.Errorf("could not set stable: %w", err)
 	}
 	log.Infof("Updater: Successfully stopped experiment for package %s", u.pkg)
-	err = u.updatePackagesState()
-	if err != nil {
-		log.Warnf("could not update packages state: %s", err)
-	}
+	u.updatePackagesState()
 	return nil
 }
 
-func (u *updaterImpl) updatePackagesState() error {
+func (u *updaterImpl) handleCatalogUpdate(c catalog) error {
+	u.m.Lock()
+	defer u.m.Unlock()
+	log.Infof("Updater: Received catalog update")
+	u.catalog = c
+	return nil
+}
+
+func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
+	s, err := u.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get updater state: %w", err)
+	}
+	if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
+		log.Infof("remote request %s not executed: state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
+		return nil
+	}
+	switch request.Method {
+	case methodStartExperiment:
+		log.Infof("Updater: Received remote request %s to start experiment for package %s version %s", request.ID, u.pkg, request.Params)
+		var params startExperimentParams
+		err := json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+		}
+		return u.StartExperiment(context.Background(), params.Version)
+	case methodStopExperiment:
+		log.Infof("Updater: Received remote request %s to stop experiment for package %s", request.ID, u.pkg)
+		return u.StopExperiment()
+	case methodPromoteExperiment:
+		log.Infof("Updater: Received remote request %s to promote experiment for package %s", request.ID, u.pkg)
+		return u.PromoteExperiment()
+	default:
+		return fmt.Errorf("unknown method: %s", request.Method)
+	}
+}
+
+func (u *updaterImpl) updatePackagesState() {
 	state, err := u.repository.GetState()
 	if err != nil {
-		return fmt.Errorf("could not get state: %w", err)
+		log.Warnf("could not update packages state: %s", err)
+		return
 	}
-	u.rc.SetUpdaterPackagesState([]*pbgo.PackageState{
-		{
-			Package:           u.pkg,
-			StableVersion:     state.Stable,
-			ExperimentVersion: state.Experiment,
-		},
-	})
-	return nil
-}
-
-func newRemoteConfigClient(rcFetcher client.ConfigFetcher) (*client.Client, error) {
-	client, err := client.NewClient(
-		rcFetcher,
-		client.WithUpdater("injector_tag:test"),
-		client.WithProducts(state.ProductUpdaterCatalogDD, state.ProductUpdaterAgent, state.ProductUpdaterTask), client.WithoutTufVerification(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create rc client: %w", err)
-	}
-	client.Start()
-	return client, nil
+	u.rc.SetState(u.pkg, state)
 }

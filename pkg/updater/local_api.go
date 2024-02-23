@@ -16,13 +16,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-type startExperimentParams struct {
-	Version string `json:"version"`
-}
 
 type apiResponse struct {
 	Error *apiError `json:"error,omitempty"`
@@ -30,77 +25,6 @@ type apiResponse struct {
 
 type apiError struct {
 	Message string `json:"message"`
-}
-
-const (
-	methodStartExperiment   = "start_experiment"
-	methodStopExperiment    = "stop_experiment"
-	methodPromoteExperiment = "promote_experiment"
-)
-
-type remoteAPI struct {
-	executedRequests map[string]struct{}
-}
-
-func newRemoteAPI() *remoteAPI {
-	return &remoteAPI{
-		executedRequests: make(map[string]struct{}),
-	}
-}
-
-func (r *remoteAPI) handleRequests(u Updater, requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) error {
-	for id, requestConfig := range requestConfigs {
-		var request remoteAPIRequest
-		err := json.Unmarshal(requestConfig.Config, &request)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal request: %w", err)
-		}
-		if _, ok := r.executedRequests[request.ID]; ok {
-			log.Debugf("request %s already executed", request.ID)
-			continue
-		}
-		s, err := u.GetState()
-		if err != nil {
-			log.Errorf("could not get updater state: %s", err)
-			return err
-		}
-		if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
-			log.Debugf("request %s not executed: state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
-			continue
-		}
-		r.executedRequests[request.ID] = struct{}{}
-		err = handleRequest(context.Background(), u, request.Method, request.Params)
-		if err != nil {
-			log.Errorf("could not handle request %s %s: %v", request.Method, request.ID, err)
-			apiErr := apiError{Message: err.Error()}
-			rawAPIErr, err := json.Marshal(apiErr)
-			if err != nil {
-				return fmt.Errorf("could not marshal api error: %w", err)
-			}
-			applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: string(rawAPIErr)})
-			continue
-		}
-		applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-	}
-	return nil
-}
-
-func handleRequest(ctx context.Context, u Updater, method string, rawParams []byte) error {
-	switch method {
-	case methodStartExperiment:
-		var params startExperimentParams
-		err := json.Unmarshal(rawParams, &params)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
-		}
-		return u.StartExperiment(ctx, params.Version)
-	case methodStopExperiment:
-		return u.StopExperiment()
-	case methodPromoteExperiment:
-		return u.PromoteExperiment()
-	default:
-		return fmt.Errorf("unknown method: %s", method)
-	}
 }
 
 // LocalAPI is the interface for the locally exposed API to interact with the updater.

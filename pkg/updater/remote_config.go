@@ -7,11 +7,54 @@ package updater
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+type remoteConfig struct {
+	client *client.Client
+}
+
+func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
+	client, err := client.NewClient(
+		rcFetcher,
+		client.WithUpdater(),
+		client.WithProducts(state.ProductUpdaterCatalogDD, state.ProductUpdaterTask),
+		client.WithoutTufVerification(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create rc client: %w", err)
+	}
+	return &remoteConfig{client: client}, nil
+}
+
+// Start starts the remote config client.
+func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRemoteAPIRequest handleRemoteAPIRequest) {
+	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate))
+	rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
+	rc.client.Start()
+}
+
+// Close closes the remote config client.
+func (rc *remoteConfig) Close() {
+	rc.client.Close()
+}
+
+// SetState sets the state of the given package.
+func (rc *remoteConfig) SetState(pkg string, state *repository.State) {
+	rc.client.SetUpdaterPackagesState([]*pbgo.PackageState{
+		{
+			Package:           pkg,
+			StableVersion:     state.Stable,
+			ExperimentVersion: state.Experiment,
+		},
+	})
+}
 
 // Package represents a downloadable package.
 type Package struct {
@@ -28,6 +71,25 @@ type catalog struct {
 	Packages []Package `json:"packages"`
 }
 
+func (c *catalog) getPackage(pkg string, version string, arch string, platform string) (Package, bool) {
+	for _, p := range c.Packages {
+		if p.Name == pkg && p.Version == version && (p.Arch == "" || p.Arch == arch) && (p.Platform == "" || p.Platform == platform) {
+			return p, true
+		}
+	}
+	return Package{}, false
+}
+
+func (c *catalog) getDefaultPackage(defaults bootstrapVersions, pkg string, arch string, platform string) (Package, bool) {
+	version, ok := defaults[pkg]
+	if !ok {
+		return Package{}, false
+	}
+	return c.getPackage(pkg, version, arch, platform)
+}
+
+type bootstrapVersions map[string]string
+
 type handleCatalogUpdate func(catalog catalog) error
 
 func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
@@ -43,17 +105,31 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
 			}
 			mergedCatalog.Packages = append(mergedCatalog.Packages, catalog.Packages...)
 		}
-		for configPath := range catalogConfigs {
-			applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-		}
 		err := h(mergedCatalog)
 		if err != nil {
 			log.Errorf("could not update catalog: %s", err)
 			for configPath := range catalogConfigs {
 				applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			}
+			return
+		}
+		for configPath := range catalogConfigs {
+			applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
 	}
+}
+
+const (
+	methodStartExperiment   = "start_experiment"
+	methodStopExperiment    = "stop_experiment"
+	methodPromoteExperiment = "promote_experiment"
+)
+
+type remoteAPIRequest struct {
+	ID            string          `json:"id"`
+	ExpectedState expectedState   `json:"expected_state"`
+	Method        string          `json:"method"`
+	Params        json.RawMessage `json:"params"`
 }
 
 type expectedState struct {
@@ -61,11 +137,8 @@ type expectedState struct {
 	Experiment string `json:"experiment"`
 }
 
-type remoteAPIRequest struct {
-	ID            string          `json:"id"`
-	ExpectedState expectedState   `json:"expected_state"`
-	Method        string          `json:"method"`
-	Params        json.RawMessage `json:"params"`
+type startExperimentParams struct {
+	Version string `json:"version"`
 }
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error
