@@ -40,7 +40,7 @@ func ExtractDaemonSet(ds *appsv1.DaemonSet) *model.DaemonSet {
 	daemonSet.Spec.DeploymentStrategy = string(ds.Spec.UpdateStrategy.Type)
 	if ds.Spec.UpdateStrategy.Type == "RollingUpdate" && ds.Spec.UpdateStrategy.RollingUpdate != nil {
 		if ds.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable != nil {
-			daemonSet.Spec.MaxUnavailable = ds.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable.StrVal
+			daemonSet.Spec.MaxUnavailable = ds.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable.String()
 		}
 	}
 
