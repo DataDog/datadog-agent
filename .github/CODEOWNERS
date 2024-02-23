@@ -147,8 +147,8 @@
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-platform
-/cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/oracle-dbm.d/conf.yaml.default @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/oracle.d/conf.yaml.default @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/install*.sh                  @DataDog/agent-platform

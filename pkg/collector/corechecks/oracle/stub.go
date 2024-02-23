@@ -14,7 +14,7 @@ import (
 
 const (
 	// CheckName is the name of the check
-	CheckName = "oracle-dbm"
+	CheckName = "oracle"
 )
 
 // Factory creates a new check factory
