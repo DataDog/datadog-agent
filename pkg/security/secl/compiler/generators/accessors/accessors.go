@@ -776,12 +776,7 @@ func pascalCaseFieldName(fieldName string) string {
 }
 
 func getDefaultValueOfType(returnType string) string {
-	isArray := false
-
-	baseType, found := strings.CutPrefix(returnType, "[]")
-	if found {
-		isArray = true
-	}
+	baseType, isArray := strings.CutPrefix(returnType, "[]")
 
 	if baseType == "int" {
 		if isArray {
@@ -823,12 +818,10 @@ func getDefaultValueOfType(returnType string) string {
 			return "[]time.Time{}"
 		}
 		return "time.Time{}"
-	} else {
-		if isArray {
-			return "[]string{}"
-		}
-		return `""`
+	} else if isArray {
+		return "[]string{}"
 	}
+	return `""`
 }
 
 func needScrubbed(fieldName string) bool {
