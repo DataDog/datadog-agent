@@ -1944,10 +1944,10 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on with disabled namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:  fakePodWithNamespaceAndLabel("ns2", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns2"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
 			},
 			want: true,
 		},
@@ -2019,10 +2019,10 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on with enabled other namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:  fakePodWithNamespaceAndLabel("ns2", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"n2s"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
 			},
 			want: false,
 		},
