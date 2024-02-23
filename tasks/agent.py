@@ -759,10 +759,22 @@ def should_retry_bundle_install(res):
 
 def _send_build_metrics(ctx, overall_duration):
     # We only want to generate those metrics from the CI
-    src_dir = os.environ.get('CI_PROJECT_DIR')
-    if not src_dir:
-        print('Not a CI job, skipping sending build metrics')
+    if sys.platform == 'win32':
+        src_dir = "C:/buildroot/datadog-agent"
+    else:
+        src_dir = os.environ.get('CI_PROJECT_DIR')
+        if not src_dir:
+            print('Not a CI job, skipping sending build metrics')
+            return
+    job_name = os.environ.get('CI_JOB_NAME_SLUG')
+    branch = os.environ.get('CI_COMMIT_REF_NAME')
+    if not job_name or not branch or not src_dir:
+        print(
+            '''Missing required environment variables, this is probably not a CI job.
+                  skipping sending build metrics'''
+        )
         return
+
     series = []
     timestamp = int(datetime.now().timestamp())
     with open(f'{src_dir}/omnibus/pkg/build-summary.json') as summary_json:
@@ -777,8 +789,8 @@ def _send_build_metrics(ctx, overall_duration):
                     'tags': [
                         f'software:{software}',
                         f'cached:{metrics["cached"]}',
-                        f'job:{os.environ.get("CI_JOB_NAME_SLUG")}',
-                        f'branch:{os.environ.get("CI_COMMIT_REF_NAME")}',
+                        f'job:{job_name}',
+                        f'branch:{branch}',
                     ],
                     'unit': 'seconds',
                     'type': 0,
@@ -790,8 +802,8 @@ def _send_build_metrics(ctx, overall_duration):
                 'metric': 'datadog.agent.build.total',
                 'points': [{'timestamp': timestamp, 'value': overall_duration}],
                 'tags': [
-                    f'job:{os.environ.get("CI_JOB_NAME_SLUG")}',
-                    f'branch:{os.environ.get("CI_COMMIT_REF_NAME")}',
+                    f'job:{job_name}',
+                    f'branch:{branch}',
                 ],
                 'unit': 'seconds',
                 'type': 0,
@@ -804,8 +816,8 @@ def _send_build_metrics(ctx, overall_duration):
                     'metric': 'datadog.agent.build.strip',
                     'points': [{'timestamp': timestamp, 'value': j['strip']}],
                     'tags': [
-                        f'job:{os.environ.get("CI_JOB_NAME_SLUG")}',
-                        f'branch:{os.environ.get("CI_COMMIT_REF_NAME")}',
+                        f'job:{job_name}',
+                        f'branch:{branch}',
                     ],
                     'unit': 'seconds',
                     'type': 0,
@@ -818,8 +830,8 @@ def _send_build_metrics(ctx, overall_duration):
                     'metric': 'datadog.agent.package.duration',
                     'points': [{'timestamp': timestamp, 'value': duration}],
                     'tags': [
-                        f'job:{os.environ.get("CI_JOB_NAME_SLUG")}',
-                        f'branch:{os.environ.get("CI_COMMIT_REF_NAME")}',
+                        f'job:{job_name}',
+                        f'branch:{branch}',
                         f'packager:{packager}',
                     ],
                     'unit': 'seconds',
