@@ -15,6 +15,7 @@ github_rate_limit_info:
   tags: ["arch:amd64"]
   rules:
     - !reference [.except_mergequeue]
+    - when: on_success
   script:
     - source /root/.bashrc
     - set +x
