@@ -74,21 +74,23 @@ components_missing_implementation_folder = [
     "comp/core/hostname/hostnameinterface",
 ]
 
+implementation_defintions = [
+    "type Mock interface",
+    "func Module() fxutil.Module",
+    "func MockModule() fxutil.Module",
+]
 
-def check_component(file, content, directory):
+
+def check_component_contents_and_file_hiearchy(file, content, directory):
     if not any(l.startswith('type Component interface') or l.startswith('type Component = ') for l in content):
         return f"** {file} does not define a Component interface; skipping"
 
     if str(file) in components_to_migrate:
         return ""
 
-    for not_allow_definition in [
-        "type Mock interface",
-        "func Module() fxutil.Module",
-        "func MockModule() fxutil.Module",
-    ]:
-        if any(l.startswith(not_allow_definition) for l in content):
-            return f"** {file} define '{not_allow_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
+    for implemenation_definition in implementation_defintions:
+        if any(l.startswith(implemenation_definition) for l in content):
+            return f"** {file} define '{implemenation_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
 
     component_name = directory.stem
     missing_implementation_folder = True
@@ -99,6 +101,7 @@ def check_component(file, content, directory):
     for folder in directory.iterdir():
         if folder.match('*impl'):
             missing_implementation_folder = False
+            # TODO: check that the implementation_defintions are present in any of the files of the impl folder
             break
 
     if missing_implementation_folder:
@@ -133,14 +136,15 @@ def get_components_and_bundles():
                     if team is None:
                         print(f"** {component_entry} does not specify a team owner")
                         ok = False
+
                     bundles.append(Bundle(path, doc, team, []))
             else:
                 for component_file in component_entry.iterdir():
                     if component_file.name == "component.go":
                         # We are a component
-                        # Let's check the file hierarchy
+                        # Let's check the file content and hierarchy
                         content = list(component_file.open())
-                        error = check_component(component_file, content, component_entry)
+                        error = check_component_contents_and_file_hiearchy(component_file, content, component_entry)
                         if error != "":
                             print(error)
                             ok = False
