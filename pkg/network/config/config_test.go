@@ -1557,7 +1557,7 @@ system_probe_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := modelCfgFromYAML(t, `
 system_probe_config:
-  process_service_inference:
+  process_service_inference: 
     enabled: true`)
 		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
 	})
