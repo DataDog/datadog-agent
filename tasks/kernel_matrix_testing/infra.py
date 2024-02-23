@@ -13,6 +13,20 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr
 
+# Common SSH options for all SSH commands
+SSH_OPTIONS = {
+    # Disable host key checking, the IPs of the QEMU machines are reused and we don't want constant
+    # warnings about changed host keys. We need the combination of both options, if we just set
+    # StrictHostKeyChecking to no, it will still check the known hosts file and disable some options
+    # and print out scary warnings if the key doesn't match.
+    "StrictHostKeyChecking": "accept-new",
+    "UserKnownHostsFile": "/dev/null",
+}
+
+
+def ssh_options_command():
+    return " ".join([f"-o {k}={v}" for k, v in SSH_OPTIONS.items()])
+
 
 class LocalCommandRunner:
     @staticmethod
@@ -48,7 +62,7 @@ class RemoteCommandRunner:
     def run_cmd(ctx: Context, instance: 'HostInstance', cmd: str, allow_fail: bool, verbose: bool):
         res = ctx.run(
             cmd.format(
-                proxy_cmd=f"-o ProxyCommand='ssh -o StrictHostKeyChecking=no -i {instance.ssh_key} -W %h:%p ubuntu@{instance.ip}'"
+                proxy_cmd=f"-o ProxyCommand='ssh {ssh_options_command()} -i {instance.ssh_key} -W %h:%p ubuntu@{instance.ip}'"
             ),
             hide=(not verbose),
             warn=allow_fail,
@@ -73,7 +87,7 @@ class RemoteCommandRunner:
             RemoteCommandRunner.run_cmd(ctx, instance, f"mkdir -p {full_target}", False, False)
 
         ctx.run(
-            f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {instance.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
+            f"rsync -e \"ssh {ssh_options_command()} -i {instance.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
         )
 
 
@@ -109,11 +123,11 @@ class LibvirtDomain:
         self.instance = instance
 
     def run_cmd(self, ctx: Context, cmd: str, allow_fail=False, verbose=False):
-        run = f"ssh -o StrictHostKeyChecking=no -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
+        run = f"ssh {ssh_options_command()} -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
     def copy(self, ctx: Context, source: PathOrStr, target: PathOrStr):
-        run = f"rsync -e \"ssh -o StrictHostKeyChecking=no {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{self.ip}:{target}"
+        run = f"rsync -e \"ssh {ssh_options_command()} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{self.ip}:{target}"
         return self.instance.runner.run_cmd(ctx, self.instance, run, False, False)
 
     def __repr__(self):

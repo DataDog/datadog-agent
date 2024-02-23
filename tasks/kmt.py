@@ -16,7 +16,7 @@ from invoke.tasks import task
 from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.compiler import CompilerImage, get_compiler
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
-from tasks.kernel_matrix_testing.infra import HostInstance, LibvirtDomain, build_infrastructure
+from tasks.kernel_matrix_testing.infra import SSH_OPTIONS, HostInstance, LibvirtDomain, build_infrastructure
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack
@@ -701,10 +701,7 @@ def ssh_config(
                     print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
                 print(f"    IdentityFile {ddvm_rsa}")
                 print("    User root")
-                # Disable host key checking, the IPs of the QEMU machines are reused and we don't want constant
-                # warnings about changed host keys. We need the combination of both options, if we just set
-                # StrictHostKeyChecking to no, it will still check the known hosts file and disable some options
-                # and print out scary warnings if the key doesn't match.
-                print("    UserKnownHostsFile /dev/null")
-                print("    StrictHostKeyChecking accept-new")
+
+                for key, value in SSH_OPTIONS.items():
+                    print(f"    {key} {value}")
                 print("")
