@@ -13,6 +13,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -77,6 +78,7 @@ func setupPerfMap(proto string, m *manager.Manager) {
 		},
 	}
 	m.PerfMaps = append(m.PerfMaps, pm)
+	removeRingBufferHelperCalls(m)
 	setHandler(proto, handler)
 }
 
@@ -118,6 +120,52 @@ func configureBatchMaps(proto string, o *manager.Options, numCPUs int) {
 
 func eventMapName(proto string) string {
 	return proto + eventsMapSuffix
+}
+
+// noopInstruction is used for the purposes of eBPF patching (see comments
+// below)
+var noopInstruction = asm.Mov.Reg(asm.R1, asm.R1)
+
+// removeRingBufferHelperCalls is called only in the context of kernels that
+// don't support ring buffers. our eBPF code looks more or less like the
+// following:
+//
+//	if (ring_buffers_supported) {
+//	    bpf_ringbuf_output();
+//	} else {
+//	    bpf_perf_event_output();
+//	}
+//
+// where `ring_buffers_supported` is an injected constant. The code above seems
+// to work on the vast majority of kernel versions due to dead code elimination
+// by the verifier, so for kernels that don't support ring buffers
+// (ring_buffers_supported=0) we only see the perf event helper call when doing
+// a program dump:
+//
+// bpf_perf_event_output();
+//
+// *However* in some instances this is not working on 4.14, so here we
+// essentially replace `bpf_ringbuf_output` helper calls by a noop operation so
+// they don't result in verifier errors even when deadcode elimination fails.
+func removeRingBufferHelperCalls(m *manager.Manager) {
+	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
+		progs, err := m.GetProgramSpecs()
+		if err != nil {
+			return err
+		}
+
+		for _, p := range progs {
+			iter := p.Instructions.Iterate()
+			for iter.Next() {
+				ins := iter.Ins
+				if ins.IsBuiltinCall() && ins.Constant == int64(asm.FnRingbufOutput) {
+					*ins = noopInstruction
+				}
+			}
+		}
+
+		return nil
+	})
 }
 
 func alreadySetUp(proto string, m *manager.Manager) bool {
