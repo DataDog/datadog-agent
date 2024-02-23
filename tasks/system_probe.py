@@ -70,6 +70,7 @@ CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
 extra_cflags = []
 
+
 def ninja_define_windows_resources(ctx, nw, major_version, arch=CURRENT_ARCH):
     maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
     nw.variable("maj_ver", maj_ver)
@@ -225,10 +226,6 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
 
-def ninja_telemetry_ebpf_program(nw, infile, outfile, flags):
-    ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
-
-
 def ninja_network_ebpf_program(nw, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
@@ -239,7 +236,6 @@ def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
     ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
     ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
-
 
 
 def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
@@ -260,7 +256,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_network_ebpf_program(nw, infile, outfile, ' '.join(network_flags+extra_cflags))
+        ninja_network_ebpf_program(nw, infile, outfile, ' '.join(network_flags + extra_cflags))
 
     for prog in network_programs_wo_instrumentation:
         infile = os.path.join(network_c_dir, f"{prog}.c")
