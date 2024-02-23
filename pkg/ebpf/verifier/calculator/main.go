@@ -70,11 +70,16 @@ func main() {
 			return nil
 		}
 
+		if skipDebugBuilds(path) || !strings.HasSuffix(path, ".o") {
+			return nil
+		}
+
 		if len(filterFiles) > 0 {
 			found := false
 			for _, f := range filterFiles {
-				if strings.TrimSuffix(d.Name(), ".o") == f {
+				if d.Name() == f {
 					found = true
+					break
 				}
 			}
 			if !found {
@@ -82,9 +87,6 @@ func main() {
 			}
 		}
 
-		if skipDebugBuilds(path) || !strings.HasSuffix(path, ".o") {
-			return nil
-		}
 		coreFile := filepath.Join(directory, "co-re", d.Name())
 		if _, err := os.Stat(coreFile); err == nil {
 			objectFiles[d.Name()] = coreFile

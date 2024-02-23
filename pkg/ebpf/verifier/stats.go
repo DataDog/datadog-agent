@@ -48,13 +48,15 @@ type Statistics struct {
 	PeakStates                 stat `json:"peak_states" kernel:"5.2"`
 }
 
-var stackUsage = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
-var verificationTime = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
-var insnProcessed = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
-var insnLimit = regexp.MustCompile(`\(limit (?P<limit>\d+)\)`)
-var maxStates = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
-var totalStates = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
-var peakStates = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
+var (
+	stackUsage       = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
+	verificationTime = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
+	insnProcessed    = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
+	insnLimit        = regexp.MustCompile(`\(limit (?P<limit>\d+)\)`)
+	maxStates        = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
+	totalStates      = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
+	peakStates       = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
+)
 
 func isCOREAsset(path string) bool {
 	return filepath.Base(filepath.Dir(path)) == "co-re"
@@ -151,6 +153,7 @@ func generateLoadFunction(file string, filterPrograms []*regexp.Regexp, stats ma
 				for _, filter := range filterPrograms {
 					if filter.FindString(progSpec.Name) != "" {
 						found = true
+						break
 					}
 				}
 				if !found {

@@ -4,9 +4,11 @@ except ImportError:
     colored = None
 import contextlib
 import json
+import os
 import sys
 
 from invoke import task
+from invoke.exceptions import Exit
 
 try:
     from tabulate import tabulate
@@ -114,11 +116,18 @@ def print_verification_stats(
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
     env = {"DD_SYSTEM_PROBE_BPF_DIR": "./pkg/ebpf/bytecode/build"}
+
+    # ensure all files are object files
+    for f in filter_file:
+        _, ext = os.path.splitext(f)
+        if ext != ".o":
+            raise Exit(f"File {f} does not have the valid '.o' extension")
+
     args = (
         [
-            "--debug" if debug_build else "",
+            "-debug" if debug_build else "",
         ]
-        + [f"-filter-file {f.split('.')[0]}" for f in filter_file]
+        + [f"-filter-file {f}" for f in filter_file]
         + [f"-filter-prog {p}" for p in grep]
     )
     res = ctx.run(f"{sudo} ./main {' '.join(args)}", env=env, hide='out')
