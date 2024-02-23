@@ -80,7 +80,8 @@ func createTestOCIArchive(t *testing.T, dir string) {
 	layerDigest := hex.EncodeToString(hasher.Sum(nil))
 	layerDigestPath := path.Join(blobPath, layerDigest)
 	// File names are digests: move file
-	os.Rename(layerPath, layerDigestPath)
+	err = os.Rename(layerPath, layerDigestPath)
+	assert.NoError(t, err)
 	layerStat, err := os.Stat(layerDigestPath)
 	assert.NoError(t, err)
 
