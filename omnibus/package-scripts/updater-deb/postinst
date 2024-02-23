@@ -115,5 +115,6 @@ chown -R dd-agent:dd-agent ${PACKAGES_DIR}
 SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
 SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
 enable_stable_agents
+SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent || true
 
 exit 0
