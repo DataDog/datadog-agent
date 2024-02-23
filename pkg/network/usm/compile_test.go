@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/cilium/ebpf"
@@ -55,17 +56,20 @@ func TestUSMCorrectlyInstrumentedWithTrampoline(t *testing.T) {
 		const maxTrampolineOffset = 2
 		for _, prog := range spec.Programs {
 			iter := prog.Instructions.Iterate()
+			found := false
 			for iter.Next() {
 				ins := iter.Ins
 				if iter.Offset > maxTrampolineOffset {
 					// The trampoline instruction should be discovered at most within two instructions
-					require.True(t, false)
+					require.True(t, false, fmt.Sprintf("EBPF trampoline not found within offset of %d instructions", maxTrampolineOffset))
 				}
 
 				if ins.OpCode.JumpOp() == asm.Call && ins.Constant == ebpfEntryTrampolinePatchCall && iter.Offset <= maxTrampolineOffset {
+					found = true
 					break
 				}
 			}
+			require.True(t, found, "EBPF trampoline not found")
 		}
 	})
 }
