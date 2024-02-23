@@ -81,6 +81,40 @@ func TestProcess(t *testing.T) {
 	})
 }
 
+func TestProcessEBPFLess(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless specific")
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ruleDef := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: fmt.Sprintf(`exec.file.name == "%s" && exec.args_flags in ["-trace"]`, path.Base(executable)),
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("proc-scan", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			if rule.ID != "datadog_agent_cws_self_test_rule_exec" && rule.ID != "test_rule" {
+				t.Skip("wrong rule triggered")
+			}
+		})
+	})
+}
+
 func TestProcessContext(t *testing.T) {
 	SkipIfNotAvailable(t)
 
