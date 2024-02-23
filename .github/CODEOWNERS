@@ -224,6 +224,7 @@
 /comp/collector @DataDog/agent-metrics-logs
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
+/comp/etw @DataDog/windows-agent
 /comp/forwarder @DataDog/agent-shared-components
 /comp/languagedetection @DataDog/container-integrations
 /comp/logs @DataDog/agent-metrics-logs
