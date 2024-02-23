@@ -61,6 +61,8 @@ type Client struct {
 
 	cwsWorkloads []string
 
+	updaterPackagesState []*pbgo.PackageState
+
 	lastUpdateError   error
 	backoffPolicy     backoff.Policy
 	backoffErrorCount int
@@ -338,6 +340,13 @@ func (c *Client) SetCWSWorkloads(workloads []string) {
 	c.cwsWorkloads = workloads
 }
 
+// SetUpdaterPackagesState sets the updater package state
+func (c *Client) SetUpdaterPackagesState(packages []*pbgo.PackageState) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.updaterPackagesState = packages
+}
+
 func (c *Client) startFn() {
 	go c.pollLoop()
 }
@@ -535,13 +544,8 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 	case true:
 		req.Client.IsUpdater = true
 		req.Client.ClientUpdater = &pbgo.ClientUpdater{
-			Tags: c.Options.updaterTags,
-			Packages: []*pbgo.PackageState{
-				{
-					Package:       "datadog-agent",
-					StableVersion: "7.50.0",
-				},
-			},
+			Tags:     c.Options.updaterTags,
+			Packages: c.updaterPackagesState,
 		}
 	case false:
 		req.Client.IsAgent = true

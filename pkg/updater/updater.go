@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,12 +33,16 @@ const (
 
 // Install installs the default version for the given package.
 // It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, rc client.ConfigFetcher, pkg string) error {
+func Install(ctx context.Context, rcFetcher client.ConfigFetcher, pkg string) error {
 	log.Infof("Updater: Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
 	repository := &repository.Repository{
 		RootPath:  path.Join(defaultRepositoryPath, pkg),
 		LocksPath: path.Join(defaultLocksPath, pkg),
+	}
+	rc, err := newRemoteConfigClient(rcFetcher)
+	if err != nil {
+		return fmt.Errorf("could not create remote config client: %w", err)
 	}
 	orgConfig, err := newOrgConfig(rc)
 	if err != nil {
@@ -75,43 +81,66 @@ type Updater interface {
 
 	GetRepositoryPath() string
 	GetPackage() string
+	GetState() (*repository.State, error)
 }
 
 type updaterImpl struct {
 	m              sync.Mutex
 	pkg            string
 	repositoryPath string
+	rc             *client.Client
 	orgConfig      *orgConfig
+	remoteAPI      *remoteAPI
 	repository     *repository.Repository
 	downloader     *downloader
 	stopChan       chan struct{}
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(rc client.ConfigFetcher, pkg string) (Updater, error) {
+func NewUpdater(rcFetcher client.ConfigFetcher, pkg string) (Updater, error) {
 	repository := &repository.Repository{
 		RootPath:  path.Join(defaultRepositoryPath, pkg),
 		LocksPath: path.Join(defaultLocksPath, pkg),
 	}
-	state, err := repository.GetState()
+	s, err := repository.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("could not get repository state: %w", err)
 	}
-	if !state.HasStable() {
+	if !s.HasStable() {
 		return nil, fmt.Errorf("attempt to create an updater for a package that has not been bootstrapped with a stable version")
+	}
+	rc, err := newRemoteConfigClient(rcFetcher)
+	if err != nil {
+		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
 	orgConfig, err := newOrgConfig(rc)
 	if err != nil {
 		return nil, fmt.Errorf("could not create org config: %w", err)
 	}
-	return &updaterImpl{
+	remoteAPI := newRemoteAPI()
+	u := &updaterImpl{
 		pkg:            pkg,
 		repositoryPath: defaultRepositoryPath,
+		rc:             rc,
 		orgConfig:      orgConfig,
+		remoteAPI:      remoteAPI,
 		repository:     repository,
 		downloader:     newDownloader(http.DefaultClient),
 		stopChan:       make(chan struct{}),
-	}, nil
+	}
+	err = u.updatePackagesState()
+	if err != nil {
+		return nil, fmt.Errorf("could not update packages state: %w", err)
+	}
+	rc.Subscribe(state.ProductUpdaterTask, u.handleUpdaterTask)
+	return u, nil
+}
+
+func (u *updaterImpl) handleUpdaterTask(requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	err := u.remoteAPI.handleRequests(u, requestConfigs, applyStateCallback)
+	if err != nil {
+		log.Errorf("could not handle updater tasks: %s", err)
+	}
 }
 
 // GetRepositoryPath returns the path to the repository.
@@ -122,6 +151,11 @@ func (u *updaterImpl) GetRepositoryPath() string {
 // GetPackage returns the package.
 func (u *updaterImpl) GetPackage() string {
 	return u.pkg
+}
+
+// GetState returns the state.
+func (u *updaterImpl) GetState() (*repository.State, error) {
+	return u.repository.GetState()
 }
 
 // Start starts the garbage collector.
@@ -144,6 +178,7 @@ func (u *updaterImpl) Start(_ context.Context) error {
 
 // Stop stops the garbage collector.
 func (u *updaterImpl) Stop(_ context.Context) error {
+	u.rc.Close()
 	close(u.stopChan)
 	return nil
 }
@@ -179,6 +214,10 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully started experiment for package %s version %s", u.pkg, version)
+	err = u.updatePackagesState()
+	if err != nil {
+		log.Warnf("could not update packages state: %s", err)
+	}
 	return nil
 }
 
@@ -192,6 +231,10 @@ func (u *updaterImpl) PromoteExperiment() error {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully promoted experiment for package %s", u.pkg)
+	err = u.updatePackagesState()
+	if err != nil {
+		log.Warnf("could not update packages state: %s", err)
+	}
 	return nil
 }
 
@@ -205,5 +248,37 @@ func (u *updaterImpl) StopExperiment() error {
 		return fmt.Errorf("could not set stable: %w", err)
 	}
 	log.Infof("Updater: Successfully stopped experiment for package %s", u.pkg)
+	err = u.updatePackagesState()
+	if err != nil {
+		log.Warnf("could not update packages state: %s", err)
+	}
 	return nil
+}
+
+func (u *updaterImpl) updatePackagesState() error {
+	state, err := u.repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get state: %w", err)
+	}
+	u.rc.SetUpdaterPackagesState([]*pbgo.PackageState{
+		{
+			Package:           u.pkg,
+			StableVersion:     state.Stable,
+			ExperimentVersion: state.Experiment,
+		},
+	})
+	return nil
+}
+
+func newRemoteConfigClient(rcFetcher client.ConfigFetcher) (*client.Client, error) {
+	client, err := client.NewClient(
+		rcFetcher,
+		client.WithUpdater("injector_tag:test"),
+		client.WithProducts(state.ProductUpdaterCatalogDD, state.ProductUpdaterAgent, state.ProductUpdaterTask), client.WithoutTufVerification(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create rc client: %w", err)
+	}
+	client.Start()
+	return client, nil
 }
