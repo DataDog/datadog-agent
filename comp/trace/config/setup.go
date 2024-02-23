@@ -21,7 +21,12 @@ import (
 	"time"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
+	"go.uber.org/zap"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -351,7 +356,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	// We use a noop set of telemetry settings. This silences all warnings and metrics from the attributes translator.
 	// The Datadog exporter overrides this with its own attributes translator using its own telemetry settings.
-	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	attributesTranslator, err := attributes.NewTranslator(noopTelemetrySettings())
 	if err != nil {
 		return err
 	}
@@ -646,6 +651,18 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil
+}
+
+// avoid importing go.opentelemetry.io/collector/component/componenttest just to get the noop telemetry settings
+func noopTelemetrySettings() component.TelemetrySettings {
+	return component.TelemetrySettings{
+		Logger:         zap.NewNop(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+		MeterProvider:  noopmetric.NewMeterProvider(),
+		MetricsLevel:   configtelemetry.LevelNone,
+		Resource:       pcommon.NewResource(),
+		ReportStatus:   func(*component.StatusEvent) {},
+	}
 }
 
 // loadDeprecatedValues loads a set of deprecated values which are kept for
