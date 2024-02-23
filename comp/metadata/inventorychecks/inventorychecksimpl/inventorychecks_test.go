@@ -10,17 +10,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -123,9 +122,13 @@ func TestGetPayload(t *testing.T) {
 			},
 		}
 
-		mockColl := pkgcollector.NewMock(cInfo)
-		mockColl.On("AddEventReceiver", mock.AnythingOfType("EventReceiver")).Return()
-		mockColl.On("MapOverChecks", mock.AnythingOfType("func([]check.Info)")).Return()
+		mockColl := fxutil.Test[collector.Component](t,
+			fx.Replace(collectorimpl.MockParams{
+				ChecksInfo: cInfo,
+			}),
+			collectorimpl.MockModule(),
+			core.MockBundle(),
+		)
 
 		// Setup log sources
 		logSources := sources.NewLogSources()

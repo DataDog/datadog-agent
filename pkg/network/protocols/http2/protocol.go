@@ -227,6 +227,7 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	}
 
 	utils.EnableOption(opts, "http2_monitoring_enabled")
+	utils.EnableOption(opts, "terminated_http2_monitoring_enabled")
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)
 	p.dynamicTable.configureOptions(mgr, opts)
@@ -384,7 +385,7 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key http2StreamKey, val EbpfTx) bool {
+	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, key http2StreamKey, val EbpfTx) bool {
 		if updated := int64(val.Stream.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

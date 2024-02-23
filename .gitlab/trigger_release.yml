@@ -28,7 +28,8 @@
       --variable RELEASE_PRODUCT
       --variable RELEASE_VERSION
       --variable TARGET_REPO
-      --variable TARGET_REPO_BRANCH'
+      --variable TARGET_REPO_BRANCH
+      $NO_FOLLOW'
   dependencies: []
 
 trigger_auto_staging_release:
@@ -46,5 +47,8 @@ trigger_manual_prod_release:
   variables:
     AUTO_RELEASE: "false"
     TARGET_REPO: prod
+    # The jobs in the downstream pipeline will all be manual, so following
+    # the created pipeline would likely cause this job to timeout
+    NO_FOLLOW: '--no-follow'
   rules:
     !reference [.on_deploy_stable_or_beta_manual_auto_on_stable]

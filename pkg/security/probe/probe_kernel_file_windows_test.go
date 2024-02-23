@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -105,9 +106,11 @@ func processUntilClose(t *testing.T, et *etwTester) {
 			return
 
 		case n := <-et.notify:
-			et.notifications = append(et.notifications, n)
 			switch n.(type) {
+			case *createHandleArgs, *createNewFileArgs, *cleanupArgs:
+				et.notifications = append(et.notifications, n)
 			case *closeArgs:
+				et.notifications = append(et.notifications, n)
 				return
 			}
 		}
@@ -288,7 +291,7 @@ func TestETWFileNotifications(t *testing.T) {
 		var once sync.Once
 		mypid := os.Getpid()
 
-		err := et.p.setupEtw(func(n interface{}, pid uint32) {
+		err := et.p.setupEtw(func(n interface{}, pid uint32, _ model.EventType) {
 			once.Do(func() {
 				close(et.etwStarted)
 			})

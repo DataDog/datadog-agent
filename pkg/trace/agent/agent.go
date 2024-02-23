@@ -13,21 +13,21 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
-	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
-
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -338,7 +338,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		a.setPayloadAttributes(p, root, chunk)
 
-		pt := processedTrace(p, chunk, root)
+		pt := processedTrace(p, chunk, root, p.TracerPayload.ContainerID, a.conf)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -391,20 +391,34 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 		p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
 	}
 	if p.TracerPayload.AppVersion == "" {
-		p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
+		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
 	}
 }
 
-// processedTrace creates a ProcessedTrace based on the provided chunk and root.
-func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) *traceutil.ProcessedTrace {
-	return &traceutil.ProcessedTrace{
+// processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
+func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, containerID string, conf *config.AgentConfig) *traceutil.ProcessedTrace {
+	pt := &traceutil.ProcessedTrace{
 		TraceChunk:             chunk,
 		Root:                   root,
 		AppVersion:             p.TracerPayload.AppVersion,
 		TracerEnv:              p.TracerPayload.Env,
 		TracerHostname:         p.TracerPayload.Hostname,
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
+		GitCommitSha:           version.GetGitCommitShaFromTrace(root, chunk),
 	}
+	// TODO: We should find a way to not repeat container tags resolution downstream in the stats writer.
+	// We will first need to deprecate the `enable_cid_stats` feature flag.
+	gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(containerID, conf)
+	if err != nil {
+		log.Error("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
+	} else {
+		pt.ImageTag = imageTag
+		// Only override the GitCommitSha if it was not set in the trace.
+		if pt.GitCommitSha == "" {
+			pt.GitCommitSha = gitCommitSha
+		}
+	}
+	return pt
 }
 
 // newChunksArray creates a new array which will point only to sampled chunks.

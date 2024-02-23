@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.2
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/shirou/gopsutil/v3 v3.23.9
 	github.com/stretchr/testify v1.8.4
@@ -17,7 +17,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect

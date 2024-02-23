@@ -18,7 +18,7 @@ int nested_func(int a, int b) {
 }
 
 // A function that simulates instructions being added in the middle of the log_debug call
-int somefunc(int number) {
+int somefunc(unsigned int number) {
     // Call another function
     u32 pid = bpf_get_smp_processor_id();
 
