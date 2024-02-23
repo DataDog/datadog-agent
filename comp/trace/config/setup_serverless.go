@@ -9,5 +9,5 @@ package config
 
 func containerTagsFunc(cid string) ([]string, error) {
 	// nothing to do here
-	return make([]string, 0), nil
+	return []string{}, nil
 }

@@ -28,7 +28,6 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -63,14 +62,14 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	enrichedTags = append(enrichedTags, extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
 
-	entityTags, err := tagger.Tag(dimensions.OriginID(), t.cardinality)
+	entityTags, err := tag(dimensions.OriginID(), t.cardinality)
 	if err != nil {
 		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
 	} else {
 		enrichedTags = append(enrichedTags, entityTags...)
 	}
 
-	globalTags, err := tagger.GlobalTags(t.cardinality)
+	globalTags, err := globalTags(t.cardinality)
 	if err != nil {
 		log.Trace(err.Error())
 	} else {
