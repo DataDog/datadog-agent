@@ -7,7 +7,7 @@
 
 package config
 
-func containerTagsFunc(cid string) ([]string, error) {
+func containerTagsFunc(_ string) ([]string, error) {
 	// nothing to do here
 	return []string{}, nil
 }
