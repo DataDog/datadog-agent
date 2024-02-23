@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -188,7 +189,7 @@ func extractTarArchive(archivePath string, destinationPath string, compression c
 				return fmt.Errorf("could not create directory: %w", err)
 			}
 		case tar.TypeReg:
-			err = extractTarFile(target, tr)
+			err = extractTarFile(target, tr, os.FileMode(header.Mode))
 			if err != nil {
 				return err // already wrapped
 			}
@@ -208,12 +209,12 @@ func extractTarArchive(archivePath string, destinationPath string, compression c
 
 // extractTarFile extracts a file from a tar archive.
 // It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
-func extractTarFile(targetPath string, reader io.Reader) error {
+func extractTarFile(targetPath string, reader io.Reader, mode fs.FileMode) error {
 	err := os.MkdirAll(filepath.Dir(targetPath), 0755)
 	if err != nil {
 		return fmt.Errorf("could not create directory: %w", err)
 	}
-	f, err := os.Create(targetPath)
+	f, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.FileMode(mode))
 	if err != nil {
 		return fmt.Errorf("could not create file: %w", err)
 	}
