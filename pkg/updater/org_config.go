@@ -62,20 +62,7 @@ func newOrgConfig(rc *client.Client) (*orgConfig, error) {
 	return c, nil
 }
 
-// Package represents a downloadable package.
-type Package struct {
-	Name     string `json:"package"`
-	Version  string `json:"version"`
-	SHA256   string `json:"sha256"`
-	URL      string `json:"url"`
-	Size     int64  `json:"size"`
-	Platform string `json:"platform"`
-	Arch     string `json:"arch"`
-}
 
-type catalog struct {
-	Packages []Package `json:"packages"`
-}
 
 // GetPackage returns the package with the given name and version.
 // The function will block until the catalog is received from RC.

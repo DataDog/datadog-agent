@@ -38,18 +38,6 @@ const (
 	methodPromoteExperiment = "promote_experiment"
 )
 
-type expectedState struct {
-	Stable     string `json:"stable"`
-	Experiment string `json:"experiment"`
-}
-
-type remoteAPIRequest struct {
-	ID            string          `json:"id"`
-	ExpectedState expectedState   `json:"expected_state"`
-	Method        string          `json:"method"`
-	Params        json.RawMessage `json:"params"`
-}
-
 type remoteAPI struct {
 	executedRequests map[string]struct{}
 }
