@@ -4,8 +4,8 @@ from unittest import mock
 
 from invoke.exceptions import Exit
 
-from ..libs.common.gitlab import Gitlab, get_gitlab_token
-from ..libs.common.remote_api import APIError
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.remote_api import APIError
 
 
 class MockResponse:
@@ -96,7 +96,3 @@ class TestStatusCode5XX(unittest.TestCase):
             failed = True
         if not failed:
             Exit("GitlabAPI was expected to fail")
-
-
-if __name__ == "__main__":
-    unittest.main()

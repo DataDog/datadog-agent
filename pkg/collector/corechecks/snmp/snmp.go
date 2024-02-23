@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
@@ -26,6 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+)
+
+const (
+	// CheckName is the name of the check
+	CheckName = common.SnmpIntegrationName
 )
 
 var timeNow = time.Now
@@ -125,18 +131,18 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
 	if c.config.Name == "" {
-		var checkName string
+		var CheckName string
 		// Set 'name' field of the instance if not already defined in rawInstance config.
 		// The name/device_id will be used by Check.BuildID for building the check id.
 		// Example of check id: `snmp:<DEVICE_ID>:a3ec59dfb03e4457`
 		if c.config.IsDiscovery() {
-			checkName = fmt.Sprintf("%s:%s", c.config.Namespace, c.config.Network)
+			CheckName = fmt.Sprintf("%s:%s", c.config.Namespace, c.config.Network)
 		} else {
-			checkName = c.config.DeviceID
+			CheckName = c.config.DeviceID
 		}
-		setNameErr := rawInstance.SetNameForInstance(checkName)
+		setNameErr := rawInstance.SetNameForInstance(CheckName)
 		if setNameErr != nil {
-			log.Warnf("error setting check name (checkName=%s): %s", checkName, setNameErr)
+			log.Warnf("error setting check name (CheckName=%s): %s", CheckName, setNameErr)
 		}
 	}
 
@@ -189,14 +195,15 @@ func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return c.singleDeviceCk.GetDiagnoses(), nil
 }
 
-func snmpFactory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &Check{
 		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
 		sessionFactory:             session.NewGosnmpSession,
 		workerRunDeviceCheckErrors: atomic.NewUint64(0),
 	}
-}
-
-func init() {
-	core.RegisterCheck(common.SnmpIntegrationName, snmpFactory)
 }

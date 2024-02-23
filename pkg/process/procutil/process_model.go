@@ -7,6 +7,7 @@ package procutil
 
 import (
 	"github.com/DataDog/gopsutil/cpu"
+	// using process.FilledProcess
 	"github.com/DataDog/gopsutil/process"
 )
 

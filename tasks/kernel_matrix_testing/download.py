@@ -3,7 +3,7 @@ import os
 import platform
 import tempfile
 
-from .tool import Exit, debug, info, warn
+from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
 
 try:
     import requests

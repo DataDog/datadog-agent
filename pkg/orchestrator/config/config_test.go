@@ -219,7 +219,6 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 }
 
 func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
-
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
@@ -241,7 +240,6 @@ func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
-
 	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
@@ -265,7 +263,6 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
-
 	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()

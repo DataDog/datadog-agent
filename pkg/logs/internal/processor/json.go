@@ -33,7 +33,7 @@ type jsonPayload struct {
 }
 
 // Encode encodes a message into a JSON byte array.
-func (j *jsonEncoder) Encode(msg *message.Message) error {
+func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 	if msg.State != message.StateRendered {
 		return fmt.Errorf("message passed to encoder isn't rendered")
 	}
@@ -47,7 +47,7 @@ func (j *jsonEncoder) Encode(msg *message.Message) error {
 		Message:   toValidUtf8(msg.GetContent()),
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
-		Hostname:  msg.GetHostname(),
+		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
 		Tags:      msg.Origin.TagsToString(),

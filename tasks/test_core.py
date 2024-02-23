@@ -4,9 +4,9 @@ import os
 from collections import defaultdict
 from typing import Dict, List
 
-from .flavor import AgentFlavor
-from .libs.common.color import color_message
-from .modules import DEFAULT_MODULES, GoModule
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
+from tasks.modules import DEFAULT_MODULES, GoModule
 
 
 class ModuleResult(abc.ABC):

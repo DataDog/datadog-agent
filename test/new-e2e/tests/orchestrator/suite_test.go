@@ -30,8 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 )
 
-var replaceStacks = flag.Bool("replace-stacks", false, "Attempt to destroy the Pulumi stacks at the beginning of the tests")
-var keepStacks = flag.Bool("keep-stacks", false, "Do not destroy the Pulumi stacks at the end of the tests")
+var (
+	replaceStacks = flag.Bool("replace-stacks", false, "Attempt to destroy the Pulumi stacks at the beginning of the tests")
+	keepStacks    = flag.Bool("keep-stacks", false, "Do not destroy the Pulumi stacks at the end of the tests")
+)
 
 func TestMain(m *testing.M) {
 	code := m.Run()
@@ -76,7 +78,7 @@ func (suite *k8sSuite) SetupSuite() {
 			fmt.Fprint(os.Stderr, err.Error())
 		}
 	}
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, Apply, false, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "orch-kind-cluster", stackConfig, Apply, false, nil)
 
 	suite.printKubeConfig(stackOutput)
 
@@ -99,7 +101,7 @@ func (suite *k8sSuite) SetupSuite() {
 	suite.Fakeintake = fakeintake.Client()
 
 	kubeconfigFile := path.Join(suite.T().TempDir(), "kubeconfig")
-	suite.Require().NoError(os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600))
+	suite.Require().NoError(os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0o600))
 
 	suite.K8sConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfigFile)
 	suite.Require().NoError(err)
@@ -116,8 +118,8 @@ func (suite *k8sSuite) TearDownSuite() {
 // printKubeConfig prints the command to update the local kubeconfig to point to the kind cluster
 func (suite *k8sSuite) printKubeConfig(stackOutput auto.UpResult) {
 	if out, ok := stackOutput.Outputs["kubeconfig"]; ok {
-		//fmt.Println("LOCAL KUBECONFIG")
-		//fmt.Println(out.Value.(string))
+		// fmt.Println("LOCAL KUBECONFIG")
+		// fmt.Println(out.Value.(string))
 		var cfg struct {
 			Clusters []struct {
 				Cluster struct {

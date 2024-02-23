@@ -5,7 +5,8 @@
 
 //go:build windows
 
-package winevtapi //nolint:revive // TODO fix revive package-comments
+// Package winevtapi implements the evtapi.API interface with the Windows Event Log API
+package winevtapi
 
 import (
 	"fmt"

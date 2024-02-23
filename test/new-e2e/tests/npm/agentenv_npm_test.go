@@ -23,7 +23,6 @@ type vmSuiteEx6 struct {
 }
 
 func TestVMSuiteEx6(t *testing.T) {
-	t.Skip("Skipping TestVMSuiteEx6 as it's flaky")
 	e2e.Run(t, &vmSuiteEx6{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)))))
 }
 
@@ -31,13 +30,13 @@ func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 	t := v.T()
 
 	// force pulumi to deploy before running the test
-	v.Env().RemoteHost.MustExecute("curl http://httpbin.org/anything")
+	v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
 	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	// This loop waits for agent and system-probe to be ready, stated by
 	// checking we eventually receive a payload
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.Env().RemoteHost.MustExecute("curl http://httpbin.org/anything")
+		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
 
 		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
 		if !assert.NoError(c, err, "fakeintake GetConnectionsNames() error") {

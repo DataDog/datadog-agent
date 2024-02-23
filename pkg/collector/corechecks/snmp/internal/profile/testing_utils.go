@@ -119,6 +119,9 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 									Name: "sysObjectID",
 								},
 							},
+							"type": {
+								Value: "load_balancer",
+							},
 						},
 					},
 					"interface": {

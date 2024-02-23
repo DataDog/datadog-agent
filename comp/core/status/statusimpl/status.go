@@ -93,7 +93,9 @@ func newStatus(deps dependencies) (status.Component, error) {
 
 	// Header providers are sorted by index
 	// We manually insert the common header provider in the first place after sorting is done
-	sortedHeaderProviders := deps.HeaderProviders
+	sortedHeaderProviders := []status.HeaderProvider{}
+	sortedHeaderProviders = append(sortedHeaderProviders, deps.HeaderProviders...)
+
 	sort.SliceStable(sortedHeaderProviders, func(i, j int) bool {
 		return sortedHeaderProviders[i].Index() < sortedHeaderProviders[j].Index()
 	})
@@ -107,21 +109,28 @@ func newStatus(deps dependencies) (status.Component, error) {
 	}, nil
 }
 
-func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) {
+func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSections ...string) ([]byte, error) {
 	var errors []error
 
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
 		for _, sc := range s.sortedHeaderProviders {
-			if err := sc.JSON(stats); err != nil {
+			if present(sc.Name(), excludeSections) {
+				continue
+			}
+
+			if err := sc.JSON(verbose, stats); err != nil {
 				errors = append(errors, err)
 			}
 		}
 
 		for _, providers := range s.sortedProvidersBySection {
 			for _, provider := range providers {
-				if err := provider.JSON(stats); err != nil {
+				if present(provider.Section(), excludeSections) {
+					continue
+				}
+				if err := provider.JSON(verbose, stats); err != nil {
 					errors = append(errors, err)
 				}
 			}
@@ -140,27 +149,40 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 		var b = new(bytes.Buffer)
 
 		for _, sc := range s.sortedHeaderProviders {
-			printHeader(b, sc.Name())
-			newLine(b)
-
-			if err := sc.Text(b); err != nil {
-				errors = append(errors, err)
+			name := sc.Name()
+			if present(name, excludeSections) {
+				continue
 			}
 
-			newLine(b)
+			if len(name) > 0 {
+				printHeader(b, name)
+				newLine(b)
+
+				if err := sc.Text(verbose, b); err != nil {
+					errors = append(errors, err)
+				}
+
+				newLine(b)
+			}
 		}
 
 		for _, section := range s.sortedSectionNames {
-			printHeader(b, section)
-			newLine(b)
-
-			for _, provider := range s.sortedProvidersBySection[section] {
-				if err := provider.Text(b); err != nil {
-					errors = append(errors, err)
-				}
+			if present(section, excludeSections) {
+				continue
 			}
 
-			newLine(b)
+			if len(section) > 0 {
+				printHeader(b, section)
+				newLine(b)
+
+				for _, provider := range s.sortedProvidersBySection[section] {
+					if err := provider.Text(verbose, b); err != nil {
+						errors = append(errors, err)
+					}
+				}
+
+				newLine(b)
+			}
 		}
 		if len(errors) > 0 {
 			if err := renderErrors(b, errors); err != nil {
@@ -175,15 +197,23 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 		var b = new(bytes.Buffer)
 
 		for _, sc := range s.sortedHeaderProviders {
-			err := sc.HTML(b)
+			if present(sc.Name(), excludeSections) {
+				continue
+			}
+
+			err := sc.HTML(verbose, b)
 			if err != nil {
 				return b.Bytes(), err
 			}
 		}
 
 		for _, section := range s.sortedSectionNames {
+			if present(section, excludeSections) {
+				continue
+			}
+
 			for _, provider := range s.sortedProvidersBySection[section] {
-				err := provider.HTML(b)
+				err := provider.HTML(verbose, b)
 				if err != nil {
 					return b.Bytes(), err
 				}
@@ -195,7 +225,7 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 	}
 }
 
-func (s *statusImplementation) GetStatusBySection(section string, format string, _ bool) ([]byte, error) {
+func (s *statusImplementation) GetStatusBySection(section string, format string, verbose bool) ([]byte, error) {
 	var errors []error
 
 	switch section {
@@ -206,7 +236,7 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 			stats := make(map[string]interface{})
 
 			for _, sc := range providers {
-				if err := sc.JSON(stats); err != nil {
+				if err := sc.JSON(verbose, stats); err != nil {
 					errors = append(errors, err)
 				}
 			}
@@ -229,7 +259,7 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 					newLine(b)
 				}
 
-				err := sc.Text(b)
+				err := sc.Text(verbose, b)
 				if err != nil {
 					errors = append(errors, err)
 				}
@@ -250,7 +280,7 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 			var b = new(bytes.Buffer)
 
 			for _, sc := range providers {
-				err := sc.HTML(b)
+				err := sc.HTML(verbose, b)
 				if err != nil {
 					return b.Bytes(), err
 				}
@@ -266,7 +296,7 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 			stats := make(map[string]interface{})
 
 			for _, sc := range providers {
-				if err := sc.JSON(stats); err != nil {
+				if err := sc.JSON(verbose, stats); err != nil {
 					errors = append(errors, err)
 				}
 			}
@@ -289,7 +319,7 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 					newLine(b)
 				}
 
-				if err := sc.Text(b); err != nil {
+				if err := sc.Text(verbose, b); err != nil {
 					errors = append(errors, err)
 				}
 			}
@@ -307,7 +337,7 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 			var b = new(bytes.Buffer)
 
 			for _, sc := range providers {
-				err := sc.HTML(b)
+				err := sc.HTML(verbose, b)
 				if err != nil {
 					return b.Bytes(), err
 				}

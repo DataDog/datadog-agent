@@ -2,10 +2,10 @@ import getpass
 import os
 from pathlib import Path
 
-from .compiler import build_compiler
-from .download import download_rootfs
-from .kmt_os import get_kmt_os
-from .tool import info
+from tasks.kernel_matrix_testing.compiler import build_compiler
+from tasks.kernel_matrix_testing.download import download_rootfs
+from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.tool import info
 
 VMCONFIG = "vmconfig.json"
 

@@ -12,6 +12,21 @@
 #include "protocols/http2/maps-defs.h"
 #include "protocols/classification/defs.h"
 
+// Returns true if the given index represents a path index.
+static __always_inline bool is_path_index(const __u64 index) {
+    return index == kEmptyPath || index == kIndexPath;
+}
+
+// Returns true is the given index represents a method index.
+static __always_inline bool is_method_index(const __u64 index) {
+    return index == kGET || index == kPOST;
+}
+
+// Returns true if the given index represents a status index.
+static __always_inline bool is_status_index(const __u64 index) {
+    return k200 <= index && index <= k500;
+}
+
 // returns true if the given index is one of the relevant headers we care for in the static table.
 // The full table can be found in the user mode code `createStaticTable`.
 static __always_inline bool is_interesting_static_entry(const __u64 index) {
@@ -36,6 +51,7 @@ static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key
         return NULL;
     }
     bpf_memset(http2_stream_ptr, 0, sizeof(http2_stream_t));
+    http2_stream_ptr->request_started = bpf_ktime_get_ns();
     bpf_map_update_elem(&http2_in_flight, http2_stream_key, http2_stream_ptr, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
 }
@@ -144,6 +160,13 @@ static __always_inline bool format_http2_frame_header(http2_frame_t *out) {
 
 static __always_inline void reset_frame(http2_frame_t *out) {
     *out = (http2_frame_t){ 0 };
+}
+
+// check_frame_split checks if the frame is split into multiple tcp payloads, if so, it increments the split counter.
+static __always_inline void check_frame_split(http2_telemetry_t *http2_tel, __u32 data_off, __u32 data_end, __u32 length){
+    if (data_off + length > data_end) {
+        __sync_fetch_and_add(&http2_tel->fragmented_frame_count, 1);
+    }
 }
 
 #endif

@@ -264,13 +264,13 @@ func TestCassandraConfParsing(t *testing.T) {
 	}
 	c, ok := LoadCassandraConfig(context.Background(), hostroot, nil)
 	assert.True(t, ok)
-	configData := c.ConfigData.(map[string]interface{})
+	configData := c.ConfigData.(*cassandraDBConfig)
 	assert.Equal(t, uint32(0600), c.ConfigFileMode)
 	assert.Equal(t, "/etc/cassandra/cassandra.yaml", c.ConfigFilePath)
 	assert.NotEmpty(t, c.ConfigFileUser)
 	assert.NotNil(t, configData)
-	assert.Equal(t, "/etc/cassandra/logback.xml", configData["logback_file_path"])
-	assert.Equal(t, cassandraLogbackSample, configData["logback_file_content"])
+	assert.Equal(t, "/etc/cassandra/logback.xml", configData.LogbackFilePath)
+	assert.Equal(t, cassandraLogbackSample, configData.LogbackFileContent)
 }
 
 func TestMongoDBConfParsing(t *testing.T) {

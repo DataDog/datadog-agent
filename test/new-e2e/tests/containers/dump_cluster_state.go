@@ -193,7 +193,7 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string) {
 		return
 	}
 
-	err = sshSession.Start("kind get kubeconfig")
+	err = sshSession.Start("kind get kubeconfig --name \"$(kind get clusters | head -n 1)\"")
 	if err != nil {
 		fmt.Fprintf(&out, "Failed to start remote command: %v\n", err)
 		return

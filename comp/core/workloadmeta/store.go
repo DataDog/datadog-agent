@@ -37,8 +37,8 @@ type subscriber struct {
 	filter   *Filter
 }
 
-// Start starts the workload metadata store.
-func (w *workloadmeta) Start(ctx context.Context) {
+// start starts the workload metadata store.
+func (w *workloadmeta) start(ctx context.Context) {
 	go func() {
 		health := health.RegisterLiveness("workloadmeta-store")
 		for {

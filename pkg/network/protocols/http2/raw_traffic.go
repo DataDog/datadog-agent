@@ -14,20 +14,23 @@ import (
 	"golang.org/x/net/http2/hpack"
 )
 
-// DynamicTableSize is the size of the dynamic table used in the HPACK encoder.
-const DynamicTableSize = 100
+// HeadersFrameOptions is used to hold the needed headers field and dynamic table update, if needed.
+type HeadersFrameOptions struct {
+	Headers                []hpack.HeaderField
+	DynamicTableUpdateSize uint32
+}
 
 // NewHeadersFrameMessage creates a new HTTP2 data frame message with the given header fields.
-func NewHeadersFrameMessage(headerFields []hpack.HeaderField, setDynamicTableSize ...bool) ([]byte, error) {
+func NewHeadersFrameMessage(frameOptions HeadersFrameOptions) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := hpack.NewEncoder(&buf)
 
-	if len(setDynamicTableSize) > 0 && setDynamicTableSize[0] {
+	if frameOptions.DynamicTableUpdateSize > 0 {
 		// we set the max dynamic table size to 100 to be able to test different cases of literal header parsing.
-		enc.SetMaxDynamicTableSizeLimit(DynamicTableSize)
+		enc.SetMaxDynamicTableSizeLimit(frameOptions.DynamicTableUpdateSize)
 	}
 
-	for _, value := range headerFields {
+	for _, value := range frameOptions.Headers {
 		if err := enc.WriteField(value); err != nil {
 			return nil, fmt.Errorf("error encoding field: %w", err)
 		}

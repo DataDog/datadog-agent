@@ -8,10 +8,12 @@
 package python
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"time"
 	"unsafe"
@@ -86,7 +88,7 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 	return pyCheck, nil
 }
 
-func (c *PythonCheck) runCheck(commitMetrics bool) error {
+func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	// Lock the GIL and release it at the end of the run
 	gstate, err := newStickyLock()
 	if err != nil {
@@ -121,6 +123,16 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 		return nil
 	}
 	return errors.New(checkErrStr)
+}
+
+func (c *PythonCheck) runCheck(commitMetrics bool) error {
+	ctx := context.Background()
+	var err error
+	idStr := string(c.id)
+	pprof.Do(ctx, pprof.Labels("check_id", idStr), func(ctx context.Context) {
+		err = c.runCheckImpl(commitMetrics)
+	})
+	return err
 }
 
 // Run a Python check

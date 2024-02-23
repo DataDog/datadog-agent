@@ -8,11 +8,12 @@
 package systemd
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/coreos/go-systemd/dbus"
+	"github.com/coreos/go-systemd/v22/dbus"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -21,12 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
 const (
-	systemdCheckName = "systemd"
+	// CheckName is the name of the check// CheckName
+	CheckName = "systemd"
 
 	unitActiveState = "active"
 	unitLoadedState = "loaded"
@@ -178,7 +181,7 @@ func (s *defaultSystemdStats) PrivateSocketConnection(privateSocket string) (*db
 }
 
 func (s *defaultSystemdStats) SystemBusSocketConnection() (*dbus.Conn, error) {
-	return dbus.NewSystemConnection()
+	return dbus.NewSystemConnectionContext(context.Background())
 }
 
 func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
@@ -186,15 +189,15 @@ func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
 }
 
 func (s *defaultSystemdStats) SystemState(c *dbus.Conn) (*dbus.Property, error) {
-	return c.SystemState()
+	return c.SystemStateContext(context.Background())
 }
 
 func (s *defaultSystemdStats) ListUnits(conn *dbus.Conn) ([]dbus.UnitStatus, error) {
-	return conn.ListUnits()
+	return conn.ListUnitsContext(context.Background())
 }
 
 func (s *defaultSystemdStats) GetUnitTypeProperties(c *dbus.Conn, unitName string, unitType string) (map[string]interface{}, error) {
-	return c.GetUnitTypeProperties(unitName, unitType)
+	return c.GetUnitTypePropertiesContext(context.Background(), unitName, unitType)
 }
 
 func (s *defaultSystemdStats) GetVersion(c *dbus.Conn) (string, error) {
@@ -559,13 +562,14 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 	return nil
 }
 
-func systemdFactory() check.Check {
-	return &SystemdCheck{
-		stats:     &defaultSystemdStats{},
-		CheckBase: core.NewCheckBase(systemdCheckName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(systemdCheckName, systemdFactory)
+func newCheck() check.Check {
+	return &SystemdCheck{
+		stats:     &defaultSystemdStats{},
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }

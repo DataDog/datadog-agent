@@ -35,7 +35,7 @@ func TestReportClusterQuotas(t *testing.T) {
 
 	instanceCfg := []byte("")
 	initCfg := []byte("")
-	kubeASCheck := KubernetesASFactory().(*KubeASCheck)
+	kubeASCheck := newCheck().(*KubeASCheck)
 	err = kubeASCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 

@@ -10,17 +10,15 @@ package kubeapiserver
 
 import (
 	"context"
-	"strings"
-
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -31,12 +29,7 @@ type deploymentFilter struct{}
 
 func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 	deployment := entity.(*workloadmeta.KubernetesDeployment)
-	return deployment == nil ||
-		(deployment.Env == "" &&
-			deployment.Version == "" &&
-			deployment.Service == "" &&
-			len(deployment.InjectableLanguages.InitContainerLanguages) == 0 &&
-			len(deployment.InjectableLanguages.ContainerLanguages) == 0)
+	return deployment == nil
 }
 
 func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
@@ -77,28 +70,32 @@ func newdeploymentParser() objectParser {
 	return deploymentParser{}
 }
 
-func updateContainerLanguageMap(m map[string][]languagemodels.Language, cName string, languages string) {
+func updateContainerLanguage(cl languagedetectionUtil.ContainersLanguages, container languagedetectionUtil.Container, languages string) {
+	if _, found := cl[container]; !found {
+		cl[container] = make(languagedetectionUtil.LanguageSet)
+	}
+
 	for _, lang := range strings.Split(languages, ",") {
-		m[cName] = append(m[cName], languagemodels.Language{
-			Name: languagemodels.LanguageName(strings.TrimSpace(lang)),
-		})
+		cl[container][languagedetectionUtil.Language(strings.TrimSpace(lang))] = struct{}{}
 	}
 }
 
 func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 	deployment := obj.(*appsv1.Deployment)
-	initContainerLanguages := make(map[string][]languagemodels.Language)
-	containerLanguages := make(map[string][]languagemodels.Language)
+	containerLanguages := make(languagedetectionUtil.ContainersLanguages)
 
 	for annotation, languages := range deployment.Annotations {
 
 		containerName, isInitContainer := languagedetectionUtil.ExtractContainerFromAnnotationKey(annotation)
-		if containerName != "" {
-			if isInitContainer {
-				updateContainerLanguageMap(initContainerLanguages, containerName, languages)
-			} else {
-				updateContainerLanguageMap(containerLanguages, containerName, languages)
-			}
+		if containerName != "" && languages != "" {
+
+			updateContainerLanguage(
+				containerLanguages,
+				languagedetectionUtil.Container{
+					Name: containerName,
+					Init: isInitContainer,
+				},
+				languages)
 		}
 	}
 
@@ -107,12 +104,9 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   deployment.Namespace + "/" + deployment.Name, // we use the namespace/name as id to make it easier for the admission controller to retrieve the corresponding deployment
 		},
-		Env:     deployment.Labels[ddkube.EnvTagLabelKey],
-		Service: deployment.Labels[ddkube.ServiceTagLabelKey],
-		Version: deployment.Labels[ddkube.VersionTagLabelKey],
-		InjectableLanguages: workloadmeta.Languages{
-			ContainerLanguages:     containerLanguages,
-			InitContainerLanguages: initContainerLanguages,
-		},
+		Env:                 deployment.Labels[ddkube.EnvTagLabelKey],
+		Service:             deployment.Labels[ddkube.ServiceTagLabelKey],
+		Version:             deployment.Labels[ddkube.VersionTagLabelKey],
+		InjectableLanguages: containerLanguages,
 	}
 }

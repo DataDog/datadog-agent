@@ -47,9 +47,9 @@ type signingMetadata struct {
 
 // signingKey represents relevant fields for a package signature key
 type signingKey struct {
-	Fingerprint    string       `json:"signing_key_fingerprint"`
-	ExpirationDate string       `json:"signing_key_expiration_date"`
-	KeyType        string       `json:"signing_key_type"`
+	Fingerprint    string       `json:"fingerprint"`
+	ExpirationDate string       `json:"expiration_date"`
+	KeyType        string       `json:"type"`
 	Repositories   []Repository `json:"repositories"`
 }
 

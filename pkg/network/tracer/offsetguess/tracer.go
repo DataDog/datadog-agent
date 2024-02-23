@@ -21,14 +21,13 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unsafe"
 
-	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -305,10 +304,10 @@ func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64) error {
-	// get the updated map value so we can check if the current offset is
+func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[uint64, TracerStatus], expected *fieldValues, maxRetries *int, threshold uint64) error {
+	// get the updated map value, so we can check if the current offset is
 	// the right one
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
+	if err := mp.Lookup(&zero, t.status); err != nil {
 		return fmt.Errorf("error reading tracer_status: %v", err)
 	}
 
@@ -671,16 +670,16 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 
 	t.status.State = uint64(StateChecking)
 	// update the map with the new offset/field to check
-	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
+	if err := mp.Put(&zero, t.status); err != nil {
 		return fmt.Errorf("error updating tracer_t.status: %v", err)
 	}
 
 	return nil
 }
 
-func (t *tracerOffsetGuesser) setReadyState(mp *ebpf.Map) error {
+func (t *tracerOffsetGuesser) setReadyState(mp *maps.GenericMap[uint64, TracerStatus]) error {
 	t.status.State = uint64(StateReady)
-	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
+	if err := mp.Put(&zero, t.status); err != nil {
 		return fmt.Errorf("error updating tracer_status: %v", err)
 	}
 	return nil
@@ -710,7 +709,7 @@ func (t *tracerOffsetGuesser) flowi6EntryState() GuessWhat {
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
 func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEditor, error) {
-	mp, _, err := t.m.GetMap(probes.TracerStatusMap)
+	mp, err := maps.GetMap[uint64, TracerStatus](t.m, probes.TracerStatusMap)
 	if err != nil {
 		return nil, fmt.Errorf("unable to find map %s: %s", probes.TracerStatusMap, err)
 	}
@@ -743,7 +742,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	}
 
 	// if we already have the offsets, just return
-	err = mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(t.status))
+	err = mp.Lookup(&zero, t.status)
 	if err == nil && State(t.status.State) == StateReady {
 		return t.getConstantEditors(), nil
 	}
@@ -755,7 +754,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	defer eventGenerator.Close()
 
 	// initialize map
-	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
+	if err := mp.Put(&zero, t.status); err != nil {
 		return nil, fmt.Errorf("error initializing tracer_status map: %v", err)
 	}
 

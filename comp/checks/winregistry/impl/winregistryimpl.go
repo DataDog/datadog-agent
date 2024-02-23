@@ -176,7 +176,7 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 		if initSendOnStart, initSendOnStartSet := initCfg.SendOnStart.Get(); initSendOnStartSet {
 			sendOnStart = initSendOnStart
 		} else {
-			sendOnStart = false
+			sendOnStart = true
 		}
 	}
 
@@ -358,14 +358,14 @@ func (c *WindowsRegistryCheck) Run() error {
 func newWindowsRegistryComponent(deps dependencies) winregistry.Component {
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			core.RegisterCheck(checkName, func() check.Check {
+			core.RegisterCheck(checkName, optional.NewOption(func() check.Check {
 				integrationLogs, _ := deps.LogsComponent.Get()
 				return &WindowsRegistryCheck{
 					CheckBase:     core.NewCheckBase(checkName),
 					logsComponent: integrationLogs,
 					log:           deps.Log,
 				}
-			})
+			}))
 			return nil
 		},
 	})

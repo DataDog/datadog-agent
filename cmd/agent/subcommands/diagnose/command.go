@@ -16,10 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -94,7 +96,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						NoInstance: !cliParams.runLocal,
 					}
 				}),
+				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				workloadmeta.OptionalModule(),
+				tagger.OptionalModule(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},
@@ -223,7 +227,11 @@ This command print the package-signing metadata payload. This payload is used by
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Component, _ optional.Option[workloadmeta.Component]) error {
+func cmdDiagnose(cliParams *cliParams,
+	senderManager diagnosesendermanager.Component,
+	_ optional.Option[workloadmeta.Component],
+	_ optional.Option[tagger.Component],
+	collector optional.Option[collector.Component]) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
@@ -233,17 +241,17 @@ func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Compo
 
 	// Is it List command
 	if cliParams.listSuites {
-		pkgdiagnose.ListStdOut(color.Output, diagCfg)
+		pkgdiagnose.ListStdOut(color.Output, diagCfg, senderManager, collector)
 		return nil
 	}
 
 	// Run command
-	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager)
+	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager, collector)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
 func printPayload(name payloadName, _ log.Component, config config.Component) error {
-	if err := util.SetAuthToken(); err != nil {
+	if err := util.SetAuthToken(config); err != nil {
 		fmt.Println(err)
 		return nil
 	}

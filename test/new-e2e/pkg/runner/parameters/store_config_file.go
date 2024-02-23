@@ -38,6 +38,7 @@ type ConfigParams struct {
 	Agent     Agent  `yaml:"agent"`
 	OutputDir string `yaml:"outputDir"`
 	Pulumi    Pulumi `yaml:"pulumi"`
+	DevMode   string `yaml:"devMode"`
 }
 
 // AWS instance contains AWS related parameters
@@ -144,6 +145,8 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.Pulumi.LogLevel
 	case PulumiLogToStdErr:
 		value = s.config.ConfigParams.Pulumi.LogToStdErr
+	case DevMode:
+		value = s.config.ConfigParams.DevMode
 	}
 
 	if value == "" {

@@ -17,7 +17,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,7 +27,7 @@ const defaultTimeout = time.Second
 // Serve configures and starts the http server for the health check.
 // It returns an error if the setup failed, or runs the server in a goroutine.
 // Stop the server by cancelling the passed context.
-func Serve(ctx context.Context, port int) error {
+func Serve(ctx context.Context, config model.Reader, port int) error {
 	if port == 0 {
 		return errors.New("port should be non-zero")
 	}
@@ -37,10 +37,10 @@ func Serve(ctx context.Context, port int) error {
 	}
 
 	r := mux.NewRouter()
-	r.HandleFunc("/live", liveHandler)
-	r.HandleFunc("/ready", readyHandler)
+	r.HandleFunc("/live", liveHandler(config))
+	r.HandleFunc("/ready", readyHandler(config))
 	// Default route for backward compatibility
-	r.NewRoute().HandlerFunc(liveHandler)
+	r.NewRoute().HandlerFunc(liveHandler(config))
 
 	srv := &http.Server{
 		Handler:           r,
@@ -64,7 +64,7 @@ func closeOnContext(ctx context.Context, srv *http.Server) {
 	srv.Shutdown(timeout) //nolint:errcheck
 }
 
-func healthHandler(getStatusNonBlocking func() (health.Status, error), w http.ResponseWriter, _ *http.Request) {
+func healthHandler(config model.Reader, getStatusNonBlocking func() (health.Status, error), w http.ResponseWriter, _ *http.Request) {
 	health, err := getStatusNonBlocking()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -73,7 +73,7 @@ func healthHandler(getStatusNonBlocking func() (health.Status, error), w http.Re
 	if len(health.Unhealthy) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Infof("Healthcheck failed on: %v", health.Unhealthy)
-		if config.Datadog.GetBool("log_all_goroutines_when_unhealthy") {
+		if config.GetBool("log_all_goroutines_when_unhealthy") {
 			log.Infof("Goroutines stack: \n%s\n", allStack())
 		}
 	}
@@ -89,10 +89,14 @@ func healthHandler(getStatusNonBlocking func() (health.Status, error), w http.Re
 	w.Write(jsonHealth)
 }
 
-func liveHandler(w http.ResponseWriter, r *http.Request) {
-	healthHandler(health.GetLiveNonBlocking, w, r)
+func liveHandler(config model.Reader) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		healthHandler(config, health.GetLiveNonBlocking, w, r)
+	}
 }
 
-func readyHandler(w http.ResponseWriter, r *http.Request) {
-	healthHandler(health.GetReadyNonBlocking, w, r)
+func readyHandler(config model.Reader) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		healthHandler(config, health.GetReadyNonBlocking, w, r)
+	}
 }

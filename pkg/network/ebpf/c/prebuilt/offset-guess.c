@@ -153,7 +153,7 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
             new_status.err = 1;
             break;
         }
-        //log_debug("netns: off=%u ino=%u val=%u\n", status->offset_netns, status->offset_ino, possible_netns);
+        //log_debug("netns: off=%u ino=%u val=%u", status->offset_netns, status->offset_ino, possible_netns);
         new_status.netns = possible_netns;
         break;
     case GUESS_RTT:

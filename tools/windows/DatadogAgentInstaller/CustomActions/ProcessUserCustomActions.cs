@@ -10,27 +10,49 @@ using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.CustomActions
 {
+    // InvalidAgentUserException is a custom exception type that contains a message that can be displayed to the user in a dialog box.
+    // Use to distinguish an expected user configuration error with a message that should be displayed to the user from an unexpected runtime exception.
+    // This message is displayed to the customer in a dialog box. Ensure the text is well formatted.
+    public class InvalidAgentUserConfigurationException : Exception
+    {
+        public InvalidAgentUserConfigurationException()
+        {
+        }
+
+        public InvalidAgentUserConfigurationException(string message) : base(message)
+        {
+        }
+
+        public InvalidAgentUserConfigurationException(string message, Exception inner) : base(message, inner)
+        {
+        }
+    }
+
     public class ProcessUserCustomActions
     {
         private readonly ISession _session;
         private readonly INativeMethods _nativeMethods;
         private readonly IServiceController _serviceController;
+        private readonly IRegistryServices _registryServices;
 
         public ProcessUserCustomActions(
             ISession session,
             INativeMethods nativeMethods,
-            IServiceController serviceController)
+            IServiceController serviceController,
+            IRegistryServices registryServices)
         {
             _session = session;
             _nativeMethods = nativeMethods;
             _serviceController = serviceController;
+            _registryServices = registryServices;
         }
 
         public ProcessUserCustomActions(ISession session)
             : this(
                 session,
                 new Win32NativeMethods(),
-                new ServiceController()
+                new ServiceController(),
+                new RegistryServices()
             )
         {
         }
@@ -205,6 +227,114 @@ namespace Datadog.CustomActions
             return userFound;
         }
 
+
+        /// <summary>
+        /// Throws an exception if the agent user is the same as the current user.
+        /// </summary>
+        /// <remarks>
+        /// Since the installer modifies the user account, if the current user is provided for the ddagentuser the account will be locked out.
+        /// If a customer does this by mistake, they will have to use a different account to log in to the machine and fix the account.
+        /// To avoid this, we disallow using the current user as the ddagentuser unless the user is a service account (e.g. LocalSystem)
+        /// </remarks>
+        private void TestAgentUserIsNotCurrentUser(SecurityIdentifier agentUser, bool isServiceAccount)
+        {
+            string currentUserName;
+            SecurityIdentifier currentUserSID;
+            try
+            {
+                _nativeMethods.GetCurrentUser(out currentUserName, out currentUserSID);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Unable to get current user SID: {e}");
+                return;
+            }
+            _session.Log($"Currently logged in user: {currentUserName} ({currentUserSID})");
+
+            // If the user is a service account (e.g. LocalSystem) then it's ok to use the same account
+            if (isServiceAccount)
+            {
+                return;
+            }
+
+            // good, agent user and current user are different
+            if (!currentUserSID.Equals(agentUser))
+            {
+                return;
+            }
+
+            throw new InvalidAgentUserConfigurationException("The account provided is the same as the currently logged in user. Please supply a different account for the Datadog Agent.");
+        }
+
+        /// <summary>
+        /// Throws an exception if the password is required but not provided.
+        /// </summary>
+        private void TestIfPasswordIsRequiredAndProvidedForExistingAccount(string ddAgentUserPassword, bool isDomainController,
+            bool isServiceAccount, bool isDomainAccount, bool datadogAgentServiceExists)
+        {
+            var passwordProvided = !string.IsNullOrEmpty(ddAgentUserPassword);
+
+            // If password is provided or the account is a service account (no password), we're good
+            if (passwordProvided || isServiceAccount)
+            {
+                return;
+            }
+
+            // If the service already exists (like during upgrade) then we don't need a password
+            if (datadogAgentServiceExists)
+            {
+                return;
+            }
+
+            if (isDomainController)
+            {
+                // We choose not to create/manage the account/password on domain controllers because
+                // the account can be replicated/used across the domain/forest.
+                throw new InvalidAgentUserConfigurationException(
+                    "A password was not provided. Passwords are required for non-service accounts on Domain Controllers.");
+            }
+
+            if (isDomainAccount)
+            {
+                // We can't create a new account or change a password from a domain client, so we must require a password
+                throw new InvalidAgentUserConfigurationException(
+                    "A password was not provided. Passwords are required for domain accounts.");
+            }
+        }
+
+        private ActionResult HandleProcessDdAgentUserCredentialsException(Exception e, string errorDialogMessage, bool calledFromUIControl)
+        {
+            _session.Log($"Error processing ddAgentUser credentials: {e}");
+            if (calledFromUIControl)
+            {
+                // When called from a UI control we must store the error information in the session
+                // because logging is not available.
+                _session["ErrorModal_ExceptionInformation"] = e.ToString();
+                // When called from InstallUISequence we must return success for the modal dialog to show,
+                // otherwise the installer exits. The control that called this action should check the
+                // DDAgentUser_Valid property to determine if this function succeeded or failed.
+                // Error information is contained in the ErrorModal_ErrorMessage property.
+                // MsiProcessMessage doesn't work here so we must use our own custom error popup.
+                _session["ErrorModal_ErrorMessage"] = errorDialogMessage;
+                _session["DDAgentUser_Valid"] = "False";
+                return ActionResult.Success;
+            }
+
+            // Send an error message, the installer may display an error popup depending on the UILevel.
+            // https://learn.microsoft.com/en-us/windows/win32/msi/user-interface-levels
+            {
+                using var actionRecord = new Record
+                {
+                    FormatString = errorDialogMessage
+                };
+                _session.Message(InstallMessage.Error
+                                 | (InstallMessage)((int)MessageBoxButtons.OK | (int)MessageBoxIcon.Warning),
+                    actionRecord);
+            }
+            // When called from InstallExecuteSequence we want to fail on error
+            return ActionResult.Failure;
+        }
+
         /// <summary>
         /// Processes the DDAGENTUSER_NAME and DDAGENTUSER_PASSWORD properties into formats that can be
         /// consumed by other custom actions. Also does some basic error handling/checking on the property values.
@@ -223,9 +353,6 @@ namespace Datadog.CustomActions
         /// </remarks>
         public ActionResult ProcessDdAgentUserCredentials(bool calledFromUIControl = false)
         {
-            // This message is displayed to the customer in a dialog box. Ensure the text is well formatted.
-            string errorDialogMessage = null;
-
             try
             {
                 if (calledFromUIControl)
@@ -239,7 +366,7 @@ namespace Datadog.CustomActions
                 var ddAgentUserPassword = _session.Property("DDAGENTUSER_PASSWORD");
                 var isDomainController = _nativeMethods.IsDomainController();
                 var isReadOnlyDomainController = _nativeMethods.IsReadOnlyDomainController();
-                var datadogAgentServiceExists = _serviceController.ServiceExists("datadogagent");
+                var datadogAgentServiceExists = _serviceController.ServiceExists(Constants.AgentServiceName);
 
                 // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
                 // do the conversion here for user's convenience.
@@ -262,9 +389,7 @@ namespace Datadog.CustomActions
                     {
                         // require user to provide a username on domain controllers so that the customer is explicit
                         // about the username/password that will be created on their domain if it does not exist.
-                        errorDialogMessage =
-                            "A username was not provided. A username is a required when installing on Domain Controllers.";
-                        throw new InvalidOperationException(errorDialogMessage);
+                        throw new InvalidAgentUserConfigurationException("A username was not provided. A username is a required when installing on Domain Controllers.");
                     }
 
                     // Creds are not in registry and user did not pass a value, use default account name
@@ -287,9 +412,7 @@ namespace Datadog.CustomActions
                     // Ensure name belongs to a user account or special accounts like SYSTEM, and not to a domain, computer or group.
                     if (nameUse != SID_NAME_USE.SidTypeUser && nameUse != SID_NAME_USE.SidTypeWellKnownGroup)
                     {
-                        errorDialogMessage =
-                            "The name provided is not a user account. Please supply a user account name in the format domain\\username.";
-                        throw new InvalidOperationException(errorDialogMessage);
+                        throw new InvalidAgentUserConfigurationException("The name provided is not a user account. Please supply a user account name in the format domain\\username.");
                     }
 
                     _session["DDAGENTUSER_FOUND"] = "true";
@@ -299,25 +422,8 @@ namespace Datadog.CustomActions
                     _session.Log(
                         $"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
 
-                    if (string.IsNullOrEmpty(ddAgentUserPassword) &&
-                        !isServiceAccount)
-                    {
-                        if (isDomainController &&
-                            !datadogAgentServiceExists)
-                        {
-                            errorDialogMessage =
-                                "A password was not provided. Passwords are required for non-service accounts on Domain Controllers.";
-                            throw new InvalidOperationException(errorDialogMessage);
-                        }
-
-                        if (isDomainAccount &&
-                            !datadogAgentServiceExists)
-                        {
-                            errorDialogMessage =
-                                "A password was not provided. Passwords are required for domain accounts.";
-                            throw new InvalidOperationException(errorDialogMessage);
-                        }
-                    }
+                    TestAgentUserIsNotCurrentUser(securityIdentifier, isServiceAccount);
+                    TestIfPasswordIsRequiredAndProvidedForExistingAccount(ddAgentUserPassword, isDomainController, isServiceAccount, isDomainAccount, datadogAgentServiceExists);
                 }
                 else
                 {
@@ -331,9 +437,7 @@ namespace Datadog.CustomActions
                 if (string.IsNullOrEmpty(userName))
                 {
                     // If userName is empty at this point, then it is likely that the input is malformed
-                    errorDialogMessage =
-                        $"Unable to parse account name from {ddAgentUserName}. Please ensure the account name follows the format domain\\username.";
-                    throw new Exception(errorDialogMessage);
+                    throw new InvalidAgentUserConfigurationException($"Unable to parse account name from {ddAgentUserName}. Please ensure the account name follows the format domain\\username.");
                 }
 
                 if (string.IsNullOrEmpty(domain))
@@ -346,9 +450,7 @@ namespace Datadog.CustomActions
                 // User does not exist and we cannot create user account from RODC
                 if (!userFound && isReadOnlyDomainController)
                 {
-                    errorDialogMessage =
-                        "The account does not exist. Domain accounts must already exist when installing on Read-Only Domain Controllers.";
-                    throw new InvalidOperationException(errorDialogMessage);
+                    throw new InvalidAgentUserConfigurationException("The account does not exist. Domain accounts must already exist when installing on Read-Only Domain Controllers.");
                 }
 
                 // We are trying to create a user in a domain on a non-domain controller.
@@ -357,9 +459,7 @@ namespace Datadog.CustomActions
                     !isDomainController &&
                     domain != Environment.MachineName)
                 {
-                    errorDialogMessage =
-                        "The account does not exist. Domain accounts must already exist when installing on Domain Clients.";
-                    throw new InvalidOperationException(errorDialogMessage);
+                    throw new InvalidAgentUserConfigurationException("The account does not exist. Domain accounts must already exist when installing on Domain Clients.");
                 }
 
                 _session.Log(
@@ -377,9 +477,7 @@ namespace Datadog.CustomActions
                 {
                     // require user to provide a password on domain controllers so that the customer is explicit
                     // about the username/password that will be created on their domain if it does not exist.
-                    errorDialogMessage =
-                        "A password was not provided. A password is a required when installing on Domain Controllers.";
-                    throw new InvalidOperationException(errorDialogMessage);
+                    throw new InvalidAgentUserConfigurationException("A password was not provided. A password is a required when installing on Domain Controllers.");
                 }
 
                 if (!isServiceAccount &&
@@ -398,39 +496,13 @@ namespace Datadog.CustomActions
 
                 _session["DDAGENTUSER_PROCESSED_PASSWORD"] = ddAgentUserPassword;
             }
+            catch (InvalidAgentUserConfigurationException e)
+            {
+                return HandleProcessDdAgentUserCredentialsException(e, e.Message, calledFromUIControl);
+            }
             catch (Exception e)
             {
-                _session.Log($"Error processing ddAgentUser credentials: {e}");
-                if (string.IsNullOrEmpty(errorDialogMessage))
-                {
-                    errorDialogMessage = $"An unexpected error occurred while parsing the account name: {e.Message}";
-                }
-
-                if (calledFromUIControl)
-                {
-                    // When called from InstallUISequence we must return success for the modal dialog to show,
-                    // otherwise the installer exits. The control that called this action should check the
-                    // DDAgentUser_Valid property to determine if this function succeeded or failed.
-                    // Error information is contained in the ErrorModal_ErrorMessage property.
-                    // MsiProcessMessage doesn't work here so we must use our own custom error popup.
-                    _session["ErrorModal_ErrorMessage"] = errorDialogMessage;
-                    _session["DDAgentUser_Valid"] = "False";
-                    return ActionResult.Success;
-                }
-
-                // Send an error message, the installer may display an error popup depending on the UILevel.
-                // https://learn.microsoft.com/en-us/windows/win32/msi/user-interface-levels
-                {
-                    using var actionRecord = new Record
-                    {
-                        FormatString = errorDialogMessage
-                    };
-                    _session.Message(InstallMessage.Error
-                                     | (InstallMessage)((int)MessageBoxButtons.OK | (int)MessageBoxIcon.Warning),
-                        actionRecord);
-                }
-                // When called from InstallExecuteSequence we want to fail on error
-                return ActionResult.Failure;
+                return HandleProcessDdAgentUserCredentialsException(e, "An unexpected error occurred while parsing the account name. Refer to the installation log for more information or contact support for assistance.", calledFromUIControl);
             }
 
             if (calledFromUIControl)

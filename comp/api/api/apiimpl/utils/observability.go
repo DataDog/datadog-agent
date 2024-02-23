@@ -8,6 +8,7 @@ package utils
 
 import (
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -18,7 +19,7 @@ import (
 
 type logFunc func(format string, args ...interface{})
 
-const logFormat = "%s: %s %s from %s took %s and returned http code %d"
+const logFormat = "%s: %s %s from %s to %s took %s and returned http code %d"
 
 func getLogFunc(code int) logFunc {
 	if code >= 100 && code < 400 {
@@ -48,7 +49,14 @@ func logResponseHandler(serverName string, getLogFunc func(int) logFunc) mux.Mid
 			code := lrw.Status()
 			logFunc := getLogFunc(code)
 
-			logFunc(logFormat, serverName, r.Method, r.RequestURI, r.RemoteAddr, duration, code)
+			var path string
+			// can't use r.URL.Path because http.StripPrefix could have been used
+			if reqURL, err := url.ParseRequestURI(r.RequestURI); err == nil {
+				path = reqURL.Path
+			} else {
+				path = "<invalid url>" // redacted in case it contained sensitive information
+			}
+			logFunc(logFormat, serverName, r.Method, path, r.RemoteAddr, r.Host, duration, code)
 		})
 	}
 }

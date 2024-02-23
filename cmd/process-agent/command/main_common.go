@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -38,9 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -121,6 +119,12 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide remote config client module
 		rcclient.Module(),
 
+		// Provide workloadmeta module
+		workloadmeta.Module(),
+
+		// Provide tagger module
+		tagger.Module(),
+
 		// Provide statsd client module
 		compstatsd.Module(),
 
@@ -138,6 +142,14 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			return workloadmeta.Params{AgentType: catalog}
 		}),
 
+		// Provide the corresponding tagger Params to configure the tagger
+		fx.Provide(func(c config.Component) tagger.Params {
+			if c.GetBool("process_config.remote_tagger") {
+				return tagger.NewNodeRemoteTaggerParams()
+			}
+			return tagger.NewTaggerParams()
+		}),
+
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
 
@@ -153,6 +165,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			profiler.Component,
 			expvars.Component,
 			apiserver.Component,
+			// TODO: This is needed by the container-provider which is not currently a component.
+			// We should ensure the tagger is a dependency when converting to a component.
+			tagger.Component,
 		) {
 		}),
 
@@ -229,6 +244,7 @@ type miscDeps struct {
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
+	Logger       logComponent.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -236,45 +252,26 @@ type miscDeps struct {
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
 	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
-		log.Criticalf("Error configuring statsd: %s", err)
+		deps.Logger.Criticalf("Error configuring statsd: %s", err)
 		return err
 	}
 
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
-		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
-
-	// Setup remote tagger
-	var t tagger.Tagger
-	if deps.Config.GetBool("process_config.remote_tagger") {
-		options, err := remote.NodeAgentOptions()
-		if err != nil {
-			log.Errorf("unable to deps.Configure the remote tagger: %s", err)
-		} else {
-			t = remote.NewTagger(options)
-		}
-	} else {
-		t = local.NewTagger(deps.WorkloadMeta)
-	}
-	tagger.SetDefaultTagger(t)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 
-	// TODO(components): still unclear how the initialization of workoadmeta
+	// TODO(components): still unclear how the initialization of workloadmeta
 	//                   store and tagger should be performed.
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(startCtx context.Context) error {
 
-			err := tagger.Init(startCtx)
+			err := manager.ConfigureAutoExit(startCtx, deps.Config)
 			if err != nil {
-				log.Errorf("failed to start the tagger: %s", err)
-			}
-
-			err = manager.ConfigureAutoExit(startCtx, deps.Config)
-			if err != nil {
-				log.Criticalf("Unable to configure auto-exit, err: %w", err)
+				deps.Logger.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
 			}
 
@@ -288,12 +285,6 @@ func initMisc(deps miscDeps) error {
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			// Stop the remote tagger
-			err := tagger.Stop()
-			if err != nil {
-				return err
-			}
-
 			stopApp()
 
 			return nil

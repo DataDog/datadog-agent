@@ -191,7 +191,7 @@ func LoadCassandraConfig(ctx context.Context, hostroot string, proc *process.Pro
 		result.ProcessName, _ = proc.NameWithContext(ctx)
 	}
 
-	var configData map[string]interface{}
+	var configData *cassandraDBConfig
 	matches, _ := filepath.Glob(filepath.Join(hostroot, cassandraConfigGlob))
 	for _, configPath := range matches {
 		fi, err := os.Stat(configPath)
@@ -217,8 +217,8 @@ func LoadCassandraConfig(ctx context.Context, hostroot string, proc *process.Pro
 
 	logback, err := readFileLimit(filepath.Join(hostroot, cassandraLogbackPath))
 	if err == nil {
-		configData["logback_file_path"] = cassandraLogbackPath
-		configData["logback_file_content"] = string(logback)
+		configData.LogbackFilePath = cassandraLogbackPath
+		configData.LogbackFileContent = string(logback)
 	}
 	result.ConfigData = configData
 	return &result, true

@@ -51,9 +51,6 @@ func (c *Check) init() error {
 	if i.HostName.Valid {
 		tags = append(tags, fmt.Sprintf("real_hostname:%s", i.HostName.String))
 	}
-	if c.dbHostname != "" {
-		tags = append(tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("db_server:%s", c.dbHostname))
-	}
 	tags = append(tags, fmt.Sprintf("oracle_version:%s", c.dbVersion))
 
 	var d vDatabase

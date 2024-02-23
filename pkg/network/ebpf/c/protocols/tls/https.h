@@ -94,7 +94,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
 
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
-        log_debug("dispatcher failed to save arguments for tls tail call\n");
+        log_debug("dispatcher failed to save arguments for tls tail call");
         return;
     }
     *args = (tls_dispatcher_arguments_t){
@@ -137,7 +137,7 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     const __u32 zero = 0;
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
-        log_debug("dispatcher failed to save arguments for tls tail call\n");
+        log_debug("dispatcher failed to save arguments for tls tail call");
         return;
     }
     bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
@@ -223,27 +223,27 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
 
     inode = BPF_CORE_READ(t, mm, exe_file, f_inode);
     if (!inode) {
-        log_debug("get_offsets_data: could not read f_inode field\n");
+        log_debug("get_offsets_data: could not read f_inode field");
         return NULL;
     }
 
     int err;
     err = BPF_CORE_READ_INTO(&key.ino, inode, i_ino);
     if (err) {
-        log_debug("get_offsets_data: could not read i_ino field\n");
+        log_debug("get_offsets_data: could not read i_ino field");
         return NULL;
     }
 
     err = BPF_CORE_READ_INTO(&dev_id, inode, i_sb, s_dev);
     if (err) {
-        log_debug("get_offsets_data: could not read s_dev field\n");
+        log_debug("get_offsets_data: could not read s_dev field");
         return NULL;
     }
 
     key.device_id_major = MAJOR(dev_id);
     key.device_id_minor = MINOR(dev_id);
 
-    log_debug("get_offsets_data: task binary inode number: %ld; device ID %x:%x\n", key.ino, key.device_id_major, key.device_id_minor);
+    log_debug("get_offsets_data: task binary inode number: %ld; device ID %x:%x", key.ino, key.device_id_major, key.device_id_minor);
 
     return bpf_map_lookup_elem(&offsets_data, &key);
 }

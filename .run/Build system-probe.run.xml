@@ -13,7 +13,7 @@
     <option name="EXECUTE_SCRIPT_FILE" value="true" />
     <envs>
       <env name="SCRIPT_TO_RUN" value=".run/build.sh" />
-      <env name="BUILD_COMMAND" value="invoke system-probe.build" />
+      <env name="BUILD_COMMAND" value="invoke system-probe.build --no-bundle" />
     </envs>
     <method v="2" />
   </configuration>

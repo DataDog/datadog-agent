@@ -33,11 +33,9 @@ type ContainerConfigProvider struct {
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+func NewContainerConfigProvider(_ *config.ConfigurationProviders, wmeta workloadmeta.Component) (ConfigProvider, error) {
 	return &ContainerConfigProvider{
-		// TODO(components): references to globals should be removed and injected components
-		//                   should be used instead.
-		workloadmetaStore: workloadmeta.GetGlobalStore(),
+		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
 		configErrors:      make(map[string]ErrorMsgSet),
 	}, nil
@@ -209,7 +207,7 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 			}
 
 			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
-			c, errors = utils.ExtractTemplatesFromPodAnnotations(
+			c, errors = utils.ExtractTemplatesFromAnnotations(
 				containerEntity,
 				entity.Annotations,
 				adIdentifier,
@@ -318,5 +316,5 @@ func findKubernetesInLabels(labels map[string]string) bool {
 }
 
 func init() {
-	RegisterProvider(names.KubeContainer, NewContainerConfigProvider)
+	RegisterProviderWithComponents(names.KubeContainer, NewContainerConfigProvider)
 }

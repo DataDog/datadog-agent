@@ -208,7 +208,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 // InjectCWSPodInstrumentation injects CWS pod instrumentation
 func (ci *CWSInstrumentation) InjectCWSPodInstrumentation(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ kubernetes.Interface) ([]byte, error) {
-	return mutate(rawPod, ns, ci.injectCWSPodInstrumentation, dc)
+	return Mutate(rawPod, ns, ci.injectCWSPodInstrumentation, dc)
 }
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) error {

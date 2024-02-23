@@ -158,6 +158,17 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 			delete(s.Meta, "http.status_code")
 		}
 	}
+
+	if len(s.SpanLinks) > 0 {
+		for _, link := range s.SpanLinks {
+			if val, ok := link.Attributes["link.name"]; ok {
+				link.Attributes["link.name"], err = traceutil.NormalizeName(val)
+				if err != nil {
+					log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, link.Attributes["link.name"])
+				}
+			}
+		}
+	}
 	return nil
 }
 

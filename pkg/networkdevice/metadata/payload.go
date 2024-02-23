@@ -52,6 +52,7 @@ type DeviceMetadata struct {
 	Tags           []string     `json:"tags"`
 	IPAddress      string       `json:"ip_address"`
 	Status         DeviceStatus `json:"status"`
+	PingStatus     DeviceStatus `json:"ping_status,omitempty"`
 	Name           string       `json:"name,omitempty"`
 	Description    string       `json:"description,omitempty"`
 	SysObjectID    string       `json:"sys_object_id,omitempty"`
@@ -68,6 +69,7 @@ type DeviceMetadata struct {
 	OsVersion      string       `json:"os_version,omitempty"`
 	OsHostname     string       `json:"os_hostname,omitempty"`
 	Integration    string       `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
+	DeviceType     string       `json:"device_type,omitempty"`
 }
 
 // InterfaceMetadata contains interface metadata

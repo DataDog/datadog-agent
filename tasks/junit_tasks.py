@@ -1,6 +1,6 @@
 from invoke import task
 
-from .libs.junit_upload_core import junit_upload_from_tgz, repack_macos_junit_tar
+from tasks.libs.junit_upload_core import junit_upload_from_tgz, repack_macos_junit_tar
 
 
 @task()

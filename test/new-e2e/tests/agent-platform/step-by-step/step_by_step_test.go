@@ -152,9 +152,11 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 	common.CheckAgentStops(is.T(), VMclient)
 	common.CheckAgentRestarts(is.T(), VMclient)
 	common.CheckIntegrationInstall(is.T(), VMclient)
-	common.CheckAgentPython(is.T(), VMclient, "3")
+	common.SetAgentPythonMajorVersion(is.T(), VMclient, "3")
+	common.CheckAgentPython(is.T(), VMclient, common.ExpectedPythonVersion3)
 	if *majorVersion == "6" {
-		common.CheckAgentPython(is.T(), VMclient, "2")
+		common.SetAgentPythonMajorVersion(is.T(), VMclient, "2")
+		common.CheckAgentPython(is.T(), VMclient, common.ExpectedPythonVersion2)
 	}
 	common.CheckApmEnabled(is.T(), VMclient)
 	common.CheckApmDisabled(is.T(), VMclient)

@@ -9,7 +9,6 @@ package windowsevent
 
 import (
 	"fmt"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -24,6 +23,7 @@ import (
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 )
@@ -156,7 +156,7 @@ func (s *ReadEventsSuite) TestCustomQuery() {
 
 func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
-	s.T().Skip("WINA-480: Skipping flaky test")
+	flake.Mark(s.T())
 
 	// create tailer and ensure events can be read
 	config := Config{
@@ -181,15 +181,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
 
 	// stop the EventLog service and assert the tailer detects the error
-	cmd := exec.Command("powershell.exe", "-Command", "Stop-Service", "EventLog", "-Force")
-	out, err := cmd.CombinedOutput()
-	s.T().Cleanup(func() {
-		// ensure service is started at end of this test
-		cmd = exec.Command("powershell.exe", "-Command", "Start-Service", "EventLog")
-		out, err = cmd.CombinedOutput()
-	})
-	require.NoError(s.T(), err, "Failed to stop EventLog service %s", out)
-
+	s.ti.KillEventLogService(s.T())
 	err = backoff.Retry(func() error {
 		if tailer.source.Status.IsSuccess() {
 			return fmt.Errorf("tailer is still running")
@@ -202,10 +194,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	fmt.Println(tailer.source.Status.GetError())
 
 	// start the EventLog service and assert the tailer resumes from the previous error
-	cmd = exec.Command("powershell.exe", "-Command", "Start-Service", "EventLog")
-	out, err = cmd.CombinedOutput()
-	require.NoError(s.T(), err, "Failed to start EventLog service %s", out)
-
+	s.ti.StartEventLogService(s.T())
 	err = backoff.Retry(func() error {
 		if tailer.source.Status.IsSuccess() {
 			return nil

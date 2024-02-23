@@ -31,6 +31,12 @@ var PlatformVersion = funcs.Memoize(func() (string, error) {
 	return pi.version, err
 })
 
+// Family is the string describing the Linux distribution family (rhel, debian, etc.)
+var Family = funcs.Memoize(func() (string, error) {
+	pi, err := platformInformation()
+	return pi.family, err
+})
+
 var platformInformation = funcs.Memoize(getPlatformInformation)
 
 func getPlatformInformation() (platformInfo, error) {

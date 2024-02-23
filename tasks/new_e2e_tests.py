@@ -15,11 +15,11 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from .flavor import AgentFlavor
-from .go_test import test_flavor
-from .libs.common.utils import REPO_PATH, get_git_commit
-from .libs.junit_upload_core import produce_junit_tar
-from .modules import DEFAULT_MODULES
+from tasks.flavor import AgentFlavor
+from tasks.go_test import test_flavor
+from tasks.libs.common.utils import REPO_PATH, get_git_commit
+from tasks.libs.junit_upload_core import produce_junit_tar
+from tasks.modules import DEFAULT_MODULES
 
 
 @task(
@@ -55,7 +55,6 @@ def run(
     extra_flags="",
     cache=False,
     junit_tar="",
-    coverage=False,
     test_run_name="",
 ):
     """
@@ -87,17 +86,13 @@ def run(
         envVars["E2E_STACK_PARAMS"] = json.dumps(parsedParams)
 
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
-    coverage_opt = ""
-    coverage_path = "coverage.out"
-    if coverage:
-        coverage_opt = f"-cover -covermode=count -coverprofile={coverage_path} -coverpkg=./...,github.com/DataDog/test-infra-definitions/..."
 
     test_run_arg = ""
     if test_run_name != "":
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
 
     args = {
         "go_mod": "mod",
@@ -108,7 +103,6 @@ def run(
         "commit": get_git_commit(),
         "run": '-test.run ' + run if run else '',
         "skip": '-test.skip ' + skip if skip else '',
-        "coverage_opt": coverage_opt,
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else '',
         "platform": f"-platform {platform}" if platform else '',
@@ -149,8 +143,6 @@ def run(
         some_test_failed = some_test_failed or failed
         if failed:
             print(failure_string)
-    if coverage:
-        print(f"In folder `test/new-e2e`, run `go tool cover -html={coverage_path}` to generate HTML coverage report")
 
     if some_test_failed:
         # Exit if any of the modules failed
@@ -183,6 +175,10 @@ def clean(ctx, locks=True, stacks=False, output=False):
 
     if output:
         _clean_output()
+
+
+def _get_default_env():
+    return {"PULUMI_SKIP_UPDATE_CHECK": "true"}
 
 
 def _get_home_dir():
@@ -258,7 +254,7 @@ def _clean_stacks(ctx: Context):
 
 def _get_existing_stacks(ctx: Context) -> List[str]:
     e2e_stacks: List[str] = []
-    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all --project e2elocal --json", hide=True)
+    output = ctx.run("pulumi stack ls --all --project e2elocal --json", hide=True, env=_get_default_env())
     if output is None or not output:
         return []
     stacks_data = json.loads(output.stdout)
@@ -278,26 +274,27 @@ def _destroy_stack(ctx: Context, stack: str):
     # with resources removed by agent-sandbox clean up job
     with ctx.cd(tempfile.gettempdir()):
         ret = ctx.run(
-            f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} --yes --remove --skip-preview",
-            pty=True,
+            f"pulumi destroy --stack {stack} --yes --remove --skip-preview",
             warn=True,
             hide=True,
+            env=_get_default_env(),
         )
         if ret is not None and ret.exited != 0:
             # run with refresh on first destroy attempt failure
             ctx.run(
-                f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
+                f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
                 warn=True,
                 hide=True,
+                env=_get_default_env(),
             )
 
 
 def _remove_stack(ctx: Context, stack: str):
-    ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack}", hide=True)
+    ctx.run(f"pulumi stack rm --force --yes --stack {stack}", hide=True, env=_get_default_env())
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
-    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", hide=True)
+    output = ctx.run("pulumi about --json", hide=True, env=_get_default_env())
     if output is None or not output:
         return ""
     return json.loads(output.stdout)

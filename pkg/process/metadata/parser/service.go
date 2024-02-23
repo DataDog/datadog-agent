@@ -8,10 +8,13 @@ package parser
 import (
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"unicode"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/Masterminds/semver"
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,9 +23,16 @@ import (
 type serviceExtractorFn func(args []string) string
 
 const (
-	javaJarFlag      = "-jar"
-	javaJarExtension = ".jar"
-	javaApachePrefix = "org.apache."
+	javaJarFlag         = "-jar"
+	javaJarExtension    = ".jar"
+	javaModuleFlag      = "--module"
+	javaModuleFlagShort = "-m"
+	javaSnapshotSuffix  = "-SNAPSHOT"
+	javaApachePrefix    = "org.apache."
+)
+
+var (
+	javaAllowedFlags = []string{javaJarFlag, javaModuleFlag, javaModuleFlagShort}
 )
 
 // List of binaries that usually have additional process context of whats running
@@ -61,11 +71,7 @@ type WindowsServiceInfo struct {
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
-func NewServiceExtractor(sysProbeConfig ddconfig.Reader) *ServiceExtractor {
-	var (
-		enabled               = sysProbeConfig.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = sysProbeConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	)
+func NewServiceExtractor(enabled bool, useWindowsServiceName bool) *ServiceExtractor {
 	return &ServiceExtractor{
 		enabled:               enabled,
 		useWindowsServiceName: useWindowsServiceName,
@@ -93,7 +99,7 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 			}
 		}
 		meta := extractServiceMetadata(proc.Cmdline)
-		if meta != nil {
+		if meta != nil && log.ShouldLog(seelog.TraceLvl) {
 			log.Tracef("detected service metadata: %v", meta)
 		}
 		serviceByPID[proc.Pid] = meta
@@ -116,7 +122,9 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 
 		// Service tag was found from the SCM, return it.
 		if len(tags) > 0 {
-			log.Tracef("Found process_context from SCM for pid:%v service tags:%v", pid, tags)
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("Found process_context from SCM for pid:%v service tags:%v", pid, tags)
+			}
 			return tags
 		}
 	}
@@ -273,6 +281,11 @@ func parseCommandContextPython(args []string) string {
 func parseCommandContextJava(args []string) string {
 	prevArgIsFlag := false
 
+	// Look for dd.service
+	if index := slices.IndexFunc(args, func(arg string) bool { return strings.HasPrefix(arg, "-Ddd.service=") }); index != -1 {
+		return strings.TrimPrefix(args[index], "-Ddd.service=")
+	}
+
 	for _, a := range args {
 		hasFlagPrefix := strings.HasPrefix(a, "-")
 		includesAssignment := strings.ContainsRune(a, '=') ||
@@ -285,7 +298,18 @@ func parseCommandContextJava(args []string) string {
 
 			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
 				if strings.HasSuffix(arg, javaJarExtension) {
-					return arg[:len(arg)-len(javaJarExtension)]
+					jarName := arg[:len(arg)-len(javaJarExtension)]
+					if !strings.HasSuffix(jarName, javaSnapshotSuffix) {
+						return jarName
+					}
+					jarName = jarName[:len(jarName)-len(javaSnapshotSuffix)]
+
+					if idx := strings.LastIndex(jarName, "-"); idx != -1 {
+						if _, err := semver.NewVersion(jarName[idx+1:]); err == nil {
+							return jarName[:idx]
+						}
+					}
+					return jarName
 				}
 
 				if strings.HasPrefix(arg, javaApachePrefix) {
@@ -305,8 +329,8 @@ func parseCommandContextJava(args []string) string {
 			}
 		}
 
-		prevArgIsFlag = hasFlagPrefix && !includesAssignment && a != javaJarFlag
+		prevArgIsFlag = hasFlagPrefix && !includesAssignment && !slices.Contains(javaAllowedFlags, a)
 	}
 
-	return ""
+	return "java"
 }

@@ -15,6 +15,7 @@ import (
 
 	apmetwtracer "github.com/DataDog/datadog-agent/comp/apm/etwtracer"
 	apmetwtracerimpl "github.com/DataDog/datadog-agent/comp/apm/etwtracer/impl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
+	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
@@ -40,8 +42,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -87,6 +91,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ replay.Component,
 			serverDebug dogstatsddebug.Component,
 			wmeta workloadmeta.Component,
+			taggerComp tagger.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
@@ -95,16 +100,19 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			otelcollector otelcollector.Component,
 			demultiplexer demultiplexer.Component,
 			_ host.Component,
-			invAgent inventoryagent.Component,
+			_ inventoryagent.Component,
 			_ inventoryhost.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
+			_ trapserver.Component,
 			agentAPI internalAPI.Component,
 			pkgSigning packagesigning.Component,
+			statusComponent status.Component,
+			collector collector.Component,
 		) error {
 
-			defer StopAgentWithDefaults(server, demultiplexer, agentAPI)
+			defer StopAgentWithDefaults(server, agentAPI)
 
 			err := startAgent(
 				&cliParams{GlobalParams: &command.GlobalParams{}},
@@ -115,15 +123,17 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				server,
 				serverDebug,
 				wmeta,
+				taggerComp,
 				rcclient,
 				logsAgent,
 				forwarder,
 				sharedSerializer,
 				otelcollector,
 				demultiplexer,
-				invAgent,
 				agentAPI,
 				invChecks,
+				statusComponent,
+				collector,
 			)
 			if err != nil {
 				return err

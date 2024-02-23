@@ -2,9 +2,9 @@ import glob
 import json
 import os
 
-from .init_kmt import VMCONFIG, check_and_get_stack
-from .kmt_os import get_kmt_os
-from .libvirt import (
+from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
+from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.libvirt import (
     delete_domains,
     delete_networks,
     delete_pools,
@@ -13,7 +13,7 @@ from .libvirt import (
     resource_in_stack,
     resume_domains,
 )
-from .tool import Exit, ask, error, info, warn
+from tasks.kernel_matrix_testing.tool import Exit, ask, error, info, warn
 
 try:
     import libvirt

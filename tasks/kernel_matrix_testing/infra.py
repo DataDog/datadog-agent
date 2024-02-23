@@ -1,9 +1,9 @@
 import json
 import os
 
-from .kmt_os import get_kmt_os
-from .stacks import ask_for_ssh, find_ssh_key
-from .tool import Exit, error
+from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.stacks import ask_for_ssh, find_ssh_key
+from tasks.kernel_matrix_testing.tool import Exit, error
 
 
 class LocalCommandRunner:

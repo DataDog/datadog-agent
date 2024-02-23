@@ -1,11 +1,13 @@
 import os
+import re
 import time
+from functools import lru_cache
 
 from invoke import Exit, task
 
-from .libs.common.utils import DEFAULT_BRANCH
-from .libs.datadog_api import create_count, send_metrics
-from .libs.github_actions_tools import (
+from tasks.libs.common.utils import DEFAULT_BRANCH, get_git_pretty_ref
+from tasks.libs.datadog_api import create_count, send_metrics
+from tasks.libs.github_actions_tools import (
     download_artifacts,
     download_with_retry,
     follow_workflow_run,
@@ -13,7 +15,18 @@ from .libs.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from .release import _get_release_json_value
+from tasks.release import _get_release_json_value
+
+
+@lru_cache(maxsize=None)
+def concurrency_key():
+    current_ref = get_git_pretty_ref()
+
+    # We want workflows to run to completion on the default branch and release branches
+    if re.search(rf'^({DEFAULT_BRANCH}|\d+\.\d+\.x)$', current_ref):
+        return None
+
+    return current_ref
 
 
 def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
@@ -21,6 +34,7 @@ def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_i
 
     run = trigger_macos_workflow(
         github_action_ref=github_action_ref,
+        concurrency_key=concurrency_key(),
         **kwargs,
     )
 

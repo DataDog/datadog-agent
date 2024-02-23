@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests && trivy
+//go:build linux && functionaltests && trivy
 
 // Package tests holds tests related files
 package tests
@@ -21,6 +21,8 @@ import (
 )
 
 func TestSBOM(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID: "test_file_package",

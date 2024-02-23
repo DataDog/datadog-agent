@@ -23,6 +23,7 @@ services:
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_CFG_DELETE_TOPIC_ENABLE=true
       - KAFKA_CFG_ZOOKEEPER_CONNECTION_TIMEOUT_MS=30000
+      - KAFKA_MESSAGE_MAX_BYTES=1048576
     depends_on:
       - zookeeper
     tmpfs:

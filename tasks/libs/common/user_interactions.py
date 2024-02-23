@@ -1,4 +1,4 @@
-from .color import color_message
+from tasks.libs.common.color import color_message
 
 
 def yes_no_question(input_message, color="white", default=None):

@@ -55,8 +55,8 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string) ([]byte, error)
 func (m *MockSecretResolver) SubscribeToChanges(_ secrets.SecretChangeCallback) {
 }
 
-func (m *MockSecretResolver) Refresh() error {
-	return nil
+func (m *MockSecretResolver) Refresh() (string, error) {
+	return "", nil
 }
 
 func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {

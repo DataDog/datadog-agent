@@ -9,12 +9,12 @@ import re
 import sys
 import time
 from contextlib import contextmanager
-from subprocess import check_output
+from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
 from invoke.exceptions import Exit
 
-from .color import color_message
+from tasks.libs.common.color import color_message
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -45,6 +45,18 @@ def is_allowed_repo_branch(branch):
 
 def is_allowed_repo_nightly_branch(branch):
     return branch in ALLOWED_REPO_NIGHTLY_BRANCHES
+
+
+def running_in_github_actions():
+    return os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+def running_in_gitlab_ci():
+    return os.environ.get("GITLAB_CI") == "true"
+
+
+def running_in_circleci():
+    return os.environ.get("CIRCLECI") == "true"
 
 
 def bin_name(name):
@@ -234,18 +246,6 @@ def get_common_test_args(build_tags, failfast):
     }
 
 
-def set_runtime_comp_env(env):
-    env["DD_ENABLE_RUNTIME_COMPILER"] = "true"
-    env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
-    env["DD_ENABLE_CO_RE"] = "false"
-
-
-def set_co_re_env(env):
-    env["DD_ENABLE_CO_RE"] = "true"
-    env["DD_ALLOW_RUNTIME_COMPILED_FALLBACK"] = "false"
-    env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
-
-
 def get_payload_version():
     """
     Return the Agent payload version (`x.y.z`) found in the go.mod file.
@@ -324,6 +324,32 @@ def get_git_branch_name():
     Return the name of the current git branch
     """
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('utf-8').strip()
+
+
+def get_git_pretty_ref():
+    """
+    Return the name of the current Git branch or the tag if in a detached state
+    """
+    # https://docs.gitlab.com/ee/ci/variables/predefined_variables.html
+    if running_in_gitlab_ci():
+        return os.environ["CI_COMMIT_REF_NAME"]
+
+    # https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
+    if running_in_github_actions():
+        return os.environ.get("GITHUB_HEAD_REF") or os.environ["GITHUB_REF"].split("/")[-1]
+
+    # https://circleci.com/docs/variables/#built-in-environment-variables
+    if running_in_circleci():
+        return os.environ.get("CIRCLE_TAG") or os.environ["CIRCLE_BRANCH"]
+
+    current_branch = get_git_branch_name()
+    if current_branch != "HEAD":
+        return current_branch
+
+    try:
+        return check_output(["git", "describe", "--tags", "--exact-match"]).decode('utf-8').strip()
+    except CalledProcessError:
+        return current_branch
 
 
 def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):

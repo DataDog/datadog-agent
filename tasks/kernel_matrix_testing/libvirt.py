@@ -1,4 +1,4 @@
-from .tool import info
+from tasks.kernel_matrix_testing.tool import info
 
 
 def resource_in_stack(stack, resource):

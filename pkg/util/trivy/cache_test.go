@@ -231,7 +231,6 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	))
 
 	// setup workloadmeta for test
-	workloadmetaStore.Start(context.TODO())
 	workloadmeta.SetGlobalStore(workloadmetaStore)
 	defer workloadmeta.SetGlobalStore(nil)
 
