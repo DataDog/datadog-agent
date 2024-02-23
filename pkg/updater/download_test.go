@@ -32,7 +32,7 @@ const (
 	testNestedAgentFileName  = "nested/agent2"
 	testLargeFileName        = "large"
 	testLargeFileSize        = 1024 * 1024 * 20 // 20MB
-	testAgentArchiveFileName = "agent.tar.gz"
+	testAgentArchiveFileName = "package.tar.gz"
 	testDownloadDir          = "download"
 )
 
