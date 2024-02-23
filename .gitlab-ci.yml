@@ -962,7 +962,7 @@ workflow:
         - test/kitchen/test/integration/security-agent-test/**/*
         - test/kitchen/test/integration/security-agent-stress/**/*
         - .gitlab/functional_test/security_agent.yml
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.52.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -974,7 +974,7 @@ workflow:
         - .gitlab/new-e2e_testing/windows.yml
         - test/new-e2e/tests/windows/install-test/**/*
         - tasks/msi.py
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.52.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_windows_installer_changes_or_manual:
   - <<: *if_main_branch
@@ -1012,7 +1012,7 @@ workflow:
         - test/new-e2e-utils/**/*
         - test/new-e2e/go.mod
         - tasks/system_probe.py
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.52.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1026,7 +1026,7 @@ workflow:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/test-infra-definition/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.52.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1059,7 +1059,7 @@ workflow:
         - pkg/util/cgroups/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.52.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: always
   - when: manual
     allow_failure: true
@@ -1096,7 +1096,7 @@ workflow:
         - pkg/util/cgroups/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.52.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1149,7 +1149,7 @@ workflow:
         - comp/trace/**/*
         - test/new-e2e/tests/apm/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.52.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1199,11 +1199,11 @@ workflow:
         - .gitlab/package_build.yml
         - release.json
         - .gitlab/package_build/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.52.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_go-version_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
         - .go-version
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.52.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
