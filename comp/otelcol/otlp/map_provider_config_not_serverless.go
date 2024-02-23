@@ -21,7 +21,8 @@ exporters:
       insecure: true
     compression: none
     sending_queue:
-      enabled: false
+      enabled: true
+      queue_size: 10
 
 service:
   telemetry:
