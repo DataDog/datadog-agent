@@ -118,7 +118,7 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 		numpaths = DefaultNumPaths
 	}
 
-	destinationPort := rand.Intn(10) + 33000
+	destinationPort := rand.Intn(33523-33434) + 33434
 
 	var dt dublintraceroute.DublinTraceroute
 	dt = &probev4.UDPv4{
