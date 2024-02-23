@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -41,6 +42,7 @@ type dependencies struct {
 	Params                Params
 	Providers             []types.FlareCallback `group:"flare"`
 	Collector             optional.Option[collector.Component]
+	ac                    autodiscovery.Component
 }
 
 type flare struct {
@@ -52,6 +54,7 @@ type flare struct {
 	providers             []types.FlareCallback
 	collector             optional.Option[collector.Component]
 	secretResolver        secrets.Component
+	ac                    autodiscovery.Component
 }
 
 func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, error) {
@@ -63,6 +66,7 @@ func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, erro
 		diagnosesendermanager: deps.Diagnosesendermanager,
 		invAgent:              deps.InvAgent,
 		collector:             deps.Collector,
+		ac:                    deps.ac,
 	}
 
 	rcListener := rcclient.TaskListenerProvider{
@@ -128,7 +132,8 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	providers := append(
 		f.providers,
 		func(fb types.FlareBuilder) error {
-			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent, f.collector, f.secretResolver)
+			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent, f.collector, f.secretResolver, f.ac)
+			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent, f.collector, f.ac)
 		},
 		f.collectLogsFiles,
 		f.collectConfigFiles,

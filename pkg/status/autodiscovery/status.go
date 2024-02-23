@@ -19,7 +19,9 @@ import (
 // PopulateStatus populates the status stats
 func PopulateStatus(ac autodiscovery.Component, stats map[string]interface{}) {
 	stats["adEnabledFeatures"] = config.GetDetectedFeatures()
-	stats["adConfigErrors"] = ac.GetAutodiscoveryErrors()
+	if ac.IsStarted() {
+		stats["adConfigErrors"] = ac.GetAutodiscoveryErrors()
+	}
 	stats["filterErrors"] = containers.GetFilterErrors()
 }
 

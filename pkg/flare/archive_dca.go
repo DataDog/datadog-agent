@@ -67,11 +67,11 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 
 	getLogFiles(fb, logFilePath)
 	getConfigFiles(fb, confSearchPaths)
-	getClusterAgentConfigCheck(fb)                                        //nolint:errcheck
-	getExpVar(fb)                                                         //nolint:errcheck
-	getMetadataMap(fb)                                                    //nolint:errcheck
-	getClusterAgentClusterChecks(fb)                                      //nolint:errcheck
-	getClusterAgentDiagnose(fb, senderManager, collector, secretResolver) //nolint:errcheck
+	getClusterAgentConfigCheck(fb)                                            //nolint:errcheck
+	getExpVar(fb)                                                             //nolint:errcheck
+	getMetadataMap(fb)                                                        //nolint:errcheck
+	getClusterAgentClusterChecks(fb)                                          //nolint:errcheck
+	getClusterAgentDiagnose(fb, senderManager, collector, secretResolver, ac) //nolint:errcheck
 	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)
 	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)
 	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)
@@ -163,11 +163,11 @@ func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("config-check.log", b.Bytes())
 }
 
-func getClusterAgentDiagnose(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) error {
+func getClusterAgentDiagnose(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterAgentDiagnose(writer, senderManager, collector, secretResolver) //nolint:errcheck
+	GetClusterAgentDiagnose(writer, senderManager, collector, secretResolver, ac) //nolint:errcheck
 	writer.Flush()
 
 	return fb.AddFile("diagnose.log", b.Bytes())

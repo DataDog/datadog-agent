@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -100,6 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				workloadmeta.OptionalModule(),
 				tagger.OptionalModule(),
+				autodiscovery.NoStartModule(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},
@@ -232,6 +234,7 @@ func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
 	_ optional.Option[workloadmeta.Component],
 	_ optional.Option[tagger.Component],
+	ac autodiscovery.Component,
 	collector optional.Option[collector.Component],
 	secretResolver secrets.Component) error {
 	diagCfg := diagnosis.Config{
@@ -243,12 +246,12 @@ func cmdDiagnose(cliParams *cliParams,
 
 	// Is it List command
 	if cliParams.listSuites {
-		pkgdiagnose.ListStdOut(color.Output, diagCfg, senderManager, collector, secretResolver)
+		pkgdiagnose.ListStdOut(color.Output, diagCfg, senderManager, collector, secretResolver, ac)
 		return nil
 	}
 
 	// Run command
-	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager, collector, secretResolver)
+	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager, collector, secretResolver, ac)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future

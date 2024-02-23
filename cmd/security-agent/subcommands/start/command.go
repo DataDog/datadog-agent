@@ -124,7 +124,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 					return tagger.NewTaggerParams()
 				}),
-				autodiscovery.Module(),
+				autodiscovery.NoStartModule(),
 			)
 		},
 	}

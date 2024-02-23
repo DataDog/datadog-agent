@@ -94,7 +94,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				core.Bundle(),
 				diagnosesendermanagerimpl.Module(),
-				autodiscovery.Module(),
+				autodiscovery.NoStartModule(),
 			)
 		},
 	}

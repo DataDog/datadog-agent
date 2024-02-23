@@ -62,6 +62,7 @@ type autoconfig struct {
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
 	providerCatalog          map[string]providers.ConfigProviderFactory
+	started                  bool
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -79,6 +80,13 @@ func Module() fxutil.Module {
 		))
 }
 
+func NoStartModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(
+			newAutoConfigNoStart,
+		))
+}
+
 var _ Component = (*autoconfig)(nil)
 
 type listenerCandidate struct {
@@ -92,24 +100,23 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) Component {
-	ac := NewAutoConfigNoStart(scheduler.NewMetaScheduler(), deps.Secrets)
-	listeners.RegisterListeners(ac.serviceListenerFactories)
-	providers.RegisterProviders(ac.providerCatalog)
+	ac := newAutoConfigNoStart(deps)
+
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
-			// Where to look for check templates if no custom path is defined
-			config.Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
-			// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
-			config.Datadog.SetDefault("autoconf_template_url_timeout", 5)
-			setupAcErrors()
-			ac.start()
+			ac.Start()
 			return nil
 		},
 		OnStop: func(c context.Context) error {
-			ac.stop()
+			ac.Stop()
 			return nil
 		},
 	})
+	return ac
+}
+
+func newAutoConfigNoStart(deps dependencies) Component {
+	ac := NewAutoConfigNoStart(scheduler.NewMetaScheduler(), deps.Secrets)
 	return ac
 }
 
@@ -130,6 +137,7 @@ func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler, secretResolver sec
 		ranOnce:                  atomic.NewBool(false),
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
+		started:                  false,
 	}
 	return ac
 }
@@ -186,15 +194,30 @@ func (ac *autoconfig) checkTagFreshness(ctx context.Context) {
 }
 
 // Start will listen to the service channels before anything is sent to them
-func (ac *autoconfig) start() {
+// Usually, Start and Stop methods should not be in the component interface as it should be handled using Lifecycle hooks.
+// We make exceptions here because we need to disable it at runtime.
+func (ac *autoconfig) Start() {
+	listeners.RegisterListeners(ac.serviceListenerFactories)
+	providers.RegisterProviders(ac.providerCatalog)
+	// Where to look for check templates if no custom path is defined
+	config.Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
+	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
+	config.Datadog.SetDefault("autoconf_template_url_timeout", 5)
+	setupAcErrors()
+	ac.started = true
 	// Start the service listener
 	go ac.serviceListening()
+}
+
+// IsStarted returns true if the autoconfig has been started.
+func (ac *autoconfig) IsStarted() bool {
+	return ac.started
 }
 
 // Stop just shuts down autoconfig in a clean way.
 // autoconfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
-func (ac *autoconfig) stop() {
+func (ac *autoconfig) Stop() {
 	// stop polled config providers without holding ac.m
 	for _, pd := range ac.getConfigPollers() {
 		pd.stop()
