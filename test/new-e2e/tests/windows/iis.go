@@ -7,6 +7,7 @@
 package windows
 
 import (
+	_ "embed"
 	"fmt"
 	"path"
 	"strings"
@@ -21,27 +22,20 @@ type IISSiteDefinition struct {
 	AssetsDir   string // directory to copy for assets
 }
 
+var (
+	//go:embed scripts/installiis.ps1
+	installIISScript []byte
+)
+
 // InstallIIS installs IIS on the target machine
 func InstallIIS(host *components.RemoteHost) error {
-	script := `
-	function ExitWithCode($exitcode) {
-		$host.SetShouldExit($exitcode)
-		exit $exitcode
-	  }
-	$result = install-windowsfeature -name Web-Server -IncludeManagementTools
-	if (! $result.Success ) {
-		exit -1
-	}
-	if ($result.RestartNeeded -eq "Yes") {
-		ExitWithCode(3010)
-	}
-	`
+
 	scriptFile := `c:\temp\install-iis.ps1`
 	err := host.MkdirAll("C:\\temp")
 	if err != nil {
 		return err
 	}
-	_, err = host.WriteFile(scriptFile, []byte(script))
+	_, err = host.WriteFile(scriptFile, installIISScript)
 	if err != nil {
 		return err
 	}

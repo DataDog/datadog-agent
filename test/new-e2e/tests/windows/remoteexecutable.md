@@ -1,6 +1,6 @@
-# the RemoteSuite library
+# the RemoteExecutable library
 
-The remotesuite library attempts to capture and duplicate the functionality for running locally compiled go test programs on remote test machines.
+The RemoteExecutable library attempts to capture and duplicate the functionality for running locally compiled go test programs on remote test machines.
 
 ## Background
 
@@ -10,11 +10,11 @@ Historically, this has been accomplished by using chef/test kitchen as follows:
 - a previous build stage creates the various test programs.  The test programs are still `go` tests, but they are pre-compiled into binary form, generally into an executable called `testsuite.exe`
 - the test stage uses test/kitchen to provision a target machine, set up the target machine with relevant components, copy the necessary files, and execute the tests on the target machine.
 
-In order to minimize churn on the environment, the `remotesuite` assumes that the existing (chef/kitchen) directory structure is still in place.  This will lead to some fairly obvious changes/optimizations at a later date if/when the kitchen infrastructure is retired completely.
+In order to minimize churn on the environment, the `RemoteExecutable` assumes that the existing (chef/kitchen) directory structure is still in place.  This will lead to some fairly obvious changes/optimizations at a later date if/when the kitchen infrastructure is retired completely.
 
-# RemoteSuite
+# RemoteExecutable
 
-The RemoteSuite breaks up operations into individual stages.  While some of these could be combined, they are intentionally distinct, to allow greater control for the test writer.  Also, some of the actions happen locally on the test runner, and some on the remote test host.  The objective is to (eventually) be able to run the local actions once, and then use the results on each target host when testing more than one.
+The RemoteExecutable breaks up operations into individual stages.  While some of these could be combined, they are intentionally distinct, to allow greater control for the test writer.  Also, some of the actions happen locally on the test runner, and some on the remote test host.  The objective is to (eventually) be able to run the local actions once, and then use the results on each target host when testing more than one.
 
 ## FindTestPrograms
 

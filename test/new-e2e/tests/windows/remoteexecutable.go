@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// RemoteSuite is a helper struct to run tests on a remote host
-type RemoteSuite struct {
+// RemoteExecutable is a helper struct to run tests on a remote host
+type RemoteExecutable struct {
 	t         *testing.T
 	vm        *components.RemoteHost
 	filespec  string   // unqualified name of test executable to be copied.
@@ -27,9 +27,9 @@ type RemoteSuite struct {
 
 const remoteDirBase = "c:\\tmp"
 
-// NewRemoteSuite creates a new RemoteSuite
-func NewRemoteSuite(vm *components.RemoteHost, t *testing.T, filespec string, basepath string) *RemoteSuite {
-	return &RemoteSuite{
+// NewRemoteExecutable creates a new RemoteExecutable
+func NewRemoteExecutable(vm *components.RemoteHost, t *testing.T, filespec string, basepath string) *RemoteExecutable {
+	return &RemoteExecutable{
 		vm:       vm,
 		t:        t,
 		filespec: filespec,
@@ -41,7 +41,7 @@ func NewRemoteSuite(vm *components.RemoteHost, t *testing.T, filespec string, ba
 //
 // it walks the root directory (provided at initialization), looking for any file that matches the provided
 // filespec (usually `testsuite.exe`).  If it finds that, it stores the full path for future copying.
-func (rs *RemoteSuite) FindTestPrograms() error {
+func (rs *RemoteExecutable) FindTestPrograms() error {
 	// find test programs
 
 	err := filepath.Walk(rs.basepath, func(path string, info os.FileInfo, err error) error {
@@ -64,7 +64,7 @@ func (rs *RemoteSuite) FindTestPrograms() error {
 // CreateRemotePaths creates the remote paths for the test programs
 //
 // Takes the path to the test programs, and creates an identical directory tree on the remote host.
-func (rs *RemoteSuite) CreateRemotePaths() error {
+func (rs *RemoteExecutable) CreateRemotePaths() error {
 	// create remote paths
 	for _, f := range rs.testfiles {
 		remotePath := filepath.Join(remoteDirBase, f)
@@ -85,7 +85,7 @@ func (rs *RemoteSuite) CreateRemotePaths() error {
 //
 // CopyFiles also assumes that if there's a "testdata" directory in the same directory as the test program,
 // that that should be copied too.
-func (rs *RemoteSuite) CopyFiles() error {
+func (rs *RemoteExecutable) CopyFiles() error {
 	// copy files
 	for _, f := range rs.testfiles {
 		remotePath := filepath.Join(remoteDirBase, f)
@@ -113,7 +113,7 @@ func (rs *RemoteSuite) CopyFiles() error {
 
 // RunTests iterates through all of the tests that were copied and executes them one by one.
 // it captures the output, and logs it.
-func (rs *RemoteSuite) RunTests() error {
+func (rs *RemoteExecutable) RunTests() error {
 
 	for _, testsuite := range rs.testfiles {
 		rs.t.Logf("Running testsuite: %s", testsuite)
