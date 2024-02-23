@@ -189,6 +189,33 @@ const (
 	Logs DataType = "logs"
 )
 
+// serverlessConfigComponents are the config components that are used by all agents, and in particular serverless.
+// Components should only be added here if they are reachable by the serverless agent.
+// Otherwise directly add the configs to InitConfig.
+var serverlessConfigComponents = []func(pkgconfigmodel.Config){
+	agent,
+	fips,
+	dogstatsd,
+	forwarder,
+	aggregator,
+	serializer,
+	serverless,
+	setupAPM,
+	OTLP,
+	setupMultiRegionFailover,
+	telemetry,
+	autoconfig,
+	remoteconfig,
+	logsagent,
+	containerSyspath,
+	containerd,
+	cri,
+	kubernetes,
+	cloudfoundry,
+	debugging,
+	vector,
+}
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -199,31 +226,16 @@ func init() {
 	initConfig()
 }
 
+// initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
+// Initializing the config keys takes too much time for serverless, so we try to initialize only what is reachable.
 func initCommonWithServerless(config pkgconfigmodel.Config) {
-	agent(config)
-	fips(config)
-	dogstatsd(config)
-	forwarder(config)
-	aggregator(config)
-	serializer(config)
-	serverless(config)
-	setupAPM(config)
-	OTLP(config)
-	setupMultiRegionFailover(config)
-	telemetry(config)
-	autoconfig(config)
-	remoteconfig(config)
-	logsagent(config)
-	containerSyspath(config)
-	containerd(config)
-	cri(config)
-	kubernetes(config)
-	cloudfoundry(config)
-	debugging(config)
-	vector(config)
+	for _, f := range serverlessConfigComponents {
+		f(config)
+	}
 }
 
-// InitConfig initializes the config defaults on a config for non-serverless agents
+// InitConfig initializes the config defaults on a config used by all agents
+// (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Config) {
 	initCommonWithServerless(config)
 
