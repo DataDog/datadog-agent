@@ -234,7 +234,6 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		}
 		// todo: add agent once updater installs agent on bootstrap
 		env.Agent = nil
-
 	} else if params.agentOptions != nil {
 		agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, params.agentOptions...)
 		if err != nil {
@@ -248,7 +247,6 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 	} else {
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.Agent = nil
-
 	}
 
 	return nil
