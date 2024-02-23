@@ -167,10 +167,6 @@ func run(log log.Component,
 
 	// Set up check collector
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
-<<<<<<< HEAD
-=======
-	diagnose.Init(optional.NewOption(collector), ac)
->>>>>>> 67d3f7d980 (pass component to diagnose)
 
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)

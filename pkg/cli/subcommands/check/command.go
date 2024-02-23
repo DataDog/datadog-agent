@@ -324,19 +324,11 @@ func run(
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-<<<<<<< HEAD
 				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, ac, demultiplexer, agentAPI, collector); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
 				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, ac, demultiplexer, agentAPI, collector); err != nil {
-=======
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, ac, demultiplexer, agentAPI); err != nil {
-					return fmt.Errorf("while running the jmx check: %v", err)
-				}
-			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, ac, demultiplexer, agentAPI); err != nil {
->>>>>>> d5785c8e50 (remove global common.AC)
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}

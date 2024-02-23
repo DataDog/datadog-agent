@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -42,6 +43,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				diagnosesendermanagerimpl.Module(),
+				autodiscovery.NoStartModule(),
 			)
 		},
 	}
@@ -49,7 +51,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func run(diagnoseSenderManager diagnosesendermanager.Component, secretResolver secrets.Component) error {
+func run(diagnoseSenderManager diagnosesendermanager.Component, secretResolver secrets.Component, ac autodiscovery.Component) error {
 	// Verbose:  true - to show details like if was done a while ago
 	// RunLocal: true - do not attept to run in actual running agent but
 	//                  may need to implement it in future
@@ -62,7 +64,7 @@ func run(diagnoseSenderManager diagnosesendermanager.Component, secretResolver s
 		RunLocal: true, // do not attept to run in actual runnin agent (may need to implement it in future)
 		Include:  []string{"connectivity-datadog-autodiscovery"},
 	}
-	diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, optional.NewNoneOption[collector.Component](), secretResolver)
+	diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, optional.NewNoneOption[collector.Component](), secretResolver, ac)
 
 	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseDeps)
 }
