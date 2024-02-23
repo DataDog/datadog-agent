@@ -222,17 +222,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 	}
 
 	// Create Agent if required
-	if params.agentOptions != nil && !params.installUpdater {
-		agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, params.agentOptions...)
-		if err != nil {
-			return err
-		}
-
-		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
-		if err != nil {
-			return err
-		}
-	} else if params.agentOptions != nil && params.installUpdater {
+	if params.installUpdater {
 		updater, err := updater.NewHostUpdater(awsEnv.CommonEnvironment, host, params.agentOptions...)
 		if err != nil {
 			return err
@@ -245,9 +235,20 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		// todo: add agent once updater installs agent on bootstrap
 		env.Agent = nil
 
+	} else if params.agentOptions != nil {
+		agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, params.agentOptions...)
+		if err != nil {
+			return err
+		}
+
+		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
+		if err != nil {
+			return err
+		}
 	} else {
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.Agent = nil
+
 	}
 
 	return nil
