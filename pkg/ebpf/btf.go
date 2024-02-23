@@ -181,23 +181,27 @@ func (b *orderedBTFLoader) loadUser() (*returnBTF, error) {
 	return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
 }
 
-func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
-	btfRelativeTarballFilename, err := b.embeddedPath()
-	if err != nil {
-		return nil, err
+func (b *orderedBTFLoader) checkForMinimizedBTF(extractDir string) (*returnBTF, error) {
+	// <relative_path_in_tarball>/<kernel_version>/<kernel_version>.btf
+	btfRelativePath := filepath.Join(extractDir, filepath.Base(extractDir)+".btf")
+	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
+	if _, err := os.Stat(extractedBtfPath); err == nil {
+		spec, err := loadBTFFrom(extractedBtfPath)
+		if err != nil {
+			return nil, err
+		}
+		// no module load function for minimized single file BTF
+		return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
 	}
-	kernelVersion, err := kernel.Release()
-	if err != nil {
-		return nil, fmt.Errorf("kernel release: %s", err)
-	}
-	extractDir := filepath.Join(filepath.Dir(btfRelativeTarballFilename), kernelVersion)
+	return nil, nil
+}
+
+func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF, error) {
 	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
 	modLoadFunc := func(mod string) (*btf.Spec, error) {
 		b.delayedFlusher.Reset(btfFlushDelay)
 		return loadBTFFrom(filepath.Join(absExtractDir, mod))
 	}
-
-	// If we've previously extracted the BTF file in question, we can just load it
 	btfRelativePath := filepath.Join(extractDir, "vmlinux")
 	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
 	if _, err := os.Stat(extractedBtfPath); err == nil {
@@ -207,7 +211,40 @@ func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 		}
 		return &returnBTF{vmlinux: spec, moduleLoadFunc: modLoadFunc}, nil
 	}
-	log.Debugf("extracted btf file not found at %s: attempting to extract from embedded archive", extractedBtfPath)
+	return nil, nil
+}
+
+func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
+	ret, err := b.checkForMinimizedBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
+	}
+	ret, err = b.checkForUnminimizedBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
+	}
+	return nil, nil
+}
+
+func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
+	btfRelativeTarballFilename, err := b.embeddedPath()
+	if err != nil {
+		return nil, err
+	}
+	kernelVersion, err := kernel.Release()
+	if err != nil {
+		return nil, fmt.Errorf("kernel release: %s", err)
+	}
+	// <relative_path_in_tarball>/<kernel_version>
+	extractDir := filepath.Join(filepath.Dir(btfRelativeTarballFilename), kernelVersion)
+	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
+
+	// If we've previously extracted the BTF file in question, we can just load it
+	ret, err := b.checkforBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
+	}
+	log.Debugf("extracted btf file not found at %s: attempting to extract from embedded archive", absExtractDir)
 
 	// The embedded BTFs are compressed twice: the individual BTFs themselves are compressed, and the collection
 	// of BTFs as a whole is also compressed.
@@ -224,11 +261,11 @@ func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	if err := archiver.NewTarXz().Unarchive(btfTarball, absExtractDir); err != nil {
 		return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
 	}
-	spec, err := loadBTFFrom(extractedBtfPath)
-	if err != nil {
-		return nil, err
+	ret, err = b.checkforBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
 	}
-	return &returnBTF{vmlinux: spec, moduleLoadFunc: modLoadFunc}, nil
+	return nil, fmt.Errorf("embedded BTF not found at %s", extractDir)
 }
 
 func (b *orderedBTFLoader) embeddedPath() (string, error) {
