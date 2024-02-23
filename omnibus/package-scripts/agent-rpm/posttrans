@@ -110,7 +110,8 @@ install_method:
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
 
-function generate_install_id() {
+generate_install_id()
+{
   # Try generating a UUID based on /proc/sys/kernel/random/uuid
   uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null)
   # If that does not work, then try uuidgen
@@ -122,7 +123,8 @@ function generate_install_id() {
   printf "$uuid"
 }
 
-function generate_install_signature() {
+generate_install_signature()
+{
   local install_id="$1"
   local install_type="$2"
   local install_time="$3"
