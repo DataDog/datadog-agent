@@ -74,6 +74,9 @@ tests_windows-x64:
 
 tests_windows-x64-fast-v2:
   extends: .tests_windows_base
+  rules:
+    - !reference [.if_mergequeue]
+    - allow_failure: false
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
