@@ -260,7 +260,7 @@ func ebpfTelemetrySupported() (bool, error) {
 	return kversion >= kernel.VersionCode(4, 14, 0), nil
 }
 
-func ELFBuildWithInstrumentation(bytecode io.ReaderAt) (bool, error) {
+func elfBuildWithInstrumentation(bytecode io.ReaderAt) (bool, error) {
 	objFile, err := elf.NewFile(bytecode)
 	if err != nil {
 		return false, fmt.Errorf("failed to open elf file: %w", err)

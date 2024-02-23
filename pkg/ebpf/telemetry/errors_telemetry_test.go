@@ -25,7 +25,7 @@ func instrumentationEnabled(t *testing.T, dir, filename string) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = buf.Close })
 
-	instrumented, err := ELFBuildWithInstrumentation(buf)
+	instrumented, err := elfBuildWithInstrumentation(buf)
 	require.NoError(t, err)
 	if !instrumented {
 		t.Skip("Skipping because prebuilt and co-re assets are not instrumented")
