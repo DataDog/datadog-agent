@@ -778,6 +778,7 @@ def _send_build_metrics(ctx, overall_duration):
                         f'software:{software}',
                         f'cached:{metrics["cached"]}',
                         f'job:{os.environ.get("CI_JOB_NAME_SLUG")}',
+                        f'branch:{os.environ.get("CI_COMMIT_REF_NAME")}',
                     ],
                     'unit': 'seconds',
                     'type': 0,
@@ -788,7 +789,10 @@ def _send_build_metrics(ctx, overall_duration):
             {
                 'metric': 'datadog.agent.build.total',
                 'points': [{'timestamp': timestamp, 'value': overall_duration}],
-                'tags': [f'job:{os.environ.get("CI_JOB_NAME_SLUG")}'],
+                'tags': [
+                    f'job:{os.environ.get("CI_JOB_NAME_SLUG")}',
+                    f'branch:{os.environ.get("CI_COMMIT_REF_NAME")}',
+                ],
                 'unit': 'seconds',
                 'type': 0,
             }
@@ -799,7 +803,10 @@ def _send_build_metrics(ctx, overall_duration):
                 {
                     'metric': 'datadog.agent.build.strip',
                     'points': [{'timestamp': timestamp, 'value': j['strip']}],
-                    'tags': [f'job:{os.environ.get("CI_JOB_NAME_SLUG")}'],
+                    'tags': [
+                        f'job:{os.environ.get("CI_JOB_NAME_SLUG")}',
+                        f'branch:{os.environ.get("CI_COMMIT_REF_NAME")}',
+                    ],
                     'unit': 'seconds',
                     'type': 0,
                 }
@@ -812,6 +819,7 @@ def _send_build_metrics(ctx, overall_duration):
                     'points': [{'timestamp': timestamp, 'value': duration}],
                     'tags': [
                         f'job:{os.environ.get("CI_JOB_NAME_SLUG")}',
+                        f'branch:{os.environ.get("CI_COMMIT_REF_NAME")}',
                         f'packager:{packager}',
                     ],
                     'unit': 'seconds',
