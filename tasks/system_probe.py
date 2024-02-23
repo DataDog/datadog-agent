@@ -1384,8 +1384,9 @@ def build_object_files(
         ctx.run(f"mkdir -p -m 0755 {build_dir}/runtime")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
+    global extra_cflags
     if instrument_trampoline:
-        extra_cflags.append("-pg")
+        extra_cflags = extra_cflags + ["-pg", "-DINSTRUMENTATION_ENABLED"]
 
     run_ninja(
         ctx,
