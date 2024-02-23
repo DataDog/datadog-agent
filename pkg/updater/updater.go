@@ -37,7 +37,6 @@ type Updater interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
-	BootstrapStable(ctx context.Context) error
 	StartExperiment(ctx context.Context, version string) error
 	StopExperiment() error
 	PromoteExperiment() error
@@ -61,8 +60,17 @@ type updaterImpl struct {
 	bootstrapVersions bootstrapVersions
 }
 
+func Install(ctx context.Context, rcFetcher client.ConfigFetcher, pkg string) error {
+	updater, err := NewUpdater(rcFetcher, pkg)
+	if err != nil {
+		return fmt.Errorf("could not create updater: %w", err)
+	}
+	defer updater.Stop(ctx)
+	return updater.bootstrapStable(ctx)
+}
+
 // NewUpdater returns a new Updater.
-func NewUpdater(rcFetcher client.ConfigFetcher, pkg string) (Updater, error) {
+func NewUpdater(rcFetcher client.ConfigFetcher, pkg string) (*updaterImpl, error) {
 	repository := &repository.Repository{
 		RootPath:  path.Join(defaultRepositoryPath, pkg),
 		LocksPath: path.Join(defaultLocksPath, pkg),
@@ -128,15 +136,15 @@ func (u *updaterImpl) Stop(_ context.Context) error {
 	return nil
 }
 
-// BootstrapStable installs the stable version of the package.
-func (u *updaterImpl) BootstrapStable(ctx context.Context) error {
+// bootstrapStable installs the stable version of the package.
+func (u *updaterImpl) bootstrapStable(ctx context.Context) error {
 	u.m.Lock()
 	defer u.m.Unlock()
-	log.Infof("Updater: Installing default version of package %s", u.pkg)
 	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, u.pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get default package %s for %s, %s", u.pkg, runtime.GOARCH, runtime.GOOS)
 	}
+	log.Infof("Updater: Installing default version %s of package %s", stablePackage.Version, u.pkg)
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
@@ -151,7 +159,7 @@ func (u *updaterImpl) BootstrapStable(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not create package: %w", err)
 	}
-	log.Infof("Updater: Successfully installed default version of package %s", u.pkg)
+	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, u.pkg)
 	u.updatePackagesState()
 	return nil
 }

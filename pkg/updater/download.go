@@ -198,6 +198,8 @@ func extractTarArchive(archivePath string, destinationPath string, compression c
 			if err != nil {
 				return fmt.Errorf("could not create symlink: %w", err)
 			}
+		case tar.TypeLink:
+			// we currently don't support hard links in the updater
 		default:
 			log.Warnf("Unsupported tar entry type %d for %s", header.Typeflag, header.Name)
 		}
