@@ -34,7 +34,7 @@ Package authtoken implements the creation and access to the auth_token used to c
 This component offers two implementations: one to create and fetch the auth_token and another that doesn't create the
 auth_token file but can fetch it it's available.
 
-## [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer) (Component Bundle)
+## [comp/apm](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm) (Component Bundle)
 
 *Datadog Team*: windows-agent
 
@@ -156,16 +156,6 @@ Package statsd implements a component to get a statsd client.
 ### [comp/dogstatsd/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/status)
 
 Package status implements the core status component information provider interface
-
-## [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw) (Component Bundle)
-
-*Datadog Team*: windows-agent
-
-
-
-### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
-
-Package etw provides an ETW tracing interface
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
