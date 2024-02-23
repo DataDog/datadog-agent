@@ -70,6 +70,8 @@ components_to_migrate = [
 components_missing_implementation_folder = [
     "comp/dogstatsd/statsd",
     "comp/core/tagger",
+    "comp/forwarder/orchestrator/orchestratorinterface",
+    "comp/core/hostname/hostnameinterface",
 ]
 
 
@@ -109,63 +111,68 @@ def get_components_and_bundles():
     ok = True
     components = []
     bundles = []
-    component_directory = pathlib.Path('comp')
-    for x in component_directory.iterdir():
-        if x.is_dir():
-            directory = pathlib.Path(x)
-            for component_file_or_dir in directory.iterdir():
-                # If we encounter a file at the first level it could be a bundle
-                if component_file_or_dir.is_file():
-                    if component_file_or_dir.name == "bundle.go":
-                        content = list(component_file_or_dir.open())
-                        if has_type_component(content):
-                            print(
-                                f"** {component_file_or_dir} defines a Component interface (bundles should not do so)"
-                            )
+    for component_file in pathlib.Path('comp').glob('**/*'):
+        if not component_file.is_dir():
+            continue
+
+        component_directory = pathlib.Path(component_file)
+        for component_entry in component_directory.iterdir():
+            # If we encounter a file at the first level it could be a bundle
+            if component_entry.is_file():
+                if component_entry.name == "bundle.go":
+                    content = list(component_entry.open())
+                    if has_type_component(content):
+                        print(f"** {component_entry} defines a Component interface (bundles should not do so)")
+                        ok = False
+                        pass
+
+                    path = str(component_entry)[: -len('/bundle.go')]
+                    team = find_team(content)
+                    doc = find_doc(content)
+
+                    if team is None:
+                        print(f"** {component_entry} does not specify a team owner")
+                        ok = False
+                    bundles.append(Bundle(path, doc, team, []))
+            else:
+                for component_file in component_entry.iterdir():
+                    if component_file.name == "component.go":
+                        # We are a component
+                        # Let's check the file hierarchy
+                        content = list(component_file.open())
+                        error = check_component(component_file, content, component_entry)
+                        if error != "":
+                            print(error)
                             ok = False
                             pass
 
-                        path = str(component_file_or_dir)[: -len('/bundle.go')]
+                        path = str(component_file)[: -len('/component.go')]
                         team = find_team(content)
                         doc = find_doc(content)
 
                         if team is None:
-                            print(f"** {component_file_or_dir} does not specify a team owner")
+                            print(f"** {path} does not specify a team owner")
                             ok = False
-                        bundles.append(Bundle(path, doc, team, []))
-                else:
-                    # If we are a directory we might be a component of not
-                    for component_file in component_file_or_dir.iterdir():
-                        # print(component_file)
-                        if component_file.name == "component.go":
-                            # We are a component
-                            # Let's check the file hierarchy
-                            content = list(component_file.open())
-                            error = check_component(component_file, content, component_file_or_dir)
-                            if error != "":
-                                print(error)
-                                ok = False
-                                pass
 
-                            path = str(component_file)[: -len('/component.go')]
-                            team = find_team(content)
-                            doc = find_doc(content)
+                        components.append(Component(path, doc, team))
 
-                            if team is None:
-                                print(f"** {path} does not specify a team owner")
-                                ok = False
-
-                            components.append(Component(path, doc, team))
     # assign components to bundles
-    bundles = [Bundle(b.path, b.doc, b.team, [c for c in components if c.path.startswith(b.path)]) for b in bundles]
+    sorted_bundles = []
+    for b in bundles:
+        bundle_components = []
+        for c in components:
+            if c.path.startswith(b.path):
+                bundle_components.append(c)
+
+        sorted_bundles.append(Bundle(b.path, b.doc, b.team, sorted(bundle_components)))
 
     # look for un-bundled components
     for c in components:
-        if not any(c in b.components for b in bundles):
+        if not any(c in b.components for b in sorted_bundles):
             print(f"** component {c.path} is not in any bundle")
             ok = False
 
-    return sorted(bundles), ok
+    return sorted(sorted_bundles), ok
 
 
 def make_components_md(bundles):
