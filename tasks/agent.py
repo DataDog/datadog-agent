@@ -761,11 +761,10 @@ def _send_build_metrics(ctx, overall_duration):
     # We only want to generate those metrics from the CI
     if sys.platform == 'win32':
         src_dir = "C:/buildroot/datadog-agent"
+        aws_cmd = "aws.cmd"
     else:
         src_dir = os.environ.get('CI_PROJECT_DIR')
-        if not src_dir:
-            print('Not a CI job, skipping sending build metrics')
-            return
+        aws_cmd = "aws"
     job_name = os.environ.get('CI_JOB_NAME_SLUG')
     branch = os.environ.get('CI_COMMIT_REF_NAME')
     if not job_name or not branch or not src_dir:
@@ -839,7 +838,7 @@ def _send_build_metrics(ctx, overall_duration):
                 }
             )
     dd_api_key = ctx.run(
-        'aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text',
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text',
         hide=True,
     ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
