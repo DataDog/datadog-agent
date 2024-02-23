@@ -98,16 +98,6 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 		}
 	}
 
-	// TODO: (components) Hack to retrieve a singleton reference to the secrets Component
-	//
-	// Only needed temporarily, since the secrets.Component is needed for the diagnose functionality.
-	// It is very difficult right now to modify diagnose because it would require modifying many
-	// function signatures, which would only increase future maintenance. Once diagnose is better
-	// integrated with Components, we should be able to remove this hack.
-	//
-	// Other components should not copy this pattern, it is only meant to be used temporarily.
-	//secretResolver := secretsimpl.GetInstance()
-
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 	common.LoadComponents(secretResolver, workloadmeta.GetGlobalStore(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())

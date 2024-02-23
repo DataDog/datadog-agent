@@ -40,10 +40,12 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component]) {
+func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, senderManager, collector) }).Methods("POST")
+	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
+		makeFlare(w, r, senderManager, collector, secretResolver)
+	}).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
