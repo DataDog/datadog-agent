@@ -1,7 +1,7 @@
-import glob
 import json
 import os
 
+from tasks.kernel_matrix_testing.infra import ask_for_ssh, build_infrastructure, find_ssh_key
 from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.libvirt import (
@@ -13,7 +13,7 @@ from tasks.kernel_matrix_testing.libvirt import (
     resource_in_stack,
     resume_domains,
 )
-from tasks.kernel_matrix_testing.tool import Exit, ask, error, info, warn
+from tasks.kernel_matrix_testing.tool import Exit, error, info
 
 try:
     import libvirt
@@ -45,31 +45,6 @@ def create_stack(ctx, stack=None):
     ctx.run(f"mkdir {stack_dir}")
 
 
-def find_ssh_key(ssh_key):
-    possible_paths = [f"~/.ssh/{ssh_key}", f"~/.ssh/{ssh_key}.pem"]
-
-    # Try direct files
-    for path in possible_paths:
-        if os.path.exists(os.path.expanduser(path)):
-            return path
-
-    # Ok, no file found with that name. However, maybe we can identify the key by the key name
-    # that's present in the corresponding pub files
-
-    for pubkey in glob.glob(os.path.expanduser("~/.ssh/*.pub")):
-        privkey = pubkey[:-4]
-        possible_paths.append(privkey)  # Keep track of paths we've checked
-
-        with open(pubkey, "r") as f:
-            parts = f.read().split()
-
-            # Public keys have three "words": key type, public key, name
-            if len(parts) == 3 and parts[2] == ssh_key:
-                return privkey
-
-    raise Exit(f"Could not find file for ssh key {ssh_key}. Looked in {possible_paths}")
-
-
 def remote_vms_in_config(vmconfig):
     with open(vmconfig, 'r') as f:
         data = json.load(f)
@@ -90,15 +65,6 @@ def local_vms_in_config(vmconfig):
             return True
 
     return False
-
-
-def ask_for_ssh():
-    return (
-        ask(
-            "You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]"
-        )
-        != "y"
-    )
 
 
 def kvm_ok(ctx):
@@ -213,10 +179,6 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
     )
 
 
-def is_ec2_ip_entry(entry):
-    return entry.startswith("arm64-instance-ip") or entry.startswith("x86_64-instance-ip")
-
-
 def ec2_instance_ids(ctx, ip_list):
     ip_addresses = ','.join(ip_list)
     list_instances_cmd = f"aws-vault exec sso-sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
@@ -230,20 +192,13 @@ def ec2_instance_ids(ctx, ip_list):
 
 
 def destroy_ec2_instances(ctx, stack):
-    stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
-    if not os.path.exists(stack_output):
-        warn(f"[-] File {stack_output} not found")
-        return
-
-    with open(stack_output, 'r') as f:
-        output = f.read().split('\n')
+    infra = build_infrastructure(stack, remote_ssh_key="")
 
     ips = list()
-    for o in output:
-        if not is_ec2_ip_entry(o):
-            continue
-
-        ips.append(o.split(' ')[1])
+    for arch in infra:
+        instance = infra[arch]
+        if instance.arch != "local":
+            ips.append(instance.ip)
 
     if len(ips) == 0:
         info("[+] No ec2 instance to terminate in stack")

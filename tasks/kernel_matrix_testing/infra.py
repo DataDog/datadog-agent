@@ -1,9 +1,9 @@
+import glob
 import json
 import os
 
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.stacks import ask_for_ssh, find_ssh_key
-from tasks.kernel_matrix_testing.tool import Exit, error
+from tasks.kernel_matrix_testing.tool import Exit, ask, error
 
 
 class LocalCommandRunner:
@@ -56,7 +56,7 @@ class RemoteCommandRunner:
         full_target = get_kmt_os().shared_dir
         if subdir is not None:
             full_target = os.path.join(get_kmt_os().shared_dir, subdir)
-            self.run_cmd(ctx, instance, f"mkdir -p {full_target}", False, False)
+            RemoteCommandRunner.run_cmd(ctx, instance, f"mkdir -p {full_target}", False, False)
 
         ctx.run(
             f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {instance.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
@@ -148,3 +148,37 @@ def ssh_key_to_path(ssh_key):
         ssh_key_path = find_ssh_key(ssh_key)
 
     return ssh_key_path
+
+
+def ask_for_ssh():
+    return (
+        ask(
+            "You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]"
+        )
+        != "y"
+    )
+
+
+def find_ssh_key(ssh_key):
+    possible_paths = [f"~/.ssh/{ssh_key}", f"~/.ssh/{ssh_key}.pem"]
+
+    # Try direct files
+    for path in possible_paths:
+        if os.path.exists(os.path.expanduser(path)):
+            return path
+
+    # Ok, no file found with that name. However, maybe we can identify the key by the key name
+    # that's present in the corresponding pub files
+
+    for pubkey in glob.glob(os.path.expanduser("~/.ssh/*.pub")):
+        privkey = pubkey[:-4]
+        possible_paths.append(privkey)  # Keep track of paths we've checked
+
+        with open(pubkey, "r") as f:
+            parts = f.read().split()
+
+            # Public keys have three "words": key type, public key, name
+            if len(parts) == 3 and parts[2] == ssh_key:
+                return privkey
+
+    raise Exit(f"Could not find file for ssh key {ssh_key}. Looked in {possible_paths}")
