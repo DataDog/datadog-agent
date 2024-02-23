@@ -7,10 +7,7 @@
 
 package config
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-)
-
-func containerSetup(cfg *config.AgentConfig, procRoot string) {
+func containerTagsFunc(cid string) ([]string, error) {
 	// nothing to do here
+	return make([]string, 0), nil
 }

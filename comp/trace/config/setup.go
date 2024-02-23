@@ -132,7 +132,8 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 			cfg.RemoteConfigClient = client
 		}
 	}
-	containerSetup(cfg, coreConfigObject.GetString("container_proc_root"))
+	cfg.ContainerTags = containerTagsFunc
+	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	return cfg, nil
 }
 
