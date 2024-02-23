@@ -44,6 +44,7 @@ go_deps:
   cache:
     - key:
         files:
+          - go.mod
           - ./**/go.mod
         prefix: "go_deps"
       paths:
