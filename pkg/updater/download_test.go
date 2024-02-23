@@ -32,7 +32,7 @@ const (
 	testNestedAgentFileName  = "nested/agent2"
 	testLargeFileName        = "large"
 	testLargeFileSize        = 1024 * 1024 * 20 // 20MB
-	testAgentArchiveFileName = "agent.tar.gz"
+	testAgentArchiveFileName = "package.tar.gz"
 	testDownloadDir          = "download"
 )
 
@@ -80,7 +80,8 @@ func createTestOCIArchive(t *testing.T, dir string) {
 	layerDigest := hex.EncodeToString(hasher.Sum(nil))
 	layerDigestPath := path.Join(blobPath, layerDigest)
 	// File names are digests: move file
-	os.Rename(layerPath, layerDigestPath)
+	err = os.Rename(layerPath, layerDigestPath)
+	assert.NoError(t, err)
 	layerStat, err := os.Stat(layerDigestPath)
 	assert.NoError(t, err)
 
