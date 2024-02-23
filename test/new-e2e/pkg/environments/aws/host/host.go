@@ -222,7 +222,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 	}
 
 	// Create Agent if required
-	if params.installUpdater {
+	if params.installUpdater && params.agentOptions != nil {
 		updater, err := updater.NewHostUpdater(awsEnv.CommonEnvironment, host, params.agentOptions...)
 		if err != nil {
 			return err
