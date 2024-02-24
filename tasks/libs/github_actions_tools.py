@@ -24,6 +24,7 @@ def trigger_macos_workflow(
     gitlab_pipeline_id=None,
     bucket_branch=None,
     version_cache_file_content=None,
+    concurrency_key=None,
 ):
     """
     Trigger a workflow to build a MacOS Agent.
@@ -50,6 +51,9 @@ def trigger_macos_workflow(
 
     if version_cache_file_content:
         inputs["version_cache"] = version_cache_file_content
+
+    if concurrency_key is not None:
+        inputs["concurrency_key"] = concurrency_key
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.

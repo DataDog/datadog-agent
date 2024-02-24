@@ -207,8 +207,8 @@ func (t *Tester) snapshotSystemfiles(tt *testing.T, remotePath string) error {
 	// Ignore these paths when collecting the list of files, they are known to frequently change
 	// Ignoring paths while creating the snapshot reduces the snapshot size by >90%
 	ignorePaths := []string{
-		`C:\Windows\Assembly\Temp\`,
-		`C:\Windows\Assembly\Tmp\`,
+		`C:\Windows\assembly\`,
+		`C:\Windows\Microsoft.NET\assembly\`,
 		`C:\windows\AppReadiness\`,
 		`C:\Windows\Temp\`,
 		`C:\Windows\Prefetch\`,
