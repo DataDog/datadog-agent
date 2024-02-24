@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package util contains common helpers used in the creation of the closed connection event handler
 package util
 
 import (
