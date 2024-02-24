@@ -310,7 +310,7 @@ func (c *Client) SetAgentName(agentName string) {
 type Handler func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 
 // Subscribe subscribes to config updates of a product.
-func (c *Client) Subscribe(product string, fn Handler) {
+func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
