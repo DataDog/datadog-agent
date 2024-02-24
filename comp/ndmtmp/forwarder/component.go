@@ -6,11 +6,11 @@
 // Package forwarder exposes the event platform forwarder for netflow.
 package forwarder
 
-import "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+import "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl/types"
 
 // team: network-device-monitoring
 
 // Component is the component type.
 type Component interface {
-	eventplatformimpl.EventPlatformForwarder
+	types.EventPlatformForwarder
 }

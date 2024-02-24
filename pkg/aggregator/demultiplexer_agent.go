@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformtypes "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl/types"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -37,7 +37,7 @@ type DemultiplexerWithAggregator interface {
 	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
-	GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error)
+	GetEventPlatformForwarder() (eventplatformtypes.EventPlatformForwarder, error)
 	GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck)
 	DumpDogstatsdContexts(io.Writer) error
 }
@@ -508,7 +508,7 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.
 }
 
 // GetEventPlatformForwarder returns underlying events and service checks channels.
-func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error) {
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatformtypes.EventPlatformForwarder, error) {
 	return d.aggregator.GetEventPlatformForwarder()
 }
 

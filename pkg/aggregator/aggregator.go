@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformtypes "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -382,7 +382,7 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan 
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error) {
+func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatformtypes.EventPlatformForwarder, error) {
 	forwarder, found := agg.eventPlatformForwarder.Get()
 	if !found {
 		return nil, errors.New("event platform forwarder not initialized")
