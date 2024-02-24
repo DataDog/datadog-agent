@@ -6,6 +6,9 @@
 package listeners
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	dbmconfig "github.com/DataDog/datadog-agent/pkg/databasemonitoring/config"
@@ -21,22 +24,68 @@ type mockRDSClientConfigurer func(k *aws.MockRDSClient)
 func TestDBMAuroraListener(t *testing.T) {
 	testCases := []struct {
 		name                  string
-		config                dbmconfig.AutodiscoverClustersConfig
+		config                dbmconfig.AuroraConfig
 		numDiscoveryIntervals int
 		rdsClientConfigurer   mockRDSClientConfigurer
-		previousServices      map[string]struct{}
 		expectedServices      []*DBMAuroraService
 		expectedDelServices   []*DBMAuroraService
 	}{
 		{
-			name: "single endpoint discovered and created",
-			config: dbmconfig.AutodiscoverClustersConfig{
+			name: "GetAuroraClusterEndpoints context deadline exceeded produces no services",
+			config: dbmconfig.AuroraConfig{
 				DiscoveryInterval: 1,
+				QueryTimeout:      1,
 				RoleArn:           "arn:aws:iam::123456789012:role/MyRole",
+				Region:            "us-east-1",
 				Clusters: []dbmconfig.ClustersConfig{
 					{
 						Type:       dbmconfig.Postgres,
-						Region:     "us-east-1",
+						ClusterIds: []string{"my-cluster-1"},
+					},
+				},
+			},
+			numDiscoveryIntervals: 0,
+			rdsClientConfigurer: func(k *aws.MockRDSClient) {
+				k.EXPECT().GetAuroraClusterEndpoints(contextWithTimeout(1*time.Second), []string{"my-cluster-1"}).DoAndReturn(
+					func(ctx context.Context, ids []string) (map[string]*aws.AuroraCluster, error) {
+						select {
+						case <-ctx.Done():
+							return nil, ctx.Err()
+						}
+					}).AnyTimes()
+			},
+			expectedServices:    []*DBMAuroraService{},
+			expectedDelServices: []*DBMAuroraService{},
+		},
+		{
+			name: "GetAuroraClusterEndpoints error produces no services",
+			config: dbmconfig.AuroraConfig{
+				DiscoveryInterval: 1,
+				RoleArn:           "arn:aws:iam::123456789012:role/MyRole",
+				Region:            "us-east-1",
+				Clusters: []dbmconfig.ClustersConfig{
+					{
+						Type:       dbmconfig.Postgres,
+						ClusterIds: []string{"my-cluster-1"},
+					},
+				},
+			},
+			numDiscoveryIntervals: 0,
+			rdsClientConfigurer: func(k *aws.MockRDSClient) {
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}).Return(nil, errors.New("big bad error")).AnyTimes()
+			},
+			expectedServices:    []*DBMAuroraService{},
+			expectedDelServices: []*DBMAuroraService{},
+		},
+		{
+			name: "single endpoint discovered and created",
+			config: dbmconfig.AuroraConfig{
+				DiscoveryInterval: 1,
+				RoleArn:           "arn:aws:iam::123456789012:role/MyRole",
+				Region:            "us-east-1",
+				Clusters: []dbmconfig.ClustersConfig{
+					{
+						Type:       dbmconfig.Postgres,
 						ClusterIds: []string{"my-cluster-1"},
 					},
 				},
@@ -74,13 +123,13 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "multiple endpoints discovered and created",
-			config: dbmconfig.AutodiscoverClustersConfig{
+			config: dbmconfig.AuroraConfig{
 				DiscoveryInterval: 1,
 				RoleArn:           "arn:aws:iam::123456789012:role/MyRole",
+				Region:            "us-east-1",
 				Clusters: []dbmconfig.ClustersConfig{
 					{
 						Type:       dbmconfig.Postgres,
-						Region:     "us-east-1",
 						ClusterIds: []string{"my-cluster-1"},
 					},
 				},
@@ -152,13 +201,13 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "endpoints are deleted when no longer discovered",
-			config: dbmconfig.AutodiscoverClustersConfig{
+			config: dbmconfig.AuroraConfig{
 				DiscoveryInterval: 1,
 				RoleArn:           "arn:aws:iam::123456789012:role/MyRole",
+				Region:            "us-east-1",
 				Clusters: []dbmconfig.ClustersConfig{
 					{
 						Type:       dbmconfig.Postgres,
-						Region:     "us-east-1",
 						ClusterIds: []string{"my-cluster-1"},
 					},
 				},
@@ -276,15 +325,10 @@ func TestDBMAuroraListener(t *testing.T) {
 			defer ctrl.Finish()
 			mockConfig := config.Mock(t)
 			mockConfig.SetWithoutSource("autodiscover_aurora_clusters", tc.config)
-			mockClient := aws.NewMockRDSClient(ctrl)
-			tc.rdsClientConfigurer(mockClient)
-			// TODO: support multiple regions in my test setup
-			awsClients := make(map[string]aws.RDSClient)
-			for _, cluster := range tc.config.Clusters {
-				awsClients[cluster.Region] = mockClient
-			}
+			mockAWSClient := aws.NewMockRDSClient(ctrl)
+			tc.rdsClientConfigurer(mockAWSClient)
 			ticks := make(chan time.Time, 1)
-			l := newDBMAuroraListener(tc.config, tc.previousServices, awsClients, ticks)
+			l := newDBMAuroraListener(tc.config, mockAWSClient, ticks)
 			l.Listen(newSvc, delSvc)
 			// execute loop
 			for i := 0; i < tc.numDiscoveryIntervals; i++ {
@@ -321,4 +365,32 @@ func TestDBMAuroraListener(t *testing.T) {
 			assert.ElementsMatch(t, tc.expectedDelServices, deletedServices)
 		})
 	}
+}
+
+func contextWithTimeout(t time.Duration) gomock.Matcher {
+	return contextWithTimeoutMatcher{
+		timeout: t,
+	}
+}
+
+type contextWithTimeoutMatcher struct {
+	timeout time.Duration
+}
+
+func (m contextWithTimeoutMatcher) Matches(x interface{}) bool {
+	ctx, ok := x.(context.Context)
+	if !ok {
+		return false
+	}
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return false
+	}
+
+	delta := time.Until(deadline) - m.timeout
+	return delta < time.Millisecond*50
+}
+
+func (m contextWithTimeoutMatcher) String() string {
+	return fmt.Sprintf("have a deadline from a timeout of %d milliseconds", m.timeout.Milliseconds())
 }

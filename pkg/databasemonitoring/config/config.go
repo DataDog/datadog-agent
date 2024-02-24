@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	defaultDiscoveryIntervalSeconds = 300
-	autoDiscoveryConfigKey          = "database_monitoring.autodiscover_aurora_clusters"
+	autoDiscoveryConfigKey       = "database_monitoring.autodiscovery"
+	autoDiscoveryAuroraConfigKey = "database_monitoring.autodiscovery.aurora"
 )
 
 // IntegrationType represents the type of database-monitoring integration
@@ -31,9 +31,15 @@ const (
 	SQLServer IntegrationType = "sqlserver"
 )
 
-// AutodiscoverClustersConfig represents the configuration for auto-discovering database clusters
-type AutodiscoverClustersConfig struct {
+type AutodiscoveryConfig struct {
+	AuroraConfig AuroraConfig `mapstructure:"aurora"`
+}
+
+// AuroraConfig represents the configuration for auto-discovering database clusters
+type AuroraConfig struct {
 	DiscoveryInterval int              `mapstructure:"discovery_interval"`
+	QueryTimeout      int              `mapstructure:"query_timeout"`
+	Region            string           `mapstructure:"region"`
 	RoleArn           string           `mapstructure:"role_arn"`
 	Clusters          []ClustersConfig `mapstructure:"clusters"`
 }
@@ -41,13 +47,13 @@ type AutodiscoverClustersConfig struct {
 // ClustersConfig represents the list of clusters for a specific integration type
 type ClustersConfig struct {
 	Type       IntegrationType `mapstructure:"type"`
-	Region     string          `mapstructure:"region"`
 	ClusterIds []string        `mapstructure:"db-cluster-ids,omitempty"`
 }
 
-// NewAutodiscoverClustersConfig parses configuration and returns a built AutodiscoverClustersConfig
-func NewAutodiscoverClustersConfig() (AutodiscoverClustersConfig, error) {
-	var discoveryConfigs AutodiscoverClustersConfig
+// NewAuroraAutodiscoveryConfig parses configuration and returns a built AuroraConfig
+func NewAuroraAutodiscoveryConfig() (AuroraConfig, error) {
+	var discoveryConfigs AutodiscoveryConfig
+	var auroraConfig AuroraConfig
 	opt := viper.DecodeHook(
 		func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
 			// Turn an array into a map for ignored addresses
@@ -64,26 +70,25 @@ func NewAutodiscoverClustersConfig() (AutodiscoverClustersConfig, error) {
 			return newData, nil
 		},
 	)
-	// Set defaults before unmarshalling
-	discoveryConfigs.DiscoveryInterval = defaultDiscoveryIntervalSeconds
 	if err := coreconfig.Datadog.UnmarshalKey(autoDiscoveryConfigKey, &discoveryConfigs, opt); err != nil {
-		return discoveryConfigs, err
+		return AuroraConfig{}, err
 	}
-	if discoveryConfigs.RoleArn == "" {
-		return discoveryConfigs, fmt.Errorf("invalid %s configuration, a role_arn must be set", autoDiscoveryConfigKey)
+	discoveryConfigs.AuroraConfig = auroraConfig
+	if auroraConfig.RoleArn == "" {
+		return auroraConfig, fmt.Errorf("invalid %s configuration, a role_arn must be set", autoDiscoveryAuroraConfigKey)
+	}
+	if auroraConfig.Region == "" {
+		return auroraConfig, fmt.Errorf("invalid %s configuration configuration, a region must set", autoDiscoveryAuroraConfigKey)
 	}
 	// check all types are valid
-	for i := range discoveryConfigs.Clusters {
-		intType := discoveryConfigs.Clusters[i].Type
+	for i := range auroraConfig.Clusters {
+		intType := auroraConfig.Clusters[i].Type
 		if !IsValidIntegrationType(intType) {
-			return discoveryConfigs, fmt.Errorf("invalid integration type in %s configuration: %s", autoDiscoveryConfigKey, intType)
-		}
-		if discoveryConfigs.Clusters[i].Region == "" {
-			return discoveryConfigs, fmt.Errorf("invalid %s.clusters configuration, a region must set", autoDiscoveryConfigKey)
+			return auroraConfig, fmt.Errorf("invalid integration type in %s.clusters configuration: %s", autoDiscoveryAuroraConfigKey, intType)
 		}
 	}
 
-	return discoveryConfigs, nil
+	return auroraConfig, nil
 }
 
 // IsValidIntegrationType checks if the given database type is valid

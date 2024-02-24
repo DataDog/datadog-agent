@@ -1,5 +1,5 @@
 ad_identifiers:
-  - database_monitoring_aurora
+  - _dbm_aws_aurora
 init_config:
 instances:
   ## @param host - string - optional
