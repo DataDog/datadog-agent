@@ -8,17 +8,13 @@
 package kprobe
 
 import (
-	"os"
-
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-
-	"github.com/cilium/ebpf/asm"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 )
 
 var mainProbes = []probes.ProbeFuncName{
@@ -87,40 +83,7 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
-	switch handler := connCloseEventHandler.(type) {
-	case *ebpf.RingBufferHandler:
-		rb := &manager.RingBuffer{
-			Map: manager.Map{Name: probes.ConnCloseEventMap},
-			RingBufferOptions: manager.RingBufferOptions{
-				RecordGetter:     handler.RecordGetter,
-				RecordHandler:    handler.RecordHandler,
-				TelemetryEnabled: cfg.InternalTelemetryEnabled,
-				// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-				RingBufferSize: ComputeDefaultClosedConnRingBufferSize(),
-			},
-		}
-		mgr.RingBuffers = []*manager.RingBuffer{rb}
-		ebpftelemetry.ReportRingBufferTelemetry(rb)
-	case *ebpf.PerfHandler:
-		pm := &manager.PerfMap{
-			Map: manager.Map{Name: probes.ConnCloseEventMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: ComputeDefaultClosedConnPerfBufferSize(),
-				Watermark:          1,
-				RecordHandler:      handler.RecordHandler,
-				LostHandler:        handler.LostHandler,
-				RecordGetter:       handler.RecordGetter,
-				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
-			},
-		}
-		mgr.PerfMaps = []*manager.PerfMap{pm}
-		ebpftelemetry.ReportPerfMapTelemetry(pm)
-		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
-		if err != nil {
-			return err
-		}
-	}
+	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -160,24 +123,4 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 	}
 
 	return nil
-}
-
-// ComputeDefaultClosedConnRingBufferSize is the default buffer size of the ring buffer for closed connection events.
-// Must be a power of 2 and a multiple of the page size
-func ComputeDefaultClosedConnRingBufferSize() int {
-	numCPUs, err := utils.NumCPU()
-	pageSize := os.Getpagesize()
-	if err != nil {
-		numCPUs = 1
-	}
-	if numCPUs <= 16 {
-		return 8 * 8 * pageSize
-	}
-	return 8 * 16 * pageSize
-}
-
-// ComputeDefaultClosedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.
-// Must be a multiple of the page size
-func ComputeDefaultClosedConnPerfBufferSize() int {
-	return 8 * os.Getpagesize()
 }

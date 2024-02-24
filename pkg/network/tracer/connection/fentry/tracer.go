@@ -23,6 +23,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -74,7 +75,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		if ringbufferEnabled {
 			mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
 				Type:       ebpf.RingBuf,
-				MaxEntries: uint32(kprobe.ComputeDefaultClosedConnRingBufferSize()),
+				MaxEntries: uint32(util.ComputeDefaultClosedConnRingBufferSize()),
 				KeySize:    0,
 				ValueSize:  0,
 				EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
