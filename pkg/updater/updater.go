@@ -60,17 +60,22 @@ type updaterImpl struct {
 	bootstrapVersions bootstrapVersions
 }
 
+// Install installs the default version for the given package.
+// It is purposefully not part of the updater to avoid misuse.
 func Install(ctx context.Context, rcFetcher client.ConfigFetcher, pkg string) error {
-	updater, err := NewUpdater(rcFetcher, pkg)
+	updater, err := newUpdater(rcFetcher, pkg)
 	if err != nil {
 		return fmt.Errorf("could not create updater: %w", err)
 	}
-	defer updater.Stop(ctx)
 	return updater.bootstrapStable(ctx)
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(rcFetcher client.ConfigFetcher, pkg string) (*updaterImpl, error) {
+func NewUpdater(rcFetcher client.ConfigFetcher, pkg string) (Updater, error) {
+	return newUpdater(rcFetcher, pkg)
+}
+
+func newUpdater(rcFetcher client.ConfigFetcher, pkg string) (*updaterImpl, error) {
 	repository := &repository.Repository{
 		RootPath:  path.Join(defaultRepositoryPath, pkg),
 		LocksPath: path.Join(defaultLocksPath, pkg),
