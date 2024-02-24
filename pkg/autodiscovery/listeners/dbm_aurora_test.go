@@ -48,10 +48,8 @@ func TestDBMAuroraListener(t *testing.T) {
 			rdsClientConfigurer: func(k *aws.MockRDSClient) {
 				k.EXPECT().GetAuroraClusterEndpoints(contextWithTimeout(1*time.Second), []string{"my-cluster-1"}).DoAndReturn(
 					func(ctx context.Context, ids []string) (map[string]*aws.AuroraCluster, error) {
-						select {
-						case <-ctx.Done():
-							return nil, ctx.Err()
-						}
+						<-ctx.Done()
+						return nil, ctx.Err()
 					}).AnyTimes()
 			},
 			expectedServices:    []*DBMAuroraService{},

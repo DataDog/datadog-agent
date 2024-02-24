@@ -32,6 +32,7 @@ const (
 	SQLServer IntegrationType = "sqlserver"
 )
 
+// AutodiscoveryConfig represents the auto-discovery configuration for database-monitoring
 type AutodiscoveryConfig struct {
 	AuroraConfig AuroraConfig `mapstructure:"aurora"`
 }

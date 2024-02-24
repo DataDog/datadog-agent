@@ -169,7 +169,7 @@ func (l *DBMAuroraListener) deleteServices(entityIDs []string) {
 
 func findDeletedServices(currServices map[string]Service, discoveredServices map[string]struct{}) []string {
 	deletedServices := make([]string, 0)
-	for svc, _ := range currServices {
+	for svc := range currServices {
 		if _, exists := discoveredServices[svc]; !exists {
 			deletedServices = append(deletedServices, svc)
 		}
