@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	autoDiscoveryConfigKey       = "database_monitoring.autodiscovery"
 	autoDiscoveryAuroraConfigKey = "database_monitoring.autodiscovery.aurora"
+	defaultDiscoveryInterval     = 300
+	defaultQueryTimeout          = 10
 )
 
 // IntegrationType represents the type of database-monitoring integration
@@ -52,8 +53,7 @@ type ClustersConfig struct {
 
 // NewAuroraAutodiscoveryConfig parses configuration and returns a built AuroraConfig
 func NewAuroraAutodiscoveryConfig() (AuroraConfig, error) {
-	var discoveryConfigs AutodiscoveryConfig
-	var auroraConfig AuroraConfig
+	var discoveryConfigs AuroraConfig
 	opt := viper.DecodeHook(
 		func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
 			// Turn an array into a map for ignored addresses
@@ -70,25 +70,26 @@ func NewAuroraAutodiscoveryConfig() (AuroraConfig, error) {
 			return newData, nil
 		},
 	)
-	if err := coreconfig.Datadog.UnmarshalKey(autoDiscoveryConfigKey, &discoveryConfigs, opt); err != nil {
+	discoveryConfigs.DiscoveryInterval = defaultDiscoveryInterval
+	discoveryConfigs.QueryTimeout = defaultQueryTimeout
+	if err := coreconfig.Datadog.UnmarshalKey(autoDiscoveryAuroraConfigKey, &discoveryConfigs, opt); err != nil {
 		return AuroraConfig{}, err
 	}
-	discoveryConfigs.AuroraConfig = auroraConfig
-	if auroraConfig.RoleArn == "" {
-		return auroraConfig, fmt.Errorf("invalid %s configuration, a role_arn must be set", autoDiscoveryAuroraConfigKey)
+	if discoveryConfigs.RoleArn == "" {
+		return discoveryConfigs, fmt.Errorf("invalid %s configuration, a role_arn must be set", autoDiscoveryAuroraConfigKey)
 	}
-	if auroraConfig.Region == "" {
-		return auroraConfig, fmt.Errorf("invalid %s configuration configuration, a region must set", autoDiscoveryAuroraConfigKey)
+	if discoveryConfigs.Region == "" {
+		return discoveryConfigs, fmt.Errorf("invalid %s configuration configuration, a region must set", autoDiscoveryAuroraConfigKey)
 	}
 	// check all types are valid
-	for i := range auroraConfig.Clusters {
-		intType := auroraConfig.Clusters[i].Type
+	for i := range discoveryConfigs.Clusters {
+		intType := discoveryConfigs.Clusters[i].Type
 		if !IsValidIntegrationType(intType) {
-			return auroraConfig, fmt.Errorf("invalid integration type in %s.clusters configuration: %s", autoDiscoveryAuroraConfigKey, intType)
+			return discoveryConfigs, fmt.Errorf("invalid integration type in %s.clusters configuration: %s", autoDiscoveryAuroraConfigKey, intType)
 		}
 	}
 
-	return auroraConfig, nil
+	return discoveryConfigs, nil
 }
 
 // IsValidIntegrationType checks if the given database type is valid
