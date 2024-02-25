@@ -53,6 +53,7 @@ const (
 	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
 	filterTailCall            = "socket__http2_filter"
 	headersParserTailCall     = "socket__http2_headers_parser"
+	dynamicTableCleaner       = "socket__http2_dynamic_table_cleaner"
 	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
 
@@ -64,6 +65,7 @@ const (
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
 	tlsHeadersParserTailCall = "uprobe__http2_tls_headers_parser"
+	tlsDynamicTableCleaner   = "uprobe__http2_dynamic_table_cleaner"
 	tlsEOSParserTailCall     = "uprobe__http2_tls_eos_parser"
 	tlsTerminationTailCall   = "uprobe__http2_tls_termination"
 )
@@ -124,6 +126,13 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2DynamicTableCleaner),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: dynamicTableCleaner,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramHTTP2EOSParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: eosParserTailCall,
@@ -148,6 +157,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramTLSHTTP2HeaderParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsHeadersParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2DynamicTableCleaner),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsDynamicTableCleaner,
 			},
 		},
 		{
@@ -385,7 +401,7 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key http2StreamKey, val EbpfTx) bool {
+	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, key http2StreamKey, val EbpfTx) bool {
 		if updated := int64(val.Stream.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

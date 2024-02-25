@@ -12,7 +12,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -575,8 +574,7 @@ func TestExtractLibInfo(t *testing.T) {
 			}
 
 			// reset pinned libraries between test runs
-			pinnedLibs.once = new(sync.Once)
-			pinnedLibs.libraries = []libInfo{}
+			pinnedLibs = &pinnedLibraries{}
 
 			apmInstrumentation, err := newAPMInstrumentationWebhook()
 			require.NoError(t, err)
@@ -1848,8 +1846,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			fakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
 			// reset pinned libraries between test runs
-			pinnedLibs.once = new(sync.Once)
-			pinnedLibs.libraries = []libInfo{}
+			pinnedLibs = &pinnedLibraries{}
 
 			apmInstrumentation, err := newAPMInstrumentationWebhook()
 			require.NoError(t, err)
@@ -1947,10 +1944,10 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on with disabled namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:  fakePodWithNamespaceAndLabel("ns2", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns2"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
 			},
 			want: true,
 		},
@@ -2022,10 +2019,10 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on with enabled other namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:  fakePodWithNamespaceAndLabel("ns2", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"n2s"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
 			},
 			want: false,
 		},

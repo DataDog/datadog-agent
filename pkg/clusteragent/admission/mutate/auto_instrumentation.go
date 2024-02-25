@@ -80,7 +80,7 @@ type language string
 
 type pinnedLibraries struct {
 	libraries []libInfo
-	once      *sync.Once
+	once      sync.Once
 }
 
 const (
@@ -192,15 +192,15 @@ func apmSSINamespaceFilter() (*containers.Filter, error) {
 	apmDisabledNamespacesWithPrefix := make([]string, len(apmDisabledNamespaces))
 
 	for i := range apmEnabledNamespaces {
-		apmEnabledNamespacesWithPrefix[i] = prefix + apmEnabledNamespaces[i]
+		apmEnabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", apmEnabledNamespaces[i])
 	}
 	for i := range apmDisabledNamespaces {
-		apmDisabledNamespacesWithPrefix[i] = prefix + apmDisabledNamespaces[i]
+		apmDisabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", apmDisabledNamespaces[i])
 	}
 
 	disabledByDefault := []string{
-		prefix + "kube-system",
-		prefix + apiServerCommon.GetResourcesNamespace(),
+		prefix + "^kube-system$",
+		prefix + fmt.Sprintf("^%s$", apiServerCommon.GetResourcesNamespace()),
 	}
 
 	var filterExcludeList []string
