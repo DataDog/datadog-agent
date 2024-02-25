@@ -41,6 +41,8 @@ const (
 	ProgramHTTP2HeadersParser ProgramType = C.PROG_HTTP2_HEADERS_PARSER
 	// ProgramHTTP2EOSParser is the Golang representation of the C.PROG_HTTP2_EOS_PARSER enum
 	ProgramHTTP2EOSParser ProgramType = C.PROG_HTTP2_EOS_PARSER
+	// ProgramHTTP2Cleanup is the Golang representation of the C.PROG_HTTP2_CLEANUP_PARSER enum
+	ProgramHTTP2Cleanup ProgramType = C.PROG_HTTP2_CLEANUP_PARSER
 	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
 	ProgramKafka ProgramType = C.PROG_KAFKA
 )
@@ -112,6 +114,8 @@ const (
 	ProgramTLSHTTP2HeaderParser TLSProgramType = C.TLS_HTTP2_HEADERS_PARSER
 	// ProgramTLSHTTP2EOSParser is tail call to process End-Of-Stream frames.
 	ProgramTLSHTTP2EOSParser TLSProgramType = C.TLS_HTTP2_EOS_PARSER
+	// ProgramTLSHTTP2CleanupParser is tail call to process cleanup frames.
+	ProgramTLSHTTP2CleanupParser TLSProgramType = C.TLS_HTTP2_CLEANUP_PARSER
 	// ProgramTLSHTTP2Termination is tail call to process TLS HTTP2 termination.
 	ProgramTLSHTTP2Termination TLSProgramType = C.TLS_HTTP2_TERMINATION
 )

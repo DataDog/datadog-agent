@@ -639,7 +639,7 @@ service_monitoring_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 30*time.Second)
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 5*time.Second)
 	})
 }
 
@@ -1557,7 +1557,7 @@ system_probe_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := modelCfgFromYAML(t, `
 system_probe_config:
-  process_service_inference: 
+  process_service_inference:
     enabled: true`)
 		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
 	})
