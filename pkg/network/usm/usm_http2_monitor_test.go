@@ -82,13 +82,16 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 	return cfg
 }
 
-func TestHTTP2Scenarios(t *testing.T) {
+func skipIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < usmhttp2.MinimumKernelVersion {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
 	}
+}
 
+func TestHTTP2Scenarios(t *testing.T) {
+	skipIfKernelNotSupported(t)
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
@@ -1414,6 +1417,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 }
 
 func TestHTTP2InFlightMapCleaner(t *testing.T) {
+	skipIfKernelNotSupported(t)
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
