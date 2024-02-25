@@ -34,7 +34,7 @@ type Protocol struct {
 	mgr                     *manager.Manager
 	telemetry               *http.Telemetry
 	statkeeper              *http.StatKeeper
-	http2InFlightMapCleaner *ddebpf.MapCleaner[http2StreamKey, EbpfTx]
+	http2InFlightMapCleaner *ddebpf.MapCleaner[HTTP2StreamKey, HTTP2Stream]
 	eventsConsumer          *events.Consumer[EbpfTx]
 
 	// http2Telemetry is used to retrieve metrics from the kernel
@@ -45,7 +45,8 @@ type Protocol struct {
 }
 
 const (
-	inFlightMap               = "http2_in_flight"
+	// InFlightMap is the name of the map used to store in-flight HTTP/2 streams
+	InFlightMap               = "http2_in_flight"
 	dynamicTable              = "http2_dynamic_table"
 	dynamicTableCounter       = "http2_dynamic_counter_table"
 	http2IterationsTable      = "http2_iterations"
@@ -75,7 +76,7 @@ var Spec = &protocols.ProtocolSpec{
 	Factory: newHTTP2Protocol,
 	Maps: []*manager.Map{
 		{
-			Name: inFlightMap,
+			Name: InFlightMap,
 		},
 		{
 			Name: dynamicTable,
@@ -220,7 +221,7 @@ const (
 //
 // We also configure the http2 event stream with the manager and its options.
 func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
-	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
+	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -361,10 +362,10 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 // DumpMaps dumps the content of the map represented by mapName &
 // currentMap, if it used by the eBPF program, to output.
 func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
-	if mapName == inFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
-		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
+	if mapName == InFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key HTTP2StreamKey, value HTTP2Stream
+		io.WriteString(w, "Map: '"+mapName+"', key: 'HTTP2StreamKey', value: 'HTTP2Stream'\n")
 		iter := currentMap.Iterate()
-		var key http2StreamKey
+		var key HTTP2StreamKey
 		var value EbpfTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
@@ -389,24 +390,24 @@ func (p *Protocol) processHTTP2(events []EbpfTx) {
 }
 
 func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
-	http2Map, _, err := mgr.GetMap(inFlightMap)
+	http2Map, _, err := mgr.GetMap(InFlightMap)
 	if err != nil {
-		log.Errorf("error getting %q map: %s", inFlightMap, err)
+		log.Errorf("error getting %q map: %s", InFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[http2StreamKey, EbpfTx](http2Map, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2StreamKey, HTTP2Stream](http2Map, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, key http2StreamKey, val EbpfTx) bool {
-		if updated := int64(val.Stream.Response_last_seen); updated > 0 {
+	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, key HTTP2StreamKey, val HTTP2Stream) bool {
+		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(val.Stream.Request_started)
+		started := int64(val.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 
