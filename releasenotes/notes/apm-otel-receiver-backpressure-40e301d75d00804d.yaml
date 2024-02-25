@@ -8,6 +8,6 @@
 ---
 fixes:
   - |
-    APM: Stop dropping incoming otel payloads when the processing channel is full
+    APM: Stop dropping incoming OTel payloads when the processing channel is full
     and eliminate OOM issues in the trace agent and collector component in high
     load scenarios, making the OTel pipeline more reliable.
