@@ -53,11 +53,11 @@ def download_rootfs(ctx, rootfs_dir, vms=None):
     to_download = list()
     file_ls = list()
     if vms:
-        info("Initializing following micro VMs:")
+        info("[+] Initializing following VMs:")
         for vm in vms:
             info(f"{vm}, ")
     else:
-        info("Initializing all micro VMs")
+        info("[+] Initializing all VMs")
     for tag in platforms[arch]:
         # if provided specific micro-vms, skip downloading unnecessary files
         if vms and tag not in vms:
