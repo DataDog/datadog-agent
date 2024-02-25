@@ -852,6 +852,8 @@ int uprobe__http2_dynamic_table_cleaner(struct pt_regs *ctx) {
         goto next;
     }
 
+    // We're checking if the difference between the current value of the dynamic global table, to the previous index we
+    // cleaned, is bigger than our threshold. If so, we need to clean the table.
     if (dynamic_counter->value - dynamic_counter->previous <= HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD) {
         goto next;
     }
@@ -862,11 +864,17 @@ int uprobe__http2_dynamic_table_cleaner(struct pt_regs *ctx) {
 
     #pragma unroll(HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS)
     for (__u16 index = 0; index < HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS; index++) {
+        // We should reserve the last HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD entries in the dynamic table.
+        // So if we're about to delete an entry that is in the last HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD entries,
+        // we should stop the cleanup.
         if (dynamic_counter->previous + HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD >= dynamic_counter->value) {
             break;
         }
+        // Setting the current index.
         dynamic_index.index = dynamic_counter->previous;
+        // Trying to delete the entry, it might not exist, so we're ignoring the return value.
         bpf_map_delete_elem(&http2_dynamic_table, &dynamic_index);
+        // Incrementing the previous index.
         dynamic_counter->previous++;
     }
 
