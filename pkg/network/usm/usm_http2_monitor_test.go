@@ -1413,7 +1413,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 	}
 }
 
-func TestHTTP2Tasik(t *testing.T) {
+func TestHTTP2InFlightMapCleaner(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second

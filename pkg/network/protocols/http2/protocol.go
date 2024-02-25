@@ -45,6 +45,7 @@ type Protocol struct {
 }
 
 const (
+	// InFlightMap is the name of the map used to store in-flight HTTP/2 streams
 	InFlightMap               = "http2_in_flight"
 	dynamicTable              = "http2_dynamic_table"
 	dynamicTableCounter       = "http2_dynamic_counter_table"
@@ -345,8 +346,8 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 // DumpMaps dumps the content of the map represented by mapName &
 // currentMap, if it used by the eBPF program, to output.
 func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
-	if mapName == InFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
-		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
+	if mapName == InFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key HTTP2StreamKey, value HTTP2Stream
+		io.WriteString(w, "Map: '"+mapName+"', key: 'HTTP2StreamKey', value: 'HTTP2Stream'\n")
 		iter := currentMap.Iterate()
 		var key HTTP2StreamKey
 		var value EbpfTx
