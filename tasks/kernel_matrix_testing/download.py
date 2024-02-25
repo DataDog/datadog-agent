@@ -40,7 +40,7 @@ def requires_update(url_base, rootfs_dir, image):
     return False
 
 
-def download_rootfs(ctx, rootfs_dir):
+def download_rootfs(ctx, rootfs_dir, vms=None):
     with open(platforms_file) as f:
         platforms = json.load(f)
 
@@ -52,7 +52,16 @@ def download_rootfs(ctx, rootfs_dir):
     arch = arch_mapping[platform.machine()]
     to_download = list()
     file_ls = list()
+    if vms:
+        info("Initializing following micro VMs:")
+        for vm in vms:
+            info(f"{vm}, ")
+    else:
+        info("Initializing all micro VMs")
     for tag in platforms[arch]:
+        # if provided specific micro-vms, skip downloading unnecessary files
+        if vms and tag not in vms:
+            continue
         path = os.path.basename(platforms[arch][tag])
         if path.endswith(".xz"):
             path = path[: -len(".xz")]

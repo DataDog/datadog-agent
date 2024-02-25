@@ -39,7 +39,7 @@ def gen_ssh_key(ctx, kmt_dir):
     ctx.run(f"chmod 400 {kmt_dir}/ddvm_rsa")
 
 
-def init_kernel_matrix_testing_system(ctx, lite):
+def init_kernel_matrix_testing_system(ctx, lite, vms=None):
     kmt_os = get_kmt_os()
 
     sudo = "sudo" if not is_root() else ""
@@ -63,7 +63,7 @@ def init_kernel_matrix_testing_system(ctx, lite):
 
     # download dependencies
     if not lite:
-        download_rootfs(ctx, kmt_os.rootfs_dir)
+        download_rootfs(ctx, kmt_os.rootfs_dir, vms)
         gen_ssh_key(ctx, kmt_os.kmt_dir)
 
     # build docker compile image

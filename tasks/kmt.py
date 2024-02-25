@@ -202,9 +202,9 @@ def ls(_, distro=False, custom=False):
     print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
 
 
-@task
-def init(ctx, lite=False):
-    init_kernel_matrix_testing_system(ctx, lite)
+@task(iterable=['vms'])
+def init(ctx, lite=False, vms=None):
+    init_kernel_matrix_testing_system(ctx, lite, vms)
 
 
 @task
