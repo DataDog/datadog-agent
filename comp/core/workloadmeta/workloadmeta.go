@@ -7,12 +7,14 @@ package workloadmeta
 
 import (
 	"context"
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"sync"
 	"time"
 
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
@@ -87,7 +89,7 @@ func newWorkloadMeta(deps dependencies) provider {
 		store:        make(map[Kind]map[string]*cachedEntity),
 		candidates:   candidates,
 		collectors:   make(map[string]Collector),
-		eventCh:      make(chan []CollectorEvent, eventChBufferSize),
+		eventCh:      make(chan []CollectorEvent, pkgconfig.Datadog.GetInt("workloadmeta.collector_event_chan_buffer")),
 		ongoingPulls: make(map[string]time.Time),
 	}
 

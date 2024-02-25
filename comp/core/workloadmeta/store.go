@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -27,7 +28,6 @@ const (
 	pullCollectorInterval         = 5 * time.Second
 	maxCollectorPullTime          = 1 * time.Minute
 	eventBundleChTimeout          = 1 * time.Second
-	eventChBufferSize             = 50
 )
 
 type subscriber struct {
@@ -374,7 +374,11 @@ func (w *workloadmeta) GetImage(id string) (*ContainerImageMetadata, error) {
 // Notify implements Store#Notify
 func (w *workloadmeta) Notify(events []CollectorEvent) {
 	if len(events) > 0 {
-		w.eventCh <- events
+		select {
+		case w.eventCh <- events:
+		default:
+			log.Warnf("workloadmeta event channel full, dropping %d events", len(events))
+		}
 	}
 }
 
@@ -701,13 +705,20 @@ func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 	// process an event.
 	w.storeMut.Unlock()
 
+	var wg sync.WaitGroup
+	wg.Add(len(filteredEvents))
 	for sub, evs := range filteredEvents {
 		if len(evs) == 0 {
+			wg.Done()
 			continue
 		}
 
-		w.notifyChannel(sub.name, sub.ch, evs, true)
+		go func(sub subscriber, evs []Event) {
+			w.notifyChannel(sub.name, sub.ch, evs, true)
+			wg.Done()
+		}(sub, evs)
 	}
+	wg.Wait()
 }
 
 func (w *workloadmeta) getEntityByKind(kind Kind, id string) (Entity, error) {
