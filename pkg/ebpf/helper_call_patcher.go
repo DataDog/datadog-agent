@@ -48,7 +48,6 @@ func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) e
 		for _, p := range progs {
 			iter := p.Instructions.Iterate()
 
-		InstructionLoop:
 			for iter.Next() {
 				ins := iter.Ins
 				if !ins.IsBuiltinCall() {
@@ -58,7 +57,7 @@ func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) e
 				for _, fn := range h.helpers {
 					if ins.Constant == int64(fn) {
 						*ins = noopIns.WithMetadata(ins.Metadata)
-						continue InstructionLoop
+						break
 					}
 				}
 			}
