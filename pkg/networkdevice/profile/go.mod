@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/networkdevice/profile
 
-go 1.21
+go 1.21.7
 
 require (
 	github.com/invopop/jsonschema v0.10.0

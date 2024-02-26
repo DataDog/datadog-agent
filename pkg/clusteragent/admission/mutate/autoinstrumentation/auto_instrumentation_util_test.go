@@ -5,21 +5,22 @@
 
 //go:build kubeapiserver
 
-package mutate
+package autoinstrumentation
 
 import (
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"reflect"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGetOwnerNameAndKind(t *testing.T) {
@@ -32,21 +33,21 @@ func TestGetOwnerNameAndKind(t *testing.T) {
 	}{
 		{
 			name:         "Pod with no parent",
-			pod:          fakePod("orphan-pod"),
+			pod:          common.FakePod("orphan-pod"),
 			expectedName: "",
 			expectedKind: "",
 			wantFound:    false,
 		},
 		{
 			name:         "Pod with replicaset parent, and no deployment grandparent",
-			pod:          fakePodWithParent("default", nil, nil, nil, "replicaset", "dummy-rs"),
+			pod:          common.FakePodWithParent("default", nil, nil, nil, "replicaset", "dummy-rs"),
 			expectedName: "dummy-rs",
 			expectedKind: "ReplicaSet",
 			wantFound:    true,
 		},
 		{
 			name:         "Pod with replicaset parent, and deployment grandparent",
-			pod:          fakePodWithParent("default", nil, nil, nil, "replicaset", "dummy-rs-12344"),
+			pod:          common.FakePodWithParent("default", nil, nil, nil, "replicaset", "dummy-rs-12344"),
 			expectedName: "dummy-rs",
 			expectedKind: "Deployment",
 			wantFound:    true,

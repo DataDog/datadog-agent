@@ -5,14 +5,11 @@
 
 //go:build kubeapiserver
 
-package mutate
+package tagsfromlabels
 
 import (
 	"reflect"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +18,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/fake"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 var scheme = kscheme.Scheme
@@ -37,12 +38,12 @@ func Test_injectTagsFromLabels(t *testing.T) {
 		{
 			name:   "nominal case",
 			labels: map[string]string{"tags.datadoghq.com/env": "dev", "tags.datadoghq.com/service": "dd-agent", "tags.datadoghq.com/version": "7"},
-			pod:    fakePod("foo-pod"),
+			pod:    common.FakePod("foo-pod"),
 			wantPodFunc: func() corev1.Pod {
-				pod := fakePod("foo-pod")
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_ENV", "dev"))
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_SERVICE", "dd-agent"))
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_VERSION", "7"))
+				pod := common.FakePod("foo-pod")
+				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, common.FakeEnvWithValue("DD_ENV", "dev"))
+				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, common.FakeEnvWithValue("DD_SERVICE", "dd-agent"))
+				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, common.FakeEnvWithValue("DD_VERSION", "7"))
 				return *pod
 			},
 			found:    true,
@@ -51,9 +52,9 @@ func Test_injectTagsFromLabels(t *testing.T) {
 		{
 			name:   "no labels",
 			labels: map[string]string{},
-			pod:    fakePod("foo-pod"),
+			pod:    common.FakePod("foo-pod"),
 			wantPodFunc: func() corev1.Pod {
-				pod := fakePod("foo-pod")
+				pod := common.FakePod("foo-pod")
 				return *pod
 			},
 			found:    false,
@@ -62,10 +63,10 @@ func Test_injectTagsFromLabels(t *testing.T) {
 		{
 			name:   "env only",
 			labels: map[string]string{"tags.datadoghq.com/env": "dev"},
-			pod:    fakePod("foo-pod"),
+			pod:    common.FakePod("foo-pod"),
 			wantPodFunc: func() corev1.Pod {
-				pod := fakePod("foo-pod")
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_ENV", "dev"))
+				pod := common.FakePod("foo-pod")
+				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, common.FakeEnvWithValue("DD_ENV", "dev"))
 				return *pod
 			},
 			found:    true,
@@ -74,9 +75,9 @@ func Test_injectTagsFromLabels(t *testing.T) {
 		{
 			name:   "label found but not injected",
 			labels: map[string]string{"tags.datadoghq.com/env": "dev"},
-			pod:    fakePodWithEnv("foo-pod", "DD_ENV"),
+			pod:    common.FakePodWithEnv("foo-pod", "DD_ENV"),
 			wantPodFunc: func() corev1.Pod {
-				pod := fakePodWithEnv("foo-pod", "DD_ENV")
+				pod := common.FakePodWithEnv("foo-pod", "DD_ENV")
 				return *pod
 			},
 			found:    true,
@@ -104,8 +105,8 @@ func Test_injectTags(t *testing.T) {
 	}{
 		{
 			name: "tag labels and injection on",
-			pod: withLabels(
-				fakePod("foo-pod"),
+			pod: common.WithLabels(
+				common.FakePod("foo-pod"),
 				map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 					"tags.datadoghq.com/env":          "dev",
@@ -114,52 +115,52 @@ func Test_injectTags(t *testing.T) {
 				},
 			),
 			wantPodFunc: func() corev1.Pod {
-				pod := withLabels(fakePod("foo-pod"), map[string]string{"admission.datadoghq.com/enabled": "true"})
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_ENV", "dev"))
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_SERVICE", "dd-agent"))
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_VERSION", "7"))
+				pod := common.WithLabels(common.FakePod("foo-pod"), map[string]string{"admission.datadoghq.com/enabled": "true"})
+				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, common.FakeEnvWithValue("DD_ENV", "dev"))
+				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, common.FakeEnvWithValue("DD_SERVICE", "dd-agent"))
+				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, common.FakeEnvWithValue("DD_VERSION", "7"))
 				return *pod
 			},
 		},
 		{
 			name: "no labels and injection on",
-			pod:  withLabels(fakePod("foo-pod"), map[string]string{"admission.datadoghq.com/enabled": "true"}),
+			pod:  common.WithLabels(common.FakePod("foo-pod"), map[string]string{"admission.datadoghq.com/enabled": "true"}),
 			wantPodFunc: func() corev1.Pod {
-				pod := withLabels(fakePod("foo-pod"), map[string]string{"admission.datadoghq.com/enabled": "true"})
+				pod := common.WithLabels(common.FakePod("foo-pod"), map[string]string{"admission.datadoghq.com/enabled": "true"})
 				return *pod
 			},
 		},
 		{
 			name: "env only and injection on",
-			pod: withLabels(
-				fakePod("foo-pod"),
+			pod: common.WithLabels(
+				common.FakePod("foo-pod"),
 				map[string]string{"admission.datadoghq.com/enabled": "true", "tags.datadoghq.com/env": "dev"},
 			),
 			wantPodFunc: func() corev1.Pod {
-				pod := withLabels(fakePod("foo-pod"), map[string]string{"admission.datadoghq.com/enabled": "true"})
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_ENV", "dev"))
+				pod := common.WithLabels(common.FakePod("foo-pod"), map[string]string{"admission.datadoghq.com/enabled": "true"})
+				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, common.FakeEnvWithValue("DD_ENV", "dev"))
 				return *pod
 			},
 		},
 		{
 			name: "tag label found but not injected, injection on",
-			pod: withLabels(
-				fakePodWithEnv("foo-pod", "DD_ENV"),
+			pod: common.WithLabels(
+				common.FakePodWithEnv("foo-pod", "DD_ENV"),
 				map[string]string{"admission.datadoghq.com/enabled": "true", "tags.datadoghq.com/env": "dev"},
 			),
 			wantPodFunc: func() corev1.Pod {
-				pod := withLabels(fakePodWithEnv("foo-pod", "DD_ENV"), map[string]string{"admission.datadoghq.com/enabled": "true"})
+				pod := common.WithLabels(common.FakePodWithEnv("foo-pod", "DD_ENV"), map[string]string{"admission.datadoghq.com/enabled": "true"})
 				return *pod
 			},
 		},
 		{
 			name: "tag label found but not injected, injection label not set",
-			pod: withLabels(
-				fakePodWithEnv("foo-pod", "DD_ENV"),
+			pod: common.WithLabels(
+				common.FakePodWithEnv("foo-pod", "DD_ENV"),
 				map[string]string{"tags.datadoghq.com/env": "dev"},
 			),
 			wantPodFunc: func() corev1.Pod {
-				pod := fakePodWithEnv("foo-pod", "DD_ENV")
+				pod := common.FakePodWithEnv("foo-pod", "DD_ENV")
 				return *pod
 			},
 		},

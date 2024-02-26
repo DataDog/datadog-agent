@@ -23,6 +23,10 @@ const (
 	experimentVersionLink = "experiment"
 )
 
+var (
+	errRepositoryNotCreated = errors.New("repository not created")
+)
+
 // Repository contains the stable and experimental package of a single artifact managed by the updater.
 //
 // On disk the repository is structured as follows:
@@ -72,6 +76,9 @@ func (s *State) HasExperiment() bool {
 // GetState returns the state of the repository.
 func (r *Repository) GetState() (*State, error) {
 	repository, err := readRepository(r.RootPath, r.LocksPath)
+	if errors.Is(err, errRepositoryNotCreated) {
+		return &State{}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +123,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 
 	// Remove left-over locks paths
 	packageLocksPaths, err := os.ReadDir(r.LocksPath)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("could not read locks directory: %w", err)
 	}
 	for _, pkg := range packageLocksPaths {
@@ -275,8 +282,11 @@ func readRepository(rootPath string, locksPath string) (*repositoryFiles, error)
 
 	// List locked packages
 	packages, err := os.ReadDir(rootPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, errRepositoryNotCreated
+	}
 	if err != nil {
-		return nil, fmt.Errorf("could not read locks directory: %w", err)
+		return nil, fmt.Errorf("could not read root directory: %w", err)
 	}
 	lockedPackages := map[string]bool{}
 	for _, pkg := range packages {
@@ -346,7 +356,7 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 func (r *repositoryFiles) cleanup() error {
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
-		return fmt.Errorf("could not read locks directory: %w", err)
+		return fmt.Errorf("could not read root directory: %w", err)
 	}
 
 	// For each version, get the running PIDs. These PIDs are written by the injector.
