@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics/pack"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
@@ -216,6 +217,10 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 		return nil, err
 	}
 
+	metricPacker := pack.NewStringPacker()
+	tagsPacker1 := pack.NewTagsPacker()
+	tagsPacker2 := pack.NewTagsPacker()
+
 	// Use series.source.MoveNext() instead of series.MoveNext() because this function supports
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
@@ -284,10 +289,28 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 				}
 			}
 
-			err = ps.String(seriesMetric, serie.Name)
+			out := metricPacker.Pack(serie.Name)
+			err = ps.String(seriesMetric, out)
 			if err != nil {
 				return err
 			}
+			out += ": "
+			writeTag := func(tag string) error {
+				out += tag + ","
+				return ps.String(seriesTags, tag)
+			}
+
+			err = tagsPacker1.Pack(serie.Tags.Tags1(), writeTag)
+			if err != nil {
+				return err
+			}
+			out += " "
+			err = tagsPacker2.Pack(serie.Tags.Tags2(), writeTag)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("out: %s\n", out)
 
 			err = serie.Tags.ForEachErr(func(tag string) error {
 				return ps.String(seriesTags, tag)

@@ -25,10 +25,11 @@ type CompositeTags struct {
 // Returned value may reference the argument slices directly (or not). Callers should avoid
 // modifying the slices after calling this function.
 func NewCompositeTags(tags1 []string, tags2 []string) CompositeTags {
-	return CompositeTags{
+	c := CompositeTags{
 		tags1: tags1,
 		tags2: tags2,
 	}
+	return c
 }
 
 // CompositeTagsFromSlice creates a new CompositeTags from a slice
@@ -59,6 +60,16 @@ func CombineCompositeTagsAndSlice(compositeTags CompositeTags, tags []string) Co
 // be copied. Prefer constructing a complete value in one go with NewCompositeTags instead.
 func (t *CompositeTags) CombineWithSlice(tags []string) {
 	*t = CombineCompositeTagsAndSlice(*t, tags)
+}
+
+// Tags1 gives access to the first set of tags
+func (t CompositeTags) Tags1() []string {
+	return t.tags1
+}
+
+// Tags2 gives access to the second set of tags
+func (t CompositeTags) Tags2() []string {
+	return t.tags2
 }
 
 // ForEach applies `callback` to each tag
