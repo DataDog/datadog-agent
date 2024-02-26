@@ -211,7 +211,7 @@ variables:
   CLANG_LLVM_VER: 12.0.1
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
-  RUN_E2E_TESTS: "manual" # Should be "auto", "manual", "off" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
 
@@ -288,28 +288,23 @@ variables:
 # By default:
 # - on main and deploy pipelines, kitchen tests are run
 # - on branch pipelines, kitchen tests are not run
-# RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
-# RUN_KITCHEN_TESTS can be set to false to force kitchen tests to not run on main/deploy pipelines.
-.if_kitchen: &if_kitchen
-  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
-
-# Rules to trigger default kitchen tests.
-# Some of the kitchen tests are run on all pipelines by default. They can only be disabled
-# by setting RUN_KITCHEN_TESTS to false.
-.if_default_kitchen: &if_default_kitchen
-  if: $RUN_KITCHEN_TESTS != "false"
+# RUN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
+# RUN_TESTS can be set to false to force kitchen tests to not run on main/deploy pipelines.
+.if_installer_tests: &if_installer_tests
+  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_TESTS == "true") && $RUN_TESTS != "false"
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
 
-.if_not_e2e: &if_not_e2e
-  if: $RUN_KITCHEN_TESTS == "false"
+.if_run_tests: &if_run_tests
+  if: $RUN_TESTS == "on"
 
-.if_auto_e2e: &if_auto_e2e
-  if: $RUN_E2E_TESTS == "auto"
+# When RUN_TESTS is set to "auto", we run only a subset of installer tests on branch pipelines. For e2e tests it will run tests only if they are impacted by some modifications made on the PR.
+.if_auto_tests: &if_auto_tests
+  if: $RUN_TESTS == "auto"
 
-.if_disable_e2e: &if_disable_e2e
-  if: $RUN_E2E_TESTS == "off"
+.if_disable_tests: &if_disable_tests
+  if: $RUN_TESTS == "off"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
@@ -799,7 +794,7 @@ workflow:
   - when: on_success
 
 .except_no_tests_no_deploy:
-  - if: $RUN_KITCHEN_TESTS == "false" && $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
+  - if:  $DEPLOY_AGENT == "false" && $RUN_TESTS == "off"
     when: never
 
 .on_a6_except_deploy:
@@ -866,12 +861,12 @@ workflow:
 .on_kitchen_tests_a6:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
 
 .on_kitchen_tests_a6_always:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
     when: always
 
 .on_all_kitchen_builds_a6:
@@ -879,32 +874,26 @@ workflow:
     when: never
   - <<: *if_not_run_all_builds
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
 
 .on_kitchen_tests_a7:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_kitchen
-
-.on_kitchen_tests_a7_always:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_kitchen
-    when: always
+  - <<: *if_installer_tests
 
 .on_all_kitchen_builds_a7:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_run_all_builds
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
 
 .on_all_new-e2e_tests_a7:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_run_all_builds
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
 
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
@@ -914,8 +903,8 @@ workflow:
     when: never
   - <<: *if_not_version_7
     when: never
-  - <<: *if_kitchen
-  - <<: *if_default_kitchen
+  - <<: *if_installer_tests
+  - <<: *if_auto_tests
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
@@ -924,8 +913,8 @@ workflow:
     when: never
   - <<: *if_not_version_7
     when: never
-  - <<: *if_kitchen
-  - <<: *if_default_kitchen
+  - <<: *if_installer_tests
+  - <<: *if_auto_tests
     variables:
       E2E_OSVERS: $E2E_BRANCH_OSVERS
 
@@ -934,9 +923,9 @@ workflow:
     when: never
   - <<: *if_not_version_7
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
     when: always
-  - <<: *if_default_kitchen
+  - <<: *if_auto_tests
     when: always
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
@@ -1214,7 +1203,7 @@ workflow:
     when: never
   - <<: *if_not_main_branch
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
     when: manual
     allow_failure: true
 
