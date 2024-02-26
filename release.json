@@ -1,6 +1,6 @@
 {
     "base_branch": "main",
-    "current_milestone": "7.52.0",
+    "current_milestone": "7.53.0",
     "last_stable": {
         "6": "6.51.0",
         "7": "7.51.0"
@@ -8,7 +8,7 @@
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "fcd374ae322102d4fcd91a0e7dd4ec5726cdcfb7",
-        "OMNIBUS_RUBY_VERSION": "bf591e4646219a2512a6d6f6c6be0f9cdebc5911",
+        "OMNIBUS_RUBY_VERSION": "b596ce8bb6de9ded69153047e28a84ef51f668bd",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
         "MACOS_BUILD_VERSION": "master",
@@ -27,7 +27,7 @@
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "fcd374ae322102d4fcd91a0e7dd4ec5726cdcfb7",
-        "OMNIBUS_RUBY_VERSION": "bf591e4646219a2512a6d6f6c6be0f9cdebc5911",
+        "OMNIBUS_RUBY_VERSION": "b596ce8bb6de9ded69153047e28a84ef51f668bd",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
         "MACOS_BUILD_VERSION": "master",
