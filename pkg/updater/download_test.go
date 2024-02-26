@@ -73,11 +73,12 @@ func createTestOCIArchive(t *testing.T, dir string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer s.Close()
 	_, err = io.Copy(hasher, s)
 	if err != nil {
 		log.Fatal(err)
 	}
+	err = s.Close()
+	assert.NoError(t, err)
 	layerDigest := hex.EncodeToString(hasher.Sum(nil))
 	layerDigestPath := path.Join(blobPath, layerDigest)
 	// File names are digests: move file
@@ -105,11 +106,12 @@ func createTestOCIArchive(t *testing.T, dir string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer s.Close()
 	_, err = io.Copy(hasher, s)
 	if err != nil {
 		log.Fatal(err)
 	}
+	err = s.Close()
+	assert.NoError(t, err)
 	manifestDigest := hex.EncodeToString(hasher.Sum(nil))
 	manifestDigestPath := path.Join(blobPath, manifestDigest)
 	// File names are digests: move file
@@ -135,7 +137,6 @@ func createTestOCIArchive(t *testing.T, dir string) {
 	archivePath := path.Join(dir, testAgentArchiveFileName)
 	out, err := os.Create(archivePath)
 	assert.NoError(t, err)
-	defer out.Close()
 
 	files := []string{
 		"index.json",
@@ -143,6 +144,8 @@ func createTestOCIArchive(t *testing.T, dir string) {
 		path.Join("blobs/sha256", layerDigest),
 	}
 	err = createArchive(dir, files, out, compressionNone)
+	assert.NoError(t, err)
+	err = out.Close()
 	assert.NoError(t, err)
 
 	// Remove temporary files used for archive creation
