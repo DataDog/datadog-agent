@@ -192,8 +192,11 @@ def ec2_instance_ids(ctx, ip_list):
 
 
 def destroy_ec2_instances(ctx, stack):
-    infra = build_infrastructure(stack, remote_ssh_key="")
+    stack_outputs = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
+    if not os.path.exists(stack_outputs):
+        return
 
+    infra = build_infrastructure(stack, remote_ssh_key="")
     ips = list()
     for arch in infra:
         instance = infra[arch]
