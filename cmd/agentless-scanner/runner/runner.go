@@ -71,6 +71,11 @@ type Options struct {
 	Statsd         *ddogstatsd.Client
 }
 
+type scanRecord struct {
+	Role   types.CloudID `json:"Role"`
+	Region string        `json:"Region"`
+}
+
 // Runner is the main agentless-scanner runner that schedules scanning tasks.
 type Runner struct {
 	Options
@@ -81,8 +86,8 @@ type Runner struct {
 
 	waiter awsutils.ResourceWaiter
 
-	regionsCleanupMu sync.Mutex
-	regionsCleanup   map[string]types.CloudID
+	touchedMu sync.Mutex
+	touched   map[scanRecord]struct{}
 
 	scansInProgress   map[types.CloudID]struct{}
 	scansInProgressMu sync.RWMutex
@@ -164,18 +169,18 @@ func (s *Runner) cleanupProcess(ctx context.Context) {
 		}
 
 		log.Infof("starting cleanup process")
-		s.regionsCleanupMu.Lock()
-		regionsCleanup := make(map[string]types.CloudID, len(s.regionsCleanup))
-		for region, role := range s.regionsCleanup {
-			regionsCleanup[region] = role
+		s.touchedMu.Lock()
+		touched := make(map[scanRecord]struct{}, len(s.touched))
+		for record := range s.touched {
+			touched[record] = struct{}{}
 		}
-		s.regionsCleanup = nil
-		s.regionsCleanupMu.Unlock()
+		s.touched = nil
+		s.touchedMu.Unlock()
 
-		if len(regionsCleanup) > 0 {
-			for region, role := range regionsCleanup {
-				if err := s.Cleanup(ctx, defaultSnapshotsMaxTTL, region, role); err != nil {
-					log.Warnf("cleanupProcess failed on region %q with role %q: %v", region, role, err)
+		if len(touched) > 0 {
+			for record := range touched {
+				if err := s.Cleanup(ctx, defaultSnapshotsMaxTTL, record.Region, record.Role); err != nil {
+					log.Warnf("cleanupProcess failed on region %q with role %q: %v", record.Region, record.Role, err)
 				}
 			}
 		}
@@ -415,12 +420,21 @@ func (s *Runner) Start(ctx context.Context) {
 				// Gather the  scanned roles / accounts as we go. We only ever
 				// need to store one role associated with one region. They
 				// will be used for cleanup process.
-				s.regionsCleanupMu.Lock()
-				if s.regionsCleanup == nil {
-					s.regionsCleanup = make(map[string]types.CloudID)
+				s.touchedMu.Lock()
+				{
+					// TODO: we could persist this "touched" map on the
+					// filesystem to have a more robust knowledge of the
+					// accounts / regions with scanned.
+					if s.touched == nil {
+						s.touched = make(map[scanRecord]struct{})
+					}
+					record := scanRecord{
+						Role:   scan.Roles.GetCloudIDRole(scan.TargetID),
+						Region: scan.TargetID.Region(),
+					}
+					s.touched[record] = struct{}{}
 				}
-				s.regionsCleanup[scan.TargetID.Region()] = scan.Roles.GetCloudIDRole(scan.TargetID)
-				s.regionsCleanupMu.Unlock()
+				s.touchedMu.Unlock()
 
 				// Avoid pushing a scan that we are already performing.
 				// TODO: this guardrail could be avoided with a smarter scheduling.
