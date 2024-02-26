@@ -52,6 +52,13 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "process_context:myService",
 		},
+		{
+			name: "dotnet with exe extension",
+			cmdline: []string{
+				"C:\\Program Files\\dotnet\\dotnet.exe", "-v", "myapp.DLL",
+			},
+			expectedServiceTag: "process_context:myapp",
+		},
 	}
 
 	for _, tt := range tests {

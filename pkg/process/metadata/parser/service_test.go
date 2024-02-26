@@ -248,6 +248,27 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "process_context:my-awesome-package",
 		},
+		{
+			name: "dotnet cmd with dll",
+			cmdline: []string{
+				"/usr/bin/dotnet", "./myservice.dll",
+			},
+			expectedServiceTag: "process_context:myservice",
+		},
+		{
+			name: "dotnet cmd with dll and options",
+			cmdline: []string{
+				"/usr/bin/dotnet", "-v", "--", "/app/lib/myservice.dll",
+			},
+			expectedServiceTag: "process_context:myservice",
+		},
+		{
+			name: "dotnet cmd with unrecognized options",
+			cmdline: []string{
+				"/usr/bin/dotnet", "run", "--project", "./projects/proj1/proj1.csproj",
+			},
+			expectedServiceTag: "process_context:dotnet",
+		},
 	}
 
 	for _, tt := range tests {
