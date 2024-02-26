@@ -7,19 +7,44 @@
 
 package traceroute
 
-import "errors"
+import (
+	"encoding/json"
+
+	dd_config "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	clientID = "traceroute-agent-linux"
+)
 
 type LinuxTraceroute struct {
 	cfg Config
 }
 
 func New(cfg Config) *LinuxTraceroute {
-	return &WindowsTraceroute{
+	return &LinuxTraceroute{
 		cfg: cfg,
 	}
 }
 
 func (l *LinuxTraceroute) Run() (NetworkPath, error) {
-	// TODO: linux implementation
-	return NetworkPath{}, errors.New("Not implemented")
+	tu, err := net.GetRemoteSystemProbeUtil(
+		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+	if err != nil {
+		log.Warnf("could not initialize system-probe connection: %s", err.Error())
+		return NetworkPath{}, err
+	}
+	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname)
+	if err != nil {
+		return NetworkPath{}, err
+	}
+
+	var path NetworkPath
+	if err := json.Unmarshal(resp, &path); err != nil {
+		return NetworkPath{}, err
+	}
+
+	return path, nil
 }
