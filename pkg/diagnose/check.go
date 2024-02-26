@@ -24,19 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func Init(collector optional.Option[collector.Component]) {
-	diagnosis.Register("check-datadog", getDiagnose(collector))
-}
-
-func getDiagnose(collector optional.Option[collector.Component]) func(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
-	return func(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
-
-		if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
-			return diagnoseChecksInAgentProcess(coll)
-		}
-
-		return diagnoseChecksInCLIProcess(diagCfg, senderManager)
+func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component]) []diagnosis.Diagnosis {
+	if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
+		return diagnoseChecksInAgentProcess(coll)
 	}
+
+	return diagnoseChecksInCLIProcess(diagCfg, senderManager)
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
