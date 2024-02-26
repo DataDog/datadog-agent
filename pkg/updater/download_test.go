@@ -73,6 +73,7 @@ func createTestOCIArchive(t *testing.T, dir string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer s.Close()
 	_, err = io.Copy(hasher, s)
 	if err != nil {
 		log.Fatal(err)
@@ -104,6 +105,7 @@ func createTestOCIArchive(t *testing.T, dir string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer s.Close()
 	_, err = io.Copy(hasher, s)
 	if err != nil {
 		log.Fatal(err)

@@ -28,6 +28,7 @@ func extractOCI(ociArchivePath string, destinationPath string) error {
 	if err != nil {
 		return fmt.Errorf("could not open index file: %w", err)
 	}
+	defer indexFile.Close()
 	err = json.NewDecoder(indexFile).Decode(index)
 	if err != nil {
 		return fmt.Errorf("could not parse index file: %w", err)
@@ -58,6 +59,7 @@ func extractOCIManifest(ociArchivePath string, destinationPath string, manifest 
 	if err != nil {
 		return fmt.Errorf("could not open manifest file: %w", err)
 	}
+	defer manifestFile.Close()
 	err = json.NewDecoder(manifestFile).Decode(manifestStruct)
 	if err != nil {
 		return fmt.Errorf("could not parse manifest file: %w", err)
