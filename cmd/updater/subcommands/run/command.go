@@ -8,7 +8,9 @@ package run
 
 import (
 	"context"
+	"os"
 
+	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
@@ -21,14 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi/localapiimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-
-	"github.com/spf13/cobra"
 )
 
 type cliParams struct {
@@ -52,6 +54,13 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 
 func runFxWrapper(params *cliParams) error {
 	ctx := context.Background()
+	if params.PIDFilePath != "" {
+		err := pidfile.WritePID(params.PIDFilePath)
+		if err != nil {
+			return log.Errorf("Error while writing PID file, exiting: %v", err)
+		}
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), params.PIDFilePath)
+	}
 	return fxutil.OneShot(
 		run,
 		fx.Provide(func() context.Context { return ctx }),

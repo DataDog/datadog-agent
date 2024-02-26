@@ -5,6 +5,7 @@ High level testing tasks
 # Recent versions of Python should be able to use dict and list directly in type hints,
 # so we only need to check that we don't run this code with old Python versions.
 
+import glob
 import json
 import operator
 import os
@@ -757,6 +758,18 @@ def get_impacted_packages(ctx, build_tags=None):
         for file in files
         if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     }
+
+    # Modification to fixture folders count as modification to their parent package
+    for file in files:
+        if not file.endswith(".go"):
+            formatted_path = Path(os.path.dirname(file)).as_posix()
+            while len(formatted_path) > 0:
+                if glob.glob(f"{formatted_path}/*.go"):
+                    print(f"Found {file} belonging to package {formatted_path}")
+                    modified_packages.add(f"github.com/DataDog/datadog-agent/{formatted_path}")
+                    break
+                formatted_path = "/".join(formatted_path.split("/")[:-1])
+
     imp = find_impacted_packages(dependencies, modified_packages)
     return format_packages(ctx, imp)
 
