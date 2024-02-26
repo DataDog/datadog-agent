@@ -253,7 +253,7 @@ new-e2e-cws-dev:
   rules:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
+  needs: $JOB_NEEDS
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -261,7 +261,9 @@ new-e2e-cws-dev:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite
+        JOB_NEEDS: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
       - EXTRA_PARAMS: --run TestECSFargate
+        JOB_NEEDS: ["qa_agent", "qa_cws_instrumentation"]
 
 new-e2e-cws-main:
   extends: .new_e2e_template
