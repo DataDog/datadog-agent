@@ -51,6 +51,7 @@ include:
   - /.gitlab/benchmarks/macrobenchmarks.yml
   - /.gitlab/rc_jobs/rc_kubernetes_deploy.yml
   - /.gitlab/rc_jobs/post_rc_tasks.yml
+  - /.gitlab/software_composition_analysis.yml
 
 default:
   retry:
@@ -73,6 +74,7 @@ stages:
   - source_test
   - source_test_stats
   - source_test_junit_upload
+  - software_composition_analysis
   - binary_build
   - package_deps_build
   - kernel_matrix_testing
