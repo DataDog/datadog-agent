@@ -5,21 +5,14 @@
 
 //go:build kubeapiserver
 
-package mutate
+package common
 
 import (
-	"encoding/json"
-	"os"
 	"reflect"
 	"testing"
 
-	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
-	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
 
 func Test_contains(t *testing.T) {
@@ -78,11 +71,11 @@ func Test_injectEnv(t *testing.T) {
 		{
 			name: "1 container, 1 inject env",
 			args: args{
-				pod: fakePodWithContainer("foo-pod", fakeContainer("foo-container")),
+				pod: FakePodWithContainer("foo-pod", FakeContainer("foo-container")),
 				env: fakeEnv("inject-me"),
 			},
 			wantPodFunc: func() corev1.Pod {
-				pod := fakePodWithContainer("foo-pod", fakeContainer("foo-container"))
+				pod := FakePodWithContainer("foo-pod", FakeContainer("foo-container"))
 				pod.Spec.Containers[0].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.Containers[0].Env...)
 				return *pod
 			},
@@ -91,22 +84,22 @@ func Test_injectEnv(t *testing.T) {
 		{
 			name: "1 container, 0 inject env",
 			args: args{
-				pod: fakePodWithContainer("foo-pod", fakeContainer("foo-container")),
+				pod: FakePodWithContainer("foo-pod", FakeContainer("foo-container")),
 				env: fakeEnv("foo-container-env-foo"),
 			},
 			wantPodFunc: func() corev1.Pod {
-				return *fakePodWithContainer("foo-pod", fakeContainer("foo-container"))
+				return *FakePodWithContainer("foo-pod", FakeContainer("foo-container"))
 			},
 			injected: false,
 		},
 		{
 			name: "2 container, 2 inject env",
 			args: args{
-				pod: fakePodWithContainer("foo-pod", fakeContainer("foo-container"), fakeContainer("bar-container")),
+				pod: FakePodWithContainer("foo-pod", FakeContainer("foo-container"), FakeContainer("bar-container")),
 				env: fakeEnv("inject-me"),
 			},
 			wantPodFunc: func() corev1.Pod {
-				pod := fakePodWithContainer("foo-pod", fakeContainer("foo-container"), fakeContainer("bar-container"))
+				pod := FakePodWithContainer("foo-pod", FakeContainer("foo-container"), FakeContainer("bar-container"))
 				pod.Spec.Containers[0].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.Containers[0].Env...)
 				pod.Spec.Containers[1].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.Containers[1].Env...)
 				return *pod
@@ -116,11 +109,11 @@ func Test_injectEnv(t *testing.T) {
 		{
 			name: "2 container, 1 inject env",
 			args: args{
-				pod: fakePodWithContainer("foo-pod", fakeContainer("foo-container"), fakeContainer("bar-container")),
+				pod: FakePodWithContainer("foo-pod", FakeContainer("foo-container"), FakeContainer("bar-container")),
 				env: fakeEnv("foo-container-env-foo"),
 			},
 			wantPodFunc: func() corev1.Pod {
-				pod := fakePodWithContainer("foo-pod", fakeContainer("foo-container"), fakeContainer("bar-container"))
+				pod := FakePodWithContainer("foo-pod", FakeContainer("foo-container"), FakeContainer("bar-container"))
 				pod.Spec.Containers[1].Env = append([]corev1.EnvVar{fakeEnv("foo-container-env-foo")}, pod.Spec.Containers[1].Env...)
 				return *pod
 			},
@@ -129,11 +122,11 @@ func Test_injectEnv(t *testing.T) {
 		{
 			name: "init containers",
 			args: args{
-				pod: fakePodWithInitContainer("foo-pod", fakeContainer("foo-init-container")),
+				pod: fakePodWithInitContainer("foo-pod", FakeContainer("foo-init-container")),
 				env: fakeEnv("inject-me"),
 			},
 			wantPodFunc: func() corev1.Pod {
-				pod := fakePodWithInitContainer("foo-pod", fakeContainer("foo-init-container"))
+				pod := fakePodWithInitContainer("foo-pod", FakeContainer("foo-init-container"))
 				pod.Spec.InitContainers[0].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.InitContainers[0].Env...)
 				return *pod
 			},
@@ -142,74 +135,12 @@ func Test_injectEnv(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := injectEnv(tt.args.pod, tt.args.env)
+			got := InjectEnv(tt.args.pod, tt.args.env)
 			if got != tt.injected {
-				t.Errorf("injectEnv() = %v, want %v", got, tt.injected)
+				t.Errorf("InjectEnv() = %v, want %v", got, tt.injected)
 			}
 			if tt.args.pod != nil && !reflect.DeepEqual(tt.args.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers) {
-				t.Errorf("injectEnv() = %v, want %v", tt.args.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers)
-			}
-		})
-	}
-}
-
-func Test_shouldInject(t *testing.T) {
-	var mockConfig *config.MockConfig
-	tests := []struct {
-		name        string
-		pod         *corev1.Pod
-		setupConfig func()
-		want        bool
-	}{
-		{
-			name:        "mutate unlabelled, no label",
-			pod:         fakePodWithLabel("", ""),
-			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true) },
-			want:        true,
-		},
-		{
-			name:        "mutate unlabelled, label enabled",
-			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "true"),
-			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true) },
-			want:        true,
-		},
-		{
-			name:        "mutate unlabelled, label disabled",
-			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true) },
-			want:        false,
-		},
-		{
-			name:        "no mutate unlabelled, no label",
-			pod:         fakePodWithLabel("", ""),
-			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
-			want:        false,
-		},
-		{
-			name:        "no mutate unlabelled, label enabled",
-			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "true"),
-			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
-			want:        true,
-		},
-		{
-			name:        "no mutate unlabelled, label disabled",
-			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
-			want:        false,
-		},
-		{
-			name:        "no mutate unlabelled, label disabled",
-			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
-			want:        false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockConfig = config.Mock(nil)
-			tt.setupConfig()
-			if got := shouldInject(tt.pod); got != tt.want {
-				t.Errorf("shouldInject() = %v, want %v", got, tt.want)
+				t.Errorf("InjectEnv() = %v, want %v", tt.args.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers)
 			}
 		})
 	}
@@ -229,7 +160,7 @@ func Test_injectVolume(t *testing.T) {
 		{
 			name: "nominal case",
 			args: args{
-				pod:         fakePod("foo"),
+				pod:         FakePod("foo"),
 				volume:      corev1.Volume{Name: "volumefoo"},
 				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
 			},
@@ -283,51 +214,7 @@ func Test_injectVolume(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.injected, injectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount))
+			assert.Equal(t, tt.injected, InjectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount))
 		})
-	}
-}
-
-func TestJSONPatchCorrectness(t *testing.T) {
-	pod := fakePodWithContainer("foo", fakeContainer("container"))
-	withLabels(pod, map[string]string{admCommon.EnabledLabelKey: "true"})
-	podJSON, err := json.Marshal(pod)
-	assert.NoError(t, err)
-
-	jsonPatch, err := Mutate(podJSON, "bar", injectConfig, nil)
-	assert.NoError(t, err)
-
-	expected, err := os.ReadFile("./testdata/expected_jsonpatch.json")
-	assert.NoError(t, err)
-	assert.JSONEq(t, string(expected), string(jsonPatch))
-}
-
-func BenchmarkJSONPatch(b *testing.B) {
-	scheme := runtime.NewScheme()
-	_ = admiv1.AddToScheme(scheme)
-	decoder := serializer.NewCodecFactory(scheme).UniversalDeserializer()
-
-	content, err := os.ReadFile("./testdata/large_pod.json")
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	obj, _, err := decoder.Decode(content, nil, nil)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	podJSON := obj.(*admiv1.AdmissionReview).Request.Object.Raw
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		jsonPatch, err := Mutate(podJSON, "foobar-bax", injectConfig, nil)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		if len(jsonPatch) < 100 {
-			b.Fatal("Empty JSONPatch")
-		}
 	}
 }

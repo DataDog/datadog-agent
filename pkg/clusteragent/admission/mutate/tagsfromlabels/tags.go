@@ -5,7 +5,9 @@
 
 //go:build kubeapiserver
 
-package mutate
+// Package tagsfromlabels implements the webhook that injects DD_ENV,
+// DD_VERSION, DD_SERVICE env vars into a pod template if needed
+package tagsfromlabels
 
 import (
 	"context"
@@ -15,14 +17,16 @@ import (
 	"strings"
 	"time"
 
-	authenticationv1 "k8s.io/api/authentication/v1"
+	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-	k8s "k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -35,6 +39,66 @@ var labelsToEnv = map[string]string{
 	kubernetes.EnvTagLabelKey:     kubernetes.EnvTagEnvVar,
 	kubernetes.ServiceTagLabelKey: kubernetes.ServiceTagEnvVar,
 	kubernetes.VersionTagLabelKey: kubernetes.VersionTagEnvVar,
+}
+
+const webhookName = "tags"
+
+// Webhook is the webhook that injects DD_ENV, DD_VERSION, DD_SERVICE env vars
+type Webhook struct {
+	name       string
+	isEnabled  bool
+	endpoint   string
+	resources  []string
+	operations []admiv1.OperationType
+}
+
+// NewWebhook returns a new Webhook
+func NewWebhook() *Webhook {
+	return &Webhook{
+		name:       webhookName,
+		isEnabled:  config.Datadog.GetBool("admission_controller.inject_tags.enabled"),
+		endpoint:   config.Datadog.GetString("admission_controller.inject_tags.endpoint"),
+		resources:  []string{"pods"},
+		operations: []admiv1.OperationType{admiv1.Create},
+	}
+}
+
+// Name returns the name of the webhook
+func (w *Webhook) Name() string {
+	return w.name
+}
+
+// IsEnabled returns whether the webhook is enabled
+func (w *Webhook) IsEnabled() bool {
+	return w.isEnabled
+}
+
+// Endpoint returns the endpoint of the webhook
+func (w *Webhook) Endpoint() string {
+	return w.endpoint
+}
+
+// Resources returns the kubernetes resources for which the webhook should
+// be invoked
+func (w *Webhook) Resources() []string {
+	return w.resources
+}
+
+// Operations returns the operations on the resources specified for which
+// the webhook should be invoked
+func (w *Webhook) Operations() []admiv1.OperationType {
+	return w.operations
+}
+
+// LabelSelectors returns the label selectors that specify when the webhook
+// should be invoked
+func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+	return common.DefaultLabelSelectors(useNamespaceSelector)
+}
+
+// MutateFunc returns the function that mutates the resources
+func (w *Webhook) MutateFunc() admission.WebhookFunc {
+	return w.mutate
 }
 
 type owner struct {
@@ -56,10 +120,10 @@ func (o *ownerInfo) buildID(ns string) string {
 	return fmt.Sprintf("%s/%s/%s", ns, o.name, o.gvr.String())
 }
 
-// InjectTags adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
+// mutate adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
 // the pod template from pod and higher-level resource labels
-func InjectTags(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ k8s.Interface) ([]byte, error) {
-	return Mutate(rawPod, ns, injectTags, dc)
+func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
+	return common.Mutate(request.Raw, request.Namespace, injectTags, request.DynamicClient)
 }
 
 // injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
@@ -75,7 +139,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 		return errors.New("cannot inject tags into nil pod")
 	}
 
-	if !shouldInject(pod) {
+	if !autoinstrumentation.ShouldInject(pod) {
 		// Ignore pod if it has the label admission.datadoghq.com/enabled=false or Single step configuration is disabled
 		return nil
 	}
@@ -108,7 +172,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 		return err
 	}
 
-	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.namespace, owner.name, owner.kind, podString(pod))
+	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.namespace, owner.name, owner.kind, common.PodString(pod))
 	_, injected = injectTagsFromLabels(owner.labels, pod)
 
 	return nil
@@ -125,7 +189,7 @@ func injectTagsFromLabels(labels map[string]string, pod *corev1.Pod) (bool, bool
 				Name:  envName,
 				Value: tagValue,
 			}
-			if injected := injectEnv(pod, env); injected {
+			if injected := common.InjectEnv(pod, env); injected {
 				injectedAtLeastOnce = true
 			}
 			found = true
