@@ -767,6 +767,8 @@ func (suite *k8sSuite) TestAdmissionController() {
 }
 
 func (suite *k8sSuite) TestContainerImage() {
+	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-3869
+	suite.T().Skip("CONTINT-3869: ContainerImage test is flaky")
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		images, err := suite.Fakeintake.FilterContainerImages("ghcr.io/datadog/apps-nginx-server")
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
