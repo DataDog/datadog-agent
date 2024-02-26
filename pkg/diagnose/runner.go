@@ -412,11 +412,11 @@ type SuitesDeps struct {
 	senderManager  sender.DiagnoseSenderManager
 	collector      optional.Option[collector.Component]
 	secretResolver secrets.Component
-	ac             autodiscovery.Component
+	ac             optional.Option[autodiscovery.Component]
 }
 
 // NewSuitesDeps returns a new SuitesDeps.
-func NewSuitesDeps(senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) SuitesDeps {
+func NewSuitesDeps(senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac optional.Option[autodiscovery.Component]) SuitesDeps {
 	return SuitesDeps{
 		senderManager:  senderManager,
 		collector:      collector,

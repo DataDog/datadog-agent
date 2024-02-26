@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// team: container-integrations
 // Component is the component type.
+// team: container-integrations
 type Component interface {
 	AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
 	LoadAndRun(ctx context.Context)

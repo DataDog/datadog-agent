@@ -11,12 +11,11 @@ import (
 )
 
 var (
+	acErrors   = expvar.NewMap("autoconfig")
 	errorStats = newAcErrorStats()
-	acErrors   *expvar.Map
 )
 
 func setupAcErrors() {
-	acErrors = expvar.NewMap("autoconfig")
 	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
 		return errorStats.getConfigErrors()
 	}))

@@ -42,7 +42,7 @@ type dependencies struct {
 	Providers             []types.FlareCallback `group:"flare"`
 	Collector             optional.Option[collector.Component]
 	Secrets               secrets.Component
-	ac                    autodiscovery.Component
+	AC                    optional.Option[autodiscovery.Component]
 }
 
 type flare struct {
@@ -54,7 +54,7 @@ type flare struct {
 }
 
 func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
-	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, ac)
+	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.AC)
 	f := &flare{
 		log:          deps.Log,
 		config:       deps.Config,

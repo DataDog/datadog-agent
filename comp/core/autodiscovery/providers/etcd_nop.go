@@ -9,4 +9,5 @@ package providers
 
 import "github.com/DataDog/datadog-agent/pkg/config"
 
-var NewEtcdConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) = nil
+// NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
+var NewEtcdConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)

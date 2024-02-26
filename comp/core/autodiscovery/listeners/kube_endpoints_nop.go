@@ -7,4 +7,5 @@
 
 package listeners
 
-var NewKubeEndpointsListener ServiceListenerFactory = nil
+// NewKubeEndpointsListener returns the kube endpoints implementation of the ServiceListener interface
+var NewKubeEndpointsListener ServiceListenerFactory

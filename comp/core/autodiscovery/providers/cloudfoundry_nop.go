@@ -9,4 +9,5 @@ package providers
 
 import "github.com/DataDog/datadog-agent/pkg/config"
 
-var NewCloudFoundryConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) = nil
+// NewCloudFoundryConfigProvider instantiates a new CloudFoundryConfigProvider from given config
+var NewCloudFoundryConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)

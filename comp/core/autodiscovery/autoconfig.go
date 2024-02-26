@@ -29,12 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 var listenerCandidateIntl = 30 * time.Second
 
-// dependencies is the set of dependencies for the autoconfig component.
+// dependencies is the set of dependencies for the AutoConfig component.
 type dependencies struct {
 	fx.In
 	Lc         fx.Lifecycle
@@ -44,11 +45,11 @@ type dependencies struct {
 	Secrets    secrets.Component
 }
 
-// autoconfig implements the agent's autodiscovery mechanism.  It is
+// AutoConfig implements the agent's autodiscovery mechanism.  It is
 // responsible to collect integrations configurations from different sources
 // and then "schedule" or "unschedule" them by notifying subscribers.  See the
 // module README for details.
-type autoconfig struct {
+type AutoConfig struct {
 	configPollers            []*configPoller
 	listeners                []listeners.ServiceListener
 	listenerCandidates       map[string]*listenerCandidate
@@ -68,26 +69,34 @@ type autoconfig struct {
 	// not the values they point to.
 	m sync.RWMutex
 
-	// ranOnce is set to 1 once the autoconfig has been executed
+	// ranOnce is set to 1 once the AutoConfig has been executed
 	ranOnce *atomic.Bool
+}
+
+type provides struct {
+	fx.Out
+
+	Comp         Component
+	OptionalComp optional.Option[Component]
 }
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(
-			newAutoConfig,
+			newProvides,
 		))
 }
 
-func NoStartModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newAutoConfigNoStart,
-		))
+func newProvides(deps dependencies) provides {
+	c := newAutoConfig(deps)
+	return provides{
+		Comp:         c,
+		OptionalComp: optional.NewOption[Component](c),
+	}
 }
 
-var _ Component = (*autoconfig)(nil)
+var _ Component = (*AutoConfig)(nil)
 
 type listenerCandidate struct {
 	factory listeners.ServiceListenerFactory
@@ -100,8 +109,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) Component {
-	ac := newAutoConfigNoStart(deps)
-
+	ac := NewAutoConfigNoStart(scheduler.NewMetaScheduler(), deps.Secrets)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
 			ac.Start()
@@ -115,15 +123,10 @@ func newAutoConfig(deps dependencies) Component {
 	return ac
 }
 
-func newAutoConfigNoStart(deps dependencies) Component {
-	ac := NewAutoConfigNoStart(scheduler.NewMetaScheduler(), deps.Secrets)
-	return ac
-}
-
 // NewAutoConfigNoStart creates an AutoConfig instance.
-func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *autoconfig {
+func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
-	ac := &autoconfig{
+	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
 		listenerRetryStop:        nil, // We'll open it if needed
@@ -145,7 +148,7 @@ func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler, secretResolver sec
 // serviceListening is the main management goroutine for services.
 // It waits for service events to trigger template resolution and
 // checks the tags on existing services are up to date.
-func (ac *autoconfig) serviceListening() {
+func (ac *AutoConfig) serviceListening() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	tagFreshnessTicker := time.NewTicker(15 * time.Second) // we can miss tags for one run
@@ -170,7 +173,7 @@ func (ac *autoconfig) serviceListening() {
 	}
 }
 
-func (ac *autoconfig) checkTagFreshness(ctx context.Context) {
+func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 	// check if services tags are up to date
 	var servicesToRefresh []listeners.Service
 	for _, service := range ac.store.getServices() {
@@ -196,7 +199,7 @@ func (ac *autoconfig) checkTagFreshness(ctx context.Context) {
 // Start will listen to the service channels before anything is sent to them
 // Usually, Start and Stop methods should not be in the component interface as it should be handled using Lifecycle hooks.
 // We make exceptions here because we need to disable it at runtime.
-func (ac *autoconfig) Start() {
+func (ac *AutoConfig) Start() {
 	listeners.RegisterListeners(ac.serviceListenerFactories)
 	providers.RegisterProviders(ac.providerCatalog)
 	// Where to look for check templates if no custom path is defined
@@ -209,15 +212,15 @@ func (ac *autoconfig) Start() {
 	go ac.serviceListening()
 }
 
-// IsStarted returns true if the autoconfig has been started.
-func (ac *autoconfig) IsStarted() bool {
+// IsStarted returns true if the AutoConfig has been started.
+func (ac *AutoConfig) IsStarted() bool {
 	return ac.started
 }
 
-// Stop just shuts down autoconfig in a clean way.
-// autoconfig is not supposed to be restarted, so this is expected
+// Stop just shuts down AutoConfig in a clean way.
+// AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
-func (ac *autoconfig) Stop() {
+func (ac *AutoConfig) Stop() {
 	// stop polled config providers without holding ac.m
 	for _, pd := range ac.getConfigPollers() {
 		pd.stop()
@@ -248,7 +251,7 @@ func (ac *autoconfig) Stop() {
 // expects to be polled and at which interval or it's fine for it to be invoked only once in the
 // Agent lifetime.
 // If the config provider is polled, the routine is scheduled right away
-func (ac *autoconfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
+func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
 	if shouldPoll && pollInterval <= 0 {
 		log.Warnf("Polling interval <= 0 for AD provider: %s, deactivating polling", provider.String())
 		shouldPoll = false
@@ -263,7 +266,7 @@ func (ac *autoconfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 // LoadAndRun loads all of the integration configs it can find
 // and schedules them. Should always be run once so providers
 // that don't need polling will be queried at least once
-func (ac *autoconfig) LoadAndRun(ctx context.Context) {
+func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 	for _, cp := range ac.getConfigPollers() {
 		cp.start(ctx, ac)
 		if cp.canPoll {
@@ -288,12 +291,12 @@ func (ac *autoconfig) LoadAndRun(ctx context.Context) {
 
 // ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
 // components that depend on this value.
-func (ac *autoconfig) ForceRanOnceFlag() {
+func (ac *AutoConfig) ForceRanOnceFlag() {
 	ac.ranOnce.Store(true)
 }
 
-// HasRunOnce returns true if the autoconfig has ran once.
-func (ac *autoconfig) HasRunOnce() bool {
+// HasRunOnce returns true if the AutoConfig has ran once.
+func (ac *AutoConfig) HasRunOnce() bool {
 	if ac == nil {
 		return false
 	}
@@ -301,8 +304,8 @@ func (ac *autoconfig) HasRunOnce() bool {
 }
 
 // GetAllConfigs returns all resolved and non-template configs known to
-// autoconfig.
-func (ac *autoconfig) GetAllConfigs() []integration.Config {
+// AutoConfig.
+func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	var configs []integration.Config
 
 	ac.cfgMgr.mapOverLoadedConfigs(func(scheduledConfigs map[string]integration.Config) {
@@ -317,7 +320,7 @@ func (ac *autoconfig) GetAllConfigs() []integration.Config {
 
 // processNewConfig store (in template cache) and resolves a given config,
 // returning the changes to be made.
-func (ac *autoconfig) processNewConfig(config integration.Config) integration.ConfigChanges {
+func (ac *AutoConfig) processNewConfig(config integration.Config) integration.ConfigChanges {
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
 		metrics := ac.store.getJMXMetricsForConfigName(config.Name)
@@ -336,7 +339,7 @@ func (ac *autoconfig) processNewConfig(config integration.Config) integration.Co
 // AddListeners tries to initialise the listeners listed in the given configs. A first
 // try is done synchronously. If a listener fails with a ErrWillRetry, the initialization
 // will be re-triggered later until success or ErrPermaFail.
-func (ac *autoconfig) AddListeners(listenerConfigs []config.Listeners) {
+func (ac *AutoConfig) AddListeners(listenerConfigs []config.Listeners) {
 	ac.addListenerCandidates(listenerConfigs)
 	remaining := ac.initListenerCandidates()
 	if !remaining {
@@ -352,7 +355,7 @@ func (ac *autoconfig) AddListeners(listenerConfigs []config.Listeners) {
 	}
 }
 
-func (ac *autoconfig) addListenerCandidates(listenerConfigs []config.Listeners) {
+func (ac *AutoConfig) addListenerCandidates(listenerConfigs []config.Listeners) {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
@@ -368,7 +371,7 @@ func (ac *autoconfig) addListenerCandidates(listenerConfigs []config.Listeners) 
 	}
 }
 
-func (ac *autoconfig) initListenerCandidates() bool {
+func (ac *AutoConfig) initListenerCandidates() bool {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
@@ -394,7 +397,7 @@ func (ac *autoconfig) initListenerCandidates() bool {
 	return len(ac.listenerCandidates) > 0
 }
 
-func (ac *autoconfig) retryListenerCandidates() {
+func (ac *AutoConfig) retryListenerCandidates() {
 	retryTicker := time.NewTicker(listenerCandidateIntl)
 	defer func() {
 		// Stop ticker
@@ -424,16 +427,16 @@ func (ac *autoconfig) retryListenerCandidates() {
 // Previously scheduled configurations that have not subsequently been
 // unscheduled can be replayed with the replayConfigs flag.  This replay occurs
 // immediately, before the AddScheduler call returns.
-func (ac *autoconfig) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {
+func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {
 	ac.scheduler.Register(name, s, replayConfigs)
 }
 
 // RemoveScheduler allows to remove a scheduler from the AD system.
-func (ac *autoconfig) RemoveScheduler(name string) {
+func (ac *AutoConfig) RemoveScheduler(name string) {
 	ac.scheduler.Deregister(name)
 }
 
-func (ac *autoconfig) processRemovedConfigs(configs []integration.Config) {
+func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	changes := ac.cfgMgr.processDelConfigs(configs)
 	ac.applyChanges(changes)
 	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
@@ -444,9 +447,9 @@ func (ac *autoconfig) processRemovedConfigs(configs []integration.Config) {
 //
 // This is done with the config store locked, so callers should perform minimal
 // work within f.
-func (ac *autoconfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
+func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
 	if ac == nil || ac.store == nil {
-		log.Error("Autoconfig store not initialized")
+		log.Error("AutoConfig store not initialized")
 		f(map[string]integration.Config{})
 		return
 	}
@@ -458,7 +461,7 @@ func (ac *autoconfig) MapOverLoadedConfigs(f func(map[string]integration.Config)
 // a service.  They do not include service configs.
 //
 // The returned slice is freshly created and will not be modified after return.
-func (ac *autoconfig) LoadedConfigs() []integration.Config {
+func (ac *AutoConfig) LoadedConfigs() []integration.Config {
 	var configs []integration.Config
 	ac.cfgMgr.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
 		configs = make([]integration.Config, 0, len(loadedConfigs))
@@ -472,25 +475,25 @@ func (ac *autoconfig) LoadedConfigs() []integration.Config {
 
 // GetUnresolvedTemplates returns all templates in the cache, in their unresolved
 // state.
-func (ac *autoconfig) GetUnresolvedTemplates() map[string][]integration.Config {
+func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
 	return ac.store.templateCache.getUnresolvedTemplates()
 }
 
 // GetIDOfCheckWithEncryptedSecrets returns the ID that a checkID had before
 // decrypting its secrets.
 // Returns empty if the check with the given ID does not have any secrets.
-func (ac *autoconfig) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID {
+func (ac *AutoConfig) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID {
 	return ac.store.getIDOfCheckWithEncryptedSecrets(checkID)
 }
 
 // GetProviderCatalog returns all registered ConfigProviderFactory.
-func (ac *autoconfig) GetProviderCatalog() map[string]providers.ConfigProviderFactory {
+func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFactory {
 	return ac.providerCatalog
 }
 
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
-func (ac *autoconfig) processNewService(ctx context.Context, svc listeners.Service) {
+func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
 	// in any case, register the service and store its tag hash
 	ac.store.setServiceForEntity(svc, svc.GetServiceID())
 	ac.store.setTagsHashForService(
@@ -510,7 +513,7 @@ func (ac *autoconfig) processNewService(ctx context.Context, svc listeners.Servi
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
-func (ac *autoconfig) processDelService(ctx context.Context, svc listeners.Service) {
+func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Service) {
 	ac.store.removeServiceForEntity(svc.GetServiceID())
 	changes := ac.cfgMgr.processDelService(ctx, svc)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
@@ -521,7 +524,7 @@ func (ac *autoconfig) processDelService(ctx context.Context, svc listeners.Servi
 // resulting data structure maps provider name to resource name to a set of
 // unique error messages.  The resource names do not match other identifiers
 // and are only intended for display in diagnostic tools like `agent status`.
-func (ac *autoconfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
+func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
 	errors := map[string]map[string]providers.ErrorMsgSet{}
 	for _, cp := range ac.getConfigPollers() {
 		configErrors := cp.provider.GetConfigErrors()
@@ -533,7 +536,7 @@ func (ac *autoconfig) GetAutodiscoveryErrors() map[string]map[string]providers.E
 }
 
 // applyChanges applies a configChanges object. This always unschedules first.
-func (ac *autoconfig) applyChanges(changes integration.ConfigChanges) {
+func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 	if len(changes.Unschedule) > 0 {
 		for _, conf := range changes.Unschedule {
 			telemetry.ScheduledConfigs.Dec(conf.Provider, configType(conf))
@@ -551,7 +554,7 @@ func (ac *autoconfig) applyChanges(changes integration.ConfigChanges) {
 	}
 }
 
-func (ac *autoconfig) deleteMappingsOfCheckIDsWithSecrets(configs []integration.Config) {
+func (ac *AutoConfig) deleteMappingsOfCheckIDsWithSecrets(configs []integration.Config) {
 	var checkIDsToDelete []checkid.ID
 	for _, configToDelete := range configs {
 		for _, instance := range configToDelete.Instances {
@@ -565,7 +568,7 @@ func (ac *autoconfig) deleteMappingsOfCheckIDsWithSecrets(configs []integration.
 
 // getConfigPollers gets a slice of config pollers that can be used without holding
 // ac.m.
-func (ac *autoconfig) getConfigPollers() []*configPoller {
+func (ac *AutoConfig) getConfigPollers() []*configPoller {
 	ac.m.RLock()
 	defer ac.m.RUnlock()
 
@@ -588,4 +591,32 @@ func configType(c integration.Config) string {
 	}
 
 	return "unknown"
+}
+
+// optionalModuleDeps has an optional tagger component
+type optionalModuleDeps struct {
+	fx.In
+	Lc         fx.Lifecycle
+	Config     configComponent.Component
+	Log        logComp.Component
+	TaggerComp optional.Option[tagger.Component]
+	Secrets    secrets.Component
+}
+
+// OptionalModule defines the fx options when ac should be used as an optional and not started
+func OptionalModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(
+			newOptionalAutoConfig,
+		))
+}
+
+// newOptionalAutoConfig creates an optional AutoConfig instance if tagger is available
+func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[Component] {
+	_, ok := deps.TaggerComp.Get()
+	if !ok {
+		return optional.NewNoneOption[Component]()
+	}
+	return optional.NewOption[Component](
+		NewAutoConfigNoStart(scheduler.NewMetaScheduler(), deps.Secrets))
 }

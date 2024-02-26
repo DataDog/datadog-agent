@@ -119,7 +119,7 @@ func SetupHandlers(
 	r.HandleFunc("/metadata/inventory-host", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvHost(w, r, invHost) }).Methods("GET")
 	r.HandleFunc("/metadata/package-signing", func(w http.ResponseWriter, r *http.Request) { metadataPayloadPkgSigning(w, r, pkgSigning) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
-		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, ac)
+		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption[autodiscovery.Component](ac))
 		getDiagnose(w, r, diagnoseDeps)
 	}).Methods("POST")
 

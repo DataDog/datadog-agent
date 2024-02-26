@@ -101,7 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				workloadmeta.OptionalModule(),
 				tagger.OptionalModule(),
-				autodiscovery.NoStartModule(),
+				autodiscovery.OptionalModule(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},
@@ -234,7 +234,7 @@ func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
 	_ optional.Option[workloadmeta.Component],
 	_ optional.Option[tagger.Component],
-	ac autodiscovery.Component,
+	ac optional.Option[autodiscovery.Component],
 	collector optional.Option[collector.Component],
 	secretResolver secrets.Component) error {
 	diagCfg := diagnosis.Config{

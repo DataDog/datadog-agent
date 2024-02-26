@@ -9,4 +9,5 @@ package providers
 
 import "github.com/DataDog/datadog-agent/pkg/config"
 
-var NewConsulConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) = nil
+// NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
+var NewConsulConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)

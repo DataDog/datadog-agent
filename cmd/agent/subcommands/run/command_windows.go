@@ -37,6 +37,7 @@ import (
 	// core components
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -93,6 +94,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			serverDebug dogstatsddebug.Component,
 			wmeta workloadmeta.Component,
 			taggerComp tagger.Component,
+			ac autodiscovery.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
@@ -126,6 +128,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				serverDebug,
 				wmeta,
 				taggerComp,
+				ac,
 				rcclient,
 				logsAgent,
 				processAgent,

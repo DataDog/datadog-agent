@@ -9,4 +9,5 @@ package providers
 
 import "github.com/DataDog/datadog-agent/pkg/config"
 
-var NewPrometheusServicesConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) = nil
+// NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
+var NewPrometheusServicesConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)
