@@ -18,7 +18,9 @@ import (
 )
 
 const (
+        // AutoAdjustStrategyMaxThroughput will adapt the number of pipelines for maximum throughput
 	AutoAdjustStrategyMaxThroughput = "max_throughput"
+        // AutoAdjustStrategyIsolation will adapt the number of pipelines for better container isolation
 	AutoAdjustStrategyIsolation     = "isolation"
 )
 
