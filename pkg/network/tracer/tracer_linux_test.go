@@ -2085,7 +2085,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 				ebpfConntrackerRCCreator = func(cfg *config.Config) (rc.CompiledOutput, error) { return nil, assert.AnError }
 			}
 
-			conntracker, err := NewEBPFConntracker(cfg, nil)
+			conntracker, err := NewEBPFConntracker(cfg)
 			// ensure we always clean up the conntracker, regardless of behavior
 			if conntracker != nil {
 				t.Cleanup(conntracker.Close)

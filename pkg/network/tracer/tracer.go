@@ -260,7 +260,7 @@ func newConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetr
 		}
 	}
 
-	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
+	if c, err = NewEBPFConntracker(cfg); err == nil {
 		return c, nil
 	}
 
