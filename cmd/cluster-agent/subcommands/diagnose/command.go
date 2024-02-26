@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -60,5 +62,5 @@ func run(diagnoseSenderManager diagnosesendermanager.Component) error {
 		RunLocal: true, // do not attept to run in actual runnin agent (may need to implement it in future)
 		Include:  []string{"connectivity-datadog-autodiscovery"},
 	}
-	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseSenderManager)
+	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseSenderManager, optional.NewNoneOption[collector.Component]())
 }

@@ -1386,7 +1386,7 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	testutil.IptablesSave(t)
 	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
 	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
-	testutil.RunCommands(t, cmds, true)
+	testutil.RunCommands(t, cmds, false)
 
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
@@ -1959,7 +1959,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
-	mapsTelemetry := tr.bpfErrorsCollector.GetMapsTelemetry()
+	mapsTelemetry := tr.bpfErrorsCollector.T.GetMapsTelemetry()
 	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
 
 	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
@@ -2013,7 +2013,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
 	})
 
-	helperTelemetry := tr.bpfErrorsCollector.GetHelpersTelemetry()
+	helperTelemetry := tr.bpfErrorsCollector.T.GetHelpersTelemetry()
 	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
 
 	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})

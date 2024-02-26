@@ -559,8 +559,8 @@ func (at *ActivityTree) findBranch(parent ProcessNodeParent, branch []*model.Pro
 				return nil, len(branch) - i, true
 			}
 
-			// make sure we properly update the isExecChild status
-			matchingNode.Process.IsExecChild = matchingNode.Process.IsExecChild || branchCursor.IsExecChild
+			// make sure we properly update the IsExecExec status
+			matchingNode.Process.IsExecExec = matchingNode.Process.IsExecExec || branchCursor.IsExecExec
 
 			// here is the current state of the tree:
 			//   parent -> treeNodeToRebase -> [...] -> matchingNode
@@ -569,10 +569,10 @@ func (at *ActivityTree) findBranch(parent ProcessNodeParent, branch []*model.Pro
 			at.rebaseTree(parent, treeNodeToRebaseIndex, parent, branch[i:], generationType, resolvers)
 
 			return matchingNode, len(branch) - i, true
-
 		}
+
 		// are we looking for an exec child ?
-		if siblings := parent.GetSiblings(); branchCursor.IsExecChild && siblings != nil {
+		if siblings := parent.GetSiblings(); branchCursor.IsExecExec && siblings != nil {
 
 			// if yes, then look for branchCursor in the siblings of the parent of children
 			matchingNode, treeNodeToRebaseIndex = at.findProcessCacheEntryInTree(*siblings, branchCursor)
@@ -585,8 +585,8 @@ func (at *ActivityTree) findBranch(parent ProcessNodeParent, branch []*model.Pro
 					return nil, len(branch) - i, true
 				}
 
-				// make sure we properly update the isExecChild status
-				matchingNode.Process.IsExecChild = matchingNode.Process.IsExecChild || branchCursor.IsExecChild
+				// make sure we properly update the IsExecExec status
+				matchingNode.Process.IsExecExec = matchingNode.Process.IsExecExec || branchCursor.IsExecExec
 
 				// here is the current state of the tree:
 				//   parent of parent -> treeNodeToRebase -> [...] -> matchingNode
@@ -601,7 +601,7 @@ func (at *ActivityTree) findBranch(parent ProcessNodeParent, branch []*model.Pro
 		// We didn't find the current entry anywhere, has it execed into something else ? (i.e. are we missing something
 		// in the profile ?)
 		if i-1 >= 0 {
-			if branch[i-1].IsExecChild {
+			if branch[i-1].IsExecExec {
 				continue
 			}
 		}
@@ -623,7 +623,7 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 		// matching "isExecChild = true" nodes, except parent.GetChildren()[childIndexToRebase] that might be a "isExecChild
 		// = false" node. To be safe, check if the 2 top level nodes match if one of them is an "isExecChild = true" node.
 		childToRebase := (*parent.GetChildren())[childIndexToRebase]
-		if topLevelNode := branchToInsert[len(branchToInsert)-1]; !topLevelNode.IsExecChild || !childToRebase.Process.IsExecChild {
+		if topLevelNode := branchToInsert[len(branchToInsert)-1]; !topLevelNode.IsExecExec || !childToRebase.Process.IsExecExec {
 			if childToRebase.Matches(&topLevelNode.Process, at.differentiateArgs, true) {
 				// ChildNodeToRebase and topLevelNode match and need to be merged, rebase the one in the profile, and insert
 				// the remaining nodes of the branch on top of it
@@ -656,7 +656,7 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 	}
 
 	// mark the rebased node as an exec child
-	(*parent.GetChildren())[childIndexToRebase].Process.IsExecChild = true
+	(*parent.GetChildren())[childIndexToRebase].Process.IsExecExec = true
 
 	if rebaseRoot == nil {
 		rebaseRoot = (*parent.GetChildren())[childIndexToRebase]
@@ -701,7 +701,7 @@ func (at *ActivityTree) findProcessCacheEntryInTree(tree []*ProcessNode, entry *
 func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNode, entry *model.ProcessCacheEntry) *ProcessNode {
 	// fast path
 	for _, node := range child.Children {
-		if node.Process.IsExecChild {
+		if node.Process.IsExecExec {
 			// does this execed child match the entry ?
 			if node.Matches(&entry.Process, at.differentiateArgs, true) {
 				return node
@@ -725,7 +725,7 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 
 		// look for an execed child
 		for _, node := range cursor.Children {
-			if node.Process.IsExecChild && !slices.Contains(visited, node) {
+			if node.Process.IsExecExec && !slices.Contains(visited, node) {
 				// there should always be only one
 
 				// does this execed child match the entry ?

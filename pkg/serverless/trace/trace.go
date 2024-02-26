@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
@@ -95,7 +97,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanCh
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			s.ta = agent.NewAgent(context, tc, telemetry.NewNoopCollector())
+			s.ta = agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 			s.spanModifier = &spanModifier{
 				coldStartSpanId: coldStartSpanId,
 				lambdaSpanChan:  lambdaSpanChan,

@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 
@@ -23,6 +24,7 @@ import (
 
 // EBPFFieldHandlers defines a field handlers
 type EBPFFieldHandlers struct {
+	config    *config.Config
 	resolvers *resolvers.EBPFResolvers
 }
 
@@ -350,13 +352,13 @@ func (fh *EBPFFieldHandlers) ResolveEventTimestamp(ev *model.Event, e *model.Bas
 	return int(fh.ResolveEventTime(ev, e).UnixNano())
 }
 
-// GetProcessService returns the service tag based on the process context
-func (fh *EBPFFieldHandlers) GetProcessService(ev *model.Event) string {
+// ResolveService returns the service tag based on the process context
+func (fh *EBPFFieldHandlers) ResolveService(ev *model.Event, _ *model.BaseEvent) string {
 	entry, _ := fh.ResolveProcessCacheEntry(ev)
 	if entry == nil {
 		return ""
 	}
-	return getProcessService(entry)
+	return getProcessService(fh.config, entry)
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time

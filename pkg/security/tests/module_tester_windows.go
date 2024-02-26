@@ -113,6 +113,7 @@ runtime_security_config:
     enabled: false
   sbom:
     enabled: {{ .SBOMEnabled }}
+  fim_enabled: {{ .FIMEnabled }}
   activity_dump:
     enabled: {{ .EnableActivityDump }}
 {{if .EnableActivityDump}}
@@ -130,6 +131,7 @@ runtime_security_config:
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
+	cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
     {{end}}

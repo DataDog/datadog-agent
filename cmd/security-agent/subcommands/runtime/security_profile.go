@@ -175,7 +175,7 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 		fmt.Printf("%s    loaded_at: %v\n", prefix, msg.GetLoadedInKernelTimestamp())
 		fmt.Printf("%s    cookie: %v - 0x%x\n", prefix, msg.GetProfileCookie(), msg.GetProfileCookie())
 	}
-	fmt.Printf("%s  anomaly_detection_events: %v\n", prefix, msg.GetAnomalyDetectionEvents())
+	fmt.Printf("%s  event_types: %v\n", prefix, msg.GetEventTypes())
 	if len(msg.GetLastAnomalies()) > 0 {
 		fmt.Printf("%s  last_anomalies:\n", prefix)
 		for _, ano := range msg.GetLastAnomalies() {

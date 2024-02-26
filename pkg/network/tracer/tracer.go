@@ -168,7 +168,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
 		if errorsCollector, ok := eec.(*ebpftelemetry.EBPFErrorsCollector); ok {
 			tr.bpfErrorsCollector = errorsCollector
-			bpfTelemetry = tr.bpfErrorsCollector.EBPFTelemetry
+			bpfTelemetry = tr.bpfErrorsCollector.T
 		}
 	} else {
 		log.Debug("eBPF telemetry not supported")
@@ -850,10 +850,9 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 
 func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *ebpftelemetry.EBPFTelemetry) *usm.Monitor {
 	// Shared with the USM program
-	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
-	monitor, err := usm.NewMonitor(c, connectionProtocolMap, sockFDMap, bpfTelemetry)
+	monitor, err := usm.NewMonitor(c, connectionProtocolMap, bpfTelemetry)
 	if err != nil {
 		log.Errorf("usm initialization failed: %s", err)
 		return nil

@@ -43,14 +43,16 @@ const (
 var (
 	// crashdriver included for testing purposes
 	ddDrivers = map[string]struct{}{
-		"ddnpm":       {},
-		"crashdriver": {},
+		"ddnpm":       {}, // NPM/USM driver, used for network monitoring
+		"ddprocmon":   {}, // process monitoring driver, used for CWS
+		"crashdriver": {}, // this entry exists only for testing purposes.
 	}
 	// system probe enabled flags indicating we should be enabled
 	enabledflags = []string{
 		"windows_crash_detection.enabled",
 		"network_config.enabled",
 		"service_monitoring_config.enabled",
+		"runtime_security_config.enabled",
 	}
 	// these are vars and not consts so that they can be overridden in
 	// the unit tests.

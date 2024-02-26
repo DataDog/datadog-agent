@@ -20,7 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 
@@ -36,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
@@ -140,6 +143,8 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		eventplatformimpl.Module(),
+		eventplatformreceiverimpl.Module(),
+		hostnameimpl.Module(),
 		fx.Supply(eventplatformimpl.NewDisabledParams()),
 		tagger.OptionalModule(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
@@ -158,6 +163,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		resourcesimpl.Module(),
 		hostimpl.Module(),
 		inventoryagentimpl.Module(),
+		authtokenimpl.Module(),
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
 		inventoryhostimpl.Module(),
@@ -260,7 +266,7 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	// Setup healthcheck port
 	var healthPort = config.GetInt("health_port")
 	if healthPort > 0 {
-		err = healthprobe.Serve(ctx, healthPort)
+		err = healthprobe.Serve(ctx, config, healthPort)
 		if err != nil {
 			err = log.Errorf("Error starting health port, exiting: %v", err)
 			return
