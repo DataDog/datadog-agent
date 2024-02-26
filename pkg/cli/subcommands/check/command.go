@@ -19,8 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"

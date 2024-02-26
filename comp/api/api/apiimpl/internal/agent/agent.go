@@ -119,7 +119,7 @@ func SetupHandlers(
 	r.HandleFunc("/metadata/inventory-host", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvHost(w, r, invHost) }).Methods("GET")
 	r.HandleFunc("/metadata/package-signing", func(w http.ResponseWriter, r *http.Request) { metadataPayloadPkgSigning(w, r, pkgSigning) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
-		getDiagnose(w, r, senderManager, collector, secretResolver)
+		getDiagnose(w, r, senderManager, collector, secretResolver, ac)
 	}).Methods("POST")
 
 	r.HandleFunc("/dogstatsd-contexts-dump", func(w http.ResponseWriter, r *http.Request) { dumpDogstatsdContexts(w, r, demux) }).Methods("POST")
@@ -540,7 +540,7 @@ func metadataPayloadPkgSigning(w http.ResponseWriter, _ *http.Request, pkgSignin
 	w.Write(scrubbed)
 }
 
-func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) {
+func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) {
 	var diagCfg diagnosis.Config
 
 	// Read parameters
@@ -566,7 +566,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.Di
 	diagCfg.RunLocal = true
 
 	// Get diagnoses via API
-	diagnoses, err := diagnose.Run(diagCfg, senderManager, collector, secretResolver)
+	diagnoses, err := diagnose.Run(diagCfg, senderManager, collector, secretResolver, ac)
 	if err != nil {
 		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return

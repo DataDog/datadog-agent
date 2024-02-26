@@ -8,29 +8,31 @@ package flare
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // for testing purpose
 var linuxKernelSymbols = getLinuxKernelSymbols
 
 // CreateSecurityAgentArchive packages up the files
-func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}) (string, error) {
+func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}, ac optional.Option[autodiscovery.Component]) (string, error) {
 	fb, err := flarehelpers.NewFlareBuilder(local)
 	if err != nil {
 		return "", err
 	}
-	createSecurityAgentArchive(fb, logFilePath, runtimeStatus, complianceStatus)
+	createSecurityAgentArchive(fb, logFilePath, runtimeStatus, complianceStatus, ac)
 
 	return fb.Save()
 }
 
 // createSecurityAgentArchive packages up the files
-func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}) {
+func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}, ac optional.Option[autodiscovery.Component]) {
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", []byte(""))
@@ -38,7 +40,7 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
 		err := fb.AddFileFromFunc("security-agent-status.log", func() ([]byte, error) {
-			return status.GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus)
+			return status.GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus, ac)
 		})
 		if err != nil {
 			log.Infof("Error getting the status of the Security Agent, %q", err)

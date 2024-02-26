@@ -29,10 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // GetStatus grabs the status from expvar and puts it into a map
-func GetStatus(verbose bool, invAgent inventoryagent.Component, ac compAutodiscovery.Component) (map[string]interface{}, error) {
+func GetStatus(verbose bool, invAgent inventoryagent.Component, ac optional.Option[compAutodiscovery.Component]) (map[string]interface{}, error) {
 	stats, err := commonStatus.GetStatus(invAgent)
 	if err != nil {
 		return nil, err
@@ -76,7 +77,11 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component, ac compAutodisco
 	}
 
 	if config.IsContainerized() {
-		autodiscovery.PopulateStatus(ac, stats)
+		if compAutodiscovery, ok := ac.Get(); ok {
+			autodiscovery.PopulateStatus(compAutodiscovery, stats)
+		} else {
+			autodiscovery.PopulateStatusWithoutAD(stats)
+		}
 	}
 
 	remoteconfiguration.PopulateStatus(stats)
@@ -85,7 +90,7 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component, ac compAutodisco
 
 // GetAndFormatStatus gets and formats the status all in one go
 func GetAndFormatStatus(invAgent inventoryagent.Component, ac compAutodiscovery.Component) ([]byte, error) {
-	s, err := GetStatus(true, invAgent, ac)
+	s, err := GetStatus(true, invAgent, optional.NewOption(ac))
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +109,7 @@ func GetAndFormatStatus(invAgent inventoryagent.Component, ac compAutodiscovery.
 }
 
 // GetAndFormatSecurityAgentStatus gets and formats the security agent status
-func GetAndFormatSecurityAgentStatus(runtimeStatus, ac compAutodiscovery.Component, complianceStatus map[string]interface{}) ([]byte, error) {
+func GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus map[string]interface{}, ac optional.Option[compAutodiscovery.Component]) ([]byte, error) {
 	// inventory metadata is not enabled in the security agent, we pass nil to GetStatus
 	s, err := GetStatus(true, nil, ac)
 	if err != nil {

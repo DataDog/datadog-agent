@@ -26,17 +26,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Agent handles REST API calls
 type Agent struct {
 	runtimeAgent    *secagent.RuntimeSecurityAgent
 	complianceAgent *compliance.Agent
-	ac              autodiscovery.Component
+	ac              optional.Option[autodiscovery.Component]
 }
 
 // NewAgent returns a new Agent
-func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent, ac autodiscovery.Component) *Agent {
+func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent, ac optional.Option[autodiscovery.Component]) *Agent {
 	return &Agent{
 		runtimeAgent:    runtimeAgent,
 		complianceAgent: complianceAgent,
@@ -88,7 +89,7 @@ func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func (a *Agent) getStatus(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
+func (a *Agent) getStatus(w http.ResponseWriter, _ *http.Request, ac optional.Option[autodiscovery.Component]) {
 	w.Header().Set("Content-Type", "application/json")
 	s, err := status.GetStatus(false, nil, ac)
 	if err != nil {
@@ -149,7 +150,7 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 		complianceStatus = a.complianceAgent.GetStatus()
 	}
 
-	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus, complianceStatus)
+	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus, complianceStatus, a.ac)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

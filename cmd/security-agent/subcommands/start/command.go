@@ -56,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -124,7 +125,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 					return tagger.NewTaggerParams()
 				}),
-				autodiscovery.NoStartModule(),
+				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 			)
 		},
 	}
@@ -139,7 +140,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, ac autodiscovery.Component, demultiplexer demultiplexer.Component, params *cliParams) error {
+func start(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, ac optional.Option[autodiscovery.Component], demultiplexer demultiplexer.Component, params *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
@@ -202,7 +203,7 @@ func RunAgent(ctx context.Context,
 	telemetry telemetry.Component,
 	pidfilePath string,
 	demultiplexer demultiplexer.Component,
-	ac autodiscovery.Component) (err error) {
+	ac optional.Option[autodiscovery.Component]) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type cliParams struct {
@@ -59,6 +61,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
+				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 			)
 		},
 	}
@@ -70,7 +73,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func requestFlare(_ log.Component, config config.Component, _ secrets.Component, params *cliParams) error {
+func requestFlare(_ log.Component, config config.Component, _ secrets.Component, params *cliParams, ac optional.Option[autodiscovery.Component]) error {
 	warnings := config.Warnings()
 	if warnings != nil && warnings.Err != nil {
 		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
@@ -107,7 +110,7 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateSecurityAgentArchive(true, logFile, nil, nil)
+		filePath, e = flare.CreateSecurityAgentArchive(true, logFile, nil, nil, ac)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

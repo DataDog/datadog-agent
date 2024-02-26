@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"

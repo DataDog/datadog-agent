@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Server implements security agent API server
@@ -40,7 +41,7 @@ type Server struct {
 }
 
 // NewServer creates a new Server instance
-func NewServer(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent, ac autodiscovery.Component) (*Server, error) {
+func NewServer(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent, ac optional.Option[autodiscovery.Component]) (*Server, error) {
 	listener, err := newListener()
 	if err != nil {
 		return nil, err
