@@ -140,7 +140,7 @@ const (
 	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
 	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
 
-	// UDPv6DestroySock traces the udpv6_destroy_sock()
+	// UDPv6DestroySock traces the udpv6_destroy_sock() system call
 	UDPv6DestroySock ProbeFuncName = "kprobe__udpv6_destroy_sock"
 	// UDPv6DestroySockReturn traces the return of the udpv6_destroy_sock() system call
 	UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
