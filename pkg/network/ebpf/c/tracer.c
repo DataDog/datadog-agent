@@ -201,7 +201,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     // Get network namespace id
     log_debug("kprobe/tcp_close: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return;
+        return 0;
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
@@ -212,7 +212,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     if (is_protocol_classification_supported()) {
         bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     }
-
     return 0;
 }
 
@@ -941,6 +940,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP);
+
     __u16 lport = 0;
     if (valid_tuple) {
         cleanup_conn(ctx, &tup, skp);

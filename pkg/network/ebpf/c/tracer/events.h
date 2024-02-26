@@ -112,10 +112,10 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         batch_ptr->len++;
         return;
     case 3:
-        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
-        // via a tail call in order to cope with the eBPF stack limitation of 512 bytes.
         batch_ptr->c3 = conn;
         batch_ptr->len++;
+        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
+        // via a tail call in order to cope with the eBPF stack limitation of 512 bytes.
         return;
     }
 
@@ -130,12 +130,10 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     if (is_udp) {
         increment_telemetry_count(unbatched_udp_close);
     }
-    return;
 }
 
 
-// This function is used to flush the conn_close_batch to the perf buffer.
-// It is only called on older kernel versions that do not support ring buffers.
+// This function is used to flush the conn_close_batch to the perf or ring buffer.
 static __always_inline void flush_conn_close_if_full(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);

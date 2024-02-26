@@ -174,13 +174,12 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
 
-	ringbufferEnabled := util.RingBufferSupported(config)
-	util.AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffers_enabled")
-
 	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
 
+	ringbufferEnabled := util.RingBufferSupported(config)
+	util.AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffers_enabled")
 	if ringbufferEnabled {
 		mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
 			Type:       ebpf.RingBuf,
