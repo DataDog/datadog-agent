@@ -247,7 +247,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
 					HTTPStats: []network.USMKeyValue[http.Key, *http.RequestStats]{
 						{
-							http.NewKey(
+							Key: http.NewKey(
 								util.AddressFromString("20.1.1.1"),
 								util.AddressFromString("20.1.1.1"),
 								40000,
@@ -256,7 +256,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 								true,
 								http.MethodGet,
 							),
-							httpReqStats,
+							Value: httpReqStats,
 						},
 					},
 				},
@@ -307,7 +307,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		in.BufferedData.Conns[0].IPTranslation = nil
 		in.BufferedData.Conns[0].HTTPStats = []network.USMKeyValue[http.Key, *http.RequestStats]{
 			{
-				http.NewKey(
+				Key: http.NewKey(
 					util.AddressFromString("10.1.1.1"),
 					util.AddressFromString("10.2.2.2"),
 					1000,
@@ -316,7 +316,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 					true,
 					http.MethodGet,
 				),
-				httpReqStats,
+				Value: httpReqStats,
 			},
 		}
 	}
@@ -528,7 +528,7 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 					DPort:  serverPort,
 					HTTPStats: []network.USMKeyValue[http.Key, *http.RequestStats]{
 						{
-							http.NewKey(
+							Key: http.NewKey(
 								localhost,
 								localhost,
 								clientPort,
@@ -537,7 +537,7 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 								true,
 								http.MethodGet,
 							),
-							httpReqStats,
+							Value: httpReqStats,
 						},
 					},
 				},
@@ -693,7 +693,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 					DPort:  serverPort,
 					HTTP2Stats: []network.USMKeyValue[http.Key, *http.RequestStats]{
 						{
-							http.NewKey(
+							Key: http.NewKey(
 								localhost,
 								localhost,
 								clientPort,
@@ -702,7 +702,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 								true,
 								http.MethodPost,
 							),
-							http2ReqStats,
+							Value: http2ReqStats,
 						},
 					},
 				},
@@ -713,7 +713,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 					DPort:  clientPort,
 					HTTP2Stats: []network.USMKeyValue[http.Key, *http.RequestStats]{
 						{
-							http.NewKey(
+							Key: http.NewKey(
 								localhost,
 								localhost,
 								clientPort,
@@ -722,7 +722,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 								true,
 								http.MethodPost,
 							),
-							http2ReqStats,
+							Value: http2ReqStats,
 						},
 					},
 				},

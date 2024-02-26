@@ -155,7 +155,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs))
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -167,7 +167,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka))
+		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs))
 	})
 
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -179,7 +179,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP2, cs.DNS))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs))
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps

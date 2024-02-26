@@ -2756,7 +2756,7 @@ func TestKafkaLocalhostScenario(t *testing.T) {
 	state := newDefaultState()
 	delta := state.GetDelta("client", latestEpochTime(), connections, nil, map[protocols.ProtocolType]interface{}{
 		protocols.Kafka: map[kafka.Key]*kafka.RequestStat{
-			kafkaKey: &kafka.RequestStat{Count: 10},
+			kafkaKey: {Count: 10},
 		},
 	})
 

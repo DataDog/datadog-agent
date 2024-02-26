@@ -244,7 +244,7 @@ func testHTTP2IDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 			DPort:  80,
 			Pid:    1,
 			HTTP2Stats: []network.USMKeyValue[http.Key, *http.RequestStats]{
-				{httpKey, http2Stats},
+				{Key: httpKey, Value: http2Stats},
 			},
 		},
 		{
