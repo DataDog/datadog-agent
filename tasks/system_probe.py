@@ -98,7 +98,7 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
     strip = "&& llvm-strip -g $out" if strip_object_files else ""
     nw.rule(
         name="llc",
-        command=f"llc -stack-size-section -march=bpf -filetype=obj -o $out $in {strip}",
+        command=f"llc -march=bpf -filetype=obj -o $out $in {strip}",
     )
 
 

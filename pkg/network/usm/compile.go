@@ -40,5 +40,5 @@ func getCFlags(config *config.Config) []string {
 }
 
 func getLlcFlags() []string {
-	return []string{"-stack-size-section"}
+	return nil
 }
