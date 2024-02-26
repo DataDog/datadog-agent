@@ -125,7 +125,7 @@ class CodecovWorkaround:
             with open(self.call_ps1_from_bat, 'w', encoding='utf-8') as f:
                 f.write(
                     """@echo off
-powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
+powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
                 )
 
             os.chmod(self.cov_test_path, 0o755)
@@ -388,7 +388,8 @@ def test(
     if coverage:
         if platform.system() == 'Windows':
             coverage_script_template = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
-go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile="$tempFile" {{packages}}
+$packages = if ($args.count -eq 0) {{"{{packages}}"}} else {{$args}}
+go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile="$tempFile" $packages
 exit $LASTEXITCODE"""
         else:
             coverage_script_template = f"""#!/usr/bin/env bash
