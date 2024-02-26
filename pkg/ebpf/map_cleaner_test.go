@@ -30,6 +30,59 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestMapCleanerWithMissingKey(t *testing.T) {
+	const numMapEntries = 10
+
+	var (
+		key = new(int64)
+		val = new(int64)
+	)
+
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
+
+	m, err := cebpf.NewMap(&cebpf.MapSpec{
+		Type:       cebpf.Hash,
+		KeySize:    8,
+		ValueSize:  8,
+		MaxEntries: numMapEntries,
+	})
+	require.NoError(t, err)
+
+	cleaner, err := NewMapCleaner[int64, int64](m, 5)
+	require.NoError(t, err)
+	for i := 0; i < numMapEntries; i++ {
+		*key = int64(i)
+		err := m.Put(key, val)
+		assert.Nilf(t, err, "can't put key=%d: %s", i, err)
+	}
+
+	// Clean all the even entries
+	cleaner.Clean(100*time.Millisecond, nil, nil, func(now int64, k int64, v int64) bool {
+		// Delete a random key.
+		if k == 4 {
+			m.Delete(&k)
+		}
+		return k%2 == 0
+	})
+
+	time.Sleep(1 * time.Second)
+	cleaner.Stop()
+
+	for i := 0; i < numMapEntries; i++ {
+		*key = int64(i)
+		err := m.Lookup(key, val)
+
+		// If the entry is even, it should have been deleted
+		// otherwise it should be present
+		if i%2 == 0 {
+			assert.NotNilf(t, err, "entry key=%d should not be present", i)
+		} else {
+			assert.Nil(t, err)
+		}
+	}
+}
+
 func TestMapCleaner(t *testing.T) {
 	const numMapEntries = 100
 
