@@ -1024,9 +1024,9 @@ workflow:
 
 
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
-  - <<: *if_disable_e2e
+  - <<: *if_disable_tests
     when: never
-  - <<: *if_auto_e2e
+  - <<: *if_run_tests
     when: on_success
   - <<: *if_main_branch
     when: on_success
@@ -1043,9 +1043,9 @@ workflow:
     when: never
 
 .always_on_container_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e
+  - <<: *if_disable_tests
     when: never
-  - <<: *if_auto_e2e
+  - <<: *if_run_tests
     when: always
   - <<: *if_main_branch
     when: always
@@ -1251,11 +1251,6 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
-
-.if_run_e2e_tests:
-  - <<: *if_disable_e2e
-    when: never
-  - <<: *if_auto_e2e
 
 .on_packaging_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
