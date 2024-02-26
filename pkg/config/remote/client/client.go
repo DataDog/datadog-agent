@@ -59,6 +59,8 @@ type Client struct {
 	ctx         context.Context
 	closeFn     context.CancelFunc
 
+	updaterPackagesState []*pbgo.PackageState
+
 	cwsWorkloads []string
 
 	lastUpdateError   error
@@ -152,6 +154,9 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 
 	return g.fetchConfigs(ctx, request)
 }
+
+// Handler is a function that is called when a config update is received.
+type Handler func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 
 // NewClient creates a new client
 func NewClient(updater ConfigFetcher, opts ...func(o *Options)) (*Client, error) {
@@ -336,6 +341,13 @@ func (c *Client) SetCWSWorkloads(workloads []string) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.cwsWorkloads = workloads
+}
+
+// SetUpdaterPackagesState sets the updater package state
+func (c *Client) SetUpdaterPackagesState(packages []*pbgo.PackageState) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.updaterPackagesState = packages
 }
 
 func (c *Client) startFn() {
@@ -535,13 +547,8 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 	case true:
 		req.Client.IsUpdater = true
 		req.Client.ClientUpdater = &pbgo.ClientUpdater{
-			Tags: c.Options.updaterTags,
-			Packages: []*pbgo.PackageState{
-				{
-					Package:       "datadog-agent",
-					StableVersion: "7.50.0",
-				},
-			},
+			Tags:     c.Options.updaterTags,
+			Packages: c.updaterPackagesState,
 		}
 	case false:
 		req.Client.IsAgent = true
