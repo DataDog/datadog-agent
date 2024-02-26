@@ -913,19 +913,19 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", "", false)
 	assert.NoError(err)
 	assert.Len(metrics, 1)
-	assert.Equal("container_id://metric-container", metrics[0].OriginFromClient)
+	assert.Equal("container_id://metric-container", metrics[0].OriginInfo.FromMsg)
 
 	// Event
 	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
 	assert.NoError(err)
 	assert.NotNil(event)
-	assert.Equal("container_id://event-container", event.OriginFromClient)
+	assert.Equal("container_id://event-container", event.OriginInfo.FromMsg)
 
 	// Service check
 	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
 	assert.NoError(err)
 	assert.NotNil(serviceCheck)
-	assert.Equal("container_id://service-check-container", serviceCheck.OriginFromClient)
+	assert.Equal("container_id://service-check-container", serviceCheck.OriginInfo.FromMsg)
 }
 
 func TestContainerIDParsing(t *testing.T) {
@@ -955,9 +955,9 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	assert.NoError(err)
 	assert.Len(metrics, 1)
 	if enabled {
-		assert.Equal("", metrics[0].OriginFromClient)
+		assert.Equal("", metrics[0].OriginInfo.FromMsg)
 	} else {
-		assert.Equal("container_id://metric-container", metrics[0].OriginFromClient)
+		assert.Equal("container_id://metric-container", metrics[0].OriginInfo.FromMsg)
 	}
 
 	// Event
@@ -965,9 +965,9 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	assert.NoError(err)
 	assert.NotNil(event)
 	if enabled {
-		assert.Equal("", metrics[0].OriginFromClient)
+		assert.Equal("", metrics[0].OriginInfo.FromMsg)
 	} else {
-		assert.Equal("container_id://event-container", event.OriginFromClient)
+		assert.Equal("container_id://event-container", event.OriginInfo.FromMsg)
 	}
 
 	// Service check
@@ -975,9 +975,9 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	assert.NoError(err)
 	assert.NotNil(serviceCheck)
 	if enabled {
-		assert.Equal("", serviceCheck.OriginFromClient)
+		assert.Equal("", serviceCheck.OriginInfo.FromMsg)
 	} else {
-		assert.Equal("container_id://service-check-container", serviceCheck.OriginFromClient)
+		assert.Equal("container_id://service-check-container", serviceCheck.OriginInfo.FromMsg)
 	}
 }
 

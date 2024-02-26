@@ -7,6 +7,7 @@ package tagger
 
 import (
 	"context"
+
 	"reflect"
 	"sync"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
@@ -324,11 +326,11 @@ func (t *TaggerClient) ResetCaptureTagger() {
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
-	cardinality := taggerCardinality(cardinalityName)
+func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo types.OriginInfo) {
+	cardinality := taggerCardinality(originInfo.Cardinality)
 
-	if udsOrigin != packets.NoOrigin {
-		if err := t.AccumulateTagsFor(udsOrigin, cardinality, tb); err != nil {
+	if originInfo.FromUDS != packets.NoOrigin {
+		if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
 			log.Errorf(err.Error())
 		}
 	}
@@ -337,10 +339,37 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, c
 		log.Error(err.Error())
 	}
 
-	if clientOrigin != "" {
-		if err := t.AccumulateTagsFor(clientOrigin, cardinality, tb); err != nil {
-			tlmUDPOriginDetectionError.Inc()
-			log.Tracef("Cannot get tags for entity %s: %s", clientOrigin, err)
+	// DogStatsD Origin Detection old behavior
+	if originInfo.ProductOrigin == types.ProductOriginDogStatsD {
+		if originInfo.Cardinality == "none" {
+			return
+		}
+
+		// originFromClient can either be originInfo.FromTag or originInfo.FromMsg
+		originFromClient := ""
+
+		if originInfo.FromTag != "" && originInfo.FromTag != "none" {
+			// Check if the value is not "none" in order to avoid calling the tagger for entity that doesn't exist.
+			// Currently only supported for pods
+			originFromClient = kubelet.KubePodTaggerEntityPrefix + originInfo.FromTag
+		} else if originInfo.FromTag == "" && len(originInfo.FromMsg) > 0 {
+			// originInfo.FromMsg is the container ID sent by the newer clients.
+			originFromClient = containers.BuildTaggerEntityName(originInfo.FromMsg)
+		}
+
+		if originFromClient != "" {
+			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
+				tlmUDPOriginDetectionError.Inc()
+				log.Tracef("Cannot get tags for entity %s: %s", originFromClient, err)
+			}
+		}
+	} else {
+		if err := t.AccumulateTagsFor(containers.BuildTaggerEntityName(originInfo.FromMsg), cardinality, tb); err != nil {
+			log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromMsg, err)
+		}
+
+		if err := t.AccumulateTagsFor(kubelet.KubePodTaggerEntityPrefix+originInfo.FromTag, cardinality, tb); err != nil {
+			log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromMsg, err)
 		}
 	}
 }

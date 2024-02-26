@@ -122,8 +122,8 @@ func ResetCaptureTagger() {
 }
 
 // EnrichTags is an interface function that queries taggerclient singleton
-func EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
+func EnrichTags(tb tagset.TagsAccumulator, originInfo types.OriginInfo) {
 	if globalTagger != nil {
-		globalTagger.EnrichTags(tb, udsOrigin, clientOrigin, cardinalityName)
+		globalTagger.EnrichTags(tb, originInfo)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -64,6 +65,6 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 	defer fakeTagger.ResetTagger()
 	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
-	EnrichTags(tb, "foo", "", "orchestrator")
+	EnrichTags(tb, types.OriginInfo{FromUDS: "foo", Cardinality: "orchestrator"})
 	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
 }

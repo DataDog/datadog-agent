@@ -22,6 +22,25 @@ type Entity struct {
 	hash string
 }
 
+// ProductOrigin is the origin of the product that sent the entity.
+type ProductOrigin string
+
+const (
+	// ProductOriginDogStatsD is the ProductOrigin for DogStatsD.
+	ProductOriginDogStatsD ProductOrigin = "dogstatsd"
+	// ProductOriginAPM is the ProductOrigin for APM.
+	ProductOriginAPM ProductOrigin = "apm"
+)
+
+// OriginInfo contains the Origin Detection information.
+type OriginInfo struct {
+	FromUDS       string
+	FromTag       string
+	FromMsg       string
+	Cardinality   string
+	ProductOrigin ProductOrigin
+}
+
 // GetTags flattens all tags from all cardinalities into a single slice of tag
 // strings.
 func (e Entity) GetTags(cardinality collectors.TagCardinality) []string {

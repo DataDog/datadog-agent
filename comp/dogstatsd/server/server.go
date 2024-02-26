@@ -249,6 +249,7 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 	util.SortUniqInPlace(extraTags)
 
 	entityIDPrecedenceEnabled := cfg.GetBool("dogstatsd_entity_id_precedence")
+	unifiedOriginDetectionEnabled := cfg.GetBool("dogstatsd_unified_origin_detection")
 
 	eolTerminationUDP := false
 	eolTerminationUDS := false
@@ -297,13 +298,14 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 		cachedOriginCounters: make(map[string]cachedOriginCounter),
 		ServerlessMode:       serverless,
 		enrichConfig: enrichConfig{
-			metricPrefix:              metricPrefix,
-			metricPrefixBlacklist:     metricPrefixBlacklist,
-			metricBlocklist:           metricBlocklist,
-			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
-			defaultHostname:           defaultHostname,
-			serverlessMode:            serverless,
-			originOptOutEnabled:       cfg.GetBool("dogstatsd_origin_optout_enabled"),
+			metricPrefix:                  metricPrefix,
+			metricPrefixBlacklist:         metricPrefixBlacklist,
+			metricBlocklist:               metricBlocklist,
+			entityIDPrecedenceEnabled:     entityIDPrecedenceEnabled,
+			unifiedOriginDetectionEnabled: unifiedOriginDetectionEnabled,
+			defaultHostname:               defaultHostname,
+			serverlessMode:                serverless,
+			originOptOutEnabled:           cfg.GetBool("dogstatsd_origin_optout_enabled"),
 		},
 	}
 

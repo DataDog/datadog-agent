@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/metrics
 go 1.21.7
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/tagger => ../../comp/core/tagger/
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry/
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model/
@@ -14,7 +15,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../util/sort/
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../util/system/socket
-
 )
 
 require (
